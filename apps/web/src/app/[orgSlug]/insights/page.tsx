@@ -21,8 +21,7 @@ export default function InsightsPage({ params }: { params: Promise<{ orgSlug: st
     <InsightsPortfolioScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
-    >
-      <InsightsExportButton organizationSlug={orgSlug} />
-    </InsightsPortfolioScreen>
+      headerActions={<InsightsExportButton organizationSlug={orgSlug} />}
+    />
   );
 }

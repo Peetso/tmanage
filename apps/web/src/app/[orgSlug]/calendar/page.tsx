@@ -16,8 +16,24 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../lib/fixtures';
  * The organization name is still a fixture, for the same reason as its sibling routes: no endpoint
  * returns the current organization's profile by slug.
  */
-export default function CalendarPage({ params }: { params: Promise<{ orgSlug: string }> }) {
+export default function CalendarPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orgSlug: string }>;
+  searchParams: Promise<{ project?: string | string[] }>;
+}) {
   const { orgSlug } = use(params);
+  // `?project=<id>` preselects a project, so a project screen (or a shared link) can open
+  // straight onto that project's meetings.
+  const { project } = use(searchParams);
+  const initialProjectId = typeof project === 'string' ? project : undefined;
 
-  return <MeetingsScreen organizationSlug={orgSlug} organizationName={FIXTURE_ORGANIZATION_NAME} />;
+  return (
+    <MeetingsScreen
+      organizationSlug={orgSlug}
+      organizationName={FIXTURE_ORGANIZATION_NAME}
+      {...(initialProjectId ? { initialProjectId } : {})}
+    />
+  );
 }

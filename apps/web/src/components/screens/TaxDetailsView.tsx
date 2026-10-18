@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/billing-tax-details';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface TaxDetailsViewProps {
   organizationSlug: string;
@@ -107,93 +108,97 @@ export function TaxDetailsView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Tax and legal entity"
       description="Your legal billing entity and tax details, shown on invoices. No card details are stored here."
     >
-      {details.isError ? (
-        <InlineAlert tone="danger" title="Could not load tax details" live>
-          {describeError(details.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-bil">
+        {details.isError ? (
+          <InlineAlert tone="danger" title="Could not load tax details" live>
+            {describeError(details.error)}
+          </InlineAlert>
+        ) : null}
 
-      {details.isPending ? (
-        <LoadingRegion label="Loading tax details." className="tm-stack tm-stack--tight">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {details.isPending ? (
+          <LoadingRegion label="Loading tax details." className="tm-stack tm-stack--tight">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {!details.isPending && !details.isError ? (
-        <form
-          className="tm-panel tm-stack"
-          noValidate
-          aria-label="Tax and legal entity"
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (!save.isPending) save.mutate();
-          }}
-        >
-          <section className="tm-stack" aria-labelledby="tm-tax-details-heading">
-            <h2 id="tm-tax-details-heading" className="tm-eyebrow">
-              Legal entity
-            </h2>
-            <Field
-              label="Legal name"
-              name="legalName"
-              value={form.legalName}
-              onChange={(event) => set({ legalName: event.target.value })}
-              hint="The legal name of the entity billed. Required."
-              required
-            />
-            <Field
-              label="Tax / VAT ID"
-              name="taxId"
-              value={form.taxId}
-              onChange={(event) => set({ taxId: event.target.value })}
-              hint="VAT, EIN or equivalent. Not a card or account number."
-            />
-            <Field
-              label="Registration number"
-              name="registrationNo"
-              value={form.registrationNo}
-              onChange={(event) => set({ registrationNo: event.target.value })}
-              hint="Company or business registration number, if any."
-            />
-            <Field
-              label="Tax country"
-              name="taxCountry"
-              value={form.taxCountry}
-              onChange={(event) => set({ taxCountry: event.target.value })}
-              hint="A two-letter ISO country code, such as GB or US."
-              required
-            />
-          </section>
+        {!details.isPending && !details.isError ? (
+          <form
+            className="tm-panel tm-stack"
+            noValidate
+            aria-label="Tax and legal entity"
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (!save.isPending) save.mutate();
+            }}
+          >
+            <section className="tm-stack" aria-labelledby="tm-tax-details-heading">
+              <h2 id="tm-tax-details-heading" className="tm-eyebrow">
+                Legal entity
+              </h2>
+              <Field
+                label="Legal name"
+                name="legalName"
+                value={form.legalName}
+                onChange={(event) => set({ legalName: event.target.value })}
+                hint="The legal name of the entity billed. Required."
+                required
+              />
+              <Field
+                label="Tax / VAT ID"
+                name="taxId"
+                value={form.taxId}
+                onChange={(event) => set({ taxId: event.target.value })}
+                hint="VAT, EIN or equivalent. Not a card or account number."
+              />
+              <Field
+                label="Registration number"
+                name="registrationNo"
+                value={form.registrationNo}
+                onChange={(event) => set({ registrationNo: event.target.value })}
+                hint="Company or business registration number, if any."
+              />
+              <Field
+                label="Tax country"
+                name="taxCountry"
+                value={form.taxCountry}
+                onChange={(event) => set({ taxCountry: event.target.value })}
+                hint="A two-letter ISO country code, such as GB or US."
+                required
+              />
+            </section>
 
-          {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save tax details" live>
-              {describeError(save.error)}
-            </InlineAlert>
-          ) : null}
+            {save.isError ? (
+              <InlineAlert tone="danger" title="Could not save tax details" live>
+                {describeError(save.error)}
+              </InlineAlert>
+            ) : null}
 
-          {saved && !save.isError ? (
-            <InlineAlert tone="success" title="Tax details saved" live>
-              Your tax and legal entity details have been updated.
-            </InlineAlert>
-          ) : null}
+            {saved && !save.isError ? (
+              <InlineAlert tone="success" title="Tax details saved" live>
+                Your tax and legal entity details have been updated.
+              </InlineAlert>
+            ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={save.isPending}
-              loadingLabel="Saving"
-            >
-              Save tax details
-            </Button>
-          </div>
-        </form>
-      ) : null}
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={save.isPending}
+                loadingLabel="Saving"
+              >
+                Save tax details
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </div>
     </AppShell>
   );
 }

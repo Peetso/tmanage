@@ -5,7 +5,6 @@ import { render } from '@testing-library/react';
 import { AA_NON_TEXT, AA_NORMAL_TEXT, contrastRatio } from '@tmanage/ui';
 import { describe, expect, it } from 'vitest';
 import { IdentityShell } from '../src/components/shell/IdentityShell';
-import { INTERNAL_NAVIGATION } from '../src/components/shell/navigation';
 
 /**
  * The pairs the stylesheets actually paint.
@@ -254,18 +253,12 @@ describe('the identity footer (C-04)', () => {
  * computed from the real declarations in both themes.
  */
 const INVERTED_FOREGROUNDS: ReadonlyArray<readonly [selector: string, ground: string]> = [
-  ['.tm-rail', '.tm-rail'],
-  ['.tm-rail__item', '.tm-rail'],
-  [".tm-rail__item[aria-current='page']", '.tm-rail'],
-  ['.tm-portal__header', '.tm-portal__header'],
-  ['.tm-portal__provider', '.tm-portal__header'],
-  // The mobile primary-nav dock (Module 23), the inverted twin of the orbital rail: the dock
-  // paints `--tm-inverted-ground` on `.tm-mobile-nav` and its items read against it exactly as
-  // the rail's do. The ground is declared on the unconditional `.tm-mobile-nav` rule, not the
-  // `max-width` override that only toggles `display`, so it is the ground in every theme.
-  ['.tm-mobile-nav', '.tm-mobile-nav'],
-  ['.tm-mobile-nav__item', '.tm-mobile-nav'],
-  [".tm-mobile-nav__item[aria-current='page']", '.tm-mobile-nav'],
+  // 2026-10-18 visual rebuild: the rail (`--paper-350`), the portal bar (`--paper-50`) and the
+  // docked orbs (`--paper-0`) are paper surfaces in the handoff, so their words left the inverted
+  // tokens. HOME-01's black day capsule is the one inverted surface that sets text.
+  ['.tm-day-pulse__capsule', '.tm-day-pulse__capsule'],
+  ['.tm-day-pulse__slot-time', '.tm-day-pulse__capsule'],
+  [".tm-day-pulse__slot[data-state='done'] .tm-day-pulse__slot-label", '.tm-day-pulse__capsule'],
 ];
 
 describe('inverted foregrounds in globals.css', () => {
@@ -383,68 +376,43 @@ describe('the focus indicator (C-03)', () => {
 /* ── C-01: the mobile dock at 320px ───────────────────────────────────────────── */
 
 describe('the mobile navigation dock (C-01)', () => {
-  const MOBILE = ruleBody(GLOBALS, '@media (max-width: 60rem)');
+  // `responsive-and-desktop.md`: "640–899 Docked Orbs appear, rail hidden". Below that width
+  // the rail is not shown at all and the five docked orbs are the primary navigation.
+  const MOBILE = ruleBody(GLOBALS, '@media (max-width: 56.19rem)');
   const REFLOW_WIDTH = 320;
+  const DOCK_ITEMS = 5;
 
-  /**
-   * The arithmetic the audit did by hand, done from the tokens instead.
-   *
-   * A flex item's default `min-width: auto` forbids it shrinking below min-content, and
-   * min-content here is at least the orb's fixed inline size. Eight destinations at
-   * `--orb-navigation` plus seven gaps came to roughly 444px of unshrinkable content — about
-   * 124px past the 320px viewport 1.4.10 Reflow specifies, on every internal screen, because
-   * the dock is in `AppShell`. The destination count comes from `INTERNAL_NAVIGATION`, so a
-   * ninth destination fails here rather than in a browser.
-   *
-   * This checks the orbs and the gaps, which are the fixed part. It does **not** check the
-   * labels: they are now allowed to truncate, and their rendered width depends on the
-   * rasterised Manrope face, which jsdom does not have. The label is why releasing
-   * `min-width` below matters as much as the smaller orb does.
-   */
-  it('fits every destination and its gaps inside 320px', () => {
-    const items = INTERNAL_NAVIGATION.length;
-    const orb = px(declarations(ruleBody(MOBILE, '.tm-rail__orb')).get('inline-size') ?? '');
-    const gap = px(declarations(ruleBody(MOBILE, '.tm-rail__list')).get('gap') ?? '');
-
-    expect(items).toBe(8);
-    expect(items * orb + (items - 1) * gap).toBeLessThanOrEqual(REFLOW_WIDTH);
+  it('hides the rail where the dock appears, so one primary navigation is on screen', () => {
+    expect(declarations(ruleBody(MOBILE, '.tm-rail')).get('display')).toBe('none');
+    expect(declarations(ruleBody(MOBILE, '.tm-mobile-nav')).get('display')).toBe('block');
   });
 
   /**
-   * The smaller orb alone is not enough: without releasing `min-width: auto` the label still
-   * sets a min-content floor the item cannot go below, and the row overflows again the
-   * moment a destination is named something longer than "Calendar".
+   * The arithmetic from the tokens: five orbs and four gaps inside 320px (1.4.10 Reflow),
+   * leaving the dock's own inset and padding. The orb is `--orb-comfortable` (44px), which is
+   * also the 44px mobile target the responsive spec asks for.
    */
+  it('fits every destination and its gaps inside 320px', () => {
+    const orb = px(declarations(ruleBody(MOBILE, '.tm-mobile-nav__orb')).get('inline-size') ?? '');
+    const gap = px(declarations(ruleBody(MOBILE, '.tm-mobile-nav__list')).get('gap') ?? '');
+
+    expect(orb).toBe(44);
+    expect(DOCK_ITEMS * orb + (DOCK_ITEMS - 1) * gap).toBeLessThanOrEqual(
+      REFLOW_WIDTH - 2 * 16 - 12,
+    );
+  });
+
   it('releases the min-content floor so the row can shrink', () => {
-    const item = declarations(ruleBody(MOBILE, '.tm-rail__list > li'));
+    const item = declarations(ruleBody(MOBILE, '.tm-mobile-nav__list > li'));
     expect(item.get('min-inline-size')).toBe('0');
     expect(item.get('flex')).toBe('1 1 0');
   });
 
-  /**
-   * The label truncates rather than forcing the row wider. `text-overflow` does not touch the
-   * text node, so the accessible name is still the whole word and 2.5.3 Label in Name holds —
-   * which is the reason this is a truncation and not a removal.
-   */
   it('truncates the label instead of widening the dock', () => {
-    const label = declarations(ruleBody(MOBILE, '.tm-rail__label'));
+    const label = declarations(ruleBody(MOBILE, '.tm-mobile-nav__label'));
     expect(label.get('overflow')).toBe('hidden');
     expect(label.get('text-overflow')).toBe('ellipsis');
     expect(label.get('white-space')).toBe('nowrap');
-  });
-
-  /**
-   * The dock is still a touch target. 2.5.8 asks for 24x24px at AA; the narrowest share of a
-   * 320px viewport is (320 - 7 gaps) / 8, and the orb sets the height.
-   */
-  it('keeps every destination above the 24px target minimum', () => {
-    const items = INTERNAL_NAVIGATION.length;
-    const gap = px(declarations(ruleBody(MOBILE, '.tm-rail__list')).get('gap') ?? '');
-
-    expect((REFLOW_WIDTH - (items - 1) * gap) / items).toBeGreaterThanOrEqual(24);
-    expect(
-      px(declarations(ruleBody(MOBILE, '.tm-rail__orb')).get('block-size') ?? ''),
-    ).toBeGreaterThanOrEqual(24);
   });
 });
 

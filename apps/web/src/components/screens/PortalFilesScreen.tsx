@@ -1,14 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
-import { BackendPending } from './BackendPending';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { listPortalFiles, listPortalProjects, portalFileDownloadPath } from '../../lib/api/portal';
 import type { PortalFile } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { shortDay } from './PortalParts';
 
 export interface PortalFilesScreenProps {
   organizationSlug: string;
@@ -46,6 +47,7 @@ export function PortalFilesScreen({
   client,
 }: PortalFilesScreenProps) {
   const api = client ?? browserApiClient();
+  const [search, setSearch] = useState('');
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -64,99 +66,132 @@ export function PortalFilesScreen({
     })),
   });
 
-  const firstProject = projectList[0];
   const anyFilesLoading = projects.isPending || fileQueries.some((query) => query.isPending);
   const anyFilesError = fileQueries.some((query) => query.isError);
   const totalFiles = fileQueries.reduce((sum, query) => sum + (query.data?.length ?? 0), 0);
+  const needle = search.trim().toLowerCase();
+
+  const rows = projectList.flatMap((project, index) =>
+    (fileQueries[index]?.data ?? [])
+      .filter((file) => needle === '' || file.name.toLowerCase().includes(needle))
+      .map((file) => ({ file, project })),
+  );
 
   return (
     <ClientPortalShell
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      {...(firstProject ? { projectName: firstProject.name } : {})}
       activeNavigationId="files"
-      title="Files"
-      description={`Files ${providerName} has shared with you.`}
+      title="Everything the studio has sent"
+      eyebrow={`Files shared with you · ${totalFiles} ${totalFiles === 1 ? 'item' : 'items'}`}
+      headerAside={
+        totalFiles > 0 ? (
+          <label className="tm-pt-aside-row">
+            <span className="tm-pt-visually-hidden">Search files</span>
+            <input
+              type="search"
+              className="tm-pt-search"
+              placeholder="Search files"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+        ) : undefined
+      }
     >
-      {projects.isError ? (
-        <InlineAlert tone="danger" title="Could not load your files" live>
-          {describe(projects.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-pt tm-pt--compact">
+        {projects.isError ? (
+          <InlineAlert tone="danger" title="Could not load your files" live>
+            {describe(projects.error)}
+          </InlineAlert>
+        ) : null}
 
-      {anyFilesError && !projects.isError ? (
-        <InlineAlert tone="danger" title="Some files could not be loaded" live>
-          Part of your files list did not load. Try again shortly.
-        </InlineAlert>
-      ) : null}
+        {anyFilesError && !projects.isError ? (
+          <InlineAlert tone="danger" title="Some files could not be loaded" live>
+            Part of your files list did not load. Try again shortly.
+          </InlineAlert>
+        ) : null}
 
-      {anyFilesLoading && !projects.isError ? (
-        <LoadingRegion label="Loading your files.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {anyFilesLoading && !projects.isError ? (
+          <LoadingRegion label="Loading your files.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {!anyFilesLoading && !projects.isError && !anyFilesError && totalFiles === 0 ? (
-        <InlineAlert tone="neutral" title="No files yet">
-          <p className="tm-prose">
-            When {providerName} shares a file with you it will appear here, grouped by project. You
-            do not have to keep checking — you will be told when something arrives.
-          </p>
-        </InlineAlert>
-      ) : null}
+        {!anyFilesLoading && !projects.isError && !anyFilesError && totalFiles === 0 ? (
+          <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
+            <h2 className="tm-pt-card__title">No files yet</h2>
+            <p className="tm-pt-card__body">
+              When {providerName} shares a file with you it will appear here. You do not have to
+              keep checking — you will be told when something arrives.
+            </p>
+          </div>
+        ) : null}
 
-      {projectList.map((project, index) => {
-        const files = fileQueries[index]?.data ?? [];
-        if (files.length === 0) return null;
-        return (
-          <section
-            key={project.id}
-            className="tm-stack tm-stack--tight"
-            aria-label={`Files for ${project.name}`}
-          >
-            <h2 className="tm-heading-3">{project.name}</h2>
-            <ul className="tm-stack tm-list" aria-label={`Files in ${project.name}`}>
-              {files.map((file) => (
-                <li key={file.id} className="tm-panel tm-row tm-row--wrap">
-                  <div className="tm-stack tm-stack--tight">
-                    <p className="tm-prose">
-                      <strong>{file.name}</strong>
-                    </p>
-                    <p className="tm-prose">{describeFile(file)}</p>
-                  </div>
-                  <a
-                    className="tm-button tm-button--outline"
-                    href={`${apiBaseUrl()}${portalFileDownloadPath(organizationSlug, file.id)}`}
-                    download={file.name}
-                  >
-                    Download
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
-        );
-      })}
+        {totalFiles > 0 ? (
+          <div className="tm-pt-table-wrap">
+            <table className="tm-pt-table" aria-label={`Files from ${providerName}`}>
+              <thead>
+                <tr>
+                  <th scope="col">File</th>
+                  <th scope="col">Belongs to</th>
+                  <th scope="col">Shared</th>
+                  <th scope="col">
+                    <span className="tm-pt-visually-hidden">Download</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ file, project }) => (
+                  <tr key={file.id}>
+                    <td>
+                      <div className="tm-pt-file">
+                        <span className="tm-pt-file__icon" aria-hidden="true" />
+                        <div>
+                          <p className="tm-pt-file__name">{file.name}</p>
+                          <p className="tm-pt-mono">{describeFile(file)}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{project.name}</td>
+                    <td>{shortDay(file.uploadedAt)}</td>
+                    <td>
+                      <a
+                        className="tm-pt-btn tm-pt-btn--quiet"
+                        href={`${apiBaseUrl()}${portalFileDownloadPath(organizationSlug, file.id)}`}
+                        download={file.name}
+                      >
+                        Download
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+                {rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>No file matches “{search}”.</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
-      <BackendPending ticket="DEL-001 · NS-13">
-        The files here are attachments on your requests. Published deliverables and uploading a file
-        from the portal are not built yet — they are missing rather than shown empty.
-      </BackendPending>
+        <p className="tm-pt-eyebrow">
+          ⊘ Only files {providerName} shared with {clientName} appear here · working drafts stay
+          internal
+        </p>
+      </div>
     </ClientPortalShell>
   );
 }
 
 function describeFile(file: PortalFile): string {
-  const uploaded = new Date(file.uploadedAt);
-  const when = Number.isNaN(uploaded.getTime())
-    ? file.uploadedAt
-    : new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(uploaded);
-  return `${formatBytes(file.sizeBytes)} · shared ${when}`;
+  const kind = file.contentType.split('/').pop()?.split(/[.+-]/).pop() ?? '';
+  return kind ? `${kind} · ${formatBytes(file.sizeBytes)}` : formatBytes(file.sizeBytes);
 }
 
-/** A plain byte count in the largest unit that keeps it readable. */
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes < 0) return `${bytes} bytes`;
   const units = ['bytes', 'KB', 'MB', 'GB'];

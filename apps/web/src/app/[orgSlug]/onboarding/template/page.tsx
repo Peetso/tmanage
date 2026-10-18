@@ -1,6 +1,7 @@
 'use client';
 
 import { use } from 'react';
+import { useRouter } from 'next/navigation';
 import { OperatingTemplateScreen } from '../../../../components/screens/OperatingTemplateScreen';
 import { FIXTURE_SIGNED_IN_AS } from '../../../../lib/fixtures';
 
@@ -9,14 +10,19 @@ import { FIXTURE_SIGNED_IN_AS } from '../../../../lib/fixtures';
  *
  * Under `[orgSlug]` for the same reason `ON-03` is, even though nothing it collects is saved
  * yet: the template is a property of an organization, so the URL should say which one from
- * the start rather than being moved later.
+ * the start rather than being moved later. "Use this template" moves on to the first project.
  */
 export default function OperatingTemplatePage({
   params,
 }: {
   params: Promise<{ orgSlug: string }>;
 }) {
-  // Read so the route is honest about what it receives; the screen saves nothing yet.
-  use(params);
-  return <OperatingTemplateScreen signedInAs={FIXTURE_SIGNED_IN_AS} />;
+  const { orgSlug } = use(params);
+  const router = useRouter();
+  return (
+    <OperatingTemplateScreen
+      signedInAs={FIXTURE_SIGNED_IN_AS}
+      onContinue={() => router.push(`/${orgSlug}/onboarding/project`)}
+    />
+  );
 }

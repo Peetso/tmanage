@@ -3,6 +3,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import {
+  InsightsBars,
+  InsightsCard,
+  InsightsCardHead,
+  InsightsMetric,
+  InsightsMetrics,
+  InsightsSplit,
+  InsightsTabs,
+} from './InsightsKit';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchOrgAdoption } from '../../lib/api/insights-adoption';
 import type { InsightsAdoptionView } from '../../lib/api/insights-adoption';
@@ -49,13 +58,15 @@ export function InsightsAdoptionScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      title="Adoption"
-      description="How much of the studio is actually using the product."
+      eyebrow={
+        adoption.data
+          ? `Insights · Adoption and system quality · Last ${adoption.data.windowDays} days`
+          : 'Insights · Adoption and system quality'
+      }
+      title="Can we trust what this shows"
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-adoption-heading">
-        <h2 id="tm-adoption-heading" className="tm-eyebrow">
-          Adoption
-        </h2>
+      <div className="tm-ins">
+        <InsightsTabs organizationSlug={organizationSlug} current="adoption" />
 
         {adoption.isPending ? (
           <LoadingRegion label="Loading adoption metrics." className="tm-stack tm-stack--tight">
@@ -70,17 +81,17 @@ export function InsightsAdoptionScreen({
           </InlineAlert>
         ) : null}
 
-        {adoption.isSuccess ? <AdoptionTable adoption={adoption.data} /> : null}
-      </section>
+        {adoption.isSuccess ? <AdoptionReport adoption={adoption.data} /> : null}
+      </div>
     </AppShell>
   );
 }
 
 /** The metrics in the order they are shown, keyed to the fields the API returns. */
-const METRICS: readonly { id: keyof AdoptionCounts; label: string }[] = [
-  { id: 'activeMembers', label: 'Active members' },
-  { id: 'membersWithWork', label: 'Members who created work' },
-  { id: 'meetingsHeld', label: 'Meetings held' },
+const METRICS: readonly { id: keyof AdoptionCounts; label: string; short: string }[] = [
+  { id: 'activeMembers', label: 'Active members', short: 'Active members' },
+  { id: 'membersWithWork', label: 'Members who created work', short: 'Created work' },
+  { id: 'meetingsHeld', label: 'Meetings held', short: 'Meetings held' },
 ];
 
 type AdoptionCounts = Pick<
@@ -88,33 +99,99 @@ type AdoptionCounts = Pick<
   'activeMembers' | 'membersWithWork' | 'meetingsHeld'
 >;
 
-function AdoptionTable({ adoption }: { adoption: InsightsAdoptionView }) {
+function AdoptionReport({ adoption }: { adoption: InsightsAdoptionView }) {
+  const share =
+    adoption.activeMembers === 0
+      ? undefined
+      : Math.round((adoption.membersWithWork / adoption.activeMembers) * 100);
+
   return (
     <>
-      <table className="tm-table">
-        <caption className="tm-visually-hidden">
-          Organization adoption over the last {adoption.windowDays} days
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Metric</th>
-            <th scope="col" className="tm-table__number">
-              Count
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {METRICS.map(({ id, label }) => (
-            <tr key={id}>
-              <th scope="row">{label}</th>
-              <td className="tm-mono tm-table__number">{adoption[id]}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <InsightsMetrics label="Adoption headline figures">
+        <InsightsMetric
+          value={share === undefined ? '—' : `${share}%`}
+          badge={`${adoption.membersWithWork} of ${adoption.activeMembers}`}
+          badgeTone={share !== undefined && share < 50 ? 'warning' : 'quiet'}
+          label="of active members created work"
+          note="the rest cannot appear in any forecast"
+        />
+        <InsightsMetric
+          value={adoption.activeMembers}
+          label="members active"
+          note={`over the last ${adoption.windowDays} days`}
+        />
+        <InsightsMetric
+          value={adoption.meetingsHeld}
+          label="meetings held"
+          note="each one a place a decision can be recorded"
+        />
+      </InsightsMetrics>
 
-      <p className="tm-prose">Activity is counted over the last {adoption.windowDays} days.</p>
-      <p className="tm-prose tm-mono">Computed {formatMoment(adoption.computedAt)}.</p>
+      <InsightsSplit
+        main={
+          <InsightsCard variant="table" labelledBy="tm-adoption-heading">
+            <div className="tm-ins-card__lead">
+              <InsightsCardHead
+                id="tm-adoption-heading"
+                title="Adoption"
+                units={`Last ${adoption.windowDays} days`}
+              />
+            </div>
+            <table className="tm-ins-table">
+              <caption className="tm-visually-hidden">
+                Organization adoption over the last {adoption.windowDays} days
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Metric</th>
+                  <th scope="col" className="tm-ins-table__num">
+                    Count
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {METRICS.map(({ id, label }) => (
+                  <tr key={id} data-tone={adoption[id] === 0 ? 'warning' : 'quiet'}>
+                    <th scope="row">{label}</th>
+                    <td className="tm-ins-table__num">{adoption[id]}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p className="tm-ins-card__foot">
+              Activity is counted over the last {adoption.windowDays} days. Computed{' '}
+              {formatMoment(adoption.computedAt)}.
+            </p>
+          </InsightsCard>
+        }
+        side={
+          <>
+            <InsightsCard labelledBy="tm-adoption-bars">
+              <InsightsCardHead
+                id="tm-adoption-bars"
+                title="Where the record is fed"
+                units={`Last ${adoption.windowDays} days`}
+              />
+              <InsightsBars
+                label="Adoption counts"
+                bars={METRICS.map(({ id, short }) => ({
+                  key: id,
+                  label: short,
+                  value: adoption[id],
+                  ...(id === 'membersWithWork' ? { tone: 'lime' as const, emphasis: true } : {}),
+                }))}
+              />
+            </InsightsCard>
+            <InsightsCard variant="callout">
+              <p className="tm-ins-eyebrow">Adoption, measured honestly</p>
+              <p className="tm-ins-card__body">
+                Adoption here means whether the record is complete enough to be relied on. It is not
+                a login count and it is not attributed to individuals.
+              </p>
+            </InsightsCard>
+          </>
+        }
+      />
     </>
   );
 }

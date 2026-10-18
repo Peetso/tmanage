@@ -3,7 +3,9 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import Link from 'next/link';
 import { AppShell } from '../shell/AppShell';
+import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getWorkItemEstimate,
@@ -79,70 +81,81 @@ export function WorkItemEstimateScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
+      eyebrow="Work item"
       title="Effort estimate"
       description="Estimate the effort for this work item and compare it against the logged actual."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-estimate-heading">
-        <h2 id="tm-estimate-heading" className="tm-eyebrow">
-          Estimate
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canSave) save.mutate();
-          }}
-        >
-          <Field
-            label="Estimated minutes"
-            name="minutes"
-            type="number"
-            min={1}
-            max={MAX_MINUTES}
-            value={minutes}
-            onChange={(event) => setMinutes(event.target.value)}
-            hint={`A whole number of minutes, 1 to ${MAX_MINUTES}.`}
-            required
-          />
-          {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save the estimate" live>
-              {describeError(save.error)}
+      <div className="tm-wk-page tm-stack">
+        <nav className="tm-segmented tm-wk-subnav" aria-label="This work item">
+          <Link href={`/${organizationSlug}/work/${workItemId}`}>Overview</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/activity`}>Activity</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`}>Time</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/estimate`} aria-current="page">
+            Estimate
+          </Link>
+        </nav>
+        <section className="tm-panel tm-stack" aria-labelledby="tm-estimate-heading">
+          <h2 id="tm-estimate-heading" className="tm-eyebrow">
+            Estimate
+          </h2>
+          <form
+            className="tm-stack"
+            noValidate
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (canSave) save.mutate();
+            }}
+          >
+            <Field
+              label="Estimated minutes"
+              name="minutes"
+              type="number"
+              min={1}
+              max={MAX_MINUTES}
+              value={minutes}
+              onChange={(event) => setMinutes(event.target.value)}
+              hint={`A whole number of minutes, 1 to ${MAX_MINUTES}.`}
+              required
+            />
+            {save.isError ? (
+              <InlineAlert tone="danger" title="Could not save the estimate" live>
+                {describeError(save.error)}
+              </InlineAlert>
+            ) : null}
+            <div className="tm-row">
+              <Button type="submit" tone="ink" disabled={!canSave} loading={save.isPending}>
+                Save estimate
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section className="tm-panel tm-stack" aria-labelledby="tm-estimate-compare-heading">
+          <h2 id="tm-estimate-compare-heading" className="tm-eyebrow">
+            Estimate vs actual
+          </h2>
+
+          {estimate.isError ? (
+            <InlineAlert tone="danger" title="Could not load the estimate" live>
+              {describeError(estimate.error)}
             </InlineAlert>
           ) : null}
-          <div className="tm-row">
-            <Button type="submit" tone="ink" disabled={!canSave} loading={save.isPending}>
-              Save estimate
-            </Button>
-          </div>
-        </form>
-      </section>
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-estimate-compare-heading">
-        <h2 id="tm-estimate-compare-heading" className="tm-eyebrow">
-          Estimate vs actual
-        </h2>
+          {estimate.isPending ? (
+            <LoadingRegion label="Loading the estimate.">
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {estimate.isError ? (
-          <InlineAlert tone="danger" title="Could not load the estimate" live>
-            {describeError(estimate.error)}
-          </InlineAlert>
-        ) : null}
-
-        {estimate.isPending ? (
-          <LoadingRegion label="Loading the estimate.">
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!estimate.isPending && !estimate.isError && data ? (
-          <ComparisonBar
-            estimateMinutes={data.estimateMinutes}
-            actualMinutes={data.actualMinutes}
-            varianceMinutes={data.varianceMinutes}
-          />
-        ) : null}
-      </section>
+          {!estimate.isPending && !estimate.isError && data ? (
+            <ComparisonBar
+              estimateMinutes={data.estimateMinutes}
+              actualMinutes={data.actualMinutes}
+              varianceMinutes={data.varianceMinutes}
+            />
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

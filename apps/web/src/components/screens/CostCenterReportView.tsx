@@ -8,6 +8,7 @@ import { getCostCenterReport } from '../../lib/api/cost-center-report';
 import type { CostCenterReportRow } from '../../lib/api/cost-center-report';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface CostCenterReportViewProps {
   organizationSlug: string;
@@ -46,61 +47,65 @@ export function CostCenterReportView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Spend by cost center"
       description="Each cost center with the projects assigned to it and their summed budget."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-cost-center-report-heading">
-        <h2 id="tm-cost-center-report-heading" className="tm-eyebrow">
-          Cost centers
-        </h2>
+      <div className="tm-bil">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-cost-center-report-heading">
+          <h2 id="tm-cost-center-report-heading" className="tm-eyebrow">
+            Cost centers
+          </h2>
 
-        {report.isError ? (
-          <InlineAlert tone="danger" title="Could not load the report" live>
-            {describeError(report.error)}
-          </InlineAlert>
-        ) : null}
+          {report.isError ? (
+            <InlineAlert tone="danger" title="Could not load the report" live>
+              {describeError(report.error)}
+            </InlineAlert>
+          ) : null}
 
-        {report.isPending ? (
-          <LoadingRegion label="Loading the cost-center report.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+          {report.isPending ? (
+            <LoadingRegion label="Loading the cost-center report.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {!report.isPending && !report.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No cost centers yet">
-            Define cost centers and assign projects to them to see spend rolled up here.
-          </InlineAlert>
-        ) : null}
+          {!report.isPending && !report.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No cost centers yet">
+              Define cost centers and assign projects to them to see spend rolled up here.
+            </InlineAlert>
+          ) : null}
 
-        {rows.length > 0 ? (
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">
-              Each cost center with its assigned-project count and summed budget.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Code</th>
-                <th scope="col">Name</th>
-                <th scope="col">Projects</th>
-                <th scope="col">Budgeted hours</th>
-                <th scope="col">Budgeted amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.code}</td>
-                  <td>{row.name}</td>
-                  <td>{row.projectCount}</td>
-                  <td>{row.totalBudgetHours}</td>
-                  <td>{formatAmount(row)}</td>
+          {rows.length > 0 ? (
+            <table className="tm-table">
+              <caption className="tm-visually-hidden">
+                Each cost center with its assigned-project count and summed budget.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Code</th>
+                  <th scope="col">Name</th>
+                  <th scope="col">Projects</th>
+                  <th scope="col">Budgeted hours</th>
+                  <th scope="col">Budgeted amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.code}</td>
+                    <td>{row.name}</td>
+                    <td>{row.projectCount}</td>
+                    <td>{row.totalBudgetHours}</td>
+                    <td>{formatAmount(row)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

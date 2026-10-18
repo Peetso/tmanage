@@ -10,6 +10,7 @@ import { fetchRequestTriage, putRequestTriage } from '../../lib/api/request-tria
 import type { RequestTriageView } from '../../lib/api/request-triage';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/work-planning.css';
 
 export interface RequestTriagePanelScreenProps {
   organizationSlug: string;
@@ -97,89 +98,98 @@ export function RequestTriagePanelScreen({
       organizationName={organizationName}
       activeNavigationId="work"
       title="Request triage"
-      description="File an incoming client request under a category and assign it, before commitment."
+      eyebrow="Request detail / Triage"
+      actions={
+        <Link
+          className="wp-capsule"
+          href={`/${encodeURIComponent(organizationSlug)}/work/requests/${encodeURIComponent(
+            clientRequestId,
+          )}`}
+        >
+          Back to the request
+        </Link>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-request-triage-heading">
-        <h2 id="tm-request-triage-heading" className="tm-eyebrow">
-          Triage
-        </h2>
+      <section className="wp-triage" aria-labelledby="tm-request-triage-heading">
+        <div className="wp-triage__asked">
+          <h2 id="tm-request-triage-heading" className="wp-mono-label">
+            Triage
+          </h2>
+          <p className="wp-triage__quote">
+            File the request under a category and give it an owner, before anything is committed.
+          </p>
 
-        <p className="tm-prose">
-          <Link
-            href={`/${encodeURIComponent(organizationSlug)}/work/requests/${encodeURIComponent(
-              clientRequestId,
-            )}`}
-          >
-            Back to the request
-          </Link>
-        </p>
+          {triage.isPending ? (
+            <LoadingRegion label="Loading triage." className="tm-stack tm-stack--tight">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {triage.isPending ? (
-          <LoadingRegion label="Loading triage." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+          {triage.isError ? (
+            <InlineAlert tone="danger" title="Could not load triage" live>
+              {describe(triage.error)}
+            </InlineAlert>
+          ) : null}
 
-        {triage.isError ? (
-          <InlineAlert tone="danger" title="Could not load triage" live>
-            {describe(triage.error)}
-          </InlineAlert>
-        ) : null}
+          {triage.isSuccess ? (
+            <form id="tm-request-triage-form" className="wp-stack" noValidate onSubmit={submit}>
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-triage-category">
+                  Category
+                </label>
+                <select
+                  id="tm-triage-category"
+                  className="tm-field__control"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value)}
+                >
+                  {CATEGORY_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-        {triage.isSuccess ? (
-          <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-triage-category">
-                Category
-              </label>
-              <select
-                id="tm-triage-category"
-                className="tm-field__control"
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-              >
-                {CATEGORY_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+              <Field
+                label="Assign to"
+                name="assigneeMembershipId"
+                value={assignee}
+                onChange={(event) => setAssignee(event.target.value)}
+                hint="Optional. The membership id of an active member of this studio. Leave blank to leave the request unassigned."
+              />
 
-            <Field
-              label="Assign to (membership id)"
-              name="assigneeMembershipId"
-              value={assignee}
-              onChange={(event) => setAssignee(event.target.value)}
-              hint="Optional. An active member of this studio. Leave blank to leave the request unassigned."
-            />
+              {save.isError ? (
+                <InlineAlert tone="danger" title="Could not save triage" live>
+                  {describe(save.error)}
+                </InlineAlert>
+              ) : null}
 
-            {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save triage" live>
-                {describe(save.error)}
-              </InlineAlert>
-            ) : null}
+              {save.isSuccess ? (
+                <InlineAlert tone="success" title="Triage saved" live>
+                  The request has been triaged.
+                </InlineAlert>
+              ) : null}
+            </form>
+          ) : null}
+        </div>
 
-            {save.isSuccess ? (
-              <InlineAlert tone="success" title="Triage saved" live>
-                The request has been triaged.
-              </InlineAlert>
-            ) : null}
-
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={save.isPending}
-                loadingLabel="Saving"
-              >
-                Save triage
-              </Button>
-            </div>
-          </form>
-        ) : null}
+        <div className="wp-triage__actions">
+          {triage.isSuccess ? (
+            <Button
+              type="submit"
+              form="tm-request-triage-form"
+              tone="ink"
+              size="accessible"
+              loading={save.isPending}
+              loadingLabel="Saving"
+            >
+              Save triage
+            </Button>
+          ) : null}
+          <p className="wp-caption">Triage files and assigns. It promises nothing to the client.</p>
+        </div>
       </section>
     </AppShell>
   );

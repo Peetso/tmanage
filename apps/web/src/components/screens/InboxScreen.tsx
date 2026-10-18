@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CLIENT_REQUEST_STATES, WORK_ITEM_STATES } from '@tmanage/domain';
@@ -8,7 +8,6 @@ import type { ClientRequestState, WorkItemState } from '@tmanage/domain';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { DEFAULT_INBOX_PAGE, listInbox, markBundleRead } from '../../lib/api/inbox';
 import type { InboxBundle, InboxItem, InboxMode, InboxUsageNotice } from '../../lib/api/inbox';
@@ -16,6 +15,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import { triageStateCapsule, triageStateLabel } from '../../lib/triage-presentation';
+import '../../styles/screens/inbox.css';
 
 export interface InboxScreenProps {
   organizationSlug: string;
@@ -26,25 +26,27 @@ export interface InboxScreenProps {
 /**
  * **TM-04 Inbox** — `22-SCREEN-BY-SCREEN` §TM-04, `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §4
  * (`IN-01` through `IN-04`), and the Inbox part of `WEB-010 Home/Inbox/Search/Admin screens`,
- * over the first half of `INBOX-001`.
+ * over the first half of `INBOX-001`. Painted as the handoff's IN-01 / IN-05 frame: a 504px
+ * column of bundle cards beside the detail of the selected bundle.
  *
  * ## The four modes are the API's, not the screen's
  *
  * `REQ-01` filters a list it already holds, so its buttons carry counts. This screen cannot: a
  * mode is a different query — `waiting_on_me` is a different `WHERE`, and `important` is
  * decided by what each bundle contains after the API has resolved it — so switching a mode
- * refetches, and the buttons say what they are without a number the page does not know. A
+ * refetches, and the capsules say what they are without a number the page does not know. A
  * count for a mode not on screen would be a count the API never gave.
  *
- * ## What a row says, and what it does not
+ * ## What a card says, and what it does not
  *
- * A bundle is one object and every notification about it. The row shows the object's title
+ * A bundle is one object and every notification about it. The card shows the object's title
  * and current state — both read by the API through the object's own authorized path at the
  * moment of the request, which is why a bundle about something this person may no longer see
  * never arrives here — the number of updates, how many are unread, and the latest time. The
  * "why" is the event type, said in words: `Blocked`, `Client submitted a request`. Nothing
- * ranks, scores or reorders: `35-NOTIFICATION-AND-EMAIL-COPY` §4's `Due today` and
- * `Blocks 2 people` need facts no notification row carries and no endpoint yet computes.
+ * ranks, scores or reorders: the frame's `Due today` and `Blocks 2 people` need facts no
+ * notification row carries and no endpoint yet computes, so the detail column only restates
+ * what the bundle itself holds.
  *
  * ## One inline action, reauthorized where it runs
  *
@@ -56,6 +58,8 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<InboxMode>('all');
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const now = useNow();
 
   const inbox = useInfiniteQuery({
     queryKey: ['inbox', organizationSlug, mode],
@@ -75,13 +79,22 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
   });
 
   const bundles = mergePages(inbox.data?.pages.map((page) => page.items) ?? []);
+  const selected = bundles.find((item) => item.bundleId === selectedId) ?? bundles[0];
+  const unreadBundles = bundles.filter((item) => item.unreadCount > 0).length;
 
   // A mode is a different list. A "could not mark that read" about a row of the old list
   // would otherwise stay on screen above rows it does not name.
   const selectMode = (next: InboxMode) => {
     markRead.reset();
+    setSelectedId(null);
     setMode(next);
   };
+
+  const markReadProps = (item: InboxItem) => ({
+    loading: markRead.isPending && markRead.variables === item.bundleId,
+    loadingLabel: 'Marking read',
+    onClick: () => markRead.mutate(item.bundleId),
+  });
 
   return (
     <AppShell
@@ -89,176 +102,237 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
       organizationName={organizationName}
       activeNavigationId="inbox"
       title="Inbox"
-      description={`What has happened to the work you are part of at ${organizationName}.`}
+      {...(unreadBundles > 0
+        ? { titleMeta: <span className="tm-inbox-badge">{`${unreadBundles} unread`}</span> }
+        : {})}
     >
-      {inbox.isError ? (
-        <InlineAlert tone="danger" title="Could not load the inbox" live>
-          {describe(inbox.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-inbox">
+        <div className="tm-inbox__alerts">
+          {inbox.isError ? (
+            <InlineAlert tone="danger" title="Could not load the inbox" live>
+              {describe(inbox.error)}
+            </InlineAlert>
+          ) : null}
 
-      {markRead.isError ? (
-        <InlineAlert tone="danger" title="Could not mark that read" live>
-          {describe(markRead.error)}
-        </InlineAlert>
-      ) : null}
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-inbox-modes">
-        <h2 id="tm-inbox-modes" className="tm-eyebrow">
-          Show
-        </h2>
-        <div className="tm-row tm-row--wrap" role="group" aria-label="Inbox mode">
-          {MODES.map((candidate) => (
-            <ModeButton
-              key={candidate.id}
-              id={candidate.id}
-              label={candidate.label}
-              active={mode === candidate.id}
-              onSelect={selectMode}
-            />
-          ))}
+          {markRead.isError ? (
+            <InlineAlert tone="danger" title="Could not mark that read" live>
+              {describe(markRead.error)}
+            </InlineAlert>
+          ) : null}
         </div>
-      </section>
 
-      {inbox.isPending ? (
-        <LoadingRegion label="Loading the inbox.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        <div className="tm-inbox__list">
+          <section aria-labelledby="tm-inbox-modes">
+            <h2 id="tm-inbox-modes" className="tm-visually-hidden">
+              Show
+            </h2>
+            <div className="tm-chip-row tm-inbox-modes" role="group" aria-label="Inbox mode">
+              {MODES.map((candidate) => (
+                <ModeButton
+                  key={candidate.id}
+                  id={candidate.id}
+                  label={candidate.label}
+                  active={mode === candidate.id}
+                  onSelect={selectMode}
+                />
+              ))}
+            </div>
+          </section>
 
-      {/*
-        "Nothing" is only said when the API has said it: a page can come back short — every
-        bundle on it dropped because its object is no longer this person's to see — while a
-        cursor beneath it says there is more. That is "nothing on this page", not "nothing".
-      */}
-      {!inbox.isPending && !inbox.isError && bundles.length === 0 && !inbox.hasNextPage ? (
-        <InlineAlert tone="neutral" title={EMPTY_TITLES[mode]}>
-          <p className="tm-prose">{EMPTY_BODIES[mode]}</p>
-        </InlineAlert>
-      ) : null}
+          {inbox.isPending ? (
+            <LoadingRegion label="Loading the inbox.">
+              <Skeleton height="160px" />
+              <Skeleton height="140px" />
+            </LoadingRegion>
+          ) : null}
 
-      {!inbox.isPending && !inbox.isError && bundles.length === 0 && inbox.hasNextPage ? (
-        <p className="tm-prose">Nothing you can still see on this page. There are older pages.</p>
-      ) : null}
+          {/*
+            "Nothing" is only said when the API has said it: a page can come back short — every
+            bundle on it dropped because its object is no longer this person's to see — while a
+            cursor beneath it says there is more. That is "nothing on this page", not "nothing".
+          */}
+          {!inbox.isPending && !inbox.isError && bundles.length === 0 && !inbox.hasNextPage ? (
+            <div className="tm-inbox-caught-up">
+              <span className="tm-inbox-orb tm-inbox-orb--quiet" aria-hidden="true">
+                ✓
+              </span>
+              <div className="tm-inbox-caught-up__text">
+                <p className="tm-inbox-caught-up__title">{EMPTY_TITLES[mode]}</p>
+                <p>{EMPTY_BODIES[mode]}</p>
+              </div>
+            </div>
+          ) : null}
 
-      {bundles.length > 0 ? (
-        <div
-          className="tm-table-scroll"
-          // A scrollable region must be focusable or a keyboard cannot reach its overflow
-          // columns (WCAG 2.2 2.1.1); the .tm-table-scroll CSS comment states the same.
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-          tabIndex={0}
-          role="region"
-          aria-label="Notification bundles"
-        >
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">
-              Notification bundles, most recently touched first. One row per object; each links to
-              the object.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">About</th>
-                <th scope="col">State</th>
-                <th scope="col">Updates</th>
-                <th scope="col">Latest</th>
-                <th scope="col">
-                  <span className="tm-visually-hidden">Action</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {bundles.map((item) =>
-                item.objectType === 'organization_usage' ? (
-                  <tr key={item.bundleId}>
-                    <th scope="row">
-                      {describeUsage(item)}
-                      <span className="tm-field__hint">Storage usage</span>
-                    </th>
-                    <td>
-                      <StateCapsule state={usageCapsule(item.band)}>{`${item.band}%`}</StateCapsule>
-                    </td>
-                    <td>
-                      {item.count} {item.count === 1 ? 'update' : 'updates'}
-                      {item.unreadCount > 0 ? (
-                        <span className="tm-field__hint">{item.unreadCount} unread</span>
-                      ) : null}
-                    </td>
-                    <td>{formatInstant(item.latestAt)}</td>
-                    <td>
-                      {/* The same inline action every other row has: a usage notice has no
-                          object to open, but it can be dismissed. Wired to the same client call
-                          and the same unread guard, so it greys away after the refetch just as
-                          an object bundle's does. */}
-                      {item.unreadCount > 0 ? (
-                        <Button
-                          tone="outline"
-                          size="accessible"
-                          loading={markRead.isPending && markRead.variables === item.bundleId}
-                          loadingLabel="Marking read"
-                          aria-label="Mark read: Storage usage"
-                          onClick={() => markRead.mutate(item.bundleId)}
+          {!inbox.isPending && !inbox.isError && bundles.length === 0 && inbox.hasNextPage ? (
+            <p className="tm-inbox-pagenote">
+              Nothing you can still see on this page. There are older pages.
+            </p>
+          ) : null}
+
+          {bundles.length > 0 ? (
+            <ul className="tm-inbox-cards" aria-label="Notification bundles">
+              {bundles.map((item) => {
+                const isSelected = item.bundleId === selected?.bundleId;
+                const name =
+                  item.objectType === 'organization_usage' ? 'Storage usage' : item.title;
+                return (
+                  <li key={item.bundleId}>
+                    <article
+                      className="tm-inbox-card"
+                      data-selected={isSelected ? 'true' : undefined}
+                      aria-labelledby={`tm-inbox-card-${cssId(item.bundleId)}`}
+                    >
+                      <div className="tm-inbox-card__head">
+                        <span className={orbClass(item)} aria-hidden="true">
+                          {glyphOf(item)}
+                        </span>
+                        <span className="tm-inbox-card__who">
+                          {item.objectType === 'organization_usage'
+                            ? 'Storage usage'
+                            : describeWhy(item)}
+                        </span>
+                        <time
+                          className="tm-inbox-card__when"
+                          dateTime={item.latestAt}
+                          title={formatInstant(item.latestAt)}
                         >
-                          Mark read
-                        </Button>
-                      ) : null}
-                    </td>
-                  </tr>
+                          {now ? shortAgo(item.latestAt, now) : ''}
+                        </time>
+                      </div>
+
+                      <h2
+                        className="tm-inbox-card__title"
+                        id={`tm-inbox-card-${cssId(item.bundleId)}`}
+                      >
+                        {item.objectType === 'organization_usage' ? (
+                          describeUsage(item)
+                        ) : (
+                          <Link href={hrefOf(organizationSlug, item)}>{item.title}</Link>
+                        )}
+                      </h2>
+
+                      <p className="tm-inbox-card__body">
+                        <span>
+                          {item.count} {item.count === 1 ? 'update' : 'updates'}
+                        </span>
+                        {item.unreadCount > 0 ? (
+                          <span className="tm-inbox-card__unread">{item.unreadCount} unread</span>
+                        ) : null}
+                      </p>
+
+                      {item.objectType === 'organization_usage' ? (
+                        <div className="tm-inbox-track">
+                          <StateCapsule state={usageCapsule(item.band)}>
+                            {`${item.band}%`}
+                          </StateCapsule>
+                        </div>
+                      ) : (
+                        <div className="tm-inbox-track">
+                          {item.types.map((type) => (
+                            <span key={type} className="tm-inbox-track__step">
+                              {WHY[type] ?? type}
+                            </span>
+                          ))}
+                          <span className="tm-inbox-track__arrow" aria-hidden="true">
+                            →
+                          </span>
+                          <StateCapsule state={capsuleOf(item)}>{labelOf(item)}</StateCapsule>
+                        </div>
+                      )}
+
+                      <div className="tm-inbox-card__actions">
+                        {item.objectType === 'organization_usage' ? null : (
+                          <Link
+                            href={hrefOf(organizationSlug, item)}
+                            className="tm-button tm-button--ink tm-button--compact"
+                            aria-label={`Open: ${item.title}`}
+                          >
+                            Open
+                          </Link>
+                        )}
+                        {/* The same inline action on every row: a usage notice has no object to
+                            open, but it can be dismissed. Wired to the same client call and the
+                            same unread guard, so it greys away after the refetch just as an
+                            object bundle's does. */}
+                        {item.unreadCount > 0 ? (
+                          <Button
+                            tone="outline"
+                            size="compact"
+                            aria-label={`Mark read: ${name}`}
+                            {...markReadProps(item)}
+                          >
+                            Mark read
+                          </Button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className="tm-inbox-textlink"
+                          aria-pressed={isSelected}
+                          aria-label={`Details: ${name}`}
+                          onClick={() => setSelectedId(item.bundleId)}
+                        >
+                          Details
+                        </button>
+                      </div>
+                    </article>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+
+          {bundles.length > 0 && !inbox.hasNextPage && !inbox.isPending ? (
+            <div className="tm-inbox-caught-up">
+              <span className="tm-inbox-orb tm-inbox-orb--quiet" aria-hidden="true">
+                ✓
+              </span>
+              <div className="tm-inbox-caught-up__text">
+                {mode === 'all' ? (
+                  <p>You’re caught up. That is everything on work you are part of.</p>
                 ) : (
-                  <tr key={item.bundleId}>
-                    <th scope="row">
-                      <Link href={hrefOf(organizationSlug, item)}>{item.title}</Link>
-                      <span className="tm-field__hint">{describeWhy(item)}</span>
-                    </th>
-                    <td>
-                      <StateCapsule state={capsuleOf(item)}>{labelOf(item)}</StateCapsule>
-                    </td>
-                    <td>
-                      {item.count} {item.count === 1 ? 'update' : 'updates'}
-                      {item.unreadCount > 0 ? (
-                        <span className="tm-field__hint">{item.unreadCount} unread</span>
-                      ) : null}
-                    </td>
-                    <td>{formatInstant(item.latestAt)}</td>
-                    <td>
-                      {item.unreadCount > 0 ? (
-                        <Button
-                          tone="outline"
-                          size="accessible"
-                          loading={markRead.isPending && markRead.variables === item.bundleId}
-                          loadingLabel="Marking read"
-                          aria-label={`Mark read: ${item.title}`}
-                          onClick={() => markRead.mutate(item.bundleId)}
-                        >
-                          Mark read
-                        </Button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ),
-              )}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
+                  <p>
+                    Then you’re caught up. Everything else is grouped in{' '}
+                    <button
+                      type="button"
+                      className="tm-inbox-textlink"
+                      onClick={() => selectMode('all')}
+                    >
+                      all events
+                    </button>
+                    .
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : null}
 
-      {inbox.hasNextPage ? (
-        <div className="tm-row">
-          <Button
-            tone="outline"
-            size="accessible"
-            loading={inbox.isFetchingNextPage}
-            loadingLabel="Loading more"
-            onClick={() => void inbox.fetchNextPage()}
-          >
-            Load more
-          </Button>
+          {inbox.hasNextPage ? (
+            <div className="tm-inbox-more">
+              <Button
+                tone="outline"
+                size="compact"
+                loading={inbox.isFetchingNextPage}
+                loadingLabel="Loading more"
+                onClick={() => void inbox.fetchNextPage()}
+              >
+                Load more
+              </Button>
+            </div>
+          ) : null}
         </div>
-      ) : null}
+
+        {selected ? (
+          <BundleDetail
+            item={selected}
+            organizationSlug={organizationSlug}
+            now={now}
+            markRead={markReadProps(selected)}
+          />
+        ) : null}
+      </div>
 
       {/*
-        WCAG 2.2 4.1.3: "Load more" appends rows to a table that is in no live region, so a
+        WCAG 2.2 4.1.3: "Load more" appends cards to a list that is in no live region, so a
         screen-reader user hears nothing when a page arrives. Announcing the running total into
         the shell's live region tells them the press did something.
       */}
@@ -269,14 +343,173 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
             : ''
         }
       />
-
-      <BackendPending ticket="INBOX-001">
-        Quiet hours, digests and channel preferences are not built: there is nowhere to store a
-        preference yet. There is no screen for a group of related events either, so a row links
-        straight to the thing it is about. Marking read is permanent &mdash; there is no undo
-        interval.
-      </BackendPending>
     </AppShell>
+  );
+}
+
+interface BundleDetailProps {
+  item: InboxItem;
+  organizationSlug: string;
+  now: Date | null;
+  markRead: { loading: boolean; loadingLabel: string; onClick: () => void };
+}
+
+/**
+ * IN-05, the bundle detail beside the list. It restates only what the bundle carries — the
+ * events in words, the current state, the counts and the latest time — because there is no
+ * endpoint for a bundle's history, its client projection or its consequence yet.
+ */
+function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailProps) {
+  const ago = now ? shortAgo(item.latestAt, now) : '';
+  const updates = `${item.count} ${item.count === 1 ? 'update' : 'updates'}`;
+
+  if (item.objectType === 'organization_usage') {
+    const held = item.used + item.reserved;
+    return (
+      <section className="tm-inbox-detail" aria-labelledby="tm-inbox-detail-title">
+        <div className="tm-inbox-detail__head">
+          <div className="tm-inbox-detail__titles">
+            <p className="tm-inbox-eyebrow">Bundle · Storage usage</p>
+            <h2 className="tm-inbox-detail__title" id="tm-inbox-detail-title">
+              {`Storage has reached ${item.band}% of the quota`}
+            </h2>
+          </div>
+        </div>
+        <div className="tm-inbox-detail__grid">
+          <div className="tm-inbox-detail__main">
+            <div className="tm-inbox-detail__card">
+              <h3 className="tm-inbox-detail__card-title">Where it stands</h3>
+              <p className="tm-inbox-detail__mono">
+                {`${formatBytes(held)} held of a ${formatBytes(item.quota)} quota · ${formatBytes(item.reserved)} reserved by uploads in progress`}
+              </p>
+            </div>
+            {item.unreadCount > 0 ? (
+              <div className="tm-inbox-detail__actions">
+                <Button tone="outline" {...markRead}>
+                  Mark read
+                </Button>
+              </div>
+            ) : null}
+          </div>
+          <div className="tm-inbox-detail__aside">
+            <div className="tm-inbox-ink">
+              <p className="tm-inbox-eyebrow">Storage band</p>
+              <div className="tm-inbox-ink__figure">
+                <span className="tm-inbox-ink__value">{`${item.band}%`}</span>
+                <p className="tm-inbox-ink__muted">of the quota in use</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const kind = item.objectType === 'work_item' ? 'Work item' : 'Client request';
+  const href = hrefOf(organizationSlug, item);
+  return (
+    <section className="tm-inbox-detail" aria-labelledby="tm-inbox-detail-title">
+      <div className="tm-inbox-detail__head">
+        <div className="tm-inbox-detail__titles">
+          <p className="tm-inbox-eyebrow">
+            {`Bundle · ${kind} · ${item.types.map((type) => WHY[type] ?? type).join(', ')}`}
+          </p>
+          <h2 className="tm-inbox-detail__title" id="tm-inbox-detail-title">
+            {item.title}
+          </h2>
+        </div>
+        <div className="tm-inbox-detail__tools">
+          <Link
+            href={href}
+            className="tm-inbox-detail__tool"
+            aria-label={`Go to the ${kind.toLowerCase()}`}
+          >
+            ⇱
+          </Link>
+        </div>
+      </div>
+
+      <div className="tm-inbox-detail__track">
+        {item.types.map((type) => (
+          <span key={type} className="tm-inbox-detail__step">
+            {WHY[type] ?? type}
+          </span>
+        ))}
+        <div className="tm-inbox-detail__now">
+          <strong>{labelOf(item)}</strong>
+          <span>{ago ? `${ago} · ${updates}` : updates}</span>
+        </div>
+      </div>
+
+      <div className="tm-inbox-detail__grid">
+        <div className="tm-inbox-detail__main">
+          <div className="tm-inbox-detail__card">
+            <h3 className="tm-inbox-detail__card-title">What happened</h3>
+            <ul className="tm-inbox-detail__inset">
+              {item.types.map((type) => (
+                <li key={type} className="tm-inbox-detail__event">
+                  <span className={orbClass(item)} aria-hidden="true">
+                    {glyphOf(item)}
+                  </span>
+                  {WHY[type] ?? type}
+                </li>
+              ))}
+              <li>
+                <p className="tm-inbox-detail__mono">
+                  {`${updates} · latest ${formatInstant(item.latestAt)}`}
+                </p>
+              </li>
+            </ul>
+            {item.objectType === 'client_request' ? (
+              <p className="tm-inbox-detail__note">
+                <span className="tm-inbox-orb" aria-hidden="true">
+                  ◎
+                </span>
+                From a client. Triage decides scope, owner and committed date.
+              </p>
+            ) : null}
+          </div>
+
+          <div className="tm-inbox-detail__actions">
+            <Link href={href} className="tm-button tm-button--ink">
+              {item.objectType === 'work_item' ? 'Open work item' : 'Open request'}
+            </Link>
+            {item.unreadCount > 0 ? (
+              <Button tone="outline" {...markRead}>
+                Mark read
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="tm-inbox-detail__aside">
+          <div className="tm-inbox-ink">
+            <p className="tm-inbox-eyebrow">Still unread</p>
+            <div className="tm-inbox-ink__figure">
+              <span className="tm-inbox-ink__value">{item.unreadCount}</span>
+              <p className="tm-inbox-ink__muted">{`of ${updates}`}</p>
+            </div>
+            <span className="tm-inbox-ink__rule" aria-hidden="true" />
+            <p className="tm-inbox-eyebrow">Events</p>
+            <ul className="tm-inbox-ink__list">
+              {item.types.map((type) => (
+                <li key={type} className="tm-inbox-ink__item">
+                  <span className="tm-inbox-ink__glyph" aria-hidden="true">
+                    {glyphOf(item)}
+                  </span>
+                  {WHY[type] ?? type}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="tm-inbox-why">
+            <p className="tm-inbox-eyebrow">Why this reached you</p>
+            <p>{reasonOf(item)}</p>
+            <Link href={`/${organizationSlug}/inbox/rules`}>Tune what reaches me</Link>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -284,7 +517,7 @@ const MODES: readonly { readonly id: InboxMode; readonly label: string }[] = [
   { id: 'important', label: 'Important' },
   { id: 'all', label: 'All' },
   { id: 'waiting_on_me', label: 'Waiting on me' },
-  { id: 'client_actions', label: 'Client actions' },
+  { id: 'client_actions', label: 'Client' },
 ];
 
 const EMPTY_TITLES: Record<InboxMode, string> = {
@@ -425,20 +658,80 @@ interface ModeButtonProps {
 }
 
 /**
- * `aria-pressed` rather than a tab set, for `REQ-01`'s reason: the table beneath is the same
- * table, differently filtered, not a panel swap.
+ * `aria-pressed` rather than a tab set, for `REQ-01`'s reason: the list beneath is the same
+ * list, differently filtered, not a panel swap. Painted as the frame's filter capsules; the
+ * client mode keeps the violet external-boundary ring.
  */
 function ModeButton({ id, label, active, onSelect }: ModeButtonProps) {
   return (
     <button
       type="button"
-      className="tm-button tm-button--outline"
+      className={id === 'client_actions' ? 'tm-chip tm-chip--client' : 'tm-chip'}
       aria-pressed={active}
       onClick={() => onSelect(id)}
     >
       {label}
     </button>
   );
+}
+
+/** The browser's clock, read after mount so the server render and the first client render agree. */
+function useNow(): Date | null {
+  const [now, setNow] = useState<Date | null>(null);
+  useEffect(() => {
+    setNow(new Date());
+    const id = window.setInterval(() => setNow(new Date()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  return now;
+}
+
+/** "now", "12m", "26h", "2d", then the short date — the frame's mono time stamps. */
+function shortAgo(value: string, now: Date): string {
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return value;
+  const minutes = Math.floor((now.getTime() - at.getTime()) / 60_000);
+  if (minutes < 1) return 'now';
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(at);
+}
+
+/** The rail's own glyph for what the bundle is about: work, client, or storage. */
+function glyphOf(item: InboxItem): string {
+  if (item.objectType === 'work_item') return '▤';
+  if (item.objectType === 'client_request') return '◎';
+  return '◔';
+}
+
+function orbClass(item: InboxItem): string {
+  if (item.objectType === 'client_request') return 'tm-inbox-orb tm-inbox-orb--client';
+  if (item.objectType === 'organization_usage') return 'tm-inbox-orb tm-inbox-orb--quiet';
+  return 'tm-inbox-orb';
+}
+
+/** A bundle id (`work_item:wi-1`) as a safe element id fragment. */
+function cssId(bundleId: string): string {
+  return bundleId.replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+/** Why the bundle reached this person, from the event types it holds — nothing inferred. */
+function reasonOf(bundle: InboxBundle): string {
+  const reasons: string[] = [];
+  if (bundle.types.includes('work_item.blocked.v1')) {
+    reasons.push('It was marked blocked, and blockers on work you are part of always reach you.');
+  }
+  if (bundle.types.includes('client_request.submitted.v1')) {
+    reasons.push('A client submitted it and you can triage requests.');
+  }
+  if (bundle.types.includes('client_request.transitioned.v1')) {
+    reasons.push('A request you follow was answered.');
+  }
+  if (reasons.length === 0) reasons.push('You are part of the work it is about.');
+  return reasons.join(' ');
 }
 
 function describe(error: unknown): string {

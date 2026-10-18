@@ -19,6 +19,8 @@
    * which is why it lives in the component layer and not in `tokens.css`.
    */
   --tm-ink-absolute: #090a09;
+  /* Its partner: the paper text that sits on an always-dark surface in either theme. */
+  --tm-paper-absolute: #f7f7f3;
 
   /*
    * Law 1 of the token export: "Text on --lime-500 is always --ink-950. White on lime is
@@ -41,6 +43,16 @@
    * design export, which is immutable.
    */
   --tm-on-tone: var(--ink-800);
+
+  /*
+   * Overlay furniture. The design keeps shadow for overlays only (developer-handoff: "Cards use
+   * 1px line.300, not shadow. Shadow tokens exist only for overlays.") — these are those, plus
+   * the scrim under a modal and the dark lime plane SR-01 paints behind the active command row
+   * (the dark theme's `--lime-100`, fixed so the always-dark palette shows it in light too).
+   */
+  --tm-scrim: rgb(9 10 9 / 0.45);
+  --tm-overlay-shadow: 0 24px 64px rgb(9 10 9 / 0.4);
+  --tm-lime-plane-dark: #29351d;
 }
 
 /*
@@ -71,12 +83,32 @@
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);
   font-weight: 500;
+  white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
   transition:
     background-color var(--t-micro) var(--ease),
     color var(--t-micro) var(--ease),
     border-color var(--t-micro) var(--ease);
+}
+
+/*
+ * The orb inside an ink capsule — "+ New work" in the 04 Primitives board: a 32px
+ * `--ink-800` disc carrying a lime glyph, the capsule padded 6px at the start so the disc
+ * sits concentric with the capsule's end. Put the glyph in `<span class="tm-button__orb">`.
+ */
+.tm-button__orb {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  margin-inline-start: calc(var(--s5) * -1 + 6px);
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-md);
+  line-height: 1;
 }
 
 .tm-button--compact {
@@ -103,7 +135,7 @@
 
 .tm-button--ink {
   background: var(--ink-950);
-  color: var(--paper-0);
+  color: var(--paper-50);
 }
 
 .tm-button--ink:hover:not(:disabled):not([aria-disabled='true']) {
@@ -131,14 +163,14 @@
  * darker `--line-700` hover already cleared 3:1 and is unchanged.
  */
 .tm-button--outline {
-  background: transparent;
-  color: var(--ink-800);
-  border-color: var(--ink-500);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  border-color: var(--line-700);
   border-width: var(--b-structural);
 }
 
 .tm-button--outline:hover:not(:disabled):not([aria-disabled='true']) {
-  border-color: var(--line-700);
+  background: var(--paper-50);
 }
 
 /*
@@ -160,7 +192,7 @@
 
 .tm-button--text {
   background: transparent;
-  color: var(--ink-800);
+  color: var(--ink-650);
   padding-inline: var(--s2);
 }
 
@@ -175,6 +207,13 @@
  * that should be hard to read.
  */
 .tm-button--destructive {
+  background: var(--paper-0);
+  color: var(--tm-on-tone);
+  border-color: var(--danger-600);
+  border-width: var(--b-structural);
+}
+
+.tm-button--destructive:hover:not(:disabled):not([aria-disabled='true']) {
   background: var(--danger-600);
   color: var(--tm-ink-absolute);
 }
@@ -189,7 +228,9 @@
  */
 .tm-button:disabled,
 .tm-button[aria-disabled='true'] {
-  opacity: 0.45;
+  background: var(--paper-250);
+  border-color: transparent;
+  color: var(--ink-650);
   cursor: not-allowed;
 }
 
@@ -200,6 +241,11 @@
  */
 .tm-button[aria-busy='true'] {
   cursor: progress;
+}
+
+/* In dark the ink capsule turns light; its orb stays a dark disc so the lime glyph still reads. */
+[data-theme='dark'] .tm-button__orb {
+  background: var(--tm-ink-absolute);
 }
 
 /* ── OrbButton ────────────────────────────────────────────────────────────────── */
@@ -247,7 +293,7 @@
 
 .tm-orb-button--ink {
   background: var(--ink-950);
-  color: var(--paper-0);
+  color: var(--paper-50);
 }
 
 .tm-orb-button--lime {
@@ -257,9 +303,11 @@
 
 /* Same 1.4.11 fix as `.tm-button--outline`: the border is the control, so `--ink-500`. */
 .tm-orb-button--outline {
-  background: transparent;
+  background: var(--paper-0);
   border-color: var(--ink-500);
-  border-width: var(--b-structural);
+  border-width: var(--b-quiet);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
 }
 
 .tm-orb-button:disabled {
@@ -289,12 +337,12 @@
 .tm-field {
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
+  gap: 6px;
 }
 
 .tm-field__label {
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
   font-weight: 500;
   color: var(--ink-800);
 }
@@ -312,11 +360,11 @@
  * together.
  */
 .tm-field__control {
-  min-block-size: var(--control);
+  min-block-size: calc(var(--control) + var(--s2));
   padding-inline: var(--s4);
   border: var(--b-quiet) solid var(--ink-500);
   border-radius: var(--r-control);
-  background: var(--paper-0);
+  background: var(--paper-50);
   color: var(--ink-800);
   font-family: inherit;
   font-size: var(--t-body-md);
@@ -345,7 +393,14 @@
 
 .tm-field__control[aria-invalid='true'] {
   border-color: var(--danger-600);
-  border-width: var(--b-structural);
+  border-width: var(--b-quiet);
+  background: var(--paper-0);
+}
+
+/* The committed-date focus in 04 Primitives: an ink edge inside the lime halo. */
+.tm-field__control:focus-visible {
+  background: var(--paper-0);
+  border-color: var(--ink-950);
 }
 
 .tm-field__control:disabled {
@@ -390,6 +445,7 @@
 .tm-search-field__control {
   padding-inline-start: var(--s10);
   border-radius: var(--r-capsule);
+  background: var(--paper-50);
 }
 
 .tm-search-field__glyph {
@@ -858,11 +914,13 @@
   inline-size: var(--tm-orb, var(--orb-default));
   block-size: var(--tm-orb, var(--orb-default));
   border-radius: var(--r-capsule);
-  background: var(--paper-250);
-  color: var(--ink-800);
+  background: var(--ink-800);
+  color: var(--paper-50);
   font-size: var(--t-ui-sm);
-  font-weight: 500;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   overflow: hidden;
+  flex: none;
 }
 
 /*
@@ -870,12 +928,20 @@
  * external/client boundary"). It is never the only carrier: `Avatar` renders the audience
  * word into the accessible name.
  */
-.tm-avatar--client {
-  box-shadow: 0 0 0 var(--b-expressive) var(--client-500);
+[data-theme='dark'] .tm-avatar {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+.tm-avatar--client,
+[data-theme='dark'] .tm-avatar--client {
+  background: var(--paper-0);
+  color: var(--client-500);
+  box-shadow: inset 0 0 0 var(--b-structural) var(--client-500);
 }
 
 .tm-avatar--overflow {
-  background: var(--paper-150);
+  background: var(--paper-250);
   color: var(--ink-650);
 }
 
@@ -932,8 +998,9 @@
   padding: var(--s1) var(--s3);
   border-radius: var(--r-capsule);
   border: var(--b-quiet) solid var(--line-300);
-  background: var(--paper-50);
+  background: var(--paper-0);
   color: var(--ink-800);
+  white-space: nowrap;
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
   font-weight: 500;
@@ -959,13 +1026,13 @@
   display: inline-flex;
   align-items: center;
   gap: var(--s2);
-  padding: var(--s1) var(--s3);
+  padding: 6px var(--s3);
   border-radius: var(--r-capsule);
-  border: var(--b-structural) solid var(--line-300);
+  border: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
   color: var(--ink-800);
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
   font-weight: 500;
   white-space: nowrap;
 }
@@ -979,7 +1046,7 @@
 .tm-state-capsule--current {
   background: var(--lime-500);
   color: var(--tm-on-lime);
-  border-color: var(--ink-950);
+  border-color: var(--lime-500);
 }
 
 .tm-state-capsule--done {
@@ -1024,7 +1091,8 @@
 }
 
 .tm-state-capsule--archived {
-  background: var(--paper-150);
+  background: var(--paper-250);
+  border-color: var(--paper-250);
   color: var(--ink-650);
 }
 
@@ -1034,13 +1102,13 @@
   display: flex;
   align-items: flex-start;
   gap: var(--s3);
-  padding: var(--s4);
+  padding: 14px;
   border-radius: var(--r-compact);
-  border: var(--b-structural) solid var(--line-300);
-  background: var(--paper-0);
-  color: var(--ink-800);
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
 }
 
 .tm-inline-alert__glyph {
@@ -1050,6 +1118,7 @@
 
 .tm-inline-alert__title {
   font-weight: 600;
+  color: var(--ink-950);
 }
 
 .tm-inline-alert--success {
@@ -1062,10 +1131,647 @@
 
 .tm-inline-alert--danger {
   border-color: var(--danger-600);
+  border-width: var(--b-structural);
+  background: var(--paper-0);
 }
 
 .tm-inline-alert--client {
   border-color: var(--client-500);
+}
+
+/* ── Card, chip, section and metric patterns (HOME-01, WK-02, 04 Primitives) ───────
+ *
+ * Class-only patterns the screens compose; no component wraps them, so a screen keeps its
+ * own markup (and its test ids) and only takes the paint.
+ *
+ * Cards use `1px --line-300`, never a shadow — developer-handoff: "Shadow tokens exist only
+ * for overlays."
+ */
+
+.tm-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+/* The one lime card a screen may carry: the item that is current/next ("Homepage Concept v2"). */
+.tm-card--lime {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+/* The black focus strip and the dark lens: an inverted card. */
+.tm-card--ink {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: var(--paper-50);
+}
+
+[data-theme='dark'] .tm-card--ink {
+  border-color: var(--line-300);
+  background: var(--paper-350);
+  color: var(--ink-950);
+}
+
+/* An empty or "all caught up" region: dashed, on paper. */
+.tm-card--empty {
+  border-style: dashed;
+  background: var(--paper-50);
+}
+
+.tm-card__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-card--lime .tm-button--ink,
+.tm-card--lime .tm-avatar {
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+}
+
+.tm-card--lime .tm-card__eyebrow {
+  color: var(--tm-on-lime);
+}
+
+.tm-card__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: 26px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
+}
+
+.tm-card--lime .tm-card__title {
+  color: var(--tm-on-lime);
+}
+
+.tm-card--ink .tm-card__title {
+  color: inherit;
+}
+
+.tm-card__meta {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+/* A row of cards that share the width equally (HOME-01 "Due & at risk"). */
+.tm-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ── Filter capsules ─────────────────────────────────────────────────────────── */
+
+.tm-chip-row,
+.tm-chip-list,
+.tm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: var(--control);
+  padding-inline: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-family: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+button.tm-chip,
+a.tm-chip {
+  cursor: pointer;
+}
+
+.tm-chip[aria-pressed='true'],
+.tm-chip[aria-current='page'],
+.tm-chip[aria-selected='true'],
+.tm-chip--active {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+/* "+ 26 filters": the dashed capsule that opens more. */
+.tm-chip--dashed {
+  border-style: dashed;
+  background: transparent;
+  color: var(--ink-650);
+}
+
+.tm-chip--compact {
+  min-block-size: 32px;
+  padding-inline: var(--s3);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-chip__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tm-chip__remove {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 20px;
+  block-size: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-caption);
+  cursor: pointer;
+}
+
+/* The segmented switch ("List · Board · Timeline", "Today · Blocked · Client waiting"). */
+.tm-segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+}
+
+.tm-segmented > * {
+  min-block-size: 32px;
+  padding-inline: var(--s4);
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+}
+
+.tm-segmented > [aria-pressed='true'],
+.tm-segmented > [aria-current='page'],
+.tm-segmented > [aria-selected='true'] {
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+/* ── Section heads and metrics ───────────────────────────────────────────────── */
+
+/* "Due & at risk  7 items" — heading.section with a quiet count after it. */
+.tm-section-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin: 0;
+}
+
+.tm-section-head__title {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
+}
+
+.tm-section-head__meta {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-section-head__end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* display.metric: a big tabular number, a tone pill, the meaning and its source. */
+.tm-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-metric__value-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+.tm-metric__value {
+  font-size: var(--t-display-lg);
+  line-height: var(--t-display-lg);
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--ink-950);
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-metric__label {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-metric__source {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-650);
+}
+
+/* The small tone pill beside a metric ("on track", "waiting", "up 2"). */
+.tm-pill {
+  display: inline-flex;
+  align-items: center;
+  margin-block-start: var(--s2);
+  padding: 3px 9px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tm-pill--current {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-pill--warning {
+  border-color: var(--warning-600);
+}
+
+.tm-pill--danger {
+  border-color: var(--danger-600);
+}
+
+.tm-pill--client {
+  border-color: var(--client-500);
+  color: var(--client-500);
+}
+
+/* ── Row list ("Waiting on others") ──────────────────────────────────────────── */
+
+.tm-row-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-row-list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: 44px;
+  padding: 6px var(--s4);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-row-list > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-row-list__end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  font-weight: 400;
+}
+
+/* Identifiers, hashes and times: Geist Mono at caption size. */
+.tm-meta-mono {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Signature patterns (05 · Signature patterns) ────────────────────────────────
+ *
+ * Pulse Track: an ordered list whose segments say ink = confirmed history, lime = now/next,
+ * outline = future, dashed = uncertain. The list is the accessible structure
+ * (developer-handoff: "The Pulse Track must emit an ordered list in the accessibility tree;
+ * the visual segments are decoration over that list"). Mark each `<li>` with `data-state`.
+ */
+
+.tm-pulse-track {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s1);
+  list-style: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  overflow-x: auto;
+}
+
+/* The milestone variant sits straight on the canvas with no outer capsule. */
+.tm-pulse-track--bare {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tm-pulse-track > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex: none;
+  min-block-size: 44px;
+  padding-inline: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-pulse-track--bare > li {
+  min-block-size: 52px;
+}
+
+.tm-pulse-track > li[data-state='done'] {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+}
+
+.tm-pulse-track > li[data-state='current'] {
+  flex: 1;
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-pulse-track > li[data-state='future'] {
+  color: var(--ink-650);
+}
+
+.tm-pulse-track > li[data-state='uncertain'] {
+  border-style: dashed;
+  background: transparent;
+  color: var(--ink-650);
+}
+
+.tm-pulse-track > li[data-state='risk'] {
+  border-color: var(--warning-600);
+}
+
+.tm-pulse-track__meta {
+  margin-inline-start: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* Focus Capsule: one per surface — black body, lime leading orb, "why now" always present. */
+.tm-focus-capsule {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  max-inline-size: 900px;
+  padding: var(--s3) 22px var(--s3) var(--s3);
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+}
+
+.tm-focus-capsule__orb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 52px;
+  block-size: 52px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
+  font-family: var(--font-mono);
+  font-size: 19px;
+  text-decoration: none;
+}
+
+.tm-focus-capsule__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-focus-capsule__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 25px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-focus-capsule__why {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--line-300);
+}
+
+.tm-focus-capsule__end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+/* Audience Halo: who can see this, by ring — internal, client visible, action, conflict. */
+.tm-audience-halo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: 44px;
+  padding-inline: 6px var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-audience-halo__ring {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 30px;
+  block-size: 30px;
+  border: var(--b-structural) solid currentColor;
+  border-radius: var(--r-capsule);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tm-audience-halo--client {
+  border-color: var(--client-500);
+}
+
+.tm-audience-halo--client .tm-audience-halo__ring {
+  color: var(--client-500);
+}
+
+.tm-audience-halo--action {
+  border-color: var(--ink-950);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-audience-halo--conflict {
+  border-style: dashed;
+  border-color: var(--danger-600);
+}
+
+.tm-audience-halo--conflict .tm-audience-halo__ring {
+  border-style: dashed;
+  color: var(--danger-600);
+}
+
+/* Work Story: a vertical rail of dated chapters; the current one has a lime node. */
+.tm-work-story {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-work-story > li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  padding-inline-start: var(--s6);
+}
+
+.tm-work-story > li::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: 3px;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-work-story > li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 4.5px;
+  inset-block: 16px calc(var(--s6) * -1 + 3px);
+  inline-size: 1px;
+  background: var(--line-300);
+}
+
+.tm-work-story > li[data-state='current']::before {
+  inline-size: 14px;
+  block-size: 14px;
+  inset-inline-start: -2px;
+  border: var(--b-structural) solid var(--ink-950);
+  background: var(--lime-500);
+}
+
+.tm-work-story > li[data-state='next']::before {
+  border: var(--b-quiet) dashed var(--line-300);
+  background: transparent;
+}
+
+.tm-work-story__when {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-work-story__title {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-work-story > li[data-state='next'] .tm-work-story__title {
+  color: var(--ink-650);
+}
+
+.tm-work-story__detail {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
 }
 
 /* ── Skeleton ─────────────────────────────────────────────────────────────────── */

@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createProjectInternalRisk,
@@ -135,170 +136,186 @@ export function ProjectRiskRegisterScreen({
       activeNavigationId="work"
       title="Risk register"
       description="This project's internal risks, their severity, and how each is being mitigated."
+      eyebrow="Project · Risks"
+      topBar={
+        <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="risks" />
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-risk-author">
-        <h2 id="tm-risk-author" className="tm-eyebrow">
-          Log a risk
-        </h2>
-        <form className="tm-stack" onSubmit={onSubmit} noValidate>
-          <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={create.isPending}>
-            <Field
-              label="Risk"
-              name="title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              hint="One line. What could go wrong."
-              required
-            />
-
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-risk-likelihood">
-                Likelihood
-              </label>
-              <select
-                id="tm-risk-likelihood"
-                name="likelihood"
-                className="tm-field__control"
-                value={likelihood}
-                onChange={(event) =>
-                  setLikelihood(event.target.value as ProjectInternalRiskLikelihood)
-                }
-              >
-                {AXES.map((value) => (
-                  <option key={value} value={value}>
-                    {AXIS_LABELS[value]}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-risk-impact">
-                Impact
-              </label>
-              <select
-                id="tm-risk-impact"
-                name="impact"
-                className="tm-field__control"
-                value={impact}
-                onChange={(event) => setImpact(event.target.value as ProjectInternalRiskImpact)}
-              >
-                {AXES.map((value) => (
-                  <option key={value} value={value}>
-                    {AXIS_LABELS[value]}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-risk-mitigation">
-                Mitigation
-              </label>
-              <textarea
-                id="tm-risk-mitigation"
-                name="mitigation"
-                className="tm-field__control tm-field__control--multiline"
-                rows={3}
-                value={mitigation}
-                onChange={(event) => setMitigation(event.target.value)}
-                aria-describedby="tm-risk-mitigation-hint"
-              />
-              <span className="tm-field__hint" id="tm-risk-mitigation-hint">
-                Optional. How the risk is being reduced or handled.
-              </span>
-            </div>
-          </fieldset>
-
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not log the risk" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Saving"
-              disabled={!canSubmit}
-            >
-              Log risk
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      {risks.isError ? (
-        <InlineAlert tone="danger" title="Could not load the risk register" live>
-          {describeError(risks.error)}
-        </InlineAlert>
-      ) : null}
-
-      {risks.isPending ? (
-        <LoadingRegion label="Loading the project's risk register.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {!risks.isPending && !risks.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No risks yet">
-          This project has no risks logged. Log the first one above.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? <SeverityMatrix rows={rows} /> : null}
-
-      {rows.length > 0 && changeStatus.isError ? (
-        <InlineAlert tone="danger" title="Could not update the risk" live>
-          {describeError(changeStatus.error)}
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-risks-heading">
-          <h2 id="tm-risks-heading" className="tm-eyebrow">
-            Risks
-          </h2>
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Project risk register"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                Internal risks for this project, in creation order, {rows.length} shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Risk</th>
-                  <th scope="col">Likelihood</th>
-                  <th scope="col">Impact</th>
-                  <th scope="col">Severity</th>
-                  <th scope="col">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((risk) => (
-                  <RiskRow
-                    key={risk.id}
-                    risk={risk}
-                    onStatus={(status) => changeStatus.mutate({ riskId: risk.id, status })}
-                    busy={changeStatus.isPending}
+      <div className="tm-prj tm-prj--sub">
+        <div className="tm-prj__grid tm-prj__grid--aside">
+          <div className="tm-prj__col tm-prj__col--aside">
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-risk-author">
+              <h2 id="tm-risk-author" className="tm-prj-eyebrow">
+                Log a risk
+              </h2>
+              <form className="tm-stack" onSubmit={onSubmit} noValidate>
+                <fieldset
+                  className="tm-fieldset tm-stack tm-stack--loose"
+                  disabled={create.isPending}
+                >
+                  <Field
+                    label="Risk"
+                    name="title"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    hint="One line. What could go wrong."
+                    required
                   />
-                ))}
-              </tbody>
-            </table>
+
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-risk-likelihood">
+                      Likelihood
+                    </label>
+                    <select
+                      id="tm-risk-likelihood"
+                      name="likelihood"
+                      className="tm-field__control"
+                      value={likelihood}
+                      onChange={(event) =>
+                        setLikelihood(event.target.value as ProjectInternalRiskLikelihood)
+                      }
+                    >
+                      {AXES.map((value) => (
+                        <option key={value} value={value}>
+                          {AXIS_LABELS[value]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-risk-impact">
+                      Impact
+                    </label>
+                    <select
+                      id="tm-risk-impact"
+                      name="impact"
+                      className="tm-field__control"
+                      value={impact}
+                      onChange={(event) =>
+                        setImpact(event.target.value as ProjectInternalRiskImpact)
+                      }
+                    >
+                      {AXES.map((value) => (
+                        <option key={value} value={value}>
+                          {AXIS_LABELS[value]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-risk-mitigation">
+                      Mitigation
+                    </label>
+                    <textarea
+                      id="tm-risk-mitigation"
+                      name="mitigation"
+                      className="tm-field__control tm-field__control--multiline"
+                      rows={3}
+                      value={mitigation}
+                      onChange={(event) => setMitigation(event.target.value)}
+                      aria-describedby="tm-risk-mitigation-hint"
+                    />
+                    <span className="tm-field__hint" id="tm-risk-mitigation-hint">
+                      Optional. How the risk is being reduced or handled.
+                    </span>
+                  </div>
+                </fieldset>
+
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not log the risk" live>
+                    {describeError(create.error)}
+                  </InlineAlert>
+                ) : null}
+
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={create.isPending}
+                    loadingLabel="Saving"
+                    disabled={!canSubmit}
+                  >
+                    Log risk
+                  </Button>
+                </div>
+              </form>
+            </section>
           </div>
-        </section>
-      ) : null}
+          <div className="tm-prj__col">
+            {risks.isError ? (
+              <InlineAlert tone="danger" title="Could not load the risk register" live>
+                {describeError(risks.error)}
+              </InlineAlert>
+            ) : null}
+
+            {risks.isPending ? (
+              <LoadingRegion label="Loading the project's risk register.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {!risks.isPending && !risks.isError && rows.length === 0 ? (
+              <InlineAlert tone="neutral" title="No risks yet">
+                This project has no risks logged. Log the first one with the form.
+              </InlineAlert>
+            ) : null}
+
+            {rows.length > 0 ? <SeverityMatrix rows={rows} /> : null}
+
+            {rows.length > 0 && changeStatus.isError ? (
+              <InlineAlert tone="danger" title="Could not update the risk" live>
+                {describeError(changeStatus.error)}
+              </InlineAlert>
+            ) : null}
+
+            {rows.length > 0 ? (
+              <section className="tm-card tm-prj-card" aria-labelledby="tm-risks-heading">
+                <h2 id="tm-risks-heading" className="tm-prj-eyebrow">
+                  Risks
+                </h2>
+                <div
+                  className="tm-table-scroll"
+                  // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
+                  // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Project risk register"
+                >
+                  <table className="tm-table">
+                    <caption className="tm-visually-hidden">
+                      Internal risks for this project, in creation order, {rows.length} shown.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Risk</th>
+                        <th scope="col">Likelihood</th>
+                        <th scope="col">Impact</th>
+                        <th scope="col">Severity</th>
+                        <th scope="col">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((risk) => (
+                        <RiskRow
+                          key={risk.id}
+                          risk={risk}
+                          onStatus={(status) => changeStatus.mutate({ riskId: risk.id, status })}
+                          busy={changeStatus.isPending}
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
 }
@@ -312,8 +329,8 @@ function SeverityMatrix({ rows }: { rows: readonly ProjectInternalRiskSummary[] 
   }, [rows]);
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-risk-matrix-heading">
-      <h2 id="tm-risk-matrix-heading" className="tm-eyebrow">
+    <section className="tm-card tm-prj-card" aria-labelledby="tm-risk-matrix-heading">
+      <h2 id="tm-risk-matrix-heading" className="tm-prj-eyebrow">
         Severity
       </h2>
       <dl className="tm-row">

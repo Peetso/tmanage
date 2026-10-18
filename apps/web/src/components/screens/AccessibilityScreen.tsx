@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -13,6 +13,8 @@ import {
 import type { A11yFontScale, A11yPreferencesView } from '../../lib/api/a11y-preferences';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { PreferenceToggle } from './PreferencesScreen';
+import '../../styles/screens/preferences.css';
 
 export interface AccessibilityScreenProps {
   organizationSlug: string;
@@ -28,6 +30,14 @@ const FONT_SCALE_LABELS: Record<A11yFontScale, string> = {
   md: 'Medium',
   lg: 'Large',
   xl: 'Extra large',
+};
+
+/** The root font size each step sets (globals.css `data-tm-font-scale`), as the read-out shows it. */
+const FONT_SCALE_PERCENT: Record<A11yFontScale, string> = {
+  sm: '94%',
+  md: '100%',
+  lg: '113%',
+  xl: '125%',
 };
 
 /** True when the operating system asks for reduced motion, so the shell honours it even when unset. */
@@ -111,8 +121,8 @@ export function AccessibilityScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      eyebrow="Preferences · Accessibility"
       title="Accessibility"
-      description="Font size, reduced motion and high contrast — applied to the app and saved to your account."
     >
       {preferences.isPending ? (
         <LoadingRegion label="Loading your accessibility preferences">
@@ -123,83 +133,115 @@ export function AccessibilityScreen({
           {errorMessage(preferences.error)}
         </InlineAlert>
       ) : (
-        <form
-          className="tm-panel tm-stack"
-          aria-labelledby="tm-a11y-heading"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setSaved(false);
-            save.mutate();
-          }}
-        >
-          <h2 id="tm-a11y-heading" className="tm-eyebrow">
-            Display preferences
-          </h2>
+        <div className="tm-prefs tm-prefs--a11y">
+          <div className="tm-prefs__main">
+            <form
+              className="tm-prefs-card"
+              aria-labelledby="tm-a11y-heading"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSaved(false);
+                save.mutate();
+              }}
+            >
+              <h2 id="tm-a11y-heading" className="tm-visually-hidden">
+                Display preferences
+              </h2>
 
-          <fieldset className="tm-fieldset tm-stack">
-            <legend className="tm-field__label">Font size</legend>
-            {A11Y_FONT_SCALES.map((scale) => (
-              <div className="tm-field tm-field--inline" key={scale}>
-                <input
-                  id={`tm-a11y-font-${scale}`}
-                  className="tm-field__control"
-                  type="radio"
-                  name="tm-a11y-font-scale"
-                  value={scale}
-                  checked={fontScale === scale}
-                  onChange={() => setFontScale(scale)}
-                />
-                <label className="tm-field__label" htmlFor={`tm-a11y-font-${scale}`}>
-                  {FONT_SCALE_LABELS[scale]}
-                </label>
+              <fieldset className="tm-prefs-section">
+                <legend className="tm-prefs-eyebrow">Text size</legend>
+                <div className="tm-prefs-scale">
+                  <span className="tm-prefs-scale__a" aria-hidden="true">
+                    A
+                  </span>
+                  <div className="tm-prefs-scale__track">
+                    {A11Y_FONT_SCALES.map((scale) => (
+                      <label className="tm-prefs-scale__step" key={scale}>
+                        <input
+                          id={`tm-a11y-font-${scale}`}
+                          type="radio"
+                          name="tm-a11y-font-scale"
+                          value={scale}
+                          checked={fontScale === scale}
+                          onChange={() => setFontScale(scale)}
+                        />
+                        {FONT_SCALE_LABELS[scale]}
+                      </label>
+                    ))}
+                  </div>
+                  <span className="tm-prefs-scale__a tm-prefs-scale__a--big" aria-hidden="true">
+                    A
+                  </span>
+                  <span className="tm-prefs-scale__value">{FONT_SCALE_PERCENT[fontScale]}</span>
+                </div>
+              </fieldset>
+
+              <hr className="tm-prefs-rule" />
+
+              <PreferenceToggle
+                label="High contrast theme"
+                hint="2px borders, no grey-on-grey, lime only for current"
+                checked={highContrast}
+                onChange={(event) => setHighContrast(event.target.checked)}
+              />
+              <PreferenceToggle
+                label="Reduce motion"
+                hint="panels appear instead of sliding"
+                checked={reduceMotion}
+                onChange={(event) => setReduceMotion(event.target.checked)}
+              />
+
+              {save.isError ? (
+                <InlineAlert tone="danger" title="We could not save your preferences">
+                  {errorMessage(save.error)}
+                </InlineAlert>
+              ) : null}
+
+              {saved && !save.isPending && !save.isError ? (
+                <InlineAlert tone="success" title="Saved">
+                  Your accessibility preferences have been saved.
+                </InlineAlert>
+              ) : null}
+
+              <div>
+                <button
+                  type="submit"
+                  className="tm-prefs-capsule tm-prefs-capsule--ink"
+                  disabled={save.isPending}
+                >
+                  {save.isPending ? 'Saving…' : 'Save preferences'}
+                </button>
               </div>
-            ))}
-          </fieldset>
-
-          <div className="tm-field tm-field--inline">
-            <input
-              id="tm-a11y-reduce-motion"
-              className="tm-field__control"
-              type="checkbox"
-              checked={reduceMotion}
-              onChange={(event) => setReduceMotion(event.target.checked)}
-            />
-            <label className="tm-field__label" htmlFor="tm-a11y-reduce-motion">
-              Reduce motion
-            </label>
+            </form>
           </div>
 
-          <div className="tm-field tm-field--inline">
-            <input
-              id="tm-a11y-high-contrast"
-              className="tm-field__control"
-              type="checkbox"
-              checked={highContrast}
-              onChange={(event) => setHighContrast(event.target.checked)}
-            />
-            <label className="tm-field__label" htmlFor="tm-a11y-high-contrast">
-              High contrast
-            </label>
-          </div>
-
-          {save.isError ? (
-            <InlineAlert tone="danger" title="We could not save your preferences">
-              {errorMessage(save.error)}
-            </InlineAlert>
-          ) : null}
-
-          {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved">
-              Your accessibility preferences have been saved.
-            </InlineAlert>
-          ) : null}
-
-          <div>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save preferences'}
-            </Button>
-          </div>
-        </form>
+          <aside className="tm-prefs__side" aria-labelledby="tm-a11y-sample-heading">
+            <h2 id="tm-a11y-sample-heading" className="tm-prefs-eyebrow">
+              Sample with these settings
+            </h2>
+            <div className="tm-prefs-card tm-prefs-card--grow" aria-hidden="true">
+              <div className="tm-prefs-pills">
+                <span className="tm-prefs-pill">Current · in progress</span>
+                <span className="tm-prefs-pill tm-prefs-pill--warn">At risk · blocked</span>
+              </div>
+              <p className="tm-prefs-line">
+                <span className="tm-prefs-line__mark" />
+                Client visible — the client can open this
+              </p>
+              <p className="tm-prefs-line">
+                <span className="tm-prefs-line__bang">!</span>
+                Client action required — waiting 26 hours
+              </p>
+              <hr className="tm-prefs-rule" />
+              <span className="tm-prefs-focused">Focused button</span>
+              <p className="tm-prefs-card__body">
+                Text renders at {FONT_SCALE_PERCENT[fontScale]}. Every status carries a word as well
+                as a colour, and the focus ring is lime over an ink outline so it survives both
+                themes.
+              </p>
+            </div>
+          </aside>
+        </div>
       )}
     </AppShell>
   );

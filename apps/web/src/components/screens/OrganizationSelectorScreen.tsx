@@ -3,20 +3,13 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Badge,
-  Button,
-  InlineAlert,
-  LoadingRegion,
-  SearchField,
-  Skeleton,
-  StatusDot,
-} from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations, type OrganizationSummary } from '../../lib/api/organizations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/identity.css';
 
 export interface OrganizationSelectorScreenProps {
   client?: ApiClient;
@@ -69,98 +62,112 @@ export function OrganizationSelectorScreen({ client }: OrganizationSelectorScree
 
   return (
     <IdentityShell screenId="ID-04" eyebrow="Choose where you are working">
-      <div className="tm-stack tm-stack--tight">
+      <div className="tm-id-bare tm-id-orgs tm-stack">
         <h1 className="tm-identity__title">{heading(organizations.data)}</h1>
-      </div>
 
-      {organizations.isPending ? (
-        <LoadingRegion label="Loading your organizations." className="tm-stack tm-stack--tight">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {organizations.isPending ? (
+          <LoadingRegion label="Loading your organizations." className="tm-stack tm-stack--tight">
+            <Skeleton height="88px" />
+            <Skeleton height="88px" />
+          </LoadingRegion>
+        ) : null}
 
-      {organizations.isError ? (
-        <InlineAlert tone="danger" title="Could not load your organizations" live>
-          {describe(organizations.error)}
-        </InlineAlert>
-      ) : null}
-
-      {organizations.isSuccess && organizations.data.length === 0 ? (
-        <>
-          <InlineAlert tone="neutral" title="You are not in an organization yet">
-            An organization is the space your team works in. Create one and you become its owner.
+        {organizations.isError ? (
+          <InlineAlert tone="danger" title="Could not load your organizations" live>
+            {describe(organizations.error)}
           </InlineAlert>
-          <div className="tm-row">
-            <Link
-              className="tm-button tm-button--ink tm-button--accessible"
-              href="/onboarding/organization"
-            >
-              Create an organization
-            </Link>
-          </div>
-        </>
-      ) : null}
+        ) : null}
 
-      {organizations.isSuccess && organizations.data.length > 0 ? (
-        <>
-          <SearchField
-            label="Search organizations"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search organizations"
-          />
-
-          {matches.length === 0 ? (
-            <InlineAlert tone="neutral" live>
-              No organization matches “{query}”.
+        {organizations.isSuccess && organizations.data.length === 0 ? (
+          <div className="tm-id-card">
+            <InlineAlert tone="neutral" title="You are not in an organization yet">
+              An organization is the space your team works in. Create one and you become its owner.
             </InlineAlert>
-          ) : (
-            <ul className="tm-stack tm-list">
-              {matches.map((organization) => (
-                <li key={`${organization.id}-${organization.audience}`}>
-                  <Link
-                    className="tm-panel tm-choice-row"
-                    href={
-                      organization.audience === 'client'
-                        ? `/${organization.slug}/portal`
-                        : `/${organization.slug}/home`
-                    }
-                  >
-                    <span className="tm-choice-row__name">
-                      {organization.audience === 'client' && organization.clientOrganizationName
-                        ? organization.clientOrganizationName
-                        : organization.name}
-                    </span>
-                    <span className="tm-choice-row__meta">
-                      <Badge tone={organization.audience === 'client' ? 'client' : 'neutral'}>
-                        {organization.audience === 'client' ? 'Client portal' : 'Internal member'}
-                      </Badge>
-                      <span className="tm-prose">{humanise(organization.role)}</span>
-                      {organization.audience === 'client' ? (
-                        <StatusDot tone="client">Delivered by {organization.name}</StatusDot>
-                      ) : null}
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <div className="tm-row">
-            <Button tone="text" disabled>
-              Last opened is not recorded yet
-            </Button>
+            <div className="tm-row">
+              <Link
+                className="tm-button tm-button--ink tm-button--accessible"
+                href="/onboarding/organization"
+              >
+                Create an organization
+              </Link>
+            </div>
           </div>
-        </>
-      ) : null}
+        ) : null}
 
-      <InlineAlert tone="neutral">
-        Each organization is a separate space. Nothing is shared between them — not search, not
-        files, not notifications.
-      </InlineAlert>
+        {organizations.isSuccess && organizations.data.length > 0 ? (
+          <>
+            <SearchField
+              label="Search organizations"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search organizations"
+            />
+
+            {matches.length === 0 ? (
+              <InlineAlert tone="neutral" live>
+                No organization matches “{query}”.
+              </InlineAlert>
+            ) : (
+              <ul className="tm-id-org-list">
+                {matches.map((organization) => {
+                  const isClient = organization.audience === 'client';
+                  const name =
+                    isClient && organization.clientOrganizationName
+                      ? organization.clientOrganizationName
+                      : organization.name;
+                  return (
+                    <li key={`${organization.id}-${organization.audience}`}>
+                      <Link
+                        className={isClient ? 'tm-id-org tm-id-org--client' : 'tm-id-org'}
+                        href={
+                          isClient ? `/${organization.slug}/portal` : `/${organization.slug}/home`
+                        }
+                      >
+                        <span className="tm-id-org__orb" aria-hidden="true">
+                          {initials(name)}
+                        </span>
+                        <span className="tm-id-org__text">
+                          <span className="tm-id-org__name">{name}</span>
+                          <span className="tm-id-org__meta">
+                            <span>{isClient ? 'Client portal' : 'Internal member'}</span>
+                            {' · '}
+                            <span>{humanise(organization.role)}</span>
+                            {isClient ? (
+                              <>
+                                {' · '}
+                                <span>Delivered by {organization.name}</span>
+                              </>
+                            ) : null}
+                          </span>
+                        </span>
+                        {isClient ? <span className="tm-id-org__chip">portal mode</span> : null}
+                        <span className="tm-id-org__go" aria-hidden="true">
+                          →
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </>
+        ) : null}
+
+        <InlineAlert className="tm-id-footnote" tone="neutral">
+          Each organization is a separate space. Nothing is shared between them — not search, not
+          files, not notifications.
+        </InlineAlert>
+      </div>
     </IdentityShell>
   );
+}
+
+/** Two letters for the orb: the first letters of the first two words, or the first two letters. */
+function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const letters =
+    words.length >= 2 ? `${words[0]!.charAt(0)}${words[1]!.charAt(0)}` : name.trim().slice(0, 2);
+  return letters.toLocaleUpperCase();
 }
 
 function heading(organizations: readonly OrganizationSummary[] | undefined): string {

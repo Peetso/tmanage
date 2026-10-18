@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
+import { shortDevice, sinceLabel } from '../admin/format';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrgSessions, revokeOrgSession } from '../../lib/api/admin-sessions';
 import type { ActiveSessionView } from '../../lib/api/admin-sessions';
@@ -18,7 +19,8 @@ export interface AdminSessionsScreenProps {
 }
 
 /**
- * **Active sessions** — the Administration session viewer + revocation (ADM, x223). Reads
+ * **Active sessions** — the Administration session viewer + revocation (ADM-08's session card,
+ * x223), drawn as ADM-08's "Active sessions · N / Last seen" table card at full width. Reads
  * `GET .../admin/sessions` and posts to `.../admin/sessions/:sessionId/revoke`, both gated on
  * `org.manage`.
  *
@@ -60,11 +62,15 @@ export function AdminSessionsScreen({
   const rows = sessions.data ?? [];
 
   return (
-    <AppShell
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Active sessions"
-      description="Signed-in sessions across your organization's members. End any one of them."
+      section="sessions"
+      crumbs={['Security', 'Sessions']}
+      title="Who is signed in"
+      {...(sessions.isSuccess
+        ? { titleMeta: `${rows.length} active ${rows.length === 1 ? 'session' : 'sessions'}` }
+        : {})}
     >
       {sessions.isPending ? (
         <LoadingRegion label="Loading active sessions." className="tm-stack tm-stack--tight">
@@ -91,16 +97,18 @@ export function AdminSessionsScreen({
       ) : null}
 
       {rows.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-sessions-heading">
-          <h2 id="tm-sessions-heading" className="tm-eyebrow">
+        <section className="tm-cc-card tm-cc-card--flush" aria-labelledby="tm-sessions-heading">
+          <h2 id="tm-sessions-heading" className="tm-visually-hidden">
             Sessions
           </h2>
-          <table className="tm-table" aria-label="Active sessions across the organization">
+          <table
+            className="tm-table tm-cc-table"
+            aria-label="Active sessions across the organization"
+          >
             <thead>
               <tr>
-                <th scope="col">Member</th>
-                <th scope="col">Device</th>
-                <th scope="col">Started</th>
+                <th scope="col">Active sessions · {rows.length}</th>
+                <th scope="col">Signed in</th>
                 <th scope="col">Last seen</th>
                 <th scope="col">
                   <span className="tm-visually-hidden">Actions</span>
@@ -120,7 +128,7 @@ export function AdminSessionsScreen({
           </table>
         </section>
       ) : null}
-    </AppShell>
+    </ControlCenterShell>
   );
 }
 
@@ -135,12 +143,22 @@ function SessionRow({
 }) {
   return (
     <tr>
-      <td>{session.memberName}</td>
-      <td className="tm-mono">{session.deviceLabel ?? 'Unknown device'}</td>
-      <td className="tm-mono">{formatMoment(session.createdAt)}</td>
-      <td className="tm-mono">{formatMoment(session.lastSeenAt)}</td>
       <td>
-        <Button type="button" tone="destructive" size="compact" onClick={onRevoke} disabled={busy}>
+        <span className="tm-cc-cell-title">{session.memberName}</span>
+        <span className="tm-cc-cell-sub" title={session.deviceLabel ?? undefined}>
+          {shortDevice(session.deviceLabel)}
+        </span>
+      </td>
+      <td>
+        <span className="tm-cc-cell-sub">{formatMoment(session.createdAt)}</span>
+      </td>
+      <td>
+        <span className="tm-cc-cell-mono" title={formatMoment(session.lastSeenAt)}>
+          {sinceLabel(session.lastSeenAt)}
+        </span>
+      </td>
+      <td className="tm-cc-end">
+        <Button type="button" tone="outline" size="compact" onClick={onRevoke} disabled={busy}>
           {busy ? 'Ending…' : 'End session'}
         </Button>
       </td>

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { captureSnapshot, listSnapshots } from '../../lib/api/insights-snapshots';
 import type { SnapshotKind, SnapshotView } from '../../lib/api/insights-snapshots';
@@ -70,75 +71,78 @@ export function InsightSnapshotsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
+      eyebrow="Insights"
       title="Insight snapshots"
       description="Capture a point-in-time metric snapshot and compare it against the latest over time."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-snapshots-heading">
-        <h2 id="tm-snapshots-heading" className="tm-eyebrow">
-          Insight snapshots
-        </h2>
+      <div className="tm-ins tm-ins-tool">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-snapshots-heading">
+          <h2 id="tm-snapshots-heading" className="tm-eyebrow">
+            Insight snapshots
+          </h2>
 
-        <div className="tm-row">
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-snapshot-kind">
-              Report kind
-            </label>
-            <select
-              id="tm-snapshot-kind"
-              className="tm-field__control"
-              value={kind}
-              onChange={(event) => {
-                setKind(event.target.value as SnapshotKind);
-                setSelectedId(null);
-              }}
+          <div className="tm-row">
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-snapshot-kind">
+                Report kind
+              </label>
+              <select
+                id="tm-snapshot-kind"
+                className="tm-field__control"
+                value={kind}
+                onChange={(event) => {
+                  setKind(event.target.value as SnapshotKind);
+                  setSelectedId(null);
+                }}
+              >
+                {KINDS.map(({ id, label }) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button
+              type="button"
+              onClick={() => capture.mutate()}
+              loading={capture.isPending}
+              loadingLabel="Capturing a snapshot"
             >
-              {KINDS.map(({ id, label }) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              Capture current metrics
+            </Button>
           </div>
-          <Button
-            type="button"
-            onClick={() => capture.mutate()}
-            loading={capture.isPending}
-            loadingLabel="Capturing a snapshot"
-          >
-            Capture current metrics
-          </Button>
-        </div>
 
-        {capture.isError ? (
-          <InlineAlert tone="danger" title="Could not capture a snapshot" live>
-            {describe(capture.error)}
-          </InlineAlert>
-        ) : null}
+          {capture.isError ? (
+            <InlineAlert tone="danger" title="Could not capture a snapshot" live>
+              {describe(capture.error)}
+            </InlineAlert>
+          ) : null}
 
-        {history.isPending ? (
-          <LoadingRegion label="Loading snapshot history." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+          {history.isPending ? (
+            <LoadingRegion label="Loading snapshot history." className="tm-stack tm-stack--tight">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {history.isError ? (
-          <InlineAlert tone="danger" title="Could not load the snapshot history" live>
-            {describe(history.error)}
-          </InlineAlert>
-        ) : null}
+          {history.isError ? (
+            <InlineAlert tone="danger" title="Could not load the snapshot history" live>
+              {describe(history.error)}
+            </InlineAlert>
+          ) : null}
 
-        {history.isSuccess ? (
-          <SnapshotHistory
-            snapshots={snapshots}
-            currentId={current?.id ?? null}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-        ) : null}
+          {history.isSuccess ? (
+            <SnapshotHistory
+              snapshots={snapshots}
+              currentId={current?.id ?? null}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
+          ) : null}
 
-        {selected && current ? <SnapshotCompare current={current} selected={selected} /> : null}
-      </section>
+          {selected && current ? <SnapshotCompare current={current} selected={selected} /> : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

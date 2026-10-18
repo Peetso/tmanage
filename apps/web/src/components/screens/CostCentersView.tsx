@@ -15,6 +15,7 @@ import {
 } from '../../lib/api/billing-cost-centers';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface CostCentersViewProps {
   organizationSlug: string;
@@ -73,98 +74,102 @@ export function CostCentersView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Cost centers"
       description="Name cost centers and assign projects to them, to group usage by cost center."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-cost-center-new-heading">
-        <h2 id="tm-cost-center-new-heading" className="tm-eyebrow">
-          New cost center
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canCreate) create.mutate();
-          }}
-        >
-          <Field
-            label="Code"
-            name="code"
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            hint="A short identifier, up to 64 characters."
-            maxLength={64}
-            required
-          />
-          <Field
-            label="Name"
-            name="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            hint="The display name for this cost center."
-            maxLength={190}
-            required
-          />
+      <div className="tm-bil">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-cost-center-new-heading">
+          <h2 id="tm-cost-center-new-heading" className="tm-eyebrow">
+            New cost center
+          </h2>
+          <form
+            className="tm-stack"
+            noValidate
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (canCreate) create.mutate();
+            }}
+          >
+            <Field
+              label="Code"
+              name="code"
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              hint="A short identifier, up to 64 characters."
+              maxLength={64}
+              required
+            />
+            <Field
+              label="Name"
+              name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              hint="The display name for this cost center."
+              maxLength={190}
+              required
+            />
 
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not create the cost center" live>
-              {describeError(create.error)}
+            {create.isError ? (
+              <InlineAlert tone="danger" title="Could not create the cost center" live>
+                {describeError(create.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={create.isPending}
+                loadingLabel="Creating"
+                disabled={!canCreate}
+              >
+                Create cost center
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="tm-panel tm-panel--quiet tm-stack"
+          aria-labelledby="tm-cost-center-list-heading"
+        >
+          <h2 id="tm-cost-center-list-heading" className="tm-eyebrow">
+            Cost centers
+          </h2>
+
+          {costCenters.isError ? (
+            <InlineAlert tone="danger" title="Could not load the cost centers" live>
+              {describeError(costCenters.error)}
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Creating"
-              disabled={!canCreate}
-            >
-              Create cost center
-            </Button>
-          </div>
-        </form>
-      </section>
+          {costCenters.isPending ? (
+            <LoadingRegion label="Loading the cost centers.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-cost-center-list-heading"
-      >
-        <h2 id="tm-cost-center-list-heading" className="tm-eyebrow">
-          Cost centers
-        </h2>
+          {!costCenters.isPending && !costCenters.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No cost centers yet">
+              Create a cost center with the form, then assign projects to it.
+            </InlineAlert>
+          ) : null}
 
-        {costCenters.isError ? (
-          <InlineAlert tone="danger" title="Could not load the cost centers" live>
-            {describeError(costCenters.error)}
-          </InlineAlert>
-        ) : null}
-
-        {costCenters.isPending ? (
-          <LoadingRegion label="Loading the cost centers.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!costCenters.isPending && !costCenters.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No cost centers yet">
-            Create a cost center above, then assign projects to it.
-          </InlineAlert>
-        ) : null}
-
-        {rows.map((center) => (
-          <CostCenterCard
-            key={center.id}
-            center={center}
-            api={api}
-            organizationSlug={organizationSlug}
-            onChanged={invalidate}
-          />
-        ))}
-      </section>
+          {rows.map((center) => (
+            <CostCenterCard
+              key={center.id}
+              center={center}
+              api={api}
+              organizationSlug={organizationSlug}
+              onChanged={invalidate}
+            />
+          ))}
+        </section>
+      </div>
     </AppShell>
   );
 }

@@ -11,10 +11,14 @@ import type { CalendarGridDayRow, CalendarGridRange } from '../../lib/api/calend
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatDay } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface CalendarGridScreenProps {
   organizationSlug: string;
   organizationName: string;
+  /** Week or month — the header switch links to `?range=`, and the page passes it here. */
+  initialRange?: CalendarGridRange;
   client?: ApiClient;
 }
 
@@ -43,10 +47,11 @@ const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 export function CalendarGridScreen({
   organizationSlug,
   organizationName,
+  initialRange = 'month',
   client,
 }: CalendarGridScreenProps) {
   const api = client ?? browserApiClient();
-  const [range, setRange] = useState<CalendarGridRange>('month');
+  const [range] = useState<CalendarGridRange>(initialRange);
   const [anchor, setAnchor] = useState<string>(() => todayUtc());
 
   const anchorValid = /^\d{4}-\d{2}-\d{2}$/.test(anchor) && !Number.isNaN(Date.parse(anchor));
@@ -61,6 +66,8 @@ export function CalendarGridScreen({
   const caption = grid.data
     ? `${formatDay(grid.data.from)} to ${formatDay(grid.data.to)}`
     : 'Calendar grid';
+  const heading = grid.data ? rangeHeading(grid.data.from, grid.data.to, range) : '';
+  const today = todayUtc();
 
   return (
     <AppShell
@@ -68,152 +75,189 @@ export function CalendarGridScreen({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Calendar"
-      description="Your meetings and recurring series laid out on a week or month grid."
+      eyebrow={range === 'week' ? 'Calendar · Week' : 'Calendar · Month'}
+      actions={<CalendarHeaderActions organizationSlug={organizationSlug} current={range} />}
     >
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-grid-controls">
-        <h2 id="tm-grid-controls" className="tm-eyebrow">
-          View
-        </h2>
-        <div className="tm-toolbar">
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-grid-range">
-              Range
-            </label>
-            <select
-              id="tm-grid-range"
-              className="tm-field__control"
-              value={range}
-              onChange={(event) => setRange(event.target.value as CalendarGridRange)}
-            >
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-            </select>
+      <div className="tm-cal">
+        <CalendarSubnav organizationSlug={organizationSlug} />
+
+        <section className="tm-cal" aria-labelledby="tm-grid-heading">
+          <div className="tm-cal-grid-bar">
+            <h2 id="tm-grid-heading" className="tm-cal-grid-bar__range">
+              {heading || (range === 'week' ? 'This week' : 'This month')}
+            </h2>
+            <div className="tm-cal-grid-bar__end" role="group" aria-label="Move the grid">
+              <span className="tm-cal-chip tm-cal-chip--ink">Meetings</span>
+              <span className="tm-cal-chip">Recurring</span>
+              <button
+                type="button"
+                className="tm-cal-btn"
+                onClick={() => setAnchor((current) => shiftAnchor(current, range, -1))}
+              >
+                Previous {range}
+              </button>
+              <button type="button" className="tm-cal-btn" onClick={() => setAnchor(todayUtc())}>
+                Today
+              </button>
+              <button
+                type="button"
+                className="tm-cal-btn"
+                onClick={() => setAnchor((current) => shiftAnchor(current, range, 1))}
+              >
+                Next {range}
+              </button>
+              <span className="tm-cal-grid-bar__anchor">
+                <label className="tm-visually-hidden" htmlFor="tm-grid-anchor">
+                  Anchor date
+                </label>
+                <input
+                  id="tm-grid-anchor"
+                  type="date"
+                  value={anchor}
+                  onChange={(event) => setAnchor(event.target.value)}
+                />
+              </span>
+            </div>
           </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-grid-anchor">
-              Anchor date
-            </label>
-            <input
-              id="tm-grid-anchor"
-              className="tm-field__control"
-              type="date"
-              value={anchor}
-              onChange={(event) => setAnchor(event.target.value)}
-            />
-          </div>
-          <div className="tm-button-row">
-            <button
-              type="button"
-              className="tm-button tm-button--ghost"
-              onClick={() => setAnchor((current) => shiftAnchor(current, range, -1))}
-            >
-              Previous {range}
-            </button>
-            <button
-              type="button"
-              className="tm-button tm-button--ghost"
-              onClick={() => setAnchor((current) => shiftAnchor(current, range, 1))}
-            >
-              Next {range}
-            </button>
-          </div>
-        </div>
-      </section>
 
-      {!anchorValid ? (
-        <InlineAlert tone="warning" title="Choose an anchor date">
-          Pick a valid date to load the grid.
-        </InlineAlert>
-      ) : null}
+          {!anchorValid ? (
+            <InlineAlert tone="warning" title="Choose an anchor date">
+              Pick a valid date to load the grid.
+            </InlineAlert>
+          ) : null}
 
-      {grid.isError ? (
-        <InlineAlert tone="danger" title="Could not load the calendar" live>
-          {describeError(grid.error)}
-        </InlineAlert>
-      ) : null}
+          {grid.isError ? (
+            <InlineAlert tone="danger" title="Could not load the calendar" live>
+              {describeError(grid.error)}
+            </InlineAlert>
+          ) : null}
 
-      {anchorValid && grid.isPending ? (
-        <LoadingRegion label="Loading the calendar grid.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+          {anchorValid && grid.isPending ? (
+            <LoadingRegion label="Loading the calendar grid.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-      {weeks.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-grid-heading">
-          <h2 id="tm-grid-heading" className="tm-eyebrow">
-            {caption}
-          </h2>
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable so a keyboard can reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the agenda and work-calendar tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label={`Calendar grid, ${caption}`}
-          >
-            <table className="tm-table tm-table--grid">
-              <caption className="tm-visually-hidden">
-                Meetings and recurring series from {caption}, laid out Monday to Sunday.
-              </caption>
-              <thead>
-                <tr>
-                  {WEEKDAYS.map((weekday) => (
-                    <th key={weekday} scope="col">
-                      {weekday}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {weeks.map((week, index) => (
-                  <tr key={week[0]?.date ?? `week-${index}`}>
-                    {week.map((cell, dayIndex) =>
-                      cell === null ? (
-                        <td
-                          key={`pad-${index}-${dayIndex}`}
-                          className="tm-cal-cell tm-cal-cell--empty"
-                        />
-                      ) : (
-                        <td key={cell.date} className="tm-cal-cell">
-                          <span className="tm-cal-cell__date">{formatDay(cell.date)}</span>
-                          {cell.meetings.length === 0 && cell.occurrences.length === 0 ? (
-                            <span className="tm-visually-hidden">Nothing scheduled</span>
+          {weeks.length > 0 ? (
+            <div className="tm-cal-week" data-range={range}>
+              <div
+                className="tm-cal-week__scroll"
+                // A scrollable region must be focusable so a keyboard can reach its overflow
+                // columns (WCAG 2.2 2.1.1), matching the agenda and work-calendar tables.
+                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                tabIndex={0}
+                role="region"
+                aria-label={`Calendar grid, ${caption}`}
+              >
+                <table>
+                  <caption className="tm-visually-hidden">
+                    Meetings and recurring series from {caption}, laid out Monday to Sunday.
+                  </caption>
+                  <thead>
+                    <tr>
+                      {WEEKDAYS.map((weekday, index) => {
+                        // A week has one row, so its column heads carry the dates (CAL-01 "TUE 18").
+                        const cell = range === 'week' ? weeks[0]?.[index] : null;
+                        return (
+                          <th
+                            key={weekday}
+                            scope="col"
+                            {...(cell?.date === today ? { 'data-today': 'true' } : {})}
+                          >
+                            {weekday}
+                            {cell ? ` ${Number(cell.date.slice(8, 10))}` : ''}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {weeks.map((week, index) => (
+                      <tr key={week[0]?.date ?? `week-${index}`}>
+                        {week.map((cell, dayIndex) =>
+                          cell === null ? (
+                            <td key={`pad-${index}-${dayIndex}`} className="tm-cal-week__pad" />
                           ) : (
-                            <ul className="tm-cal-cell__items">
-                              {cell.meetings.map((meeting) => (
-                                <li key={meeting.id}>
-                                  <Link
-                                    href={`/${organizationSlug}/calendar/meetings/${meeting.id}`}
-                                  >
-                                    {meeting.title}
-                                  </Link>
-                                </li>
-                              ))}
-                              {cell.occurrences.map((occurrence) => (
-                                <li
-                                  key={`${occurrence.seriesId}-${cell.date}`}
-                                  className="tm-cal-cell__series"
-                                >
-                                  {occurrence.title}
-                                  <span className="tm-visually-hidden"> (recurring)</span>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </td>
-                      ),
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                            <td
+                              key={cell.date}
+                              {...(cell.date === today ? { 'data-today': 'true' } : {})}
+                            >
+                              {range === 'month' ? (
+                                <span className="tm-cal-week__date" aria-hidden="true">
+                                  {dayMark(cell.date)}
+                                </span>
+                              ) : null}
+                              <span className="tm-visually-hidden">{formatDay(cell.date)}</span>
+                              {cell.meetings.length === 0 && cell.occurrences.length === 0 ? (
+                                <span className="tm-visually-hidden">Nothing scheduled</span>
+                              ) : (
+                                <ul className="tm-cal-week__items">
+                                  {cell.meetings.map((meeting) => (
+                                    <li key={meeting.id}>
+                                      <Link
+                                        href={`/${organizationSlug}/calendar/meetings/${meeting.id}`}
+                                        className="tm-cal-evt tm-cal-evt--ink"
+                                      >
+                                        {meeting.title}
+                                      </Link>
+                                    </li>
+                                  ))}
+                                  {cell.occurrences.map((occurrence) => (
+                                    <li
+                                      key={`${occurrence.seriesId}-${cell.date}`}
+                                      className="tm-cal-evt"
+                                    >
+                                      {occurrence.title}
+                                      <span className="tm-visually-hidden"> (recurring)</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )}
+                            </td>
+                          ),
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
         </section>
-      ) : null}
+      </div>
     </AppShell>
   );
+}
+
+/** "14" in a month cell, "1 Oct" on the first of the month. */
+function dayMark(date: string): string {
+  const day = Number(date.slice(8, 10));
+  if (day !== 1) return String(day);
+  const month = new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone: 'UTC' }).format(
+    new Date(`${date}T00:00:00.000Z`),
+  );
+  return `1 ${month}`;
+}
+
+/** "12 – 18 October" for a week, "October 2026" for a month — CAL-01's range headline. */
+function rangeHeading(from: string, to: string, range: CalendarGridRange): string {
+  const start = new Date(`${from}T00:00:00.000Z`);
+  const end = new Date(`${to}T00:00:00.000Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '';
+  const month = (date: Date) =>
+    new Intl.DateTimeFormat('en-GB', { month: 'long', timeZone: 'UTC' }).format(date);
+  if (range === 'month') {
+    return new Intl.DateTimeFormat('en-GB', {
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    }).format(start);
+  }
+  const sameMonth = start.getUTCMonth() === end.getUTCMonth();
+  return sameMonth
+    ? `${start.getUTCDate()} – ${end.getUTCDate()} ${month(end)}`
+    : `${start.getUTCDate()} ${month(start)} – ${end.getUTCDate()} ${month(end)}`;
 }
 
 /** Today's UTC calendar date, the default anchor. */

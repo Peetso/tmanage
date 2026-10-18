@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createProjectRisk, listProjectRisks } from '../../lib/api/portal';
 import type { ProjectRisk, RiskSeverity, RiskStatus } from '../../lib/api/portal';
@@ -85,154 +86,165 @@ export function ProjectRisksScreen({
       activeNavigationId="work"
       title="Project risks"
       description="Record a risk for this project, and choose what the client is told."
+      eyebrow="Project · Risks"
+      topBar={
+        <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="risks" />
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-risks-compose">
-        <h2 id="tm-risks-compose" className="tm-eyebrow">
-          Record a risk
-        </h2>
-        <form
-          className="tm-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSubmit) create.mutate();
-          }}
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-risk-title">
-              Internal title
-            </label>
-            <input
-              id="tm-risk-title"
-              className="tm-field__control"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              maxLength={300}
-              required
-            />
-            <p className="tm-field__hint">Staff-facing. The client never sees this.</p>
+      <div className="tm-prj tm-prj--sub">
+        <div className="tm-prj__grid tm-prj__grid--aside">
+          <div className="tm-prj__col tm-prj__col--aside">
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-risks-compose">
+              <h2 id="tm-risks-compose" className="tm-prj-eyebrow">
+                Record a risk
+              </h2>
+              <form
+                className="tm-stack"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (canSubmit) create.mutate();
+                }}
+              >
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-risk-title">
+                    Internal title
+                  </label>
+                  <input
+                    id="tm-risk-title"
+                    className="tm-field__control"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    maxLength={300}
+                    required
+                  />
+                  <p className="tm-field__hint">Staff-facing. The client never sees this.</p>
+                </div>
+
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-risk-client-summary">
+                    Client summary
+                  </label>
+                  <textarea
+                    id="tm-risk-client-summary"
+                    className="tm-field__control"
+                    value={clientSummary}
+                    onChange={(event) => setClientSummary(event.target.value)}
+                    maxLength={2000}
+                    rows={3}
+                    required
+                  />
+                  <p className="tm-field__hint">Shown to the client when this risk is published.</p>
+                </div>
+
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-risk-internal-note">
+                    Internal note (optional)
+                  </label>
+                  <textarea
+                    id="tm-risk-internal-note"
+                    className="tm-field__control"
+                    value={internalNote}
+                    onChange={(event) => setInternalNote(event.target.value)}
+                    maxLength={5000}
+                    rows={3}
+                  />
+                  <p className="tm-field__hint">Internal-only. Never projected to the client.</p>
+                </div>
+
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-risk-severity">
+                    Severity
+                  </label>
+                  <select
+                    id="tm-risk-severity"
+                    className="tm-field__control"
+                    value={severity}
+                    onChange={(event) => setSeverity(event.target.value as RiskSeverity)}
+                  >
+                    {SEVERITIES.map((value) => (
+                      <option key={value} value={value}>
+                        {severityLabel(value)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-risk-status">
+                    Status
+                  </label>
+                  <select
+                    id="tm-risk-status"
+                    className="tm-field__control"
+                    value={status}
+                    onChange={(event) => setStatus(event.target.value as RiskStatus)}
+                  >
+                    {STATUSES.map((value) => (
+                      <option key={value} value={value}>
+                        {statusLabel(value)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <label className="tm-choice tm-choice--inline">
+                  <input
+                    className="tm-choice__input"
+                    type="checkbox"
+                    checked={published}
+                    onChange={(event) => setPublished(event.target.checked)}
+                  />
+                  <span className="tm-choice__name">Publish to the client now</span>
+                </label>
+
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not record the risk" live>
+                    {describe(create.error)}
+                  </InlineAlert>
+                ) : null}
+
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    disabled={!canSubmit}
+                    loading={create.isPending}
+                    loadingLabel="Recording"
+                  >
+                    Record risk
+                  </Button>
+                </div>
+              </form>
+            </section>
           </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-risk-client-summary">
-              Client summary
-            </label>
-            <textarea
-              id="tm-risk-client-summary"
-              className="tm-field__control"
-              value={clientSummary}
-              onChange={(event) => setClientSummary(event.target.value)}
-              maxLength={2000}
-              rows={3}
-              required
-            />
-            <p className="tm-field__hint">Shown to the client when this risk is published.</p>
+          <div className="tm-prj__col">
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-risks-list">
+              <h2 id="tm-risks-list" className="tm-prj-eyebrow">
+                Recorded risks
+              </h2>
+              {risks.isError ? (
+                <InlineAlert tone="danger" title="Could not load risks" live>
+                  {describe(risks.error)}
+                </InlineAlert>
+              ) : risks.isPending ? (
+                <LoadingRegion label="Loading risks">
+                  <Skeleton height="var(--row)" />
+                  <Skeleton height="var(--row)" />
+                </LoadingRegion>
+              ) : (risks.data ?? []).length === 0 ? (
+                <p className="tm-prose">No risks recorded for this project yet.</p>
+              ) : (
+                <ol className="tm-list tm-stack">
+                  {(risks.data ?? []).map((risk) => (
+                    <RiskRow key={risk.id} risk={risk} />
+                  ))}
+                </ol>
+              )}
+            </section>
           </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-risk-internal-note">
-              Internal note (optional)
-            </label>
-            <textarea
-              id="tm-risk-internal-note"
-              className="tm-field__control"
-              value={internalNote}
-              onChange={(event) => setInternalNote(event.target.value)}
-              maxLength={5000}
-              rows={3}
-            />
-            <p className="tm-field__hint">Internal-only. Never projected to the client.</p>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-risk-severity">
-              Severity
-            </label>
-            <select
-              id="tm-risk-severity"
-              className="tm-field__control"
-              value={severity}
-              onChange={(event) => setSeverity(event.target.value as RiskSeverity)}
-            >
-              {SEVERITIES.map((value) => (
-                <option key={value} value={value}>
-                  {severityLabel(value)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-risk-status">
-              Status
-            </label>
-            <select
-              id="tm-risk-status"
-              className="tm-field__control"
-              value={status}
-              onChange={(event) => setStatus(event.target.value as RiskStatus)}
-            >
-              {STATUSES.map((value) => (
-                <option key={value} value={value}>
-                  {statusLabel(value)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <label className="tm-choice tm-choice--inline">
-            <input
-              className="tm-choice__input"
-              type="checkbox"
-              checked={published}
-              onChange={(event) => setPublished(event.target.checked)}
-            />
-            <span className="tm-choice__name">Publish to the client now</span>
-          </label>
-
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not record the risk" live>
-              {describe(create.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              disabled={!canSubmit}
-              loading={create.isPending}
-              loadingLabel="Recording"
-            >
-              Record risk
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-risks-list">
-        <h2 id="tm-risks-list" className="tm-eyebrow">
-          Recorded risks
-        </h2>
-        {risks.isError ? (
-          <InlineAlert tone="danger" title="Could not load risks" live>
-            {describe(risks.error)}
-          </InlineAlert>
-        ) : risks.isPending ? (
-          <LoadingRegion label="Loading risks">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : (risks.data ?? []).length === 0 ? (
-          <p className="tm-prose">No risks recorded for this project yet.</p>
-        ) : (
-          <ol className="tm-list tm-stack">
-            {(risks.data ?? []).map((risk) => (
-              <RiskRow key={risk.id} risk={risk} />
-            ))}
-          </ol>
-        )}
-      </section>
+        </div>
+      </div>
     </AppShell>
   );
 }

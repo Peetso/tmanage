@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { defineProjectTag, listProjectTags } from '../../lib/api/project-tags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -67,83 +68,92 @@ export function ProjectTagsScreen({
       organizationName={organizationName}
       title="Project tags"
       description="Define reusable tags, then tag projects with them to filter the portfolio."
+      eyebrow="Projects · Tags"
+      topBar={<ProjectTabs organizationSlug={organizationSlug} />}
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-project-tag-new-heading">
-        <h2 id="tm-project-tag-new-heading" className="tm-eyebrow">
-          New tag
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canDefine) define.mutate();
-          }}
-        >
-          <Field
-            label="Name"
-            name="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Retainer or At risk."
-            required
-          />
+      <div className="tm-prj tm-prj--sub">
+        <div className="tm-prj__grid tm-prj__grid--aside">
+          <div className="tm-prj__col tm-prj__col--aside">
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-project-tag-new-heading">
+              <h2 id="tm-project-tag-new-heading" className="tm-prj-eyebrow">
+                New tag
+              </h2>
+              <form
+                className="tm-stack"
+                noValidate
+                onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                  event.preventDefault();
+                  if (canDefine) define.mutate();
+                }}
+              >
+                <Field
+                  label="Name"
+                  name="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  hint="A short handle, such as Retainer or At risk."
+                  required
+                />
 
-          {failure ? (
-            <InlineAlert tone="danger" title="Could not define the tag" live>
-              {failure}
-            </InlineAlert>
-          ) : null}
+                {failure ? (
+                  <InlineAlert tone="danger" title="Could not define the tag" live>
+                    {failure}
+                  </InlineAlert>
+                ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={define.isPending}
-              loadingLabel="Saving"
-              disabled={!canDefine}
-            >
-              Define tag
-            </Button>
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={define.isPending}
+                    loadingLabel="Saving"
+                    disabled={!canDefine}
+                  >
+                    Define tag
+                  </Button>
+                </div>
+              </form>
+            </section>
           </div>
-        </form>
-      </section>
+          <div className="tm-prj__col">
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-project-tag-list-heading">
+              <h2 id="tm-project-tag-list-heading" className="tm-prj-eyebrow">
+                Tags
+              </h2>
+              {tags.isPending ? (
+                <LoadingRegion label="Loading this studio’s project tags.">
+                  <Skeleton height="var(--row)" />
+                  <Skeleton height="var(--row)" />
+                </LoadingRegion>
+              ) : null}
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-project-tag-list-heading">
-        <h2 id="tm-project-tag-list-heading" className="tm-eyebrow">
-          Tags
-        </h2>
-        {tags.isPending ? (
-          <LoadingRegion label="Loading this studio’s project tags.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+              {tags.isError ? (
+                <InlineAlert tone="danger" title="Could not load the tags" live>
+                  {describe(tags.error)}
+                </InlineAlert>
+              ) : null}
 
-        {tags.isError ? (
-          <InlineAlert tone="danger" title="Could not load the tags" live>
-            {describe(tags.error)}
-          </InlineAlert>
-        ) : null}
-
-        {tags.data ? (
-          rows.length === 0 ? (
-            <p className="tm-prose">No project tags defined yet.</p>
-          ) : (
-            <ul
-              className="tm-row tm-row--wrap"
-              style={{ listStyle: 'none', padding: 0, margin: 0 }}
-            >
-              {rows.map((tag) => (
-                <li key={tag.id} className="tm-badge">
-                  {tag.name}
-                </li>
-              ))}
-            </ul>
-          )
-        ) : null}
-      </section>
+              {tags.data ? (
+                rows.length === 0 ? (
+                  <p className="tm-prose">No project tags defined yet.</p>
+                ) : (
+                  <ul
+                    className="tm-row tm-row--wrap"
+                    style={{ listStyle: 'none', padding: 0, margin: 0 }}
+                  >
+                    {rows.map((tag) => (
+                      <li key={tag.id} className="tm-badge">
+                        {tag.name}
+                      </li>
+                    ))}
+                  </ul>
+                )
+              ) : null}
+            </section>
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
 }

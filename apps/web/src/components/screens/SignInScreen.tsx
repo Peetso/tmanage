@@ -4,7 +4,6 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
-import { BackendPending } from './BackendPending';
 import { MfaChallengeScreen } from './MfaChallengeScreen';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { signInWithPassword, type MfaRequiredResponse } from '../../lib/api/auth';
@@ -13,6 +12,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useHydrated } from '../../lib/use-hydrated';
+import '../../styles/screens/identity.css';
 
 export interface SignInScreenProps {
   /** Injected in tests. Defaults to the browser client. */
@@ -177,24 +177,34 @@ export function SignInScreen({
         </>
       }
     >
-      <div className="tm-stack tm-stack--tight">
+      <div className="tm-id-intro">
         <h1 className="tm-identity__title">Sign in</h1>
-        <p className="tm-prose">You will choose the organization after this step.</p>
+        <p className="tm-id-lede">You will choose the organization after this step.</p>
       </div>
 
-      <div className="tm-stack tm-stack--tight">
-        <Button tone="ink" size="accessible" disabled>
+      {/*
+        Passkeys and company SSO are not built (WebAuthn needs a browser authenticator, SSO an
+        identity provider), so both stay disabled and the line under them says so in plain words.
+      */}
+      <div className="tm-id-methods">
+        <Button tone="ink" size="accessible" disabled aria-describedby="tm-sign-in-methods-note">
+          <span className="tm-id-orb" aria-hidden="true">
+            ◉
+          </span>
           Continue with a passkey
         </Button>
-        <Button tone="outline" size="accessible" disabled>
+        <Button
+          tone="outline"
+          size="accessible"
+          disabled
+          aria-describedby="tm-sign-in-methods-note"
+        >
           Continue with your company SSO
         </Button>
+        <p className="tm-id-methods__note" id="tm-sign-in-methods-note">
+          <strong>Not available yet</strong> — sign in with your work email below.
+        </p>
       </div>
-
-      <BackendPending ticket="ID-002 · passkeys and SSO">
-        Passkeys and company SSO are not built. WebAuthn needs a browser authenticator and SSO needs
-        an identity provider; email and password below are real.
-      </BackendPending>
 
       <p className="tm-divider">Or email</p>
 
@@ -240,7 +250,7 @@ export function SignInScreen({
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
+          <div className="tm-id-action-row">
             <Button
               type="submit"
               tone="ink"
@@ -250,7 +260,9 @@ export function SignInScreen({
             >
               Sign in
             </Button>
-            <Link href="/recover">Forgot access</Link>
+            <Link className="tm-id-link" href="/recover">
+              Forgot access
+            </Link>
           </div>
         </fieldset>
       </form>
@@ -260,10 +272,8 @@ export function SignInScreen({
       </InlineAlert>
 
       {developmentSignInEnabled ? (
-        <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-dev-sign-in">
-          <h2 id="tm-dev-sign-in" className="tm-eyebrow">
-            Development sign-in — not authentication
-          </h2>
+        <details className="tm-id-dev">
+          <summary>Development sign-in — not authentication</summary>
           <p className="tm-prose">
             This posts a user id the API accepts on trust. It is how a seeded account that has never
             set a password can still be reached, and it is not registered in production.
@@ -299,7 +309,7 @@ export function SignInScreen({
               The session cookies are set. Choose an organization next.
             </InlineAlert>
           ) : null}
-        </section>
+        </details>
       ) : null}
     </IdentityShell>
   );

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/docs.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   applyDocumentTemplate,
@@ -108,206 +109,244 @@ export function DocumentTemplatesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      title="Document templates"
-      description="Reusable starting points your team can apply to a project to create a new document."
+      eyebrow="Docs · Templates"
+      title="Start from a purpose"
+      actions={
+        <Link className="tm-dx-back" href={`/${organizationSlug}/docs`}>
+          <span className="tm-dx-back__orb" aria-hidden="true">
+            ←
+          </span>
+          Back to Docs
+        </Link>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-tpl-new-heading">
-        <h2 id="tm-tpl-new-heading" className="tm-eyebrow">
-          New template
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canCreate) create.mutate();
-          }}
-        >
-          <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
-            <Field
-              label="Name"
-              name="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              hint="A short handle, such as Project kickoff brief."
-              required
-            />
-            <Field
-              label="Purpose"
-              name="purpose"
-              value={purpose}
-              onChange={(event) => setPurpose(event.target.value)}
-              hint="One line saying what this template is for. Shown in the gallery."
-              required
-            />
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-tpl-body">
-                Template body
-                <span className="tm-field__required" aria-hidden="true">
-                  *
+      <div className="tm-dx tm-dx-split">
+        <section className="tm-dx-split__main" aria-labelledby="tm-tpl-gallery-heading">
+          <div className="tm-dx-chips">
+            <h2 id="tm-tpl-gallery-heading" className="tm-dx-caption">
+              Template gallery{rows.length > 0 ? ` · ${rows.length}` : ''}
+            </h2>
+            {available.length > 0 ? (
+              <div className="tm-dx-select tm-push-end">
+                <label className="tm-dx-select__label" htmlFor="tm-tpl-project">
+                  Apply to project
+                </label>
+                <select
+                  id="tm-tpl-project"
+                  className="tm-dx-select__control"
+                  value={chosenProjectId}
+                  onChange={(event) => setProjectId(event.target.value)}
+                  aria-describedby="tm-tpl-project-hint"
+                >
+                  {available.map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+                <span id="tm-tpl-project-hint" className="tm-visually-hidden">
+                  Applying a template creates a new document in this project.
                 </span>
-              </label>
-              <textarea
-                id="tm-tpl-body"
-                name="body"
-                className="tm-field__control tm-field__control--multiline"
-                rows={10}
-                value={body}
-                onChange={(event) => setBody(event.target.value)}
-                aria-describedby="tm-tpl-body-hint"
-                required
-              />
-              <span className="tm-field__hint" id="tm-tpl-body-hint">
-                The text a new document starts from. Applying a template copies this into a fresh
-                document; the template itself is never changed.
-              </span>
-            </div>
-
-            {create.isError ? (
-              <InlineAlert tone="danger" title="Could not create the template" live>
-                {describeError(create.error)}
-              </InlineAlert>
+              </div>
             ) : null}
+          </div>
 
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={create.isPending}
-                loadingLabel="Creating"
-                disabled={!canCreate}
-              >
-                Create template
-              </Button>
+          {applied ? (
+            <InlineAlert tone="success" title="Document created from the template" live>
+              <p className="tm-prose">
+                <Link href={`/${organizationSlug}/docs/${applied.id}/edit`}>
+                  Open &ldquo;{applied.title}&rdquo;
+                </Link>{' '}
+                to edit the new document. The template is unchanged.
+              </p>
+            </InlineAlert>
+          ) : null}
+
+          {templates.isError ? (
+            <InlineAlert tone="danger" title="Could not load the templates" live>
+              {describeError(templates.error)}
+            </InlineAlert>
+          ) : null}
+
+          {apply.isError ? (
+            <InlineAlert tone="danger" title="Could not apply that template" live>
+              {describeError(apply.error)}
+            </InlineAlert>
+          ) : null}
+
+          {templates.isPending ? (
+            <LoadingRegion label="Loading the templates.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {!templates.isPending && !templates.isError && rows.length === 0 ? (
+            <div className="tm-dx-empty">
+              <p className="tm-dx-empty__title">No templates yet</p>
+              <p className="tm-dx-empty__body">
+                Create a template with the form beside this list. Once you have one, you can apply
+                it to a project to start a new document from it.
+              </p>
             </div>
-          </fieldset>
-        </form>
-      </section>
+          ) : null}
 
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-tpl-gallery-heading"
-      >
-        <h2 id="tm-tpl-gallery-heading" className="tm-eyebrow">
-          Template gallery
-        </h2>
-
-        {applied ? (
-          <InlineAlert tone="success" title="Document created from the template" live>
-            <p className="tm-prose">
-              <Link href={`/${organizationSlug}/docs/${applied.id}/edit`}>
-                Open &ldquo;{applied.title}&rdquo;
-              </Link>{' '}
-              to edit the new document. The template is unchanged.
-            </p>
-          </InlineAlert>
-        ) : null}
-
-        {available.length > 0 ? (
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-tpl-project">
-              Apply to project
-            </label>
-            <select
-              id="tm-tpl-project"
-              className="tm-field__control"
-              value={chosenProjectId}
-              onChange={(event) => setProjectId(event.target.value)}
+          {rows.length > 0 ? (
+            <div
+              // A scrollable region must be focusable or a keyboard cannot reach its overflow
+              // (WCAG 2.2 2.1.1), matching the other screens' tables.
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+              tabIndex={0}
+              role="region"
+              aria-label="Document templates"
             >
-              {available.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            <span className="tm-field__hint">
-              Applying a template creates a new document in this project.
-            </span>
-          </div>
-        ) : null}
-
-        {templates.isError ? (
-          <InlineAlert tone="danger" title="Could not load the templates" live>
-            {describeError(templates.error)}
-          </InlineAlert>
-        ) : null}
-
-        {apply.isError ? (
-          <InlineAlert tone="danger" title="Could not apply that template" live>
-            {describeError(apply.error)}
-          </InlineAlert>
-        ) : null}
-
-        {templates.isPending ? (
-          <LoadingRegion label="Loading the templates.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!templates.isPending && !templates.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No templates yet">
-            Create a template above. Once you have one, you can apply it to a project to start a new
-            document from it.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow
-            // columns (WCAG 2.2 2.1.1), matching the other screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Document templates"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                Your organization&rsquo;s document templates, {rows.length} shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Purpose</th>
-                  <th scope="col">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((template) => (
-                  <tr key={template.id}>
-                    <th scope="row" className="tm-table__title">
-                      {template.name}
+              {/* Explicit roles keep the table's semantics while it is drawn as DOC-04's stack of
+                  purpose cards. */}
+              {/* eslint-disable jsx-a11y/no-redundant-roles */}
+              <table className="tm-dx-cards" role="table">
+                <caption className="tm-visually-hidden">
+                  Your organization&rsquo;s document templates, {rows.length} shown.
+                </caption>
+                <thead role="rowgroup">
+                  <tr role="row">
+                    <th scope="col" role="columnheader">
+                      Name
                     </th>
-                    <td>{template.purpose}</td>
-                    <td>
-                      <Button
-                        type="button"
-                        tone="outline"
-                        size="accessible"
-                        loading={apply.isPending && apply.variables === template.id}
-                        loadingLabel="Applying"
-                        disabled={!canApply}
-                        onClick={() => apply.mutate(template.id)}
-                      >
-                        Apply
-                      </Button>
-                    </td>
+                    <th scope="col" role="columnheader">
+                      Purpose
+                    </th>
+                    <th scope="col" role="columnheader">
+                      Actions
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
+                </thead>
+                <tbody role="rowgroup">
+                  {rows.map((template) => (
+                    <tr key={template.id} role="row">
+                      <th scope="row" role="rowheader" className="tm-dx-cards__title">
+                        {template.name}
+                      </th>
+                      <td className="tm-dx-cards__body">{template.purpose}</td>
+                      <td className="tm-dx-cards__actions">
+                        <div>
+                          <Link
+                            className="tm-dx-link-capsule"
+                            href={`/${organizationSlug}/docs/templates/${template.id}/variables`}
+                          >
+                            Variables
+                          </Link>
+                          <Button
+                            type="button"
+                            tone="ink"
+                            size="compact"
+                            loading={apply.isPending && apply.variables === template.id}
+                            loadingLabel="Applying"
+                            disabled={!canApply}
+                            onClick={() => apply.mutate(template.id)}
+                          >
+                            Apply
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {/* eslint-enable jsx-a11y/no-redundant-roles */}
+            </div>
+          ) : null}
 
-        {!projects.isPending && available.length === 0 ? (
-          <InlineAlert tone="neutral" title="No projects yet">
-            A template is applied to a project. Once a project exists, an Apply button appears on
-            each template.
-          </InlineAlert>
-        ) : null}
-      </section>
+          {!projects.isPending && available.length === 0 ? (
+            <InlineAlert tone="neutral" title="No projects yet">
+              A template is applied to a project. Once a project exists, an Apply button appears on
+              each template.
+            </InlineAlert>
+          ) : null}
+        </section>
+
+        <aside className="tm-dx-split__side" aria-label="Create a template">
+          <section className="tm-dx-card tm-dx-card--dashed" aria-labelledby="tm-tpl-new-heading">
+            <h2 id="tm-tpl-new-heading" className="tm-dx-card__title">
+              New template
+            </h2>
+            <form
+              className="tm-dx-form"
+              noValidate
+              onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                if (canCreate) create.mutate();
+              }}
+            >
+              <fieldset className="tm-fieldset" disabled={!hydrated}>
+                <Field
+                  label="Name"
+                  name="name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  hint="A short handle, such as Project kickoff brief."
+                  required
+                />
+                <Field
+                  label="Purpose"
+                  name="purpose"
+                  value={purpose}
+                  onChange={(event) => setPurpose(event.target.value)}
+                  hint="One line saying what this template is for. Shown in the gallery."
+                  required
+                />
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-tpl-body">
+                    Template body
+                    <span className="tm-field__required" aria-hidden="true">
+                      *
+                    </span>
+                  </label>
+                  <textarea
+                    id="tm-tpl-body"
+                    name="body"
+                    className="tm-field__control tm-field__control--multiline"
+                    rows={6}
+                    value={body}
+                    onChange={(event) => setBody(event.target.value)}
+                    aria-describedby="tm-tpl-body-hint"
+                    required
+                  />
+                  <span className="tm-field__hint" id="tm-tpl-body-hint">
+                    The text a new document starts from.
+                  </span>
+                </div>
+
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not create the template" live>
+                    {describeError(create.error)}
+                  </InlineAlert>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="default"
+                  loading={create.isPending}
+                  loadingLabel="Creating"
+                  disabled={!canCreate}
+                >
+                  Create template
+                </Button>
+              </fieldset>
+            </form>
+          </section>
+
+          <div className="tm-dx-info">
+            <span className="tm-dx-info__orb" aria-hidden="true">
+              i
+            </span>
+            <p>
+              Applying a template copies its body into a fresh document in the chosen project. The
+              template itself is never changed and can be applied again.
+            </p>
+          </div>
+        </aside>
+      </div>
     </AppShell>
   );
 }

@@ -14,6 +14,7 @@ import {
 import type { MeetingOccurrenceOverrideStatus } from '../../lib/api/meeting-occurrence-override';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/calendar.css';
 
 export interface OccurrenceOverrideControlProps {
   organizationSlug: string;
@@ -104,8 +105,8 @@ export function OccurrenceOverrideControl({
   }
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-occurrence-override">
-      <h2 id="tm-occurrence-override" className="tm-eyebrow">
+    <section className="tm-cal-card" aria-labelledby="tm-occurrence-override">
+      <h2 id="tm-occurrence-override" className="tm-cal-eyebrow">
         Override {occurrenceDate}
       </h2>
 
@@ -134,7 +135,7 @@ export function OccurrenceOverrideControl({
         </InlineAlert>
       ) : null}
 
-      <form className="tm-stack" onSubmit={submitSave}>
+      <form className="tm-cal-form" onSubmit={submitSave}>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-override-status">
             This occurrence
@@ -203,7 +204,7 @@ export function OccurrenceOverrideControl({
           </InlineAlert>
         ) : null}
 
-        <div className="tm-row">
+        <div className="tm-cal-btn-row">
           <Button
             type="submit"
             tone="ink"

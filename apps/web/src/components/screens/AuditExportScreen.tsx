@@ -1,8 +1,9 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { Field, InlineAlert } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { apiBaseUrl } from '../../lib/api/browser-client';
 import {
   auditFilteredExportUrl,
@@ -18,35 +19,24 @@ export interface AuditExportScreenProps {
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** A `YYYY-MM-DD` day to the ISO instant at its start (UTC). */
+/** The first instant of a `YYYY-MM-DD` day, in UTC. */
 function startOfDay(day: string): string {
   return `${day}T00:00:00.000Z`;
 }
 
-/** A `YYYY-MM-DD` day to the ISO instant at its end (UTC), so the window includes the whole day. */
+/** The last instant of a `YYYY-MM-DD` day, in UTC. */
 function endOfDay(day: string): string {
   return `${day}T23:59:59.999Z`;
 }
 
 /**
- * **Export audit log** — the ADM-09 filtered export (module 18, x197).
+ * **Audit export** — ADM-10 "Your data leaves whenever you want" (x118 filtered export).
  *
- * A dedicated filter form over the audit trail's date-windowed CSV export, distinct from the audit
- * viewer (x115) and its whole-trail export link (x118). Four filters — a required from/to **day
- * window**, and an optional actor and action — and a single download control that targets
- * `GET .../audit/export.csv`, gated on `audit.export`.
- *
- * Three decisions worth stating:
- *
- * 1. **Authorization is the API's.** The export sits behind `audit.export` — a stronger grant than
- *    the `audit.read` the viewer uses — so a caller without it receives the API's refusal when the
- *    browser fetches the file; the screen never guesses a capability of its own.
- * 2. **The export is a browser download, not a fetch.** The control is a plain `<a download>` whose
- *    `href` carries the filters; the browser requests the CSV with the session cookie and the API's
- *    `Content-Disposition: attachment` saves it, so no bytes are proxied through the app.
- * 3. **The window is validated on both sides.** The API is the authority (a missing, inverted or
- *    over-wide window is a 400), but the screen also refuses to offer the link for an inverted or
- *    over-wide window and says why, so the operator is not sent to a download that will 400.
+ * The left card is the export bundle: a bounded date window (at most
+ * `MAX_AUDIT_EXPORT_WINDOW_DAYS`) and two optional narrowings. When the window is valid the card's
+ * action becomes a plain download link to `GET …/audit/export`, which the API gates on
+ * `audit.export` and answers with `Content-Disposition: attachment` — no bytes pass through the app,
+ * and a caller without the grant sees the API's refusal. The right card states what the file holds.
  */
 export function AuditExportScreen({
   organizationSlug,
@@ -83,58 +73,107 @@ export function AuditExportScreen({
   }, [ready, baseUrl, organizationSlug, fromDay, toDay, actor, action]);
 
   return (
-    <AppShell
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Export audit log"
-      description="Download a CSV of the audit trail for a bounded date window."
+      section="data"
+      crumbs={['Data']}
+      title="Your data leaves whenever you want"
+      actions={
+        <Link
+          href={`/${organizationSlug}/admin/audit`}
+          className="tm-button tm-button--outline tm-button--compact"
+        >
+          Open audit log
+        </Link>
+      }
     >
-      <form className="tm-stack tm-stack--tight" aria-label="Audit export filters">
-        <Field
-          label="From"
-          type="date"
-          value={fromDay}
-          onChange={(event) => setFromDay(event.currentTarget.value)}
-          required
-        />
-        <Field
-          label="To"
-          type="date"
-          value={toDay}
-          onChange={(event) => setToDay(event.currentTarget.value)}
-          required
-        />
-        <Field
-          label="Actor ID"
-          value={actor}
-          onChange={(event) => setActor(event.currentTarget.value)}
-          hint="Optional. Limit the export to one user's actions."
-        />
-        <Field
-          label="Action"
-          value={action}
-          onChange={(event) => setAction(event.currentTarget.value)}
-          hint="Optional. An exact action name, e.g. membership.revoked."
-        />
+      <div className="tm-cc-split tm-cc-split--even">
+        <section className="tm-cc-card" aria-labelledby="tm-audit-export-heading">
+          <h2 id="tm-audit-export-heading" className="tm-cc-card__title">
+            Audit export
+          </h2>
+          <form className="tm-cc-form" aria-label="Audit export filters">
+            <div className="tm-cc-form__pair">
+              <Field
+                label="From"
+                type="date"
+                value={fromDay}
+                onChange={(event) => setFromDay(event.currentTarget.value)}
+                required
+              />
+              <Field
+                label="To"
+                type="date"
+                value={toDay}
+                onChange={(event) => setToDay(event.currentTarget.value)}
+                required
+              />
+            </div>
+            <Field
+              label="Actor ID"
+              value={actor}
+              onChange={(event) => setActor(event.currentTarget.value)}
+              hint="Optional. Limit the export to one user's actions."
+            />
+            <Field
+              label="Action"
+              value={action}
+              onChange={(event) => setAction(event.currentTarget.value)}
+              hint="Optional. An exact action name, e.g. membership.revoked."
+            />
 
-        {windowError ? <InlineAlert tone="danger">{windowError}</InlineAlert> : null}
+            {windowError ? <InlineAlert tone="danger">{windowError}</InlineAlert> : null}
 
-        <div className="tm-row tm-row--wrap">
-          {href ? (
-            <a
-              className="tm-button tm-button--ink tm-button--compact"
-              href={href}
-              download="audit-export.csv"
-            >
-              Export CSV
-            </a>
-          ) : windowError ? null : (
-            <InlineAlert tone="neutral">
-              Choose a from and to date to enable the export.
-            </InlineAlert>
-          )}
-        </div>
-      </form>
-    </AppShell>
+            <hr className="tm-cc-rule" />
+            <div className="tm-row tm-row--between tm-row--wrap">
+              <p className="tm-cc-note">
+                Exports are CSV and cover at most {MAX_AUDIT_EXPORT_WINDOW_DAYS} days.
+              </p>
+              {href ? (
+                <a
+                  className="tm-button tm-button--ink tm-button--compact"
+                  href={href}
+                  download="audit-export.csv"
+                >
+                  Export CSV
+                </a>
+              ) : windowError ? null : (
+                <InlineAlert tone="neutral">
+                  Choose a from and to date to enable the export.
+                </InlineAlert>
+              )}
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="tm-cc-card tm-cc-card--quiet tm-cc-card--fill"
+          aria-labelledby="tm-audit-export-contents"
+        >
+          <p className="tm-cc-eyebrow">What the file holds</p>
+          <h2 id="tm-audit-export-contents" className="tm-cc-card__title">
+            One row per audit event in the window
+          </h2>
+          <ul className="tm-cc-rows">
+            <li>
+              <span className="tm-cc-rows__title">When, who and what changed</span>
+              <span className="tm-cc-cell-mono">CSV</span>
+            </li>
+            <li>
+              <span className="tm-cc-rows__title">The object the change was made to</span>
+              <span className="tm-cc-cell-mono">Type + id</span>
+            </li>
+            <li>
+              <span className="tm-cc-rows__title">Narrowed to one actor or action</span>
+              <span className="tm-cc-cell-mono">Optional</span>
+            </li>
+          </ul>
+          <p className="tm-cc-card__body">
+            Audit entries cannot be edited or deleted, including by an owner.
+          </p>
+        </section>
+      </div>
+    </ControlCenterShell>
   );
 }

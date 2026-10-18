@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -11,8 +11,10 @@ import {
   listPlanChangeRequests,
   type PlanChangeRequestView as PlanChangeRequest,
 } from '../../lib/api/plan-change-requests';
+import { fetchSubscription } from '../../lib/api/subscription';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface PlanChangeRequestViewProps {
   organizationSlug: string;
@@ -65,6 +67,12 @@ export function PlanChangeRequestView({
     queryFn: () => listPlanChangeRequests(api, organizationSlug),
   });
 
+  // The plan the studio is on, for the "Current" capsule. A refused read just leaves it off.
+  const subscription = useQuery({
+    queryKey: ['organization-subscription', organizationSlug],
+    queryFn: () => fetchSubscription(api, organizationSlug),
+  });
+
   const [target, setTarget] = useState<string>('pro');
   const [effectiveOn, setEffectiveOn] = useState<string>(todayIso());
   const [note, setNote] = useState<string>('');
@@ -96,171 +104,223 @@ export function PlanChangeRequestView({
   const rows = requests.data?.requests ?? [];
   const canRequest = effectiveOn !== '' && !create.isPending;
 
+  const currentPlanId =
+    subscription.isSuccess && typeof subscription.data?.planId === 'string'
+      ? subscription.data.planId
+      : null;
+  const pending = rows.find((request) => request.status === 'pending') ?? null;
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Plan-change request"
-      description="Record a request to move to another plan. Nothing is charged — billing is arranged separately."
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing · Change plan"
+      title="Change plan"
+      headerAside={
+        <p className="tm-bil-aside-note">Nothing is charged — billing is arranged separately</p>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-plan-catalog-heading">
-        <h2 id="tm-plan-catalog-heading" className="tm-eyebrow">
-          Available plans
-        </h2>
-        <ul className="tm-stack tm-stack--tight">
-          {PLAN_OPTIONS.map((plan) => (
-            <li key={plan.id}>
-              <span className="tm-mono">{plan.label}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-plan-request-heading">
-        <h2 id="tm-plan-request-heading" className="tm-eyebrow">
-          Request a change
-        </h2>
-        <form
-          className="tm-stack tm-stack--tight"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canRequest) create.mutate();
-          }}
-        >
-          <Select
-            label="Target plan"
-            value={target}
-            onChange={(event) => setTarget(event.target.value)}
-          >
-            {PLAN_OPTIONS.map((plan) => (
-              <option key={plan.id} value={plan.id}>
-                {plan.label}
-              </option>
-            ))}
-          </Select>
-
-          <Field
-            label="Effective date"
-            type="date"
-            min={todayIso()}
-            value={effectiveOn}
-            onChange={(event) => setEffectiveOn(event.target.value)}
-            hint="When the change should take effect — today or later."
-            required
-          />
-
-          <Field
-            label="Note"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            hint="Optional — why you are requesting this change."
-          />
-
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not record the request" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Requesting"
-              disabled={!canRequest}
-            >
-              Request change
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-plan-request-list-heading"
+      <form
+        className="tm-bil-stack"
+        noValidate
+        aria-labelledby="tm-plan-request-heading"
+        onSubmit={(event: FormEvent<HTMLFormElement>) => {
+          event.preventDefault();
+          if (canRequest) create.mutate();
+        }}
       >
-        <h2 id="tm-plan-request-list-heading" className="tm-eyebrow">
-          Requests {requests.isSuccess ? `(${rows.length})` : ''}
-        </h2>
+        <fieldset className="tm-bil-plans" aria-labelledby="tm-plan-catalog-heading">
+          <legend id="tm-plan-catalog-heading" className="tm-visually-hidden">
+            Available plans
+          </legend>
+          {PLAN_OPTIONS.map((plan) => (
+            <label key={plan.id} className="tm-bil-plan">
+              <input
+                type="radio"
+                name="targetPlan"
+                value={plan.id}
+                checked={target === plan.id}
+                onChange={() => setTarget(plan.id)}
+              />
+              <span className="tm-bil-plan__head">
+                <span className="tm-bil-eyebrow">Plan</span>
+                {plan.id === currentPlanId ? (
+                  <span className="tm-bil-status tm-bil-status--lime">Current</span>
+                ) : null}
+              </span>
+              <span className="tm-bil-plan__name">{plan.label}</span>
+              <span className="tm-bil-plan__foot">
+                <span className="tm-bil-pill-wide">
+                  {plan.id === currentPlanId
+                    ? 'The plan the studio is on'
+                    : target === plan.id
+                      ? 'Selected'
+                      : `Move to ${plan.label}`}
+                </span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
 
-        {requests.isError ? (
-          <InlineAlert tone="danger" title="Could not load the requests" live>
-            {describeError(requests.error)}
-          </InlineAlert>
-        ) : null}
+        <div className="tm-bil-split">
+          <section
+            className="tm-bil-card tm-card tm-card--ink"
+            aria-labelledby="tm-plan-request-heading"
+          >
+            <h2 id="tm-plan-request-heading" className="tm-bil-eyebrow">
+              {currentPlanId && currentPlanId !== target
+                ? `If you go from ${planLabel(currentPlanId)} to ${planLabel(target)}`
+                : `Request a change to ${planLabel(target)}`}
+            </h2>
+            <p className="tm-bil-card__lead">
+              Nothing is charged and nobody loses access when the request is recorded.
+            </p>
+            <ul className="tm-bil-points">
+              <li>The change is recorded for {effectiveOn || 'the date you pick'}</li>
+              <li>Billing is arranged separately, after the request</li>
+              <li data-tone="warning">Only one request can be pending at a time</li>
+            </ul>
 
-        {cancel.isError ? (
-          <InlineAlert tone="danger" title="Could not cancel the request" live>
-            {describeError(cancel.error)}
-          </InlineAlert>
-        ) : null}
+            <div className="tm-row tm-row--wrap tm-bil-request-fields">
+              <Field
+                label="Effective date"
+                type="date"
+                min={todayIso()}
+                value={effectiveOn}
+                onChange={(event) => setEffectiveOn(event.target.value)}
+                hint="When the change should take effect — today or later."
+                required
+              />
 
-        {requests.isPending ? (
-          <LoadingRegion label="Loading the requests.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+              <Field
+                label="Note"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                hint="Optional — why you are requesting this change."
+              />
+            </div>
 
-        {requests.isSuccess && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No plan-change requests yet">
-            Request a change above to record where you would like to move.
-          </InlineAlert>
-        ) : null}
+            {create.isError ? (
+              <InlineAlert tone="danger" title="Could not record the request" live>
+                {describeError(create.error)}
+              </InlineAlert>
+            ) : null}
 
-        {rows.length > 0 ? (
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">
-              The organization&rsquo;s plan-change requests.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Target plan</th>
-                <th scope="col">Effective date</th>
-                <th scope="col">Status</th>
-                <th scope="col">Note</th>
-                <th scope="col">
-                  <span className="tm-visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((request) => (
-                <tr key={request.id}>
-                  <td className="tm-mono">{planLabel(request.targetPlanCode)}</td>
-                  <td className="tm-mono">{request.effectiveOn}</td>
-                  <td className="tm-mono">{request.status}</td>
-                  <td>{request.note ?? '—'}</td>
-                  <td>
-                    {request.status === 'pending' ? (
-                      <Button
-                        type="button"
-                        tone="outline"
-                        size="accessible"
-                        loading={cancel.isPending && cancel.variables?.id === request.id}
-                        loadingLabel="Cancelling"
-                        onClick={() => cancel.mutate(request)}
-                      >
-                        Cancel
-                      </Button>
-                    ) : (
-                      <span className="tm-visually-hidden">No actions</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
+            <div className="tm-bil-actions">
+              <Button
+                type="submit"
+                tone="lime"
+                size="accessible"
+                loading={create.isPending}
+                loadingLabel="Requesting"
+                disabled={!canRequest}
+              >
+                Request {planLabel(target)}
+              </Button>
+            </div>
+          </section>
 
-        <InlineAlert tone="neutral" title="Recorded intent only">
-          Recording a request does not charge you or change your plan. Billing is arranged
-          separately.
-        </InlineAlert>
-      </section>
+          <section
+            className="tm-bil-card tm-bil-card--paper"
+            aria-labelledby="tm-plan-request-list-heading"
+          >
+            <h2 id="tm-plan-request-list-heading" className="tm-bil-card__title">
+              Requests {requests.isSuccess ? `(${rows.length})` : ''}
+            </h2>
+
+            {requests.isError ? (
+              <InlineAlert tone="danger" title="Could not load the requests" live>
+                {describeError(requests.error)}
+              </InlineAlert>
+            ) : null}
+
+            {cancel.isError ? (
+              <InlineAlert tone="danger" title="Could not cancel the request" live>
+                {describeError(cancel.error)}
+              </InlineAlert>
+            ) : null}
+
+            {requests.isPending ? (
+              <LoadingRegion label="Loading the requests.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {requests.isSuccess && rows.length === 0 ? (
+              <p className="tm-bil-card__body">
+                No plan-change requests yet. Pick a plan and request it to record where you would
+                like to move.
+              </p>
+            ) : null}
+
+            {pending ? (
+              <p className="tm-bil-card__body">
+                {planLabel(pending.targetPlanCode)} is requested from {pending.effectiveOn}.
+              </p>
+            ) : null}
+
+            {rows.length > 0 ? (
+              <div className="tm-bil-table-card">
+                <table className="tm-table">
+                  <caption className="tm-visually-hidden">
+                    The organization&rsquo;s plan-change requests.
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Target plan</th>
+                      <th scope="col">Effective date</th>
+                      <th scope="col">Status</th>
+                      <th scope="col">Note</th>
+                      <th scope="col">
+                        <span className="tm-visually-hidden">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((request) => (
+                      <tr key={request.id}>
+                        <td>{planLabel(request.targetPlanCode)}</td>
+                        <td className="tm-mono">{request.effectiveOn}</td>
+                        <td>
+                          <span
+                            className={`tm-bil-status${request.status === 'pending' ? ' tm-bil-status--warning' : ''}`}
+                          >
+                            {request.status}
+                          </span>
+                        </td>
+                        <td>{request.note ?? '—'}</td>
+                        <td className="tm-bil-num">
+                          {request.status === 'pending' ? (
+                            <Button
+                              type="button"
+                              tone="destructive"
+                              size="compact"
+                              loading={cancel.isPending && cancel.variables?.id === request.id}
+                              loadingLabel="Cancelling"
+                              onClick={() => cancel.mutate(request)}
+                            >
+                              Cancel
+                            </Button>
+                          ) : (
+                            <span className="tm-visually-hidden">No actions</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+
+            <p className="tm-bil-card__foot">
+              Recording a request does not charge you or change your plan. Billing is arranged
+              separately.
+            </p>
+          </section>
+        </div>
+      </form>
     </AppShell>
   );
 }

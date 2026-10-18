@@ -1,0 +1,1012 @@
+/*
+ * Work list, work item and its sub-pages (WK-02, WK-09, WK-12, WK-14).
+ *
+ * Kept beside the screens while several screen groups rebuild in parallel; every value is a
+ * token from `@tmanage/ui`, so this file can be folded into `globals.css` unchanged.
+ */
+
+/* ── Context rail: saved views and projects, flat (WK-02 "flat, never card stack") ── */
+
+.tm-context-rail:has(.tm-wk-rail) {
+  padding: 0 var(--s1);
+  border: 0;
+  background: transparent;
+  inline-size: var(--context-rail-min);
+}
+
+.tm-wk-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.tm-wk-rail__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-wk-rail__heading {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-wk-rail__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  inline-size: 100%;
+  padding: var(--s2) 14px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tm-wk-rail__item:hover {
+  color: var(--ink-950);
+}
+
+.tm-wk-rail__item[aria-pressed='true'][data-kind='view'] {
+  background: var(--ink-950);
+  border-color: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-wk-rail__item[aria-pressed='true'][data-kind='project'] {
+  background: var(--paper-0);
+  border-color: var(--line-300);
+  color: var(--ink-950);
+}
+
+.tm-wk-rail__dot {
+  flex: none;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--r-capsule);
+  border: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-wk-rail__item[aria-pressed='true'] .tm-wk-rail__dot {
+  background: var(--lime-500);
+  border-color: var(--tm-ink-absolute);
+}
+
+/* ── Header: view switch + "New work" capsule ─────────────────────────────────── */
+
+.tm-wk-views > * {
+  min-block-size: 31px;
+  font-size: var(--t-caption);
+}
+
+.tm-wk-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 18px 5px 5px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-wk-new__orb {
+  display: grid;
+  place-items: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+}
+
+[data-theme='dark'] .tm-wk-new {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+[data-theme='dark'] .tm-wk-new__orb {
+  background: var(--tm-ink-absolute);
+}
+
+/* ── Filter capsules ──────────────────────────────────────────────────────────── */
+
+.tm-wk-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.tm-wk-filters > legend {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-wk-filter {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 34px;
+  padding: 0 var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-wk-filter input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tm-wk-filter:has(input:checked) {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-wk-filter:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-filter[data-tone='warning'] {
+  border-color: var(--warning-600);
+  color: var(--warning-600);
+}
+
+.tm-wk-filter[data-tone='client'] {
+  border: var(--b-structural) solid var(--client-500);
+}
+
+.tm-wk-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: 34px;
+  padding-inline-start: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  font-weight: 500;
+}
+
+.tm-wk-select select {
+  appearance: none;
+  min-block-size: 32px;
+  padding: 0 var(--s4) 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-wk-select:has(select:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+}
+
+.tm-wk-toolbar__end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-caption);
+  color: var(--ink-650);
+}
+
+.tm-wk-toolbar__end a {
+  color: inherit;
+}
+
+/* ── Bulk bar: the black selection capsule ────────────────────────────────────── */
+
+.tm-wk-bulk {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  align-self: flex-start;
+  padding: var(--s2) var(--s3) var(--s2) var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+.tm-wk-bulk__count {
+  display: grid;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tm-wk-bulk__label {
+  margin: 0;
+  font: inherit;
+}
+
+.tm-wk-bulk__rule {
+  inline-size: 1px;
+  block-size: 14px;
+  background: var(--ink-650);
+}
+
+.tm-wk-bulk button {
+  min-block-size: 26px;
+  padding: 0 var(--s1);
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-wk-bulk button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.tm-wk-bulk button:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-wk-bulk .tm-wk-bulk__close {
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  padding: 0;
+  background: var(--ink-800);
+  color: var(--line-300);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+/* ── WK-14 bulk review: scope, conflicts, receipt ─────────────────────────────── */
+
+.tm-wk-review {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  max-inline-size: 560px;
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-wk-review__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 25px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-wk-review__line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: 10px 14px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-wk-review__line[data-tone='warning'] {
+  border-color: var(--warning-600);
+  background: var(--paper-0);
+}
+
+.tm-wk-review__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tm-wk-review__line[data-tone='warning'] .tm-wk-review__mark {
+  background: transparent;
+  border: var(--b-quiet) solid var(--warning-600);
+  color: var(--warning-600);
+}
+
+.tm-wk-review__list {
+  margin: var(--s1) 0 0;
+  padding-inline-start: var(--s4);
+}
+
+.tm-wk-review__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-wk-review__receipt {
+  margin-inline-start: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--client-500);
+}
+
+/* ── WK-02 table ───────────────────────────────────────────────────────────────── */
+
+.tm-wk-table-frame {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-wk-table-frame .tm-table-scroll {
+  border: 0;
+  border-radius: 0;
+}
+
+.tm-wk-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-wk-table th,
+.tm-wk-table td {
+  block-size: 38px;
+  padding: 0 6px;
+  border: 0;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  text-align: start;
+  vertical-align: middle;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+}
+
+.tm-wk-table th:first-child,
+.tm-wk-table td:first-child {
+  padding-inline-start: 14px;
+}
+
+.tm-wk-table th:last-child,
+.tm-wk-table td:last-child {
+  padding-inline-end: 14px;
+}
+
+.tm-wk-table thead th {
+  block-size: 34px;
+  background: var(--paper-50);
+  border-block-end-color: var(--line-300);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-wk-table thead .tm-table__sort {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tm-wk-table th.tm-wk-cell--check {
+  inline-size: 42px;
+}
+.tm-wk-table th.tm-wk-cell--type {
+  inline-size: 52px;
+}
+.tm-wk-table th.tm-wk-cell--owner {
+  inline-size: 62px;
+}
+.tm-wk-table th.tm-wk-cell--state {
+  inline-size: 136px;
+}
+.tm-wk-table th.tm-wk-cell--date {
+  inline-size: 132px;
+}
+.tm-wk-table th.tm-wk-cell--audience {
+  inline-size: 168px;
+}
+.tm-wk-table th.tm-wk-cell--fresh {
+  inline-size: 72px;
+}
+
+.tm-wk-table tbody tr:hover > * {
+  background: var(--paper-50);
+}
+
+.tm-wk-table tbody tr[data-selected='true'] > * {
+  background: var(--paper-50);
+}
+
+.tm-wk-table tbody tr[data-selected='true'] > :first-child {
+  box-shadow: inset 3px 0 0 var(--ink-950);
+}
+
+[dir='rtl'] .tm-wk-table tbody tr[data-selected='true'] > :first-child {
+  box-shadow: inset -3px 0 0 var(--ink-950);
+}
+
+.tm-wk-table__group td {
+  block-size: 32px;
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-800);
+}
+
+.tm-wk-table__group-count {
+  float: inline-end;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-650);
+}
+
+.tm-wk-table__type {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-wk-table .tm-table__title {
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-wk-table .tm-table__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-wk-table .tm-table__title a:hover {
+  text-decoration: underline;
+}
+
+.tm-wk-table .tm-state-capsule {
+  gap: 6px;
+  padding: 3px 10px;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+}
+
+.tm-wk-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-wk-mono[data-tone='muted'] {
+  color: var(--ink-650);
+}
+
+.tm-wk-mono[data-tone='warning'] {
+  color: var(--warning-600);
+}
+
+.tm-wk-avatar {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+  color: var(--paper-50);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.tm-wk-avatar[data-empty='true'] {
+  background: var(--paper-250);
+  color: var(--ink-650);
+}
+
+[data-theme='dark'] .tm-wk-avatar {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+.tm-wk-halo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-wk-halo__ring {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+  border: var(--b-structural) solid currentColor;
+  border-radius: var(--r-capsule);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.tm-wk-halo[data-audience='client_visible'] .tm-wk-halo__ring {
+  color: var(--client-500);
+}
+
+.tm-wk-halo[data-audience='client_action_required'] .tm-wk-halo__ring {
+  color: var(--ink-950);
+}
+
+.tm-wk-table__foot {
+  margin: 0;
+  padding: 14px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-650);
+}
+
+.tm-wk-table__foot button {
+  margin-inline-start: var(--s2);
+}
+
+/* ── Work item (WK-09) ─────────────────────────────────────────────────────────── */
+
+.tm-wk-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: var(--s5);
+  align-items: start;
+}
+
+.tm-wk-item__main,
+.tm-wk-item__aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.tm-wk-item__chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-wk-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 34px;
+  padding: 0 var(--s4) 0 var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-wk-chip[data-tone='client'] {
+  border: var(--b-structural) solid var(--client-500);
+}
+
+.tm-wk-chip .tm-wk-halo__ring {
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+.tm-wk-chip__orb {
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  margin-inline-start: -6px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tm-wk-item__chips .tm-state-capsule {
+  min-block-size: 34px;
+  padding-inline: 14px;
+}
+
+.tm-wk-subnav {
+  align-self: flex-start;
+}
+
+.tm-wk-item .tm-focus-capsule {
+  max-inline-size: none;
+}
+
+.tm-wk-facts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding-block-end: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-wk-facts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-inline-size: 0;
+}
+
+.tm-wk-facts dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-wk-facts dd {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-wk-facts dd[data-tone='warning'] {
+  color: var(--warning-600);
+}
+
+.tm-wk-facts__note {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+/* The work item's sections: a card each, heading in the WK-09 "Subtasks" style. */
+.tm-wk-item section.tm-panel,
+.tm-wk-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: none;
+}
+
+.tm-wk-item section.tm-panel > h2.tm-eyebrow,
+.tm-wk-card > h2.tm-eyebrow {
+  margin: 0;
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink-950);
+}
+
+.tm-wk-card__eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+/* Checklist rows read as WK-09's subtask rows. */
+.tm-wk-item section.tm-panel .tm-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-wk-item section.tm-panel .tm-list > li {
+  padding: 10px 14px;
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+}
+
+/* Work story (aside). */
+.tm-wk-story {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-wk-story > li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 0 var(--s4) 24px;
+}
+
+.tm-wk-story > li::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 4px;
+  inset-block-start: 4px;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-wk-story > li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 8px;
+  inset-block: 14px 0;
+  inline-size: 2px;
+  background: var(--ink-950);
+}
+
+.tm-wk-story > li[data-state='now']::before {
+  inline-size: 14px;
+  block-size: 14px;
+  inset-inline-start: 2px;
+  inset-block-start: 2px;
+  background: var(--lime-500);
+  box-shadow: 0 0 0 var(--b-structural) var(--tm-ink-absolute);
+}
+
+.tm-wk-story__when {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-wk-story__what {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+/* WK-12 dependencies sit in the aside as their own card. */
+.tm-wk-deps section.tm-panel {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Sub-pages (activity, estimate, time) share the card treatment. */
+.tm-wk-page section.tm-panel {
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-wk-page section.tm-panel > h2.tm-eyebrow,
+.tm-wk-page section.tm-panel h2.tm-eyebrow {
+  margin: 0;
+  font-family: inherit;
+  font-size: 17px;
+  line-height: 24px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ink-950);
+}
+
+.tm-wk-page .tm-list > li {
+  padding: 10px 14px;
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  list-style: none;
+}
+
+.tm-wk-page .tm-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+}
+
+/* ── Responsive (responsive-and-desktop.md) ───────────────────────────────────── */
+
+@media (max-width: 73.69rem) {
+  /* The shell stacks its columns here; WK-02 tablet drops the rail for the filter capsules. */
+  .tm-context-rail:has(.tm-wk-rail) {
+    display: none;
+  }
+
+  /* Columns start to drop out below here; a fixed layout would keep their slots. */
+  .tm-wk-table {
+    table-layout: auto;
+  }
+
+  .tm-wk-table .tm-table__title {
+    inline-size: 100%;
+    max-inline-size: 0;
+  }
+
+  .tm-wk-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-wk-table .tm-wk-cell--fresh {
+    display: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .tm-wk-table .tm-wk-cell--audience {
+    display: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-wk-table {
+    table-layout: auto;
+  }
+
+  .tm-wk-table .tm-table__title {
+    max-inline-size: none;
+    white-space: normal;
+    padding-block: var(--s2);
+  }
+
+  .tm-wk-item .tm-focus-capsule__end {
+    display: none;
+  }
+
+  .tm-wk-table .tm-wk-cell--type,
+  .tm-wk-table .tm-wk-cell--owner {
+    display: none;
+  }
+
+  .tm-wk-table th.tm-wk-cell--state {
+    inline-size: 112px;
+  }
+
+  .tm-wk-table th.tm-wk-cell--date {
+    inline-size: 92px;
+  }
+
+  .tm-wk-facts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tm-wk-toolbar__end {
+    margin-inline-start: 0;
+  }
+}
+
+.tm-wk-table .tm-wk-cell--fresh {
+  text-align: end;
+}
+
+.tm-wk-rail__text {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tm-wk-table abbr.tm-wk-table__type {
+  text-decoration: none;
+  cursor: help;
+}
+
+.tm-wk-select select {
+  inline-size: auto;
+  min-inline-size: 0;
+  field-sizing: content;
+}

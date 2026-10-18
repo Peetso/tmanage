@@ -93,14 +93,16 @@ describe('BackendPending keeps its ticket out of a production build', () => {
     expect(screen.getByText('No recovery email is sent.')).toBeInTheDocument();
   });
 
-  it('names the ticket in development, where the reader is the team', () => {
+  it('keeps the ticket out of a development build too, unless a caller asks for it', () => {
+    // Peter, 2026-10-18: the design is reviewed on the development server, and a ticket id is a
+    // developer artefact on a screen a person uses.
     vi.stubEnv('NODE_ENV', 'development');
     const { container } = render(
       <BackendPending ticket="ID-002">No recovery email is sent.</BackendPending>,
     );
 
-    expect(screen.getByText('Not available yet — ID-002')).toBeInTheDocument();
-    expect(textOf(container)).toMatch(TICKET_ID);
+    expect(screen.getByText('Not available yet')).toBeInTheDocument();
+    expect(textOf(container)).not.toMatch(TICKET_ID);
   });
 
   it('lets a caller decide either way, so a test never depends on the ambient environment', () => {
@@ -131,11 +133,11 @@ describe('ID-05 Recovery shows a person no internal identifier in production', (
     });
   }
 
-  it('keeps naming the ticket to the team in development', () => {
+  it('keeps the ticket off the screen in development too (Peter, 2026-10-18)', () => {
     vi.stubEnv('NODE_ENV', 'development');
     const { container } = render(<RecoveryScreen state="request" />);
 
-    expect(textOf(container)).toContain('ID-002');
+    expect(textOf(container)).not.toContain('ID-002');
   });
 });
 

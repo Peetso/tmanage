@@ -1,18 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { INTERNAL_ROLES } from '@tmanage/domain';
-import {
-  Badge,
-  Button,
-  InlineAlert,
-  LoadingRegion,
-  Select,
-  Skeleton,
-  StatusDot,
-} from '@tmanage/ui';
+import { Avatar, Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listMembers } from '../../lib/api/members';
 import {
@@ -131,129 +125,151 @@ export function MembersAndRolesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
+      eyebrow="Project · Team"
       title="Members and roles"
       description="Who works on this project, and what they can do. Adding, changing a role and removing are all recorded."
+      topBar={
+        <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="team" />
+      }
     >
-      {actionError ? (
-        <InlineAlert tone="danger" title="That change was refused" live>
-          {actionError}
-        </InlineAlert>
-      ) : null}
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-add-member">
-        <h2 id="tm-add-member" className="tm-eyebrow">
-          Add someone to this project
-        </h2>
-        <form
-          className="tm-stack tm-stack--tight"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (addUserId !== '') add.mutate();
-          }}
-        >
-          <Select
-            label="Person"
-            name="userId"
-            value={addUserId}
-            onChange={(event) => setAddUserId(event.target.value)}
-          >
-            <option value="">Choose a member…</option>
-            {candidates.map((member) => (
-              <option key={member.userId} value={member.userId}>
-                {member.displayName}
-              </option>
-            ))}
-          </Select>
-          <Select
-            label="Role"
-            name="role"
-            value={addRole}
-            onChange={(event) => setAddRole(event.target.value)}
-          >
-            {INTERNAL_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {describeInternalRole(role).label}
-              </option>
-            ))}
-          </Select>
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              loading={add.isPending}
-              loadingLabel="Adding"
-              disabled={addUserId === ''}
-            >
-              Add to project
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section className="tm-stack" aria-labelledby="tm-member-list">
-        <h2 id="tm-member-list" className="tm-eyebrow">
-          On this project
-        </h2>
-
-        {members.isPending ? (
-          <LoadingRegion
-            label="Loading the project's members."
-            className="tm-stack tm-stack--tight"
-          >
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {members.isError ? (
-          <InlineAlert tone="danger" title="Could not load the members" live>
-            {describe(members.error)}
+      <div className="tm-prj tm-prj--sub">
+        {actionError ? (
+          <InlineAlert tone="danger" title="That change was refused" live>
+            {actionError}
           </InlineAlert>
         ) : null}
 
-        {members.isSuccess ? (
-          members.data.length === 0 ? (
-            <InlineAlert tone="neutral">Nobody is on this project yet.</InlineAlert>
-          ) : (
-            <ul className="tm-stack tm-list">
-              {members.data.map((member) => (
-                <li key={member.projectMembershipId} className="tm-panel tm-stack tm-stack--tight">
-                  <div className="tm-row">
-                    <span className="tm-mono">{names.get(member.userId) ?? member.userId}</span>
-                    <Badge>{describeInternalRole(member.role).label}</Badge>
-                    <span className="tm-push-end">
-                      <StatusDot tone="neutral">On project</StatusDot>
-                    </span>
-                  </div>
-                  <div className="tm-row">
-                    <Select
-                      label={`Role for ${names.get(member.userId) ?? member.userId}`}
-                      name={`role-${member.projectMembershipId}`}
-                      value={member.role}
-                      onChange={(event) => changeRole.mutate({ member, role: event.target.value })}
-                    >
-                      {INTERNAL_ROLES.map((role) => (
-                        <option key={role} value={role}>
-                          {describeInternalRole(role).label}
-                        </option>
-                      ))}
-                    </Select>
-                    <Button
-                      tone="outline"
-                      size="compact"
-                      onClick={() => remove.mutate(member)}
-                      loading={remove.isPending}
-                      loadingLabel="Removing"
-                    >
-                      Remove
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )
-        ) : null}
-      </section>
+        <div className="tm-prj__grid tm-prj__grid--even">
+          <section className="tm-card tm-prj-card" aria-labelledby="tm-member-list">
+            <h2 id="tm-member-list" className="tm-prj-eyebrow">
+              On this project{members.isSuccess ? ` · ${members.data.length}` : ''}
+            </h2>
+
+            {members.isPending ? (
+              <LoadingRegion
+                label="Loading the project's members."
+                className="tm-stack tm-stack--tight"
+              >
+                <Skeleton height="58px" />
+                <Skeleton height="58px" />
+              </LoadingRegion>
+            ) : null}
+
+            {members.isError ? (
+              <InlineAlert tone="danger" title="Could not load the members" live>
+                {describe(members.error)}
+              </InlineAlert>
+            ) : null}
+
+            {members.isSuccess ? (
+              members.data.length === 0 ? (
+                <InlineAlert tone="neutral">Nobody is on this project yet.</InlineAlert>
+              ) : (
+                <ul className="tm-prj-people">
+                  {members.data.map((member) => {
+                    const name = names.get(member.userId) ?? member.userId;
+                    return (
+                      <li key={member.projectMembershipId}>
+                        <Avatar name={name} decorative />
+                        <span className="tm-prj-people__who">
+                          <span className="tm-prj-people__name">{name}</span>
+                          <span className="tm-prj-people__role">
+                            {describeInternalRole(member.role).label} · on project
+                          </span>
+                        </span>
+                        <span className="tm-prj-people__end">
+                          <Select
+                            label={`Role for ${name}`}
+                            name={`role-${member.projectMembershipId}`}
+                            value={member.role}
+                            onChange={(event) =>
+                              changeRole.mutate({ member, role: event.target.value })
+                            }
+                          >
+                            {INTERNAL_ROLES.map((role) => (
+                              <option key={role} value={role}>
+                                {describeInternalRole(role).label}
+                              </option>
+                            ))}
+                          </Select>
+                          <Button
+                            tone="outline"
+                            size="compact"
+                            onClick={() => remove.mutate(member)}
+                            loading={remove.isPending}
+                            loadingLabel="Removing"
+                          >
+                            Remove
+                          </Button>
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )
+            ) : null}
+          </section>
+
+          <section className="tm-card tm-prj-card" aria-labelledby="tm-add-member">
+            <h2 id="tm-add-member" className="tm-prj-eyebrow">
+              Add someone to this project
+            </h2>
+            <form
+              className="tm-prj-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (addUserId !== '') add.mutate();
+              }}
+            >
+              <Select
+                label="Person"
+                name="userId"
+                value={addUserId}
+                onChange={(event) => setAddUserId(event.target.value)}
+              >
+                <option value="">Choose a member…</option>
+                {candidates.map((member) => (
+                  <option key={member.userId} value={member.userId}>
+                    {member.displayName}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label="Role"
+                name="role"
+                value={addRole}
+                onChange={(event) => setAddRole(event.target.value)}
+              >
+                {INTERNAL_ROLES.map((role) => (
+                  <option key={role} value={role}>
+                    {describeInternalRole(role).label}
+                  </option>
+                ))}
+              </Select>
+              <div className="tm-row">
+                <Button
+                  type="submit"
+                  tone="ink"
+                  loading={add.isPending}
+                  loadingLabel="Adding"
+                  disabled={addUserId === ''}
+                >
+                  Add to project
+                </Button>
+              </div>
+            </form>
+            <p className="tm-card__meta">
+              Allocations — who gives this project what share of their week — are on the{' '}
+              <Link
+                href={`/${organizationSlug}/projects/${encodeURIComponent(projectId)}/allocations`}
+              >
+                allocations page
+              </Link>
+              .
+            </p>
+          </section>
+        </div>
+      </div>
     </AppShell>
   );
 }

@@ -5,18 +5,11 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workItemStateMachine } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
-import {
-  Badge,
-  Button,
-  Field,
-  InlineAlert,
-  LoadingRegion,
-  Skeleton,
-  StateCapsule,
-} from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { MemberSelect } from '../MemberSelect';
-import { BackendPending } from './BackendPending';
+import { WorkItemDependenciesScreen } from './WorkItemDependenciesScreen';
+import './work-core.css';
 import { WorkChecklistPanel } from './WorkChecklistPanel';
 import { WorkCommentsPanel } from './WorkCommentsPanel';
 import { WorkWatchersPanel } from './WorkWatchersPanel';
@@ -29,8 +22,10 @@ import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import {
   audienceLabel,
+  formatDay,
   formatInstant,
   isClientFacing,
+  isOverdue,
   stateCapsule,
   stateLabel,
 } from '../../lib/work-item-presentation';
@@ -172,12 +167,8 @@ export function WorkItemDetailScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
+      eyebrow="Work item"
       title={item.data?.title ?? 'Work item'}
-      description={
-        <Link href={`/${organizationSlug}/work`} className="tm-prose">
-          Back to the work list
-        </Link>
-      }
     >
       {item.isPending ? (
         <LoadingRegion label="Loading this work item.">
@@ -368,232 +359,350 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
     move.mutate(target);
   }
 
+  const owner = memberDisplayName(item.ownerUserId, directory.members, directory.isPending);
+  const overdue = isOverdue(item, new Date());
+  const focus = FOCUS[item.state];
+  const base = `/${organizationSlug}/work/${item.id}`;
+
   return (
-    <div className="tm-stack tm-stack--loose">
-      <section className="tm-panel tm-stack" aria-labelledby="tm-work-header">
-        <h2 id="tm-work-header" className="tm-eyebrow">
-          This item
-        </h2>
-        <div className="tm-row tm-row--wrap">
-          <Badge>{item.type}</Badge>
+    <div className="tm-wk-item">
+      <div className="tm-wk-item__main">
+        <div className="tm-wk-item__chips">
+          <Link href={`/${organizationSlug}/work`} className="tm-wk-chip">
+            <span className="tm-wk-chip__orb" aria-hidden="true">
+              ←
+            </span>
+            Work list
+          </Link>
           <StateCapsule state={stateCapsule(item.state)}>{stateLabel(item.state)}</StateCapsule>
-          {isClientFacing(item.audience) ? (
-            <StateCapsule state="client">{audienceLabel(item.audience)}</StateCapsule>
-          ) : (
-            <StateCapsule state="neutral">{audienceLabel(item.audience)}</StateCapsule>
-          )}
-          <Badge mono>v{item.version}</Badge>
-        </div>
-
-        <dl className="tm-detail-list">
-          <div className="tm-detail-list__pair">
-            <dt>Owner</dt>
-            {/*
-              D16's acceptance sentence: a member "can see who is accountable". This said
-              "Assigned" — which is the one thing about an owner nobody needed telling.
-            */}
-            <dd>{memberDisplayName(item.ownerUserId, directory.members, directory.isPending)}</dd>
-          </div>
-          <div className="tm-detail-list__pair">
-            <dt>Starts</dt>
-            <dd>{formatInstant(item.startAt)}</dd>
-          </div>
-          <div className="tm-detail-list__pair">
-            <dt>Due</dt>
-            <dd>{formatInstant(item.dueAt)}</dd>
-          </div>
-          {item.completedAt !== null ? (
-            <div className="tm-detail-list__pair">
-              <dt>Completed</dt>
-              <dd>{formatInstant(item.completedAt)}</dd>
-            </div>
-          ) : null}
-          <div className="tm-detail-list__pair">
-            <dt>Last changed</dt>
-            <dd>{formatInstant(item.updatedAt)}</dd>
-          </div>
-        </dl>
-      </section>
-
-      {conflict ? (
-        <InlineAlert tone="warning" title="Somebody else changed this first" live>
-          Your change was not applied. The item above has been reloaded and now shows what is
-          actually stored. Read it, then make the change again if you still want it.
-        </InlineAlert>
-      ) : null}
-
-      {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
-          {failure}
-        </InlineAlert>
-      ) : null}
-
-      {missing.length > 0 ? (
-        <InlineAlert tone="warning" title="The move needs more than was given" live>
-          <ul className="tm-list">
-            {missing.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </InlineAlert>
-      ) : null}
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-work-transition">
-        <h2 id="tm-work-transition" className="tm-eyebrow">
-          Move this item
-        </h2>
-
-        {reachable.length === 0 ? (
-          <p className="tm-prose">
-            {stateLabel(item.state)} is the end of the lifecycle. There is nowhere to move this item
-            from here.
-          </p>
-        ) : (
-          <form className="tm-stack" noValidate onSubmit={submitTransition}>
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-work-target">
-                Move to
-              </label>
-              <select
-                id="tm-work-target"
-                className="tm-field__control"
-                value={target}
-                onChange={(event) => {
-                  const next = event.target.value as WorkItemState | '';
-                  setTarget(next);
-                  // Two of `done`'s facts have sensible starting values: the owner the item
-                  // already has, and "now" for the completion time. Both are offered, not
-                  // imposed — the fields stay editable — so a person is not made to retype an
-                  // id that is already on the row.
-                  const needs =
-                    next === '' ? [] : workItemStateMachine.requirementsFor(item.state, next);
-                  const seeded: Record<string, string> = {};
-                  if (needs.includes('ownerId') && item.ownerUserId !== null) {
-                    seeded['ownerId'] = item.ownerUserId;
-                  }
-                  if (needs.includes('completedAt')) {
-                    seeded['completedAt'] = toLocalControlValue(new Date());
-                  }
-                  setFacts(seeded);
-                  setMissing([]);
-                }}
-              >
-                <option value="">Choose a state</option>
-                {reachable.map((state) => (
-                  <option key={state} value={state}>
-                    {stateLabel(state)}
-                  </option>
-                ))}
-              </select>
-              <span className="tm-field__hint">
-                Only the moves the lifecycle allows from {stateLabel(item.state)} are listed.
-              </span>
-            </div>
-
-            {required.map((fact) => renderFact(fact, true))}
-
-            {/*
-              What the move will take but does not need. Rendered after the requirements and
-              never marked required, so the asterisks say exactly what the machine says.
-            */}
-            {optional.map((fact) => renderFact(fact, false))}
-
-            {target !== '' && required.length === 0 && optional.length === 0 ? (
-              <p className="tm-prose">This move needs nothing else from you.</p>
-            ) : null}
-
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={move.isPending}
-                loadingLabel="Moving"
-                disabled={target === ''}
-              >
-                Move to {target === '' ? 'the chosen state' : stateLabel(target)}
-              </Button>
-            </div>
-          </form>
-        )}
-      </section>
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-work-audience">
-        <h2 id="tm-work-audience" className="tm-eyebrow">
-          Who can see this
-        </h2>
-        <p className="tm-prose">
-          Currently <strong>{audienceLabel(item.audience)}</strong>.
-        </p>
-
-        {/*
-          Widening is confirmed; narrowing is not.
-          `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC` makes audience the control that decides
-          what a client can ever see, and widening is the direction that discloses. Narrowing
-          takes something away from a client who may already have read it — worth doing, and
-          not worth a modal, because nothing new escapes.
-        */}
-        <div className="tm-row tm-row--wrap">
-          {(['internal', 'client_visible', 'client_action_required'] as const).map((audience) => (
-            <Button
-              key={audience}
-              tone={audience === item.audience ? 'ink' : 'outline'}
-              size="accessible"
-              disabled={audience === item.audience || changeAudience.isPending}
-              onClick={() => {
-                if (audience === 'internal') {
-                  changeAudience.mutate(audience);
-                } else {
-                  setPendingAudience(audience);
-                }
-              }}
+          {/*
+            D16's acceptance sentence: a member "can see who is accountable". The chip says who
+            by name; "Unassigned" when nobody is.
+          */}
+          <span className="tm-wk-chip">
+            <span
+              className="tm-wk-avatar"
+              aria-hidden="true"
+              data-empty={item.ownerUserId === null}
             >
-              {audienceLabel(audience)}
-            </Button>
-          ))}
+              {item.ownerUserId === null ? '?' : initialsOf(owner)}
+            </span>
+            <span className="tm-visually-hidden">Owner: </span>
+            {owner}
+          </span>
+          <span
+            className="tm-wk-chip"
+            {...(isClientFacing(item.audience) ? { 'data-tone': 'client' } : {})}
+          >
+            <span className="tm-wk-halo" data-audience={item.audience}>
+              <span className="tm-wk-halo__ring" aria-hidden="true">
+                {AUDIENCE_GLYPH[item.audience]}
+              </span>
+            </span>
+            {audienceLabel(item.audience)}
+          </span>
         </div>
 
-        {pendingAudience !== undefined ? (
-          <InlineAlert tone="client" title="This will show the item to the client" live>
-            <p className="tm-prose">
-              “{item.title}” becomes {audienceLabel(pendingAudience).toLowerCase()} in the client
-              portal. The title is what they will read, so check it says what you mean it to.
-            </p>
-            <div className="tm-row">
-              <Button
-                tone="ink"
-                size="accessible"
-                loading={changeAudience.isPending}
-                loadingLabel="Publishing"
-                onClick={() => changeAudience.mutate(pendingAudience)}
-              >
-                Show it to the client
-              </Button>
-              <Button
-                tone="outline"
-                size="accessible"
-                onClick={() => setPendingAudience(undefined)}
-              >
-                Keep it internal
-              </Button>
+        <nav className="tm-segmented tm-wk-subnav" aria-label="This work item">
+          <Link href={base} aria-current="page">
+            Overview
+          </Link>
+          <Link href={`${base}/activity`}>Activity</Link>
+          <Link href={`${base}/time-logs`}>Time</Link>
+          <Link href={`${base}/estimate`}>Estimate</Link>
+        </nav>
+
+        {focus !== undefined ? (
+          <div className="tm-focus-capsule">
+            <span className="tm-focus-capsule__orb" aria-hidden="true">
+              ▸
+            </span>
+            <div className="tm-focus-capsule__text">
+              <p className="tm-focus-capsule__title">{focus.title}</p>
+              <p className="tm-focus-capsule__why">
+                {focus.why}{' '}
+                {item.dueAt === null
+                  ? 'No due date is set, so nothing is committed yet.'
+                  : overdue
+                    ? `It was due ${formatDay(item.dueAt)}.`
+                    : `It is due ${formatDay(item.dueAt)}.`}
+              </p>
             </div>
+            <div className="tm-focus-capsule__end">
+              <a className="tm-wk-chip" href="#tm-work-transition">
+                Move this item
+              </a>
+            </div>
+          </div>
+        ) : null}
+
+        <section className="tm-wk-card" aria-labelledby="tm-work-header">
+          <h2 id="tm-work-header" className="tm-wk-card__eyebrow">
+            This item · {item.type}
+          </h2>
+          <dl className="tm-wk-facts">
+            <div>
+              <dt>Starts</dt>
+              <dd>{formatDay(item.startAt)}</dd>
+            </div>
+            <div>
+              <dt>Due</dt>
+              <dd {...(overdue ? { 'data-tone': 'warning' } : {})}>{formatDay(item.dueAt)}</dd>
+            </div>
+            {item.completedAt !== null ? (
+              <div>
+                <dt>Completed</dt>
+                <dd>{formatDay(item.completedAt)}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>Last changed</dt>
+              <dd title={formatInstant(item.updatedAt)}>{formatDay(item.updatedAt)}</dd>
+            </div>
+            <div>
+              <dt>Version</dt>
+              <dd>v{item.version}</dd>
+            </div>
+          </dl>
+          <p className="tm-wk-facts__note">
+            {overdue
+              ? `Past its due date and still ${stateLabel(item.state).toLowerCase()}.`
+              : `Currently ${stateLabel(item.state).toLowerCase()}, ${audienceLabel(item.audience).toLowerCase()}.`}
+          </p>
+        </section>
+
+        {conflict ? (
+          <InlineAlert tone="warning" title="Somebody else changed this first" live>
+            Your change was not applied. The item above has been reloaded and now shows what is
+            actually stored. Read it, then make the change again if you still want it.
           </InlineAlert>
         ) : null}
-      </section>
 
-      <WorkChecklistPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+        {failure ? (
+          <InlineAlert tone="danger" title="That did not go through" live>
+            {failure}
+          </InlineAlert>
+        ) : null}
 
-      <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+        {missing.length > 0 ? (
+          <InlineAlert tone="warning" title="The move needs more than was given" live>
+            <ul className="tm-list">
+              {missing.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          </InlineAlert>
+        ) : null}
+        <section className="tm-panel tm-stack" aria-labelledby="tm-work-transition">
+          <h2 id="tm-work-transition" className="tm-eyebrow">
+            Move this item
+          </h2>
 
-      <WorkWatchersPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+          {reachable.length === 0 ? (
+            <p className="tm-prose">
+              {stateLabel(item.state)} is the end of the lifecycle. There is nowhere to move this
+              item from here.
+            </p>
+          ) : (
+            <form className="tm-stack" noValidate onSubmit={submitTransition}>
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-work-target">
+                  Move to
+                </label>
+                <select
+                  id="tm-work-target"
+                  className="tm-field__control"
+                  value={target}
+                  onChange={(event) => {
+                    const next = event.target.value as WorkItemState | '';
+                    setTarget(next);
+                    // Two of `done`'s facts have sensible starting values: the owner the item
+                    // already has, and "now" for the completion time. Both are offered, not
+                    // imposed — the fields stay editable — so a person is not made to retype an
+                    // id that is already on the row.
+                    const needs =
+                      next === '' ? [] : workItemStateMachine.requirementsFor(item.state, next);
+                    const seeded: Record<string, string> = {};
+                    if (needs.includes('ownerId') && item.ownerUserId !== null) {
+                      seeded['ownerId'] = item.ownerUserId;
+                    }
+                    if (needs.includes('completedAt')) {
+                      seeded['completedAt'] = toLocalControlValue(new Date());
+                    }
+                    setFacts(seeded);
+                    setMissing([]);
+                  }}
+                >
+                  <option value="">Choose a state</option>
+                  {reachable.map((state) => (
+                    <option key={state} value={state}>
+                      {stateLabel(state)}
+                    </option>
+                  ))}
+                </select>
+                <span className="tm-field__hint">
+                  Only the moves the lifecycle allows from {stateLabel(item.state)} are listed.
+                </span>
+              </div>
 
-      <BackendPending ticket="WORK-002 · WORK-003 · CHAT-001 · FILE-001 · decisions, unscheduled">
-        Description, dependencies, the source this item came from, discussion, files, decisions and
-        the activity trail are each their own object. Most are planned; decisions and documents are
-        not scheduled at all. They are named here rather than drawn as empty sections, because an
-        empty “Files” heading reads as a project with no files rather than a feature that does not
-        exist yet.
-      </BackendPending>
+              {required.map((fact) => renderFact(fact, true))}
+
+              {/*
+                What the move will take but does not need. Rendered after the requirements and
+                never marked required, so the asterisks say exactly what the machine says.
+              */}
+              {optional.map((fact) => renderFact(fact, false))}
+
+              {target !== '' && required.length === 0 && optional.length === 0 ? (
+                <p className="tm-prose">This move needs nothing else from you.</p>
+              ) : null}
+
+              <div className="tm-row">
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="accessible"
+                  loading={move.isPending}
+                  loadingLabel="Moving"
+                  disabled={target === ''}
+                >
+                  Move to {target === '' ? 'the chosen state' : stateLabel(target)}
+                </Button>
+              </div>
+            </form>
+          )}
+        </section>
+        <section className="tm-panel tm-stack" aria-labelledby="tm-work-audience">
+          <h2 id="tm-work-audience" className="tm-eyebrow">
+            Who can see this
+          </h2>
+          <p className="tm-prose">
+            Currently <strong>{audienceLabel(item.audience)}</strong>.
+          </p>
+
+          {/*
+            Widening is confirmed; narrowing is not.
+            `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC` makes audience the control that decides
+            what a client can ever see, and widening is the direction that discloses. Narrowing
+            takes something away from a client who may already have read it — worth doing, and
+            not worth a modal, because nothing new escapes.
+          */}
+          <div className="tm-row tm-row--wrap">
+            {(['internal', 'client_visible', 'client_action_required'] as const).map((audience) => (
+              <Button
+                key={audience}
+                tone={audience === item.audience ? 'ink' : 'outline'}
+                size="accessible"
+                disabled={audience === item.audience || changeAudience.isPending}
+                onClick={() => {
+                  if (audience === 'internal') {
+                    changeAudience.mutate(audience);
+                  } else {
+                    setPendingAudience(audience);
+                  }
+                }}
+              >
+                {audienceLabel(audience)}
+              </Button>
+            ))}
+          </div>
+
+          {pendingAudience !== undefined ? (
+            <InlineAlert tone="client" title="This will show the item to the client" live>
+              <p className="tm-prose">
+                “{item.title}” becomes {audienceLabel(pendingAudience).toLowerCase()} in the client
+                portal. The title is what they will read, so check it says what you mean it to.
+              </p>
+              <div className="tm-row">
+                <Button
+                  tone="ink"
+                  size="accessible"
+                  loading={changeAudience.isPending}
+                  loadingLabel="Publishing"
+                  onClick={() => changeAudience.mutate(pendingAudience)}
+                >
+                  Show it to the client
+                </Button>
+                <Button
+                  tone="outline"
+                  size="accessible"
+                  onClick={() => setPendingAudience(undefined)}
+                >
+                  Keep it internal
+                </Button>
+              </div>
+            </InlineAlert>
+          ) : null}
+        </section>
+        <WorkChecklistPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+
+        <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+      </div>
+
+      <aside className="tm-wk-item__aside" aria-label="Story and relationships">
+        <section className="tm-wk-card" aria-labelledby="tm-work-story">
+          <h2 id="tm-work-story" className="tm-wk-card__eyebrow">
+            Work story
+          </h2>
+          <ol className="tm-wk-story">
+            <li>
+              <span className="tm-wk-story__when">Created · {formatDay(item.createdAt)}</span>
+              <span className="tm-wk-story__what">Added as a {item.type}</span>
+            </li>
+            {item.completedAt !== null ? (
+              <li>
+                <span className="tm-wk-story__when">Done · {formatDay(item.completedAt)}</span>
+                <span className="tm-wk-story__what">Finished by its owner</span>
+              </li>
+            ) : null}
+            <li>
+              <span className="tm-wk-story__when">Changed · {formatDay(item.updatedAt)}</span>
+              <span className="tm-wk-story__what">Now at version {item.version}</span>
+            </li>
+            <li data-state="now">
+              <span className="tm-wk-story__when">Now · {stateLabel(item.state)}</span>
+              <span className="tm-wk-story__what">
+                {item.dueAt === null ? 'No due date' : `Due ${formatDay(item.dueAt)}`}
+              </span>
+            </li>
+          </ol>
+        </section>
+
+        <div className="tm-wk-card tm-wk-deps">
+          <WorkItemDependenciesScreen
+            organizationSlug={organizationSlug}
+            workItemId={item.id}
+            api={api}
+          />
+        </div>
+
+        <WorkWatchersPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+      </aside>
     </div>
   );
+}
+
+/** One Focus Capsule per surface: what to do next with the item, and why now. */
+const FOCUS: Partial<Record<WorkItemState, { title: string; why: string }>> = {
+  backlog: { title: 'Get this ready to start', why: 'It is in the backlog.' },
+  ready: { title: 'Start this item', why: 'It is ready and waiting for its owner.' },
+  in_progress: { title: 'Move it on when it is ready', why: 'Work is in progress.' },
+  blocked: {
+    title: 'Resolve the blocker',
+    why: 'Nothing moves until the blocker is cleared.',
+  },
+  internal_review: { title: 'Finish the internal review', why: 'It is waiting on a reviewer.' },
+};
+
+const AUDIENCE_GLYPH: Record<WorkItemAudience, string> = {
+  internal: '■',
+  client_visible: '◎',
+  client_action_required: '!',
+};
+
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? '';
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase() || '?';
 }

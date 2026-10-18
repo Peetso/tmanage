@@ -26,7 +26,7 @@ export function InsightsExportButton({ organizationSlug, baseUrl }: InsightsExpo
   const href = `${origin}/v1/organizations/${encodeURIComponent(organizationSlug)}/insights/workload/export.csv`;
 
   return (
-    <a className="tm-button tm-button--outline" href={href} download="workload.csv">
+    <a className="tm-button tm-button--ink" href={href} download="workload.csv">
       Export workload (CSV)
     </a>
   );

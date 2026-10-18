@@ -69,9 +69,9 @@ describe('AutomationRunHistoryScreen', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole('columnheader', { name: 'Status' })).toBeInTheDocument(),
+      expect(screen.getByRole('columnheader', { name: 'Outcome' })).toBeInTheDocument(),
     );
-    expect(screen.getByRole('button', { name: 'View details' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /View details/ })).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
@@ -102,9 +102,9 @@ describe('AutomationRunHistoryScreen', () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: 'View details' })).toBeInTheDocument(),
+      expect(screen.getByRole('button', { name: /View details/ })).toBeInTheDocument(),
     );
-    fireEvent.click(screen.getByRole('button', { name: 'View details' }));
+    fireEvent.click(screen.getByRole('button', { name: /View details/ }));
 
     await waitFor(() => expect(screen.getByText('Run detail')).toBeInTheDocument());
     await waitFor(() => expect(screen.getByText(/"outcome": "ran"/)).toBeInTheDocument());

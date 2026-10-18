@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { deleteAlert, listAlerts, setAlert } from '../../lib/api/insights-metric-alerts';
 import type {
@@ -87,108 +88,111 @@ export function InsightMetricAlertsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
+      eyebrow="Insights"
       title="Metric alerts"
       description="Set your own threshold alert per metric and see which are breached right now."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-metric-alerts-heading">
-        <h2 id="tm-metric-alerts-heading" className="tm-eyebrow">
-          Metric alerts
-        </h2>
+      <div className="tm-ins tm-ins-tool">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-metric-alerts-heading">
+          <h2 id="tm-metric-alerts-heading" className="tm-eyebrow">
+            Metric alerts
+          </h2>
 
-        <form
-          className="tm-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            save.mutate();
-          }}
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-alert-metric">
-              Metric
-            </label>
-            <select
-              id="tm-alert-metric"
-              className="tm-field__control"
-              value={metricKey}
-              onChange={(event) => setMetricKey(event.target.value as MetricAlertMetric)}
-            >
-              {METRICS.map(({ id, label }) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-alert-comparator">
-              Comparator
-            </label>
-            <select
-              id="tm-alert-comparator"
-              className="tm-field__control"
-              value={comparator}
-              onChange={(event) => setComparator(event.target.value as MetricAlertComparator)}
-            >
-              {COMPARATORS.map(({ id, label }) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-alert-threshold">
-              Threshold
-            </label>
-            <input
-              id="tm-alert-threshold"
-              className="tm-field__control"
-              type="number"
-              min={0}
-              max={1000000}
-              step={1}
-              value={threshold}
-              onChange={(event) => setThreshold(event.target.value)}
+          <form
+            className="tm-row"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save.mutate();
+            }}
+          >
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-alert-metric">
+                Metric
+              </label>
+              <select
+                id="tm-alert-metric"
+                className="tm-field__control"
+                value={metricKey}
+                onChange={(event) => setMetricKey(event.target.value as MetricAlertMetric)}
+              >
+                {METRICS.map(({ id, label }) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-alert-comparator">
+                Comparator
+              </label>
+              <select
+                id="tm-alert-comparator"
+                className="tm-field__control"
+                value={comparator}
+                onChange={(event) => setComparator(event.target.value as MetricAlertComparator)}
+              >
+                {COMPARATORS.map(({ id, label }) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-alert-threshold">
+                Threshold
+              </label>
+              <input
+                id="tm-alert-threshold"
+                className="tm-field__control"
+                type="number"
+                min={0}
+                max={1000000}
+                step={1}
+                value={threshold}
+                onChange={(event) => setThreshold(event.target.value)}
+              />
+            </div>
+            <Button type="submit" loading={save.isPending} loadingLabel="Saving the alert">
+              Set alert
+            </Button>
+          </form>
+
+          {save.isError ? (
+            <InlineAlert tone="danger" title="Could not set the alert" live>
+              {describe(save.error)}
+            </InlineAlert>
+          ) : null}
+
+          {remove.isError ? (
+            <InlineAlert tone="danger" title="Could not delete the alert" live>
+              {describe(remove.error)}
+            </InlineAlert>
+          ) : null}
+
+          {alerts.isPending ? (
+            <LoadingRegion label="Loading your metric alerts." className="tm-stack tm-stack--tight">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {alerts.isError ? (
+            <InlineAlert tone="danger" title="Could not load metric alerts" live>
+              {describe(alerts.error)}
+            </InlineAlert>
+          ) : null}
+
+          {alerts.isSuccess ? (
+            <AlertsTable
+              rows={rows}
+              onDelete={(metric) => remove.mutate(metric)}
+              busy={remove.isPending}
             />
-          </div>
-          <Button type="submit" loading={save.isPending} loadingLabel="Saving the alert">
-            Set alert
-          </Button>
-        </form>
-
-        {save.isError ? (
-          <InlineAlert tone="danger" title="Could not set the alert" live>
-            {describe(save.error)}
-          </InlineAlert>
-        ) : null}
-
-        {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not delete the alert" live>
-            {describe(remove.error)}
-          </InlineAlert>
-        ) : null}
-
-        {alerts.isPending ? (
-          <LoadingRegion label="Loading your metric alerts." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {alerts.isError ? (
-          <InlineAlert tone="danger" title="Could not load metric alerts" live>
-            {describe(alerts.error)}
-          </InlineAlert>
-        ) : null}
-
-        {alerts.isSuccess ? (
-          <AlertsTable
-            rows={rows}
-            onDelete={(metric) => remove.mutate(metric)}
-            busy={remove.isPending}
-          />
-        ) : null}
-      </section>
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

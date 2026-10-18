@@ -1,0 +1,1266 @@
+/*
+ * Docs and decisions — DOC-01 hub, DOC-02 editor (paper sheet, edge column), DOC-03 view /
+ * history, DOC-04 templates and DEC-01 register, from `TManage Screens - Docs and
+ * Decisions.dc.html`.
+ *
+ * Every colour, radius and spacing is a design token. Pixel sizes without a token (the 30px hub
+ * headline, the 44px sheet title, the 680px sheet) are the frames' own numbers.
+ */
+
+/* ── Headline: DOC-01/DOC-04/DEC-01 draw a 28–30px semibold title under a mono eyebrow ──── */
+
+.tm-app__body:has(.tm-dx) .tm-canvas-header__title {
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.tm-app__body:has(.tm-dx) .tm-canvas-header__description {
+  max-inline-size: 60ch;
+}
+
+.tm-dx {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+/* ── Filter capsules: 11px Satoshi, 8×14 padding (DOC-01 "Recent", DEC-01 "Active · 37") ─── */
+
+.tm-dx-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-dx-chips .tm-chip {
+  min-block-size: 34px;
+  padding-inline: 14px;
+  font-size: var(--t-caption);
+  line-height: 15px;
+}
+
+.tm-dx-chips .tm-chip--client {
+  border-color: var(--client-500);
+  border-width: var(--b-structural);
+}
+
+.tm-dx-chips__sep {
+  inline-size: 1px;
+  block-size: 20px;
+  margin-inline: var(--s1);
+  background: var(--line-300);
+}
+
+/* A native select drawn as a capsule, so a project choice sits in the chip row. */
+.tm-dx-select {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-dx-select__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-dx-select__control {
+  min-block-size: 34px;
+  max-inline-size: 260px;
+  padding-block: 0;
+  padding-inline: 14px 32px;
+  border: var(--b-quiet) solid var(--ink-500);
+  border-radius: var(--r-capsule);
+  background-color: var(--paper-0);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-650) 50%),
+    linear-gradient(135deg, var(--ink-650) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-caption);
+  font-weight: 500;
+  appearance: none;
+  cursor: pointer;
+}
+
+[dir='rtl'] .tm-dx-select__control {
+  padding-inline: 14px 32px;
+  background-position:
+    12px 50%,
+    17px 50%;
+}
+
+.tm-dx-select__control:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-dx-select__control:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* ── Card table: DOC-01 / DEC-01 — white, 18px radius, mono header strip, 42–44px rows ──── */
+
+.tm-dx-table-card {
+  /* Positioned, so a visually hidden label inside a row is clipped with the scroll area. */
+  position: relative;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  overflow: auto;
+}
+
+.tm-dx-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+}
+
+.tm-dx-table thead th {
+  block-size: 34px;
+  padding-block: 0;
+  padding-inline: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-align: start;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+.tm-dx-table tbody th,
+.tm-dx-table tbody td {
+  block-size: 44px;
+  padding-block: 6px;
+  padding-inline: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.tm-dx-table tbody tr:last-child th,
+.tm-dx-table tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.tm-dx-table tbody tr:hover th,
+.tm-dx-table tbody tr:hover td {
+  background: var(--paper-50);
+}
+
+/* The current row: a 3px ink bar at the start and a paper ground. */
+.tm-dx-table tbody tr[data-current='true'] th,
+.tm-dx-table tbody tr[data-current='true'] td {
+  background: var(--paper-50);
+}
+
+.tm-dx-table tbody tr[data-current='true'] > :first-child {
+  box-shadow: inset 3px 0 0 var(--ink-950);
+}
+
+[dir='rtl'] .tm-dx-table tbody tr[data-current='true'] > :first-child {
+  box-shadow: inset -3px 0 0 var(--ink-950);
+}
+
+.tm-dx-table__title {
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-dx-table tbody tr[data-current='true'] .tm-dx-table__title {
+  font-weight: 600;
+}
+
+.tm-dx-table__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-dx-table__title a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--lime-600);
+  text-underline-offset: 3px;
+}
+
+.tm-dx-table__sub {
+  display: block;
+  margin-block-start: 2px;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 400;
+  color: var(--ink-650);
+  max-inline-size: 48ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-dx-table__quiet {
+  font-size: var(--t-caption);
+  line-height: 15px;
+  color: var(--ink-650);
+}
+
+.tm-dx-table__mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-500);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-dx-table__mono--ink {
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-dx-table__end {
+  text-align: end !important;
+}
+
+/* A superseded row: struck through and quieted (DEC-01 "DEC-098"). */
+.tm-dx-table tbody tr[data-state='superseded'] .tm-dx-table__title {
+  color: var(--ink-650);
+  text-decoration: line-through;
+}
+
+.tm-dx-table tbody tr[data-state='superseded'] .tm-dx-table__sub,
+.tm-dx-table tbody tr[data-state='superseded'] .tm-dx-table__mono {
+  opacity: 0.7;
+}
+
+/* ── Small pills: status, "superseded", "live object" ─────────────────────────────────── */
+
+.tm-dx-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.tm-dx-pill--active {
+  border-color: var(--success-600);
+  color: var(--success-600);
+}
+
+[data-theme='dark'] .tm-dx-pill--active {
+  color: var(--ink-950);
+}
+
+.tm-dx-pill--proposed {
+  border-color: var(--ink-500);
+  color: var(--ink-800);
+}
+
+.tm-dx-pill--muted {
+  border-color: var(--paper-250);
+  background: var(--paper-250);
+  color: var(--ink-650);
+  font-weight: 500;
+}
+
+.tm-dx-pill--lime {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime, var(--ink-950));
+}
+
+/* ── Inline lifecycle controls inside a register row ──────────────────────────────────── */
+
+.tm-dx-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tm-dx-actions--end {
+  justify-content: flex-end;
+}
+
+.tm-dx-actions .tm-button {
+  --tm-control-h: 32px;
+  padding-inline: 12px;
+  font-size: var(--t-caption);
+  line-height: 15px;
+}
+
+.tm-dx-actions .tm-button--outline {
+  border-width: var(--b-quiet);
+}
+
+.tm-dx-actions .tm-dx-select__control {
+  min-block-size: 32px;
+  max-inline-size: 150px;
+}
+
+.tm-dx-note {
+  font-size: var(--t-caption);
+  line-height: 16px;
+  color: var(--ink-500);
+}
+
+/* DEC-01 "41 decisions · 4 superseded", at the end of the headline row. */
+.tm-dx-register-count {
+  margin: 0;
+  align-self: flex-end;
+  font-size: var(--t-caption);
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-app__body:has(.tm-dx) .tm-canvas-header__aside {
+  align-self: flex-end;
+  padding-block: 0 6px;
+}
+
+/* ── Two-column body: a main column and a 340px side column (DEC-02 proportions) ───────── */
+
+.tm-dx-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: start;
+  gap: var(--s5);
+}
+
+.tm-dx-split__main,
+.tm-dx-split__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+/* ── Side card: white, 24px radius, mono caption (DEC-02 "EVIDENCE · 4") ───────────────── */
+
+.tm-dx-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: 18px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+.tm-dx-card--dashed {
+  border-style: dashed;
+}
+
+.tm-dx-card--ink {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-inverted-ink, var(--paper-50));
+}
+
+[data-theme='dark'] .tm-dx-card--ink {
+  border-color: var(--line-300);
+  background: var(--paper-350);
+  color: var(--ink-950);
+}
+
+.tm-dx-caption {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-dx-card--ink .tm-dx-caption {
+  color: var(--tm-inverted-muted, var(--line-300));
+}
+
+[data-theme='dark'] .tm-dx-card--ink .tm-dx-caption {
+  color: var(--ink-650);
+}
+
+.tm-dx-card__title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-dx-card__body {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: 18px;
+  color: var(--ink-650);
+}
+
+/* Compact forms inside side cards: labels at 12px, controls at 40px. */
+.tm-dx-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-dx-form .tm-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-dx-form .tm-field__label {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-dx-form .tm-field__control {
+  min-block-size: 40px;
+  font-size: var(--t-ui-sm);
+}
+
+.tm-dx-form .tm-field__hint {
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.tm-dx-form .tm-button {
+  align-self: flex-start;
+  font-size: var(--t-ui-sm);
+}
+
+/* The Checkbox primitive (row + hint) inside a compact form: the hint sits under the row. */
+.tm-dx-form .tm-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s1);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tm-dx-form .tm-choice:has(input:checked) {
+  border: 0;
+  background: transparent;
+}
+
+.tm-dx-form .tm-choice__label {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-dx-form .tm-choice__hint {
+  margin-inline-start: 34px;
+  font-size: 11px;
+  line-height: 16px;
+}
+
+/* Row actions: a quiet outline, so a column of buttons does not outweigh the rows. */
+.tm-dx-table .tm-button--outline {
+  border-width: var(--b-quiet);
+}
+
+/* The info note at the foot of a column (DOC-04 "i" note, DOC-02 dashed note). */
+.tm-dx-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-650);
+}
+
+.tm-dx-info--dashed {
+  border-style: dashed;
+}
+
+.tm-dx-info__orb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 20px;
+  block-size: 20px;
+  border: var(--b-structural) solid var(--ink-500);
+  border-radius: var(--r-capsule);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
+.tm-dx-info p {
+  margin: 0;
+}
+
+/* Empty state: a dashed paper card with a title and one line. */
+.tm-dx-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px;
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-dx-empty__title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink-500);
+}
+
+.tm-dx-empty__body {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: 18px;
+  color: var(--ink-500);
+}
+
+/* ── DOC-04: template cards (the gallery table drawn as a stack of 24px cards) ─────────── */
+
+.tm-dx-cards {
+  display: block;
+  inline-size: 100%;
+  border-collapse: separate;
+}
+
+.tm-dx-cards > thead {
+  display: none;
+}
+
+.tm-dx-cards > tbody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-dx-cards > tbody > tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'title actions'
+    'body actions';
+  align-items: center;
+  column-gap: var(--s4);
+  row-gap: var(--s2);
+  padding: 18px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-dx-cards > tbody > tr:first-child {
+  border: var(--b-structural) solid var(--ink-950);
+}
+
+.tm-dx-cards > tbody > tr > th,
+.tm-dx-cards > tbody > tr > td {
+  display: block;
+  padding: 0;
+  border: 0;
+  text-align: start;
+}
+
+.tm-dx-cards__title {
+  grid-area: title;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-dx-cards__body {
+  grid-area: body;
+  font-size: var(--t-caption);
+  line-height: 18px;
+  color: var(--ink-650);
+}
+
+.tm-dx-cards__actions {
+  grid-area: actions;
+}
+
+.tm-dx-cards__actions > div {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-dx-cards__actions .tm-button {
+  --tm-control-h: 34px;
+  padding-inline: 14px;
+  font-size: var(--t-caption);
+}
+
+.tm-dx-link-capsule {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 34px;
+  padding-inline: 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-caption);
+  line-height: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-dx-link-capsule:hover {
+  background: var(--paper-50);
+}
+
+/* {{variable}} chips (DOC-04 "{{project}}"). */
+.tm-dx-token {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+/* ── New doc: the ink capsule with a lime "+" orb (DOC-01) ───────────────────────────── */
+
+.tm-dx-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 36px;
+  padding-block: 5px;
+  padding-inline: 5px 16px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+  color: var(--paper-50);
+  font-size: var(--t-caption);
+  line-height: 17px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-dx-new__orb {
+  display: grid;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: 1;
+}
+
+[data-theme='dark'] .tm-dx-new__orb {
+  background: var(--paper-250);
+}
+
+/* ── DOC-02 / DOC-03: document top bar, paper sheet and the edge column ───────────────── */
+
+/*
+ * The document screens draw no page headline: the title lives on the sheet. The shell's h1 stays
+ * in the document for assistive technology (it is the one heading level 1) and is hidden from
+ * sight; the top bar — back capsule, saved stamp, actions — takes the header row.
+ */
+.tm-app__body:has(.tm-dx-doc) .tm-canvas-header {
+  padding-block-end: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--paper-250);
+}
+
+@media (min-width: 900px) {
+  .tm-app__body:has(.tm-dx-doc) .tm-canvas-header {
+    margin-inline: calc(var(--s2) * -1) calc(var(--s8) * -1);
+    padding-inline: var(--s6);
+  }
+}
+
+.tm-app__body:has(.tm-dx-doc) .tm-canvas-header__title {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.tm-app__body:has(.tm-dx-doc) .tm-canvas-header__actions {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-dx-topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  inline-size: 100%;
+}
+
+.tm-dx-topbar__end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-inline-start: auto;
+}
+
+.tm-dx-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 38px;
+  padding-block: 6px;
+  padding-inline: 6px 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: 15px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-dx-back__orb {
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+}
+
+[dir='rtl'] .tm-dx-back__orb {
+  transform: scaleX(-1);
+}
+
+.tm-dx-stamp {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-dx-topbar .tm-segmented > * {
+  font-size: var(--t-caption);
+}
+
+.tm-dx-topbar .tm-button {
+  --tm-control-h: 38px;
+  padding-inline: 18px;
+  font-size: var(--t-caption);
+  line-height: 17px;
+}
+
+.tm-dx-topbar .tm-button--outline {
+  border-width: var(--b-quiet);
+  border-color: var(--line-300);
+}
+
+/* The canvas below the top bar: the sheet centred, the edge column at the end. */
+.tm-dx-doc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  align-items: stretch;
+  min-block-size: calc(100dvh - 102px);
+  margin-block: -26px calc(var(--s8) * -1);
+  margin-inline: calc(var(--s2) * -1) calc(var(--s8) * -1);
+  background: var(--paper-350);
+}
+
+.tm-dx-doc__stage {
+  display: flex;
+  justify-content: center;
+  min-inline-size: 0;
+  padding-block: var(--s8);
+  padding-inline: var(--s6);
+}
+
+.tm-dx-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  inline-size: 100%;
+  max-inline-size: var(--reading);
+  padding: 56px 64px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 8px;
+  background: var(--paper-0);
+  box-shadow: 0 2px 0 rgb(9 10 9 / 0.04);
+  align-self: flex-start;
+}
+
+.tm-dx-sheet__head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tm-dx-sheet__eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-dx-sheet__title {
+  margin: 0;
+  font-size: 44px;
+  line-height: 48px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+.tm-dx-sheet__meta {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-500);
+}
+
+.tm-dx-sheet__rule {
+  block-size: 1px;
+  border: 0;
+  margin: 0;
+  background: var(--paper-150);
+}
+
+.tm-dx-sheet__body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tm-dx-sheet__body p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 27px;
+  color: var(--ink-800);
+  text-wrap: pretty;
+}
+
+.tm-dx-sheet__body p:first-child {
+  font-size: var(--t-body-lg);
+  line-height: 28px;
+}
+
+/* The editor's body field: the sheet itself is the control. */
+.tm-dx-sheet__editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-dx-sheet__textarea {
+  inline-size: 100%;
+  min-block-size: 420px;
+  padding: var(--s2) 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-800);
+  font: inherit;
+  font-size: 16px;
+  line-height: 27px;
+  resize: vertical;
+}
+
+.tm-dx-sheet__textarea:focus-visible {
+  outline: none;
+  box-shadow: inset 0 -2px 0 var(--lime-500);
+}
+
+.tm-dx-sheet__hint {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-500);
+}
+
+/* The edge column: paper-50, a quiet line at its start, 24×20 padding. */
+.tm-dx-edge {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+  padding: 24px 20px;
+  border-inline-start: var(--b-quiet) solid var(--paper-250);
+  background: var(--paper-50);
+}
+
+.tm-dx-edge__caption {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-dx-edge__foot {
+  margin-block-start: auto;
+}
+
+/* Comment cards: white, 18px radius, the newest one outlined in ink. */
+.tm-dx-comments {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-dx-comment {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-dx-comment:last-child {
+  border: var(--b-structural) solid var(--ink-950);
+}
+
+.tm-dx-comment__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tm-dx-comment__orb {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-650);
+  color: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.tm-dx-comment__who {
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-800);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-dx-comment__when {
+  margin-inline-start: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+.tm-dx-comment__body {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-800);
+  overflow-wrap: anywhere;
+}
+
+.tm-dx-comment-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: 14px;
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-dx-comment-form .tm-field__label {
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.tm-dx-comment-form .tm-field__control {
+  min-block-size: 72px;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+}
+
+.tm-dx-comment-form .tm-button {
+  --tm-control-h: 32px;
+  align-self: flex-start;
+  padding-inline: 12px;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.tm-dx-quiet {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-500);
+}
+
+/* ── DOC-03 history in the edge column: version cards, compare blocks ─────────────────── */
+
+.tm-dx-versions {
+  display: block;
+  inline-size: 100%;
+}
+
+.tm-dx-versions > thead {
+  display: none;
+}
+
+.tm-dx-versions > tbody {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.tm-dx-versions > tbody > tr {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'no when'
+    'who who'
+    'act act';
+  align-items: center;
+  gap: 3px var(--s2);
+  padding: 10px 12px;
+  border: var(--b-structural) solid transparent;
+  border-radius: 12px;
+  background: var(--paper-0);
+}
+
+.tm-dx-versions > tbody > tr:first-child {
+  border-color: var(--ink-950);
+}
+
+.tm-dx-versions > tbody > tr > th,
+.tm-dx-versions > tbody > tr > td {
+  display: block;
+  padding: 0;
+  border: 0;
+  text-align: start;
+}
+
+.tm-dx-versions__no {
+  grid-area: no;
+  font-size: var(--t-caption);
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-dx-versions__when {
+  grid-area: when;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--ink-500);
+}
+
+.tm-dx-versions__who {
+  grid-area: who;
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--ink-500);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-dx-versions__act {
+  grid-area: act;
+  padding-block-start: 6px !important;
+}
+
+.tm-dx-versions__act > div {
+  display: flex;
+  gap: 6px;
+}
+
+.tm-dx-versions__act .tm-button {
+  --tm-control-h: 28px;
+  padding-inline: 12px;
+  border-width: var(--b-quiet);
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.tm-dx-compare {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-dx-compare__block {
+  margin: 0;
+  padding: 13px;
+  border-inline-start: 3px solid var(--ink-500);
+  border-start-end-radius: 12px;
+  border-end-end-radius: 12px;
+  background: var(--paper-50);
+  font-family: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: 20px;
+  color: var(--ink-800);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tm-dx-compare__tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+/* ── Responsive: `responsive-and-desktop.md` — side columns stack under 900px ─────────── */
+
+@media (max-width: 1100px) {
+  .tm-dx-split {
+    grid-template-columns: minmax(0, 1fr) 300px;
+  }
+
+  .tm-dx-sheet {
+    padding: 40px 40px;
+  }
+}
+
+@media (max-width: 899px) {
+  .tm-dx-split,
+  .tm-dx-doc {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-dx-doc {
+    margin: 0;
+    background: transparent;
+    min-block-size: 0;
+  }
+
+  .tm-dx-doc__stage {
+    padding: 0;
+  }
+
+  .tm-dx-edge {
+    margin-block-start: var(--s4);
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-card);
+  }
+
+  .tm-dx-sheet {
+    padding: 28px 22px;
+    border-radius: var(--r-compact);
+  }
+
+  .tm-dx-sheet__title {
+    font-size: 32px;
+    line-height: 36px;
+  }
+
+  .tm-dx-sheet__textarea {
+    min-block-size: 280px;
+  }
+
+  .tm-app__body:has(.tm-dx) .tm-canvas-header__title {
+    font-size: 26px;
+    line-height: 32px;
+  }
+}
+
+@media (max-width: 560px) {
+  .tm-dx-cards > tbody > tr {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'title'
+      'body'
+      'actions';
+  }
+
+  .tm-dx-select {
+    flex-wrap: wrap;
+  }
+}

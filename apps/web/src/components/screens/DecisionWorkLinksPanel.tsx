@@ -81,16 +81,17 @@ export function DecisionWorkLinksPanel({
   }
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby={headingId}>
-      <h3 id={headingId} className="tm-eyebrow">
-        Linked work — {decisionTitle}
+    <section className="tm-dx-card" aria-labelledby={headingId}>
+      <h3 id={headingId} className="tm-dx-caption">
+        Linked work{rows.length > 0 ? ` · ${rows.length}` : ''}
+        <span className="tm-visually-hidden"> — {decisionTitle}</span>
       </h3>
+      <p className="tm-dx-card__title" aria-hidden="true">
+        {decisionTitle}
+      </p>
 
-      <form className="tm-stack" onSubmit={onSubmit} noValidate>
-        <fieldset
-          className="tm-fieldset tm-stack tm-stack--loose"
-          disabled={linkMutation.isPending}
-        >
+      <form className="tm-dx-form" onSubmit={onSubmit} noValidate>
+        <fieldset className="tm-fieldset" disabled={linkMutation.isPending}>
           <Field
             label="Work item ID"
             name="workItemId"
@@ -107,18 +108,16 @@ export function DecisionWorkLinksPanel({
           </InlineAlert>
         ) : null}
 
-        <div className="tm-row">
-          <Button
-            type="submit"
-            tone="ink"
-            size="accessible"
-            loading={linkMutation.isPending}
-            loadingLabel="Linking"
-            disabled={!canSubmit}
-          >
-            Link work item
-          </Button>
-        </div>
+        <Button
+          type="submit"
+          tone="ink"
+          size="compact"
+          loading={linkMutation.isPending}
+          loadingLabel="Linking"
+          disabled={!canSubmit}
+        >
+          Link work item
+        </Button>
       </form>
 
       {links.isError ? (
@@ -134,9 +133,12 @@ export function DecisionWorkLinksPanel({
       ) : null}
 
       {!links.isPending && !links.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No linked work yet">
-          No work is linked to this decision. Link the first item above.
-        </InlineAlert>
+        <div className="tm-dx-empty">
+          <p className="tm-dx-empty__title">No linked work yet</p>
+          <p className="tm-dx-empty__body">
+            No work is linked to this decision. Link the first item above.
+          </p>
+        </div>
       ) : null}
 
       {rows.length > 0 && unlinkMutation.isError ? (
@@ -147,7 +149,7 @@ export function DecisionWorkLinksPanel({
 
       {rows.length > 0 ? (
         <div
-          className="tm-table-scroll"
+          className="tm-dx-table-card"
           // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
           // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
@@ -155,7 +157,7 @@ export function DecisionWorkLinksPanel({
           role="region"
           aria-label={`Work linked to ${decisionTitle}`}
         >
-          <table className="tm-table">
+          <table className="tm-dx-table">
             <caption className="tm-visually-hidden">
               Work linked to this decision, in link order, {rows.length} shown.
             </caption>
@@ -169,15 +171,15 @@ export function DecisionWorkLinksPanel({
             <tbody>
               {rows.map((row) => (
                 <tr key={row.linkId}>
-                  <th scope="row" className="tm-table__title">
+                  <th scope="row" className="tm-dx-table__title">
                     {row.workItemTitle}
                   </th>
-                  <td>{row.workItemState}</td>
-                  <td>
+                  <td className="tm-dx-table__mono">{row.workItemState}</td>
+                  <td className="tm-dx-table__end">
                     <Button
                       type="button"
                       tone="outline"
-                      size="accessible"
+                      size="compact"
                       onClick={() => unlinkMutation.mutate(row.linkId)}
                       disabled={unlinkMutation.isPending}
                     >

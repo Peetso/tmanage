@@ -1,14 +1,14 @@
 'use client';
 
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton, StatusDot } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listDevices, signOut } from '../../lib/api/session';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
+import '../../styles/screens/identity.css';
 
 export interface SessionsScreenProps {
   /** Injected in tests. Defaults to the browser client. */
@@ -69,80 +69,107 @@ export function SessionsScreen({
   });
 
   return (
-    <IdentityShell screenId="ID-05" eyebrow="Sessions and devices">
-      <div className="tm-stack tm-stack--tight">
-        <h1 className="tm-identity__title">Where you are signed in</h1>
-        <p className="tm-prose">
-          Every active session for your account. Signing out ends this one everywhere it is held.
-        </p>
-      </div>
+    <IdentityShell screenId="ID-06" eyebrow="Sessions and devices">
+      <div className="tm-id-bare tm-id-sessions tm-stack">
+        <div className="tm-id-sessions__head">
+          <h1 className="tm-identity__title">Where you are signed in</h1>
+          <Button
+            tone="destructive"
+            size="accessible"
+            loading={endSession.isPending}
+            loadingLabel="Signing out"
+            onClick={() => endSession.mutate()}
+          >
+            Sign out of this session
+          </Button>
+        </div>
 
-      {devices.isPending ? (
-        <LoadingRegion label="Loading your sessions." className="tm-stack tm-stack--tight">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {endSession.isError ? (
+          <InlineAlert tone="danger" title="Sign-out failed" live>
+            {describe(endSession.error)}
+          </InlineAlert>
+        ) : null}
 
-      {devices.isError ? (
-        <InlineAlert tone="danger" title="Could not load your sessions" live>
-          {describe(devices.error)}
-        </InlineAlert>
-      ) : null}
+        {devices.isPending ? (
+          <LoadingRegion label="Loading your sessions." className="tm-stack tm-stack--tight">
+            <Skeleton height="56px" />
+            <Skeleton height="56px" />
+            <Skeleton height="56px" />
+          </LoadingRegion>
+        ) : null}
 
-      {devices.isSuccess ? (
-        devices.data.length === 0 ? (
-          <InlineAlert tone="neutral">No active sessions.</InlineAlert>
-        ) : (
-          <ul className="tm-stack tm-list">
-            {devices.data.map((session) => (
-              <li key={session.id} className="tm-panel tm-stack tm-stack--tight">
-                <p className="tm-session__agent">{session.userAgent ?? 'Unknown device'}</p>
-                <p className="tm-prose tm-mono">
-                  Started {formatMoment(session.createdAt)} · Expires{' '}
-                  {formatMoment(session.expiresAt)}
-                  {session.rotatedAt === null
-                    ? ''
-                    : ` · Last refreshed ${formatMoment(session.rotatedAt)}`}
-                </p>
-                <div className="tm-row">
-                  <StatusDot tone="neutral">Active</StatusDot>
-                  <Button tone="outline" size="compact" disabled>
+        {devices.isError ? (
+          <InlineAlert tone="danger" title="Could not load your sessions" live>
+            {describe(devices.error)}
+          </InlineAlert>
+        ) : null}
+
+        {devices.isSuccess ? (
+          devices.data.length === 0 ? (
+            <InlineAlert tone="neutral">No active sessions.</InlineAlert>
+          ) : (
+            <ul className="tm-id-session-list">
+              {devices.data.map((session) => (
+                <li key={session.id} className="tm-id-session">
+                  <span className="tm-id-session__glyph" aria-hidden="true">
+                    {deviceGlyph(session.userAgent)}
+                  </span>
+                  <div className="tm-id-session__text">
+                    <p className="tm-id-session__agent" title={session.userAgent ?? undefined}>
+                      {session.userAgent ?? 'Unknown device'}
+                    </p>
+                    <p className="tm-id-session__meta">
+                      Started {formatMoment(session.createdAt)} · Expires{' '}
+                      {formatMoment(session.expiresAt)}
+                      {session.rotatedAt === null
+                        ? ''
+                        : ` · Last refreshed ${formatMoment(session.rotatedAt)}`}
+                    </p>
+                  </div>
+                  {/* There is no per-session revoke route yet, so the control is shown disabled. */}
+                  <Button
+                    tone="outline"
+                    size="compact"
+                    disabled
+                    title="Revoking another session is not available yet"
+                  >
                     Revoke
                   </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )
-      ) : null}
+                </li>
+              ))}
+            </ul>
+          )
+        ) : null}
 
-      <div className="tm-row">
-        <Button
-          tone="destructive"
-          size="accessible"
-          loading={endSession.isPending}
-          loadingLabel="Signing out"
-          onClick={() => endSession.mutate()}
-        >
-          Sign out of this session
-        </Button>
+        <div className="tm-id-cards">
+          <section className="tm-id-card" aria-labelledby="tm-sessions-passkeys">
+            <h2 id="tm-sessions-passkeys" className="tm-id-mono">
+              Passkeys
+            </h2>
+            <p className="tm-id-card__body">
+              Not available yet. Sign-in uses your password and, where your organization requires
+              it, a second factor.
+            </p>
+          </section>
+          <section className="tm-id-card" aria-labelledby="tm-sessions-recovery">
+            <h2 id="tm-sessions-recovery" className="tm-id-mono">
+              Recovery codes
+            </h2>
+            <p className="tm-id-card__body">
+              Saved when you set up a second factor. Each one works once and cannot be shown again
+              here.
+            </p>
+          </section>
+        </div>
       </div>
-
-      {endSession.isError ? (
-        <InlineAlert tone="danger" title="Sign-out failed" live>
-          {describe(endSession.error)}
-        </InlineAlert>
-      ) : null}
-
-      <BackendPending ticket="ID-002 · ADMIN-002">
-        Revoking one other session, recovery codes, and the security-event receipt are not built.
-        Revoking a named session has no route yet; the audit read model that would show the receipt
-        is not written.
-      </BackendPending>
     </IdentityShell>
   );
+}
+
+/** A small glyph for the row: a phone for a mobile browser, a window otherwise. */
+function deviceGlyph(userAgent: string | null): string {
+  if (userAgent === null) return '?';
+  return /iphone|android|mobile/i.test(userAgent) ? '▦' : '▤';
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */

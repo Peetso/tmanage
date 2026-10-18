@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/approvals';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { longDay } from './PortalParts';
 
 export interface ClientApprovalScreenProps {
   organizationSlug: string;
@@ -84,6 +85,8 @@ export function ClientApprovalScreen({
   }
 
   const result: ClientDecideResult | undefined = decide.data;
+  const view = projection.data;
+  const decided = view?.projection.decision ?? null;
 
   return (
     <ClientPortalShell
@@ -91,113 +94,181 @@ export function ClientApprovalScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="deliverables"
-      title="Review and decide"
-      description={`A version ${providerName} has published for your decision.`}
+      title={
+        view
+          ? decided || result
+            ? view.projection.title
+            : 'Does this work for you?'
+          : 'Review and decide'
+      }
+      eyebrow={view ? `Approval · ${view.projection.title}` : 'Approval'}
+      description={
+        view?.projection.summary ?? `A version ${providerName} has published for your decision.`
+      }
     >
-      {projection.isError ? (
-        <InlineAlert tone="danger" title="Could not open this deliverable" live>
-          {describe(projection.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-pt tm-pt--compact">
+        {projection.isError ? (
+          <InlineAlert tone="danger" title="Could not open this deliverable" live>
+            {describe(projection.error)}
+          </InlineAlert>
+        ) : null}
 
-      {projection.isPending ? (
-        <LoadingRegion label="Loading the deliverable.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {projection.isPending ? (
+          <LoadingRegion label="Loading the deliverable.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {projection.data ? (
-        <article className="tm-panel tm-stack" aria-label="Published deliverable">
-          <ProjectionBody view={projection.data} />
-
-          {result ? (
-            <Confirmation result={result} />
-          ) : (
-            <section className="tm-stack tm-stack--tight" aria-label="Your decision">
-              {decide.isError ? (
-                <InlineAlert tone="danger" title="Could not record your decision" live>
-                  {describe(decide.error)}
-                </InlineAlert>
-              ) : null}
-
-              <label className="tm-field" htmlFor="approval-note">
-                <span className="tm-field__label">
-                  A note for {providerName} (required to request changes)
-                </span>
-                <textarea
-                  id="approval-note"
-                  className="tm-input"
-                  rows={3}
-                  value={note}
-                  onChange={(event) => setNote(event.target.value)}
-                  aria-invalid={noteRequired ? true : undefined}
-                  {...(noteRequired ? { 'aria-describedby': 'approval-note-error' } : {})}
-                />
-                {noteRequired ? (
-                  <span id="approval-note-error" className="tm-field__error" role="alert">
-                    Add a note so {providerName} knows what to change.
-                  </span>
-                ) : null}
-              </label>
-
-              <div className="tm-row tm-row--wrap">
-                <Button
-                  tone="lime"
-                  loading={decide.isPending && decide.variables === 'approve'}
-                  disabled={decide.isPending}
-                  onClick={() => decide.mutate('approve')}
-                >
-                  Approve
-                </Button>
-                <Button
-                  tone="outline"
-                  loading={decide.isPending && decide.variables === 'request_changes'}
-                  disabled={decide.isPending}
-                  onClick={onRequestChanges}
-                >
-                  Request changes
-                </Button>
+        {view ? (
+          <div className="tm-pt-split tm-pt-split--aside">
+            <article className="tm-pt-col" aria-label="Published deliverable">
+              <div className="tm-pt-preview tm-pt-preview--tall" aria-hidden="true">
+                nothing to show yet
               </div>
-            </section>
-          )}
-        </article>
-      ) : null}
+              <ProjectionBody view={view} />
+            </article>
+
+            <div className="tm-pt-col">
+              <section className="tm-pt-card tm-pt-card--lg" aria-label="Your decision">
+                <p className="tm-pt-eyebrow">What you are deciding on</p>
+                <p className="tm-pt-item">
+                  <span className="tm-pt-mono tm-pt-mono--raw tm-pt-item__main">
+                    {shortHash(view.contentHash)}
+                  </span>
+                  <span className="tm-pt-mono">{stamp(view.publishedAt)}</span>
+                </p>
+                <p className="tm-pt-quiet">
+                  Your decision is recorded against this exact version. If the file changes, the
+                  approval stops being valid and we ask you again.
+                </p>
+
+                {result ? (
+                  <Confirmation result={result} />
+                ) : decided ? (
+                  <p className="tm-pt-item">
+                    <span className="tm-pt-orb tm-pt-orb--done" aria-hidden="true">
+                      ✓
+                    </span>
+                    <span className="tm-pt-item__title">{words(decided)}</span>
+                  </p>
+                ) : (
+                  <>
+                    {decide.isError ? (
+                      <InlineAlert tone="danger" title="Could not record your decision" live>
+                        {describe(decide.error)}
+                      </InlineAlert>
+                    ) : null}
+
+                    <label className="tm-field tm-pt-form-field" htmlFor="approval-note">
+                      <span className="tm-pt-eyebrow">
+                        A note for {providerName} (required to request changes)
+                      </span>
+                      <textarea
+                        id="approval-note"
+                        className="tm-input tm-pt-textarea"
+                        rows={3}
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        aria-invalid={noteRequired ? true : undefined}
+                        {...(noteRequired ? { 'aria-describedby': 'approval-note-error' } : {})}
+                      />
+                      {noteRequired ? (
+                        <span id="approval-note-error" className="tm-field__error" role="alert">
+                          Add a note so {providerName} knows what to change.
+                        </span>
+                      ) : null}
+                    </label>
+
+                    <Button
+                      tone="lime"
+                      className="tm-pt-btn--block tm-pt-btn--tall"
+                      loading={decide.isPending && decide.variables === 'approve'}
+                      disabled={decide.isPending}
+                      onClick={() => decide.mutate('approve')}
+                    >
+                      Approve this version
+                    </Button>
+                    <Button
+                      tone="outline"
+                      className="tm-pt-btn--block tm-pt-btn--tall"
+                      loading={decide.isPending && decide.variables === 'request_changes'}
+                      disabled={decide.isPending}
+                      onClick={onRequestChanges}
+                    >
+                      Request changes
+                    </Button>
+                    <p className="tm-pt-quiet tm-pt-center">
+                      Requesting changes needs at least one specific point so the team can act on
+                      it.
+                    </p>
+                  </>
+                )}
+              </section>
+
+              <p className="tm-pt-card tm-pt-card--dashed tm-pt-quiet">
+                You are seeing the client view of this project. Internal notes and estimates are not
+                part of it.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </ClientPortalShell>
   );
+}
+
+/** The content hash as the handoff prints it: "8f2c·d41a". */
+function shortHash(hash: string): string {
+  const clean = hash.replace(/^sha256:/i, '').slice(0, 8);
+  return clean.length === 8 ? `${clean.slice(0, 4)}·${clean.slice(4)}` : clean;
+}
+
+function stamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const day = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(parsed);
+  const time = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(
+    parsed,
+  );
+  return `${day} ${time}`;
+}
+
+/** An enum-looking value (`in_review`) said in words; free text is shown as written. */
+function words(value: string): string {
+  if (!/^[a-z0-9]+(?:[_-][a-z0-9]+)*$/.test(value)) return value;
+  const spaced = value.replace(/[_-]+/g, ' ');
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
 function ProjectionBody({ view }: { view: ClientApprovalView }) {
   const { projection } = view;
   return (
-    <div className="tm-stack tm-stack--tight">
-      <h2 className="tm-heading">{projection.title}</h2>
-      {projection.milestoneState ? (
-        <div className="tm-row tm-row--wrap">
-          <StateCapsule state="client">{projection.milestoneState}</StateCapsule>
+    <div className="tm-pt-dates">
+      <div className="tm-pt-date">
+        <span className="tm-pt-eyebrow">Where it is</span>
+        <p className="tm-pt-date__value">
+          {projection.milestoneState ? words(projection.milestoneState) : 'Shared with you'}
+        </p>
+      </div>
+      <div className="tm-pt-date">
+        <span className="tm-pt-eyebrow">Expected</span>
+        <p className="tm-pt-date__value">
+          {projection.forecastDate ? longDay(projection.forecastDate) : 'No date yet'}
+        </p>
+      </div>
+      {projection.publishedRisk ? (
+        <div className="tm-pt-date">
+          <span className="tm-pt-eyebrow">Risk</span>
+          <p className="tm-pt-date__value">{words(projection.publishedRisk)}</p>
         </div>
       ) : null}
-      {projection.summary ? <p className="tm-prose">{projection.summary}</p> : null}
-      <dl className="tm-detail-list">
-        {projection.forecastDate ? (
-          <div>
-            <dt>Forecast date</dt>
-            <dd>{projection.forecastDate}</dd>
-          </div>
-        ) : null}
-        {projection.publishedRisk ? (
-          <div>
-            <dt>Risk</dt>
-            <dd>{projection.publishedRisk}</dd>
-          </div>
-        ) : null}
-        {projection.decision ? (
-          <div>
-            <dt>Decision</dt>
-            <dd>{projection.decision}</dd>
-          </div>
-        ) : null}
-      </dl>
+      {projection.decision ? (
+        <div className="tm-pt-date">
+          <span className="tm-pt-eyebrow">Decision</span>
+          <p className="tm-pt-date__value">{words(projection.decision)}</p>
+        </div>
+      ) : null}
     </div>
   );
 }

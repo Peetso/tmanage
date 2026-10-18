@@ -2,8 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { InlineAlert, LiveAnnouncer, LoadingRegion, Skeleton, SkipLink } from '@tmanage/ui';
-import { Wordmark } from '../brand/Wordmark';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { PublicIntro, PublicPage } from './public/PublicSite';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicResource } from '../../lib/api/public-resources';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -40,63 +40,72 @@ export function MarketingResourceScreen({ slug, client }: MarketingResourceScree
   const notFound = resource.error instanceof ApiRequestError && resource.error.status === 404;
 
   return (
-    <LiveAnnouncer>
-      <div className="tm-marketing">
-        <SkipLink targetId="tm-main" />
+    <PublicPage>
+      {resource.isPending ? (
+        <LoadingRegion label="Loading the article">
+          <div className="tm-stack">
+            <Skeleton />
+            <Skeleton />
+            <Skeleton />
+          </div>
+        </LoadingRegion>
+      ) : resource.isError ? (
+        notFound ? (
+          <section className="tm-pub-columns" aria-labelledby="tm-resource-title">
+            <div className="tm-pub-aside">
+              <BackLink />
+              <PublicIntro
+                eyebrow="Resources"
+                titleId="tm-resource-title"
+                title="Resource not found"
+              />
+            </div>
+            <div className="tm-pub-card tm-pub-card--roomy tm-pub-card--dashed">
+              <p className="tm-pub-card__body tm-pub-card__body--md">
+                We could not find that resource. It may have moved. Browse the{' '}
+                <Link className="tm-pub-link" href="/resources">
+                  full list of resources
+                </Link>
+                .
+              </p>
+            </div>
+          </section>
+        ) : (
+          <div className="tm-pub-stack">
+            <BackLink />
+            <InlineAlert tone="danger" title="This resource could not load">
+              {describeError(resource.error)}
+            </InlineAlert>
+          </div>
+        )
+      ) : (
+        <article className="tm-pub-columns" aria-labelledby="tm-resource-title">
+          <div className="tm-pub-aside">
+            <BackLink />
+            <PublicIntro
+              eyebrow={resource.data.category}
+              titleId="tm-resource-title"
+              title={resource.data.title}
+            >
+              <p className="tm-pub-lede tm-pub-lede--md">{resource.data.summary}</p>
+            </PublicIntro>
+          </div>
+          <div className="tm-pub-card tm-pub-card--roomy">
+            <p className="tm-pub-prose">{resource.data.body}</p>
+          </div>
+        </article>
+      )}
+    </PublicPage>
+  );
+}
 
-        <header className="tm-marketing__bar tm-row tm-row--between">
-          <Link href="/" aria-label="TManage home">
-            <Wordmark />
-          </Link>
-          <nav aria-label="Primary">
-            <Link className="tm-button tm-button--text tm-button--compact" href="/sign-in">
-              Sign in
-            </Link>
-          </nav>
-        </header>
-
-        <main id="tm-main" className="tm-marketing__body" tabIndex={-1}>
-          <p>
-            <Link href="/resources">&larr; All resources</Link>
-          </p>
-
-          {resource.isPending ? (
-            <LoadingRegion label="Loading the article">
-              <div className="tm-stack">
-                <Skeleton />
-                <Skeleton />
-                <Skeleton />
-              </div>
-            </LoadingRegion>
-          ) : resource.isError ? (
-            notFound ? (
-              <section className="tm-stack" aria-labelledby="tm-resource-title">
-                <h1 id="tm-resource-title">Resource not found</h1>
-                <p>
-                  We could not find that resource. It may have moved. Browse the{' '}
-                  <Link href="/resources">full list of resources</Link>.
-                </p>
-              </section>
-            ) : (
-              <InlineAlert tone="danger" title="This resource could not load">
-                {describeError(resource.error)}
-              </InlineAlert>
-            )
-          ) : (
-            <article className="tm-stack" aria-labelledby="tm-resource-title">
-              <p className="tm-marketing__eyebrow">{resource.data.category}</p>
-              <h1 id="tm-resource-title">{resource.data.title}</h1>
-              <p className="tm-marketing__lede">{resource.data.summary}</p>
-              <p>{resource.data.body}</p>
-            </article>
-          )}
-        </main>
-
-        <footer className="tm-marketing__footer">
-          <p>TManage — client work, without the status meeting.</p>
-        </footer>
-      </div>
-    </LiveAnnouncer>
+function BackLink() {
+  return (
+    <p>
+      <Link className="tm-pub-btn tm-pub-btn--sm tm-pub-btn--quiet" href="/resources">
+        &larr; All resources
+      </Link>
+    </p>
   );
 }
 

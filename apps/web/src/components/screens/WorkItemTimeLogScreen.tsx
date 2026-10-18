@@ -3,7 +3,9 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import Link from 'next/link';
 import { AppShell } from '../shell/AppShell';
+import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { addTimeLog, deleteTimeLog, listTimeLogs, type TimeLog } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -88,111 +90,122 @@ export function WorkItemTimeLogScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
+      eyebrow="Work item"
       title="Time tracking"
       description="Log the effort spent on this work item and see the running total."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-time-new-heading">
-        <h2 id="tm-time-new-heading" className="tm-eyebrow">
-          Log time
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canAdd) add.mutate();
-          }}
-        >
-          <Field
-            label="Minutes"
-            name="minutes"
-            type="number"
-            min={1}
-            max={MAX_MINUTES}
-            value={minutes}
-            onChange={(event) => setMinutes(event.target.value)}
-            hint={`A whole number of minutes, 1 to ${MAX_MINUTES}.`}
-            required
-          />
-          <Field
-            label="Day"
-            name="spentOn"
-            type="date"
-            value={spentOn}
-            onChange={(event) => setSpentOn(event.target.value)}
-            hint="The calendar day the effort was spent."
-            required
-          />
-          <Field
-            label="Note"
-            name="note"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            hint="Optional — what the time was spent on."
-          />
-          {add.isError ? (
-            <InlineAlert tone="danger" title="Could not log the time" live>
-              {describeError(add.error)}
+      <div className="tm-wk-page tm-stack">
+        <nav className="tm-segmented tm-wk-subnav" aria-label="This work item">
+          <Link href={`/${organizationSlug}/work/${workItemId}`}>Overview</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/activity`}>Activity</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`} aria-current="page">
+            Time
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/estimate`}>Estimate</Link>
+        </nav>
+        <section className="tm-panel tm-stack" aria-labelledby="tm-time-new-heading">
+          <h2 id="tm-time-new-heading" className="tm-eyebrow">
+            Log time
+          </h2>
+          <form
+            className="tm-stack"
+            noValidate
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (canAdd) add.mutate();
+            }}
+          >
+            <Field
+              label="Minutes"
+              name="minutes"
+              type="number"
+              min={1}
+              max={MAX_MINUTES}
+              value={minutes}
+              onChange={(event) => setMinutes(event.target.value)}
+              hint={`A whole number of minutes, 1 to ${MAX_MINUTES}.`}
+              required
+            />
+            <Field
+              label="Day"
+              name="spentOn"
+              type="date"
+              value={spentOn}
+              onChange={(event) => setSpentOn(event.target.value)}
+              hint="The calendar day the effort was spent."
+              required
+            />
+            <Field
+              label="Note"
+              name="note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              hint="Optional — what the time was spent on."
+            />
+            {add.isError ? (
+              <InlineAlert tone="danger" title="Could not log the time" live>
+                {describeError(add.error)}
+              </InlineAlert>
+            ) : null}
+            <div className="tm-row">
+              <Button type="submit" tone="ink" disabled={!canAdd} loading={add.isPending}>
+                Log time
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section className="tm-panel tm-stack" aria-labelledby="tm-time-list-heading">
+          <div className="tm-row tm-row--between">
+            <h2 id="tm-time-list-heading" className="tm-eyebrow">
+              Logged effort
+            </h2>
+            <span className="tm-badge" aria-label="Total time logged">
+              {formatMinutes(totalMinutes)} total
+            </span>
+          </div>
+
+          {logs.isError ? (
+            <InlineAlert tone="danger" title="Could not load the time logs" live>
+              {describeError(logs.error)}
             </InlineAlert>
           ) : null}
-          <div className="tm-row">
-            <Button type="submit" tone="ink" disabled={!canAdd} loading={add.isPending}>
-              Log time
-            </Button>
-          </div>
-        </form>
-      </section>
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-time-list-heading">
-        <div className="tm-row tm-row--between">
-          <h2 id="tm-time-list-heading" className="tm-eyebrow">
-            Logged effort
-          </h2>
-          <span className="tm-badge" aria-label="Total time logged">
-            {formatMinutes(totalMinutes)} total
-          </span>
-        </div>
+          {logs.isPending ? (
+            <LoadingRegion label="Loading the time logs.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {logs.isError ? (
-          <InlineAlert tone="danger" title="Could not load the time logs" live>
-            {describeError(logs.error)}
-          </InlineAlert>
-        ) : null}
+          {!logs.isPending && !logs.isError && entries.length === 0 ? (
+            <InlineAlert tone="neutral" title="No time logged yet">
+              Record the first entry above.
+            </InlineAlert>
+          ) : null}
 
-        {logs.isPending ? (
-          <LoadingRegion label="Loading the time logs.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!logs.isPending && !logs.isError && entries.length === 0 ? (
-          <InlineAlert tone="neutral" title="No time logged yet">
-            Record the first entry above.
-          </InlineAlert>
-        ) : null}
-
-        {!logs.isPending && !logs.isError && entries.length > 0 ? (
-          <ul className="tm-stack tm-list">
-            {entries.map((entry: TimeLog) => (
-              <li key={entry.id} className="tm-row tm-row--between tm-list__item">
-                <span>
-                  <strong>{formatMinutes(entry.minutes)}</strong> on {entry.spentOn}
-                  {entry.note ? ` — ${entry.note}` : ''}
-                </span>
-                <Button
-                  tone="destructive"
-                  onClick={() => remove.mutate(entry.id)}
-                  disabled={remove.isPending}
-                  aria-label={`Delete the ${formatMinutes(entry.minutes)} entry on ${entry.spentOn}`}
-                >
-                  Delete
-                </Button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+          {!logs.isPending && !logs.isError && entries.length > 0 ? (
+            <ul className="tm-stack tm-list">
+              {entries.map((entry: TimeLog) => (
+                <li key={entry.id} className="tm-row tm-row--between tm-list__item">
+                  <span>
+                    <strong>{formatMinutes(entry.minutes)}</strong> on {entry.spentOn}
+                    {entry.note ? ` — ${entry.note}` : ''}
+                  </span>
+                  <Button
+                    tone="destructive"
+                    onClick={() => remove.mutate(entry.id)}
+                    disabled={remove.isPending}
+                    aria-label={`Delete the ${formatMinutes(entry.minutes)} entry on ${entry.spentOn}`}
+                  >
+                    Delete
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

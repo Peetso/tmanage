@@ -194,7 +194,7 @@ describe('ID-01 Sign in', () => {
 
     expect(screen.getByRole('button', { name: /passkey/i })).toBeDisabled();
     expect(screen.getByRole('button', { name: /company SSO/i })).toBeDisabled();
-    expect(screen.getByText(/Not available yet — ID-002 · passkeys and SSO/)).toBeInTheDocument();
+    expect(screen.getByText(/Not available yet/)).toBeInTheDocument();
   });
 
   it('does not render the development panel when the API would not accept it', () => {
@@ -307,7 +307,7 @@ describe('ID-05 Recovery', () => {
   */
   it('denies that an email was dispatched, beside the sent state that implies one', () => {
     render(<RecoveryScreen state="sent" />);
-    expect(screen.getByText(/Not available yet — ID-002/)).toBeInTheDocument();
+    expect(screen.getByText(/Not available yet/)).toBeInTheDocument();
     expect(screen.getByText(/No recovery email was sent/)).toBeInTheDocument();
   });
 
@@ -323,7 +323,7 @@ describe('ID-05 Recovery', () => {
 
   it('denies each claim the completed state makes while ID-002 is unbuilt', () => {
     render(<RecoveryScreen state="completed" />);
-    expect(screen.getByText(/Not available yet — ID-002/)).toBeInTheDocument();
+    expect(screen.getByText(/Not available yet/)).toBeInTheDocument();
     expect(
       screen.getByText(
         /No recovery has run\. No access was restored, no session was signed out and no audit row was written\./,

@@ -90,7 +90,7 @@ describe('AutomationSchedulesScreen', () => {
     expect(bodyRows).toHaveLength(2);
     expect(within(bodyRows[0]!).getByRole('rowheader')).toHaveTextContent('tpl-1');
     expect(within(table).getByText(/Weekly on Wednesday at 12:00/)).toBeInTheDocument();
-    expect(within(table).getByText('No')).toBeInTheDocument();
+    expect(within(table).getByText('Off')).toBeInTheDocument();
 
     await expectNoAxeViolations(container);
   });

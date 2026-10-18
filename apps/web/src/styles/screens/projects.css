@@ -1,0 +1,662 @@
+/*
+ * Project screens — PRJ-01 (overview, `TManage Screens - Project and Chat.dc.html`), PRJ-02 to
+ * PRJ-05 (plan, work story, team, settings, `TManage Screens - Projects Portfolio
+ * Objectives.dc.html`) and the PRJ-01 Arabic RTL frame.
+ *
+ * Every colour, radius and spacing is a design token; pixel sizes without a token (the 60px
+ * project headline, the 56px pulse segments) are the frames' own numbers.
+ */
+
+/* ── Top row: back capsule, section switch, actions ─────────────────────────── */
+
+.tm-prj-tabs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-prj-tabs__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: 48px;
+  padding-inline: 6px var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-prj-tabs__back-orb {
+  display: grid;
+  place-items: center;
+  inline-size: 30px;
+  block-size: 30px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+[dir='rtl'] .tm-prj-tabs__back-orb {
+  transform: scaleX(-1);
+}
+
+.tm-prj-tabs__nav {
+  min-block-size: 48px;
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.tm-prj-tabs__nav > a {
+  min-block-size: 38px;
+  white-space: nowrap;
+}
+
+.tm-prj-tabs__end {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+/* ── PRJ-01 header ──────────────────────────────────────────────────────────── */
+
+/* "Atlas Website Relaunch": 60/64 at weight 500, between heading.page and display.metric. */
+.tm-app__body:has(.tm-prj) .tm-canvas-header__title {
+  font-size: 60px;
+  line-height: 64px;
+  letter-spacing: -0.035em;
+}
+
+.tm-app__body:has(.tm-prj--plan) .tm-canvas-header__title,
+.tm-app__body:has(.tm-prj--sub) .tm-canvas-header__title {
+  font-size: 44px;
+  line-height: 50px;
+}
+
+.tm-app__body:has(.tm-prj) .tm-canvas-header__description {
+  max-inline-size: 580px;
+  font-size: 18px;
+  line-height: 26px;
+}
+
+.tm-app__body:has(.tm-prj) .tm-canvas-header__context {
+  letter-spacing: 0.2em;
+}
+
+.tm-prj-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s10);
+}
+
+.tm-prj-metrics .tm-metric__value {
+  font-size: var(--t-display-metric);
+  line-height: var(--t-display-metric-line);
+  font-weight: 300;
+}
+
+.tm-prj-metrics .tm-metric__label {
+  font-size: var(--t-ui-md);
+}
+
+/* ── Canvas layout ──────────────────────────────────────────────────────────── */
+
+.tm-prj {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-prj__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr);
+  gap: var(--s6);
+  align-items: start;
+}
+
+.tm-prj__col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  min-inline-size: 0;
+}
+
+/* The mono caption used over the pulse track and in panel heads. */
+.tm-prj-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-prj-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-prj-strip__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s4);
+}
+
+.tm-prj-strip__facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s5);
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-prj-strip__facts > div {
+  display: flex;
+  gap: 6px;
+}
+
+.tm-prj-strip__facts dt {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tm-prj-strip__facts dd {
+  margin: 0;
+  color: var(--ink-950);
+}
+
+/* PRJ-01 milestone pulse track: 56px segments straight on the canvas. */
+.tm-prj-track > li {
+  min-block-size: 56px;
+  padding-inline: var(--s6);
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0;
+}
+
+.tm-prj-track > li[data-state='current'] {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-prj-track__title {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-prj-track__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  opacity: 0.8;
+}
+
+.tm-prj-track > li[data-state='risk'] .tm-prj-track__meta {
+  color: var(--warning-600);
+  opacity: 1;
+}
+
+.tm-prj-track__kicker {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────────── */
+
+.tm-prj-card {
+  border-radius: var(--r-sheet);
+  padding: var(--s6);
+}
+
+.tm-prj-card .tm-card__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tm-prj-card__title {
+  margin: 0;
+  font-size: 21px;
+  line-height: 27px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tm-prj-card__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-prj-card__title a:hover,
+.tm-prj-card__title a:focus-visible {
+  text-decoration: underline;
+}
+
+.tm-prj-card .tm-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+}
+
+/* The warning-bordered capsule on a risk card ("Blocks 1 commitment"). */
+.tm-prj-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  align-self: flex-start;
+  min-block-size: 32px;
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--warning-600);
+  border-radius: var(--r-capsule);
+  color: var(--warning-600);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-prj-flag::before {
+  content: '';
+  inline-size: 7px;
+  block-size: 7px;
+  border-radius: 2px;
+  background: currentColor;
+}
+
+/* The black "Client action required" capsule on the lime card. */
+.tm-prj-capsule {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  align-self: flex-start;
+  min-block-size: 36px;
+  padding-inline: 6px var(--s4);
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+}
+
+.tm-prj-capsule__orb {
+  display: grid;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border: var(--b-quiet) solid var(--lime-500);
+  border-radius: var(--r-capsule);
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Open commitments rows. */
+.tm-prj-rows > li > a {
+  color: var(--ink-950);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-inline-size: 0;
+}
+
+.tm-prj-rows > li > a:hover,
+.tm-prj-rows > li > a:focus-visible {
+  text-decoration: underline;
+}
+
+.tm-prj-rows .tm-avatar {
+  flex: none;
+}
+
+.tm-prj-rows .tm-row-list__end {
+  flex: none;
+}
+
+/* ── The dark client panel ──────────────────────────────────────────────────── */
+
+.tm-prj-client {
+  gap: var(--s5);
+  border-radius: var(--r-feature);
+  padding: var(--s6);
+}
+
+.tm-prj-client .tm-prj-eyebrow {
+  color: var(--line-300);
+}
+
+.tm-prj-client__figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+.tm-prj-client__value {
+  font-size: var(--t-display-lg);
+  line-height: var(--t-display-lg-line);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-prj-client__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prj-client__list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: 56px;
+  padding: var(--s2) var(--s4);
+  border-radius: var(--r-compact);
+  background: color-mix(in srgb, currentColor 9%, transparent);
+}
+
+.tm-prj-client__list a {
+  color: inherit;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-prj-client__list a:hover,
+.tm-prj-client__list a:focus-visible {
+  text-decoration: underline;
+}
+
+.tm-prj-client__ring {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 30px;
+  block-size: 30px;
+  border: var(--b-structural) solid var(--client-500);
+  border-radius: var(--r-capsule);
+  color: var(--client-500);
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.tm-prj-client__rule {
+  block-size: 1px;
+  border: 0;
+  margin: 0;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.tm-prj-client__prose {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: 22px;
+  color: var(--line-300);
+}
+
+/* ── Forms inside cards ─────────────────────────────────────────────────────── */
+
+.tm-prj-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-prj-form__row {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s3);
+}
+
+.tm-prj-milestones {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prj-milestones > li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  min-block-size: 48px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-prj-milestones > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-prj-milestones__title {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+/* ── PRJ-02 plan table / PRJ-04 team list / generic sub-page panels ─────────── */
+
+.tm-prj-sheet {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-prj-sheet > .tm-table-scroll,
+.tm-prj-sheet .tm-table {
+  border: 0;
+  border-radius: 0;
+}
+
+.tm-prj-sheet__foot {
+  margin: 0;
+  padding: var(--s4) var(--s5);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-prj-people {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prj-people > li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  min-block-size: 58px;
+  padding: var(--s2) var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+}
+
+.tm-prj-people__who {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-prj-people__name {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-prj-people__role {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-prj-people__end {
+  margin-inline-start: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* PRJ-05: the danger-bordered archive card. */
+.tm-prj-card--danger {
+  border-color: var(--danger-600);
+}
+
+.tm-prj-card--danger .tm-card__eyebrow {
+  color: var(--danger-600);
+}
+
+.tm-prj-card--client {
+  border-color: var(--client-500);
+}
+
+/* ── Responsive (responsive-and-desktop.md) ─────────────────────────────────── */
+
+@media (max-width: 73.69rem) {
+  .tm-prj__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .tm-app__body:has(.tm-prj) .tm-canvas-header__title {
+    font-size: 40px;
+    line-height: 44px;
+  }
+
+  .tm-app__body:has(.tm-prj--plan) .tm-canvas-header__title,
+  .tm-app__body:has(.tm-prj--sub) .tm-canvas-header__title {
+    font-size: 32px;
+    line-height: 38px;
+  }
+
+  .tm-prj-metrics {
+    gap: var(--s6);
+  }
+
+  .tm-prj-metrics .tm-metric__value {
+    font-size: 44px;
+    line-height: 48px;
+  }
+
+  .tm-prj-tabs__end {
+    margin-inline-start: 0;
+  }
+
+  .tm-prj-track {
+    flex-direction: column;
+    border-radius: var(--r-card);
+  }
+
+  .tm-prj-track > li {
+    border-radius: var(--r-compact);
+    white-space: normal;
+  }
+
+  .tm-prj-form__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-prj-card {
+    padding: var(--s5);
+  }
+}
+
+.tm-prj-sheet__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  padding: var(--s5) var(--s5) var(--s3);
+}
+
+.tm-prj__grid--even {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tm-prj-people .tm-select,
+.tm-prj-people .tm-field {
+  min-inline-size: 160px;
+}
+
+/* Sub-pages: the list on the left, the authoring form card on the right (PRJ-04 / PRJ-05 split). */
+.tm-prj__grid--aside > .tm-prj__col {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.tm-prj__grid--aside > .tm-prj__col--aside {
+  grid-column: 2;
+}
+
+@media (max-width: 73.69rem) {
+  .tm-prj__grid--even {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-prj__grid--aside > .tm-prj__col,
+  .tm-prj__grid--aside > .tm-prj__col--aside {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* On lime, mono metadata keeps the on-lime ink in both themes. */
+.tm-card--lime .tm-meta-mono {
+  color: var(--tm-on-lime);
+  opacity: 0.8;
+}
+
+/* Dark theme: the ink card becomes a raised surface, so its quiet text uses ink-650. */
+[data-theme='dark'] .tm-prj-client .tm-prj-eyebrow,
+[data-theme='dark'] .tm-prj-client__prose {
+  color: var(--ink-650);
+}
+
+@media (max-width: 47.99rem) {
+  .tm-prj-rows > li {
+    flex-wrap: wrap;
+  }
+
+  .tm-prj-rows > li > a {
+    flex: 1;
+    white-space: normal;
+  }
+
+  .tm-prj-rows .tm-row-list__end {
+    flex-basis: 100%;
+    margin-inline-start: 44px;
+    gap: var(--s3);
+  }
+}

@@ -12,6 +12,7 @@ import type { SearchResultKind } from '../../lib/api/search';
 import { getResolvedFeatureFlags } from '../../lib/api/admin-feature-flags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/search-ai.css';
 
 export interface SearchScreenProps {
   organizationSlug: string;
@@ -28,25 +29,31 @@ const KIND_LABEL: Readonly<Record<SearchResultKind, string>> = {
   meeting: 'Meeting',
 };
 
+/** The TYPE facet capsules (SR-02), in the order the design lists them. */
+const KIND_ORDER: readonly SearchResultKind[] = ['work_item', 'document', 'meeting'];
+const KIND_FACET: Readonly<Record<SearchResultKind, string>> = {
+  work_item: 'Work',
+  document: 'Docs',
+  meeting: 'Meetings',
+};
+
 /**
- * **SRCH-01 Global search (x111), ranked by SRCH ranking (x148).**
- *
- * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §Search: a global search bar over a unified result set.
- * This is the smallest useful form of it — a query box and the tenant-scoped hits the API returns.
+ * **SRCH-01 Global search (x111), ranked by SRCH ranking (x148)** — drawn as SR-02 Universal
+ * search: the lime-ringed search capsule across the top, the TYPE facet column on the start side
+ * and the ranked result cards beside it.
  *
  * ## What it draws, and what it cannot
  *
  * - **Every hit is one the caller may read.** The API relation-gates each row with `work.read`
  *   before it is returned, so the screen renders what it is given without a second permission
- *   check — a search never surfaces an item the item's own screen would deny.
- * - **Order is the server's ranking** — relevance, then recency — so the list is rendered as one
- *   flat sequence in the exact order the API returns, with no client-side re-sort or re-grouping
- *   to drift from the score. Each row carries its kind as a label so the mix stays legible.
- * - **Only work items link to a detail page**, because only work items have one today. A document
- *   or meeting hit names its title and project; per-item deep links are a later slice, the same
- *   honesty the timeline applies to columns with no data behind them.
- * - **Body/snippet matching is not here yet** — `snippet` is null until snippet extraction lands
- *   (NS-13); ranking is over the full-text index the API owns (0054).
+ *   check — a search never surfaces an item the item's own screen would deny. The "Hidden from
+ *   you" note states that rule; it does not invent a count the API does not return.
+ * - **Order is the server's ranking** — relevance, then recency — so the list is rendered in the
+ *   exact order the API returns. The TYPE facet only hides kinds; it never re-sorts.
+ * - **Only work items link to a detail page**, because only work items have one today.
+ * - **Body/snippet matching is not here yet** — `snippet` is null until snippet extraction lands;
+ *   the card draws the excerpt line only when there is one.
+ * - The design's AUDIENCE and TIME facets are not drawn: the search endpoint takes neither filter.
  *
  * A query must be entered and submitted before anything is fetched: an empty search is not a
  * search, and the API rejects one.
@@ -60,6 +67,7 @@ export function SearchScreen({
   const api = client ?? browserApiClient();
   const [draft, setDraft] = useState<string>(initialQuery ?? '');
   const [query, setQuery] = useState<string>(initialQuery?.trim() ?? '');
+  const [kind, setKind] = useState<'all' | SearchResultKind>('all');
 
   const results = useQuery({
     queryKey: ['search', organizationSlug, query],
@@ -79,10 +87,14 @@ export function SearchScreen({
   const hits = results.data ?? [];
   const total = hits.length;
   const askQuery = (query !== '' ? query : draft).trim();
+  const shown = kind === 'all' ? hits : hits.filter((hit) => hit.kind === kind);
+  const org = encodeURIComponent(organizationSlug);
+  const settled = query !== '' && !results.isPending && !results.isError;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setQuery(draft.trim());
+    setKind('all');
   }
 
   return (
@@ -90,96 +102,174 @@ export function SearchScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       title="Search"
-      description="Find work items, documents and meetings across this organization."
     >
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-search-form">
-        <h2 id="tm-search-form" className="tm-eyebrow">
-          Search
-        </h2>
-        <form className="tm-stack" onSubmit={onSubmit} role="search">
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-search-q">
-              What are you looking for?
-            </label>
-            <input
-              id="tm-search-q"
-              className="tm-field__control"
-              type="search"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Title of a work item, document or meeting"
-            />
-            <span className="tm-field__hint">
-              Matches titles across work items, documents and meetings you can see.
-            </span>
-          </div>
-          <div className="tm-row">
-            <button type="submit" className="tm-button" disabled={draft.trim() === ''}>
-              Search
-            </button>
+      <div className="tm-sa-search tm-sa-headerless">
+        <form className="tm-sa-searchbar" onSubmit={onSubmit} role="search">
+          <span className="tm-sa-searchbar__glyph" aria-hidden="true">
+            ⌕
+          </span>
+          <label className="tm-visually-hidden" htmlFor="tm-search-q">
+            What are you looking for?
+          </label>
+          <input
+            id="tm-search-q"
+            className="tm-sa-searchbar__input"
+            type="search"
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
+            placeholder="Search work, documents and meetings you can see"
+          />
+          <div className="tm-sa-searchbar__actions">
+            {settled ? (
+              <span className="tm-sa-searchbar__count" aria-live="polite">
+                {total} {total === 1 ? 'result' : 'results'}
+              </span>
+            ) : null}
             {copilotEnabled ? (
               <Link
                 href={
                   askQuery === ''
-                    ? `/${encodeURIComponent(organizationSlug)}/copilot`
-                    : `/${encodeURIComponent(organizationSlug)}/copilot?q=${encodeURIComponent(askQuery)}`
+                    ? `/${org}/copilot`
+                    : `/${org}/copilot?q=${encodeURIComponent(askQuery)}`
                 }
-                className="tm-button tm-button--outline"
+                className="tm-sa-capsule"
               >
                 Ask copilot
               </Link>
             ) : null}
+            {query !== '' ? (
+              <Link
+                href={`/${org}/search/saved?q=${encodeURIComponent(query)}`}
+                className="tm-sa-capsule"
+              >
+                Save this search
+              </Link>
+            ) : null}
+            <button
+              type="submit"
+              className="tm-sa-capsule tm-sa-capsule--ink"
+              disabled={draft.trim() === ''}
+            >
+              Search
+            </button>
           </div>
         </form>
-      </section>
 
-      {query === '' ? (
-        <InlineAlert tone="neutral" title="Search this organization">
-          Enter a word or two above to find work items, documents and meetings you can see.
-        </InlineAlert>
-      ) : null}
+        <div className="tm-sa-search__body">
+          <div className="tm-sa-facets">
+            <div className="tm-sa-facet" role="group" aria-labelledby="tm-search-type">
+              <p id="tm-search-type" className="tm-sa-eyebrow">
+                Type
+              </p>
+              <div className="tm-chip-row">
+                <button
+                  type="button"
+                  className="tm-chip"
+                  aria-pressed={kind === 'all'}
+                  onClick={() => setKind('all')}
+                >
+                  All {total}
+                </button>
+                {KIND_ORDER.map((value) => {
+                  const count = hits.filter((hit) => hit.kind === value).length;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      className="tm-chip"
+                      aria-pressed={kind === value}
+                      onClick={() => setKind(value)}
+                      disabled={count === 0}
+                    >
+                      {KIND_FACET[value]} {count}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="tm-sa-note">
+              <p className="tm-sa-eyebrow">Hidden from you</p>
+              <p className="tm-sa-note__body">
+                Results are filtered by your access before they are ranked. Matches in projects you
+                are not on are never shown, not even their titles.
+              </p>
+            </div>
+          </div>
 
-      {results.isError ? (
-        <InlineAlert tone="danger" title="Could not run the search" live>
-          {describeError(results.error)}
-        </InlineAlert>
-      ) : null}
+          <section className="tm-sa-results" aria-labelledby="tm-search-results">
+            <h2 id="tm-search-results" className="tm-sa-eyebrow">
+              {total > 0 ? `Results (${total}) · sorted by relevance` : 'Results'}
+            </h2>
 
-      {query !== '' && results.isPending ? (
-        <LoadingRegion label="Running the search.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+            {query === '' ? (
+              <div className="tm-sa-empty">
+                <p className="tm-sa-empty__title">Search this organization</p>
+                <p className="tm-sa-empty__body">
+                  Enter a word or two above to find work items, documents and meetings you can see.
+                </p>
+              </div>
+            ) : null}
 
-      {query !== '' && !results.isPending && !results.isError && total === 0 ? (
-        <InlineAlert tone="neutral" title="No matches">
-          Nothing you can see matches “{query}”. Try a different word.
-        </InlineAlert>
-      ) : null}
+            {results.isError ? (
+              <InlineAlert tone="danger" title="Could not run the search" live>
+                {describeError(results.error)}
+              </InlineAlert>
+            ) : null}
 
-      {total > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-search-results">
-          <h2 id="tm-search-results" className="tm-eyebrow">
-            Results ({total})
-          </h2>
-          <ul className="tm-stack tm-list" aria-label="Search results, most relevant first">
-            {hits.map((hit) => (
-              <li key={`${hit.kind}:${hit.id}`} className="tm-prose">
-                <span className="tm-eyebrow tm-muted">{KIND_LABEL[hit.kind]}</span>{' '}
-                {hit.kind === 'work_item' ? (
-                  <Link href={`/${organizationSlug}/work/${hit.id}`}>{hit.title}</Link>
-                ) : (
-                  <span>{hit.title}</span>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+            {query !== '' && results.isPending ? (
+              <LoadingRegion label="Running the search.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {settled && total === 0 ? (
+              <div className="tm-sa-empty" role="status">
+                <p className="tm-sa-empty__title">No matches</p>
+                <p className="tm-sa-empty__body">
+                  Nothing you can see matches “{query}”. Try a different word.
+                </p>
+              </div>
+            ) : null}
+
+            {total > 0 ? (
+              <ul className="tm-sa-results__list" aria-label="Search results, most relevant first">
+                {shown.map((hit) => (
+                  <li key={`${hit.kind}:${hit.id}`} className="tm-sa-hit">
+                    <div className="tm-sa-hit__head">
+                      <span className="tm-sa-badge">{KIND_LABEL[hit.kind]}</span>
+                      {hit.kind === 'work_item' ? (
+                        <Link
+                          href={`/${organizationSlug}/work/${hit.id}`}
+                          className="tm-sa-hit__title"
+                        >
+                          {hit.title}
+                        </Link>
+                      ) : (
+                        <span className="tm-sa-hit__title">{hit.title}</span>
+                      )}
+                      <span className="tm-sa-hit__ref" aria-hidden="true">
+                        {shortRef(hit.id)}
+                      </span>
+                    </div>
+                    {hit.snippet ? <p className="tm-sa-hit__body">{hit.snippet}</p> : null}
+                    <p className="tm-sa-hit__meta">Project {shortRef(hit.projectId)}</p>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        </div>
+      </div>
     </AppShell>
   );
+}
+
+/** The design's short mono reference ("8F2C·D41A"): the first eight hex digits of an id. */
+export function shortRef(id: string): string {
+  const hex = id.replace(/[^0-9a-f]/gi, '').toUpperCase();
+  return hex.length >= 8 ? `${hex.slice(0, 4)}·${hex.slice(4, 8)}` : id.toUpperCase();
 }
 
 function describeError(error: unknown): string {

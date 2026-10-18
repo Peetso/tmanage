@@ -2,13 +2,13 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Badge, InlineAlert, LiveAnnouncer, LoadingRegion, Skeleton, SkipLink } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getPublicChangelog } from '../../lib/api/public-changelog';
 import type { PublicChangelogMonthRow } from '../../lib/api/public-changelog';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
-import { Wordmark } from '../brand/Wordmark';
+import { PublicIntro, PublicPage } from './public/PublicSite';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface ChangelogScreenProps {
@@ -29,8 +29,7 @@ export interface ChangelogScreenProps {
  * needs a tenant) nor an authenticated data path: `getPublicChangelog` calls the `@Public()` route
  * with `authentication: 'none'`. The landmarks — skip link, one `<main>`, one `<h1>` — are provided
  * here directly rather than by a shell, so `A11Y-01` (27-TEST-CATALOG) holds for a page that has no
- * shell of its own yet. The sibling Public-site slices (home, pricing, trust — x156–x158) introduce
- * the shared marketing shell; this screen adopts it when it lands.
+ * shell of its own yet. It now sits in `PublicPage`, the shared public chrome.
  *
  * ## The body is shown as text, not rendered Markdown
  *
@@ -52,72 +51,71 @@ export function ChangelogScreen({ client }: ChangelogScreenProps) {
   );
 
   return (
-    <LiveAnnouncer>
-      <div className="tm-identity">
-        <SkipLink targetId="tm-main" />
+    <PublicPage>
+      <div className="tm-pub-columns">
+        <PublicIntro eyebrow="Product · Changelog" title="What’s new">
+          <p className="tm-pub-lede tm-pub-lede--md">
+            Product updates, newest first. Grouped by the month each change went live.
+          </p>
+        </PublicIntro>
 
-        <div className="tm-identity__card">
-          <header className="tm-identity__brand">
-            <Wordmark />
-            <p className="tm-identity__eyebrow tm-mono">Product · Changelog</p>
-          </header>
+        <div className="tm-pub-stack">
+          {changelog.isError ? (
+            <InlineAlert tone="danger" title="Could not load the changelog" live>
+              {describeError(changelog.error)}
+            </InlineAlert>
+          ) : null}
 
-          <main id="tm-main" className="tm-identity__body tm-stack" tabIndex={-1}>
-            <h1 className="tm-identity__title">What&rsquo;s new</h1>
-            <p className="tm-field__hint">
-              Product updates, newest first. Grouped by the month each change went live.
-            </p>
+          {changelog.isPending ? (
+            <LoadingRegion label="Loading the changelog.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-            {changelog.isError ? (
-              <InlineAlert tone="danger" title="Could not load the changelog" live>
-                {describeError(changelog.error)}
-              </InlineAlert>
-            ) : null}
-
-            {changelog.isPending ? (
-              <LoadingRegion label="Loading the changelog.">
-                <Skeleton height="var(--row)" />
-                <Skeleton height="var(--row)" />
-                <Skeleton height="var(--row)" />
-              </LoadingRegion>
-            ) : null}
-
-            {!changelog.isPending && !changelog.isError && months.length === 0 ? (
-              <InlineAlert tone="neutral" title="Nothing here yet">
+          {!changelog.isPending && !changelog.isError && months.length === 0 ? (
+            <div className="tm-pub-card tm-pub-card--roomy tm-pub-card--dashed">
+              <p className="tm-pub-card__title">Nothing here yet</p>
+              <p className="tm-pub-card__body">
                 No product updates have been published. Check back soon.
-              </InlineAlert>
-            ) : null}
+              </p>
+            </div>
+          ) : null}
 
-            {months.map((month) => (
-              <section
-                key={month.month}
-                className="tm-panel tm-stack"
-                aria-labelledby={`tm-changelog-${month.month}`}
-              >
-                <h2 id={`tm-changelog-${month.month}`} className="tm-eyebrow">
-                  {formatMonth(month.month)}
-                </h2>
-                <ul className="tm-stack tm-list">
-                  {month.entries.map((entry) => (
-                    <li key={entry.id} className="tm-stack">
-                      <div className="tm-row tm-row--wrap">
-                        <Badge>{categoryLabel(entry.category)}</Badge>
-                        <Badge mono>{entry.version}</Badge>
-                      </div>
-                      <h3 className="tm-table__title">{entry.title}</h3>
-                      <p className="tm-field__hint">
-                        <time dateTime={entry.publishedAt}>{formatInstant(entry.publishedAt)}</time>
-                      </p>
-                      <div className="tm-prose">{entry.bodyMd}</div>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </main>
+          {months.map((month) => (
+            <section
+              key={month.month}
+              className="tm-pub-stack"
+              aria-labelledby={`tm-changelog-${month.month}`}
+            >
+              <h2 id={`tm-changelog-${month.month}`} className="tm-pub-eyebrow">
+                {formatMonth(month.month)}
+              </h2>
+              <ul className="tm-pub-stack">
+                {month.entries.map((entry) => (
+                  <li key={entry.id} className="tm-pub-card tm-pub-card--roomy">
+                    <div className="tm-pub-tags">
+                      <span
+                        className={`tm-pub-tag${entry.category === 'security' ? ' tm-pub-tag--warning' : ''}`}
+                      >
+                        {categoryLabel(entry.category)}
+                      </span>
+                      <span className="tm-pub-tag tm-pub-tag--mono">{entry.version}</span>
+                    </div>
+                    <h3 className="tm-pub-card__title">{entry.title}</h3>
+                    <p className="tm-pub-card__eyebrow">
+                      <time dateTime={entry.publishedAt}>{formatInstant(entry.publishedAt)}</time>
+                    </p>
+                    <div className="tm-pub-prose">{entry.bodyMd}</div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
         </div>
       </div>
-    </LiveAnnouncer>
+    </PublicPage>
   );
 }
 

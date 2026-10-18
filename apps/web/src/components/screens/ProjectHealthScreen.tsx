@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjectHealth } from '../../lib/api/project-health';
 import type { ProjectHealthBand, ProjectHealthSummary } from '../../lib/api/project-health';
@@ -54,47 +55,50 @@ export function ProjectHealthScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
+      eyebrow="Insights"
       title="Project health"
       description="Every project you can see, banded from its overdue milestones, open risks, and missed objectives."
     >
-      {health.isError ? (
-        <InlineAlert tone="danger" title="Could not load project health" live>
-          {describeError(health.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-ins tm-ins-tool">
+        {health.isError ? (
+          <InlineAlert tone="danger" title="Could not load project health" live>
+            {describeError(health.error)}
+          </InlineAlert>
+        ) : null}
 
-      {health.isPending ? (
-        <LoadingRegion label="Loading project health.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {health.isPending ? (
+          <LoadingRegion label="Loading project health.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {!health.isPending && !health.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No projects yet">
-          There are no projects you can see. When one is created and shared with you, it appears
-          here.
-        </InlineAlert>
-      ) : null}
+        {!health.isPending && !health.isError && rows.length === 0 ? (
+          <InlineAlert tone="neutral" title="No projects yet">
+            There are no projects you can see. When one is created and shared with you, it appears
+            here.
+          </InlineAlert>
+        ) : null}
 
-      {rows.length > 0 ? (
-        <section className="tm-stack" aria-labelledby="tm-health-heading">
-          <h2 id="tm-health-heading" className="tm-eyebrow">
-            Projects
-          </h2>
-          <ul className="tm-list">
-            {rows.map((project) => (
-              <li key={project.projectId}>
-                <HealthCard organizationSlug={organizationSlug} project={project} />
-              </li>
-            ))}
-          </ul>
-          <p className="tm-field__hint">
-            Each band is computed from fixed weights on the server, so two people see the same
-            project in the same colour. The signals below are the ones it came from.
-          </p>
-        </section>
-      ) : null}
+        {rows.length > 0 ? (
+          <section className="tm-stack" aria-labelledby="tm-health-heading">
+            <h2 id="tm-health-heading" className="tm-eyebrow">
+              Projects
+            </h2>
+            <ul className="tm-list">
+              {rows.map((project) => (
+                <li key={project.projectId}>
+                  <HealthCard organizationSlug={organizationSlug} project={project} />
+                </li>
+              ))}
+            </ul>
+            <p className="tm-field__hint">
+              Each band is computed from fixed weights on the server, so two people see the same
+              project in the same colour. The signals below are the ones it came from.
+            </p>
+          </section>
+        ) : null}
+      </div>
     </AppShell>
   );
 }

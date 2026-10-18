@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getStartupPref, updateStartupPref, LANDING_KEYS } from '../../lib/api/startup-prefs';
 import type { LandingKey, StartupPrefView } from '../../lib/api/startup-prefs';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/preferences.css';
 
 export interface StartupLandingViewProps {
   organizationSlug: string;
@@ -70,8 +71,8 @@ export function StartupLandingView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Startup view"
-      description="Choose which screen opens first when you sign in."
+      eyebrow="Preferences · Startup"
+      title="Where TManage opens"
     >
       {preference.isPending ? (
         <LoadingRegion label="Loading your startup view">
@@ -82,57 +83,78 @@ export function StartupLandingView({
           {errorMessage(preference.error)}
         </InlineAlert>
       ) : (
-        <form
-          className="tm-panel tm-stack"
-          aria-labelledby="tm-startup-heading"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setSaved(false);
-            save.mutate();
-          }}
-        >
-          <h2 id="tm-startup-heading" className="tm-eyebrow">
-            Open to
-          </h2>
+        <div className="tm-prefs tm-prefs--a11y">
+          <div className="tm-prefs__main">
+            <form
+              className="tm-prefs-card"
+              aria-labelledby="tm-startup-heading"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSaved(false);
+                save.mutate();
+              }}
+            >
+              <h2 id="tm-startup-heading" className="tm-visually-hidden">
+                Open to
+              </h2>
 
-          <fieldset className="tm-fieldset tm-stack">
-            <legend className="tm-field__label">Landing screen on sign-in</legend>
-            {LANDING_KEYS.map((key) => (
-              <div className="tm-field tm-field--inline" key={key}>
-                <input
-                  id={`tm-startup-${key}`}
-                  className="tm-field__control"
-                  type="radio"
-                  name="tm-startup-landing"
-                  value={key}
-                  checked={landingKey === key}
-                  onChange={() => setLandingKey(key)}
-                />
-                <label className="tm-field__label" htmlFor={`tm-startup-${key}`}>
-                  {DESTINATION_LABELS[key]}
-                </label>
+              <fieldset className="tm-prefs-section">
+                <legend className="tm-prefs-eyebrow">Landing screen on sign-in</legend>
+                <div className="tm-prefs-choices">
+                  {LANDING_KEYS.map((key) => (
+                    <label className="tm-prefs-choice" key={key}>
+                      <input
+                        id={`tm-startup-${key}`}
+                        type="radio"
+                        name="tm-startup-landing"
+                        value={key}
+                        checked={landingKey === key}
+                        onChange={() => setLandingKey(key)}
+                      />
+                      {DESTINATION_LABELS[key]}
+                    </label>
+                  ))}
+                </div>
+                <p className="tm-prefs-card__note">
+                  Home is the default. The choice is yours only and applies on every device.
+                </p>
+              </fieldset>
+
+              {save.isError ? (
+                <InlineAlert tone="danger" title="We could not save your startup view">
+                  {errorMessage(save.error)}
+                </InlineAlert>
+              ) : null}
+
+              {saved && !save.isPending && !save.isError ? (
+                <InlineAlert tone="success" title="Saved">
+                  Your startup view has been saved.
+                </InlineAlert>
+              ) : null}
+
+              <div>
+                <button
+                  type="submit"
+                  className="tm-prefs-capsule tm-prefs-capsule--ink"
+                  disabled={save.isPending}
+                >
+                  {save.isPending ? 'Saving…' : 'Save startup view'}
+                </button>
               </div>
-            ))}
-          </fieldset>
-
-          {save.isError ? (
-            <InlineAlert tone="danger" title="We could not save your startup view">
-              {errorMessage(save.error)}
-            </InlineAlert>
-          ) : null}
-
-          {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved">
-              Your startup view has been saved.
-            </InlineAlert>
-          ) : null}
-
-          <div>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save startup view'}
-            </Button>
+            </form>
           </div>
-        </form>
+
+          <aside className="tm-prefs__side" aria-labelledby="tm-startup-summary">
+            <div className="tm-prefs-card tm-prefs-card--paper tm-prefs-card--grow">
+              <h2 id="tm-startup-summary" className="tm-prefs-eyebrow">
+                After you sign in
+              </h2>
+              <p className="tm-prefs-card__lead">
+                TManage opens on {DESTINATION_LABELS[landingKey]}.
+              </p>
+            </div>
+          </aside>
+        </div>
       )}
     </AppShell>
   );

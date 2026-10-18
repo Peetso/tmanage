@@ -8,6 +8,12 @@ import { fetchCommands } from '../../lib/api/commands';
 import type { Command } from '../../lib/api/commands';
 import type { ApiClient } from '../../lib/api/client';
 
+/**
+ * The window event any control may dispatch to open the palette — the search orb in HOME-01's
+ * day capsule uses it. An event rather than a context, so the opener needs no provider.
+ */
+export const OPEN_COMMAND_PALETTE_EVENT = 'tm:open-command-palette';
+
 export interface CommandPaletteProps {
   organizationSlug: string;
   /** Test seam: an explicit client and an initially-open palette. */
@@ -42,8 +48,15 @@ export function CommandPalette({ organizationSlug, client, initiallyOpen }: Comm
         setOpen((value) => !value);
       }
     }
+    function onOpen() {
+      setOpen(true);
+    }
     document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, onOpen);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, onOpen);
+    };
   }, []);
 
   if (!open) return null;
@@ -266,26 +279,32 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
   return (
     <div className="tm-command-palette__backdrop">
       <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="tm-command-palette">
-        <h2 id={titleId} className="tm-command-palette__title">
+        <h2 id={titleId} className="tm-command-palette__title tm-visually-hidden">
           Command palette
         </h2>
-        <input
-          ref={inputRef}
-          type="text"
-          role="combobox"
-          aria-expanded="true"
-          aria-controls={listId}
-          aria-activedescendant={activeEntry ? activeEntry.id : undefined}
-          aria-label="Search commands and the workspace"
-          className="tm-command-palette__input"
-          placeholder="Type a command or search…"
-          value={draft}
-          onKeyDown={onKeyDown}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            setActiveIndex(0);
-          }}
-        />
+        <div className="tm-command-palette__head">
+          <span className="tm-command-palette__live" aria-hidden="true" />
+          <input
+            ref={inputRef}
+            type="text"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={listId}
+            aria-activedescendant={activeEntry ? activeEntry.id : undefined}
+            aria-label="Search commands and the workspace"
+            className="tm-command-palette__input"
+            placeholder="Type a command or search…"
+            value={draft}
+            onKeyDown={onKeyDown}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setActiveIndex(0);
+            }}
+          />
+          <kbd className="tm-command-palette__key" aria-hidden="true">
+            Esc
+          </kbd>
+        </div>
         <ul id={listId} role="listbox" aria-label="Commands" className="tm-command-palette__list">
           {entries.length === 0 ? (
             <li
@@ -309,6 +328,9 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
                 className="tm-command-palette__option"
                 onClick={() => activate(entry)}
               >
+                <span className="tm-command-palette__option-orb" aria-hidden="true">
+                  {entry.kind === 'command' ? '›' : '⌕'}
+                </span>
                 <span className="tm-command-palette__option-label">{entry.label}</span>
                 {entry.kind === 'command' ? (
                   <span className="tm-command-palette__option-section">
@@ -319,6 +341,7 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
             ))
           )}
         </ul>
+        <p className="tm-command-palette__foot">Results are filtered to what you may see</p>
       </div>
     </div>
   );

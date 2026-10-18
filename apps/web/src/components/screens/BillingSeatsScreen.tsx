@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/billing-seats';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface BillingSeatsScreenProps {
   organizationSlug: string;
@@ -74,116 +75,125 @@ export function BillingSeatsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Seats"
       description="Assign and reclaim the seats your team holds against your plan."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-seat-assign-heading">
-        <h2 id="tm-seat-assign-heading" className="tm-eyebrow">
-          Assign a seat
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canAssign) assign.mutate();
-          }}
-        >
-          <Field
-            label="Membership ID"
-            name="membershipId"
-            value={membershipId}
-            onChange={(event) => setMembershipId(event.target.value)}
-            hint="The membership to grant a seat to."
-            required
-          />
+      <div className="tm-bil">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-seat-assign-heading">
+          <h2 id="tm-seat-assign-heading" className="tm-eyebrow">
+            Assign a seat
+          </h2>
+          <form
+            className="tm-stack"
+            noValidate
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (canAssign) assign.mutate();
+            }}
+          >
+            <Field
+              label="Membership ID"
+              name="membershipId"
+              value={membershipId}
+              onChange={(event) => setMembershipId(event.target.value)}
+              hint="The membership to grant a seat to."
+              required
+            />
 
-          {assign.isError ? (
-            <InlineAlert tone="danger" title="Could not assign the seat" live>
-              {describeError(assign.error)}
+            {assign.isError ? (
+              <InlineAlert tone="danger" title="Could not assign the seat" live>
+                {describeError(assign.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={assign.isPending}
+                loadingLabel="Assigning"
+                disabled={!canAssign}
+              >
+                Assign seat
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="tm-panel tm-panel--quiet tm-stack"
+          aria-labelledby="tm-seat-list-heading"
+        >
+          <h2 id="tm-seat-list-heading" className="tm-eyebrow">
+            Active seats {seats.isSuccess ? `(${seats.data.activeCount})` : ''}
+          </h2>
+
+          {seats.isError ? (
+            <InlineAlert tone="danger" title="Could not load the seats" live>
+              {describeError(seats.error)}
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={assign.isPending}
-              loadingLabel="Assigning"
-              disabled={!canAssign}
-            >
-              Assign seat
-            </Button>
-          </div>
-        </form>
-      </section>
+          {release.isError ? (
+            <InlineAlert tone="danger" title="Could not reclaim the seat" live>
+              {describeError(release.error)}
+            </InlineAlert>
+          ) : null}
 
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-seat-list-heading">
-        <h2 id="tm-seat-list-heading" className="tm-eyebrow">
-          Active seats {seats.isSuccess ? `(${seats.data.activeCount})` : ''}
-        </h2>
+          {seats.isPending ? (
+            <LoadingRegion label="Loading the seats.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {seats.isError ? (
-          <InlineAlert tone="danger" title="Could not load the seats" live>
-            {describeError(seats.error)}
-          </InlineAlert>
-        ) : null}
+          {seats.isSuccess && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No active seats yet">
+              Assign a seat with the form to grant a membership a licence against your plan.
+            </InlineAlert>
+          ) : null}
 
-        {release.isError ? (
-          <InlineAlert tone="danger" title="Could not reclaim the seat" live>
-            {describeError(release.error)}
-          </InlineAlert>
-        ) : null}
-
-        {seats.isPending ? (
-          <LoadingRegion label="Loading the seats.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {seats.isSuccess && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No active seats yet">
-            Assign a seat above to grant a membership a licence against your plan.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">The organization&rsquo;s active seats.</caption>
-            <thead>
-              <tr>
-                <th scope="col">Membership</th>
-                <th scope="col">Assigned</th>
-                <th scope="col">
-                  <span className="tm-visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((seat) => (
-                <tr key={seat.id}>
-                  <td>{seat.membershipId}</td>
-                  <td>{new Date(seat.assignedAt).toLocaleDateString()}</td>
-                  <td>
-                    <Button
-                      type="button"
-                      tone="outline"
-                      size="accessible"
-                      loading={release.isPending && release.variables?.id === seat.id}
-                      loadingLabel="Reclaiming"
-                      onClick={() => release.mutate(seat)}
-                    >
-                      Reclaim
-                    </Button>
-                  </td>
+          {rows.length > 0 ? (
+            <table className="tm-table">
+              <caption className="tm-visually-hidden">
+                The organization&rsquo;s active seats.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Membership</th>
+                  <th scope="col">Assigned</th>
+                  <th scope="col">
+                    <span className="tm-visually-hidden">Actions</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
+              </thead>
+              <tbody>
+                {rows.map((seat) => (
+                  <tr key={seat.id}>
+                    <td>{seat.membershipId}</td>
+                    <td>{new Date(seat.assignedAt).toLocaleDateString()}</td>
+                    <td>
+                      <Button
+                        type="button"
+                        tone="outline"
+                        size="accessible"
+                        loading={release.isPending && release.variables?.id === seat.id}
+                        loadingLabel="Reclaiming"
+                        onClick={() => release.mutate(seat)}
+                      >
+                        Reclaim
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

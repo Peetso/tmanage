@@ -112,10 +112,10 @@ function renderActions(items: readonly unknown[]) {
 }
 
 describe('CL-01 the client overview', () => {
-  it('shows no percentage, and says that is deliberate', async () => {
+  it('shows no percentage anywhere', async () => {
     renderOverview([item(), item({ id: 'wi-2', progress: 'done' })]);
 
-    await screen.findByText(/There is no percentage here on purpose/);
+    await screen.findByText(/Nothing needs you right now/);
 
     // §6, in bold: "No internal task percentage." Nothing on this screen may read as one.
     expect(screen.queryByText(/%/)).toBeNull();
@@ -143,7 +143,7 @@ describe('CL-01 the client overview', () => {
     // copy while the query is in flight, so awaiting the region resolves against the empty one.
     await screen.findByText('Approve the copy');
 
-    const waiting = screen.getByRole('region', { name: 'Waiting on you' });
+    const waiting = screen.getByRole('region', { name: 'Your actions' });
     expect(within(waiting).getByText('Approve the copy')).toBeInTheDocument();
     expect(within(waiting).queryByText('The homepage design')).toBeNull();
   });
@@ -151,9 +151,9 @@ describe('CL-01 the client overview', () => {
   it('says nothing is waiting, and that the client will be told', async () => {
     renderOverview([item()]);
 
-    await screen.findByText(/There is no percentage here on purpose/);
+    await screen.findByText(/Nothing needs you right now/);
 
-    const waiting = screen.getByRole('region', { name: 'Waiting on you' });
+    const waiting = screen.getByRole('region', { name: 'Your actions' });
     expect(within(waiting).getByText(/Nothing needs you right now/)).toBeInTheDocument();
     expect(within(waiting).getByText(/will tell you as well/)).toBeInTheDocument();
   });
@@ -162,12 +162,12 @@ describe('CL-01 the client overview', () => {
     renderOverview([item()]);
 
     await screen.findByText('Agreed date');
-    const dates = screen.getByRole('region', { name: /Where Atlas Website Relaunch/ });
+    const dates = screen.getByRole('region', { name: 'Dates' });
+    // Two labelled facts, each with its own value — never one merged "due" date.
     expect(within(dates).getByText('Agreed date')).toBeInTheDocument();
+    expect(within(dates).getByText('15 Oct')).toBeInTheDocument();
     expect(within(dates).getByText('Current estimate')).toBeInTheDocument();
-    expect(
-      within(dates).getByText(/a moving estimate is never mistaken for a broken promise/),
-    ).toBeInTheDocument();
+    expect(within(dates).getByText('29 Oct')).toBeInTheDocument();
   });
 
   it('says nothing has been shared rather than showing an empty list', async () => {
@@ -179,14 +179,14 @@ describe('CL-01 the client overview', () => {
   it('renders the client’s own name, not only the provider’s', async () => {
     renderOverview([item()]);
 
-    await screen.findByText(/There is no percentage here on purpose/);
+    await screen.findByText(/Nothing needs you right now/);
     expect(screen.getAllByText(/Atlas Hospitality/).length).toBeGreaterThan(0);
   });
 
   it('has no axe violations', async () => {
     const { container } = renderOverview([item()]);
 
-    await screen.findByText(/There is no percentage here on purpose/);
+    await screen.findByText(/Nothing needs you right now/);
     await expectNoAxeViolations(container);
   });
 });
@@ -254,14 +254,14 @@ describe('CL-02 my actions', () => {
     expect(screen.getByText(/you do not have to keep checking this page/)).toBeInTheDocument();
   });
 
-  it('says which fields it does not have rather than inventing them', async () => {
+  it('shows no consequence or review time it does not have', async () => {
     renderActions([item({ progress: 'waiting_on_you' })]);
 
-    // "Why, due, consequence, estimated review time" — for a work item, two of the four are
-    // not stored, and a portal that invented a consequence would be worse than one that says
-    // it does not know. `REQ-001` supplied the third for a request card, which is why this now
-    // reads "two" and is asserted about work items specifically.
-    expect(await screen.findByText(/are two things nothing records yet/)).toBeInTheDocument();
+    // "Why, due, consequence, estimated review time" — for a work item, two of the four are not
+    // stored. The card shows the due date and nothing invented in place of the other two.
+    const list = await screen.findByRole('list', { name: 'Your actions' });
+    expect(within(list).getByText(/Needed by/)).toBeInTheDocument();
+    expect(within(list).queryByText(/minutes|\d+m\b/)).toBeNull();
   });
 
   it('has no axe violations', async () => {

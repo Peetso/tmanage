@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/billing';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface BillingProfileScreenProps {
   organizationSlug: string;
@@ -127,125 +128,129 @@ export function BillingProfileScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Billing settings"
       description="Your billing contact, company details and address. No card details are stored here."
     >
-      {profile.isError ? (
-        <InlineAlert tone="danger" title="Could not load billing settings" live>
-          {describeError(profile.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-bil">
+        {profile.isError ? (
+          <InlineAlert tone="danger" title="Could not load billing settings" live>
+            {describeError(profile.error)}
+          </InlineAlert>
+        ) : null}
 
-      {profile.isPending ? (
-        <LoadingRegion label="Loading billing settings." className="tm-stack tm-stack--tight">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {profile.isPending ? (
+          <LoadingRegion label="Loading billing settings." className="tm-stack tm-stack--tight">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {!profile.isPending && !profile.isError ? (
-        <form
-          className="tm-panel tm-stack"
-          noValidate
-          aria-label="Billing settings"
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (!save.isPending) save.mutate();
-          }}
-        >
-          <section className="tm-stack" aria-labelledby="tm-billing-contact-heading">
-            <h2 id="tm-billing-contact-heading" className="tm-eyebrow">
-              Billing contact
-            </h2>
-            <Field
-              label="Billing email"
-              name="billingEmail"
-              type="email"
-              value={form.billingEmail}
-              onChange={(event) => set({ billingEmail: event.target.value })}
-              hint="Where invoices and billing notices are sent."
-            />
-            <Field
-              label="Company name"
-              name="companyName"
-              value={form.companyName}
-              onChange={(event) => set({ companyName: event.target.value })}
-            />
-            <Field
-              label="Tax ID"
-              name="taxId"
-              value={form.taxId}
-              onChange={(event) => set({ taxId: event.target.value })}
-              hint="VAT, EIN or equivalent. Not a card or account number."
-            />
-          </section>
+        {!profile.isPending && !profile.isError ? (
+          <form
+            className="tm-panel tm-stack"
+            noValidate
+            aria-label="Billing settings"
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (!save.isPending) save.mutate();
+            }}
+          >
+            <section className="tm-stack" aria-labelledby="tm-billing-contact-heading">
+              <h2 id="tm-billing-contact-heading" className="tm-eyebrow">
+                Billing contact
+              </h2>
+              <Field
+                label="Billing email"
+                name="billingEmail"
+                type="email"
+                value={form.billingEmail}
+                onChange={(event) => set({ billingEmail: event.target.value })}
+                hint="Where invoices and billing notices are sent."
+              />
+              <Field
+                label="Company name"
+                name="companyName"
+                value={form.companyName}
+                onChange={(event) => set({ companyName: event.target.value })}
+              />
+              <Field
+                label="Tax ID"
+                name="taxId"
+                value={form.taxId}
+                onChange={(event) => set({ taxId: event.target.value })}
+                hint="VAT, EIN or equivalent. Not a card or account number."
+              />
+            </section>
 
-          <fieldset className="tm-stack tm-fieldset">
-            <legend className="tm-field__label">Billing address</legend>
-            <Field
-              label="Address line 1"
-              name="line1"
-              value={form.line1}
-              onChange={(event) => set({ line1: event.target.value })}
-            />
-            <Field
-              label="Address line 2"
-              name="line2"
-              value={form.line2}
-              onChange={(event) => set({ line2: event.target.value })}
-            />
-            <Field
-              label="City"
-              name="city"
-              value={form.city}
-              onChange={(event) => set({ city: event.target.value })}
-            />
-            <Field
-              label="State or region"
-              name="region"
-              value={form.region}
-              onChange={(event) => set({ region: event.target.value })}
-            />
-            <Field
-              label="Postal code"
-              name="postalCode"
-              value={form.postalCode}
-              onChange={(event) => set({ postalCode: event.target.value })}
-            />
-            <Field
-              label="Country"
-              name="country"
-              value={form.country}
-              onChange={(event) => set({ country: event.target.value })}
-              hint="A two-letter country code, such as GB or US."
-            />
-          </fieldset>
+            <fieldset className="tm-stack tm-fieldset">
+              <legend className="tm-field__label">Billing address</legend>
+              <Field
+                label="Address line 1"
+                name="line1"
+                value={form.line1}
+                onChange={(event) => set({ line1: event.target.value })}
+              />
+              <Field
+                label="Address line 2"
+                name="line2"
+                value={form.line2}
+                onChange={(event) => set({ line2: event.target.value })}
+              />
+              <Field
+                label="City"
+                name="city"
+                value={form.city}
+                onChange={(event) => set({ city: event.target.value })}
+              />
+              <Field
+                label="State or region"
+                name="region"
+                value={form.region}
+                onChange={(event) => set({ region: event.target.value })}
+              />
+              <Field
+                label="Postal code"
+                name="postalCode"
+                value={form.postalCode}
+                onChange={(event) => set({ postalCode: event.target.value })}
+              />
+              <Field
+                label="Country"
+                name="country"
+                value={form.country}
+                onChange={(event) => set({ country: event.target.value })}
+                hint="A two-letter country code, such as GB or US."
+              />
+            </fieldset>
 
-          {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save billing settings" live>
-              {describeError(save.error)}
-            </InlineAlert>
-          ) : null}
+            {save.isError ? (
+              <InlineAlert tone="danger" title="Could not save billing settings" live>
+                {describeError(save.error)}
+              </InlineAlert>
+            ) : null}
 
-          {saved && !save.isError ? (
-            <InlineAlert tone="success" title="Billing settings saved" live>
-              Your billing details have been updated.
-            </InlineAlert>
-          ) : null}
+            {saved && !save.isError ? (
+              <InlineAlert tone="success" title="Billing settings saved" live>
+                Your billing details have been updated.
+              </InlineAlert>
+            ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={save.isPending}
-              loadingLabel="Saving"
-            >
-              Save billing settings
-            </Button>
-          </div>
-        </form>
-      ) : null}
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={save.isPending}
+                loadingLabel="Saving"
+              >
+                Save billing settings
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </div>
     </AppShell>
   );
 }

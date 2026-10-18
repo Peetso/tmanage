@@ -1,0 +1,1325 @@
+/*
+ * Personal preferences (PREF-01…05) — the screens under the account orb.
+ *
+ * Ported from `TManage Screens - Billing Preferences and System.dc.html`: a 38/44 page title, white
+ * 24px cards on the paper canvas, mono 11px eyebrows, 46px paper fields, 44×26 switches whose "on"
+ * state is an ink track with a lime thumb, black density capsules and the theme tiles. Every value
+ * is a token from `@tmanage/ui`, so dark and high contrast follow without a rule of their own.
+ */
+
+/* The design's preferences title is 38/44 rather than the 36/42 page heading. */
+.tm-app:has(.tm-prefs) .tm-canvas-header__title {
+  font-size: 38px;
+  line-height: 44px;
+  letter-spacing: -0.025em;
+}
+
+/* PREF-01's "YOURS ONLY" column: a flat strip, not a card. */
+.tm-context-rail:has(.tm-prefs-nav) {
+  inline-size: 208px;
+  min-inline-size: 208px;
+  padding: 22px 14px;
+  border-width: 0;
+  border-inline-end: var(--b-quiet) solid var(--line-300);
+  border-radius: 0;
+  background: transparent;
+  align-self: stretch;
+}
+
+.tm-prefs-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prefs-nav__heading {
+  margin: 0;
+  padding: 0 12px 8px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-prefs-nav__link {
+  display: block;
+  padding: 8px 12px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-micro);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-650);
+  text-decoration: none;
+}
+
+.tm-prefs-nav__link:hover {
+  color: var(--ink-950);
+}
+
+.tm-prefs-nav__link[aria-current='page'] {
+  border-color: var(--line-300);
+  background: var(--paper-0);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+/* ── Two-column body ──────────────────────────────────────────────────── */
+
+.tm-prefs {
+  display: flex;
+  align-items: stretch;
+  gap: 22px;
+  min-inline-size: 0;
+}
+
+.tm-prefs__main,
+.tm-prefs__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.tm-prefs__main {
+  flex: 1.1;
+}
+
+.tm-prefs__side {
+  flex: 0.85;
+}
+
+.tm-prefs--appearance .tm-prefs__main {
+  flex: 1;
+}
+
+.tm-prefs--appearance .tm-prefs__side {
+  flex: none;
+  inline-size: 440px;
+  gap: var(--s3);
+}
+
+.tm-prefs--notifications .tm-prefs__main {
+  flex: 1.7;
+  gap: 18px;
+}
+
+.tm-prefs--notifications .tm-prefs__side {
+  flex: 1;
+}
+
+.tm-prefs--a11y .tm-prefs__main {
+  flex: 1.2;
+}
+
+.tm-prefs--a11y .tm-prefs__side {
+  flex: 1;
+  gap: 14px;
+}
+
+.tm-prefs--keyboard .tm-prefs__main {
+  flex: 1.5;
+}
+
+.tm-prefs--keyboard .tm-prefs__side {
+  flex: 1;
+  gap: 14px;
+}
+
+.tm-prefs__pair {
+  display: flex;
+  gap: var(--s5);
+  min-inline-size: 0;
+}
+
+.tm-prefs__pair > * {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────── */
+
+.tm-prefs-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0;
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  min-inline-size: 0;
+}
+
+.tm-prefs-card--tight {
+  gap: var(--s3);
+  padding: 22px;
+}
+
+.tm-prefs-card--paper {
+  gap: 10px;
+  padding: 22px;
+  background: var(--paper-50);
+}
+
+.tm-prefs-card--grow {
+  flex: 1;
+}
+
+.tm-prefs-card--ink {
+  gap: 14px;
+  padding: 22px;
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+[data-theme='dark'] .tm-prefs-card--ink {
+  border-color: var(--line-300);
+  background: var(--paper-350);
+  color: var(--ink-950);
+}
+
+.tm-prefs-card__title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-prefs-card__lead {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: 21px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-prefs-card__body {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-prefs-card__note {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: 18px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-prefs-card__foot {
+  margin-block-start: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.tm-prefs-eyebrow {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-prefs-card--ink .tm-prefs-eyebrow {
+  color: var(--lime-500);
+}
+
+[data-theme='dark'] .tm-prefs-card--ink .tm-prefs-eyebrow {
+  color: var(--ink-950);
+}
+
+.tm-prefs-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.tm-prefs-rule {
+  block-size: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--paper-150);
+}
+
+/* ── Fields ─────────────────────────────────────────────────────────── */
+
+.tm-prefs-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px var(--s4);
+}
+
+.tm-prefs-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-prefs-field--wide {
+  grid-column: 1 / -1;
+}
+
+.tm-prefs-field__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-prefs-field__control {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 46px;
+  padding: 0 var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-body-md);
+  line-height: 21px;
+  font-weight: 500;
+}
+
+.tm-prefs-field__control:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+select.tm-prefs-field__control {
+  appearance: none;
+  padding-inline-end: var(--s10);
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--ink-650) 50%),
+    linear-gradient(135deg, var(--ink-650) 50%, transparent 50%);
+  background-position:
+    calc(100% - 22px) 50%,
+    calc(100% - 17px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+[dir='rtl'] select.tm-prefs-field__control {
+  background-position:
+    17px 50%,
+    22px 50%;
+}
+
+/* A read-out field: "managed elsewhere" — the paper-150 well the design gives the SSO email. */
+.tm-prefs-field__readout {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-block-size: 46px;
+  padding: 0 var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  line-height: 21px;
+  font-weight: 500;
+}
+
+.tm-prefs-field__readout a {
+  font-size: var(--t-caption);
+  white-space: nowrap;
+}
+
+/* ── Switch rows ─────────────────────────────────────────────────────── */
+
+.tm-prefs-toggle {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tm-prefs-toggle__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-inline-size: 0;
+}
+
+.tm-prefs-toggle__label {
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-prefs-toggle__hint {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-650);
+}
+
+.tm-prefs-switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  box-sizing: border-box;
+  inline-size: 44px;
+  block-size: 26px;
+  margin: 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  cursor: pointer;
+  transition: background-color var(--t-micro) var(--ease);
+}
+
+.tm-prefs-switch::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  box-sizing: border-box;
+  inline-size: 20px;
+  block-size: 20px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  transition: inset-inline-start var(--t-micro) var(--ease);
+}
+
+.tm-prefs-switch:checked {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+}
+
+.tm-prefs-switch:checked::before {
+  inset-inline-start: 20px;
+  border-color: transparent;
+  background: var(--lime-500);
+}
+
+.tm-prefs-switch:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-prefs-switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── Choice capsules and theme tiles (radio inputs drawn as the design's shapes) ── */
+
+.tm-prefs-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-prefs-choice {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 18px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-650);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-prefs-choice:has(input:checked) {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  font-weight: 600;
+  color: var(--paper-50);
+}
+
+.tm-prefs-choice:has(input:focus-visible),
+.tm-prefs-tile:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-prefs-choice input,
+.tm-prefs-tile input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tm-prefs-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-prefs-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 13px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-650);
+  cursor: pointer;
+}
+
+.tm-prefs-tile:has(input:checked) {
+  padding: 12px;
+  border: var(--b-expressive) solid var(--ink-950);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+/* The tile thumbnails are pictures of a theme, so they keep their literal paints in both themes. */
+.tm-prefs-thumb {
+  display: flex;
+  gap: 6px;
+  block-size: 56px;
+  box-sizing: border-box;
+  padding: 8px;
+  border-radius: var(--r-micro);
+}
+
+.tm-prefs-thumb::before,
+.tm-prefs-thumb::after {
+  content: '';
+  border-radius: 4px;
+}
+
+.tm-prefs-thumb::before {
+  inline-size: 14px;
+}
+
+.tm-prefs-thumb::after {
+  flex: 1;
+}
+
+.tm-prefs-thumb--light {
+  border: 1px solid #c5c7c0;
+  background: #f7f7f3;
+}
+
+.tm-prefs-thumb--light::before {
+  background: #e4e4df;
+}
+
+.tm-prefs-thumb--light::after {
+  border: 1px solid #c5c7c0;
+  background: #ffffff;
+}
+
+.tm-prefs-thumb--dark {
+  background: #121311;
+}
+
+.tm-prefs-thumb--dark::before {
+  background: #171814;
+}
+
+.tm-prefs-thumb--dark::after {
+  border: 1px solid #3a3e35;
+  background: #1b1d19;
+}
+
+.tm-prefs-thumb--system {
+  padding: 0;
+  background: linear-gradient(90deg, #f7f7f3 50%, #121311 50%);
+}
+
+.tm-prefs-thumb--system::before,
+.tm-prefs-thumb--system::after {
+  display: none;
+}
+
+/* ── Text size steps (PREF-04) ─────────────────────────────────────── */
+
+.tm-prefs-scale {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tm-prefs-scale__a {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-prefs-scale__a--big {
+  font-size: 20px;
+  line-height: 26px;
+  color: var(--ink-800);
+}
+
+.tm-prefs-scale__track {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+}
+
+.tm-prefs-scale__step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-block-size: 30px;
+  border-radius: var(--r-capsule);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-650);
+  cursor: pointer;
+}
+
+.tm-prefs-scale__step:has(input:checked) {
+  background: var(--ink-950);
+  color: var(--paper-50);
+  font-weight: 600;
+}
+
+.tm-prefs-scale__step:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-prefs-scale__step input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tm-prefs-scale__value {
+  inline-size: 56px;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-950);
+  text-align: end;
+}
+
+/* ── Live samples (PREF-02 / PREF-04) ──────────────────────────────── */
+
+.tm-prefs-sample {
+  flex: 1;
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-prefs-sample__head {
+  display: flex;
+  align-items: center;
+  block-size: 40px;
+  padding: 0 18px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-650);
+  text-transform: uppercase;
+}
+
+.tm-prefs-sample__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prefs-sample__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  block-size: 44px;
+  padding: 0 18px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-prefs-sample[data-density='compact'] .tm-prefs-sample__row {
+  block-size: 34px;
+}
+
+.tm-prefs-sample__row:last-child {
+  border-block-end: 0;
+}
+
+.tm-prefs-sample__row--current {
+  border-inline-start: 3px solid var(--ink-950);
+  background: var(--paper-50);
+  font-weight: 600;
+}
+
+.tm-prefs-sample__row--muted {
+  color: var(--ink-650);
+}
+
+.tm-prefs-sample__name {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-prefs-sample__date {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-650);
+  text-transform: uppercase;
+}
+
+.tm-prefs-sample__date--warn {
+  color: var(--warning-600);
+}
+
+.tm-prefs-dot {
+  flex: none;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-prefs-dot--lime {
+  background: var(--lime-500);
+}
+
+.tm-prefs-dot--client {
+  background: var(--client-500);
+}
+
+.tm-prefs-dot--warn {
+  background: var(--warning-600);
+}
+
+.tm-prefs-dot--empty {
+  border: 1.5px solid var(--line-300);
+  background: transparent;
+}
+
+.tm-prefs-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-prefs-pill {
+  padding: 5px 12px;
+  border: var(--b-quiet) solid var(--lime-500);
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 600;
+  color: var(--tm-on-lime, var(--ink-950));
+  white-space: nowrap;
+}
+
+.tm-prefs-pill--warn {
+  border-color: var(--warning-600);
+  background: var(--paper-0);
+  color: var(--warning-600);
+}
+
+.tm-prefs-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: 21px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-prefs-line__mark {
+  flex: none;
+  inline-size: 11px;
+  block-size: 11px;
+  background: var(--client-500);
+}
+
+.tm-prefs-line__bang {
+  font-weight: 600;
+  color: var(--warning-600);
+}
+
+.tm-prefs-focused {
+  align-self: flex-start;
+  padding: 12px 20px;
+  border: var(--b-expressive) solid var(--ink-950);
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+  box-shadow: 0 0 0 3px var(--lime-500);
+  font-size: var(--t-ui-md);
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--paper-50);
+  white-space: nowrap;
+}
+
+/* ── PREF-03 per-event table ─────────────────────────────────────────── */
+
+.tm-prefs-heading-row {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s5);
+}
+
+.tm-prefs-heading-row__note {
+  margin: 0 0 0 auto;
+  max-inline-size: 280px;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-prefs-table {
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-prefs-table__head,
+.tm-prefs-table__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 18px;
+}
+
+.tm-prefs-table__head {
+  block-size: 34px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-650);
+  text-transform: uppercase;
+}
+
+.tm-prefs-table__event {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-prefs-table__channel {
+  flex: none;
+  inline-size: 84px;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.tm-prefs-table__row {
+  min-block-size: 46px;
+  padding-block: 6px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-prefs-table__row:last-child {
+  border-block-end: 0;
+}
+
+.tm-prefs-table__label {
+  display: block;
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-prefs-table__hint {
+  display: block;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-650);
+}
+
+/* The design's 18px ticked square: ink with a lime tick when on, an empty outline when off. */
+.tm-prefs-check {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  inline-size: 18px;
+  block-size: 18px;
+  margin: 0;
+  border: 1.5px solid var(--line-300);
+  border-radius: 5px;
+  background: var(--paper-0);
+  cursor: pointer;
+}
+
+.tm-prefs-check:checked {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+}
+
+.tm-prefs-check:checked::before {
+  content: '';
+  inline-size: 8px;
+  block-size: 4px;
+  margin-block-start: -2px;
+  border-inline-start: 2px solid var(--lime-500);
+  border-block-end: 2px solid var(--lime-500);
+  transform: rotate(-45deg);
+}
+
+.tm-prefs-check:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-prefs-check:disabled {
+  cursor: progress;
+}
+
+.tm-prefs-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s4);
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-prefs-legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-prefs-legend__swatch {
+  inline-size: 14px;
+  block-size: 14px;
+  border-radius: 4px;
+  background: var(--ink-950);
+}
+
+/* ── PREF-05 keyboard ────────────────────────────────────────────────── */
+
+.tm-prefs-keys {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prefs-key {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2) var(--s3);
+  min-block-size: 46px;
+  padding-block: 6px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-prefs-key:last-child {
+  border-block-end: 0;
+}
+
+.tm-prefs-key__title {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-prefs-key__custom {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-prefs-kbd {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 8px;
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+button.tm-prefs-kbd {
+  cursor: pointer;
+}
+
+button.tm-prefs-kbd:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-prefs-kbd--custom {
+  border-color: var(--ink-950);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-prefs-kbd-input {
+  inline-size: 180px;
+  min-block-size: 30px;
+  padding: 0 10px;
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: 8px;
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tm-prefs-kbd-input:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-prefs-key__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-prefs-command {
+  padding: 14px var(--s4);
+  border: var(--b-quiet) solid var(--tm-inverted-line, #3a3e35);
+  border-radius: 14px;
+  background: #1b1d19;
+  font-size: var(--t-body-md);
+  line-height: 21px;
+  font-weight: 500;
+  color: #f5f6f0;
+}
+
+[data-theme='dark'] .tm-prefs-command {
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-prefs-command__caret {
+  color: #a7aca0;
+}
+
+.tm-prefs-command-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prefs-command-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 11px 14px;
+  border-radius: 12px;
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+  font-weight: 500;
+}
+
+.tm-prefs-command-list__item:first-child {
+  background: #29351d;
+  font-weight: 600;
+}
+
+[data-theme='dark'] .tm-prefs-command-list__item:first-child {
+  background: var(--lime-100);
+}
+
+.tm-prefs-command-list__name {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-prefs-command-list__chord {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  color: #a7aca0;
+  text-transform: uppercase;
+}
+
+.tm-prefs-command-list__item:first-child .tm-prefs-command-list__chord {
+  color: #a9ed55;
+}
+
+.tm-prefs-card--ink .tm-prefs-card__note {
+  color: #a7aca0;
+}
+
+[data-theme='dark'] .tm-prefs-card--ink .tm-prefs-card__note,
+[data-theme='dark'] .tm-prefs-command-list__chord {
+  color: var(--ink-650);
+}
+
+/* ── PAT list (security) ─────────────────────────────────────────────── */
+
+.tm-prefs-tokens {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-prefs-token {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding-block: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-prefs-token:last-child {
+  border-block-end: 0;
+}
+
+.tm-prefs-token__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-inline-size: 0;
+}
+
+.tm-prefs-token__name {
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-prefs-token__meta {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-650);
+}
+
+.tm-prefs-secret {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: var(--s3);
+  border-radius: 12px;
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+/* The quiet capsule the design uses for secondary actions ("Add photo", "Preview today's"). */
+.tm-prefs-capsule {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  padding: 10px var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font: inherit;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-800);
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-prefs-capsule:hover {
+  color: var(--ink-950);
+  border-color: var(--ink-650);
+}
+
+.tm-prefs-capsule:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-prefs-capsule:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tm-prefs-capsule--ink {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-prefs-capsule--ink:hover {
+  color: var(--paper-50);
+}
+
+.tm-prefs-header-note {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+/* ── Narrow widths (responsive-and-desktop.md: columns stack below 900) ── */
+
+@media (max-width: 73.69rem) {
+  .tm-context-rail:has(.tm-prefs-nav) {
+    inline-size: auto;
+    min-inline-size: 0;
+    padding: 0;
+    border-inline-end: 0;
+  }
+
+  .tm-prefs-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--s2);
+  }
+
+  .tm-prefs-nav__heading {
+    inline-size: 100%;
+    padding: 0 0 var(--s1);
+  }
+
+  .tm-prefs-nav__link {
+    border-color: var(--line-300);
+    border-radius: var(--r-capsule);
+    background: var(--paper-0);
+  }
+
+  .tm-prefs-nav__link[aria-current='page'] {
+    border-color: var(--ink-950);
+    background: var(--ink-950);
+    color: var(--paper-50);
+  }
+}
+
+@media (max-width: 64rem) {
+  .tm-prefs {
+    flex-direction: column;
+  }
+
+  .tm-prefs--appearance .tm-prefs__side {
+    inline-size: auto;
+  }
+}
+
+@media (max-width: 40rem) {
+  .tm-app:has(.tm-prefs) .tm-canvas-header__title {
+    font-size: 30px;
+    line-height: 36px;
+  }
+
+  .tm-prefs-card {
+    padding: 18px;
+  }
+
+  .tm-prefs-fields,
+  .tm-prefs__pair {
+    grid-template-columns: minmax(0, 1fr);
+    flex-direction: column;
+  }
+
+  .tm-prefs-heading-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tm-prefs-heading-row__note {
+    margin: 0;
+  }
+
+  .tm-prefs-table__head,
+  .tm-prefs-table__row {
+    padding: 0 var(--s3);
+  }
+
+  .tm-prefs-table__channel {
+    inline-size: 56px;
+  }
+}
+
+/* A fieldset's legend is not a flex item, so the section gap does not reach it. */
+.tm-prefs-section > legend {
+  margin-block-end: var(--s3);
+}

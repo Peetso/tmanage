@@ -2,8 +2,8 @@
 
 import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
-import { InlineAlert, LiveAnnouncer, LoadingRegion, Skeleton, SkipLink } from '@tmanage/ui';
-import { Wordmark } from '../brand/Wordmark';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { PublicIntro, PublicPage } from './public/PublicSite';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicResources } from '../../lib/api/public-resources';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -36,75 +36,50 @@ export function MarketingResourcesScreen({ client }: MarketingResourcesScreenPro
   });
 
   return (
-    <LiveAnnouncer>
-      <div className="tm-marketing">
-        <SkipLink targetId="tm-main" />
+    <PublicPage>
+      <section className="tm-pub-columns" aria-labelledby="tm-resources-title">
+        <PublicIntro eyebrow="Resources" titleId="tm-resources-title" title="Resources & guides">
+          <p className="tm-pub-lede tm-pub-lede--md">
+            Guides and reference for getting the most out of TManage.
+          </p>
+        </PublicIntro>
 
-        <header className="tm-marketing__bar tm-row tm-row--between">
-          <Link href="/" aria-label="TManage home">
-            <Wordmark />
-          </Link>
-          <nav aria-label="Primary">
-            <Link className="tm-button tm-button--text tm-button--compact" href="/sign-in">
-              Sign in
-            </Link>
-          </nav>
-        </header>
-
-        <main id="tm-main" className="tm-marketing__body" tabIndex={-1}>
-          <section className="tm-stack" aria-labelledby="tm-resources-title">
-            <h1 id="tm-resources-title">Resources &amp; guides</h1>
-            <p className="tm-marketing__lede">
-              Guides and reference for getting the most out of TManage.
-            </p>
-
-            {resources.isPending ? (
-              <LoadingRegion label="Loading resources">
-                <div className="tm-stack">
-                  <Skeleton />
-                  <Skeleton />
-                  <Skeleton />
-                </div>
-              </LoadingRegion>
-            ) : resources.isError ? (
-              <InlineAlert tone="danger" title="These resources could not load">
-                {describeError(resources.error)}
-              </InlineAlert>
-            ) : resources.data.resources.length === 0 ? (
-              <InlineAlert tone="neutral" title="No resources yet">
-                Check back soon — guides are on the way.
-              </InlineAlert>
-            ) : (
-              <ul
-                className="tm-marketing__features"
-                style={{
-                  display: 'grid',
-                  gap: '1rem',
-                  gridTemplateColumns: 'repeat(auto-fit, minmax(16rem, 1fr))',
-                  listStyle: 'none',
-                  margin: 0,
-                  padding: 0,
-                }}
-              >
-                {resources.data.resources.map((entry) => (
-                  <li key={entry.slug} className="tm-card tm-stack tm-stack--tight">
-                    <p className="tm-marketing__eyebrow">{entry.category}</p>
-                    <h2>
-                      <Link href={`/resources/${entry.slug}`}>{entry.title}</Link>
-                    </h2>
-                    <p>{entry.summary}</p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-        </main>
-
-        <footer className="tm-marketing__footer">
-          <p>TManage — client work, without the status meeting.</p>
-        </footer>
-      </div>
-    </LiveAnnouncer>
+        <div className="tm-pub-stack">
+          {resources.isPending ? (
+            <LoadingRegion label="Loading resources">
+              <div className="tm-stack">
+                <Skeleton />
+                <Skeleton />
+                <Skeleton />
+              </div>
+            </LoadingRegion>
+          ) : resources.isError ? (
+            <InlineAlert tone="danger" title="These resources could not load">
+              {describeError(resources.error)}
+            </InlineAlert>
+          ) : resources.data.resources.length === 0 ? (
+            <div className="tm-pub-card tm-pub-card--roomy tm-pub-card--dashed">
+              <p className="tm-pub-card__title">No resources yet</p>
+              <p className="tm-pub-card__body">Check back soon — guides are on the way.</p>
+            </div>
+          ) : (
+            <ul className="tm-pub-grid">
+              {resources.data.resources.map((entry) => (
+                <li key={entry.slug} className="tm-pub-card tm-pub-card--roomy">
+                  <p className="tm-pub-card__eyebrow">{entry.category}</p>
+                  <h2 className="tm-pub-card__title">
+                    <Link className="tm-pub-link" href={`/resources/${entry.slug}`}>
+                      {entry.title}
+                    </Link>
+                  </h2>
+                  <p className="tm-pub-card__body tm-pub-card__body--md">{entry.summary}</p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+    </PublicPage>
   );
 }
 

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/automations.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   listWebhookEndpoints,
@@ -76,144 +78,185 @@ export function WebhookEndpointsScreen({
 
   const rows = endpoints.data ?? [];
   const canRegister = url.trim() !== '' && secret.length >= 16 && !register.isPending;
+  const enabledCount = rows.filter((endpoint) => endpoint.enabled).length;
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Integrations · Webhooks"
       title="Webhooks"
-      description="Register outbound webhook endpoints your automations will call. Delivery is validated here; dispatch is a later step."
+      {...(rows.length > 0
+        ? {
+            titleMeta: `${rows.length} endpoint${rows.length === 1 ? '' : 's'} · ${enabledCount} on`,
+          }
+        : {})}
+      description="Register the https endpoints your automations call. Each one keeps a log of its delivery attempts."
+      actions={
+        <Link href={`/${organizationSlug}/automations/apps`} className="tm-aut-btn">
+          All integrations
+        </Link>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-webhook-new-heading">
-        <h2 id="tm-webhook-new-heading" className="tm-eyebrow">
-          Register an endpoint
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canRegister) register.mutate();
-          }}
-        >
-          <Field
-            label="Endpoint URL"
-            name="url"
-            type="url"
-            value={url}
-            onChange={(event) => setUrl(event.target.value)}
-            hint="Must be an https URL on a public host. Localhost and private addresses are rejected."
-            required
-          />
+      <div className="tm-aut">
+        <div className="tm-aut-split">
+          <section className="tm-aut-card" aria-labelledby="tm-webhook-list-heading">
+            <div className="tm-row tm-row--between">
+              <h2
+                id="tm-webhook-list-heading"
+                className="tm-aut-card__title tm-aut-card__title--section"
+              >
+                Endpoints
+              </h2>
+              {rows.length > 0 ? (
+                <span className="tm-aut-mono">
+                  {rows.length} registered · {enabledCount} on
+                </span>
+              ) : null}
+            </div>
 
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-webhook-event">
-              Event
-            </label>
-            <select
-              id="tm-webhook-event"
-              className="tm-field__control"
-              value={eventKind}
-              onChange={(event) => setEventKind(event.target.value as WebhookEventKind)}
-            >
-              {WEBHOOK_EVENT_KINDS.map((kind) => (
-                <option key={kind} value={kind}>
-                  {kind}
-                </option>
-              ))}
-            </select>
-          </div>
+            {toggle.isError ? (
+              <InlineAlert tone="danger" title="Could not update the endpoint" live>
+                {describeError(toggle.error)}
+              </InlineAlert>
+            ) : null}
 
-          <Field
-            label="Signing secret"
-            name="secret"
-            type="password"
-            value={secret}
-            onChange={(event) => setSecret(event.target.value)}
-            hint="At least 16 characters. Stored as a hash and never shown again after you save it."
-            required
-          />
+            {endpoints.isError ? (
+              <InlineAlert tone="danger" title="Could not load the endpoints" live>
+                {describeError(endpoints.error)}
+              </InlineAlert>
+            ) : null}
 
-          {register.isError ? (
-            <InlineAlert tone="danger" title="Could not register the endpoint" live>
-              {describeError(register.error)}
-            </InlineAlert>
-          ) : null}
+            {endpoints.isPending ? (
+              <LoadingRegion label="Loading the endpoints.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={register.isPending}
-              loadingLabel="Registering"
-              disabled={!canRegister}
-            >
-              Register endpoint
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-webhook-list-heading"
-      >
-        <h2 id="tm-webhook-list-heading" className="tm-eyebrow">
-          Endpoints
-        </h2>
-
-        {toggle.isError ? (
-          <InlineAlert tone="danger" title="Could not update the endpoint" live>
-            {describeError(toggle.error)}
-          </InlineAlert>
-        ) : null}
-
-        {endpoints.isError ? (
-          <InlineAlert tone="danger" title="Could not load the endpoints" live>
-            {describeError(endpoints.error)}
-          </InlineAlert>
-        ) : null}
-
-        {endpoints.isPending ? (
-          <LoadingRegion label="Loading the endpoints.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!endpoints.isPending && !endpoints.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No endpoints yet">
-            Register an endpoint above to receive automation events.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <ul className="tm-list tm-stack" aria-label="Webhook endpoints">
-            {rows.map((endpoint) => (
-              <li key={endpoint.id} className="tm-stack tm-stack--tight">
-                <div className="tm-row tm-row--wrap">
-                  <span className="tm-mono">{endpoint.url}</span>
-                  <Button
-                    type="button"
-                    tone="outline"
-                    size="accessible"
-                    className="tm-push-end"
-                    loading={toggle.isPending && toggle.variables?.id === endpoint.id}
-                    loadingLabel="Updating"
-                    onClick={() => toggle.mutate(endpoint)}
-                  >
-                    {endpoint.enabled ? 'Disable' : 'Enable'}
-                  </Button>
-                </div>
-                <p className="tm-field__hint">
-                  {endpoint.eventKind} &middot; {endpoint.enabled ? 'Enabled' : 'Disabled'}
+            {!endpoints.isPending && !endpoints.isError && rows.length === 0 ? (
+              <div className="tm-aut-empty tm-aut-empty--flush">
+                <p className="tm-aut-empty__title">No endpoints yet</p>
+                <p className="tm-aut-empty__body">
+                  Register an endpoint to receive automation events.
                 </p>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+              </div>
+            ) : null}
+
+            {rows.length > 0 ? (
+              <ul className="tm-aut-scopes" aria-label="Webhook endpoints">
+                {rows.map((endpoint) => (
+                  <li key={endpoint.id}>
+                    <span className={`tm-aut-scope ${endpoint.enabled ? '' : 'tm-aut-scope--off'}`}>
+                      {endpoint.enabled ? 'On' : 'Off'}
+                    </span>
+                    <div className="tm-aut-list__main">
+                      <span className="tm-aut-rowtitle tm-aut-url">{endpoint.url}</span>
+                      <span className="tm-aut-rowsub">
+                        {endpoint.eventKind} &middot; {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
+                    </div>
+                    <div className="tm-aut-list__end">
+                      <Link
+                        href={`/${organizationSlug}/admin/automations/webhooks/${encodeURIComponent(endpoint.id)}/deliveries`}
+                        className="tm-aut-btn"
+                      >
+                        Deliveries
+                      </Link>
+                      <Button
+                        type="button"
+                        tone="outline"
+                        size="compact"
+                        loading={toggle.isPending && toggle.variables?.id === endpoint.id}
+                        loadingLabel="Updating"
+                        onClick={() => toggle.mutate(endpoint)}
+                      >
+                        {endpoint.enabled ? 'Disable' : 'Enable'}
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+
+          <section
+            className="tm-aut-card tm-aut-card--strong"
+            aria-labelledby="tm-webhook-new-heading"
+          >
+            <p className="tm-aut-eyebrow">New endpoint · signed delivery</p>
+            <h2 id="tm-webhook-new-heading" className="tm-aut-card__title">
+              Register an endpoint
+            </h2>
+            <form
+              className="tm-stack"
+              noValidate
+              onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                if (canRegister) register.mutate();
+              }}
+            >
+              <Field
+                label="Endpoint URL"
+                name="url"
+                type="url"
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+                hint="Must be an https URL on a public host. Localhost and private addresses are rejected."
+                required
+              />
+
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-webhook-event">
+                  Event
+                </label>
+                <select
+                  id="tm-webhook-event"
+                  className="tm-field__control"
+                  value={eventKind}
+                  onChange={(event) => setEventKind(event.target.value as WebhookEventKind)}
+                >
+                  {WEBHOOK_EVENT_KINDS.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {kind}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <Field
+                label="Signing secret"
+                name="secret"
+                type="password"
+                value={secret}
+                onChange={(event) => setSecret(event.target.value)}
+                hint="At least 16 characters. Stored as a hash and never shown again after you save it."
+                required
+              />
+
+              {register.isError ? (
+                <InlineAlert tone="danger" title="Could not register the endpoint" live>
+                  {describeError(register.error)}
+                </InlineAlert>
+              ) : null}
+
+              <div className="tm-aut-actions">
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="accessible"
+                  loading={register.isPending}
+                  loadingLabel="Registering"
+                  disabled={!canRegister}
+                >
+                  Register endpoint
+                </Button>
+              </div>
+            </form>
+          </section>
+        </div>
+      </div>
     </AppShell>
   );
 }

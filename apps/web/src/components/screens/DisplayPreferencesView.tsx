@@ -1,9 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -26,6 +25,7 @@ import type {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import '../../styles/screens/preferences.css';
 
 export interface DisplayPreferencesViewProps {
   organizationSlug: string;
@@ -61,13 +61,13 @@ const DATE_FORMAT_LABELS: Record<DisplayDateFormat, string> = {
 };
 
 /**
- * **Unified display preferences hub (module 20 Preferences & accessibility, PREF-DISPLAY, x285).**
+ * **Appearance (PREF-02; module 20 Preferences & accessibility, PREF-DISPLAY, x285).**
  *
- * `22-SCREEN` PRF preferences hub; `42-INTERACTION` §theme/density/RTL; `38-MODULE-MAP` §Preferences.
- * The audit found display settings scattered or absent; this is the one place a member sets theme,
- * density, locale, timezone and date format, reads them back (defaults when never saved), and saves
- * — persisted behind `work.read`, scoped to the caller's own membership by the server. It links out
- * to the notification, accessibility and quiet-hours preferences rather than re-implementing them.
+ * PREF-02's frame: theme tiles, density capsules and a live sample to the right that follows the
+ * choice. The member sets theme, density, locale, timezone and date format, reads them back
+ * (defaults when never saved), and saves — persisted behind `work.read`, scoped to the caller's own
+ * membership by the server. The sample is a picture of the settings, never project data: its dates
+ * are written in the chosen format, its rows tighten with the chosen density.
  */
 export function DisplayPreferencesView({
   organizationSlug,
@@ -115,12 +115,17 @@ export function DisplayPreferencesView({
     },
   });
 
+  const sampleDates = useMemo(() => sampleDays(dateFormat), [dateFormat]);
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title={t('displayPreferences.title')}
-      description={t('displayPreferences.description')}
+      eyebrow="Preferences · Appearance"
+      title="Appearance"
+      actions={
+        <span className="tm-prefs-header-note">Applies to your account on every device</span>
+      }
     >
       {preferences.isPending ? (
         <LoadingRegion label="Loading your display preferences">
@@ -131,151 +136,209 @@ export function DisplayPreferencesView({
           {errorMessage(preferences.error)}
         </InlineAlert>
       ) : (
-        <form
-          className="tm-panel tm-stack"
-          aria-labelledby="tm-display-heading"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setSaved(false);
-            save.mutate();
-          }}
-        >
-          <h2 id="tm-display-heading" className="tm-eyebrow">
-            {t('displayPreferences.sectionDisplay')}
-          </h2>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-display-theme">
-              {t('displayPreferences.theme')}
-            </label>
-            <select
-              id="tm-display-theme"
-              className="tm-field__control"
-              value={theme}
-              onChange={(event) => setTheme(event.target.value as DisplayTheme)}
+        <div className="tm-prefs tm-prefs--appearance">
+          <div className="tm-prefs__main">
+            <form
+              className="tm-prefs-card"
+              aria-label={t('displayPreferences.sectionDisplay')}
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSaved(false);
+                save.mutate();
+              }}
             >
-              {DISPLAY_THEMES.map((value) => (
-                <option key={value} value={value}>
-                  {THEME_LABELS[value]}
-                </option>
-              ))}
-            </select>
+              <fieldset className="tm-prefs-section">
+                <legend className="tm-prefs-eyebrow">{t('displayPreferences.theme')}</legend>
+                <div className="tm-prefs-tiles">
+                  {DISPLAY_THEMES.map((value) => (
+                    <label key={value} className="tm-prefs-tile">
+                      <input
+                        type="radio"
+                        name="tm-display-theme"
+                        value={value}
+                        checked={theme === value}
+                        onChange={() => setTheme(value)}
+                      />
+                      <span
+                        className={`tm-prefs-thumb tm-prefs-thumb--${value}`}
+                        aria-hidden="true"
+                      />
+                      {THEME_LABELS[value]}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <hr className="tm-prefs-rule" />
+
+              <fieldset className="tm-prefs-section">
+                <legend className="tm-prefs-eyebrow">{t('displayPreferences.density')}</legend>
+                <div className="tm-prefs-choices">
+                  {DISPLAY_DENSITIES.map((value) => (
+                    <label key={value} className="tm-prefs-choice">
+                      <input
+                        type="radio"
+                        name="tm-display-density"
+                        value={value}
+                        checked={density === value}
+                        onChange={() => setDensity(value)}
+                      />
+                      {DENSITY_LABELS[value]}
+                    </label>
+                  ))}
+                </div>
+                <p className="tm-prefs-card__note">
+                  Compact fits more rows on a work list. Comfortable is the default.
+                </p>
+              </fieldset>
+
+              <hr className="tm-prefs-rule" />
+
+              <div className="tm-prefs-fields">
+                <div className="tm-prefs-field">
+                  <label className="tm-prefs-field__label" htmlFor="tm-display-locale">
+                    {t('displayPreferences.languageRegion')}
+                  </label>
+                  <select
+                    id="tm-display-locale"
+                    className="tm-prefs-field__control"
+                    value={locale}
+                    onChange={(event) => setLocale(event.target.value as DisplayLocale)}
+                  >
+                    {DISPLAY_LOCALES.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="tm-prefs-field">
+                  <label className="tm-prefs-field__label" htmlFor="tm-display-timezone">
+                    {t('displayPreferences.timezone')}
+                  </label>
+                  <select
+                    id="tm-display-timezone"
+                    className="tm-prefs-field__control"
+                    value={timezone}
+                    onChange={(event) => setTimezone(event.target.value as DisplayTimezone)}
+                  >
+                    {DISPLAY_TIMEZONES.map((value) => (
+                      <option key={value} value={value}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="tm-prefs-field">
+                  <label className="tm-prefs-field__label" htmlFor="tm-display-date-format">
+                    {t('displayPreferences.dateFormat')}
+                  </label>
+                  <select
+                    id="tm-display-date-format"
+                    className="tm-prefs-field__control"
+                    value={dateFormat}
+                    onChange={(event) => setDateFormat(event.target.value as DisplayDateFormat)}
+                  >
+                    {DISPLAY_DATE_FORMATS.map((value) => (
+                      <option key={value} value={value}>
+                        {DATE_FORMAT_LABELS[value]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {save.isError ? (
+                <InlineAlert tone="danger" title="We could not save your preferences">
+                  {errorMessage(save.error)}
+                </InlineAlert>
+              ) : null}
+
+              {saved && !save.isPending && !save.isError ? (
+                <InlineAlert tone="success" title="Saved">
+                  Your display preferences have been saved.
+                </InlineAlert>
+              ) : null}
+
+              <div>
+                <button
+                  type="submit"
+                  className="tm-prefs-capsule tm-prefs-capsule--ink"
+                  disabled={save.isPending}
+                >
+                  {save.isPending ? t('displayPreferences.saving') : t('displayPreferences.save')}
+                </button>
+              </div>
+            </form>
           </div>
 
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-display-density">
-              {t('displayPreferences.density')}
-            </label>
-            <select
-              id="tm-display-density"
-              className="tm-field__control"
-              value={density}
-              onChange={(event) => setDensity(event.target.value as DisplayDensity)}
-            >
-              {DISPLAY_DENSITIES.map((value) => (
-                <option key={value} value={value}>
-                  {DENSITY_LABELS[value]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-display-locale">
-              {t('displayPreferences.languageRegion')}
-            </label>
-            <select
-              id="tm-display-locale"
-              className="tm-field__control"
-              value={locale}
-              onChange={(event) => setLocale(event.target.value as DisplayLocale)}
-            >
-              {DISPLAY_LOCALES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-display-timezone">
-              {t('displayPreferences.timezone')}
-            </label>
-            <select
-              id="tm-display-timezone"
-              className="tm-field__control"
-              value={timezone}
-              onChange={(event) => setTimezone(event.target.value as DisplayTimezone)}
-            >
-              {DISPLAY_TIMEZONES.map((value) => (
-                <option key={value} value={value}>
-                  {value}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-display-date-format">
-              {t('displayPreferences.dateFormat')}
-            </label>
-            <select
-              id="tm-display-date-format"
-              className="tm-field__control"
-              value={dateFormat}
-              onChange={(event) => setDateFormat(event.target.value as DisplayDateFormat)}
-            >
-              {DISPLAY_DATE_FORMATS.map((value) => (
-                <option key={value} value={value}>
-                  {DATE_FORMAT_LABELS[value]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {save.isError ? (
-            <InlineAlert tone="danger" title="We could not save your preferences">
-              {errorMessage(save.error)}
-            </InlineAlert>
-          ) : null}
-
-          {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved">
-              Your display preferences have been saved.
-            </InlineAlert>
-          ) : null}
-
-          <div>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? t('displayPreferences.saving') : t('displayPreferences.save')}
-            </Button>
-          </div>
-        </form>
+          <aside className="tm-prefs__side" aria-labelledby="tm-display-sample-heading">
+            <h2 id="tm-display-sample-heading" className="tm-prefs-eyebrow">
+              Live sample · {DENSITY_LABELS[density]}, {THEME_LABELS[theme]}
+            </h2>
+            <div className="tm-prefs-sample" data-density={density} aria-hidden="true">
+              <div className="tm-prefs-sample__head">Sample list · Work</div>
+              <ul className="tm-prefs-sample__list">
+                <li className="tm-prefs-sample__row tm-prefs-sample__row--current">
+                  <span className="tm-prefs-dot tm-prefs-dot--lime" />
+                  <span className="tm-prefs-sample__name">The item you are on now</span>
+                  <span className="tm-prefs-sample__date">{sampleDates[0]}</span>
+                </li>
+                <li className="tm-prefs-sample__row">
+                  <span className="tm-prefs-dot tm-prefs-dot--client" />
+                  <span className="tm-prefs-sample__name">Waiting on a client approval</span>
+                  <span className="tm-prefs-sample__date">26h</span>
+                </li>
+                <li className="tm-prefs-sample__row">
+                  <span className="tm-prefs-dot tm-prefs-dot--warn" />
+                  <span className="tm-prefs-sample__name">At risk of slipping</span>
+                  <span className="tm-prefs-sample__date tm-prefs-sample__date--warn">
+                    {sampleDates[1]}
+                  </span>
+                </li>
+                <li className="tm-prefs-sample__row tm-prefs-sample__row--muted">
+                  <span className="tm-prefs-dot tm-prefs-dot--empty" />
+                  <span className="tm-prefs-sample__name">Not dated yet</span>
+                  <span className="tm-prefs-sample__date">No date</span>
+                </li>
+                <li className="tm-prefs-sample__row tm-prefs-sample__row--muted">
+                  <span className="tm-prefs-dot" />
+                  <span className="tm-prefs-sample__name">Finished last week</span>
+                  <span className="tm-prefs-sample__date">Done</span>
+                </li>
+              </ul>
+            </div>
+          </aside>
+        </div>
       )}
-
-      <nav className="tm-panel tm-stack" aria-labelledby="tm-display-related-heading">
-        <h2 id="tm-display-related-heading" className="tm-eyebrow">
-          {t('displayPreferences.sectionOther')}
-        </h2>
-        <ul>
-          <li>
-            <Link href={`/${organizationSlug}/settings/accessibility`}>
-              Accessibility (font size, reduced motion, high contrast)
-            </Link>
-          </li>
-          <li>
-            <Link href={`/${organizationSlug}/inbox/notification-preferences`}>
-              Notification preferences
-            </Link>
-          </li>
-          <li>
-            <Link href={`/${organizationSlug}/settings/quiet-hours`}>Quiet hours</Link>
-          </li>
-        </ul>
-      </nav>
     </AppShell>
   );
+}
+
+/** Two dates near today, written in the chosen format, for the live sample's date column. */
+function sampleDays(format: DisplayDateFormat): readonly [string, string] {
+  const today = new Date();
+  const later = (days: number) =>
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() + days);
+  return [formatSampleDate(later(2), format), formatSampleDate(later(21), format)];
+}
+
+function formatSampleDate(date: Date, format: DisplayDateFormat): string {
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = String(date.getFullYear());
+  switch (format) {
+    case 'us':
+      return `${mm}/${dd}/${yyyy}`;
+    case 'eu':
+      return `${dd}/${mm}/${yyyy}`;
+    case 'long':
+      return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    default:
+      return `${yyyy}-${mm}-${dd}`;
+  }
 }
 
 function errorMessage(error: unknown): string {

@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { createKeyResult, listKeyResults, updateKeyResult } from '../../lib/api/key-results';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/portfolio.css';
 
 export interface KeyResultsScreenProps {
   organizationSlug: string;
@@ -22,7 +23,9 @@ export interface KeyResultsScreenProps {
  *
  * `38-MODULE-MAP` §Projects & portfolio ("objectives, key results"): the measurable children of one
  * project objective. This section lists an objective's key results in creation order, adds one, and
- * inline-edits a key result's current value — the progress edit. It reads
+ * inline-edits a key result's current value — the progress edit. It renders as the OBJ-02 detail's
+ * second card: one paper row per key result, its value and the server's progress, with the add form
+ * folded beneath. It reads
  * `GET …/objectives/:id/key-results` and writes `POST …/key-results` and
  * `PATCH …/key-results/:keyResultId`, gated on the server by `project.manage` (create/update) and
  * `work.read` (list).
@@ -104,64 +107,10 @@ export function KeyResultsScreen({
   }
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby={headingId}>
-      <h3 id={headingId} className="tm-eyebrow">
-        Key results — {objectiveName}
+    <section className="tm-card tm-kr" aria-labelledby={headingId}>
+      <h3 id={headingId} className="tm-obj-eyebrow">
+        Key results · {objectiveName}
       </h3>
-
-      <form className="tm-stack" onSubmit={onSubmit} noValidate>
-        <fieldset
-          className="tm-fieldset tm-stack tm-stack--loose"
-          disabled={createMutation.isPending}
-        >
-          <Field
-            label="Title"
-            name="title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            hint="What this key result measures, e.g. “Trial-to-paid conversion”."
-            required
-          />
-          <Field
-            label="Target value"
-            name="targetValue"
-            type="number"
-            min={0}
-            inputMode="numeric"
-            value={targetValue}
-            onChange={(event) => setTargetValue(event.target.value)}
-            hint="The value the key result aims at. Progress is measured against it."
-            required
-          />
-          <Field
-            label="Unit"
-            name="unit"
-            value={unit}
-            onChange={(event) => setUnit(event.target.value)}
-            hint="How the target and current values are expressed, e.g. “%”, “customers”."
-            required
-          />
-        </fieldset>
-
-        {createMutation.isError ? (
-          <InlineAlert tone="danger" title="Could not add the key result" live>
-            {describeError(createMutation.error)}
-          </InlineAlert>
-        ) : null}
-
-        <div className="tm-row">
-          <Button
-            type="submit"
-            tone="ink"
-            size="accessible"
-            loading={createMutation.isPending}
-            loadingLabel="Adding"
-            disabled={!canSubmit}
-          >
-            Add key result
-          </Button>
-        </div>
-      </form>
 
       {keyResults.isError ? (
         <InlineAlert tone="danger" title="Could not load the key results" live>
@@ -177,7 +126,7 @@ export function KeyResultsScreen({
 
       {!keyResults.isPending && !keyResults.isError && rows.length === 0 ? (
         <InlineAlert tone="neutral" title="No key results yet">
-          This objective has no key results. Add the first one above.
+          This objective has no key results. Add the first one below.
         </InlineAlert>
       ) : null}
 
@@ -188,83 +137,118 @@ export function KeyResultsScreen({
       ) : null}
 
       {rows.length > 0 ? (
-        <div
-          className="tm-table-scroll"
-          // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-          // (WCAG 2.2 2.1.1), matching the sibling sections' tables.
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-          tabIndex={0}
-          role="region"
-          aria-label={`Key results for ${objectiveName}`}
-        >
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">
-              Key results for this objective, in creation order, {rows.length} shown.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Key result</th>
-                <th scope="col">Progress</th>
-                <th scope="col">Current</th>
-                <th scope="col">Update current</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const draft = drafts[row.id];
-                const draftValue = draft ?? String(row.currentValue);
-                const rowPending =
-                  updateMutation.isPending && updateMutation.variables?.keyResultId === row.id;
-                return (
-                  <tr key={row.id}>
-                    <th scope="row" className="tm-table__title">
-                      {row.title}
-                    </th>
-                    <td>{row.progressPercent}%</td>
-                    <td>
-                      {row.currentValue} / {row.targetValue} {row.unit}
-                    </td>
-                    <td>
-                      <form
-                        className="tm-row"
-                        onSubmit={(event) => {
-                          event.preventDefault();
-                          const value = Number(draftValue);
-                          if (!Number.isFinite(value) || value < 0 || rowPending) return;
-                          updateMutation.mutate({ keyResultId: row.id, currentValue: value });
-                        }}
-                        noValidate
-                      >
-                        <Field
-                          label={`Current value for ${row.title}`}
-                          name={`current-${row.id}`}
-                          type="number"
-                          min={0}
-                          inputMode="numeric"
-                          value={draftValue}
-                          onChange={(event) =>
-                            setDrafts((previous) => ({ ...previous, [row.id]: event.target.value }))
-                          }
-                        />
-                        <Button
-                          type="submit"
-                          tone="outline"
-                          size="accessible"
-                          loading={rowPending}
-                          loadingLabel="Saving"
-                          disabled={rowPending}
-                        >
-                          Save
-                        </Button>
-                      </form>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <ul className="tm-kr__list" aria-label={`Key results for ${objectiveName}`}>
+          {rows.map((row) => {
+            const draft = drafts[row.id];
+            const draftValue = draft ?? String(row.currentValue);
+            const rowPending =
+              updateMutation.isPending && updateMutation.variables?.keyResultId === row.id;
+            return (
+              <li key={row.id} className="tm-kr-row">
+                <p className="tm-kr-row__title">{row.title}</p>
+                <span className="tm-kr-row__value">
+                  {row.currentValue} / {row.targetValue} {row.unit}
+                </span>
+                <span
+                  className="tm-kr-row__progress"
+                  data-done={row.progressPercent >= 100 ? 'true' : undefined}
+                >
+                  {row.progressPercent}%
+                </span>
+                <details className="tm-kr-row__edit">
+                  <summary>Update</summary>
+                  <form
+                    className="tm-kr-row__update"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      const value = Number(draftValue);
+                      if (!Number.isFinite(value) || value < 0 || rowPending) return;
+                      updateMutation.mutate({ keyResultId: row.id, currentValue: value });
+                    }}
+                    noValidate
+                  >
+                    <Field
+                      label={`Current value for ${row.title}`}
+                      name={`current-${row.id}`}
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      value={draftValue}
+                      onChange={(event) =>
+                        setDrafts((previous) => ({ ...previous, [row.id]: event.target.value }))
+                      }
+                    />
+                    <Button
+                      type="submit"
+                      tone="outline"
+                      size="accessible"
+                      loading={rowPending}
+                      loadingLabel="Saving"
+                      disabled={rowPending}
+                    >
+                      Save
+                    </Button>
+                  </form>
+                </details>
+              </li>
+            );
+          })}
+        </ul>
       ) : null}
+
+      <details className="tm-kr__add" open={rows.length === 0 ? true : undefined}>
+        <summary>Add a key result</summary>
+        <form className="tm-stack" onSubmit={onSubmit} noValidate>
+          <fieldset className="tm-fieldset tm-stack" disabled={createMutation.isPending}>
+            <Field
+              label="Title"
+              name="title"
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              hint="What this key result measures, e.g. “Trial-to-paid conversion”."
+              required
+            />
+            <Field
+              label="Target value"
+              name="targetValue"
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={targetValue}
+              onChange={(event) => setTargetValue(event.target.value)}
+              hint="The value the key result aims at. Progress is measured against it."
+              required
+            />
+            <Field
+              label="Unit"
+              name="unit"
+              value={unit}
+              onChange={(event) => setUnit(event.target.value)}
+              hint="How the target and current values are expressed, e.g. “%”, “customers”."
+              required
+            />
+          </fieldset>
+
+          {createMutation.isError ? (
+            <InlineAlert tone="danger" title="Could not add the key result" live>
+              {describeError(createMutation.error)}
+            </InlineAlert>
+          ) : null}
+
+          <div className="tm-row">
+            <Button
+              type="submit"
+              tone="ink"
+              size="accessible"
+              loading={createMutation.isPending}
+              loadingLabel="Adding"
+              disabled={!canSubmit}
+            >
+              Add key result
+            </Button>
+          </div>
+        </form>
+      </details>
     </section>
   );
 }

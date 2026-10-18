@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createProjectBaseline,
@@ -95,147 +96,202 @@ export function ProjectBaselineView({
     create.mutate();
   }
 
+  const slip = variance.data
+    ? variance.data.rows.reduce((most, row) => Math.max(most, row.deltaDays ?? 0), 0)
+    : null;
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
+      eyebrow="Project · Plan"
       title="Milestone baselines"
       description="Snapshot the milestone plan, then compare today's dates against a saved baseline."
-    >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-baseline-author">
-        <h2 id="tm-baseline-author" className="tm-eyebrow">
-          Snapshot the plan
-        </h2>
-        <form className="tm-stack" onSubmit={onSubmit} noValidate>
-          <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={create.isPending}>
-            <Field
-              label="Baseline name"
-              name="label"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              hint="A name for this snapshot, e.g. “Kickoff plan” or “Q3 re-baseline”."
-              required
-            />
-          </fieldset>
-
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not snapshot the plan" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Saving"
-              disabled={!canSubmit}
-            >
-              Snapshot now
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      {baselines.isError ? (
-        <InlineAlert tone="danger" title="Could not load the baselines" live>
-          {describeError(baselines.error)}
-        </InlineAlert>
-      ) : null}
-
-      {baselines.isPending ? (
-        <LoadingRegion label="Loading the project's baselines.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {!baselines.isPending && !baselines.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No baselines yet">
-          This project has no saved baselines. Snapshot the current plan above.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 && discard.isError ? (
-        <InlineAlert tone="danger" title="Could not discard the baseline" live>
-          {describeError(discard.error)}
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-baselines-heading">
-          <h2 id="tm-baselines-heading" className="tm-eyebrow">
-            Baselines
-          </h2>
-          <ul className="tm-stack">
-            {rows.map((baseline) => (
-              <BaselineRow
-                key={baseline.id}
-                baseline={baseline}
-                selected={selectedId === baseline.id}
-                busy={discard.isPending}
-                onView={() => setSelectedId(baseline.id)}
-                onDiscard={() => discard.mutate(baseline.id)}
-              />
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {selectedId !== null ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-variance-heading">
-          <h2 id="tm-variance-heading" className="tm-eyebrow">
-            Variance
-          </h2>
-
-          {variance.isError ? (
-            <InlineAlert tone="danger" title="Could not load the variance view" live>
-              {describeError(variance.error)}
-            </InlineAlert>
-          ) : null}
-
-          {variance.isPending ? (
-            <LoadingRegion label="Computing the variance against the baseline.">
-              <Skeleton height="var(--row)" />
-            </LoadingRegion>
-          ) : null}
-
-          {!variance.isPending && !variance.isError && variance.data ? (
-            <div
-              className="tm-table-scroll"
-              // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-              // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
-              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-              tabIndex={0}
-              role="region"
-              aria-label={`Variance for ${variance.data.label}`}
-            >
-              <table className="tm-table">
-                <caption className="tm-visually-hidden">
-                  Milestone dates today against the baseline “{variance.data.label}”,{' '}
-                  {variance.data.rows.length} shown.
-                </caption>
-                <thead>
-                  <tr>
-                    <th scope="col">Milestone</th>
-                    <th scope="col">Baseline date</th>
-                    <th scope="col">Current date</th>
-                    <th scope="col">Delta (days)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {variance.data.rows.map((row) => (
-                    <VarianceRow key={row.milestoneId} row={row} />
-                  ))}
-                </tbody>
-              </table>
+      topBar={
+        <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="plan" />
+      }
+      headerAside={
+        slip !== null && variance.data ? (
+          <div className="tm-prj-metrics">
+            <div className="tm-metric">
+              <div className="tm-metric__value-row">
+                <span className="tm-metric__value">{slip}d</span>
+                <span className={`tm-pill ${slip > 0 ? 'tm-pill--warning' : 'tm-pill--current'}`}>
+                  {slip > 0 ? 'slip' : 'on track'}
+                </span>
+              </div>
+              <span className="tm-metric__label">largest movement against baseline</span>
+              <span className="tm-metric__source">{variance.data.label}</span>
             </div>
-          ) : null}
-        </section>
-      ) : null}
+          </div>
+        ) : undefined
+      }
+    >
+      <div className="tm-prj tm-prj--plan">
+        {baselines.isError ? (
+          <InlineAlert tone="danger" title="Could not load the baselines" live>
+            {describeError(baselines.error)}
+          </InlineAlert>
+        ) : null}
+
+        {rows.length > 0 && discard.isError ? (
+          <InlineAlert tone="danger" title="Could not discard the baseline" live>
+            {describeError(discard.error)}
+          </InlineAlert>
+        ) : null}
+
+        <div className="tm-prj__grid">
+          <div className="tm-prj__col">
+            {selectedId !== null ? (
+              <section className="tm-prj-sheet" aria-labelledby="tm-variance-heading">
+                <div className="tm-prj-sheet__head">
+                  <h2 id="tm-variance-heading" className="tm-prj-eyebrow">
+                    Variance
+                  </h2>
+                  {variance.data ? (
+                    <span className="tm-meta-mono">{variance.data.label}</span>
+                  ) : null}
+                </div>
+
+                {variance.isError ? (
+                  <InlineAlert tone="danger" title="Could not load the variance view" live>
+                    {describeError(variance.error)}
+                  </InlineAlert>
+                ) : null}
+
+                {variance.isPending ? (
+                  <LoadingRegion label="Computing the variance against the baseline.">
+                    <Skeleton height="var(--row)" />
+                  </LoadingRegion>
+                ) : null}
+
+                {!variance.isPending && !variance.isError && variance.data ? (
+                  <div
+                    className="tm-table-scroll"
+                    // A scrollable region must be focusable or a keyboard cannot reach its overflow
+                    // columns (WCAG 2.2 2.1.1), matching the sibling screens' tables.
+                    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                    tabIndex={0}
+                    role="region"
+                    aria-label={`Variance for ${variance.data.label}`}
+                  >
+                    <table className="tm-table">
+                      <caption className="tm-visually-hidden">
+                        Milestone dates today against the baseline “{variance.data.label}”,{' '}
+                        {variance.data.rows.length} shown.
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Milestone</th>
+                          <th scope="col">Baseline date</th>
+                          <th scope="col">Current date</th>
+                          <th scope="col">Delta (days)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {variance.data.rows.map((row) => (
+                          <VarianceRow key={row.milestoneId} row={row} />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null}
+                <p className="tm-prj-sheet__foot">
+                  Dates are recomputed each time this view opens, so the slip shown is today’s.
+                </p>
+              </section>
+            ) : (
+              <section
+                className="tm-card tm-card--empty tm-prj-card"
+                aria-labelledby="tm-variance-empty"
+              >
+                <h2 id="tm-variance-empty" className="tm-prj-eyebrow">
+                  Variance
+                </h2>
+                <p className="tm-card__meta">
+                  {rows.length === 0
+                    ? 'Snapshot the plan first. A baseline freezes today’s milestone dates so later movement can be measured against it.'
+                    : 'Choose a baseline to compare today’s milestone dates against it.'}
+                </p>
+              </section>
+            )}
+          </div>
+
+          <div className="tm-prj__col">
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-baselines-heading">
+              <h2 id="tm-baselines-heading" className="tm-prj-eyebrow">
+                Baselines · {rows.length}
+              </h2>
+              {baselines.isPending ? (
+                <LoadingRegion label="Loading the project's baselines.">
+                  <Skeleton height="var(--row)" />
+                  <Skeleton height="var(--row)" />
+                </LoadingRegion>
+              ) : null}
+              {!baselines.isPending && !baselines.isError && rows.length === 0 ? (
+                <InlineAlert tone="neutral" title="No baselines yet">
+                  This project has no saved baselines. Snapshot the current plan below.
+                </InlineAlert>
+              ) : null}
+              {rows.length > 0 ? (
+                <ul className="tm-prj-people">
+                  {rows.map((baseline) => (
+                    <BaselineRow
+                      key={baseline.id}
+                      baseline={baseline}
+                      selected={selectedId === baseline.id}
+                      busy={discard.isPending}
+                      onView={() => setSelectedId(baseline.id)}
+                      onDiscard={() => discard.mutate(baseline.id)}
+                    />
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-baseline-author">
+              <h2 id="tm-baseline-author" className="tm-prj-eyebrow">
+                Snapshot the plan
+              </h2>
+              <form className="tm-prj-form" onSubmit={onSubmit} noValidate>
+                <fieldset
+                  className="tm-fieldset tm-stack tm-stack--loose"
+                  disabled={create.isPending}
+                >
+                  <Field
+                    label="Baseline name"
+                    name="label"
+                    value={label}
+                    onChange={(event) => setLabel(event.target.value)}
+                    hint="A name for this snapshot, e.g. “Kickoff plan” or “Q3 re-baseline”."
+                    required
+                  />
+                </fieldset>
+
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not snapshot the plan" live>
+                    {describeError(create.error)}
+                  </InlineAlert>
+                ) : null}
+
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={create.isPending}
+                    loadingLabel="Saving"
+                    disabled={!canSubmit}
+                  >
+                    Snapshot now
+                  </Button>
+                </div>
+              </form>
+            </section>
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
 }
@@ -254,15 +310,15 @@ function BaselineRow({
   onDiscard: () => void;
 }) {
   return (
-    <li className="tm-row tm-row--between">
-      <div className="tm-stack tm-stack--tight">
-        <span className="tm-table__title">{baseline.label}</span>
-        <span className="tm-field__hint">
+    <li>
+      <div className="tm-prj-people__who">
+        <span className="tm-prj-people__name">{baseline.label}</span>
+        <span className="tm-prj-people__role">
           {baseline.milestoneCount} milestone{baseline.milestoneCount === 1 ? '' : 's'} frozen ·{' '}
           {formatDate(baseline.createdAt)}
         </span>
       </div>
-      <div className="tm-row">
+      <div className="tm-prj-people__end">
         <Button type="button" tone="ink" size="accessible" onClick={onView} disabled={selected}>
           {selected ? 'Viewing' : 'View variance'}
         </Button>

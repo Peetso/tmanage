@@ -1,9 +1,10 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readOrgSettings, setOrgSetting } from '../../lib/api/org-settings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -86,85 +87,164 @@ export function OrgSettingsScreen({
   const rows = settings.data?.settings ?? [];
 
   return (
-    <AppShell
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="people"
-      title="Organization settings"
-      description="Organization-wide policy. Changes apply to everyone in this organization."
+      section="organization"
+      crumbs={['Organization']}
+      title={organizationName}
+      actions={
+        <Link
+          href={`/${organizationSlug}/admin`}
+          className="tm-button tm-button--outline tm-button--compact"
+        >
+          Control center
+        </Link>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-org-settings-heading">
-        <h2 id="tm-org-settings-heading" className="tm-eyebrow">
-          Policy
-        </h2>
+      <div className="tm-cc-split tm-cc-split--even">
+        <section className="tm-cc-card" aria-labelledby="tm-org-settings-heading">
+          <h2 id="tm-org-settings-heading" className="tm-cc-eyebrow">
+            Identity, time and policy · applies to everyone
+          </h2>
 
-        {settings.isError ? (
-          <InlineAlert tone="danger" title="Could not load the settings" live>
-            {describeError(settings.error)}
-          </InlineAlert>
-        ) : null}
+          {settings.isError ? (
+            <InlineAlert tone="danger" title="Could not load the settings" live>
+              {describeError(settings.error)}
+            </InlineAlert>
+          ) : null}
 
-        {settings.isPending ? (
-          <LoadingRegion label="Loading the settings.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+          {settings.isPending ? (
+            <LoadingRegion label="Loading the settings.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {!settings.isPending && !settings.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No settings available">
-            There are no organization settings to configure yet.
-          </InlineAlert>
-        ) : null}
+          {!settings.isPending && !settings.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No settings available">
+              There are no organization settings to configure yet.
+            </InlineAlert>
+          ) : null}
 
-        {rows.map((entry) => {
-          const meta = LABELS[entry.key];
-          return (
-            <form
-              key={entry.key}
-              className="tm-stack"
-              noValidate
-              aria-label={`${meta?.label ?? entry.key} setting`}
-              onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                event.preventDefault();
-                if (!save.isPending) save.mutate(entry.key);
-              }}
-            >
-              <Field
-                label={meta?.label ?? entry.key}
-                name={`setting-${entry.key}`}
-                value={drafts[entry.key] ?? entry.value}
-                onChange={(event) =>
-                  setDrafts((current) => ({ ...current, [entry.key]: event.target.value }))
-                }
-                hint={meta?.hint}
-              />
-              {save.isError && save.variables === entry.key ? (
-                <InlineAlert tone="danger" title="Could not save the setting" live>
-                  {describeError(save.error)}
-                </InlineAlert>
-              ) : null}
-              {savedKey === entry.key && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Saved" live>
-                  This setting has been updated for the whole organization.
-                </InlineAlert>
-              ) : null}
-              <div className="tm-row">
-                <Button
-                  type="submit"
-                  tone="ink"
-                  size="accessible"
-                  loading={save.isPending && save.variables === entry.key}
-                  loadingLabel="Saving"
+          {rows.length > 0 ? (
+            <ul className="tm-cc-rows">
+              {rows.map((entry) => {
+                const meta = LABELS[entry.key];
+                return (
+                  <li key={entry.key}>
+                    <form
+                      className="tm-stack tm-cc-rows__grow"
+                      noValidate
+                      aria-label={`${meta?.label ?? entry.key} setting`}
+                      onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                        event.preventDefault();
+                        if (!save.isPending) save.mutate(entry.key);
+                      }}
+                    >
+                      <div className="tm-cc-setting">
+                        <Field
+                          label={meta?.label ?? entry.key}
+                          name={`setting-${entry.key}`}
+                          value={drafts[entry.key] ?? entry.value}
+                          onChange={(event) =>
+                            setDrafts((current) => ({
+                              ...current,
+                              [entry.key]: event.target.value,
+                            }))
+                          }
+                          hint={meta?.hint}
+                        />
+                        <Button
+                          type="submit"
+                          tone="ink"
+                          size="default"
+                          loading={save.isPending && save.variables === entry.key}
+                          loadingLabel="Saving"
+                        >
+                          Save
+                        </Button>
+                      </div>
+                      {save.isError && save.variables === entry.key ? (
+                        <InlineAlert tone="danger" title="Could not save the setting" live>
+                          {describeError(save.error)}
+                        </InlineAlert>
+                      ) : null}
+                      {savedKey === entry.key && !save.isPending && !save.isError ? (
+                        <InlineAlert tone="success" title="Saved" live>
+                          This setting has been updated for the whole organization.
+                        </InlineAlert>
+                      ) : null}
+                    </form>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </section>
+
+        <div className="tm-cc-column">
+          <section className="tm-cc-card" aria-labelledby="tm-org-settings-elsewhere">
+            <h2 id="tm-org-settings-elsewhere" className="tm-cc-card__title">
+              Set elsewhere in the Control Center
+            </h2>
+            <ul className="tm-cc-rows">
+              <li>
+                <div className="tm-cc-rows__text">
+                  <p className="tm-cc-rows__title">Sign-in and two-factor</p>
+                  <p className="tm-cc-rows__sub">How people get in</p>
+                </div>
+                <Link
+                  href={`/${organizationSlug}/admin/security`}
+                  className="tm-button tm-button--outline tm-button--compact"
                 >
-                  Save
-                </Button>
-              </div>
-            </form>
-          );
-        })}
-      </section>
-    </AppShell>
+                  Security
+                </Link>
+              </li>
+              <li>
+                <div className="tm-cc-rows__text">
+                  <p className="tm-cc-rows__title">Session length and invitations</p>
+                  <p className="tm-cc-rows__sub">
+                    Who may be invited and for how long they stay in
+                  </p>
+                </div>
+                <Link
+                  href={`/${organizationSlug}/policies`}
+                  className="tm-button tm-button--outline tm-button--compact"
+                >
+                  Access policy
+                </Link>
+              </li>
+              <li>
+                <div className="tm-cc-rows__text">
+                  <p className="tm-cc-rows__title">Optional modules</p>
+                  <p className="tm-cc-rows__sub">Chat, docs, portal and the rest</p>
+                </div>
+                <Link
+                  href={`/${organizationSlug}/admin/feature-flags`}
+                  className="tm-button tm-button--outline tm-button--compact"
+                >
+                  Modules
+                </Link>
+              </li>
+            </ul>
+          </section>
+
+          <section
+            className="tm-cc-card tm-cc-card--quiet tm-cc-card--fill"
+            aria-labelledby="tm-org-settings-effect"
+          >
+            <p className="tm-cc-eyebrow">Changing a setting</p>
+            <h2 id="tm-org-settings-effect" className="tm-cc-card__title">
+              Each setting saves on its own
+            </h2>
+            <p className="tm-cc-card__body">
+              A change applies to everyone in {organizationName} as soon as it is saved.
+            </p>
+          </section>
+        </div>
+      </div>
+    </ControlCenterShell>
   );
 }
 

@@ -5,6 +5,8 @@ import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { shortRef } from './SearchScreen';
+import '../../styles/screens/search-ai.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listSearchPins, pinEntity, unpinEntity } from '../../lib/api/search-pins';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -90,11 +92,13 @@ export function SearchPinsView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       title="Pinned results"
+      eyebrow="Search"
+      {...(pinList.length > 0 ? { titleMeta: `${pinList.length} pinned` } : {})}
       description="Keep the work, documents, meetings and projects you reach for often close to hand."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-pins-list">
-        <h2 id="tm-pins-list" className="tm-eyebrow">
-          Your pins
+      <section className="tm-stack" aria-labelledby="tm-pins-list">
+        <h2 id="tm-pins-list" className="tm-sa-eyebrow">
+          Your pins{pinList.length > 0 ? ` · ${pinList.length}` : ''}
         </h2>
         {pins.isError ? (
           <InlineAlert tone="danger" title="Could not load your pins" live>
@@ -108,24 +112,35 @@ export function SearchPinsView({
           </LoadingRegion>
         ) : null}
         {!pins.isPending && !pins.isError && pinList.length === 0 ? (
-          <InlineAlert tone="neutral" title="No pins yet">
-            Pin an entity below to keep it here for quick access.
-          </InlineAlert>
+          <div className="tm-sa-empty">
+            <p className="tm-sa-empty__title">No pins yet</p>
+            <p className="tm-sa-empty__body">
+              Pin an entity below to keep it here for quick access.
+            </p>
+          </div>
         ) : null}
         {pinList.length > 0 ? (
-          <ul className="tm-stack tm-list" aria-label="Your pinned results, most recent first">
+          <ul className="tm-sa-pins" aria-label="Your pinned results, most recent first">
             {pinList.map((item) => (
-              <li key={item.id} className="tm-row">
-                <span>{item.label}</span> <span className="tm-muted">({item.objectType})</span>{' '}
-                <Button
-                  type="button"
-                  tone="outline"
-                  size="accessible"
-                  onClick={() => remove.mutate(item.id)}
-                  disabled={remove.isPending}
-                >
-                  Unpin
-                </Button>
+              <li key={item.id} className="tm-sa-hit">
+                <div className="tm-sa-hit__head">
+                  <span className="tm-sa-badge">{typeLabel(item.objectType)}</span>
+                  <span className="tm-sa-hit__ref" aria-hidden="true">
+                    {shortRef(item.objectId)}
+                  </span>
+                </div>
+                <span className="tm-sa-hit__title">{item.label}</span>
+                <div className="tm-sa-hit__actions">
+                  <button
+                    type="button"
+                    className="tm-sa-capsule"
+                    onClick={() => remove.mutate(item.id)}
+                    disabled={remove.isPending}
+                    aria-label={`Unpin ${item.label}`}
+                  >
+                    Unpin
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
@@ -137,55 +152,57 @@ export function SearchPinsView({
         ) : null}
       </section>
 
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-pin-form">
-        <h2 id="tm-pin-form" className="tm-eyebrow">
+      <section className="tm-sa-form" aria-labelledby="tm-pin-form">
+        <h2 id="tm-pin-form" className="tm-sa-eyebrow">
           Pin an entity
         </h2>
         <form className="tm-stack" onSubmit={onSubmit}>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-pin-type">
-              Type
-            </label>
-            <select
-              id="tm-pin-type"
-              className="tm-field__control"
-              value={objectType}
-              onChange={(event) => setObjectType(event.target.value)}
-            >
-              {PIN_OBJECT_TYPES.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+          <div className="tm-sa-form__fields">
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-pin-type">
+                Type
+              </label>
+              <select
+                id="tm-pin-type"
+                className="tm-field__control"
+                value={objectType}
+                onChange={(event) => setObjectType(event.target.value)}
+              >
+                {PIN_OBJECT_TYPES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-pin-id">
+                Entity id
+              </label>
+              <input
+                id="tm-pin-id"
+                className="tm-field__control"
+                type="text"
+                value={objectId}
+                onChange={(event) => setObjectId(event.target.value)}
+                placeholder="The id of the item, document, meeting or project"
+              />
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-pin-label">
+                Label
+              </label>
+              <input
+                id="tm-pin-label"
+                className="tm-field__control"
+                type="text"
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                placeholder="A short name to show in the strip"
+              />
+            </div>
           </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-pin-id">
-              Entity id
-            </label>
-            <input
-              id="tm-pin-id"
-              className="tm-field__control"
-              type="text"
-              value={objectId}
-              onChange={(event) => setObjectId(event.target.value)}
-              placeholder="The id of the item, document, meeting or project"
-            />
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-pin-label">
-              Label
-            </label>
-            <input
-              id="tm-pin-label"
-              className="tm-field__control"
-              type="text"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder="A short name to show in the strip"
-            />
-          </div>
-          <div>
+          <div className="tm-sa-form__actions">
             <Button
               type="submit"
               disabled={objectId.trim() === '' || label.trim() === '' || create.isPending}
@@ -202,6 +219,10 @@ export function SearchPinsView({
       </section>
     </AppShell>
   );
+}
+
+function typeLabel(objectType: string): string {
+  return PIN_OBJECT_TYPES.find((option) => option.value === objectType)?.label ?? objectType;
 }
 
 function describeError(error: unknown): string {

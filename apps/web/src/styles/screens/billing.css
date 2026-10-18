@@ -1,0 +1,958 @@
+/*
+ * Billing (BIL-01…03) — the Control Center's billing screens.
+ *
+ * Ported from `TManage Screens - Billing Preferences and System.dc.html`: a 28/32 canvas, a wide
+ * left column (the plan figure, the usage card, the invoice table) beside a narrower right column
+ * of cards (the black "before renewal" card, the red-ruled failed-charge card, the paper "who can
+ * see this" card); white 24px cards with a 1px line, mono 11px eyebrows, 14px meter tracks, 52px
+ * table rows with outlined status capsules, and the BIL-03 plan cards whose current/selected card
+ * carries a 2px ink border. Every value is a token from `@tmanage/ui`, so dark mode follows.
+ */
+
+/* ── Page layout ─────────────────────────────────────────────────────────────── */
+
+/*
+ * The generic billing composition: the screen's form card and its list card side by side. The
+ * list (the quiet panel, or anything marked `tm-bil-main`) is the wide left column; every other
+ * card sits in the right column, exactly as BIL-01/02 put the record left and the cards right.
+ */
+.tm-bil {
+  display: flex;
+  align-items: flex-start;
+  gap: 22px;
+}
+
+.tm-bil > * {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.tm-bil > .tm-panel--quiet,
+.tm-bil > .tm-bil-main {
+  order: -1;
+  flex-grow: 1.6;
+}
+
+.tm-bil-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.tm-bil-col--wide {
+  flex-grow: 1.2;
+}
+
+.tm-bil-col--table {
+  flex-grow: 1.6;
+}
+
+.tm-bil-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────────── */
+
+.tm-bil .tm-panel,
+.tm-bil-stack .tm-panel,
+.tm-bil-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+/* The list card is the record, not a side note: white, like BIL-02's table card. */
+.tm-bil > .tm-panel--quiet {
+  background: var(--paper-0);
+}
+
+.tm-bil-card--paper {
+  background: var(--paper-50);
+}
+
+.tm-bil-card--danger {
+  border-color: var(--danger-600);
+}
+
+.tm-bil-card--fill {
+  flex: 1 1 auto;
+}
+
+/* BIL-01's "Before renewal" and BIL-03's consequence card: the inverted card. */
+.tm-bil-card.tm-card--ink {
+  gap: 12px;
+  padding: 22px;
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+}
+
+[data-theme='dark'] .tm-bil-card.tm-card--ink {
+  border-color: var(--line-300);
+  background: var(--paper-350);
+  color: var(--ink-950);
+}
+
+.tm-bil-card__title {
+  margin: 0;
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-bil-card__lead {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+  text-wrap: pretty;
+}
+
+.tm-card--ink .tm-bil-card__lead {
+  font-size: 22px;
+  line-height: 29px;
+  color: inherit;
+}
+
+.tm-bil-card__body {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-card--ink .tm-bil-card__body {
+  color: var(--tm-ink-on-dark-muted, #a7aca0);
+}
+
+.tm-bil-card__foot {
+  margin: 0;
+  margin-block-start: auto;
+  font-size: var(--t-caption);
+  line-height: 18px;
+  color: var(--ink-500);
+}
+
+.tm-bil-rule {
+  block-size: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--paper-150);
+}
+
+/* Mono eyebrow: 11/15, 0.12em, ink-500 — "BILLED TO", "WHO CAN SEE THIS". */
+.tm-bil .tm-eyebrow,
+.tm-bil-stack .tm-eyebrow,
+.tm-bil-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-bil-eyebrow--lime {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--lime-500);
+}
+
+.tm-bil-eyebrow--lime::before {
+  content: '';
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+}
+
+.tm-bil-eyebrow--bare::before {
+  content: none;
+}
+
+.tm-bil-eyebrow--danger {
+  color: var(--danger-600);
+}
+
+/* ── BIL-01 plan figure and usage meters ─────────────────────────────────────── */
+
+.tm-bil-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tm-bil-figure__value {
+  margin: 0;
+  font-size: 46px;
+  line-height: 50px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--ink-950);
+}
+
+.tm-bil-figure__note {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: 21px;
+  color: var(--ink-650);
+}
+
+.tm-bil-meters {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-bil-meter {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tm-bil-meter__label {
+  inline-size: 140px;
+  flex: none;
+  font-size: var(--t-caption);
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-bil-meter__track {
+  flex: 1 1 auto;
+  block-size: 14px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  overflow: hidden;
+}
+
+.tm-bil-meter__fill {
+  block-size: 14px;
+  background: var(--ink-950);
+}
+
+.tm-bil-meter__fill--client {
+  background: var(--client-500);
+}
+
+.tm-bil-meter__value {
+  min-inline-size: 88px;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: 17px;
+  font-weight: 500;
+  text-align: end;
+  color: var(--ink-950);
+}
+
+/* ── Capsule actions (the design's 11–13px capsules) ─────────────────────────── */
+
+.tm-bil-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tm-bil-capsule {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-800);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-bil-capsule--ink {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-bil-capsule:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-card--ink .tm-button--outline,
+.tm-card--ink .tm-button--text {
+  border-color: transparent;
+  background: #242720;
+  color: #f5f6f0;
+}
+
+.tm-bil-aside-note {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+/* ── BIL-02 invoice table ────────────────────────────────────────────────────── */
+
+.tm-bil-headline {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.tm-bil-headline__title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 40px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink-950);
+}
+
+.tm-bil-headline__meta {
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-500);
+}
+
+/* A table that is its own card (BIL-02): 18px radius, mono head on paper-50, 52px rows. */
+.tm-bil-table-card {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  overflow-x: auto;
+}
+
+/* Inside a panel, the table bleeds to the card edge the way BIL-02's does. */
+.tm-bil .tm-panel > .tm-table,
+.tm-bil .tm-panel > .tm-table-scroll {
+  inline-size: calc(100% + 44px);
+  margin-inline: -22px;
+  border-width: 0;
+  border-radius: 0;
+}
+
+.tm-bil .tm-panel > .tm-table:last-child,
+.tm-bil .tm-panel > .tm-table-scroll:last-child {
+  margin-block-end: -22px;
+}
+
+.tm-bil .tm-table thead th,
+.tm-bil-table-card .tm-table thead th {
+  block-size: 34px;
+  padding-block: 0;
+  letter-spacing: 0;
+  color: var(--ink-500);
+}
+
+.tm-bil .tm-table td,
+.tm-bil-table-card .tm-table td {
+  block-size: 52px;
+  padding-block: 8px;
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+}
+
+.tm-bil .tm-table .tm-mono,
+.tm-bil-table-card .tm-table .tm-mono {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-650);
+}
+
+.tm-bil-num {
+  text-align: end !important;
+  white-space: nowrap;
+}
+
+.tm-bil-table-card td.tm-bil-amount {
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-bil-cell-title {
+  display: block;
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-bil-cell-sub {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-500);
+}
+
+.tm-bil-row--open td {
+  background: var(--paper-50);
+}
+
+.tm-bil-row--open td:first-child {
+  box-shadow: inset 3px 0 0 var(--danger-600);
+}
+
+[dir='rtl'] .tm-bil-row--open td:first-child {
+  box-shadow: inset -3px 0 0 var(--danger-600);
+}
+
+.tm-bil-row--open .tm-bil-cell-sub {
+  color: var(--danger-600);
+}
+
+.tm-bil-row--void .tm-bil-cell-title {
+  color: var(--ink-650);
+}
+
+.tm-bil-row--selected td {
+  background: var(--paper-50);
+}
+
+/* Outlined status capsule: "Paid" green, "Failed"/"Open" red, "Void" quiet. */
+.tm-bil-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-bil-status--success {
+  border-color: var(--success-600);
+  color: var(--success-600);
+}
+
+.tm-bil-status--danger {
+  border-color: var(--danger-600);
+  color: var(--danger-600);
+}
+
+.tm-bil-status--warning {
+  border-color: var(--warning-600);
+  color: var(--warning-600);
+}
+
+.tm-bil-status--lime {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime, #090a09);
+}
+
+.tm-bil-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-800);
+  text-decoration: underline;
+  text-decoration-color: var(--line-300);
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.tm-bil-link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 4px;
+}
+
+/* ── Detail lists inside billing cards ───────────────────────────────────────── */
+
+.tm-bil .tm-detail-list,
+.tm-bil-stack .tm-detail-list,
+.tm-bil .tm-definition {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 18px;
+  margin: 0;
+}
+
+.tm-bil .tm-definition > div {
+  display: contents;
+}
+
+.tm-bil .tm-detail-list dt,
+.tm-bil-stack .tm-detail-list dt,
+.tm-bil .tm-definition dt {
+  font-size: var(--t-caption);
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-bil .tm-detail-list dd,
+.tm-bil-stack .tm-detail-list dd,
+.tm-bil .tm-definition dd {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+  color: var(--ink-950);
+}
+
+/* ── BIL-03 plan cards ───────────────────────────────────────────────────────── */
+
+.tm-bil-plans {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.tm-bil-plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-block-size: 168px;
+  padding: 24px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  cursor: pointer;
+}
+
+.tm-bil-plan:has(input:checked) {
+  padding: 23px;
+  border: var(--b-expressive) solid var(--ink-950);
+}
+
+.tm-bil-plan:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+/* The radio stays a real radio for keyboards and screen readers; the card is its paint. */
+.tm-bil-plan input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tm-bil-plan__head {
+  min-block-size: 18px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tm-bil-plan__name {
+  margin: 0;
+  font-size: 34px;
+  line-height: 38px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink-950);
+}
+
+.tm-bil-plan__note {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+}
+
+.tm-bil-plan__foot {
+  margin-block-start: auto;
+}
+
+/* "− 9 seats +": the seat stepper inside the selected plan card. */
+.tm-bil-stepper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tm-bil-stepper__button {
+  display: grid;
+  place-items: center;
+  inline-size: 38px;
+  block-size: 38px;
+  flex: none;
+  padding: 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-50);
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink-800);
+  cursor: pointer;
+}
+
+.tm-bil-stepper__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tm-bil-stepper__value {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  block-size: 38px;
+  padding: 0 12px;
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: 12px;
+  background: var(--paper-50);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink-950);
+}
+
+.tm-bil-stepper__button:focus-visible,
+.tm-bil-stepper__value:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-bil-pill-wide {
+  display: block;
+  padding: 10px 16px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  font-size: var(--t-caption);
+  line-height: 17px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--ink-500);
+}
+
+/* The consequence list in the black card: 9px squares, lime for good news, amber for a cost. */
+.tm-bil-points {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-bil-points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+}
+
+.tm-bil-points li::before {
+  content: '';
+  inline-size: 9px;
+  block-size: 9px;
+  flex: none;
+  background: var(--lime-500);
+}
+
+.tm-bil-points li[data-tone='warning']::before {
+  background: var(--warning-600);
+}
+
+.tm-bil-split {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+}
+
+.tm-bil-split > * {
+  flex: 1 1 0;
+  min-inline-size: 0;
+}
+
+.tm-bil-split > .tm-card--ink {
+  flex-grow: 1.3;
+  padding: 26px;
+  gap: 14px;
+}
+
+.tm-card--ink .tm-bil-eyebrow {
+  color: var(--lime-500);
+}
+
+.tm-card--ink .tm-field__label,
+.tm-card--ink .tm-field__hint {
+  color: #a7aca0;
+}
+
+.tm-card--ink .tm-field__control {
+  border-color: #3a3e35;
+  background: #1b1d19;
+  color: #f5f6f0;
+  color-scheme: dark;
+}
+
+.tm-card--ink .tm-button--lime {
+  font-weight: 600;
+}
+
+/* ── Forms inside the side cards ─────────────────────────────────────────────── */
+
+.tm-bil .tm-panel form {
+  gap: 14px;
+}
+
+.tm-bil .tm-field__control {
+  border-radius: var(--r-control);
+}
+
+/* ── Details added for the ported screens ────────────────────────────────────── */
+
+.tm-bil-date {
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* A wide table scrolls inside its card instead of widening the page (contain: its own width
+   never feeds the canvas's min-content). */
+.tm-bil .tm-panel,
+.tm-bil-table-card {
+  overflow-x: auto;
+  contain: inline-size;
+}
+
+.tm-bil-actions--foot {
+  margin-block-start: auto;
+}
+
+/* BIL-03's black card holds the request's date and note side by side. */
+.tm-bil-request-fields {
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.tm-bil-request-fields > .tm-field {
+  flex: 1 1 200px;
+  min-inline-size: 0;
+}
+
+/* The seat field is the stepper's middle capsule; its label stays for assistive tech only. */
+.tm-bil-stepper__field {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+
+.tm-bil-stepper__field .tm-field__label {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-bil-stepper__field .tm-field__control {
+  block-size: 38px;
+  min-block-size: 38px;
+  padding: 0 12px;
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: 12px;
+  background: var(--paper-50);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* A settings form that is the whole screen (billing settings, tax details): its groups sit side
+   by side and their fields two-up, instead of one 1,300px column of inputs. */
+.tm-bil > form.tm-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 22px 32px;
+}
+
+.tm-bil > form.tm-panel > :not(section):not(fieldset) {
+  grid-column: 1 / -1;
+}
+
+.tm-bil > form.tm-panel > section,
+.tm-bil > form.tm-panel > fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  align-items: start;
+  gap: 14px 22px;
+  min-inline-size: 0;
+  margin: 0;
+}
+
+.tm-bil > form.tm-panel > section > h2,
+.tm-bil > form.tm-panel > fieldset > legend {
+  grid-column: 1 / -1;
+}
+
+.tm-bil > form.tm-panel > fieldset > legend {
+  float: left;
+  inline-size: 100%;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+/* ── Responsive (responsive-and-desktop.md) ──────────────────────────────────── */
+
+@media (max-width: 1179px) {
+  .tm-bil > form.tm-panel {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-bil,
+  .tm-bil-split {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tm-bil > .tm-panel--quiet,
+  .tm-bil > .tm-bil-main {
+    order: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .tm-bil-figure__value {
+    font-size: 36px;
+    line-height: 40px;
+  }
+
+  .tm-bil-headline__title {
+    font-size: 30px;
+    line-height: 36px;
+  }
+
+  .tm-bil-meter {
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+
+  .tm-bil-meter__label {
+    inline-size: auto;
+    flex: 1 1 auto;
+  }
+
+  .tm-bil-meter__track {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .tm-bil .tm-panel,
+  .tm-bil-card {
+    padding: 18px;
+  }
+
+  .tm-bil .tm-panel > .tm-table,
+  .tm-bil .tm-panel > .tm-table-scroll {
+    inline-size: calc(100% + 36px);
+    margin-inline: -18px;
+  }
+
+  .tm-bil .tm-panel > .tm-table:last-child,
+  .tm-bil .tm-panel > .tm-table-scroll:last-child {
+    margin-block-end: -18px;
+  }
+
+  /* Tables become card rows on a phone (responsive-and-desktop.md), keeping the column order. */
+  .tm-bil-table-card .tm-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .tm-bil-table-card .tm-table,
+  .tm-bil-table-card .tm-table tbody {
+    display: block;
+  }
+
+  .tm-bil-table-card .tm-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 12px;
+    padding: 14px 18px;
+    border-block-end: var(--b-quiet) solid var(--paper-150);
+  }
+
+  .tm-bil-table-card .tm-table tr:last-child {
+    border-block-end: 0;
+  }
+
+  .tm-bil-table-card .tm-table td {
+    display: block;
+    block-size: auto;
+    padding: 0;
+    border: 0;
+    text-align: start !important;
+  }
+
+  .tm-bil-table-card .tm-table td:nth-child(2) {
+    flex: 1 0 100%;
+    order: -1;
+  }
+
+  /* BIL-03's plan cards two-up on a phone, so the request is reachable without a long scroll. */
+  .tm-bil-plans {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .tm-bil-plan {
+    min-block-size: 0;
+    gap: 8px;
+    padding: 16px;
+    border-radius: var(--r-compact);
+  }
+
+  .tm-bil-plan:has(input:checked) {
+    padding: 15px;
+  }
+
+  .tm-bil-plan__name {
+    font-size: 24px;
+    line-height: 28px;
+  }
+
+  .tm-bil-plan__foot {
+    display: none;
+  }
+}

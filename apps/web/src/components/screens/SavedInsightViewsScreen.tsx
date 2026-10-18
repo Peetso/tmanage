@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   INSIGHT_REPORT_KINDS,
@@ -99,161 +100,167 @@ export function SavedInsightViewsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
+      eyebrow="Insights"
       title="Saved insight views"
       description="Name and re-open an insights report with the filters you use most."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-insight-view-editor">
-        <h2 id="tm-insight-view-editor" className="tm-eyebrow">
-          New saved view
-        </h2>
+      <div className="tm-ins tm-ins-tool">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-insight-view-editor">
+          <h2 id="tm-insight-view-editor" className="tm-eyebrow">
+            New saved view
+          </h2>
 
-        <form
-          className="tm-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSave) save.mutate();
-          }}
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-insight-view-name">
-              Name
-            </label>
-            <input
-              id="tm-insight-view-name"
-              className="tm-field__control"
-              value={name}
-              maxLength={300}
-              required
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-insight-view-report">
-              Report
-            </label>
-            <select
-              id="tm-insight-view-report"
-              className="tm-field__control"
-              value={reportKind}
-              onChange={(event) => setReportKind(event.target.value as InsightReportKind)}
-            >
-              {INSIGHT_REPORT_KINDS.map((kind) => (
-                <option key={kind} value={kind}>
-                  {REPORT_KIND_LABELS[kind]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-insight-view-filter-field">
-              Filter (optional)
-            </label>
-            <div className="tm-row">
+          <form
+            className="tm-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSave) save.mutate();
+            }}
+          >
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-insight-view-name">
+                Name
+              </label>
               <input
-                id="tm-insight-view-filter-field"
+                id="tm-insight-view-name"
                 className="tm-field__control"
-                value={filterField}
-                placeholder="Field — e.g. projectId"
-                onChange={(event) => setFilterField(event.target.value)}
-              />
-              <input
-                aria-label="Filter value"
-                className="tm-field__control"
-                value={filterValue}
-                placeholder="Value"
-                onChange={(event) => setFilterValue(event.target.value)}
+                value={name}
+                maxLength={300}
+                required
+                onChange={(event) => setName(event.target.value)}
               />
             </div>
-            <span className="tm-field__hint">
-              One field and value to pin the report to. Leave blank for no filter.
-            </span>
-          </div>
 
-          {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save the view" live>
-              {describeError(save.error)}
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-insight-view-report">
+                Report
+              </label>
+              <select
+                id="tm-insight-view-report"
+                className="tm-field__control"
+                value={reportKind}
+                onChange={(event) => setReportKind(event.target.value as InsightReportKind)}
+              >
+                {INSIGHT_REPORT_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {REPORT_KIND_LABELS[kind]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-insight-view-filter-field">
+                Filter (optional)
+              </label>
+              <div className="tm-row">
+                <input
+                  id="tm-insight-view-filter-field"
+                  className="tm-field__control"
+                  value={filterField}
+                  placeholder="Field — e.g. projectId"
+                  onChange={(event) => setFilterField(event.target.value)}
+                />
+                <input
+                  aria-label="Filter value"
+                  className="tm-field__control"
+                  value={filterValue}
+                  placeholder="Value"
+                  onChange={(event) => setFilterValue(event.target.value)}
+                />
+              </div>
+              <span className="tm-field__hint">
+                One field and value to pin the report to. Leave blank for no filter.
+              </span>
+            </div>
+
+            {save.isError ? (
+              <InlineAlert tone="danger" title="Could not save the view" live>
+                {describeError(save.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                disabled={!canSave}
+                loading={save.isPending}
+                loadingLabel="Saving"
+              >
+                Save view
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="tm-panel tm-panel--quiet tm-stack"
+          aria-labelledby="tm-insight-view-list"
+        >
+          <h2 id="tm-insight-view-list" className="tm-eyebrow">
+            Your saved views
+          </h2>
+
+          {savedViews.isError ? (
+            <InlineAlert tone="danger" title="Could not load your saved views" live>
+              {describeError(savedViews.error)}
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              disabled={!canSave}
-              loading={save.isPending}
-              loadingLabel="Saving"
-            >
-              Save view
-            </Button>
-          </div>
-        </form>
-      </section>
+          {remove.isError ? (
+            <InlineAlert tone="danger" title="Could not remove the view" live>
+              {describeError(remove.error)}
+            </InlineAlert>
+          ) : null}
 
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-insight-view-list">
-        <h2 id="tm-insight-view-list" className="tm-eyebrow">
-          Your saved views
-        </h2>
+          {savedViews.isPending ? (
+            <LoadingRegion label="Loading your saved views.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {savedViews.isError ? (
-          <InlineAlert tone="danger" title="Could not load your saved views" live>
-            {describeError(savedViews.error)}
-          </InlineAlert>
-        ) : null}
+          {!savedViews.isPending && !savedViews.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No saved views yet">
+              Save a report configuration above and it will appear here for you to re-open.
+            </InlineAlert>
+          ) : null}
 
-        {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not remove the view" live>
-            {describeError(remove.error)}
-          </InlineAlert>
-        ) : null}
+          {rows.length > 0 ? (
+            <ul className="tm-list tm-stack">
+              {rows.map((view) => {
+                const filterEntries = Object.entries(view.filters);
+                return (
+                  <li key={view.id} className="tm-row tm-row--wrap">
+                    <div className="tm-stack tm-stack--tight">
+                      <strong>{view.name}</strong>
+                      <span className="tm-field__hint">
+                        {REPORT_KIND_LABELS[view.reportKind]}
+                        {filterEntries.length > 0
+                          ? ` · ${filterEntries.map(([key, value]) => `${key}=${value}`).join(', ')}`
+                          : ' · No filter'}
+                      </span>
+                    </div>
+                    <Button
+                      tone="outline"
+                      size="accessible"
+                      loading={remove.isPending && remove.variables === view.id}
+                      loadingLabel="Removing"
+                      onClick={() => remove.mutate(view.id)}
+                    >
+                      Remove
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
+        </section>
 
-        {savedViews.isPending ? (
-          <LoadingRegion label="Loading your saved views.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!savedViews.isPending && !savedViews.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No saved views yet">
-            Save a report configuration above and it will appear here for you to re-open.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <ul className="tm-list tm-stack">
-            {rows.map((view) => {
-              const filterEntries = Object.entries(view.filters);
-              return (
-                <li key={view.id} className="tm-row tm-row--wrap">
-                  <div className="tm-stack tm-stack--tight">
-                    <strong>{view.name}</strong>
-                    <span className="tm-field__hint">
-                      {REPORT_KIND_LABELS[view.reportKind]}
-                      {filterEntries.length > 0
-                        ? ` · ${filterEntries.map(([key, value]) => `${key}=${value}`).join(', ')}`
-                        : ' · No filter'}
-                    </span>
-                  </div>
-                  <Button
-                    tone="outline"
-                    size="accessible"
-                    loading={remove.isPending && remove.variables === view.id}
-                    loadingLabel="Removing"
-                    onClick={() => remove.mutate(view.id)}
-                  >
-                    Remove
-                  </Button>
-                </li>
-              );
-            })}
-          </ul>
-        ) : null}
-      </section>
-
-      <Announce message={save.isSuccess ? 'Saved view stored.' : ''} />
+        <Announce message={save.isSuccess ? 'Saved view stored.' : ''} />
+      </div>
     </AppShell>
   );
 }

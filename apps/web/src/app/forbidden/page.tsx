@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function ForbiddenPage() {
   return (
-    <StateScreen>
+    <StateScreen label="No access">
       <ForbiddenState />
     </StateScreen>
   );

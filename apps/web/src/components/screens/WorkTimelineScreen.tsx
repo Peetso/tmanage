@@ -10,111 +10,148 @@ import { listProjects } from '../../lib/api/projects';
 import { getWorkTimeline } from '../../lib/api/work-views';
 import type { WorkTimelineRow } from '../../lib/api/work-views';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
-import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
+import {
+  formatInstant,
+  isOverdue,
+  stateCapsule,
+  stateLabel,
+} from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/work-planning.css';
 
 export interface WorkTimelineScreenProps {
   organizationSlug: string;
   organizationName: string;
-  /** Preselect a project — how a project screen hands off to its timeline. */
+  /** Pre-select a project (deep link `?project=`). Defaults to the first project the caller sees. */
   initialProjectId?: string;
   client?: ApiClient;
+  /** Injected in tests so "today" and "past due" are measured against a fixed moment. */
+  now?: Date;
 }
 
+const DAY = 86_400_000;
+const MIN_WEEKS = 8;
+const MAX_COLUMNS = 12;
+
 /**
- * **WK-04 Work timeline (accessible list).**
+ * **WK-04 Timeline** — the Gantt from `TManage Screens - Work Extended.dc.html`, over the
+ * timeline read (`GET .../work-views/timeline/:projectId`).
  *
- * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §Work WK-04: "Timeline/Gantt — Milestones/dependencies,
- * baseline/forecast, accessible list." This is the accessible list the plan names — a table of a
- * project's work items in timeline order (start, then due, then creation), each row naming what
- * it depends on. A Gantt canvas is a follow-up; the list is the part everyone, including a
- * screen-reader user, can read, and it is the part that is real today.
+ * Each row is one work item: its bar runs from its start to its due date (a single dated end
+ * draws a short bar on that day). Solid ink is done, an ink outline is scheduled, an orange
+ * outline is past due and not finished — with the overrun in days beside it — and a dashed
+ * elbow leads in from each predecessor that ends before the bar begins. The read carries no
+ * milestones and no baseline, so neither row is drawn.
  *
- * ## What it draws, and what it cannot
- *
- * - **Order is the server's**, computed from `start_at`/`due_at`, so the sequence a sighted user
- *   sees down the rows is the sequence the timeline means — no client-side re-sort to drift from it.
- * - **Dependencies are ids the caller may read.** A predecessor in a project the caller cannot
- *   see is redacted by the API (its id never arrives), so the "Depends on" cell only ever names
- *   work the reader is entitled to. An id that belongs to another project in this timeline's
- *   response but not to this project's rows is shown as the id; one that matches a row is shown
- *   by that row's title.
- * - **Baseline/forecast is not drawn**, because neither is stored — the same honesty
- *   `WorkListScreen` applies to priority and blocker columns that have no data behind them.
- *
- * A project must be chosen before anything is fetched: the timeline is per-project by definition,
- * and "all projects at once" is not a timeline, it is the list screen.
+ * "Accessible list" swaps the chart for the same rows as a table — title, state, start, due and
+ * what each depends on — the artboard's keyboard and list equivalent.
  */
 export function WorkTimelineScreen({
   organizationSlug,
   organizationName,
   initialProjectId,
   client,
+  now: nowProp,
 }: WorkTimelineScreenProps) {
   const api = client ?? browserApiClient();
+  const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
+  const [listView, setListView] = useState(false);
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
     queryFn: () => listProjects(api, organizationSlug),
   });
 
+  // A timeline is per project: with none chosen, the first project the caller can see.
+  const chosenProjectId = projectId !== '' ? projectId : (projects.data?.[0]?.id ?? '');
+  const projectName = projects.data?.find((project) => project.id === chosenProjectId)?.name;
+
   const timeline = useQuery({
-    queryKey: ['work-timeline', organizationSlug, projectId],
-    queryFn: () => getWorkTimeline(api, organizationSlug, projectId),
-    enabled: projectId !== '',
+    queryKey: ['work-timeline', organizationSlug, chosenProjectId],
+    queryFn: () => getWorkTimeline(api, organizationSlug, chosenProjectId),
+    enabled: chosenProjectId !== '',
   });
 
   const rows = useMemo(() => timeline.data?.items ?? [], [timeline.data]);
 
-  // A row's own title by id, so a predecessor edge into this timeline reads as a name, not an id.
   const titlesById = useMemo(() => {
     const names = new Map<string, string>();
     for (const row of rows) names.set(row.id, row.title);
     return names;
   }, [rows]);
 
+  const chart = useMemo(() => buildChart(rows, now), [rows, now]);
+  const noProjects = projects.isSuccess && projects.data.length === 0;
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Work timeline"
-      description="A project's work in timeline order, with what each item depends on."
-    >
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-timeline-filters">
-        <h2 id="tm-timeline-filters" className="tm-eyebrow">
-          Project
-        </h2>
-        <fieldset className="tm-fieldset tm-stack" disabled={projects.isPending}>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-timeline-project">
-              Show the timeline for
-            </label>
-            <select
-              id="tm-timeline-project"
-              className="tm-field__control"
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
+      title="Plan against the commitment"
+      eyebrow={projectName ? `${projectName} · Timeline` : 'Timeline'}
+      actions={
+        <div className="wp-toolbar">
+          <nav className="wp-segmented" aria-label="Work views">
+            <Link href={`/${organizationSlug}/work`}>List</Link>
+            <span aria-current="page">Timeline</span>
+            <Link
+              href={`/${organizationSlug}/work/calendar${
+                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
+              }`}
             >
-              <option value="">Choose a project…</option>
-              {(projects.data ?? []).map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <span className="tm-field__hint">
-            A timeline is per project. Choose one to see its work in order.
-          </span>
-        </fieldset>
-      </section>
-
-      {projectId === '' ? (
-        <InlineAlert tone="neutral" title="Choose a project">
-          Pick a project above to see its work items in timeline order.
+              Calendar
+            </Link>
+            <Link
+              href={`/${organizationSlug}/work/workload${
+                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
+              }`}
+            >
+              Workload
+            </Link>
+          </nav>
+          <label className="tm-visually-hidden" htmlFor="tm-timeline-project">
+            Show the timeline for
+          </label>
+          <select
+            id="tm-timeline-project"
+            className="wp-select"
+            value={chosenProjectId}
+            disabled={projects.isPending || noProjects}
+            onChange={(event) => setProjectId(event.target.value)}
+          >
+            {chosenProjectId === '' ? <option value="">Choose a project…</option> : null}
+            {(projects.data ?? []).map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="wp-capsule"
+            aria-pressed={listView}
+            onClick={() => setListView((current) => !current)}
+          >
+            Accessible list
+          </button>
+        </div>
+      }
+    >
+      {projects.isError ? (
+        <InlineAlert tone="danger" title="Could not load your projects" live>
+          {describeError(projects.error)}
         </InlineAlert>
+      ) : null}
+
+      {noProjects ? (
+        <div className="wp-empty">
+          <h2 className="wp-empty__title">No project to show yet</h2>
+          <p className="wp-empty__body">
+            A timeline is per project. Once you can see a project, its work appears here in order.
+          </p>
+        </div>
       ) : null}
 
       {timeline.isError ? (
@@ -123,31 +160,139 @@ export function WorkTimelineScreen({
         </InlineAlert>
       ) : null}
 
-      {projectId !== '' && timeline.isPending ? (
+      {chosenProjectId !== '' && timeline.isPending ? (
         <LoadingRegion label="Loading the timeline.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
+          <Skeleton height="38px" />
+          <Skeleton height="40px" />
+          <Skeleton height="40px" />
+          <Skeleton height="40px" />
         </LoadingRegion>
       ) : null}
 
-      {projectId !== '' && !timeline.isPending && !timeline.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="Nothing on this timeline yet">
-          This project has no work items you can see. Create one from the project.
-        </InlineAlert>
+      {chosenProjectId !== '' && timeline.isSuccess && rows.length === 0 ? (
+        <div className="wp-empty">
+          <h2 className="wp-empty__title">Nothing on this timeline yet</h2>
+          <p className="wp-empty__body">
+            This project has no work items you can see. Create one from the project.
+          </p>
+        </div>
       ) : null}
 
-      {rows.length > 0 ? (
+      {rows.length > 0 && !listView ? (
+        <div className="wp-gantt">
+          <div
+            className="wp-gantt__scroll"
+            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+            tabIndex={0}
+            role="region"
+            aria-label="Work timeline chart"
+          >
+            <div className="wp-gantt__inner">
+              <div className="wp-gantt__head" aria-hidden="true">
+                <div className="wp-gantt__label wp-mono-label">Work</div>
+                <div className="wp-gantt__weeks">
+                  {chart.columns.map((column) => (
+                    <div
+                      key={column.key}
+                      className={`wp-gantt__week${column.current ? ' wp-gantt__week--now' : ''}`}
+                    >
+                      {column.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {rows.map((row) => {
+                const bar = chart.bars.get(row.id);
+                const late = bar ? isOverdue(row, now) : false;
+                return (
+                  <div key={row.id} className="wp-gantt__row">
+                    <div className="wp-gantt__label">
+                      <Link
+                        className="wp-gantt__title"
+                        href={`/${organizationSlug}/work/${row.id}`}
+                      >
+                        {row.title}
+                      </Link>
+                    </div>
+                    <div className="wp-gantt__lane">
+                      {chart.today !== null ? (
+                        <span
+                          className="wp-gantt__today"
+                          style={{ insetInlineStart: `${chart.today}%` }}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                      {row.predecessorIds.map((id) => {
+                        const before = chart.bars.get(id);
+                        if (!bar || !before || before.end >= bar.start) return null;
+                        return (
+                          <span
+                            key={id}
+                            className="wp-gantt__dep"
+                            style={{
+                              insetInlineStart: `${before.end}%`,
+                              inlineSize: `${bar.start - before.end}%`,
+                            }}
+                            aria-hidden="true"
+                          />
+                        );
+                      })}
+                      {bar ? (
+                        <>
+                          <span
+                            className={`wp-gantt__bar ${barClass(row, late)}`}
+                            style={{
+                              insetInlineStart: `${bar.start}%`,
+                              inlineSize: `${Math.max(bar.end - bar.start, 1)}%`,
+                            }}
+                            title={`${stateLabel(row.state)} · ${formatInstant(row.startAt)} → ${formatInstant(row.dueAt)}`}
+                          />
+                          {late && row.dueAt !== null ? (
+                            <span
+                              className="wp-gantt__late"
+                              style={{ insetInlineStart: `${bar.end}%` }}
+                            >
+                              +
+                              {Math.max(
+                                1,
+                                Math.round((now.getTime() - Date.parse(row.dueAt)) / DAY),
+                              )}
+                              D
+                            </span>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span
+                          className="wp-gantt__bar wp-gantt__bar--undated"
+                          style={{ insetInlineStart: '0%', inlineSize: '12%' }}
+                          title="No start or due date"
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="wp-gantt__foot">
+            <span>
+              Solid ink = done · Ink outline = scheduled · Orange outline = past due · Dashed elbow
+              = dependency · Dashed bar = no dates
+            </span>
+            <span>Accessible list shows every date</span>
+          </div>
+        </div>
+      ) : null}
+
+      {rows.length > 0 && listView ? (
         <div
-          className="tm-table-scroll"
-          // A scrollable region must be focusable or a keyboard cannot reach its overflow
-          // columns (WCAG 2.2 2.1.1), matching WorkListScreen's table.
+          className="wp-rows"
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
           aria-label="Work timeline"
         >
-          <table className="tm-table">
+          <table>
             <caption className="tm-visually-hidden">
               Work items in this project in timeline order, {rows.length} shown.
             </caption>
@@ -163,16 +308,28 @@ export function WorkTimelineScreen({
             <tbody>
               {rows.map((item) => (
                 <tr key={item.id}>
-                  <th scope="row" className="tm-table__title">
-                    <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>
+                  <th scope="row">
+                    <Link className="wp-row-title" href={`/${organizationSlug}/work/${item.id}`}>
+                      {item.title}
+                    </Link>
                   </th>
                   <td>
                     <StateCapsule state={stateCapsule(item.state)}>
                       {stateLabel(item.state)}
                     </StateCapsule>
                   </td>
-                  <td>{formatInstant(item.startAt)}</td>
-                  <td>{formatInstant(item.dueAt)}</td>
+                  <td>
+                    <span className="wp-row-mono">{formatInstant(item.startAt)}</span>
+                  </td>
+                  <td>
+                    <span
+                      className={
+                        isOverdue(item, now) ? 'wp-row-mono wp-row-mono--warn' : 'wp-row-mono'
+                      }
+                    >
+                      {formatInstant(item.dueAt)}
+                    </span>
+                  </td>
                   <td>{dependsOnLabel(item, titlesById)}</td>
                 </tr>
               ))}
@@ -184,7 +341,71 @@ export function WorkTimelineScreen({
   );
 }
 
-/** The "Depends on" cell: predecessor titles where known, ids otherwise, or an em dash for none. */
+function barClass(row: WorkTimelineRow, late: boolean): string {
+  if (row.state === 'done') return '';
+  if (late) return 'wp-gantt__bar--late';
+  return 'wp-gantt__bar--open';
+}
+
+interface Chart {
+  readonly columns: readonly { key: string; label: string; current: boolean }[];
+  /** Bar extents as percentages of the lane, keyed by work item id. */
+  readonly bars: ReadonlyMap<string, { start: number; end: number }>;
+  /** Where today falls, as a percentage, or `null` when it is outside the range. */
+  readonly today: number | null;
+}
+
+/** Weekly columns (Monday first) spanning every dated row, and each row's bar within them. */
+function buildChart(rows: readonly WorkTimelineRow[], now: Date): Chart {
+  const spans = new Map<string, { from: number; to: number }>();
+  for (const row of rows) {
+    const start = row.startAt === null ? Number.NaN : Date.parse(row.startAt);
+    const due = row.dueAt === null ? Number.NaN : Date.parse(row.dueAt);
+    const from = Number.isNaN(start) ? due : start;
+    const to = Number.isNaN(due) ? start : due;
+    if (Number.isNaN(from) || Number.isNaN(to)) continue;
+    spans.set(row.id, { from: Math.min(from, to), to: Math.max(from, to) });
+  }
+
+  const values = [...spans.values()];
+  const earliest = values.length > 0 ? Math.min(...values.map((span) => span.from)) : now.getTime();
+  const latest = values.length > 0 ? Math.max(...values.map((span) => span.to)) : now.getTime();
+
+  const first = new Date(earliest);
+  first.setUTCHours(0, 0, 0, 0);
+  first.setUTCDate(first.getUTCDate() - ((first.getUTCDay() + 6) % 7));
+  const weeks = Math.max(MIN_WEEKS, Math.ceil((latest + DAY - first.getTime()) / (7 * DAY)));
+  const step = Math.ceil(weeks / MAX_COLUMNS);
+  const count = Math.ceil(weeks / step);
+  const rangeStart = first.getTime();
+  const rangeEnd = rangeStart + count * step * 7 * DAY;
+  const total = rangeEnd - rangeStart;
+  const percent = (time: number) => ((time - rangeStart) / total) * 100;
+
+  const columns = Array.from({ length: count }, (_, index) => {
+    const start = rangeStart + index * step * 7 * DAY;
+    const date = new Date(start);
+    return {
+      key: String(start),
+      label: date
+        .toLocaleDateString('en-GB', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+        .split(' ')
+        .reverse()
+        .join(' '),
+      current: now.getTime() >= start && now.getTime() < start + step * 7 * DAY,
+    };
+  });
+
+  const bars = new Map<string, { start: number; end: number }>();
+  for (const [id, span] of spans) {
+    bars.set(id, { start: percent(span.from), end: percent(span.to + DAY) });
+  }
+
+  const today =
+    now.getTime() >= rangeStart && now.getTime() < rangeEnd ? percent(now.getTime()) : null;
+  return { columns, bars, today };
+}
+
 function dependsOnLabel(row: WorkTimelineRow, titlesById: ReadonlyMap<string, string>): string {
   if (row.predecessorIds.length === 0) return '—';
   return row.predecessorIds.map((id) => titlesById.get(id) ?? id).join(', ');

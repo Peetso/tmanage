@@ -1,11 +1,14 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readSecuritySettings, setSecuritySettings } from '../../lib/api/admin-security';
+import { listOrgSessions } from '../../lib/api/admin-sessions';
+import { shortDevice, sinceLabel } from '../admin/format';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -16,13 +19,14 @@ export interface AdminSecurityScreenProps {
 }
 
 /**
- * **Organization security settings (Administration module 18, x176).**
+ * **Organization security settings** — ADM-08 "How people get in" (Administration module 18, x176).
  *
- * `22-SCREEN-BY-SCREEN` §Administration (security config). This screen reads the organization's
- * security posture — whether a second factor is enforced and an IP allowlist of permitted source
- * networks — and sets it. It is the config surface only: the API stores the posture; refusing a login
- * by IP or requiring a second factor is a later identity slice (NEXT-SCOPES-13), so nothing here can
- * lock an administrator out of their own organization while they are still choosing the values.
+ * The left card is the sign-in posture the API stores — whether a second factor is enforced and an
+ * IP allowlist of permitted source networks — and saves it. It is the config surface only: refusing
+ * a login by IP or requiring a second factor is a later identity slice (NEXT-SCOPES-13), so nothing
+ * here can lock an administrator out while they are still choosing the values. The right column is
+ * ADM-08's "one thing to look at" (drawn only when the posture gives a reason) and the live list of
+ * active sessions from `GET …/admin/sessions`.
  *
  * The allowlist editor validates every entry as an IP/CIDR before it lets the form save, and surfaces
  * the API's refusal if the server rejects one besides — the server is the authoritative boundary
@@ -39,6 +43,11 @@ export function AdminSecurityScreen({
   const settings = useQuery({
     queryKey: ['admin-security', organizationSlug],
     queryFn: () => readSecuritySettings(api, organizationSlug),
+  });
+
+  const sessions = useQuery({
+    queryKey: ['admin-sessions', organizationSlug],
+    queryFn: () => listOrgSessions(api, organizationSlug),
   });
 
   const [enforce2fa, setEnforce2fa] = useState(false);
@@ -68,95 +77,222 @@ export function AdminSecurityScreen({
     },
   });
 
+  const sessionRows = Array.isArray(sessions.data) ? sessions.data : [];
+  const loaded = settings.isSuccess;
+
   return (
-    <AppShell
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="people"
-      title="Security settings"
-      description="Organization-wide security policy. Changes apply to everyone in this organization."
+      section="security"
+      crumbs={['Security']}
+      title="How people get in"
+      actions={
+        <Link
+          href={`/${organizationSlug}/admin/audit`}
+          className="tm-button tm-button--outline tm-button--compact"
+        >
+          Security events in the audit log
+        </Link>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-admin-security-heading">
-        <h2 id="tm-admin-security-heading" className="tm-eyebrow">
-          Security
-        </h2>
+      <div className="tm-cc-split tm-cc-split--even">
+        <section className="tm-cc-card" aria-labelledby="tm-admin-security-heading">
+          <h2 id="tm-admin-security-heading" className="tm-visually-hidden">
+            Security
+          </h2>
 
-        {settings.isError ? (
-          <InlineAlert tone="danger" title="Could not load the security settings" live>
-            {describeError(settings.error)}
-          </InlineAlert>
-        ) : null}
+          {settings.isError ? (
+            <InlineAlert tone="danger" title="Could not load the security settings" live>
+              {describeError(settings.error)}
+            </InlineAlert>
+          ) : null}
 
-        {settings.isPending ? (
-          <LoadingRegion label="Loading the security settings.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+          {settings.isPending ? (
+            <LoadingRegion label="Loading the security settings.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {!settings.isPending && !settings.isError ? (
-          <form
-            className="tm-stack"
-            noValidate
-            aria-label="Security settings"
-            onSubmit={(event: FormEvent<HTMLFormElement>) => {
-              event.preventDefault();
-              setSaved(false);
-              if (!allowlistError && !save.isPending) save.mutate();
-            }}
+          {!settings.isPending && !settings.isError ? (
+            <form
+              className="tm-stack"
+              noValidate
+              aria-label="Security settings"
+              onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                setSaved(false);
+                if (!allowlistError && !save.isPending) save.mutate();
+              }}
+            >
+              <ul className="tm-cc-rows">
+                <li>
+                  <Switch
+                    label="Require two-factor authentication"
+                    hint="Every member must enrol a second factor. Enforcement in the sign-in path is coming in a later release; this records the policy now."
+                    checked={enforce2fa}
+                    disabled={save.isPending}
+                    onChange={(event) => {
+                      setSaved(false);
+                      setEnforce2fa(event.target.checked);
+                    }}
+                  />
+                  <span className={enforce2fa ? 'tm-cc-pill tm-cc-pill--on' : 'tm-cc-pill'}>
+                    {enforce2fa ? 'On' : 'Off'}
+                  </span>
+                </li>
+                <li>
+                  <div className="tm-cc-rows__text tm-cc-rows__grow">
+                    <Field
+                      label="IP allowlist"
+                      name="ip-allowlist"
+                      value={allowlistText}
+                      onChange={(event) => {
+                        setSaved(false);
+                        setAllowlistText(event.target.value);
+                      }}
+                      hint="IP addresses or CIDR ranges, comma-separated, e.g. 203.0.113.0/24, 2001:db8::/32. Leave empty for no restriction."
+                      error={allowlistError}
+                      disabled={save.isPending}
+                    />
+                  </div>
+                </li>
+                <li>
+                  <div className="tm-cc-rows__text">
+                    <p className="tm-cc-rows__title">Session length</p>
+                    <p className="tm-cc-rows__sub">
+                      How long a sign-in lasts before it is asked again
+                    </p>
+                  </div>
+                  <Link
+                    href={`/${organizationSlug}/policies`}
+                    className="tm-button tm-button--outline tm-button--compact"
+                  >
+                    Edit
+                  </Link>
+                </li>
+                <li>
+                  <div className="tm-cc-rows__text">
+                    <p className="tm-cc-rows__title">Trusted network ranges</p>
+                    <p className="tm-cc-rows__sub">
+                      {loaded && entries.length > 0
+                        ? `${entries.length} ${entries.length === 1 ? 'range' : 'ranges'} recorded`
+                        : 'off — the studio works from anywhere'}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/${organizationSlug}/admin/ip-allowlist`}
+                    className="tm-button tm-button--outline tm-button--compact"
+                  >
+                    Ranges
+                  </Link>
+                </li>
+              </ul>
+
+              {save.isError ? (
+                <InlineAlert tone="danger" title="Could not save the security settings" live>
+                  {describeError(save.error)}
+                </InlineAlert>
+              ) : null}
+              {saved && !save.isPending && !save.isError ? (
+                <InlineAlert tone="success" title="Saved" live>
+                  Security settings have been updated for the whole organization.
+                </InlineAlert>
+              ) : null}
+
+              <div className="tm-row">
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="accessible"
+                  disabled={Boolean(allowlistError)}
+                  loading={save.isPending}
+                  loadingLabel="Saving"
+                >
+                  Save
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </section>
+
+        <div className="tm-cc-column">
+          {loaded && !settings.data.enforce2fa ? (
+            <section
+              className="tm-cc-card tm-cc-card--attention"
+              aria-labelledby="tm-admin-security-look"
+            >
+              <p className="tm-cc-eyebrow tm-cc-eyebrow--warning">One thing to look at</p>
+              <h2 id="tm-admin-security-look" className="tm-cc-card__lead">
+                Two-factor sign-in is not required, so one stolen password is enough to get in
+              </h2>
+              <p className="tm-cc-card__body">
+                Turning it on records the policy for everyone in this organization. Members enrol
+                their second factor from their own preferences.
+              </p>
+            </section>
+          ) : null}
+
+          <section
+            className="tm-cc-card tm-cc-card--flush tm-cc-card--fill"
+            aria-label="Active sessions"
           >
-            <Switch
-              label="Require two-factor authentication"
-              hint="Every member must enrol a second factor. Enforcement in the sign-in path is coming in a later release; this records the policy now."
-              checked={enforce2fa}
-              disabled={save.isPending}
-              onChange={(event) => {
-                setSaved(false);
-                setEnforce2fa(event.target.checked);
-              }}
-            />
-
-            <Field
-              label="IP allowlist"
-              name="ip-allowlist"
-              value={allowlistText}
-              onChange={(event) => {
-                setSaved(false);
-                setAllowlistText(event.target.value);
-              }}
-              hint="IP addresses or CIDR ranges, comma-separated, e.g. 203.0.113.0/24, 2001:db8::/32. Leave empty for no restriction."
-              error={allowlistError}
-              disabled={save.isPending}
-            />
-
-            {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save the security settings" live>
-                {describeError(save.error)}
-              </InlineAlert>
-            ) : null}
-            {saved && !save.isPending && !save.isError ? (
-              <InlineAlert tone="success" title="Saved" live>
-                Security settings have been updated for the whole organization.
-              </InlineAlert>
-            ) : null}
-
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                disabled={Boolean(allowlistError)}
-                loading={save.isPending}
-                loadingLabel="Saving"
+            <table className="tm-table tm-cc-table" aria-label="Active sessions">
+              <thead>
+                <tr>
+                  <th scope="col">
+                    Active sessions{sessions.isSuccess ? ` · ${sessionRows.length}` : ''}
+                  </th>
+                  <th scope="col" className="tm-cc-end">
+                    Last seen
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {sessionRows.slice(0, 6).map((session) => (
+                  <tr key={session.sessionId}>
+                    <td>
+                      <span className="tm-cc-cell-title">
+                        {session.memberName} · {shortDevice(session.deviceLabel)}
+                      </span>
+                      <span className="tm-cc-cell-sub">
+                        signed in {formatMoment(session.createdAt)}
+                      </span>
+                    </td>
+                    <td className="tm-cc-end">
+                      <span className="tm-cc-cell-mono">{sinceLabel(session.lastSeenAt)}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="tm-cc-card__inset tm-row tm-row--between">
+              {sessions.isPending ? <p className="tm-cc-note">Loading active sessions…</p> : null}
+              {sessions.isError ? (
+                <p className="tm-cc-note">{describeError(sessions.error)}</p>
+              ) : null}
+              {sessions.isSuccess && sessionRows.length === 0 ? (
+                <p className="tm-cc-note">Nobody is signed in right now.</p>
+              ) : null}
+              <Link
+                href={`/${organizationSlug}/admin/sessions`}
+                className="tm-button tm-button--outline tm-button--compact"
               >
-                Save
-              </Button>
+                See every session
+              </Link>
             </div>
-          </form>
-        ) : null}
-      </section>
-    </AppShell>
+          </section>
+        </div>
+      </div>
+    </ControlCenterShell>
   );
+}
+
+function formatMoment(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
 }
 
 /** Split the editor text into entries on newlines and commas, trimmed, blanks dropped. */

@@ -325,17 +325,15 @@ describe('ON-03 create the first project', () => {
    * The two fields the specification lists that this screen still cannot save. Both are
    * stated on the screen rather than quietly dropped.
    */
-  it('says which of its fields are still not saved', async () => {
+  it('says what happens to the fields it does not save, beside the fields', async () => {
     const { client } = clientOver(defaultHandler);
     renderScreen(client);
 
     await screen.findByLabelText(/Project name/);
-    expect(
-      screen.getByText(
-        /Not available yet — this screen's client link · a people directory, unscheduled/,
-      ),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/The owner will be you/)).toBeInTheDocument();
+    // The rebuilt ON-04 carries no "Not available yet" notice: each field says it in place.
+    expect(screen.queryByText(/Not available yet/)).toBeNull();
+    expect(screen.getByText(/You, until your team has joined/)).toBeInTheDocument();
+    expect(screen.getByText(/linked to the project after setup/)).toBeInTheDocument();
   });
 
   it('has no axe violations once loaded', async () => {

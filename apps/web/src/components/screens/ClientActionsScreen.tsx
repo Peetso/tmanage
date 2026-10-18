@@ -1,16 +1,17 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listClientRequests, listPortalProjects, listPortalWorkItems } from '../../lib/api/portal';
 import type { PortalWorkItem } from '../../lib/api/portal';
 import { isWaitingOnClient } from '../../lib/client-request-presentation';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { isPast, longDay, Segmented, shortDay, Tag } from './PortalParts';
 
 export interface ClientActionsScreenProps {
   organizationSlug: string;
@@ -21,6 +22,8 @@ export interface ClientActionsScreenProps {
   now?: Date;
 }
 
+type View = 'needs' | 'studio' | 'done';
+
 /**
  * **CL-02 My Actions.**
  *
@@ -28,37 +31,18 @@ export interface ClientActionsScreenProps {
  * Each shows why, due, consequence, estimated review time. **Empty state confirms notification
  * behavior.**"
  *
- * ## What is here and what is honestly not
+ * Drawn as the handoff's CL-02: a headline that counts what needs the client, the "Needs you /
+ * Waiting on the studio / Done" switch, one capsule card per item with the soonest outlined in
+ * ink, and the "waiting on the studio" strip along the bottom.
  *
- * **Two of the five card types now exist.** §6 lists "approval, feedback, upload, answer, client
- * task". `REQ-001` built the fourth: a request the studio has asked a question about is an
- * *answer* the client owes, and it is the first card here that is not a work item. The other
- * card is the client task — a work item the studio widened to `client_action_required`, which
- * has been the only kind since `CLIENT-002`.
+ * Two kinds of card exist: a question the studio asked on one of the client's requests (an
+ * *answer*), and a work item the studio marked as needing the client (a *client task*). They are
+ * kept as two lists because they are answered in different places. Estimated review time and
+ * consequence are not carried by the projection, so the cards do not show them rather than
+ * guessing.
  *
- * An approval is `APPR-001` and an upload is `FILE-001`; neither has storage, so neither is
- * drawn. The two kinds that do exist are rendered as two lists rather than one merged one,
- * because they are answered in different places and merging them would produce a queue whose
- * items have no common action.
- *
- * "Why", "consequence" and "estimated review time" are three fields the projection does not
- * carry and no table holds. They are named in `BackendPending` rather than filled with
- * plausible sentences: a portal that told a client the consequence of missing a date, and
- * invented it, is worse than one that says it does not know yet.
- *
- * ## The empty state is the specification's, not a shrug
- *
- * "Empty state confirms notification behavior." A client with nothing to do needs to know that
- * this screen being empty means nothing is waiting — and that they will be told rather than
- * expected to keep checking. That sentence is the empty state's whole job, so it says both
- * halves plainly.
- *
- * ## Ordering
- *
- * By due date, soonest first, with undated items last. §6 asks for "ordered cards" without
- * saying by what; the only ordering this screen can honestly apply is the one the client can
- * verify from what is on the card. Anything else — urgency, importance — would be an internal
- * judgement the projection does not carry.
+ * Ordering is by due date, soonest first, undated last — the only order a client can verify
+ * from what is on the card.
  */
 export function ClientActionsScreen({
   organizationSlug,
@@ -68,6 +52,7 @@ export function ClientActionsScreen({
   now = new Date(),
 }: ClientActionsScreenProps) {
   const api = client ?? browserApiClient();
+  const [view, setView] = useState<View>('needs');
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -85,110 +70,234 @@ export function ClientActionsScreen({
   });
 
   /**
-   * The requests the studio is waiting on an answer to.
-   *
-   * `clarifying` is the only status where the request is the client's to move — and it is also
-   * the state that carries the `client_action_required` audience on the row, so this list and
-   * the work-item list above are selected by the same rule expressed in two places rather than
-   * by two different rules.
+   * `clarifying` is the only status where a request is the client's to move — and the state that
+   * carries the `client_action_required` audience on the row.
    */
   const awaitingAnswer = (requests.data ?? []).filter(isWaitingOnClient);
 
-  const actions = (workItems.data ?? [])
-    .filter((item) => item.progress === 'waiting_on_you')
-    .slice()
-    .sort(byDueDate);
+  const all = (workItems.data ?? []).slice().sort(byDueDate);
+  const actions = all.filter((item) => item.progress === 'waiting_on_you');
+  const studio = all.filter((item) => item.progress === 'in_progress');
+  const done = all.filter((item) => item.progress === 'done');
 
   const project = projects.data?.[0];
+  const needCount = actions.length + awaitingAnswer.length;
+  const settled = !workItems.isPending && !workItems.isError && !requests.isPending;
 
   return (
     <ClientPortalShell
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      {...(project ? { projectName: project.name } : {})}
       activeNavigationId="actions"
-      title="My actions"
-      description={`Everything ${providerName} is waiting on you for.`}
+      title={settled ? headline(needCount) : 'My actions'}
+      eyebrow={project ? `What needs you · ${project.name}` : 'What needs you'}
+      headerAside={
+        <Segmented<View>
+          label="Show"
+          value={view}
+          onChange={setView}
+          options={[
+            { id: 'needs', label: `Needs you · ${needCount}` },
+            { id: 'studio', label: `Waiting on the studio · ${studio.length}` },
+            { id: 'done', label: `Done · ${done.length}` },
+          ]}
+        />
+      }
     >
-      {workItems.isError ? (
-        <InlineAlert tone="danger" title="Could not load your actions" live>
-          {describe(workItems.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-pt tm-pt--compact">
+        {workItems.isError ? (
+          <InlineAlert tone="danger" title="Could not load your actions" live>
+            {describe(workItems.error)}
+          </InlineAlert>
+        ) : null}
 
-      {workItems.isPending ? (
-        <LoadingRegion label="Loading your actions.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {workItems.isPending ? (
+          <LoadingRegion label="Loading your actions.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {!workItems.isPending &&
-      !workItems.isError &&
-      !requests.isPending &&
-      actions.length === 0 &&
-      awaitingAnswer.length === 0 ? (
-        <InlineAlert tone="success" title="Nothing is waiting on you">
-          <p className="tm-prose">
-            You are up to date. When {providerName} needs something from you it will appear here,
-            and you will be told — you do not have to keep checking this page.
-          </p>
-        </InlineAlert>
-      ) : null}
-
-      {awaitingAnswer.length > 0 ? (
-        <ul className="tm-stack tm-list" aria-label="Questions to answer">
-          {awaitingAnswer.map((request) => (
-            <li key={request.id} className="tm-panel tm-stack tm-stack--tight">
-              <div className="tm-row tm-row--wrap">
-                <StateCapsule state="client">Waiting on you</StateCapsule>
+        {view === 'needs' ? (
+          <>
+            {settled && needCount === 0 ? (
+              <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
+                <div className="tm-pt-aside-row">
+                  <span className="tm-pt-orb tm-pt-orb--md" aria-hidden="true">
+                    ✓
+                  </span>
+                  <div className="tm-pt-item__main">
+                    <h2 className="tm-pt-card__title">Nothing is waiting on you</h2>
+                    <p className="tm-pt-card__body">
+                      You are up to date. When {providerName} needs something from you it will
+                      appear here, and you will be told — you do not have to keep checking this
+                      page.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <p className="tm-prose">
-                <Link href={`/${organizationSlug}/portal/requests/${request.id}`}>
-                  <strong>{request.title}</strong>
-                </Link>
-              </p>
-              {/*
-                §6 asks each card to say *why*. For a request it can: the studio wrote the
-                question down, and it is the only "why" anything in this system currently holds.
-              */}
-              <p className="tm-prose">
-                {request.clarificationQuestion ??
-                  `${providerName} has asked you something about this request.`}
-              </p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+            ) : null}
 
-      {actions.length > 0 ? (
-        <ul className="tm-stack tm-list" aria-label="Your actions">
-          {actions.map((action) => (
-            <li key={action.id} className="tm-panel tm-stack tm-stack--tight">
-              <div className="tm-row tm-row--wrap">
-                <StateCapsule state="client">Waiting on you</StateCapsule>
-                {isOverdue(action, now) ? (
-                  <StateCapsule state="blocked">Past its date</StateCapsule>
-                ) : null}
-              </div>
-              <p className="tm-prose">
-                <strong>{action.title}</strong>
-              </p>
-              <p className="tm-prose">{describeDue(action.dueAt)}</p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+            {awaitingAnswer.length > 0 ? (
+              <ul className="tm-pt-list" aria-label="Questions to answer">
+                {awaitingAnswer.map((request, index) => (
+                  <li
+                    key={request.id}
+                    className={
+                      index === 0 && actions.length === 0
+                        ? 'tm-pt-action tm-pt-action--lead'
+                        : 'tm-pt-action'
+                    }
+                  >
+                    <span className="tm-pt-action__orb" aria-hidden="true">
+                      ?
+                    </span>
+                    <div className="tm-pt-action__body">
+                      <div className="tm-pt-action__meta">
+                        <Tag tone="lime">Waiting on you</Tag>
+                        <span className="tm-pt-mono">Asked by {providerName}</span>
+                      </div>
+                      <h2 className="tm-pt-action__title">
+                        <Link href={`/${organizationSlug}/portal/requests/${request.id}`}>
+                          {request.title}
+                        </Link>
+                      </h2>
+                      {/* The studio wrote the question down: the one "why" this card can carry. */}
+                      <p className="tm-pt-action__text">
+                        {request.clarificationQuestion ??
+                          `${providerName} has asked you something about this request.`}
+                      </p>
+                    </div>
+                    <div className="tm-pt-action__end">
+                      <Link
+                        className="tm-pt-btn tm-pt-btn--ink"
+                        href={`/${organizationSlug}/portal/requests/${request.id}`}
+                        aria-label={`Answer: ${request.title}`}
+                      >
+                        Answer
+                      </Link>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
 
-      <BackendPending ticket="APPR-001 · FILE-001">
-        Two of the five kinds of card §6 lists are here: a question on one of your requests, and
-        something {providerName} has marked as needing you. Approvals and uploads are not built. For
-        a work item, what happens if it waits and how long a review usually takes are two things
-        nothing records yet — they are missing rather than guessed at.
-      </BackendPending>
+            {actions.length > 0 ? (
+              <ul className="tm-pt-list" aria-label="Your actions">
+                {actions.map((action, index) => (
+                  <li
+                    key={action.id}
+                    className={index === 0 ? 'tm-pt-action tm-pt-action--lead' : 'tm-pt-action'}
+                  >
+                    <span className="tm-pt-action__orb" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <div className="tm-pt-action__body">
+                      <div className="tm-pt-action__meta">
+                        {action.dueAt === null ? (
+                          <Tag>No deadline</Tag>
+                        ) : (
+                          <Tag tone={index === 0 ? 'lime' : undefined}>
+                            {index === 0 ? 'By' : 'Needed by'} {shortDay(action.dueAt)}
+                          </Tag>
+                        )}
+                        {isOverdue(action, now) ? <Tag tone="danger">Past its date</Tag> : null}
+                        <span className="tm-pt-mono">Waiting on you</span>
+                      </div>
+                      <h2 className="tm-pt-action__title">{action.title}</h2>
+                      <p className="tm-pt-action__text">{describeDue(action.dueAt)}</p>
+                    </div>
+                    <div className="tm-pt-action__end">
+                      <Link
+                        className="tm-pt-btn"
+                        href={`/${organizationSlug}/portal/requests/new`}
+                        aria-label={`Ask about: ${action.title}`}
+                      >
+                        Ask about this
+                      </Link>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </>
+        ) : (
+          <ItemList
+            label={view === 'studio' ? 'Waiting on the studio' : 'Done'}
+            items={view === 'studio' ? studio : done}
+            empty={
+              view === 'studio'
+                ? `Nothing is with ${providerName} at the moment.`
+                : 'Nothing has been finished yet.'
+            }
+            done={view === 'done'}
+          />
+        )}
+
+        {studio.length > 0 ? (
+          <div className="tm-pt-foot">
+            <span className="tm-pt-eyebrow">Waiting on the studio</span>
+            <ul>
+              {studio.slice(0, 2).map((item, index) => (
+                <li key={item.id} className="tm-pt-aside-row">
+                  {index > 0 ? <span className="tm-pt-foot__sep" aria-hidden="true" /> : null}
+                  {item.title}
+                  {item.dueAt ? ` · expected ${shortDay(item.dueAt)}` : ''}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
     </ClientPortalShell>
   );
+}
+
+function ItemList({
+  label,
+  items,
+  empty,
+  done,
+}: {
+  label: string;
+  items: readonly PortalWorkItem[];
+  empty: string;
+  done: boolean;
+}) {
+  if (items.length === 0) {
+    return <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">{empty}</p>;
+  }
+  return (
+    <ul className="tm-pt-list" aria-label={label}>
+      {items.map((item) => (
+        <li key={item.id} className="tm-pt-action">
+          <span className="tm-pt-action__orb" aria-hidden="true">
+            {done ? '✓' : '…'}
+          </span>
+          <div className="tm-pt-action__body">
+            <div className="tm-pt-action__meta">
+              <Tag tone={done ? 'done' : undefined}>{done ? 'Done' : 'In progress'}</Tag>
+              {item.dueAt ? (
+                <span className="tm-pt-mono">
+                  {done ? 'Due' : 'Expected'} {shortDay(item.dueAt)}
+                </span>
+              ) : null}
+            </div>
+            <h2 className="tm-pt-action__title">{item.title}</h2>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+const COUNT_WORDS = ['Nothing', 'One thing', 'Two things', 'Three things', 'Four things'];
+
+function headline(count: number): string {
+  if (count === 0) return 'Nothing needs you';
+  const words = COUNT_WORDS[count] ?? `${count} things`;
+  return `${words} need${count === 1 ? 's' : ''} you`;
 }
 
 /** Undated last: a missing date is not urgency, and sorting it first would invent some. */
@@ -200,10 +309,7 @@ function byDueDate(left: PortalWorkItem, right: PortalWorkItem): number {
 }
 
 function isOverdue(item: PortalWorkItem, now: Date): boolean {
-  if (item.dueAt === null) return false;
-  const due = new Date(item.dueAt);
-  if (Number.isNaN(due.getTime())) return false;
-  return due.getTime() < now.getTime();
+  return isPast(item.dueAt, now);
 }
 
 function describe(error: unknown): string {
@@ -214,7 +320,5 @@ function describe(error: unknown): string {
 
 function describeDue(value: string | null): string {
   if (value === null) return 'No date has been set for this.';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return `Needed by ${new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed)}`;
+  return `Needed by ${longDay(value)}.`;
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchTargetStatus, setTarget } from '../../lib/api/insights-targets';
 import type {
@@ -82,96 +83,99 @@ export function InsightTargetsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
+      eyebrow="Insights"
       title="Insight targets"
       description="Set an org-wide goal per metric and measure the live figure against it."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-targets-heading">
-        <h2 id="tm-targets-heading" className="tm-eyebrow">
-          Insight targets
-        </h2>
+      <div className="tm-ins tm-ins-tool">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-targets-heading">
+          <h2 id="tm-targets-heading" className="tm-eyebrow">
+            Insight targets
+          </h2>
 
-        <form
-          className="tm-row"
-          onSubmit={(event) => {
-            event.preventDefault();
-            save.mutate();
-          }}
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-target-metric">
-              Metric
-            </label>
-            <select
-              id="tm-target-metric"
-              className="tm-field__control"
-              value={metric}
-              onChange={(event) => setMetric(event.target.value as MetricTargetMetric)}
-            >
-              {METRICS.map(({ id, label }) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-target-value">
-              Target
-            </label>
-            <input
-              id="tm-target-value"
-              className="tm-field__control"
-              type="number"
-              min={0}
-              max={1000000}
-              step={1}
-              value={value}
-              onChange={(event) => setValue(event.target.value)}
-            />
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-target-period">
-              Period
-            </label>
-            <select
-              id="tm-target-period"
-              className="tm-field__control"
-              value={period}
-              onChange={(event) => setPeriod(event.target.value as MetricTargetPeriod)}
-            >
-              {PERIODS.map(({ id, label }) => (
-                <option key={id} value={id}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <Button type="submit" loading={save.isPending} loadingLabel="Saving the target">
-            Set target
-          </Button>
-        </form>
+          <form
+            className="tm-row"
+            onSubmit={(event) => {
+              event.preventDefault();
+              save.mutate();
+            }}
+          >
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-target-metric">
+                Metric
+              </label>
+              <select
+                id="tm-target-metric"
+                className="tm-field__control"
+                value={metric}
+                onChange={(event) => setMetric(event.target.value as MetricTargetMetric)}
+              >
+                {METRICS.map(({ id, label }) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-target-value">
+                Target
+              </label>
+              <input
+                id="tm-target-value"
+                className="tm-field__control"
+                type="number"
+                min={0}
+                max={1000000}
+                step={1}
+                value={value}
+                onChange={(event) => setValue(event.target.value)}
+              />
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-target-period">
+                Period
+              </label>
+              <select
+                id="tm-target-period"
+                className="tm-field__control"
+                value={period}
+                onChange={(event) => setPeriod(event.target.value as MetricTargetPeriod)}
+              >
+                {PERIODS.map(({ id, label }) => (
+                  <option key={id} value={id}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <Button type="submit" loading={save.isPending} loadingLabel="Saving the target">
+              Set target
+            </Button>
+          </form>
 
-        {save.isError ? (
-          <InlineAlert tone="danger" title="Could not set the target" live>
-            {describe(save.error)}
-          </InlineAlert>
-        ) : null}
+          {save.isError ? (
+            <InlineAlert tone="danger" title="Could not set the target" live>
+              {describe(save.error)}
+            </InlineAlert>
+          ) : null}
 
-        {status.isPending ? (
-          <LoadingRegion label="Loading target status." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+          {status.isPending ? (
+            <LoadingRegion label="Loading target status." className="tm-stack tm-stack--tight">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {status.isError ? (
-          <InlineAlert tone="danger" title="Could not load target status" live>
-            {describe(status.error)}
-          </InlineAlert>
-        ) : null}
+          {status.isError ? (
+            <InlineAlert tone="danger" title="Could not load target status" live>
+              {describe(status.error)}
+            </InlineAlert>
+          ) : null}
 
-        {status.isSuccess ? <TargetStatusTable rows={rows} /> : null}
-      </section>
+          {status.isSuccess ? <TargetStatusTable rows={rows} /> : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

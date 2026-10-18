@@ -1,0 +1,710 @@
+/*
+ * Portfolio and objectives screens — POR-01 (portfolio overview) and OBJ-01 / OBJ-02 (objectives
+ * hub and detail) from `TManage Screens - Projects Portfolio Objectives.dc.html`.
+ *
+ * Every value is a design token; the pixel sizes that have no token (the 48/52 headline, the
+ * 300/110px column widths, the 30px metric) are the frame's own numbers.
+ */
+
+/* ── POR-01 · header ─────────────────────────────────────────────────────────── */
+
+/* The frame's headline is 48/52 at weight 500, between `heading.page` and the display metric. */
+.tm-app__body:has(.tm-por) .tm-canvas-header__title {
+  font-size: 48px;
+  line-height: 52px;
+  letter-spacing: -0.03em;
+}
+
+.tm-por-metrics {
+  display: flex;
+  gap: 36px;
+}
+
+.tm-por-metric__figure {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+.tm-por-metric__value {
+  font-size: 48px;
+  line-height: 50px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-950);
+}
+
+.tm-por-metric__flag {
+  margin-block-start: var(--s2);
+  padding: 3px 9px;
+  border: var(--b-quiet) solid var(--danger-600);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--danger-600);
+  white-space: nowrap;
+}
+
+.tm-por-metric__label {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+/* ── POR-01 · exception-first rows ───────────────────────────────────────────── */
+
+.tm-por {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-por__head,
+.tm-por-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px 110px 170px 120px;
+  align-items: center;
+  gap: var(--s3);
+  padding-inline: var(--s5);
+}
+
+.tm-por__head {
+  block-size: 36px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-por__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-por__list > li + li .tm-por-row {
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-por__end {
+  text-align: end;
+}
+
+.tm-por-row {
+  min-block-size: 53px;
+  padding-block: var(--s2);
+  border-inline-start: 3px solid transparent;
+  padding-inline-start: calc(var(--s5) - 3px);
+}
+
+.tm-por-row[data-tone='danger'] {
+  min-block-size: 64px;
+  border-inline-start-color: var(--danger-600);
+  background: rgb(217 71 79 / 0.04);
+}
+
+.tm-por-row[data-tone='warning'] {
+  min-block-size: 64px;
+  border-inline-start-color: var(--warning-600);
+  background: var(--paper-50);
+}
+
+.tm-por-row__name {
+  min-inline-size: 0;
+}
+
+.tm-por-row__title {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: 21px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-por-row[data-tone='danger'] .tm-por-row__title,
+.tm-por-row[data-tone='warning'] .tm-por-row__title {
+  font-weight: 600;
+}
+
+.tm-por-row__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-por-row__title a:hover {
+  text-decoration: underline;
+}
+
+.tm-por-row__title a:focus-visible {
+  outline: none;
+  border-radius: var(--r-micro);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-por-row__meta {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-por-row__why {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-por-row[data-tone='danger'] .tm-por-row__why {
+  color: var(--danger-600);
+}
+
+.tm-por-row[data-tone='warning'] .tm-por-row__why {
+  color: var(--warning-600);
+}
+
+.tm-por-row__cell {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-por-row__cell dt {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.tm-por-row__cell dd {
+  margin: 0;
+}
+
+.tm-por-row__cell--muted {
+  color: var(--ink-500);
+}
+
+.tm-por-row[data-tone='danger'] .tm-por-row__cell--objectives {
+  color: var(--danger-600);
+}
+
+/* Archived: the whole row recedes, as "Harbour Rebrand 2025" does. */
+.tm-por-row[data-archived='true'] .tm-por-row__title,
+.tm-por-row[data-archived='true'] .tm-por-row__meta,
+.tm-por-row[data-archived='true'] .tm-por-row__why,
+.tm-por-row[data-archived='true'] .tm-por-row__cell {
+  color: var(--ink-500);
+  opacity: 0.8;
+}
+
+.tm-por__foot {
+  padding: var(--s3) var(--s5);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+/* ── OBJ-01 · objectives hub ─────────────────────────────────────────────────── */
+
+.tm-obj {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--s6);
+}
+
+.tm-obj__hub,
+.tm-obj__detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-obj__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-obj-card {
+  gap: var(--s3);
+  padding: var(--s5);
+}
+
+.tm-obj-card[data-selected='true'] {
+  border: var(--b-structural) solid var(--ink-950);
+  padding: calc(var(--s5) - 0.5px);
+}
+
+.tm-obj-card__top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tm-obj-card__title {
+  margin: 0;
+  font-size: var(--t-body-lg);
+  line-height: 23px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-obj-card__select {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-obj-card__select:hover {
+  text-decoration: underline;
+}
+
+.tm-obj-card__select:focus-visible {
+  outline: none;
+  border-radius: var(--r-micro);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-obj-pill {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 4px 11px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-capsule);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-obj-pill[data-status='open'] {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-obj-pill[data-status='met'] {
+  border-color: var(--success-600);
+  background: var(--paper-0);
+  color: var(--success-600);
+}
+
+.tm-obj-pill[data-status='missed'] {
+  border-color: var(--danger-600);
+  background: var(--paper-0);
+  color: var(--danger-600);
+}
+
+.tm-obj-card__body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tm-obj-card__metric {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  max-inline-size: 50%;
+}
+
+.tm-obj-card__value {
+  font-size: 30px;
+  line-height: 32px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+.tm-obj-card__label {
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-obj-card__rule {
+  flex: none;
+  inline-size: 1px;
+  block-size: 36px;
+  background: var(--paper-150);
+}
+
+.tm-obj-card__text {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-obj-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+/* Set an objective — the dashed card at the foot of the hub. */
+.tm-obj-compose {
+  gap: var(--s4);
+  padding: var(--s5);
+}
+
+.tm-obj-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+/* ── OBJ-02 · objective detail ───────────────────────────────────────────────── */
+
+.tm-obj-detail__title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 38px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink-950);
+}
+
+.tm-obj-detail__card {
+  gap: 14px;
+  padding: var(--s5);
+}
+
+.tm-obj-detail__prose {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: 21px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-obj-detail__rule {
+  block-size: 1px;
+  background: var(--paper-150);
+}
+
+.tm-obj-detail__stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s6);
+  margin: 0;
+}
+
+.tm-obj-detail__stats dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-obj-detail__stats dd {
+  margin: 0;
+  padding-block-start: var(--s1);
+}
+
+.tm-obj-detail__figure {
+  font-size: 28px;
+  line-height: 30px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-950);
+}
+
+.tm-obj-detail__stats .tm-obj-pill {
+  display: inline-block;
+  margin-inline-start: 0;
+  padding: 5px 12px;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+/* Key results — the "linked work" card's rows on paper-50. */
+.tm-kr {
+  gap: var(--s3);
+  padding: var(--s5);
+}
+
+.tm-kr__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-kr-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+}
+
+.tm-kr-row__title {
+  flex: 1;
+  min-inline-size: 140px;
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-kr-row__value {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-kr-row__progress {
+  padding: 3px 9px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.tm-kr-row__progress[data-done='true'] {
+  border-color: var(--success-600);
+  color: var(--success-600);
+}
+
+.tm-kr-row__update {
+  display: flex;
+  flex-basis: 100%;
+  align-items: flex-end;
+  gap: var(--s2);
+}
+
+.tm-kr-row__update .tm-field {
+  flex: 1;
+}
+
+.tm-kr__add > summary {
+  cursor: pointer;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-kr__add[open] > summary {
+  margin-block-end: var(--s3);
+}
+
+/* ── Responsive (responsive-and-desktop.md: rail hidden below 900, single column below 640) ── */
+
+@media (max-width: 1180px) {
+  .tm-por__head,
+  .tm-por-row {
+    grid-template-columns: minmax(0, 1fr) 240px 90px 150px 110px;
+  }
+
+  .tm-obj {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 899px) {
+  .tm-app__body:has(.tm-por) .tm-canvas-header__title {
+    font-size: var(--t-heading-page);
+    line-height: var(--t-heading-page-line);
+  }
+
+  .tm-por__head {
+    display: none;
+  }
+
+  .tm-por-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'name name'
+      'why why'
+      'work activity'
+      'objectives objectives';
+    row-gap: var(--s1);
+    padding-block: var(--s3);
+  }
+
+  .tm-por-row__name {
+    grid-area: name;
+  }
+
+  .tm-por-row__why {
+    grid-area: why;
+  }
+
+  .tm-por-row__cell--work {
+    grid-area: work;
+  }
+
+  .tm-por-row__cell--objectives {
+    grid-area: objectives;
+  }
+
+  .tm-por-row__cell--activity {
+    grid-area: activity;
+  }
+
+  /* Without the column header the figures need their names back. */
+  .tm-por-row__cell dt {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+    display: inline;
+    color: var(--ink-500);
+  }
+
+  .tm-por-row__cell dt::after {
+    content: ' ';
+  }
+
+  .tm-por-row__cell dd {
+    display: inline;
+  }
+
+  .tm-por-metrics {
+    gap: var(--s6);
+  }
+
+  .tm-por-metric__value {
+    font-size: 36px;
+    line-height: 40px;
+  }
+}
+
+@media (max-width: 639px) {
+  .tm-obj-card__body {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tm-obj-card__metric {
+    max-inline-size: none;
+  }
+
+  .tm-obj-card__rule {
+    display: none;
+  }
+
+  .tm-obj-detail__title {
+    font-size: var(--t-heading-section);
+    line-height: var(--t-heading-section-line);
+  }
+}
+
+/* Folded forms: "Set an objective" once objectives exist, and each key result's update. */
+.tm-obj-compose__toggle > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.tm-obj-compose__toggle > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tm-obj-compose__toggle > summary::before {
+  content: '+';
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-md);
+  line-height: 14px;
+  color: var(--ink-650);
+}
+
+.tm-obj-compose__toggle[open] > summary::before {
+  content: '−';
+}
+
+.tm-obj-compose__toggle[open] > summary {
+  margin-block-end: var(--s4);
+}
+
+.tm-kr-row__edit {
+  display: contents;
+}
+
+.tm-kr-row__edit > summary {
+  padding: 3px 9px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-800);
+  cursor: pointer;
+  list-style: none;
+}
+
+.tm-kr-row__edit > summary::-webkit-details-marker {
+  display: none;
+}
+
+.tm-kr-row__edit[open] > summary {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+/* Dark: paper-50 and paper-0 are one value, so the key-result rows step down to paper-250. */
+[data-theme='dark'] .tm-kr-row {
+  background: var(--paper-250);
+}

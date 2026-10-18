@@ -455,7 +455,7 @@ describe('TM-10 second half — paging, sorting, selection, bulk audience', () =
 
     expect(titles()).toEqual(['Beta task', 'Alpha task']);
 
-    const header = screen.getByRole('button', { name: /^Title/ });
+    const header = screen.getByRole('button', { name: /^Work item/ });
     await userEvent.click(header);
     expect(titles()).toEqual(['Alpha task', 'Beta task']);
     expect(header.closest('th')).toHaveAttribute('aria-sort', 'ascending');

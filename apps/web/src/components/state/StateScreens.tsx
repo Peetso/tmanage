@@ -1,7 +1,8 @@
 'use client';
 
-import { useCallback, useId, type ReactNode } from 'react';
+import { useCallback, useId, useState, type ReactNode } from 'react';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
+import { Wordmark } from '../brand/Wordmark';
 import { STATE_COPY, type StateKey } from './state-copy';
 
 /**
@@ -47,6 +48,19 @@ const HEADING_TAG: Record<HeadingLevel, 'h1' | 'h2' | 'h3'> = {
   3: 'h3',
 };
 
+/**
+ * The mono eyebrow above a state's headline (SYS-06: "NOT FOUND", "UNEXPECTED ERROR"). The
+ * error eyebrow carries the danger square in CSS, so it reads by shape as well as by colour.
+ * Hidden from assistive technology: the heading already says the same thing.
+ */
+const EYEBROW: Record<StateKey, string> = {
+  forbidden: 'No access',
+  notFound: 'Not found',
+  serverError: 'Unexpected error',
+  empty: 'Nothing here yet',
+  loading: 'Loading',
+};
+
 /** The glyph each state shows. Decorative — the heading carries the meaning. */
 const GLYPH: Record<StateKey, string> = {
   forbidden: '⦸',
@@ -71,6 +85,8 @@ interface StatePanelProps {
   className?: string | undefined;
   /** Marks the region busy for assistive tech — the loading state only. */
   busy?: boolean | undefined;
+  /** Supporting detail between the text and the actions — SYS-06's reference card. */
+  detail?: ReactNode;
 }
 
 function StatePanel({
@@ -81,6 +97,7 @@ function StatePanel({
   action,
   className,
   busy,
+  detail,
 }: StatePanelProps) {
   const headingId = useId();
   const Heading = HEADING_TAG[headingLevel];
@@ -97,10 +114,16 @@ function StatePanel({
         <span className="tm-state__glyph" aria-hidden="true">
           {GLYPH[state]}
         </span>
-        <Heading id={headingId} className="tm-state__title">
-          {title}
-        </Heading>
-        <p className="tm-state__description">{description}</p>
+        <div className="tm-state__text">
+          <p className="tm-state__eyebrow" aria-hidden="true">
+            {EYEBROW[state]}
+          </p>
+          <Heading id={headingId} className="tm-state__title">
+            {title}
+          </Heading>
+          <p className="tm-state__description">{description}</p>
+        </div>
+        {detail}
         {action ? <div className="tm-state__actions">{action}</div> : null}
       </div>
     </section>
@@ -225,6 +248,33 @@ interface ServerErrorStateProps {
   headingLevel?: HeadingLevel;
   autoFocusAction?: boolean;
   className?: string;
+  /** The error's reference (Next's `digest`), shown so a person can quote it. */
+  reference?: string | undefined;
+}
+
+/** SYS-06's reference card: the id in mono beside a Copy button. */
+function ReferenceCard({ reference }: { reference: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="tm-state__reference">
+      <div className="tm-state__reference-text">
+        <span className="tm-state__reference-label">Reference</span>
+        <code className="tm-state__reference-value">{reference}</code>
+      </div>
+      <button
+        type="button"
+        className="tm-button tm-button--outline tm-button--compact"
+        onClick={() => {
+          navigator.clipboard
+            ?.writeText(reference)
+            .then(() => setCopied(true))
+            .catch(() => setCopied(false));
+        }}
+      >
+        {copied ? 'Copied' : 'Copy'}
+      </button>
+    </div>
+  );
 }
 
 /** 500 — an error here, not anything the person did. Offer a retry, then a way out. */
@@ -237,6 +287,7 @@ export function ServerErrorState({
   headingLevel = 1,
   autoFocusAction = true,
   className,
+  reference,
 }: ServerErrorStateProps) {
   const focusRef = useFocusOnMount(autoFocusAction);
   const copy = STATE_COPY.serverError;
@@ -247,6 +298,7 @@ export function ServerErrorState({
       title={title ?? copy.title}
       description={description ?? copy.description}
       className={className}
+      detail={reference ? <ReferenceCard reference={reference} /> : undefined}
       action={
         onRetry ? (
           <button
@@ -353,12 +405,19 @@ export function LoadingState({
  * and satisfies `A11Y-01`'s skip-link / main / heading requirement structurally. The state's
  * own `<section>` region and `<h1>` nest inside the `<main>`.
  */
-export function StateScreen({ children }: { children: ReactNode }) {
+export function StateScreen({ children, label }: { children: ReactNode; label?: string }) {
   return (
     <LiveAnnouncer>
-      <div className="tm-identity">
+      <div className="tm-state-screen">
         <SkipLink targetId="tm-main" />
-        <main id="tm-main" tabIndex={-1}>
+        {/* SYS-06: a quiet bar with the brand orb and the state's name in mono. */}
+        <header className="tm-state-screen__bar">
+          <a href="/" className="tm-state-screen__mark">
+            <Wordmark variant="icon" label="TManage home" />
+          </a>
+          {label ? <p className="tm-state-screen__label">{label}</p> : null}
+        </header>
+        <main id="tm-main" className="tm-state-screen__main" tabIndex={-1}>
           {children}
         </main>
       </div>

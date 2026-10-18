@@ -4,6 +4,8 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { AutomationSectionTabs } from './AutomationSectionTabs';
+import { listWorkflowTemplates } from '../../lib/api/automations';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   listAutomationSchedules,
@@ -65,6 +67,15 @@ export function AutomationSchedulesScreen({
     queryFn: () => listAutomationSchedules(api, organizationSlug),
   });
 
+  // The library, read to offer automations by name and to name each schedule's template. If it
+  // cannot be read the form falls back to the template id field.
+  const templates = useQuery({
+    queryKey: ['workflow-templates', organizationSlug],
+    queryFn: async () => (await listWorkflowTemplates(api, organizationSlug)) ?? [],
+  });
+  const library = Array.isArray(templates.data) ? templates.data : [];
+  const templateName = (id: string): string => library.find((t) => t.id === id)?.name ?? id;
+
   const [templateId, setTemplateId] = useState('');
   const [interval, setInterval] = useState<ScheduleInterval>('daily');
   const [hour, setHour] = useState('9');
@@ -90,174 +101,260 @@ export function AutomationSchedulesScreen({
 
   const rows = schedules.data ?? [];
   const canCreate = templateId.trim() !== '' && !create.isPending;
+  const onCount = rows.filter((schedule) => schedule.enabled).length;
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Automations · Schedules"
       title="Scheduled triggers"
-      description="When a workflow template should run on its own. A schedule is recorded here; a background runner fires it."
+      {...(rows.length > 0 ? { titleMeta: `${onCount} on · ${rows.length - onCount} off` } : {})}
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-schedule-new-heading">
-        <h2 id="tm-schedule-new-heading" className="tm-eyebrow">
-          New schedule
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canCreate) create.mutate();
-          }}
-        >
-          <Field
-            label="Workflow template ID"
-            name="templateId"
-            value={templateId}
-            onChange={(event) => setTemplateId(event.target.value)}
-            hint="The template this schedule runs. It must belong to this organization."
-            required
-          />
-          <Select
-            label="Interval"
-            name="interval"
-            value={interval}
-            onChange={(event) => setInterval(event.target.value as ScheduleInterval)}
-            hint="How often the schedule fires."
-          >
-            {INTERVALS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
+      <div className="tm-aut">
+        <AutomationSectionTabs
+          organizationSlug={organizationSlug}
+          current="schedules"
+          count={rows.length}
+        />
 
-          {usesHour ? (
-            <Field
-              label="Hour of day (UTC)"
-              name="hour"
-              type="number"
-              min={0}
-              max={23}
-              value={hour}
-              onChange={(event) => setHour(event.target.value)}
-              hint="0–23. The hour, in UTC, the schedule fires."
-            />
-          ) : null}
+        <div className="tm-aut-split tm-aut-split--wide">
+          <section className="tm-aut-col" aria-labelledby="tm-schedule-list-heading">
+            <h2 id="tm-schedule-list-heading" className="tm-visually-hidden">
+              Schedules
+            </h2>
+            <p className="tm-aut-lede">
+              When an automation should run on its own. Every schedule is recorded here, times are
+              in UTC, and each run lands in the run history.
+            </p>
 
-          {usesDay ? (
-            <Select
-              label="Day of week"
-              name="dayOfWeek"
-              value={dayOfWeek}
-              onChange={(event) => setDayOfWeek(event.target.value)}
-              hint="The day of the week the weekly schedule fires."
-            >
-              {DAYS.map((option) => (
-                <option key={option.value} value={String(option.value)}>
-                  {option.label}
-                </option>
-              ))}
-            </Select>
-          ) : null}
+            {schedules.isError ? (
+              <InlineAlert tone="danger" title="Could not load the schedules" live>
+                {describeError(schedules.error)}
+              </InlineAlert>
+            ) : null}
 
-          <Checkbox
-            label="Enabled"
-            name="enabled"
-            checked={enabled}
-            onChange={(event) => setEnabled(event.target.checked)}
-            hint="A disabled schedule is recorded but a runner will skip it."
-          />
+            <div className="tm-aut-tablecard">
+              {schedules.isPending ? (
+                <div className="tm-aut-pad">
+                  <LoadingRegion label="Loading the schedules.">
+                    <Skeleton height="var(--row)" />
+                    <Skeleton height="var(--row)" />
+                  </LoadingRegion>
+                </div>
+              ) : null}
 
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not create the schedule" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
+              {!schedules.isPending && !schedules.isError && rows.length === 0 ? (
+                <div className="tm-aut-empty">
+                  <p className="tm-aut-empty__title">No schedules yet</p>
+                  <p className="tm-aut-empty__body">
+                    Add a schedule with the form. Each one records when an automation should run.
+                  </p>
+                </div>
+              ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Scheduling"
-              disabled={!canCreate}
-            >
-              Create schedule
-            </Button>
+              {rows.length > 0 ? (
+                <div
+                  className="tm-aut-tablecard__scroll"
+                  // A scrollable region must be focusable or a keyboard cannot reach its overflow
+                  // columns (WCAG 2.2 2.1.1), matching the other screens' tables.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Scheduled triggers"
+                >
+                  <table className="tm-aut-table">
+                    <caption className="tm-visually-hidden">
+                      This organization&rsquo;s scheduled triggers, {rows.length} shown, soonest due
+                      first.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Template</th>
+                        <th scope="col" className="tm-aut-hide-sm">
+                          Next run (UTC)
+                        </th>
+                        <th scope="col" className="tm-aut-end">
+                          Enabled
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((schedule) => (
+                        <tr key={schedule.id}>
+                          <th scope="row">
+                            <span className="tm-aut-rowtitle">
+                              {templateName(schedule.templateId)}
+                            </span>
+                            <span className="tm-aut-rowsub">
+                              {describeRecurrence(schedule.spec)}
+                            </span>
+                          </th>
+                          <td className="tm-aut-mono tm-aut-hide-sm">
+                            {formatNextRun(schedule.nextRunAt)}
+                          </td>
+                          <td className="tm-aut-end">
+                            <span
+                              className={`tm-aut-state ${schedule.enabled ? 'tm-aut-state--live' : 'tm-aut-state--off'}`}
+                            >
+                              {schedule.enabled ? 'On' : 'Off'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <div className="tm-aut-col">
+            <section className="tm-aut-card tm-card--ink" aria-labelledby="tm-schedule-new-heading">
+              <p className="tm-aut-eyebrow">New schedule</p>
+              <h2 id="tm-schedule-new-heading" className="tm-aut-card__title">
+                Run an automation on its own
+              </h2>
+              <form
+                className="tm-stack"
+                noValidate
+                onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                  event.preventDefault();
+                  if (canCreate) create.mutate();
+                }}
+              >
+                {library.length > 0 ? (
+                  <Select
+                    label="Automation"
+                    name="templateId"
+                    value={templateId}
+                    onChange={(event) => setTemplateId(event.target.value)}
+                    hint="The automation this schedule runs."
+                    required
+                  >
+                    <option value="">Choose an automation…</option>
+                    {library.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.name}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <Field
+                    label="Workflow template ID"
+                    name="templateId"
+                    value={templateId}
+                    onChange={(event) => setTemplateId(event.target.value)}
+                    hint="The template this schedule runs. It must belong to this organization."
+                    required
+                  />
+                )}
+                <Select
+                  label="Interval"
+                  name="interval"
+                  value={interval}
+                  onChange={(event) => setInterval(event.target.value as ScheduleInterval)}
+                  hint="How often the schedule fires."
+                >
+                  {INTERVALS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+
+                {usesHour ? (
+                  <Field
+                    label="Hour of day (UTC)"
+                    name="hour"
+                    type="number"
+                    min={0}
+                    max={23}
+                    value={hour}
+                    onChange={(event) => setHour(event.target.value)}
+                    hint="0–23. The hour, in UTC, the schedule fires."
+                  />
+                ) : null}
+
+                {usesDay ? (
+                  <Select
+                    label="Day of week"
+                    name="dayOfWeek"
+                    value={dayOfWeek}
+                    onChange={(event) => setDayOfWeek(event.target.value)}
+                    hint="The day of the week the weekly schedule fires."
+                  >
+                    {DAYS.map((option) => (
+                      <option key={option.value} value={String(option.value)}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </Select>
+                ) : null}
+
+                <Checkbox
+                  label="Enabled"
+                  name="enabled"
+                  checked={enabled}
+                  onChange={(event) => setEnabled(event.target.checked)}
+                  hint="A disabled schedule is recorded but a runner will skip it."
+                />
+
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not create the schedule" live>
+                    {describeError(create.error)}
+                  </InlineAlert>
+                ) : null}
+
+                <div className="tm-aut-actions">
+                  <Button
+                    type="submit"
+                    tone="lime"
+                    size="accessible"
+                    loading={create.isPending}
+                    loadingLabel="Scheduling"
+                    disabled={!canCreate}
+                  >
+                    Create schedule
+                  </Button>
+                </div>
+              </form>
+            </section>
+
+            <section className="tm-aut-card" aria-labelledby="tm-schedule-rules-heading">
+              <p className="tm-aut-eyebrow">
+                <span className="tm-aut-eyebrow__square" aria-hidden="true" />
+                How a schedule runs
+              </p>
+              <h2
+                id="tm-schedule-rules-heading"
+                className="tm-aut-card__title tm-aut-card__title--section"
+              >
+                One automation, at a fixed time, recorded every time
+              </h2>
+              <ol className="tm-aut-facts tm-aut-facts--numbered">
+                <li>Times are kept in UTC, so a schedule never drifts with daylight saving.</li>
+                <li>A disabled schedule stays on the list and is skipped until it is turned on.</li>
+                <li>Every run, succeeded or failed, is written to the run history.</li>
+                <li>A schedule only runs automations that belong to this organization.</li>
+              </ol>
+            </section>
           </div>
-        </form>
-      </section>
-
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-schedule-list-heading"
-      >
-        <h2 id="tm-schedule-list-heading" className="tm-eyebrow">
-          Schedules
-        </h2>
-
-        {schedules.isError ? (
-          <InlineAlert tone="danger" title="Could not load the schedules" live>
-            {describeError(schedules.error)}
-          </InlineAlert>
-        ) : null}
-
-        {schedules.isPending ? (
-          <LoadingRegion label="Loading the schedules.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!schedules.isPending && !schedules.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No schedules yet">
-            Add a schedule above. Each one records when a workflow template should run.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the other screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Scheduled triggers"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                This organization&rsquo;s scheduled triggers, {rows.length} shown, soonest due
-                first.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Template</th>
-                  <th scope="col">Recurrence</th>
-                  <th scope="col">Next run (UTC)</th>
-                  <th scope="col">Enabled</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((schedule) => (
-                  <tr key={schedule.id}>
-                    <th scope="row" className="tm-table__title">
-                      {schedule.templateId}
-                    </th>
-                    <td>{describeRecurrence(schedule.spec)}</td>
-                    <td>{schedule.nextRunAt}</td>
-                    <td>{schedule.enabled ? 'Yes' : 'No'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
+        </div>
+      </div>
     </AppShell>
   );
+}
+
+/** The next run as AUT-04's mono stamp, e.g. `28 SEP 08:00`. */
+function formatNextRun(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const day = date
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
+    .toUpperCase();
+  return `${day} ${date.toISOString().slice(11, 16)}`;
 }
 
 /** A short human description of a recurrence spec. */

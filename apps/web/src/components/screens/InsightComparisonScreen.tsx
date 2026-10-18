@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, DateField, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPeriodComparison } from '../../lib/api/insights-comparison';
 import type { ComparisonMetric, PeriodComparisonView } from '../../lib/api/insights-comparison';
@@ -100,60 +101,63 @@ export function InsightComparisonScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
+      eyebrow="Insights"
       title="Period comparison"
       description="Set one metric's count in two windows side by side."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-compare-heading">
-        <h2 id="tm-compare-heading" className="tm-eyebrow">
-          Period comparison
-        </h2>
+      <div className="tm-ins tm-ins-tool">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-compare-heading">
+          <h2 id="tm-compare-heading" className="tm-eyebrow">
+            Period comparison
+          </h2>
 
-        <form
-          className="tm-stack tm-stack--tight"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setSubmitted({
-              metric,
-              periodA: windowParam(aStart, aEnd),
-              periodB: windowParam(bStart, bEnd),
-            });
-          }}
-        >
-          <Select
-            label="Metric"
-            value={metric}
-            onChange={(event) => setMetric(event.currentTarget.value as ComparisonMetric)}
+          <form
+            className="tm-stack tm-stack--tight"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSubmitted({
+                metric,
+                periodA: windowParam(aStart, aEnd),
+                periodB: windowParam(bStart, bEnd),
+              });
+            }}
           >
-            {METRIC_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
+            <Select
+              label="Metric"
+              value={metric}
+              onChange={(event) => setMetric(event.currentTarget.value as ComparisonMetric)}
+            >
+              {METRIC_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
 
-          <DateField label="Period A start" value={aStart} onValueChange={setAStart} />
-          <DateField label="Period A end" value={aEnd} onValueChange={setAEnd} />
-          <DateField label="Period B start" value={bStart} onValueChange={setBStart} />
-          <DateField label="Period B end" value={bEnd} onValueChange={setBEnd} />
+            <DateField label="Period A start" value={aStart} onValueChange={setAStart} />
+            <DateField label="Period A end" value={aEnd} onValueChange={setAEnd} />
+            <DateField label="Period B start" value={bStart} onValueChange={setBStart} />
+            <DateField label="Period B end" value={bEnd} onValueChange={setBEnd} />
 
-          <Button type="submit">Compare</Button>
-        </form>
+            <Button type="submit">Compare</Button>
+          </form>
 
-        {comparison.isPending ? (
-          <LoadingRegion label="Loading the comparison." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+          {comparison.isPending ? (
+            <LoadingRegion label="Loading the comparison." className="tm-stack tm-stack--tight">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {comparison.isError ? (
-          <InlineAlert tone="danger" title="Could not load the comparison" live>
-            {describe(comparison.error)}
-          </InlineAlert>
-        ) : null}
+          {comparison.isError ? (
+            <InlineAlert tone="danger" title="Could not load the comparison" live>
+              {describe(comparison.error)}
+            </InlineAlert>
+          ) : null}
 
-        {comparison.isSuccess ? <ComparisonCards comparison={comparison.data} /> : null}
-      </section>
+          {comparison.isSuccess ? <ComparisonCards comparison={comparison.data} /> : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   INSIGHT_METRIC_KEYS,
@@ -116,86 +117,92 @@ export function InsightDashboardLayoutScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      eyebrow="Insights"
       title="Customise insights dashboard"
       description="Reorder or hide the metric tiles on your insights dashboard — saved to your account."
     >
-      {layout.isPending ? (
-        <LoadingRegion label="Loading your dashboard layout">
-          <Skeleton />
-        </LoadingRegion>
-      ) : layout.isError ? (
-        <InlineAlert tone="danger" title="We could not load your dashboard layout">
-          {errorMessage(layout.error)}
-        </InlineAlert>
-      ) : (
-        <form
-          className="tm-panel tm-stack"
-          aria-labelledby="tm-insight-layout-heading"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setSaved(false);
-            save.mutate();
-          }}
-        >
-          <h2 id="tm-insight-layout-heading" className="tm-eyebrow">
-            Metric tiles
-          </h2>
+      <div className="tm-ins tm-ins-tool">
+        {layout.isPending ? (
+          <LoadingRegion label="Loading your dashboard layout">
+            <Skeleton />
+          </LoadingRegion>
+        ) : layout.isError ? (
+          <InlineAlert tone="danger" title="We could not load your dashboard layout">
+            {errorMessage(layout.error)}
+          </InlineAlert>
+        ) : (
+          <form
+            className="tm-panel tm-stack"
+            aria-labelledby="tm-insight-layout-heading"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setSaved(false);
+              save.mutate();
+            }}
+          >
+            <h2 id="tm-insight-layout-heading" className="tm-eyebrow">
+              Metric tiles
+            </h2>
 
-          <ul className="tm-stack" aria-label="Insight metric tiles">
-            {tiles.map((tile, index) => (
-              <li className="tm-field tm-field--inline" key={tile.key}>
-                <span className="tm-field__label">{METRIC_LABELS[tile.key]}</span>
-                <Button
-                  type="button"
-                  tone="outline"
-                  disabled={index === 0}
-                  aria-label={`Move ${METRIC_LABELS[tile.key]} up`}
-                  onClick={() => move(index, -1)}
-                >
-                  Up
-                </Button>
-                <Button
-                  type="button"
-                  tone="outline"
-                  disabled={index === tiles.length - 1}
-                  aria-label={`Move ${METRIC_LABELS[tile.key]} down`}
-                  onClick={() => move(index, 1)}
-                >
-                  Down
-                </Button>
-                <input
-                  id={`tm-insight-tile-visible-${tile.key}`}
-                  className="tm-field__control"
-                  type="checkbox"
-                  checked={tile.visible}
-                  onChange={(event) => toggleVisible(index, event.target.checked)}
-                />
-                <label className="tm-field__label" htmlFor={`tm-insight-tile-visible-${tile.key}`}>
-                  Show
-                </label>
-              </li>
-            ))}
-          </ul>
+            <ul className="tm-stack" aria-label="Insight metric tiles">
+              {tiles.map((tile, index) => (
+                <li className="tm-field tm-field--inline" key={tile.key}>
+                  <span className="tm-field__label">{METRIC_LABELS[tile.key]}</span>
+                  <Button
+                    type="button"
+                    tone="outline"
+                    disabled={index === 0}
+                    aria-label={`Move ${METRIC_LABELS[tile.key]} up`}
+                    onClick={() => move(index, -1)}
+                  >
+                    Up
+                  </Button>
+                  <Button
+                    type="button"
+                    tone="outline"
+                    disabled={index === tiles.length - 1}
+                    aria-label={`Move ${METRIC_LABELS[tile.key]} down`}
+                    onClick={() => move(index, 1)}
+                  >
+                    Down
+                  </Button>
+                  <input
+                    id={`tm-insight-tile-visible-${tile.key}`}
+                    className="tm-field__control"
+                    type="checkbox"
+                    checked={tile.visible}
+                    onChange={(event) => toggleVisible(index, event.target.checked)}
+                  />
+                  <label
+                    className="tm-field__label"
+                    htmlFor={`tm-insight-tile-visible-${tile.key}`}
+                  >
+                    Show
+                  </label>
+                </li>
+              ))}
+            </ul>
 
-          {save.isError ? (
-            <InlineAlert tone="danger" title="We could not save your dashboard layout">
-              {errorMessage(save.error)}
-            </InlineAlert>
-          ) : null}
+            {save.isError ? (
+              <InlineAlert tone="danger" title="We could not save your dashboard layout">
+                {errorMessage(save.error)}
+              </InlineAlert>
+            ) : null}
 
-          {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved">
-              Your insights dashboard layout has been saved.
-            </InlineAlert>
-          ) : null}
+            {saved && !save.isPending && !save.isError ? (
+              <InlineAlert tone="success" title="Saved">
+                Your insights dashboard layout has been saved.
+              </InlineAlert>
+            ) : null}
 
-          <div>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save layout'}
-            </Button>
-          </div>
-        </form>
-      )}
+            <div>
+              <Button type="submit" disabled={save.isPending}>
+                {save.isPending ? 'Saving…' : 'Save layout'}
+              </Button>
+            </div>
+          </form>
+        )}
+      </div>
     </AppShell>
   );
 }

@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listBillingCredits, postBillingCredit } from '../../lib/api/billing-credits';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface BillingCreditsScreenProps {
   organizationSlug: string;
@@ -68,115 +69,119 @@ export function BillingCreditsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Billing credits"
       description="Record manual credits and adjustments against this organization's account."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-credit-add-heading">
-        <h2 id="tm-credit-add-heading" className="tm-eyebrow">
-          Post a credit or adjustment
-        </h2>
-        <p className="tm-muted">
-          Current balance: <strong>{formatCurrency(balance)}</strong>
-        </p>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canPost) post.mutate();
-          }}
-        >
-          <Field
-            label="Amount"
-            name="amount"
-            type="number"
-            step="0.01"
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            hint="In your billing currency. A negative amount records an adjustment."
-            required
-          />
-          <Field
-            label="Reason"
-            name="reason"
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            hint="Why this credit is being posted — e.g. Goodwill credit, Overbill adjustment."
-            required
-          />
+      <div className="tm-bil">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-credit-add-heading">
+          <h2 id="tm-credit-add-heading" className="tm-eyebrow">
+            Post a credit or adjustment
+          </h2>
+          <p className="tm-muted">
+            Current balance: <strong>{formatCurrency(balance)}</strong>
+          </p>
+          <form
+            className="tm-stack"
+            noValidate
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (canPost) post.mutate();
+            }}
+          >
+            <Field
+              label="Amount"
+              name="amount"
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              hint="In your billing currency. A negative amount records an adjustment."
+              required
+            />
+            <Field
+              label="Reason"
+              name="reason"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              hint="Why this credit is being posted — e.g. Goodwill credit, Overbill adjustment."
+              required
+            />
 
-          {post.isError ? (
-            <InlineAlert tone="danger" title="Could not post the credit" live>
-              {describeError(post.error)}
+            {post.isError ? (
+              <InlineAlert tone="danger" title="Could not post the credit" live>
+                {describeError(post.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={post.isPending}
+                loadingLabel="Posting"
+                disabled={!canPost}
+              >
+                Post credit
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="tm-panel tm-panel--quiet tm-stack"
+          aria-labelledby="tm-credit-list-heading"
+        >
+          <h2 id="tm-credit-list-heading" className="tm-eyebrow">
+            Ledger {credits.isSuccess ? `(${rows.length})` : ''}
+          </h2>
+
+          {credits.isError ? (
+            <InlineAlert tone="danger" title="Could not load the credits" live>
+              {describeError(credits.error)}
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={post.isPending}
-              loadingLabel="Posting"
-              disabled={!canPost}
-            >
-              Post credit
-            </Button>
-          </div>
-        </form>
-      </section>
+          {credits.isPending ? (
+            <LoadingRegion label="Loading the credit ledger.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-credit-list-heading"
-      >
-        <h2 id="tm-credit-list-heading" className="tm-eyebrow">
-          Ledger {credits.isSuccess ? `(${rows.length})` : ''}
-        </h2>
+          {credits.isSuccess && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No credits yet">
+              Post a credit or adjustment with the form to start the ledger.
+            </InlineAlert>
+          ) : null}
 
-        {credits.isError ? (
-          <InlineAlert tone="danger" title="Could not load the credits" live>
-            {describeError(credits.error)}
-          </InlineAlert>
-        ) : null}
-
-        {credits.isPending ? (
-          <LoadingRegion label="Loading the credit ledger.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {credits.isSuccess && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No credits yet">
-            Post a credit or adjustment above to start the ledger.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">
-              The organization&rsquo;s credit and adjustment ledger, newest first.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Posted</th>
-                <th scope="col">Reason</th>
-                <th scope="col">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((credit) => (
-                <tr key={credit.id}>
-                  <td>{new Date(credit.createdAt).toLocaleString()}</td>
-                  <td>{credit.reason}</td>
-                  <td>{formatCurrency(credit.amount)}</td>
+          {rows.length > 0 ? (
+            <table className="tm-table">
+              <caption className="tm-visually-hidden">
+                The organization&rsquo;s credit and adjustment ledger, newest first.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Posted</th>
+                  <th scope="col">Reason</th>
+                  <th scope="col">Amount</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
+              </thead>
+              <tbody>
+                {rows.map((credit) => (
+                  <tr key={credit.id}>
+                    <td>{new Date(credit.createdAt).toLocaleString()}</td>
+                    <td>{credit.reason}</td>
+                    <td>{formatCurrency(credit.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

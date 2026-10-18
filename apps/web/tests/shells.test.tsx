@@ -74,7 +74,7 @@ describe('AppShell', () => {
     const rail = screen.getByRole('navigation', { name: 'Primary' });
     const current = within(rail).getByRole('link', { name: 'Work' });
     expect(current).toHaveAttribute('aria-current', 'page');
-    expect(within(rail).getByRole('link', { name: 'Home' })).not.toHaveAttribute('aria-current');
+    expect(within(rail).getByRole('link', { name: 'My Day' })).not.toHaveAttribute('aria-current');
   });
 
   it('renders the context rail and the lens only when they are given', () => {

@@ -1,0 +1,868 @@
+/*
+ * Control Center (ADM-01 … ADM-14, "TManage Screens - Administration").
+ *
+ * Every colour is a token. The frames share one language: a display headline, a two-column
+ * split (the working surface and an aside), white 24px cards on the paper canvas, table cards
+ * with mono column heads on paper-50, the black "act first" card with a lime eyebrow, and an
+ * orange edge on the one thing that needs attention.
+ */
+
+/* ── Section map (ADM-01/02 left column; ADM-03 lists roles there) ─────────────────────── */
+
+.tm-context-rail:has(.tm-cc-sections) {
+  align-self: stretch;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tm-cc-sections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  min-block-size: 100%;
+}
+
+.tm-cc-sections__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-cc-sections__group--foot {
+  margin-block-start: auto;
+  padding-block-start: var(--s6);
+}
+
+.tm-cc-sections__label {
+  margin: 0 0 var(--s2);
+  padding-inline: var(--s3);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cc-sections__item {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: 36px;
+  padding: 7px var(--s3);
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-control);
+  background: transparent;
+  color: var(--ink-800);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tm-cc-sections__item:hover {
+  background: var(--paper-50);
+  color: var(--ink-950);
+}
+
+.tm-cc-sections__item[aria-current='page'],
+.tm-cc-sections__item[aria-pressed='true'] {
+  border-color: var(--line-300);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-weight: 500;
+}
+
+.tm-cc-sections__new {
+  justify-content: center;
+  margin-block-start: var(--s3);
+  border: var(--b-quiet) dashed var(--line-300);
+  color: var(--ink-650);
+}
+
+/* ── Layout ────────────────────────────────────────────────────────────────────────── */
+
+.tm-cc-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.72fr) minmax(320px, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.tm-cc-split--even {
+  grid-template-columns: minmax(0, 1.12fr) minmax(320px, 1fr);
+}
+
+.tm-cc-split--stretch {
+  align-items: stretch;
+}
+
+.tm-cc-column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  min-inline-size: 0;
+}
+
+@media (max-width: 1100px) {
+  .tm-cc-split,
+  .tm-cc-split--even {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────────────────── */
+
+.tm-cc-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+.tm-cc-card--quiet {
+  background: var(--paper-50);
+}
+
+.tm-cc-card--attention {
+  border-color: var(--warning-600);
+}
+
+.tm-cc-card--flush {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.tm-cc-card--ink {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: var(--paper-50);
+}
+
+[data-theme='dark'] .tm-cc-card--ink {
+  border-color: var(--line-300);
+  background: var(--paper-350);
+  color: var(--ink-950);
+}
+
+.tm-cc-card--fill {
+  min-block-size: 100%;
+}
+
+.tm-cc-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cc-eyebrow--warning {
+  color: var(--warning-600);
+}
+
+.tm-cc-card--ink .tm-cc-eyebrow {
+  color: var(--lime-500);
+}
+
+[data-theme='dark'] .tm-cc-card--ink .tm-cc-eyebrow {
+  color: var(--lime-600);
+}
+
+.tm-cc-orb {
+  flex: none;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+}
+
+.tm-cc-card__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
+}
+
+.tm-cc-card__lead {
+  margin: 0;
+  max-inline-size: 30em;
+  font-size: 22px;
+  line-height: 31px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: inherit;
+}
+
+.tm-cc-card:not(.tm-cc-card--ink) .tm-cc-card__lead {
+  color: var(--ink-950);
+}
+
+.tm-cc-card__body {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-cc-card--ink .tm-cc-card__body {
+  color: var(--tm-inverted-muted);
+}
+
+.tm-cc-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.tm-cc-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-cc-card__actions--end {
+  margin-block-start: auto;
+}
+
+.tm-cc-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s6);
+  align-items: center;
+  padding: 28px;
+}
+
+.tm-cc-hero__actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 220px;
+}
+
+.tm-cc-hero__actions > * {
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .tm-cc-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.tm-cc-rule {
+  block-size: 0;
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-cc-card--ink .tm-cc-rule {
+  border-block-start-color: var(--tm-inverted-line);
+}
+
+.tm-cc-note {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+/* ── Metric cards (ADM-01 "3 invitations…", ADM-12 "14 open work items") ─────────────── */
+
+.tm-cc-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-cc-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-cc-metric__value {
+  margin: 0 0 var(--s2);
+  font-size: 44px;
+  line-height: 48px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-950);
+}
+
+.tm-cc-metric__label {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-800);
+}
+
+.tm-cc-metric__source {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cc-metric--attention {
+  border-color: var(--warning-600);
+}
+
+.tm-cc-metric--attention .tm-cc-metric__value {
+  color: var(--warning-600);
+}
+
+/* ── Setting rows (ADM-08 "Single sign-on … On") ──────────────────────────────────── */
+
+.tm-cc-rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-cc-rows > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding-block: 18px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-cc-rows > li:first-child {
+  padding-block-start: 0;
+}
+
+.tm-cc-rows > li:last-child {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+
+.tm-cc-rows__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-cc-rows__grow {
+  flex: 1;
+}
+
+.tm-cc-rows__title {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-cc-rows__sub {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+/* ── Pills (On / Link only / Full / Ending / Client / Policy) ──────────────────────── */
+
+.tm-cc-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-block-size: 26px;
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-cc-pill--on {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-cc-pill--muted {
+  border-color: var(--paper-150);
+  background: var(--paper-150);
+  color: var(--ink-650);
+}
+
+.tm-cc-pill--warning {
+  border-color: var(--warning-600);
+  color: var(--warning-600);
+}
+
+.tm-cc-pill--danger {
+  border-color: var(--danger-600);
+  color: var(--danger-600);
+}
+
+.tm-cc-pill--client {
+  border-color: var(--client-500);
+  color: var(--client-500);
+}
+
+/* ── Table cards (ADM-02 members, ADM-09 events, ADM-12 transfers) ─────────────────── */
+
+.tm-cc-table {
+  inline-size: 100%;
+}
+
+.tm-cc-table th:first-child,
+.tm-cc-table td:first-child {
+  padding-inline-start: var(--s5);
+}
+
+.tm-cc-table th:last-child,
+.tm-cc-table td:last-child {
+  padding-inline-end: var(--s5);
+}
+
+.tm-cc-table tbody td,
+.tm-cc-table tbody th {
+  padding-block: 14px;
+}
+
+.tm-cc-table .tm-cc-end {
+  text-align: end;
+}
+
+.tm-cc-cell-title {
+  display: block;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-cc-cell-sub {
+  display: block;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-cc-cell-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.tm-cc-table tr[aria-selected='true'] td,
+.tm-cc-table tr[data-selected='true'] td {
+  background: var(--paper-50);
+}
+
+.tm-cc-table tr[aria-selected='true'] td:first-child,
+.tm-cc-table tr[data-selected='true'] td:first-child {
+  box-shadow: inset 3px 0 0 var(--ink-950);
+}
+
+.tm-cc-table-foot {
+  display: flex;
+  justify-content: center;
+  padding: var(--s4);
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+}
+
+/* A table card's own empty / loading / error line. */
+.tm-cc-card__inset {
+  padding: var(--s5);
+}
+
+/* ── Key / value list (ADM-09 event aside) ─────────────────────────────────────────── */
+
+.tm-cc-dl {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr);
+  gap: var(--s3) var(--s4);
+  margin: 0;
+}
+
+.tm-cc-dl dt {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 20px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cc-dl dd {
+  margin: 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--t-ui-md);
+  line-height: 20px;
+  color: var(--ink-950);
+}
+
+/* ── Recent changes (ADM-01) ───────────────────────────────────────────────────────── */
+
+.tm-cc-recent {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-cc-recent > li {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  gap: var(--s4);
+  align-items: center;
+  padding-block: 11px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-cc-recent > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-cc-recent__when {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-cc-recent__mark {
+  inline-size: 9px;
+  block-size: 9px;
+  background: var(--ink-950);
+}
+
+/* ── Capability matrix (ADM-03) ────────────────────────────────────────────────────── */
+
+.tm-cc-matrix {
+  margin: 0;
+  padding: 0;
+  min-inline-size: 0;
+}
+
+.tm-cc-matrix__head {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--s3) var(--s5);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cc-matrix__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-cc-matrix__list > li {
+  padding: 10px var(--s5);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-cc-matrix__list > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-cc-matrix__list > li[data-changed='true'] {
+  background: var(--paper-50);
+  box-shadow: inset 3px 0 0 var(--ink-950);
+}
+
+.tm-cc-matrix__list .tm-choice {
+  border: 0;
+  padding: 0;
+  min-block-size: 32px;
+  background: transparent;
+}
+
+/* ── Day capsules (ADM-14 working days, language) ──────────────────────────────────── */
+
+.tm-cc-field-label {
+  margin: 0 0 var(--s2);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cc-card .tm-field__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cc-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.tm-cc-form__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+}
+
+@media (max-width: 640px) {
+  .tm-cc-form__pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ── Progress bar (ADM-02 seats, ADM-10 import) ────────────────────────────────────── */
+
+.tm-cc-bar {
+  block-size: 12px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  overflow: hidden;
+}
+
+.tm-cc-bar__fill {
+  block-size: 100%;
+  border-radius: inherit;
+  background: var(--ink-950);
+}
+
+.tm-cc-card--ink .tm-cc-bar {
+  background: var(--tm-inverted-raised);
+}
+
+.tm-cc-card--ink .tm-cc-bar__fill {
+  background: var(--lime-500);
+}
+
+/* ── Person orb (ADM-12 "KN") ──────────────────────────────────────────────────────── */
+
+.tm-cc-person {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+}
+
+.tm-cc-person__orb {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 64px;
+  block-size: 64px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+/* ── Phone and tablet (responsive-and-desktop.md: one column below 900) ────────────── */
+
+@media (max-width: 640px) {
+  .tm-cc-card {
+    padding: var(--s5);
+  }
+
+  .tm-cc-recent > li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .tm-cc-recent__when {
+    grid-column: 1 / -1;
+  }
+
+  .tm-cc-dl {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .tm-cc-dl dd {
+    margin-block-end: var(--s2);
+  }
+
+  .tm-cc-metric__value {
+    font-size: 36px;
+    line-height: 40px;
+  }
+}
+
+/* A table card's own scroller sits inside the card's border, so it draws none of its own. */
+.tm-cc-table-plain {
+  border: 0;
+  border-radius: 0;
+}
+
+/* The row's title as a button that selects it (ADM-09 event, ADM-12 transfer). */
+.tm-cc-row-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-cc-row-button:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--lime-600);
+  text-underline-offset: 0.2em;
+}
+
+/* A checkbox on the black card takes the card's own ink. */
+.tm-cc-card--ink .tm-choice__label,
+.tm-cc-card--ink .tm-choice__hint {
+  color: inherit;
+}
+
+/* ADM-14: a setting's field with its own save beside it. */
+.tm-cc-setting {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s3);
+  align-items: start;
+}
+
+.tm-cc-setting > .tm-button {
+  margin-block-start: 22px;
+}
+
+@media (max-width: 640px) {
+  .tm-cc-setting {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-cc-setting > .tm-button {
+    margin-block-start: 0;
+    justify-self: start;
+  }
+}
+
+/* The Switch / Checkbox primitives draw their own bordered box; inside a setting row the row is the box. */
+.tm-cc-rows .tm-choice {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* Below 900px the section map (and ADM-03's role list) becomes one scrolling row of capsules
+   above the canvas, so the page's own content is not pushed below a tall list. */
+@media (max-width: 900px) {
+  .tm-context-rail:has(.tm-cc-sections) {
+    inline-size: auto;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+  }
+
+  .tm-cc-sections {
+    flex-direction: row;
+    gap: var(--s2);
+    min-block-size: 0;
+    padding-block-end: var(--s1);
+    overflow-x: auto;
+  }
+
+  .tm-cc-sections > div {
+    display: contents;
+  }
+
+  .tm-cc-sections__label {
+    display: none;
+  }
+
+  .tm-cc-sections__group,
+  .tm-cc-sections__group--foot {
+    flex: none;
+    flex-direction: row;
+    gap: var(--s2);
+    margin: 0;
+    padding: 0;
+  }
+
+  .tm-cc-sections__item {
+    white-space: nowrap;
+    border-color: var(--line-300);
+    border-radius: var(--r-capsule);
+    background: var(--paper-0);
+  }
+
+  .tm-cc-sections__item[aria-current='page'],
+  .tm-cc-sections__item[aria-pressed='true'] {
+    border-color: var(--ink-950);
+    background: var(--ink-950);
+    color: var(--paper-50);
+  }
+
+  .tm-cc-sections__new {
+    flex: none;
+    margin: 0;
+    inline-size: auto;
+  }
+}

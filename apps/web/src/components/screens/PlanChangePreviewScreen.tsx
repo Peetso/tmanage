@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, Select } from '@tmanage/ui';
+import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPlanChangePreview } from '../../lib/api/plan-preview';
 import type { PlanChangePreviewView } from '../../lib/api/plan-preview';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface PlanChangePreviewScreenProps {
   organizationSlug: string;
@@ -53,63 +54,134 @@ export function PlanChangePreviewScreen({
     mutationFn: () => fetchPlanChangePreview(api, organizationSlug, target, Number(seats)),
   });
 
+  const seatCount = Number(seats);
+  const stepSeats = (by: number) => {
+    const next = Math.min(1000, Math.max(1, (Number.isFinite(seatCount) ? seatCount : 1) + by));
+    setSeats(String(next));
+  };
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing · Change plan"
       title="Plan-change preview"
       description="Estimate what moving to another plan would cost, before you request the change."
+      headerAside={<p className="tm-bil-aside-note">Nothing is charged until you request it</p>}
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-plan-preview-heading">
-        <h2 id="tm-plan-preview-heading" className="tm-eyebrow">
+      <form
+        className="tm-bil-stack"
+        aria-labelledby="tm-plan-preview-heading"
+        onSubmit={(event) => {
+          event.preventDefault();
+          preview.mutate();
+        }}
+      >
+        <h2 id="tm-plan-preview-heading" className="tm-visually-hidden">
           Estimate a change
         </h2>
 
-        <form
-          className="tm-stack tm-stack--tight"
-          onSubmit={(event) => {
-            event.preventDefault();
-            preview.mutate();
-          }}
-        >
-          <Select
-            label="Target plan"
-            value={target}
-            onChange={(event) => setTarget(event.target.value)}
+        <fieldset className="tm-bil-plans">
+          <legend className="tm-visually-hidden">Target plan</legend>
+          {PLAN_OPTIONS.map((plan) => (
+            <label key={plan.id} className="tm-bil-plan">
+              <input
+                type="radio"
+                name="previewPlan"
+                value={plan.id}
+                checked={target === plan.id}
+                onChange={() => setTarget(plan.id)}
+              />
+              <span className="tm-bil-plan__head">
+                <span className="tm-bil-eyebrow">Plan</span>
+                {preview.data?.currentPlanId === plan.id ? (
+                  <span className="tm-bil-status tm-bil-status--lime">Current</span>
+                ) : null}
+              </span>
+              <span className="tm-bil-plan__name">{plan.label}</span>
+              <span className="tm-bil-plan__foot">
+                <span className="tm-bil-pill-wide">
+                  {target === plan.id ? 'Selected for the estimate' : `Estimate ${plan.label}`}
+                </span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+
+        <div className="tm-bil-split">
+          <section className="tm-bil-card tm-card tm-card--ink" aria-live="polite">
+            {preview.isSuccess ? (
+              <PreviewResult preview={preview.data} />
+            ) : (
+              <>
+                <p className="tm-bil-eyebrow">Pick a plan and a seat count</p>
+                <p className="tm-bil-card__lead">
+                  See the new monthly figure and the change against today before anything is
+                  requested.
+                </p>
+              </>
+            )}
+
+            {preview.isError ? (
+              <InlineAlert tone="danger" title="Could not estimate the change" live>
+                {describe(preview.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-bil-actions tm-bil-actions--foot">
+              <Button type="submit" tone="lime" disabled={preview.isPending}>
+                {preview.isPending ? 'Estimating…' : 'Preview change'}
+              </Button>
+            </div>
+          </section>
+
+          <section
+            className="tm-bil-card tm-bil-card--paper"
+            aria-labelledby="tm-plan-seats-heading"
           >
-            {PLAN_OPTIONS.map((plan) => (
-              <option key={plan.id} value={plan.id}>
-                {plan.label}
-              </option>
-            ))}
-          </Select>
-
-          <Field
-            label="Seats"
-            type="number"
-            min={1}
-            max={1000}
-            step={1}
-            value={seats}
-            onChange={(event) => setSeats(event.target.value)}
-            hint="Previewing does not charge you. Billing is arranged separately."
-          />
-
-          <div>
-            <Button type="submit" disabled={preview.isPending}>
-              {preview.isPending ? 'Estimating…' : 'Preview change'}
-            </Button>
-          </div>
-        </form>
-
-        {preview.isError ? (
-          <InlineAlert tone="danger" title="Could not estimate the change" live>
-            {describe(preview.error)}
-          </InlineAlert>
-        ) : null}
-
-        {preview.isSuccess ? <PreviewResult preview={preview.data} /> : null}
-      </section>
+            <h3 id="tm-plan-seats-heading" className="tm-bil-card__title">
+              Seats for {planLabel(target)}
+            </h3>
+            <div className="tm-bil-stepper">
+              <button
+                type="button"
+                className="tm-bil-stepper__button"
+                aria-label="One seat fewer"
+                disabled={seatCount <= 1}
+                onClick={() => stepSeats(-1)}
+              >
+                −
+              </button>
+              <Field
+                label="Seats"
+                type="number"
+                min={1}
+                max={1000}
+                step={1}
+                value={seats}
+                onChange={(event) => setSeats(event.target.value)}
+                className="tm-bil-stepper__field"
+              />
+              <button
+                type="button"
+                className="tm-bil-stepper__button"
+                aria-label="One seat more"
+                disabled={seatCount >= 1000}
+                onClick={() => stepSeats(1)}
+              >
+                +
+              </button>
+            </div>
+            <p className="tm-bil-card__body">
+              Previewing does not charge you. Billing is arranged separately.
+            </p>
+            <p className="tm-bil-card__foot">
+              Request the change on the subscription screen once the estimate looks right.
+            </p>
+          </section>
+        </div>
+      </form>
     </AppShell>
   );
 }
@@ -117,43 +189,32 @@ export function PlanChangePreviewScreen({
 function PreviewResult({ preview }: { preview: PlanChangePreviewView }) {
   const delta = preview.estimatedDeltaCents;
   const direction = delta > 0 ? 'more' : delta < 0 ? 'less' : 'the same';
+  const lead =
+    delta === 0
+      ? 'The same each month. Nothing is charged by this estimate.'
+      : `${money(Math.abs(delta), preview.currency, false)} ${direction} a month. Nothing is charged by this estimate.`;
 
   return (
-    <div className="tm-stack tm-stack--tight" aria-live="polite">
-      <dl className="tm-detail-list">
-        <div className="tm-detail-list__pair">
-          <dt>Current plan</dt>
-          <dd className="tm-mono">{planLabel(preview.currentPlanId)}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Target plan</dt>
-          <dd className="tm-mono">{planLabel(preview.targetPlanId)}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Seats</dt>
-          <dd className="tm-mono">{preview.seats}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Current monthly</dt>
-          <dd className="tm-mono">{money(preview.currentMonthlyCents, preview.currency)}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>New monthly</dt>
-          <dd className="tm-mono">{money(preview.targetMonthlyCents, preview.currency)}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Estimated change</dt>
-          <dd className="tm-mono">
-            {money(delta, preview.currency)} / month ({direction})
-          </dd>
-        </div>
-      </dl>
-
-      <InlineAlert tone="neutral" title="Estimate only">
-        This is an estimate — nothing has been charged. Request the change on the subscription
-        screen; billing is arranged separately.
-      </InlineAlert>
-    </div>
+    <>
+      <p className="tm-bil-eyebrow">
+        If you go from {planLabel(preview.currentPlanId)} to {planLabel(preview.targetPlanId)}
+      </p>
+      <p className="tm-bil-card__lead">{lead}</p>
+      <ul className="tm-bil-points">
+        <li>
+          {planLabel(preview.targetPlanId)} for {preview.seats}{' '}
+          {preview.seats === 1 ? 'seat' : 'seats'} is{' '}
+          {money(preview.targetMonthlyCents, preview.currency, false)} a month
+        </li>
+        <li>
+          Today {planLabel(preview.currentPlanId)} is{' '}
+          {money(preview.currentMonthlyCents, preview.currency, false)} a month
+        </li>
+        <li data-tone={delta > 0 ? 'warning' : undefined}>
+          Estimated change {money(delta, preview.currency)} / month ({direction})
+        </li>
+      </ul>
+    </>
   );
 }
 
@@ -161,14 +222,14 @@ function planLabel(planId: string): string {
   return PLAN_OPTIONS.find((plan) => plan.id === planId)?.label ?? planId;
 }
 
-/** Format integer cents as a signed currency amount. Deterministic; the API sends integer cents. */
-function money(cents: number, currency: string): string {
+/** Format integer cents as a currency amount (signed by default). The API sends integer cents. */
+function money(cents: number, currency: string, signed = true): string {
   const amount = cents / 100;
   try {
     return new Intl.NumberFormat(undefined, {
       style: 'currency',
       currency: currency.toUpperCase(),
-      signDisplay: 'exceptZero',
+      signDisplay: signed ? 'exceptZero' : 'auto',
     }).format(amount);
   } catch {
     return `${amount.toFixed(2)} ${currency.toUpperCase()}`;

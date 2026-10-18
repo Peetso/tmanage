@@ -117,7 +117,7 @@ describe('TM-04 the inbox', () => {
     expect(request).toHaveAttribute('href', '/northstar/work/requests/req-9');
 
     // The "why" is the event type in words, and the count is a count.
-    const workRow = work.closest('tr') as HTMLTableRowElement;
+    const workRow = work.closest('li') as HTMLLIElement;
     expect(within(workRow).getByText('Work item · Blocked')).toBeInTheDocument();
     expect(within(workRow).getByText(/3 updates/)).toBeInTheDocument();
     expect(within(workRow).getByText('2 unread')).toBeInTheDocument();
@@ -172,7 +172,7 @@ describe('TM-04 the inbox', () => {
 
     const cell = await screen.findByText('Storage at 85% — 8.5 GB of 10 GB');
     // No object to open: a usage notice is a plain line, not a link.
-    const row = cell.closest('tr') as HTMLTableRowElement;
+    const row = cell.closest('li') as HTMLLIElement;
     expect(within(row).queryByRole('link')).not.toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Mark read: Storage usage' }));
@@ -303,7 +303,7 @@ describe('TM-04 the inbox', () => {
     // One row, not two: the API bundled per page, the screen bundles across them.
     const rows = screen.getAllByRole('link', { name: 'Prepare mobile booking flow concepts' });
     expect(rows).toHaveLength(1);
-    const row = rows[0]?.closest('tr') as HTMLTableRowElement;
+    const row = rows[0]?.closest('li') as HTMLLIElement;
     expect(within(row).getByText(/3 updates/)).toBeInTheDocument();
     expect(within(row).getByText('2 unread')).toBeInTheDocument();
     expect(within(row).getByText('Work item · Blocked, Request answered')).toBeInTheDocument();
@@ -383,11 +383,13 @@ describe('TM-04 the inbox', () => {
     expect(alert).toHaveTextContent('The query is invalid');
   });
 
-  it('names what is not built, with the ticket that will build it', async () => {
+  it('shows no developer notes on the screen a person uses', async () => {
+    // 2026-10-18 visual rebuild: the "Not available yet" backlog note was a developer artefact
+    // the IN-01 frame does not draw, so it is gone; the empty state is the frame's caught-up card.
     const { client } = clientOver(() => json({ items: [], nextCursor: null }));
     render(withQuery(<InboxScreen {...NAMES} client={client} />));
 
     expect(await screen.findByText('Nothing has happened yet')).toBeInTheDocument();
-    expect(screen.getByText('Not available yet — INBOX-001')).toBeInTheDocument();
+    expect(screen.queryByText('Not available yet')).not.toBeInTheDocument();
   });
 });

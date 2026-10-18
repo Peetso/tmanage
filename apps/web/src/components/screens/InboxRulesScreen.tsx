@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/inbox.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   INBOX_RULE_CATEGORIES,
@@ -96,79 +97,84 @@ export function InboxRulesScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="inbox"
+      eyebrow="Inbox"
       title="Inbox rules"
       description="Route your notifications to a category — saved to your account."
     >
       {rules.isPending ? (
         <LoadingRegion label="Loading your inbox rules">
-          <Skeleton />
+          <Skeleton height="160px" />
         </LoadingRegion>
       ) : rules.isError ? (
         <InlineAlert tone="danger" title="We could not load your inbox rules">
           {errorMessage(rules.error)}
         </InlineAlert>
       ) : (
-        <div className="tm-stack">
+        <div className="tm-inbox-rules">
           <form
-            className="tm-panel tm-stack"
+            className="tm-card"
             aria-labelledby="tm-inbox-rules-add-heading"
             onSubmit={(event) => {
               event.preventDefault();
               if (canAdd) add.mutate();
             }}
           >
-            <h2 id="tm-inbox-rules-add-heading" className="tm-eyebrow">
+            <p className="tm-inbox-eyebrow">New rule</p>
+            <h2 id="tm-inbox-rules-add-heading" className="tm-card__title">
               Add a rule
             </h2>
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-inbox-rule-match-type">
-                When the
-              </label>
-              <select
-                id="tm-inbox-rule-match-type"
-                className="tm-field__control"
-                value={matchType}
-                onChange={(event) => setMatchType(event.target.value as InboxRuleMatchType)}
-              >
-                {INBOX_RULE_MATCH_TYPES.map((value) => (
-                  <option key={value} value={value}>
-                    {MATCH_TYPE_LABELS[value]}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <div className="tm-inbox-rules__sentence">
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-inbox-rule-match-type">
+                  When the
+                </label>
+                <select
+                  id="tm-inbox-rule-match-type"
+                  className="tm-field__control"
+                  value={matchType}
+                  onChange={(event) => setMatchType(event.target.value as InboxRuleMatchType)}
+                >
+                  {INBOX_RULE_MATCH_TYPES.map((value) => (
+                    <option key={value} value={value}>
+                      {MATCH_TYPE_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-inbox-rule-match-value">
-                matches
-              </label>
-              <input
-                id="tm-inbox-rule-match-value"
-                className="tm-field__control"
-                type="text"
-                value={matchValue}
-                maxLength={190}
-                onChange={(event) => setMatchValue(event.target.value)}
-              />
-            </div>
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-inbox-rule-match-value">
+                  matches
+                </label>
+                <input
+                  id="tm-inbox-rule-match-value"
+                  className="tm-field__control"
+                  type="text"
+                  value={matchValue}
+                  maxLength={190}
+                  onChange={(event) => setMatchValue(event.target.value)}
+                />
+              </div>
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-inbox-rule-category">
-                label it
-              </label>
-              <select
-                id="tm-inbox-rule-category"
-                className="tm-field__control"
-                value={category}
-                onChange={(event) => setCategory(event.target.value as InboxRuleCategory)}
-              >
-                {INBOX_RULE_CATEGORIES.map((value) => (
-                  <option key={value} value={value}>
-                    {CATEGORY_LABELS[value]}
-                  </option>
-                ))}
-              </select>
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-inbox-rule-category">
+                  label it
+                </label>
+                <select
+                  id="tm-inbox-rule-category"
+                  className="tm-field__control"
+                  value={category}
+                  onChange={(event) => setCategory(event.target.value as InboxRuleCategory)}
+                >
+                  {INBOX_RULE_CATEGORIES.map((value) => (
+                    <option key={value} value={value}>
+                      {CATEGORY_LABELS[value]}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
             {add.isError ? (
@@ -184,17 +190,30 @@ export function InboxRulesScreen({
             </div>
           </form>
 
-          <section className="tm-panel tm-stack" aria-labelledby="tm-inbox-rules-list-heading">
-            <h2 id="tm-inbox-rules-list-heading" className="tm-eyebrow">
-              Your rules
-            </h2>
+          <section className="tm-card" aria-labelledby="tm-inbox-rules-list-heading">
+            <div className="tm-section-head">
+              <h2 id="tm-inbox-rules-list-heading" className="tm-card__title">
+                Your rules
+              </h2>
+              <span className="tm-section-head__meta">
+                {rules.data.length === 1 ? '1 rule' : `${rules.data.length} rules`}
+              </span>
+            </div>
             {rules.data.length === 0 ? (
-              <p className="tm-muted">You have no inbox rules yet.</p>
+              <div className="tm-inbox-caught-up">
+                <span className="tm-inbox-orb tm-inbox-orb--quiet" aria-hidden="true">
+                  ✓
+                </span>
+                <p className="tm-inbox-caught-up__text">You have no inbox rules yet.</p>
+              </div>
             ) : (
-              <ul className="tm-stack" aria-label="Inbox rules">
-                {rules.data.map((rule) => (
-                  <li className="tm-field tm-field--inline" key={rule.id}>
-                    <span className="tm-field__label">
+              <ul className="tm-inbox-rule-list" aria-label="Inbox rules">
+                {rules.data.map((rule, index) => (
+                  <li className="tm-inbox-rule" key={rule.id}>
+                    <span className="tm-inbox-rule__index" aria-hidden="true">
+                      {String(index + 1).padStart(2, '0')}
+                    </span>
+                    <span className="tm-inbox-rule__text">
                       {MATCH_TYPE_LABELS[rule.matchType]} “{rule.matchValue}” →{' '}
                       {CATEGORY_LABELS[rule.category]}
                     </span>

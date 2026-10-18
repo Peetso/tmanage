@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   addInsightAnnotation,
@@ -94,88 +95,95 @@ export function InsightAnnotationsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      eyebrow="Insights"
       title="Snapshot annotations"
       description="Explain a captured figure. Add context to a snapshot, read the thread, and remove your own notes."
     >
-      <form className="tm-panel tm-stack" aria-labelledby="tm-annotation-heading" onSubmit={submit}>
-        <h2 id="tm-annotation-heading" className="tm-eyebrow">
-          Add a note
-        </h2>
+      <div className="tm-ins tm-ins-tool">
+        <form
+          className="tm-panel tm-stack"
+          aria-labelledby="tm-annotation-heading"
+          onSubmit={submit}
+        >
+          <h2 id="tm-annotation-heading" className="tm-eyebrow">
+            Add a note
+          </h2>
 
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-annotation-note">
-            Note
-          </label>
-          <textarea
-            id="tm-annotation-note"
-            className="tm-field__control"
-            value={note}
-            placeholder="Explain what this figure shows and why."
-            maxLength={MAX_NOTE_LENGTH}
-            rows={3}
-            onChange={(event) => setNote(event.target.value)}
-          />
-        </div>
+          <div className="tm-field">
+            <label className="tm-field__label" htmlFor="tm-annotation-note">
+              Note
+            </label>
+            <textarea
+              id="tm-annotation-note"
+              className="tm-field__control"
+              value={note}
+              placeholder="Explain what this figure shows and why."
+              maxLength={MAX_NOTE_LENGTH}
+              rows={3}
+              onChange={(event) => setNote(event.target.value)}
+            />
+          </div>
 
-        {formError ? (
-          <InlineAlert tone="danger" title="Check the note">
-            {formError}
+          {formError ? (
+            <InlineAlert tone="danger" title="Check the note">
+              {formError}
+            </InlineAlert>
+          ) : null}
+
+          {add.isError ? (
+            <InlineAlert tone="danger" title="We could not add the note">
+              {errorMessage(add.error)}
+            </InlineAlert>
+          ) : null}
+
+          <div>
+            <Button type="submit" disabled={add.isPending}>
+              {add.isPending ? 'Adding…' : 'Add note'}
+            </Button>
+          </div>
+        </form>
+
+        {annotations.isPending ? (
+          <LoadingRegion label="Loading annotations">
+            <Skeleton />
+          </LoadingRegion>
+        ) : annotations.isError ? (
+          <InlineAlert tone="danger" title="We could not load the annotations">
+            {errorMessage(annotations.error)}
+          </InlineAlert>
+        ) : annotations.data.length === 0 ? (
+          <InlineAlert tone="neutral" title="No annotations">
+            This snapshot has no notes yet. Add one above.
+          </InlineAlert>
+        ) : (
+          <ul className="tm-list tm-stack" aria-label="Snapshot annotations">
+            {annotations.data.map((annotation) => (
+              <li key={annotation.id} className="tm-row tm-row--between">
+                <div className="tm-stack tm-stack--tight">
+                  <span>{annotation.note}</span>
+                  <span className="tm-muted">{formatInstant(annotation.createdAt)}</span>
+                </div>
+                {currentMembershipId && annotation.authorMembershipId === currentMembershipId ? (
+                  <Button
+                    type="button"
+                    tone="text"
+                    disabled={remove.isPending}
+                    onClick={() => remove.mutate(annotation.id)}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {remove.isError ? (
+          <InlineAlert tone="danger" title="We could not remove the note">
+            {errorMessage(remove.error)}
           </InlineAlert>
         ) : null}
-
-        {add.isError ? (
-          <InlineAlert tone="danger" title="We could not add the note">
-            {errorMessage(add.error)}
-          </InlineAlert>
-        ) : null}
-
-        <div>
-          <Button type="submit" disabled={add.isPending}>
-            {add.isPending ? 'Adding…' : 'Add note'}
-          </Button>
-        </div>
-      </form>
-
-      {annotations.isPending ? (
-        <LoadingRegion label="Loading annotations">
-          <Skeleton />
-        </LoadingRegion>
-      ) : annotations.isError ? (
-        <InlineAlert tone="danger" title="We could not load the annotations">
-          {errorMessage(annotations.error)}
-        </InlineAlert>
-      ) : annotations.data.length === 0 ? (
-        <InlineAlert tone="neutral" title="No annotations">
-          This snapshot has no notes yet. Add one above.
-        </InlineAlert>
-      ) : (
-        <ul className="tm-list tm-stack" aria-label="Snapshot annotations">
-          {annotations.data.map((annotation) => (
-            <li key={annotation.id} className="tm-row tm-row--between">
-              <div className="tm-stack tm-stack--tight">
-                <span>{annotation.note}</span>
-                <span className="tm-muted">{formatInstant(annotation.createdAt)}</span>
-              </div>
-              {currentMembershipId && annotation.authorMembershipId === currentMembershipId ? (
-                <Button
-                  type="button"
-                  tone="text"
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate(annotation.id)}
-                >
-                  Remove
-                </Button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {remove.isError ? (
-        <InlineAlert tone="danger" title="We could not remove the note">
-          {errorMessage(remove.error)}
-        </InlineAlert>
-      ) : null}
+      </div>
     </AppShell>
   );
 }

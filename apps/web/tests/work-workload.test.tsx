@@ -54,6 +54,12 @@ function screenOver(workload: unknown) {
   const client = clientOver((call) => {
     if (call.url.includes('/work-views/workload/')) return json(workload);
     if (call.url.includes('/projects')) return json({ projects: [] });
+    if (call.url.includes('/members')) {
+      return json({
+        members: [{ userId: OWNER_A, displayName: 'Omar Adel', role: 'member', status: 'active' }],
+        nextAfter: null,
+      });
+    }
     return json({}, 404);
   });
   return withQuery(
@@ -84,8 +90,10 @@ describe('WorkWorkloadScreen', () => {
     const bodyRows = within(table).getAllByRole('row').slice(1); // drop the header row
     expect(bodyRows).toHaveLength(2);
 
-    // Server order is preserved: the heavier owner leads, the unassigned pile trails.
-    expect(within(bodyRows[0]!).getByRole('rowheader')).toHaveTextContent(OWNER_A);
+    // Server order is preserved: the heavier owner leads, the unassigned pile trails. The owner
+    // is named through the member directory, never shown as a raw id.
+    expect(await within(bodyRows[0]!).findByText('Omar Adel')).toBeInTheDocument();
+    expect(within(bodyRows[0]!).getByRole('rowheader')).not.toHaveTextContent(OWNER_A);
     const unassigned = within(bodyRows[1]!).getByRole('rowheader');
     expect(unassigned).toHaveTextContent('Unassigned');
 

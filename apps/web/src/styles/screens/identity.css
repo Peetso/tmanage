@@ -1,0 +1,1004 @@
+/*
+ * Identity screens — ID-01 … ID-06 and first-owner setup.
+ *
+ * Ported from `TManage Screens - Public and Identity.dc.html`. Everything is scoped under
+ * `.tm-identity` (the IdentityShell root) so nothing here leaks into the signed-in app.
+ * Colours are tokens only, so the dark theme follows from `tokens.css`.
+ */
+
+/* ── Shared type and controls ─────────────────────────────────────────── */
+
+.tm-identity .tm-identity__title {
+  font-size: 36px;
+  line-height: 40px;
+  letter-spacing: -0.02em;
+  font-weight: 500;
+}
+
+.tm-id-intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-id-lede {
+  margin: 0;
+  font-size: 14px;
+  line-height: 21px;
+  color: var(--ink-650);
+}
+
+.tm-id-mono {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-identity .tm-field__label {
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-identity .tm-field__control {
+  min-block-size: 50px;
+  padding: 13px var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.tm-identity .tm-field__control[type='email'] {
+  background: var(--paper-0);
+}
+
+.tm-identity .tm-field__control:not(.tm-search-field__control):focus-visible {
+  outline: none;
+  background: var(--paper-0);
+  border: var(--b-expressive) solid var(--ink-950);
+  padding: 12px 15px;
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-identity .tm-field__control[type='password'] {
+  font-family: var(--font-mono);
+}
+
+.tm-identity .tm-field__required {
+  display: none;
+}
+
+.tm-identity .tm-button--accessible {
+  --tm-control-h: 48px;
+  padding-inline: var(--s5);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.tm-identity .tm-divider {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink-500);
+}
+
+.tm-identity .tm-divider::before,
+.tm-identity .tm-divider::after {
+  background: var(--paper-150);
+}
+
+/* The export's alert: a ringed glyph, 12px copy, an 18px radius. */
+.tm-identity .tm-inline-alert {
+  padding: 14px;
+  border-radius: var(--r-compact);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.tm-identity .tm-inline-alert__glyph {
+  display: grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: var(--r-capsule);
+  border: var(--b-structural) solid var(--ink-500);
+  color: var(--ink-500);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tm-identity .tm-inline-alert--warning {
+  background: var(--paper-0);
+}
+
+.tm-identity .tm-inline-alert--warning .tm-inline-alert__glyph {
+  border-color: var(--warning-600);
+  color: var(--warning-600);
+}
+
+.tm-identity .tm-inline-alert--danger .tm-inline-alert__glyph {
+  border-width: var(--b-expressive);
+  border-color: var(--danger-600);
+  color: var(--danger-600);
+}
+
+.tm-identity .tm-inline-alert--danger .tm-inline-alert__title {
+  color: var(--danger-600);
+}
+
+.tm-identity .tm-inline-alert--success .tm-inline-alert__glyph {
+  border-color: var(--success-600);
+  color: var(--success-600);
+}
+
+.tm-identity .tm-inline-alert--client .tm-inline-alert__glyph {
+  border-color: var(--client-500);
+  color: var(--client-500);
+}
+
+.tm-identity .tm-inline-alert__title {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* The expiry note on ID-03: dashed, warning-toned. */
+.tm-id-note--dashed.tm-inline-alert {
+  border-style: dashed;
+  background: var(--paper-0);
+}
+
+/* A footnote that sits straight on the paper (ID-04). */
+.tm-id-footnote.tm-inline-alert {
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-card);
+  padding: var(--s4);
+  background: var(--paper-0);
+}
+
+/* A notice that sits on the paper below a card (ID-02, ID-05). */
+.tm-id-pending .tm-inline-alert,
+.tm-id-notice.tm-inline-alert {
+  padding: var(--s4);
+  border-radius: var(--r-card);
+  border-width: var(--b-structural);
+  background: var(--paper-0);
+}
+
+.tm-id-link {
+  color: var(--ink-650);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  text-decoration: none;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  white-space: nowrap;
+}
+
+.tm-id-link:hover {
+  color: var(--ink-950);
+  border-block-end-color: var(--ink-950);
+}
+
+.tm-id-action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-id-action-row > .tm-button {
+  flex: 1;
+}
+
+/* ── Screens that are not one white card (ID-04, ID-05, ID-06) ────────── */
+
+.tm-identity__body:has(> .tm-id-bare) {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: var(--s4);
+}
+
+.tm-id-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-id-card--ink {
+  border: var(--b-structural) solid var(--ink-950);
+}
+
+.tm-id-card--warning {
+  border-color: var(--warning-600);
+}
+
+.tm-id-card--success {
+  border-color: var(--success-600);
+}
+
+.tm-id-card__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 27px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-id-card__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--ink-650);
+}
+
+.tm-id-step {
+  align-self: flex-start;
+  padding: var(--s1) 10px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-650);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-id-step--ink {
+  background: var(--tm-ink-absolute, var(--ink-950));
+  color: var(--lime-500);
+}
+
+.tm-id-step--warning {
+  background: var(--paper-0);
+  border-color: var(--warning-600);
+  color: var(--warning-600);
+}
+
+.tm-id-step--success {
+  background: var(--paper-0);
+  border-color: var(--success-600);
+  color: var(--success-600);
+}
+
+/* ── ID-01 Sign in ────────────────────────────────────────────────────── */
+
+.tm-id-methods {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/*
+ * Passkey and SSO are not built, so the buttons stay disabled — but they keep the export's ink
+ * and outline paint rather than the grey disabled fill, which would read as broken.
+ */
+.tm-id-methods .tm-button--ink:disabled {
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-id-methods .tm-button--outline:disabled {
+  background: var(--paper-0);
+  border-color: var(--line-700);
+  color: var(--ink-950);
+}
+
+.tm-id-methods .tm-button:disabled {
+  opacity: 0.86;
+}
+
+.tm-id-orb {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+}
+
+[data-theme='dark'] .tm-id-orb {
+  background: var(--tm-ink-absolute, #090a09);
+}
+
+.tm-id-methods__note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+  text-align: center;
+}
+
+.tm-id-methods__note strong {
+  font-weight: 600;
+  color: var(--ink-800);
+}
+
+.tm-id-dev {
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-compact);
+  padding: var(--s3) var(--s4);
+  background: var(--paper-50);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.tm-id-dev > summary {
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.tm-id-dev[open] > summary {
+  margin-block-end: var(--s3);
+}
+
+/* ── ID-02 Second factor ──────────────────────────────────────────────── */
+
+.tm-id-card.tm-id-mfa {
+  padding: 30px;
+  border-radius: var(--r-feature);
+}
+
+.tm-id-mfa > .tm-fieldset {
+  gap: 18px;
+}
+
+.tm-id-mfa .tm-identity__title {
+  font-size: 32px;
+  line-height: 36px;
+}
+
+.tm-id-code {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-id-code__frame {
+  position: relative;
+  inline-size: max-content;
+  max-inline-size: 100%;
+}
+
+.tm-id-code__cells {
+  display: flex;
+  gap: 10px;
+}
+
+.tm-id-code__cell {
+  display: grid;
+  place-items: center;
+  inline-size: 56px;
+  block-size: 64px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: 26px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.tm-id-code__cell--empty {
+  color: var(--ink-500);
+}
+
+/* The one real input sits over the six painted cells: one field, one announcement, autofill. */
+.tm-id-code__input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: transparent;
+  font-size: 26px;
+  outline: none;
+}
+
+.tm-id-code__input:focus-visible + .tm-id-code__cells .tm-id-code__cell--active {
+  background: var(--paper-0);
+  border: var(--b-expressive) solid var(--ink-950);
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-id-code__input:disabled {
+  cursor: not-allowed;
+}
+
+.tm-id-code__frame:has(.tm-id-code__input:disabled) .tm-id-code__cell {
+  color: var(--ink-500);
+}
+
+.tm-id-code .tm-field__hint {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.tm-id-recovery-field .tm-field__control {
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
+}
+
+.tm-id-expiry {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-500);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-id-fallbacks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  min-inline-size: 0;
+}
+
+.tm-id-fallbacks > legend {
+  float: left;
+  inline-size: 100%;
+  margin-block-end: var(--s1);
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-id-fallback {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: 32px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-800);
+  cursor: pointer;
+}
+
+.tm-id-fallback--off {
+  cursor: default;
+  color: var(--ink-500);
+}
+
+.tm-id-fallback__input {
+  position: absolute;
+  opacity: 0;
+  inline-size: 1px;
+  block-size: 1px;
+}
+
+.tm-id-fallback__glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.tm-id-fallback:has(input:checked) .tm-id-fallback__glyph {
+  background: var(--tm-ink-absolute, var(--ink-950));
+  color: var(--lime-500);
+}
+
+.tm-id-fallback:has(input:focus-visible) .tm-id-fallback__glyph {
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-id-fallback__text {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-id-fallback__name {
+  font-weight: 500;
+}
+
+.tm-id-fallback__detail {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-500);
+}
+
+.tm-id-fallback__action {
+  flex: none;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-id-fallback--off .tm-id-fallback__action {
+  color: var(--ink-500);
+}
+
+/* ── ID-03 Invitation ─────────────────────────────────────────────────── */
+
+.tm-id-inviter {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-id-inviter .tm-avatar {
+  --orb: 44px;
+  inline-size: 44px;
+  block-size: 44px;
+  flex: none;
+}
+
+.tm-id-inviter__name {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-id-inviter__meta {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-500);
+}
+
+.tm-identity__body:has(.tm-id-inviter) {
+  padding: 30px;
+  gap: 18px;
+}
+
+.tm-identity__body:has(.tm-id-inviter) .tm-identity__title {
+  font-size: 32px;
+  line-height: 36px;
+}
+
+.tm-id-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tm-id-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+}
+
+.tm-id-panel--row {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--s3);
+  padding: 14px var(--s4);
+}
+
+.tm-id-panel__label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-id-panel__value {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-id-capsule {
+  margin-inline-start: auto;
+  padding: 5px var(--s3);
+  border: var(--b-structural) solid var(--tm-ink-absolute, #090a09);
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute, #090a09);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tm-id-capsule--client {
+  border-color: var(--client-500);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+.tm-id-grants {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
+  line-height: 19px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-id-withholds {
+  margin: var(--s1) 0 0;
+  padding-block-start: var(--s3);
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-500);
+}
+
+/* ── ID-04 Organizations ──────────────────────────────────────────────── */
+
+.tm-id-orgs .tm-search-field {
+  display: flex;
+}
+
+.tm-identity .tm-id-orgs .tm-search-field__control {
+  min-block-size: 44px;
+  padding-block: 11px;
+  padding-inline: 42px var(--s4);
+  inline-size: 100%;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.tm-id-org-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-id-org {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s5);
+  border: var(--b-structural) solid var(--ink-950);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-id-org--client {
+  border-color: var(--client-500);
+}
+
+.tm-id-org:hover {
+  background: var(--paper-50);
+}
+
+.tm-id-org:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-id-org__orb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 48px;
+  block-size: 48px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute, var(--ink-950));
+  color: var(--lime-500);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.tm-id-org--client .tm-id-org__orb {
+  background: var(--paper-50);
+  border: var(--b-structural) solid var(--client-500);
+  color: var(--client-500);
+  font-size: 15px;
+}
+
+.tm-id-org__text {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-id-org__name {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-id-org__meta {
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-500);
+}
+
+.tm-id-org__chip {
+  flex: none;
+  padding: 6px 14px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-650);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-id-org--client .tm-id-org__chip {
+  background: var(--paper-0);
+  border-color: var(--client-500);
+  color: var(--ink-800);
+}
+
+.tm-id-org__go {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute, var(--ink-950));
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.tm-id-org--client .tm-id-org__go {
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  color: var(--ink-650);
+}
+
+[dir='rtl'] .tm-id-org__go,
+[dir='rtl'] .tm-id-orb-arrow {
+  transform: scaleX(-1);
+}
+
+.tm-id-orgs .tm-id-footnote {
+  margin-block-start: var(--s6);
+}
+
+/* ── ID-06 Sessions ───────────────────────────────────────────────────── */
+
+.tm-identity__card:has(.tm-id-sessions) {
+  inline-size: min(760px, 100%);
+}
+
+.tm-id-sessions__head {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s4);
+  flex-wrap: wrap;
+}
+
+.tm-id-sessions__head .tm-identity__title {
+  font-size: 30px;
+  line-height: 36px;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+.tm-id-sessions__head > :first-child {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-id-sessions__head .tm-button {
+  --tm-control-h: 40px;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--danger-600);
+}
+
+.tm-id-sessions__head .tm-button:hover:not(:disabled) {
+  color: var(--tm-ink-absolute, #090a09);
+}
+
+.tm-id-session-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-id-session {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-block-size: 56px;
+  padding: var(--s2) var(--s5);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-id-session:last-child {
+  border-block-end: 0;
+}
+
+.tm-id-session__glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 32px;
+  block-size: 32px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.tm-id-session__text {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-identity .tm-id-session__agent {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--ink-950);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tm-id-session__meta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-id-session .tm-button {
+  --tm-control-h: 30px;
+  flex: none;
+  padding-inline: 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-500);
+}
+
+.tm-id-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+}
+
+.tm-id-cards .tm-id-card {
+  padding: var(--s5);
+}
+
+.tm-id-cards .tm-id-card__body {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--ink-800);
+}
+
+/* ── Narrow widths ────────────────────────────────────────────────────── */
+
+@media (max-width: 560px) {
+  .tm-identity .tm-identity__title {
+    font-size: 30px;
+    line-height: 34px;
+  }
+
+  .tm-id-code__cells {
+    gap: 6px;
+  }
+
+  .tm-id-code__cell {
+    inline-size: 44px;
+    block-size: 54px;
+    font-size: 22px;
+  }
+
+  .tm-id-org {
+    gap: var(--s3);
+    padding: var(--s4);
+  }
+
+  .tm-id-org__orb {
+    inline-size: 40px;
+    block-size: 40px;
+    font-size: 14px;
+  }
+
+  /* The meta line already says "Client portal"; the chip would crowd the arrow out. */
+  .tm-id-org__chip {
+    display: none;
+  }
+
+  .tm-id-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-id-action-row {
+    flex-wrap: wrap;
+  }
+
+  .tm-id-action-row > .tm-button {
+    flex-basis: 100%;
+  }
+}
+
+.tm-identity .tm-search-field__control:focus-visible {
+  outline: none;
+  border-color: var(--ink-950);
+  box-shadow: 0 0 0 3px var(--lime-500);
+}

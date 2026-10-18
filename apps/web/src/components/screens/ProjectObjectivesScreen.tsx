@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { ObjectiveWorkLinksPanel } from './ObjectiveWorkLinksPanel';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -112,155 +113,173 @@ export function ProjectObjectivesScreen({
       activeNavigationId="work"
       title="Project objectives"
       description="What this project is working toward, and whether it was met."
-    >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-objectives-author">
-        <h2 id="tm-objectives-author" className="tm-eyebrow">
-          Set an objective
-        </h2>
-        <form className="tm-stack" onSubmit={onSubmit} noValidate>
-          <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={create.isPending}>
-            <Field
-              label="Objective"
-              name="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              hint="One line. What this project is aiming at."
-              required
-            />
-
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-objective-description">
-                Description
-              </label>
-              <textarea
-                id="tm-objective-description"
-                name="description"
-                className="tm-field__control tm-field__control--multiline"
-                rows={3}
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-                aria-describedby="tm-objective-description-hint"
-              />
-              <span className="tm-field__hint" id="tm-objective-description-hint">
-                Optional. The objective in full, and why it matters.
-              </span>
-            </div>
-
-            <Field
-              label="Target"
-              name="target"
-              value={target}
-              onChange={(event) => setTarget(event.target.value)}
-              hint="Optional. What success looks like, e.g. “≤ 3 days” or “ship by Q3”."
-            />
-          </fieldset>
-
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not set the objective" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Saving"
-              disabled={!canSubmit}
-            >
-              Set objective
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      {objectives.isError ? (
-        <InlineAlert tone="danger" title="Could not load the objectives" live>
-          {describeError(objectives.error)}
-        </InlineAlert>
-      ) : null}
-
-      {objectives.isPending ? (
-        <LoadingRegion label="Loading the project's objectives.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {!objectives.isPending && !objectives.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No objectives yet">
-          This project has no objectives. Set the first one above.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 && transition.isError ? (
-        <InlineAlert tone="danger" title="Could not update the objective" live>
-          {describeError(transition.error)}
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-objectives-heading">
-          <h2 id="tm-objectives-heading" className="tm-eyebrow">
-            Objectives
-          </h2>
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Project objectives"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                Objectives for this project, in creation order, {rows.length} shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Objective</th>
-                  <th scope="col">Target</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Outcome</th>
-                  <th scope="col">Linked work</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((objective) => (
-                  <ObjectiveRow
-                    key={objective.id}
-                    objective={objective}
-                    onTransition={(status) =>
-                      transition.mutate({ objectiveId: objective.id, status })
-                    }
-                    busy={transition.isPending}
-                    selected={selectedObjective?.id === objective.id}
-                    onToggleLinks={() =>
-                      setSelectedObjective((current) =>
-                        current?.id === objective.id
-                          ? null
-                          : { id: objective.id, name: objective.name },
-                      )
-                    }
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      {selectedObjective ? (
-        <ObjectiveWorkLinksPanel
+      eyebrow="Project · Objectives"
+      topBar={
+        <ProjectTabs
           organizationSlug={organizationSlug}
-          objectiveId={selectedObjective.id}
-          objectiveName={selectedObjective.name}
-          {...(client ? { client } : {})}
+          projectId={projectId}
+          current="objectives"
         />
-      ) : null}
+      }
+    >
+      <div className="tm-prj tm-prj--sub">
+        <div className="tm-prj__grid tm-prj__grid--aside">
+          <div className="tm-prj__col tm-prj__col--aside">
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-objectives-author">
+              <h2 id="tm-objectives-author" className="tm-prj-eyebrow">
+                Set an objective
+              </h2>
+              <form className="tm-stack" onSubmit={onSubmit} noValidate>
+                <fieldset
+                  className="tm-fieldset tm-stack tm-stack--loose"
+                  disabled={create.isPending}
+                >
+                  <Field
+                    label="Objective"
+                    name="name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    hint="One line. What this project is aiming at."
+                    required
+                  />
+
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-objective-description">
+                      Description
+                    </label>
+                    <textarea
+                      id="tm-objective-description"
+                      name="description"
+                      className="tm-field__control tm-field__control--multiline"
+                      rows={3}
+                      value={description}
+                      onChange={(event) => setDescription(event.target.value)}
+                      aria-describedby="tm-objective-description-hint"
+                    />
+                    <span className="tm-field__hint" id="tm-objective-description-hint">
+                      Optional. The objective in full, and why it matters.
+                    </span>
+                  </div>
+
+                  <Field
+                    label="Target"
+                    name="target"
+                    value={target}
+                    onChange={(event) => setTarget(event.target.value)}
+                    hint="Optional. What success looks like, e.g. “≤ 3 days” or “ship by Q3”."
+                  />
+                </fieldset>
+
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not set the objective" live>
+                    {describeError(create.error)}
+                  </InlineAlert>
+                ) : null}
+
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={create.isPending}
+                    loadingLabel="Saving"
+                    disabled={!canSubmit}
+                  >
+                    Set objective
+                  </Button>
+                </div>
+              </form>
+            </section>
+          </div>
+          <div className="tm-prj__col">
+            {objectives.isError ? (
+              <InlineAlert tone="danger" title="Could not load the objectives" live>
+                {describeError(objectives.error)}
+              </InlineAlert>
+            ) : null}
+
+            {objectives.isPending ? (
+              <LoadingRegion label="Loading the project's objectives.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {!objectives.isPending && !objectives.isError && rows.length === 0 ? (
+              <InlineAlert tone="neutral" title="No objectives yet">
+                This project has no objectives. Set the first one with the form.
+              </InlineAlert>
+            ) : null}
+
+            {rows.length > 0 && transition.isError ? (
+              <InlineAlert tone="danger" title="Could not update the objective" live>
+                {describeError(transition.error)}
+              </InlineAlert>
+            ) : null}
+
+            {rows.length > 0 ? (
+              <section className="tm-card tm-prj-card" aria-labelledby="tm-objectives-heading">
+                <h2 id="tm-objectives-heading" className="tm-prj-eyebrow">
+                  Objectives
+                </h2>
+                <div
+                  className="tm-table-scroll"
+                  // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
+                  // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Project objectives"
+                >
+                  <table className="tm-table">
+                    <caption className="tm-visually-hidden">
+                      Objectives for this project, in creation order, {rows.length} shown.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Objective</th>
+                        <th scope="col">Target</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Outcome</th>
+                        <th scope="col">Linked work</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((objective) => (
+                        <ObjectiveRow
+                          key={objective.id}
+                          objective={objective}
+                          onTransition={(status) =>
+                            transition.mutate({ objectiveId: objective.id, status })
+                          }
+                          busy={transition.isPending}
+                          selected={selectedObjective?.id === objective.id}
+                          onToggleLinks={() =>
+                            setSelectedObjective((current) =>
+                              current?.id === objective.id
+                                ? null
+                                : { id: objective.id, name: objective.name },
+                            )
+                          }
+                        />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
+
+            {selectedObjective ? (
+              <ObjectiveWorkLinksPanel
+                organizationSlug={organizationSlug}
+                objectiveId={selectedObjective.id}
+                objectiveName={selectedObjective.name}
+                {...(client ? { client } : {})}
+              />
+            ) : null}
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
 }

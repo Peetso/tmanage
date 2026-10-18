@@ -9,6 +9,7 @@ import { fetchRequestAging } from '../../lib/api/request-aging';
 import type { RequestAgingItem, RequestAgingView } from '../../lib/api/request-aging';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/work-planning.css';
 
 export interface RequestAgingScreenProps {
   organizationSlug: string;
@@ -50,41 +51,54 @@ export function RequestAgingScreen({
       organizationName={organizationName}
       activeNavigationId="work"
       title="Request aging"
-      description="How long open client requests have been waiting to be triaged."
+      eyebrow="Requests"
+      headerAside={
+        aging.isSuccess ? (
+          <span className="wp-total" aria-hidden="true">
+            {aging.data.counts.total} open
+          </span>
+        ) : undefined
+      }
+      actions={
+        <Link className="wp-capsule" href={`/${organizationSlug}/work/requests`}>
+          Request inbox
+        </Link>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-request-aging-heading">
-        <h2 id="tm-request-aging-heading" className="tm-eyebrow">
-          Request aging
-        </h2>
+      <h2 id="tm-request-aging-heading" className="tm-visually-hidden">
+        Request aging
+      </h2>
 
-        {aging.isPending ? (
-          <LoadingRegion label="Loading request aging." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+      {aging.isPending ? (
+        <LoadingRegion label="Loading request aging." className="tm-stack tm-stack--tight">
+          <Skeleton height="46px" />
+          <Skeleton height="46px" />
+        </LoadingRegion>
+      ) : null}
 
-        {aging.isError ? (
-          <InlineAlert tone="danger" title="Could not load request aging" live>
-            {describe(aging.error)}
-          </InlineAlert>
-        ) : null}
+      {aging.isError ? (
+        <InlineAlert tone="danger" title="Could not load request aging" live>
+          {describe(aging.error)}
+        </InlineAlert>
+      ) : null}
 
-        {aging.isSuccess ? (
-          <AgingReport aging={aging.data} organizationSlug={organizationSlug} />
-        ) : null}
-      </section>
+      {aging.isSuccess ? (
+        <AgingReport aging={aging.data} organizationSlug={organizationSlug} />
+      ) : null}
     </AppShell>
   );
 }
 
-/** The buckets in the order they are shown, keyed to the fields the API returns. */
 const BUCKETS: readonly { id: 'fresh' | 'aging' | 'overdue'; label: string }[] = [
   { id: 'fresh', label: 'Fresh' },
   { id: 'aging', label: 'Aging' },
   { id: 'overdue', label: 'Overdue' },
 ];
 
+/**
+ * The counts summary and the per-request list, in REQ-01's row grammar: a quiet bordered table,
+ * mono headers and numbers, the overdue figures in warning orange.
+ */
 function AgingReport({
   aging,
   organizationSlug,
@@ -94,70 +108,100 @@ function AgingReport({
 }) {
   const { thresholds, counts, requests } = aging;
   return (
-    <>
-      <table className="tm-table">
-        <caption className="tm-visually-hidden">
-          Open client requests by age: fresh under {thresholds.agingDays} days, aging under{' '}
-          {thresholds.overdueDays} days, overdue at or beyond {thresholds.overdueDays} days
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Bucket</th>
-            <th scope="col" className="tm-table__number">
-              Count
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {BUCKETS.map(({ id, label }) => (
-            <tr key={id}>
-              <th scope="row">{label}</th>
-              <td className="tm-mono tm-table__number">{counts[id]}</td>
-            </tr>
-          ))}
-          <tr>
-            <th scope="row">Uncommitted</th>
-            <td className="tm-mono tm-table__number">{counts.uncommitted}</td>
-          </tr>
-          <tr>
-            <th scope="row">Total open</th>
-            <td className="tm-mono tm-table__number">{counts.total}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      <p className="tm-prose">
-        Fresh is under {thresholds.agingDays} days old; aging is under {thresholds.overdueDays}{' '}
-        days; overdue is {thresholds.overdueDays} days or more.
-      </p>
+    <div className="wp-aging-grid">
+      <div className="wp-stack">
+        <div className="wp-rows">
+          <table>
+            <caption className="tm-visually-hidden">
+              Open client requests by age: fresh under {thresholds.agingDays} days, aging under{' '}
+              {thresholds.overdueDays} days, overdue at or beyond {thresholds.overdueDays} days
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Bucket</th>
+                <th scope="col" className="wp-num">
+                  Count
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {BUCKETS.map(({ id, label }) => (
+                <tr key={id}>
+                  <th scope="row">
+                    <span className="wp-row-title">{label}</span>
+                  </th>
+                  <td className="wp-num">
+                    <span
+                      className={
+                        id === 'overdue' && counts[id] > 0
+                          ? 'wp-row-mono wp-row-mono--warn'
+                          : 'wp-row-mono'
+                      }
+                    >
+                      {counts[id]}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              <tr>
+                <th scope="row">
+                  <span className="wp-row-title">Uncommitted</span>
+                </th>
+                <td className="wp-num">
+                  <span className="wp-row-mono">{counts.uncommitted}</span>
+                </td>
+              </tr>
+              <tr className="wp-row--first">
+                <th scope="row">
+                  <span className="wp-row-title">Total open</span>
+                </th>
+                <td className="wp-num">
+                  <span className="wp-row-mono">{counts.total}</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="wp-aging-note">
+          Fresh is under {thresholds.agingDays} days old; aging is under {thresholds.overdueDays}{' '}
+          days; overdue is {thresholds.overdueDays} days or more.
+        </p>
+      </div>
 
       {requests.length === 0 ? (
-        <InlineAlert tone="neutral" title="Nothing is waiting">
-          No open client request is currently aging.
-        </InlineAlert>
+        <div className="wp-empty">
+          <h3 className="wp-empty__title">Nothing is waiting</h3>
+          <p className="wp-empty__body">No open client request is currently aging.</p>
+        </div>
       ) : (
-        <table className="tm-table">
-          <caption className="tm-visually-hidden">
-            Open client requests, oldest first, with age and bucket
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Request</th>
-              <th scope="col">Bucket</th>
-              <th scope="col" className="tm-table__number">
-                Age (days)
-              </th>
-              <th scope="col">Committed</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.map((request) => (
-              <AgingRow key={request.id} request={request} organizationSlug={organizationSlug} />
-            ))}
-          </tbody>
-        </table>
+        <div className="wp-rows">
+          <table>
+            <caption className="tm-visually-hidden">
+              Open client requests, oldest first, with age and bucket
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Request</th>
+                <th scope="col" className="wp-col-state">
+                  Bucket
+                </th>
+                <th scope="col" className="wp-col-desired wp-num">
+                  Age (days)
+                </th>
+                <th scope="col" className="wp-col-desired wp-hide-sm">
+                  Committed
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((request) => (
+                <AgingRow key={request.id} request={request} organizationSlug={organizationSlug} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
-    </>
+    </div>
   );
 }
 
@@ -168,14 +212,27 @@ function AgingRow({
   request: RequestAgingItem;
   organizationSlug: string;
 }) {
+  const overdue = request.bucket === 'overdue';
   return (
     <tr>
       <th scope="row">
-        <Link href={`/${organizationSlug}/work/requests/${request.id}`}>{request.title}</Link>
+        <Link className="wp-row-title" href={`/${organizationSlug}/work/requests/${request.id}`}>
+          {request.title}
+        </Link>
       </th>
-      <td>{BUCKET_LABELS[request.bucket]}</td>
-      <td className="tm-mono tm-table__number">{request.ageDays}</td>
-      <td>{request.committed ? 'Yes' : 'No'}</td>
+      <td>
+        <span className={`wp-pill ${request.bucket === 'fresh' ? 'wp-pill--new' : ''}`}>
+          {BUCKET_LABELS[request.bucket]}
+        </span>
+      </td>
+      <td className="wp-num">
+        <span className={overdue ? 'wp-row-mono wp-row-mono--warn' : 'wp-row-mono'}>
+          {request.ageDays}
+        </span>
+      </td>
+      <td className="wp-hide-sm">
+        <span className="wp-row-mono">{request.committed ? 'Yes' : 'No'}</span>
+      </td>
     </tr>
   );
 }

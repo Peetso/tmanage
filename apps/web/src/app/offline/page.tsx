@@ -21,19 +21,24 @@ export const metadata: Metadata = {
 
 export default function OfflinePage() {
   return (
-    <StateScreen>
+    <StateScreen label="Offline">
       <section className="tm-state" aria-labelledby="tm-offline-title" data-state="offline">
         <div className="tm-state__panel">
           <span className="tm-state__glyph" aria-hidden="true">
             ⊘
           </span>
-          <h1 id="tm-offline-title" className="tm-state__title">
-            You’re offline
-          </h1>
-          <p className="tm-state__description">
-            TManage can’t reach the network right now. Check your connection — the app reconnects on
-            its own, or you can try again.
-          </p>
+          <div className="tm-state__text">
+            <p className="tm-state__eyebrow" aria-hidden="true">
+              Offline and reconnecting
+            </p>
+            <h1 id="tm-offline-title" className="tm-state__title">
+              You’re offline
+            </h1>
+            <p className="tm-state__description">
+              TManage can’t reach the network right now. Check your connection — the app reconnects
+              on its own, or you can try again.
+            </p>
+          </div>
           <div className="tm-state__actions">
             <a className="tm-button tm-button--ink tm-button--accessible" href="/">
               Try again

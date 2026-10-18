@@ -9,6 +9,7 @@ import { fetchSubscription, requestPlanChange } from '../../lib/api/subscription
 import type { SubscriptionView } from '../../lib/api/subscription';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface SubscriptionScreenProps {
   organizationSlug: string;
@@ -65,31 +66,35 @@ export function SubscriptionScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Subscription"
       description="The plan this organization is on, and how to request a change."
     >
-      {subscription.isPending ? (
-        <LoadingRegion label="Loading subscription." className="tm-stack tm-stack--tight">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+      <div className="tm-bil">
+        {subscription.isPending ? (
+          <LoadingRegion label="Loading subscription." className="tm-stack tm-stack--tight">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {subscription.isError ? (
-        <InlineAlert tone="danger" title="Could not load the subscription" live>
-          {describe(subscription.error)}
-        </InlineAlert>
-      ) : null}
+        {subscription.isError ? (
+          <InlineAlert tone="danger" title="Could not load the subscription" live>
+            {describe(subscription.error)}
+          </InlineAlert>
+        ) : null}
 
-      {subscription.isSuccess ? (
-        <SubscriptionPanel
-          subscription={subscription.data}
-          onChange={(planId) => change.mutate(planId)}
-          isChanging={change.isPending}
-          changeError={change.isError ? describe(change.error) : null}
-          changed={change.isSuccess ? change.data : null}
-        />
-      ) : null}
+        {subscription.isSuccess ? (
+          <SubscriptionPanel
+            subscription={subscription.data}
+            onChange={(planId) => change.mutate(planId)}
+            isChanging={change.isPending}
+            changeError={change.isError ? describe(change.error) : null}
+            changed={change.isSuccess ? change.data : null}
+          />
+        ) : null}
+      </div>
     </AppShell>
   );
 }
@@ -110,73 +115,94 @@ function SubscriptionPanel({
   const [target, setTarget] = useState<string>(subscription.planId);
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-subscription-heading">
-      <h2 id="tm-subscription-heading" className="tm-eyebrow">
-        Current plan
-      </h2>
-
-      <dl className="tm-detail-list">
-        <div className="tm-detail-list__pair">
-          <dt>Plan</dt>
-          <dd className="tm-mono">{planLabel(subscription.planId)}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Status</dt>
-          <dd>
-            <StateCapsule state={subscription.status === 'pending_change' ? 'waiting' : 'current'}>
-              {subscription.status === 'pending_change' ? 'Change pending' : 'Active'}
-            </StateCapsule>
-          </dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Renews</dt>
-          <dd className="tm-mono">
+    <>
+      <div className="tm-bil-col tm-bil-col--wide tm-bil-main">
+        <div className="tm-bil-figure">
+          <p className="tm-bil-eyebrow">
+            {subscription.status === 'pending_change' ? 'Change pending' : 'Active'}
             {subscription.currentPeriodEnd === null
-              ? 'No renewal date'
-              : formatMoment(subscription.currentPeriodEnd)}
-          </dd>
+              ? ''
+              : ` · renews ${formatMoment(subscription.currentPeriodEnd)}`}
+          </p>
+          <p className="tm-bil-figure__value">{planLabel(subscription.planId)} plan</p>
         </div>
-      </dl>
 
-      <form
-        className="tm-stack tm-stack--tight"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onChange(target);
-        }}
-      >
-        <Select
-          label="Change plan"
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          hint="Requesting a change does not charge you. Billing is arranged separately."
+        <section className="tm-bil-card" aria-labelledby="tm-subscription-heading">
+          <h2 id="tm-subscription-heading" className="tm-bil-card__title">
+            Current plan
+          </h2>
+
+          <dl className="tm-detail-list">
+            <div className="tm-detail-list__pair">
+              <dt>Plan</dt>
+              <dd className="tm-mono">{planLabel(subscription.planId)}</dd>
+            </div>
+            <div className="tm-detail-list__pair">
+              <dt>Status</dt>
+              <dd>
+                <StateCapsule
+                  state={subscription.status === 'pending_change' ? 'waiting' : 'current'}
+                >
+                  {subscription.status === 'pending_change' ? 'Change pending' : 'Active'}
+                </StateCapsule>
+              </dd>
+            </div>
+            <div className="tm-detail-list__pair">
+              <dt>Renews</dt>
+              <dd className="tm-mono">
+                {subscription.currentPeriodEnd === null
+                  ? 'No renewal date'
+                  : formatMoment(subscription.currentPeriodEnd)}
+              </dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+
+      <section className="tm-bil-card" aria-labelledby="tm-subscription-change-heading">
+        <h2 id="tm-subscription-change-heading" className="tm-bil-card__title">
+          Change plan
+        </h2>
+        <form
+          className="tm-stack tm-stack--tight"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onChange(target);
+          }}
         >
-          {PLAN_OPTIONS.map((plan) => (
-            <option key={plan.id} value={plan.id}>
-              {plan.label}
-            </option>
-          ))}
-        </Select>
+          <Select
+            label="Change plan"
+            value={target}
+            onChange={(event) => setTarget(event.target.value)}
+            hint="Requesting a change does not charge you. Billing is arranged separately."
+          >
+            {PLAN_OPTIONS.map((plan) => (
+              <option key={plan.id} value={plan.id}>
+                {plan.label}
+              </option>
+            ))}
+          </Select>
 
-        <div>
-          <Button type="submit" disabled={isChanging}>
-            {isChanging ? 'Requesting…' : 'Request plan change'}
-          </Button>
-        </div>
-      </form>
+          <div>
+            <Button type="submit" disabled={isChanging}>
+              {isChanging ? 'Requesting…' : 'Request plan change'}
+            </Button>
+          </div>
+        </form>
 
-      {changeError !== null ? (
-        <InlineAlert tone="danger" title="Could not request the change" live>
-          {changeError}
-        </InlineAlert>
-      ) : null}
+        {changeError !== null ? (
+          <InlineAlert tone="danger" title="Could not request the change" live>
+            {changeError}
+          </InlineAlert>
+        ) : null}
 
-      {changed !== null ? (
-        <InlineAlert tone="success" title="Change requested" live>
-          {`We recorded your request to move to ${planLabel(changed.planId)}. Nothing has been charged — billing is arranged separately.`}
-        </InlineAlert>
-      ) : null}
-    </section>
+        {changed !== null ? (
+          <InlineAlert tone="success" title="Change requested" live>
+            {`We recorded your request to move to ${planLabel(changed.planId)}. Nothing has been charged — billing is arranged separately.`}
+          </InlineAlert>
+        ) : null}
+      </section>
+    </>
   );
 }
 

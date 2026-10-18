@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import '../../styles/screens/home.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getHomePins } from '../../lib/api/home';
 import type { HomePinTargetKind } from '../../lib/api/home';
@@ -36,10 +37,13 @@ export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectio
   const items = pins.data?.pins ?? [];
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-my-day-pinned">
-      <h2 id="tm-my-day-pinned" className="tm-eyebrow">
-        Pinned
-      </h2>
+    <section className="tm-home-saved" aria-labelledby="tm-my-day-pinned">
+      <div className="tm-home-saved__head">
+        <h2 id="tm-my-day-pinned" className="tm-home-saved__heading">
+          Pinned
+        </h2>
+        {items.length > 0 ? <span className="tm-home-saved__count">{items.length}</span> : null}
+      </div>
 
       {pins.isError ? (
         <InlineAlert tone="danger" title="Could not load your pinned items" live>
@@ -49,38 +53,68 @@ export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectio
 
       {pins.isPending ? (
         <LoadingRegion label="Loading your pinned items.">
-          <Skeleton height="var(--row)" />
+          <Skeleton height="52px" radius="var(--r-control)" />
         </LoadingRegion>
       ) : null}
 
       {!pins.isPending && !pins.isError && items.length === 0 ? (
-        <InlineAlert tone="neutral" title="Nothing pinned yet">
+        <p className="tm-home-saved__empty">
+          <strong>Nothing pinned yet</strong>
           Work, projects and documents you pin are kept here, newest first, so you can return to
           them from any screen.
-        </InlineAlert>
+        </p>
       ) : null}
 
       {items.length > 0 ? (
-        <ul className="tm-list" aria-label="Pinned to your Home">
+        <ul className="tm-home-saved__list" aria-label="Pinned to your Home">
           {items.map((item) => (
-            <li key={item.id}>
-              {item.targetKind === 'work' ? (
-                <Link href={`/${organizationSlug}/work/${item.targetId}`}>
-                  {pinTypeLabel(item.targetKind)}
-                </Link>
-              ) : item.targetKind === 'project' ? (
-                <Link href={`/${organizationSlug}/projects/${item.targetId}`}>
-                  {pinTypeLabel(item.targetKind)}
-                </Link>
-              ) : (
-                <span>{pinTypeLabel(item.targetKind)}</span>
-              )}
+            <li key={item.id} className="tm-home-saved__item" data-kind={item.targetKind}>
+              <span className="tm-home-orb" aria-hidden="true">
+                {pinGlyph(item.targetKind)}
+              </span>
+              <span className="tm-home-saved__text">
+                <span className="tm-home-saved__title">
+                  {item.targetKind === 'work' ? (
+                    <Link href={`/${organizationSlug}/work/${item.targetId}`}>
+                      {pinTypeLabel(item.targetKind)}
+                    </Link>
+                  ) : item.targetKind === 'project' ? (
+                    <Link href={`/${organizationSlug}/projects/${item.targetId}`}>
+                      {pinTypeLabel(item.targetKind)}
+                    </Link>
+                  ) : (
+                    <span>{pinTypeLabel(item.targetKind)}</span>
+                  )}
+                </span>
+                <span className="tm-home-saved__meta">
+                  {item.targetKind} · pinned {shortDay(item.createdAt)}
+                </span>
+              </span>
             </li>
           ))}
         </ul>
       ) : null}
     </section>
   );
+}
+
+function pinGlyph(targetKind: HomePinTargetKind): string {
+  switch (targetKind) {
+    case 'work':
+      return '▤';
+    case 'project':
+      return '◎';
+    case 'document':
+      return '◫';
+  }
+}
+
+/** "13 Aug" — the design's short day in the saved-context meta line. */
+function shortDay(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 /** The word each pinned reference shows. The live title/preview is the deferred read fan-out. */

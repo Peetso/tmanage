@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { InlineAlert } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import { BackendPending } from './BackendPending';
+import { BACKEND_PENDING_TITLE, BackendPending } from './BackendPending';
 
 export interface PlannedInternalScreenProps {
   organizationSlug: string;
@@ -63,7 +63,7 @@ export function PlannedInternalScreen({
       {ticket !== undefined ? (
         <BackendPending ticket={ticket}>{children}</BackendPending>
       ) : (
-        <InlineAlert tone="warning" title="Not built yet">
+        <InlineAlert tone="warning" title={BACKEND_PENDING_TITLE}>
           {children}
         </InlineAlert>
       )}

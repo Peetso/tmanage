@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createPersonAllocation, listPersonAllocations } from '../../lib/api/person-allocations';
 import type { PersonAllocationSummary } from '../../lib/api/person-allocations';
@@ -94,157 +95,171 @@ export function ProjectAllocationsScreen({
       activeNavigationId="work"
       title="Project allocations"
       description="Who is allocated to this project, and for what share of their time."
+      eyebrow="Project · Team"
+      topBar={
+        <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="team" />
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-allocations-author">
-        <h2 id="tm-allocations-author" className="tm-eyebrow">
-          Assign a member
-        </h2>
-        <form className="tm-stack" onSubmit={onSubmit} noValidate>
-          <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={create.isPending}>
-            <Field
-              label="Membership ID"
-              name="membershipId"
-              value={membershipId}
-              onChange={(event) => setMembershipId(event.target.value)}
-              hint="The member's membership id in this organization."
-              required
-            />
+      <div className="tm-prj tm-prj--sub">
+        <div className="tm-prj__grid tm-prj__grid--aside">
+          <div className="tm-prj__col tm-prj__col--aside">
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-allocations-author">
+              <h2 id="tm-allocations-author" className="tm-prj-eyebrow">
+                Assign a member
+              </h2>
+              <form className="tm-stack" onSubmit={onSubmit} noValidate>
+                <fieldset
+                  className="tm-fieldset tm-stack tm-stack--loose"
+                  disabled={create.isPending}
+                >
+                  <Field
+                    label="Membership ID"
+                    name="membershipId"
+                    value={membershipId}
+                    onChange={(event) => setMembershipId(event.target.value)}
+                    hint="The member's membership id in this organization."
+                    required
+                  />
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-allocation-percent">
-                Percent
-              </label>
-              <input
-                id="tm-allocation-percent"
-                name="percent"
-                type="number"
-                min={1}
-                max={100}
-                step={1}
-                inputMode="numeric"
-                className="tm-field__control"
-                value={percent}
-                onChange={(event) => setPercent(event.target.value)}
-                aria-describedby="tm-allocation-percent-hint"
-                required
-              />
-              <span className="tm-field__hint" id="tm-allocation-percent-hint">
-                The share of the member's time, from 1 to 100.
-              </span>
-            </div>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-allocation-percent">
+                      Percent
+                    </label>
+                    <input
+                      id="tm-allocation-percent"
+                      name="percent"
+                      type="number"
+                      min={1}
+                      max={100}
+                      step={1}
+                      inputMode="numeric"
+                      className="tm-field__control"
+                      value={percent}
+                      onChange={(event) => setPercent(event.target.value)}
+                      aria-describedby="tm-allocation-percent-hint"
+                      required
+                    />
+                    <span className="tm-field__hint" id="tm-allocation-percent-hint">
+                      The share of the member's time, from 1 to 100.
+                    </span>
+                  </div>
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-allocation-start">
-                Start date
-              </label>
-              <input
-                id="tm-allocation-start"
-                name="startDate"
-                type="date"
-                className="tm-field__control"
-                value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
-                aria-describedby="tm-allocation-start-hint"
-              />
-              <span className="tm-field__hint" id="tm-allocation-start-hint">
-                Optional. When the allocation begins.
-              </span>
-            </div>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-allocation-start">
+                      Start date
+                    </label>
+                    <input
+                      id="tm-allocation-start"
+                      name="startDate"
+                      type="date"
+                      className="tm-field__control"
+                      value={startDate}
+                      onChange={(event) => setStartDate(event.target.value)}
+                      aria-describedby="tm-allocation-start-hint"
+                    />
+                    <span className="tm-field__hint" id="tm-allocation-start-hint">
+                      Optional. When the allocation begins.
+                    </span>
+                  </div>
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-allocation-end">
-                End date
-              </label>
-              <input
-                id="tm-allocation-end"
-                name="endDate"
-                type="date"
-                className="tm-field__control"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                aria-describedby="tm-allocation-end-hint"
-              />
-              <span className="tm-field__hint" id="tm-allocation-end-hint">
-                Optional. Leave blank for an ongoing allocation.
-              </span>
-            </div>
-          </fieldset>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-allocation-end">
+                      End date
+                    </label>
+                    <input
+                      id="tm-allocation-end"
+                      name="endDate"
+                      type="date"
+                      className="tm-field__control"
+                      value={endDate}
+                      onChange={(event) => setEndDate(event.target.value)}
+                      aria-describedby="tm-allocation-end-hint"
+                    />
+                    <span className="tm-field__hint" id="tm-allocation-end-hint">
+                      Optional. Leave blank for an ongoing allocation.
+                    </span>
+                  </div>
+                </fieldset>
 
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not assign the member" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not assign the member" live>
+                    {describeError(create.error)}
+                  </InlineAlert>
+                ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Saving"
-              disabled={!canSubmit}
-            >
-              Assign
-            </Button>
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={create.isPending}
+                    loadingLabel="Saving"
+                    disabled={!canSubmit}
+                  >
+                    Assign
+                  </Button>
+                </div>
+              </form>
+            </section>
           </div>
-        </form>
-      </section>
+          <div className="tm-prj__col">
+            {allocations.isError ? (
+              <InlineAlert tone="danger" title="Could not load the allocations" live>
+                {describeError(allocations.error)}
+              </InlineAlert>
+            ) : null}
 
-      {allocations.isError ? (
-        <InlineAlert tone="danger" title="Could not load the allocations" live>
-          {describeError(allocations.error)}
-        </InlineAlert>
-      ) : null}
+            {allocations.isPending ? (
+              <LoadingRegion label="Loading the project's allocations.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
 
-      {allocations.isPending ? (
-        <LoadingRegion label="Loading the project's allocations.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+            {!allocations.isPending && !allocations.isError && rows.length === 0 ? (
+              <InlineAlert tone="neutral" title="No allocations yet">
+                No one is allocated to this project. Assign the first member with the form.
+              </InlineAlert>
+            ) : null}
 
-      {!allocations.isPending && !allocations.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No allocations yet">
-          No one is allocated to this project. Assign the first member above.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-allocations-heading">
-          <h2 id="tm-allocations-heading" className="tm-eyebrow">
-            Allocations
-          </h2>
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Project allocations"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                Allocations for this project, in creation order, {rows.length} shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Membership</th>
-                  <th scope="col">Percent</th>
-                  <th scope="col">Start</th>
-                  <th scope="col">End</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((allocation) => (
-                  <AllocationRow key={allocation.id} allocation={allocation} />
-                ))}
-              </tbody>
-            </table>
+            {rows.length > 0 ? (
+              <section className="tm-card tm-prj-card" aria-labelledby="tm-allocations-heading">
+                <h2 id="tm-allocations-heading" className="tm-prj-eyebrow">
+                  Allocations
+                </h2>
+                <div
+                  className="tm-table-scroll"
+                  // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
+                  // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Project allocations"
+                >
+                  <table className="tm-table">
+                    <caption className="tm-visually-hidden">
+                      Allocations for this project, in creation order, {rows.length} shown.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Membership</th>
+                        <th scope="col">Percent</th>
+                        <th scope="col">Start</th>
+                        <th scope="col">End</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((allocation) => (
+                        <AllocationRow key={allocation.id} allocation={allocation} />
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
           </div>
-        </section>
-      ) : null}
+        </div>
+      </div>
     </AppShell>
   );
 }

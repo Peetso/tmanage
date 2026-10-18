@@ -24,8 +24,8 @@ export default function AppError({
   }, [error]);
 
   return (
-    <StateScreen>
-      <ServerErrorState onRetry={reset} />
+    <StateScreen label="Something broke">
+      <ServerErrorState onRetry={reset} reference={error.digest} />
     </StateScreen>
   );
 }

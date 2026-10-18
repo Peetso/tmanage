@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listPortalAccessLog, MAX_PORTAL_ACCESS_PAGE } from '../../lib/api/portal-access-log';
 import type {
@@ -75,62 +76,66 @@ export function PortalAccessLogScreen({
       organizationName={organizationName}
       title="Portal access log"
       description="What this project's clients accessed in the portal, newest first."
+      eyebrow="Project · Client portal"
+      topBar={<ProjectTabs organizationSlug={organizationSlug} projectId={projectId} />}
     >
-      {events.isPending ? (
-        <LoadingRegion label="Loading the access log." className="tm-stack tm-stack--tight">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+      <div className="tm-prj tm-prj--sub">
+        {events.isPending ? (
+          <LoadingRegion label="Loading the access log." className="tm-stack tm-stack--tight">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {events.isError ? (
-        <InlineAlert tone="danger" title="Could not load the access log" live>
-          {describe(events.error)}
-        </InlineAlert>
-      ) : null}
+        {events.isError ? (
+          <InlineAlert tone="danger" title="Could not load the access log" live>
+            {describe(events.error)}
+          </InlineAlert>
+        ) : null}
 
-      {!events.isPending && !events.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral">
-          No client access has been recorded for this project.
-        </InlineAlert>
-      ) : null}
+        {!events.isPending && !events.isError && rows.length === 0 ? (
+          <InlineAlert tone="neutral">
+            No client access has been recorded for this project.
+          </InlineAlert>
+        ) : null}
 
-      {rows.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-portal-access-heading">
-          <h2 id="tm-portal-access-heading" className="tm-eyebrow">
-            Access events
-          </h2>
-          <table className="tm-table" aria-label="Client portal access events, newest first">
-            <thead>
-              <tr>
-                <th scope="col">When</th>
-                <th scope="col">Client member</th>
-                <th scope="col">Resource</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((event) => (
-                <AccessRow key={event.id} event={event} />
-              ))}
-            </tbody>
-          </table>
+        {rows.length > 0 ? (
+          <section className="tm-card tm-prj-card" aria-labelledby="tm-portal-access-heading">
+            <h2 id="tm-portal-access-heading" className="tm-prj-eyebrow">
+              Access events
+            </h2>
+            <table className="tm-table" aria-label="Client portal access events, newest first">
+              <thead>
+                <tr>
+                  <th scope="col">When</th>
+                  <th scope="col">Client member</th>
+                  <th scope="col">Resource</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((event) => (
+                  <AccessRow key={event.id} event={event} />
+                ))}
+              </tbody>
+            </table>
 
-          {events.hasNextPage ? (
-            <div>
-              <Button
-                type="button"
-                tone="outline"
-                size="compact"
-                onClick={() => void events.fetchNextPage()}
-                disabled={events.isFetchingNextPage}
-              >
-                {events.isFetchingNextPage ? 'Loading…' : 'Load more'}
-              </Button>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
+            {events.hasNextPage ? (
+              <div>
+                <Button
+                  type="button"
+                  tone="outline"
+                  size="compact"
+                  onClick={() => void events.fetchNextPage()}
+                  disabled={events.isFetchingNextPage}
+                >
+                  {events.isFetchingNextPage ? 'Loading…' : 'Load more'}
+                </Button>
+              </div>
+            ) : null}
+          </section>
+        ) : null}
+      </div>
     </AppShell>
   );
 }

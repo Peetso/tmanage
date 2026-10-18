@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { BackendPending } from './BackendPending';
+import '../../styles/screens/identity.css';
 
 /** The four states the export draws for recovery, and `22` §3 implies for ID-05. */
 export type RecoveryState = 'request' | 'sent' | 'expired' | 'completed';
@@ -74,118 +75,127 @@ export function RecoveryScreen({ state = 'request' }: RecoveryScreenProps) {
       footer={<Link href="/sign-in">Back to sign in</Link>}
     >
       {state === 'request' ? (
-        <>
-          <div className="tm-stack tm-stack--tight">
-            <h1 className="tm-identity__title">Recover access</h1>
-            <p className="tm-prose">
+        <div className="tm-id-bare tm-stack">
+          <section className="tm-id-card tm-id-card--ink">
+            <span className="tm-id-step tm-id-step--ink">Request</span>
+            <h1 className="tm-id-card__title">Recover access</h1>
+            <p className="tm-id-card__body">
               We will send a link to your work email. It works once and expires in 30 minutes.
             </p>
+            <form className="tm-stack tm-stack--tight" onSubmit={(event) => event.preventDefault()}>
+              <Field
+                label="Work email"
+                type="email"
+                name="email"
+                autoComplete="username"
+                inputMode="email"
+                dir="ltr"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                disabled
+              />
+              <div className="tm-id-action-row">
+                <Button type="submit" tone="ink" size="accessible" disabled>
+                  Send a recovery link
+                </Button>
+              </div>
+            </form>
+          </section>
+
+          <div className="tm-id-pending">
+            <BackendPending ticket="ID-002">
+              You cannot reset your own password here yet. No recovery email is sent, and the form
+              above does not submit. To get back into your account, ask whoever administers your
+              TManage workspace to reset your password for you.
+            </BackendPending>
           </div>
-
-          <BackendPending ticket="ID-002">
-            You cannot reset your own password here yet. No recovery email is sent, and the form
-            below does not submit. To get back into your account, ask whoever administers your
-            TManage workspace to reset your password for you.
-          </BackendPending>
-
-          <form className="tm-stack" onSubmit={(event) => event.preventDefault()}>
-            <Field
-              label="Work email"
-              type="email"
-              name="email"
-              autoComplete="username"
-              inputMode="email"
-              dir="ltr"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              disabled
-            />
-            <div className="tm-row">
-              <Button type="submit" tone="ink" size="accessible" disabled>
-                Send a recovery link
-              </Button>
-            </div>
-          </form>
-        </>
+        </div>
       ) : null}
 
       {state === 'sent' ? (
-        <>
-          <div className="tm-stack tm-stack--tight">
-            <h1 className="tm-identity__title">Check your email</h1>
+        <div className="tm-id-bare tm-stack">
+          <section className="tm-id-card">
+            <span className="tm-id-step">Sent</span>
+            <h1 className="tm-id-card__title">Check your email</h1>
+            <InlineAlert tone="neutral" title="A link may be on its way">
+              If an account exists for that address, a link is on its way. The link works once and
+              expires in 30 minutes.
+            </InlineAlert>
+            <p className="tm-id-card__body">
+              We do not say whether an account exists for an address. That is deliberate: it would
+              let anyone check who uses TManage.
+            </p>
+          </section>
+
+          <div className="tm-id-pending">
+            <BackendPending ticket="ID-002">
+              No recovery email was sent. Nothing in this application sends one yet, so the wording
+              above is the designed state and not a report of a delivery. To get back into your
+              account, ask whoever administers your TManage workspace to reset your password for
+              you.
+            </BackendPending>
           </div>
-
-          <BackendPending ticket="ID-002">
-            No recovery email was sent. Nothing in this application sends one yet, so the wording
-            below is the designed state and not a report of a delivery. To get back into your
-            account, ask whoever administers your TManage workspace to reset your password for you.
-          </BackendPending>
-
-          <InlineAlert tone="neutral" title="A link may be on its way">
-            If an account exists for that address, a link is on its way. The link works once and
-            expires in 30 minutes.
-          </InlineAlert>
-          <p className="tm-prose">
-            We do not say whether an account exists for an address. That is deliberate: it would let
-            anyone check who uses TManage.
-          </p>
-        </>
+        </div>
       ) : null}
 
       {/*
         "That link has expired" is a statement about a link this application never issued, and
-        the control it offers instead — "Request a new link" — is disabled. Until 2026-09-12 the
-        branch was left alone on the grounds that the route cannot reach it, so nobody is told
-        it. That reasoning covered the claim; it did not cover the dead end. Whoever does reach
-        this state, from a caller that does not exist yet, would be looking at a locked account,
-        a disabled button and no way forward. So it now carries the same notice the other three
-        do, with the same next step. When ID-002 lands, a real expiry substantiates the heading
-        and the notice comes off.
+        the control it offers instead — "Request a new link" — is disabled. Whoever reaches this
+        state, from a caller that does not exist yet, would otherwise be looking at a locked
+        account, a disabled button and no way forward. So it carries the same notice the other
+        three do, with the same next step. When ID-002 lands, a real expiry substantiates the
+        heading and the notice comes off.
       */}
       {state === 'expired' ? (
-        <>
-          <div className="tm-stack tm-stack--tight">
-            <h1 className="tm-identity__title">That link has expired</h1>
-          </div>
+        <div className="tm-id-bare tm-stack">
+          <section className="tm-id-card tm-id-card--warning">
+            <span className="tm-id-step tm-id-step--warning">Expired</span>
+            <h1 className="tm-id-card__title">That link has expired</h1>
+            <p className="tm-id-card__body">
+              For safety we do not extend recovery links. Request a new one — it takes a few
+              seconds.
+            </p>
+            <div className="tm-id-action-row">
+              <Button tone="ink" size="accessible" disabled>
+                Request a new link
+              </Button>
+            </div>
+          </section>
 
-          <BackendPending ticket="ID-002">
-            No recovery link was issued, so there is nothing here to renew. To get back into your
-            account, ask whoever administers your TManage workspace to reset your password for you.
-          </BackendPending>
-
-          <InlineAlert tone="warning" title="Recovery links are never extended">
-            For safety we do not extend recovery links. Request a new one — it takes a few seconds.
-          </InlineAlert>
-          <div className="tm-row">
-            <Button tone="ink" size="accessible" disabled>
-              Request a new link
-            </Button>
+          <div className="tm-id-pending">
+            <BackendPending ticket="ID-002">
+              No recovery link was issued, so there is nothing here to renew. To get back into your
+              account, ask whoever administers your TManage workspace to reset your password for
+              you.
+            </BackendPending>
           </div>
-        </>
+        </div>
       ) : null}
 
       {state === 'completed' ? (
-        <>
-          <div className="tm-stack tm-stack--tight">
-            <h1 className="tm-identity__title">Access restored</h1>
-          </div>
+        <div className="tm-id-bare tm-stack">
+          <section className="tm-id-card tm-id-card--success">
+            <span className="tm-id-step tm-id-step--success">Completed</span>
+            <h1 className="tm-id-card__title">Access restored</h1>
+            <InlineAlert tone="success" title="Your other sessions were signed out">
+              The event was written to the audit log. Set up a passkey to avoid this next time.
+            </InlineAlert>
+            <div className="tm-id-action-row">
+              <Button tone="ink" size="accessible" disabled>
+                Set up a passkey
+              </Button>
+            </div>
+          </section>
 
-          <BackendPending ticket="ID-002">
-            No recovery has run. No access was restored, no session was signed out and no audit row
-            was written. This is the designed state, drawn for review — not a result. If you are
-            locked out, ask whoever administers your TManage workspace to reset your password for
-            you.
-          </BackendPending>
-
-          <InlineAlert tone="success" title="Your other sessions were signed out">
-            The event was written to the audit log. Set up a passkey to avoid this next time.
-          </InlineAlert>
-          <div className="tm-row">
-            <Button tone="ink" size="accessible" disabled>
-              Set up a passkey
-            </Button>
+          <div className="tm-id-pending">
+            <BackendPending ticket="ID-002">
+              No recovery has run. No access was restored, no session was signed out and no audit
+              row was written. This is the designed state, drawn for review — not a result. If you
+              are locked out, ask whoever administers your TManage workspace to reset your password
+              for you.
+            </BackendPending>
           </div>
-        </>
+        </div>
       ) : null}
     </IdentityShell>
   );

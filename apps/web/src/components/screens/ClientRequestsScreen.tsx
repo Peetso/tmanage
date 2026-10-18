@@ -2,51 +2,36 @@
 
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listClientRequests, listPortalProjects } from '../../lib/api/portal';
-import type { ClientRequest } from '../../lib/api/portal';
+import type { ClientRequest, ClientRequestStatus } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import {
   describeCommitment,
   describeDesiredDate,
-  formatDay,
-  requestStatusCapsule,
   requestStatusLabel,
 } from '../../lib/client-request-presentation';
+import { shortDay, Tag } from './PortalParts';
 
 export interface ClientRequestsScreenProps {
   organizationSlug: string;
+  /** The client's own name leads the header. `22` §1. */
   clientName: string;
   providerName: string;
   client?: ApiClient;
 }
 
 /**
- * Everything this client organization has asked for.
+ * **Your requests** — everything the client has asked the studio for (REQ-001).
  *
- * ## This screen has no ID, and that is a divergence rather than an invention
- *
- * `22-SCREEN-BY-SCREEN` §6 gives `CL-06 New request / request detail` and no list.
- * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §9 splits the same thing into `CL-09 New request` and
- * `CL-10 Request detail`, and also has no list. But the design artifact for both draws a
- * breadcrumb reading **"Requests · New request"**, which is a section neither document's
- * navigation contains: `22` §1 fixes the client rail as "Overview, My Actions, Deliverables,
- * Timeline, Updates, Files, People".
- *
- * So this page exists — a client with four requests has to be able to find the third one — and
- * **`CLIENT_NAVIGATION` was not touched**, because a rail item that §1 does not list would be a
- * destination this codebase invented. It is reached from `CL-01 Overview` and from
- * `CL-02 My Actions`. The divergence is recorded in `docs/implementation-status.md` rather than
- * resolved by picking whichever document was more convenient.
- *
- * ## Ordering
- *
- * Requests waiting on the client first, then everything else newest-first. That is the same
- * rule `CL-02` applies to actions and for the same reason: the only ordering this screen can
- * honestly apply is one the reader can verify from what is on the card.
+ * Reached from CL-01 rather than the bar: `22-SCREEN-BY-SCREEN` §1 fixes the client navigation
+ * and "Requests" is not one of its destinations, so the overview stays the active capsule. Drawn
+ * in the portal's capsule-card language (CL-02): anything the studio is waiting on an answer to
+ * leads, outlined in ink, then the newest first. The asked-for date and the agreed date stay on
+ * separate phrases so a wish is never read as a commitment.
  */
 export function ClientRequestsScreen({
   organizationSlug,
@@ -74,80 +59,101 @@ export function ClientRequestsScreen({
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      {...(project ? { projectName: project.name } : {})}
       activeNavigationId="overview"
-      title="Your requests"
-      description={`Everything you have asked ${providerName} for.`}
-    >
-      {requests.isError ? (
-        <InlineAlert tone="danger" title="Could not load your requests" live>
-          {describe(requests.error)}
-        </InlineAlert>
-      ) : null}
-
-      {requests.isPending ? (
-        <LoadingRegion label="Loading your requests.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      <div className="tm-row">
-        {/*
-          A link that looks like a button, not a button that navigates. `ProjectOverviewScreen`
-          does the same: going somewhere is an anchor, so middle-click, open-in-new-tab and the
-          browser's own affordances keep working.
-        */}
+      title="Everything you have asked for"
+      eyebrow={project ? `Your requests · ${project.name}` : 'Your requests'}
+      headerAside={
+        // A link that looks like a button: going somewhere is an anchor, so middle-click and
+        // open-in-new-tab keep working.
         <Link
           href={`/${organizationSlug}/portal/requests/new`}
-          className="tm-button tm-button--ink tm-button--accessible"
+          className="tm-pt-btn tm-pt-btn--ink"
         >
           Ask for something
         </Link>
+      }
+    >
+      <div className="tm-pt tm-pt--compact">
+        {requests.isError ? (
+          <InlineAlert tone="danger" title="Could not load your requests" live>
+            {describe(requests.error)}
+          </InlineAlert>
+        ) : null}
+
+        {requests.isPending ? (
+          <LoadingRegion label="Loading your requests.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
+
+        {!requests.isPending && !requests.isError && ordered.length === 0 ? (
+          <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
+            <h2 className="tm-pt-card__title">You have not asked for anything yet</h2>
+            <p className="tm-pt-card__body">
+              When you need something from {providerName}, ask here. They read it, ask you anything
+              unclear, and then either agree a date or tell you why not — and whichever it is
+              appears on this page.
+            </p>
+          </div>
+        ) : null}
+
+        {ordered.length > 0 ? (
+          <ul className="tm-pt-list" aria-label="Your requests">
+            {ordered.map((request) => {
+              const waiting = request.status === 'clarifying';
+              return (
+                <li
+                  key={request.id}
+                  className={waiting ? 'tm-pt-action tm-pt-action--lead' : 'tm-pt-action'}
+                >
+                  <span className="tm-pt-action__orb" aria-hidden="true">
+                    {STATUS_GLYPH[request.status] ?? '·'}
+                  </span>
+                  <div className="tm-pt-action__body">
+                    <div className="tm-pt-action__meta">
+                      <Tag tone={waiting ? 'lime' : toneFor(request.status)}>
+                        {requestStatusLabel(request.status)}
+                      </Tag>
+                      <span className="tm-pt-mono">Sent {shortDay(request.createdAt)}</span>
+                    </div>
+                    <h2 className="tm-pt-action__title">
+                      <Link href={`/${organizationSlug}/portal/requests/${request.id}`}>
+                        {request.title}
+                      </Link>
+                    </h2>
+                    <p className="tm-pt-action__text">
+                      {describeDesiredDate(request.desiredAt)} · {describeCommitment(request)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
       </div>
-
-      {!requests.isPending && !requests.isError && ordered.length === 0 ? (
-        <InlineAlert tone="neutral" title="You have not asked for anything yet">
-          <p className="tm-prose">
-            When you need something from {providerName}, ask here. They read it, ask you anything
-            unclear, and then either agree a date or tell you why not — and whichever it is appears
-            on this page.
-          </p>
-        </InlineAlert>
-      ) : null}
-
-      {ordered.length > 0 ? (
-        <ul className="tm-stack tm-list" aria-label="Your requests">
-          {ordered.map((request) => (
-            <li key={request.id} className="tm-panel tm-stack tm-stack--tight">
-              <div className="tm-row tm-row--wrap">
-                <StateCapsule state={requestStatusCapsule(request.status)}>
-                  {requestStatusLabel(request.status)}
-                </StateCapsule>
-              </div>
-              <p className="tm-prose">
-                <Link href={`/${organizationSlug}/portal/requests/${request.id}`}>
-                  <strong>{request.title}</strong>
-                </Link>
-              </p>
-              <p className="tm-prose">
-                {describeDesiredDate(request.desiredAt)} · {describeCommitment(request)}
-              </p>
-              <p className="tm-field__hint">Sent {formatDay(request.createdAt)}</p>
-            </li>
-          ))}
-        </ul>
-      ) : null}
     </ClientPortalShell>
   );
 }
 
-/**
- * Anything the studio is waiting on the client for, first; then newest first.
- *
- * `clarifying` is the only status where the request is the client's to move, so it is the only
- * one that earns the top of the list. Everything below it is history in the order it happened.
- */
+const STATUS_GLYPH: Partial<Record<ClientRequestStatus, string>> = {
+  submitted: '→',
+  clarifying: '?',
+  accepted: '✓',
+  planned: '▸',
+  delivered: '✓',
+  deferred: '…',
+  declined: '×',
+  withdrawn: '–',
+};
+
+function toneFor(status: ClientRequestStatus): 'done' | 'danger' | undefined {
+  if (status === 'accepted' || status === 'delivered') return 'done';
+  if (status === 'declined') return 'danger';
+  return undefined;
+}
+
+/** Anything the studio is waiting on first, then the newest. */
 function byAttentionThenAge(left: ClientRequest, right: ClientRequest): number {
   const leftWaiting = left.status === 'clarifying' ? 0 : 1;
   const rightWaiting = right.status === 'clarifying' ? 0 : 1;

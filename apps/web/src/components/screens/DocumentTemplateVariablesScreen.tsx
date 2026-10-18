@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/docs.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   addDocumentTemplateVariable,
@@ -96,164 +97,185 @@ export function DocumentTemplateVariablesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
+      eyebrow="Docs · Templates"
       title="Template variables"
       description="The named placeholders this template declares. Adding a variable does not change the template body yet."
+      actions={
+        <Link className="tm-dx-back" href={`/${organizationSlug}/docs/templates`}>
+          <span className="tm-dx-back__orb" aria-hidden="true">
+            ←
+          </span>
+          Back to templates
+        </Link>
+      }
     >
-      <p className="tm-prose">
-        <Link href={`/${organizationSlug}/docs/templates`}>Back to templates</Link>
-      </p>
+      <div className="tm-dx tm-dx-split">
+        <section className="tm-dx-split__main" aria-labelledby="tm-var-list-heading">
+          <h2 id="tm-var-list-heading" className="tm-dx-caption">
+            Declared variables{rows.length > 0 ? ` · ${rows.length}` : ''}
+          </h2>
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-var-new-heading">
-        <h2 id="tm-var-new-heading" className="tm-eyebrow">
-          New variable
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canAdd) add.mutate();
-          }}
-        >
-          <Field
-            label="Key"
-            name="key"
-            value={key}
-            onChange={(event) => setKey(event.target.value)}
-            hint="The token a document is filled by, such as client_name. Unique within the template."
-            required
-          />
-          <Field
-            label="Label"
-            name="label"
-            value={label}
-            onChange={(event) => setLabel(event.target.value)}
-            hint="What a person filling the variable in sees, such as Client name."
-            required
-          />
-          <Select
-            label="Type"
-            name="type"
-            value={type}
-            onChange={(event) => setType(event.target.value as DocumentTemplateVariableType)}
-            hint="The kind of value this variable holds."
-          >
-            {TYPES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-          <Checkbox
-            label="Required"
-            name="required"
-            checked={required}
-            onChange={(event) => setRequired(event.target.checked)}
-            hint="A required variable must be given a value before the template is applied."
-          />
-
-          {add.isError ? (
-            <InlineAlert tone="danger" title="Could not add the variable" live>
-              {describeError(add.error)}
+          {variables.isError ? (
+            <InlineAlert tone="danger" title="Could not load the variables" live>
+              {describeError(variables.error)}
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={add.isPending}
-              loadingLabel="Adding"
-              disabled={!canAdd}
+          {remove.isError ? (
+            <InlineAlert tone="danger" title="Could not remove that variable" live>
+              {describeError(remove.error)}
+            </InlineAlert>
+          ) : null}
+
+          {variables.isPending ? (
+            <LoadingRegion label="Loading the variables.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {!variables.isPending && !variables.isError && rows.length === 0 ? (
+            <div className="tm-dx-empty">
+              <p className="tm-dx-empty__title">No variables yet</p>
+              <p className="tm-dx-empty__body">
+                Add a variable with the form beside this list. Each one is a placeholder this
+                template declares.
+              </p>
+            </div>
+          ) : null}
+
+          {rows.length > 0 ? (
+            <div
+              className="tm-dx-table-card"
+              // A scrollable region must be focusable or a keyboard cannot reach its overflow
+              // columns (WCAG 2.2 2.1.1), matching the other screens' tables.
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+              tabIndex={0}
+              role="region"
+              aria-label="Template variables"
             >
-              Add variable
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-var-list-heading">
-        <h2 id="tm-var-list-heading" className="tm-eyebrow">
-          Declared variables
-        </h2>
-
-        {variables.isError ? (
-          <InlineAlert tone="danger" title="Could not load the variables" live>
-            {describeError(variables.error)}
-          </InlineAlert>
-        ) : null}
-
-        {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not remove that variable" live>
-            {describeError(remove.error)}
-          </InlineAlert>
-        ) : null}
-
-        {variables.isPending ? (
-          <LoadingRegion label="Loading the variables.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!variables.isPending && !variables.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No variables yet">
-            Add a variable above. Each one is a placeholder this template declares.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow
-            // columns (WCAG 2.2 2.1.1), matching the other screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Template variables"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                This template&rsquo;s declared variables, {rows.length} shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Key</th>
-                  <th scope="col">Label</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Required</th>
-                  <th scope="col">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((variable) => (
-                  <tr key={variable.id}>
-                    <th scope="row" className="tm-table__title">
-                      {variable.key}
+              <table className="tm-dx-table">
+                <caption className="tm-visually-hidden">
+                  This template&rsquo;s declared variables, {rows.length} shown.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Key</th>
+                    <th scope="col">Label</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Required</th>
+                    <th scope="col" className="tm-dx-table__end">
+                      Actions
                     </th>
-                    <td>{variable.label}</td>
-                    <td>{variable.type}</td>
-                    <td>{variable.required ? 'Yes' : 'No'}</td>
-                    <td>
-                      <Button
-                        type="button"
-                        tone="outline"
-                        size="accessible"
-                        loading={remove.isPending && remove.variables === variable.id}
-                        loadingLabel="Removing"
-                        onClick={() => remove.mutate(variable.id)}
-                      >
-                        Remove
-                      </Button>
-                    </td>
                   </tr>
+                </thead>
+                <tbody>
+                  {rows.map((variable) => (
+                    <tr key={variable.id}>
+                      <th scope="row" className="tm-dx-table__title">
+                        <span className="tm-dx-token">{variable.key}</span>
+                      </th>
+                      <td className="tm-dx-table__quiet">{variable.label}</td>
+                      <td className="tm-dx-table__mono">{variable.type}</td>
+                      <td>
+                        {variable.required ? (
+                          <span className="tm-dx-pill tm-dx-pill--proposed">Yes</span>
+                        ) : (
+                          <span className="tm-dx-table__quiet">No</span>
+                        )}
+                      </td>
+                      <td className="tm-dx-table__end">
+                        <span className="tm-dx-actions tm-dx-actions--end">
+                          <Button
+                            type="button"
+                            tone="outline"
+                            size="compact"
+                            loading={remove.isPending && remove.variables === variable.id}
+                            loadingLabel="Removing"
+                            onClick={() => remove.mutate(variable.id)}
+                          >
+                            Remove
+                          </Button>
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+
+        <aside className="tm-dx-split__side" aria-label="Add a variable">
+          <section className="tm-dx-card tm-dx-card--dashed" aria-labelledby="tm-var-new-heading">
+            <h2 id="tm-var-new-heading" className="tm-dx-card__title">
+              New variable
+            </h2>
+            <form
+              className="tm-dx-form"
+              noValidate
+              onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                if (canAdd) add.mutate();
+              }}
+            >
+              <Field
+                label="Key"
+                name="key"
+                value={key}
+                onChange={(event) => setKey(event.target.value)}
+                hint="The token a document is filled by, such as client_name. Unique within the template."
+                required
+              />
+              <Field
+                label="Label"
+                name="label"
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                hint="What a person filling the variable in sees, such as Client name."
+                required
+              />
+              <Select
+                label="Type"
+                name="type"
+                value={type}
+                onChange={(event) => setType(event.target.value as DocumentTemplateVariableType)}
+                hint="The kind of value this variable holds."
+              >
+                {TYPES.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
+              </Select>
+              <Checkbox
+                label="Required"
+                name="required"
+                checked={required}
+                onChange={(event) => setRequired(event.target.checked)}
+                hint="A required variable must be given a value before the template is applied."
+              />
+
+              {add.isError ? (
+                <InlineAlert tone="danger" title="Could not add the variable" live>
+                  {describeError(add.error)}
+                </InlineAlert>
+              ) : null}
+
+              <Button
+                type="submit"
+                tone="ink"
+                size="default"
+                loading={add.isPending}
+                loadingLabel="Adding"
+                disabled={!canAdd}
+              >
+                Add variable
+              </Button>
+            </form>
+          </section>
+        </aside>
+      </div>
     </AppShell>
   );
 }

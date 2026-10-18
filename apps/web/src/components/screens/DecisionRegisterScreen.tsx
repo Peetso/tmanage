@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/docs.css';
 import { DecisionWorkLinksPanel } from './DecisionWorkLinksPanel';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
@@ -47,7 +48,7 @@ const STATUSES: readonly { id: DecisionStatus; label: string }[] = [
  *    which `describeError()` turns into a sentence; the screen never guesses a capability of its own
  *    and never renders blank on a refusal.
  * 2. **A project is chosen first.** The register is per project by definition, so nothing is fetched
- *    or written until a project is picked.
+ *    or written until a project is known — the one handed in, or the first the caller can see.
  *
  * The optional meeting link the API accepts is not offered here yet: there is no meeting picker on
  * this slice, and a text field for a UUID is not a form. A decision authored here is unlinked; the
@@ -62,7 +63,9 @@ export function DecisionRegisterScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
-  const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
+  const [chosenId, setProjectId] = useState<string>(initialProjectId ?? '');
+  // DEC-01's filter capsules. "All" is the default so a decision just superseded stays in view.
+  const [filter, setFilter] = useState<'all' | 'active' | 'superseded'>('all');
   const [title, setTitle] = useState('');
   const [statement, setStatement] = useState('');
   const [status, setStatus] = useState<DecisionStatus>('proposed');
@@ -79,6 +82,11 @@ export function DecisionRegisterScreen({
     queryKey: ['projects', organizationSlug],
     queryFn: () => listProjects(api, organizationSlug),
   });
+
+  // The register is per project. It opens on the project handed in, or else the first project the
+  // caller can see, so the screen shows a register rather than an empty chooser.
+  const available = projects.data ?? [];
+  const projectId = chosenId !== '' ? chosenId : (available[0]?.id ?? '');
 
   const register = useQuery({
     queryKey: ['decisions', organizationSlug, projectId],
@@ -132,6 +140,19 @@ export function DecisionRegisterScreen({
   });
 
   const rows = useMemo(() => register.data ?? [], [register.data]);
+  const supersededCount = rows.filter((decision) => decision.status === 'superseded').length;
+  const activeCount = rows.length - supersededCount;
+  const visibleRows = useMemo(
+    () =>
+      rows.filter((decision) =>
+        filter === 'all'
+          ? true
+          : filter === 'superseded'
+            ? decision.status === 'superseded'
+            : decision.status !== 'superseded',
+      ),
+    [rows, filter],
+  );
   const canSubmit = projectId !== '' && title.trim() !== '' && statement.trim() !== '';
   const lifecycleError = accept.error ?? supersede.error ?? lock.error;
 
@@ -146,208 +167,271 @@ export function DecisionRegisterScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      title="Decision register"
-      description="The decisions a project has taken, most recently decided first."
+      eyebrow="Decisions · Register"
+      title="What has been decided"
+      {...(rows.length > 0
+        ? {
+            headerAside: (
+              <p className="tm-dx-register-count">
+                {rows.length} {rows.length === 1 ? 'decision' : 'decisions'} · {supersededCount}{' '}
+                superseded
+              </p>
+            ),
+          }
+        : {})}
     >
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-decisions-filters">
-        <h2 id="tm-decisions-filters" className="tm-eyebrow">
-          Project
-        </h2>
-        <fieldset className="tm-fieldset tm-stack" disabled={projects.isPending}>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-decisions-project">
+      <div className="tm-dx">
+        <div className="tm-dx-chips">
+          {rows.length > 0 ? (
+            <div className="tm-dx-chips" role="group" aria-label="Filter the register">
+              {(
+                [
+                  { id: 'all', label: `All · ${rows.length}` },
+                  { id: 'active', label: `Active · ${activeCount}` },
+                  { id: 'superseded', label: `Superseded · ${supersededCount}` },
+                ] as const
+              ).map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  className="tm-chip"
+                  aria-pressed={filter === option.id}
+                  onClick={() => setFilter(option.id)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          <div className="tm-dx-select tm-push-end">
+            <label className="tm-dx-select__label" htmlFor="tm-decisions-project">
               Show the register for
             </label>
             <select
               id="tm-decisions-project"
-              className="tm-field__control"
+              className="tm-dx-select__control"
               value={projectId}
+              disabled={projects.isPending}
               onChange={(event) => setProjectId(event.target.value)}
+              aria-describedby="tm-decisions-project-hint"
             >
-              <option value="">Choose a project…</option>
-              {(projects.data ?? []).map((project) => (
+              {available.length === 0 ? <option value="">Choose a project…</option> : null}
+              {available.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
                 </option>
               ))}
             </select>
+            <span id="tm-decisions-project-hint" className="tm-visually-hidden">
+              A register is per project. Choose one to see and record its decisions.
+            </span>
           </div>
-          <span className="tm-field__hint">
-            A register is per project. Choose one to see and record its decisions.
-          </span>
-        </fieldset>
-      </section>
+        </div>
 
-      {projectId === '' ? (
-        <InlineAlert tone="neutral" title="Choose a project">
-          Pick a project above to see its decision register and record a decision.
-        </InlineAlert>
-      ) : null}
+        {projects.isError ? (
+          <InlineAlert tone="danger" title="Could not load your projects" live>
+            {describeError(projects.error)}
+          </InlineAlert>
+        ) : null}
 
-      {projectId !== '' ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-decisions-author">
-          <h2 id="tm-decisions-author" className="tm-eyebrow">
-            Record a decision
-          </h2>
-          <form className="tm-stack" onSubmit={onSubmit} noValidate>
-            <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={create.isPending}>
-              <Field
-                label="Decision"
-                name="title"
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                hint="One line. What was decided."
-                required
-              />
+        {!projects.isPending && projectId === '' ? (
+          <div className="tm-dx-empty">
+            <p className="tm-dx-empty__title">Choose a project</p>
+            <p className="tm-dx-empty__body">
+              A register is per project. Once a project exists, its decisions appear here.
+            </p>
+          </div>
+        ) : null}
 
-              <div className="tm-field">
-                <label className="tm-field__label" htmlFor="tm-decision-statement">
-                  In words
-                  <span className="tm-field__required" aria-hidden="true">
-                    *
-                  </span>
-                </label>
-                <textarea
-                  id="tm-decision-statement"
-                  name="statement"
-                  className="tm-field__control tm-field__control--multiline"
-                  rows={4}
-                  value={statement}
-                  onChange={(event) => setStatement(event.target.value)}
-                  aria-describedby="tm-decision-statement-hint"
-                  required
-                />
-                <span className="tm-field__hint" id="tm-decision-statement-hint">
-                  The decision in full, and why. This is the register's record.
-                </span>
-              </div>
+        {projectId !== '' ? (
+          <div className="tm-dx-split">
+            <div className="tm-dx-split__main">
+              {register.isError ? (
+                <InlineAlert tone="danger" title="Could not load the register" live>
+                  {describeError(register.error)}
+                </InlineAlert>
+              ) : null}
 
-              <Select
-                label="Status"
-                name="status"
-                value={status}
-                onChange={(event) => setStatus(event.target.value as DecisionStatus)}
-                hint="Where the decision stands now."
-              >
-                {STATUSES.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-            </fieldset>
+              {register.isPending ? (
+                <LoadingRegion label="Loading the decision register.">
+                  <Skeleton height="var(--row)" />
+                  <Skeleton height="var(--row)" />
+                </LoadingRegion>
+              ) : null}
 
-            {create.isError ? (
-              <InlineAlert tone="danger" title="Could not record the decision" live>
-                {describeError(create.error)}
-              </InlineAlert>
-            ) : null}
+              {!register.isPending && !register.isError && rows.length === 0 ? (
+                <div className="tm-dx-empty">
+                  <p className="tm-dx-empty__title">No decisions yet</p>
+                  <p className="tm-dx-empty__body">
+                    This project has no recorded decisions. Record the first one with the form
+                    beside the register.
+                  </p>
+                </div>
+              ) : null}
 
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={create.isPending}
-                loadingLabel="Recording"
-                disabled={!canSubmit}
-              >
-                Record decision
-              </Button>
+              {rows.length > 0 && lifecycleError ? (
+                <InlineAlert tone="danger" title="Could not update the decision" live>
+                  {describeError(lifecycleError)}
+                </InlineAlert>
+              ) : null}
+
+              {rows.length > 0 ? (
+                <section className="tm-dx" aria-labelledby="tm-decisions-heading">
+                  <h2 id="tm-decisions-heading" className="tm-visually-hidden">
+                    Register
+                  </h2>
+                  <div
+                    className="tm-dx-table-card"
+                    // A scrollable region must be focusable or a keyboard cannot reach its overflow
+                    // columns (WCAG 2.2 2.1.1), matching the work timeline's table.
+                    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Decision register"
+                  >
+                    <table className="tm-dx-table">
+                      <caption className="tm-visually-hidden">
+                        Decisions on this project, most recently decided first, {visibleRows.length}{' '}
+                        shown.
+                      </caption>
+                      <thead>
+                        <tr>
+                          <th scope="col">Statement</th>
+                          <th scope="col">Status</th>
+                          <th scope="col">Effective</th>
+                          <th scope="col">Lifecycle</th>
+                          <th scope="col" className="tm-dx-table__end">
+                            Affects
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {visibleRows.map((decision) => (
+                          <DecisionRow
+                            key={decision.id}
+                            decision={decision}
+                            candidates={rows}
+                            locked={lockedIds.has(decision.id)}
+                            onAccept={(id) => accept.mutate(id)}
+                            onSupersede={(id, byId) =>
+                              supersede.mutate({ decisionId: id, supersededById: byId })
+                            }
+                            onLock={(id) => lock.mutate(id)}
+                            busy={accept.isPending || supersede.isPending || lock.isPending}
+                            linksSelected={selectedDecision?.id === decision.id}
+                            onToggleLinks={() =>
+                              setSelectedDecision((current) =>
+                                current?.id === decision.id
+                                  ? null
+                                  : { id: decision.id, title: decision.title },
+                              )
+                            }
+                          />
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              ) : null}
             </div>
-          </form>
-        </section>
-      ) : null}
 
-      {register.isError ? (
-        <InlineAlert tone="danger" title="Could not load the register" live>
-          {describeError(register.error)}
-        </InlineAlert>
-      ) : null}
+            <aside className="tm-dx-split__side" aria-label="Record and link">
+              {selectedDecision ? (
+                <DecisionWorkLinksPanel
+                  organizationSlug={organizationSlug}
+                  decisionId={selectedDecision.id}
+                  decisionTitle={selectedDecision.title}
+                  {...(client ? { client } : {})}
+                />
+              ) : null}
 
-      {projectId !== '' && register.isPending ? (
-        <LoadingRegion label="Loading the decision register.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+              <section
+                className="tm-dx-card tm-dx-card--dashed"
+                aria-labelledby="tm-decisions-author"
+              >
+                <h2 id="tm-decisions-author" className="tm-dx-card__title">
+                  Record a decision
+                </h2>
+                <form className="tm-dx-form" onSubmit={onSubmit} noValidate>
+                  <fieldset className="tm-fieldset" disabled={create.isPending}>
+                    <Field
+                      label="Decision"
+                      name="title"
+                      value={title}
+                      onChange={(event) => setTitle(event.target.value)}
+                      hint="One line. What was decided."
+                      required
+                    />
 
-      {projectId !== '' && !register.isPending && !register.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No decisions yet">
-          This project has no recorded decisions. Record the first one above.
-        </InlineAlert>
-      ) : null}
+                    <div className="tm-field">
+                      <label className="tm-field__label" htmlFor="tm-decision-statement">
+                        In words
+                        <span className="tm-field__required" aria-hidden="true">
+                          *
+                        </span>
+                      </label>
+                      <textarea
+                        id="tm-decision-statement"
+                        name="statement"
+                        className="tm-field__control tm-field__control--multiline"
+                        rows={4}
+                        value={statement}
+                        onChange={(event) => setStatement(event.target.value)}
+                        aria-describedby="tm-decision-statement-hint"
+                        required
+                      />
+                      <span className="tm-field__hint" id="tm-decision-statement-hint">
+                        The decision in full, and why. This is the register&rsquo;s record.
+                      </span>
+                    </div>
 
-      {rows.length > 0 && lifecycleError ? (
-        <InlineAlert tone="danger" title="Could not update the decision" live>
-          {describeError(lifecycleError)}
-        </InlineAlert>
-      ) : null}
+                    <Select
+                      label="Status"
+                      name="status"
+                      value={status}
+                      onChange={(event) => setStatus(event.target.value as DecisionStatus)}
+                      hint="Where the decision stands now."
+                    >
+                      {STATUSES.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </fieldset>
 
-      {rows.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-decisions-heading">
-          <h2 id="tm-decisions-heading" className="tm-eyebrow">
-            Register
-          </h2>
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the work timeline's table.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Decision register"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                Decisions on this project, most recently decided first, {rows.length} shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Decision</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Decided</th>
-                  <th scope="col">Lifecycle</th>
-                  <th scope="col">Linked work</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((decision) => (
-                  <DecisionRow
-                    key={decision.id}
-                    decision={decision}
-                    candidates={rows}
-                    locked={lockedIds.has(decision.id)}
-                    onAccept={(id) => accept.mutate(id)}
-                    onSupersede={(id, byId) =>
-                      supersede.mutate({ decisionId: id, supersededById: byId })
-                    }
-                    onLock={(id) => lock.mutate(id)}
-                    busy={accept.isPending || supersede.isPending || lock.isPending}
-                    linksSelected={selectedDecision?.id === decision.id}
-                    onToggleLinks={() =>
-                      setSelectedDecision((current) =>
-                        current?.id === decision.id
-                          ? null
-                          : { id: decision.id, title: decision.title },
-                      )
-                    }
-                  />
-                ))}
-              </tbody>
-            </table>
+                  {create.isError ? (
+                    <InlineAlert tone="danger" title="Could not record the decision" live>
+                      {describeError(create.error)}
+                    </InlineAlert>
+                  ) : null}
+
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="default"
+                    loading={create.isPending}
+                    loadingLabel="Recording"
+                    disabled={!canSubmit}
+                  >
+                    Record decision
+                  </Button>
+                </form>
+              </section>
+
+              <div className="tm-dx-info">
+                <span className="tm-dx-info__orb" aria-hidden="true">
+                  i
+                </span>
+                <p>
+                  A decision is never edited in place. Changing it means recording a new decision
+                  that supersedes this one.
+                </p>
+              </div>
+            </aside>
           </div>
-        </section>
-      ) : null}
-
-      {selectedDecision ? (
-        <DecisionWorkLinksPanel
-          organizationSlug={organizationSlug}
-          decisionId={selectedDecision.id}
-          decisionTitle={selectedDecision.title}
-          {...(client ? { client } : {})}
-        />
-      ) : null}
+        ) : null}
+      </div>
     </AppShell>
   );
 }
@@ -383,54 +467,61 @@ function DecisionRow({
   const superseder = `tm-supersede-${decision.id}`;
 
   return (
-    <tr>
-      <th scope="row" className="tm-table__title">
+    <tr data-state={decision.status} {...(linksSelected ? { 'data-current': 'true' } : {})}>
+      <th scope="row" className="tm-dx-table__title">
         {decision.title}
+        <span className="tm-dx-table__sub">{decision.statement}</span>
       </th>
-      <td>{statusLabel(decision.status)}</td>
-      <td className="tm-mono">{formatMoment(decision.decidedAt)}</td>
+      <td>
+        <span className={`tm-dx-pill ${statusTone(decision.status)}`}>
+          {statusLabel(decision.status)}
+        </span>
+      </td>
+      <td>
+        <time className="tm-dx-table__mono tm-dx-table__mono--ink" dateTime={decision.decidedAt}>
+          {formatMoment(decision.decidedAt)}
+        </time>
+      </td>
       <td>
         {decision.status === 'superseded' ? (
-          <span className="tm-field__hint">No further action.</span>
+          <span className="tm-dx-note">No further action.</span>
         ) : locked ? (
           // Sealed: the lifecycle controls are gone, and the row states the seal (x150).
-          <span className="tm-field__hint">Locked. No further changes.</span>
+          <span className="tm-dx-note">Locked. No further changes.</span>
         ) : (
-          <div className="tm-stack tm-stack--tight">
+          <div className="tm-dx-actions">
             {decision.status === 'proposed' ? (
               <Button
                 type="button"
                 tone="ink"
-                size="accessible"
+                size="compact"
                 onClick={() => onAccept(decision.id)}
                 disabled={busy}
               >
                 Accept
               </Button>
             ) : null}
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor={superseder}>
-                Supersede with
-              </label>
-              <select
-                id={superseder}
-                className="tm-field__control"
-                value={supersededById}
-                onChange={(event) => setSupersededById(event.target.value)}
-                disabled={busy || options.length === 0}
-              >
-                <option value="">Choose a decision…</option>
-                {options.map((other) => (
-                  <option key={other.id} value={other.id}>
-                    {other.title}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <label className="tm-visually-hidden" htmlFor={superseder}>
+              Supersede with
+            </label>
+            <select
+              id={superseder}
+              className="tm-dx-select__control"
+              value={supersededById}
+              onChange={(event) => setSupersededById(event.target.value)}
+              disabled={busy || options.length === 0}
+            >
+              <option value="">Supersede with…</option>
+              {options.map((other) => (
+                <option key={other.id} value={other.id}>
+                  {other.title}
+                </option>
+              ))}
+            </select>
             <Button
               type="button"
               tone="outline"
-              size="accessible"
+              size="compact"
               onClick={() => {
                 if (supersededById !== '') onSupersede(decision.id, supersededById);
               }}
@@ -441,7 +532,7 @@ function DecisionRow({
             <Button
               type="button"
               tone="outline"
-              size="accessible"
+              size="compact"
               onClick={() => onLock(decision.id)}
               disabled={busy}
             >
@@ -450,16 +541,18 @@ function DecisionRow({
           </div>
         )}
       </td>
-      <td>
-        <Button
-          type="button"
-          tone="outline"
-          size="accessible"
-          onClick={onToggleLinks}
-          aria-pressed={linksSelected}
-        >
-          {linksSelected ? 'Hide linked work' : 'Linked work'}
-        </Button>
+      <td className="tm-dx-table__end">
+        <span className="tm-dx-actions tm-dx-actions--end">
+          <Button
+            type="button"
+            tone="outline"
+            size="compact"
+            onClick={onToggleLinks}
+            aria-pressed={linksSelected}
+          >
+            {linksSelected ? 'Hide linked work' : 'Linked work'}
+          </Button>
+        </span>
       </td>
     </tr>
   );
@@ -469,6 +562,12 @@ function statusLabel(status: DecisionStatus): string {
   return STATUSES.find((option) => option.id === status)?.label ?? status;
 }
 
+function statusTone(status: DecisionStatus): string {
+  if (status === 'accepted') return 'tm-dx-pill--active';
+  if (status === 'superseded') return 'tm-dx-pill--muted';
+  return 'tm-dx-pill--proposed';
+}
+
 function describeError(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
@@ -476,11 +575,11 @@ function describeError(error: unknown): string {
 }
 
 /**
- * Format an ISO timestamp for display, following the browser's locale for the reason
+ * Format an ISO timestamp as DEC-01's "14 Aug", following the browser's locale for the reason
  * `SessionsScreen` gives. An unparseable value is shown verbatim rather than as `Invalid Date`.
  */
 function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(at);
 }

@@ -2,21 +2,21 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getClientRequest, listPortalProjects, withdrawClientRequest } from '../../lib/api/portal';
+import type { ClientRequestStatus } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import {
   describeCommitment,
   describeDesiredDate,
   formatDay,
-  requestStatusCapsule,
   requestStatusLabel,
   requestStatusMeaning,
 } from '../../lib/client-request-presentation';
+import { Tag } from './PortalParts';
 
 export interface ClientRequestDetailScreenProps {
   organizationSlug: string;
@@ -115,138 +115,65 @@ export function ClientRequestDetailScreen({
     }
   }
 
+  const waitingOnClient = found?.status === 'clarifying';
+  const committed = found?.commitment === 'committed' && found.committedAt !== null;
+
   return (
     <ClientPortalShell
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      {...(project ? { projectName: project.name } : {})}
       activeNavigationId="overview"
       title={found?.title ?? 'Your request'}
-      description={found ? `Sent ${formatDay(found.createdAt)}` : undefined}
+      eyebrow={
+        found ? (
+          <span className="tm-pt-action__meta">
+            <Tag tone={waitingOnClient ? 'lime' : undefined}>
+              {requestStatusLabel(found.status)}
+            </Tag>
+            {found.status === 'accepted' && !committed ? <Tag>No committed date</Tag> : null}
+            <span>Sent {formatDay(found.createdAt)}</span>
+          </span>
+        ) : undefined
+      }
+      headerAside={
+        found && found.canWithdraw && found.status !== 'withdrawn' && !confirming ? (
+          <Button type="button" tone="outline" onClick={() => setConfirming(true)}>
+            Withdraw request
+          </Button>
+        ) : undefined
+      }
     >
-      {request.isError ? (
-        <InlineAlert tone="danger" title="Could not load this request" live>
-          {describe(request.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-pt tm-pt--compact">
+        {request.isError ? (
+          <InlineAlert tone="danger" title="Could not load this request" live>
+            {describe(request.error)}
+          </InlineAlert>
+        ) : null}
 
-      {request.isPending ? (
-        <LoadingRegion label="Loading your request.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {request.isPending ? (
+          <LoadingRegion label="Loading your request.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {found ? (
-        <>
-          <section className="tm-panel tm-stack" aria-labelledby="tm-request-status">
-            <h2 id="tm-request-status" className="tm-eyebrow">
-              Where this request is
-            </h2>
-            <div className="tm-row tm-row--wrap">
-              <StateCapsule state={requestStatusCapsule(found.status)}>
-                {requestStatusLabel(found.status)}
-              </StateCapsule>
-            </div>
-            <p className="tm-prose">{requestStatusMeaning(found.status)}</p>
-          </section>
+        {found ? (
+          <div className="tm-pt-split tm-pt-split--aside">
+            <div className="tm-pt-col">
+              {failure ? (
+                <InlineAlert tone="danger" title="Could not withdraw the request" live>
+                  {failure}
+                </InlineAlert>
+              ) : null}
 
-          {found.clarificationQuestion !== null && found.status === 'clarifying' ? (
-            <InlineAlert tone="warning" title={`${providerName} has asked you something`} live>
-              <p className="tm-prose">{found.clarificationQuestion}</p>
-              <p className="tm-prose">
-                There is nowhere to answer this in the portal yet — reply to {providerName} the way
-                you normally reach them. This request stays here until they hear back.
-              </p>
-            </InlineAlert>
-          ) : null}
-
-          {found.clientVisibleReason !== null ? (
-            <section className="tm-panel tm-stack" aria-labelledby="tm-request-reason">
-              <h2 id="tm-request-reason" className="tm-eyebrow">
-                What {providerName} said
-              </h2>
-              <p className="tm-prose">{found.clientVisibleReason}</p>
-            </section>
-          ) : null}
-
-          {found.clientSafeScopeSummary !== null ? (
-            <section className="tm-panel tm-stack" aria-labelledby="tm-request-scope">
-              <h2 id="tm-request-scope" className="tm-eyebrow">
-                What they have agreed to do
-              </h2>
-              <p className="tm-prose">{found.clientSafeScopeSummary}</p>
-            </section>
-          ) : null}
-
-          <section className="tm-panel tm-stack" aria-labelledby="tm-request-dates">
-            <h2 id="tm-request-dates" className="tm-eyebrow">
-              Dates
-            </h2>
-            <dl className="tm-detail-list">
-              <div className="tm-detail-list__pair">
-                <dt>You asked for</dt>
-                <dd>{describeDesiredDate(found.desiredAt)}</dd>
-              </div>
-              <div className="tm-detail-list__pair">
-                <dt>{providerName} agreed</dt>
-                <dd>{describeCommitment(found)}</dd>
-              </div>
-            </dl>
-            <p className="tm-prose">
-              The first is what you wanted. The second is what {providerName} has committed to, and
-              it exists only once they have accepted the request. They are never the same line, so a
-              date you asked for is never read back to you as a promise.
-            </p>
-          </section>
-
-          <section className="tm-panel tm-stack" aria-labelledby="tm-request-asked">
-            <h2 id="tm-request-asked" className="tm-eyebrow">
-              What you asked for
-            </h2>
-            <p className="tm-prose">{found.description}</p>
-            {found.urgencyReason !== null ? (
-              <>
-                <h3 className="tm-eyebrow">Why the timing mattered</h3>
-                <p className="tm-prose">{found.urgencyReason}</p>
-              </>
-            ) : null}
-            <dl className="tm-detail-list">
-              <div className="tm-detail-list__pair">
-                <dt>Project</dt>
-                <dd>{project?.name ?? 'A project shared with you'}</dd>
-              </div>
-              <div className="tm-detail-list__pair">
-                <dt>Category</dt>
-                <dd>{found.category}</dd>
-              </div>
-            </dl>
-          </section>
-
-          <section className="tm-panel tm-stack" aria-labelledby="tm-request-withdraw">
-            <h2 id="tm-request-withdraw" className="tm-eyebrow">
-              Take it back
-            </h2>
-
-            {failure ? (
-              <InlineAlert tone="danger" title="Could not withdraw the request" live>
-                {failure}
-              </InlineAlert>
-            ) : null}
-
-            {found.status === 'withdrawn' ? (
-              <p className="tm-prose">
-                You withdrew this request. Nothing is expected from anybody.
-              </p>
-            ) : found.canWithdraw ? (
-              confirming ? (
-                <>
+              {confirming ? (
+                <section className="tm-pt-card tm-pt-card--lead" aria-label="Withdraw">
                   <InlineAlert tone="warning" title="Withdraw this request?" live>
                     {providerName} will see that you took it back. You can send a new request at any
                     time, but this one cannot be reopened.
                   </InlineAlert>
-                  <div className="tm-row">
+                  <div className="tm-pt-form__actions">
                     <Button
                       type="button"
                       tone="destructive"
@@ -261,52 +188,201 @@ export function ClientRequestDetailScreen({
                       Keep it
                     </Button>
                   </div>
-                </>
-              ) : (
-                <>
-                  {/*
-                    Two sentences, because `23-ERD` §6 draws two arrows into `withdrawn` and they
-                    describe different situations. From `submitted` nobody has looked at the
-                    request yet. From `needs_clarification` somebody has — they are the reason
-                    this page is showing a question — and telling that reader the studio "has not
-                    started on it" contradicts the alert directly above. The first end-to-end run
-                    of this journey is what surfaced the second case.
-                  */}
-                  <p className="tm-prose">
+                </section>
+              ) : null}
+
+              <section className="tm-pt-ink tm-pt-banner" aria-labelledby="tm-request-status">
+                <span className="tm-pt-banner__dot" aria-hidden="true" />
+                <div className="tm-pt-item__main">
+                  <h2 id="tm-request-status" className="tm-pt-ink__title">
+                    {waitingOnClient && found.clarificationQuestion !== null
+                      ? `${providerName} has asked you something`
+                      : 'Where this request is'}
+                  </h2>
+                  {waitingOnClient && found.clarificationQuestion !== null ? (
+                    <>
+                      <p className="tm-pt-banner__question">{found.clarificationQuestion}</p>
+                      <p className="tm-pt-quiet">
+                        Reply to {providerName} the way you normally reach them. This request stays
+                        here until they hear back.
+                      </p>
+                    </>
+                  ) : (
+                    <p className="tm-pt-quiet">{requestStatusMeaning(found.status)}</p>
+                  )}
+                </div>
+              </section>
+
+              <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-asked">
+                <h2 id="tm-request-asked" className="tm-pt-eyebrow">
+                  What you asked for
+                </h2>
+                <p className="tm-pt-card__body tm-pt-card__body--ink">{found.description}</p>
+                {found.urgencyReason !== null ? (
+                  <>
+                    <h3 className="tm-pt-eyebrow">Why the timing mattered</h3>
+                    <p className="tm-pt-card__body">{found.urgencyReason}</p>
+                  </>
+                ) : null}
+                <dl className="tm-pt-facts">
+                  <div>
+                    <dt>Project</dt>
+                    <dd>{project?.name ?? 'A project shared with you'}</dd>
+                  </div>
+                  <div>
+                    <dt>Category</dt>
+                    <dd>{found.category}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-dates">
+                <h2 id="tm-request-dates" className="tm-pt-eyebrow">
+                  Dates
+                </h2>
+                <dl className="tm-pt-dates">
+                  <div className="tm-pt-date tm-pt-date--dashed">
+                    <dt className="tm-pt-eyebrow">You asked for</dt>
+                    <dd className="tm-pt-date__value">{describeDesiredDate(found.desiredAt)}</dd>
+                  </div>
+                  <div className="tm-pt-date">
+                    <dt className="tm-pt-eyebrow">{providerName} agreed</dt>
+                    <dd className="tm-pt-date__value">{describeCommitment(found)}</dd>
+                  </div>
+                </dl>
+              </section>
+
+              {found.clientVisibleReason !== null ? (
+                <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-reason">
+                  <h2 id="tm-request-reason" className="tm-pt-eyebrow">
+                    What {providerName} said
+                  </h2>
+                  <p className="tm-pt-card__body tm-pt-card__body--ink">
+                    {found.clientVisibleReason}
+                  </p>
+                </section>
+              ) : null}
+
+              {found.clientSafeScopeSummary !== null ? (
+                <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-scope">
+                  <h2 id="tm-request-scope" className="tm-pt-eyebrow">
+                    What they have agreed to do
+                  </h2>
+                  <p className="tm-pt-card__body tm-pt-card__body--ink">
+                    {found.clientSafeScopeSummary}
+                  </p>
+                </section>
+              ) : null}
+            </div>
+
+            <div className="tm-pt-col">
+              <section className="tm-pt-card" aria-labelledby="tm-request-journey">
+                <h2 id="tm-request-journey" className="tm-pt-eyebrow">
+                  How it has moved
+                </h2>
+                <ol className="tm-pt-steps">
+                  <li className="tm-pt-steps__item tm-pt-steps__item--done">
+                    <p className="tm-pt-rows__title">You sent it</p>
+                    <p className="tm-pt-quiet">{formatDay(found.createdAt)}</p>
+                  </li>
+                  {found.status !== 'submitted' ? (
+                    <li
+                      className={
+                        waitingOnClient
+                          ? 'tm-pt-steps__item tm-pt-steps__item--now'
+                          : 'tm-pt-steps__item tm-pt-steps__item--done'
+                      }
+                    >
+                      <p className="tm-pt-rows__title">
+                        {journeyLabel(found.status, providerName)}
+                      </p>
+                      <p className="tm-pt-quiet">{formatDay(found.updatedAt)}</p>
+                    </li>
+                  ) : null}
+                  {found.status === 'withdrawn' || found.status === 'declined' ? null : (
+                    <li
+                      className={
+                        committed
+                          ? 'tm-pt-steps__item tm-pt-steps__item--done'
+                          : 'tm-pt-steps__item'
+                      }
+                    >
+                      <p className="tm-pt-rows__title">Studio commits a date</p>
+                      <p className="tm-pt-quiet">
+                        {committed ? formatDay(found.committedAt!) : 'not scheduled yet'}
+                      </p>
+                    </li>
+                  )}
+                </ol>
+              </section>
+
+              {found.desiredAt !== null && !committed ? (
+                <section
+                  className="tm-pt-card tm-pt-card--warning"
+                  aria-labelledby="tm-request-wish"
+                >
+                  <h2 id="tm-request-wish" className="tm-pt-eyebrow">
+                    About the date you asked for
+                  </h2>
+                  <p className="tm-pt-quiet">
+                    It has not been committed, so treat it as a wish until {providerName} confirms.
+                    A date you asked for is never read back to you as a promise.
+                  </p>
+                </section>
+              ) : null}
+
+              <section className="tm-pt-card" aria-labelledby="tm-request-withdraw">
+                <h2 id="tm-request-withdraw" className="tm-pt-eyebrow">
+                  Take it back
+                </h2>
+                {found.status === 'withdrawn' ? (
+                  <p className="tm-pt-quiet">
+                    You withdrew this request. Nothing is expected from anybody.
+                  </p>
+                ) : found.canWithdraw ? (
+                  // Two sentences: from `submitted` nobody has looked yet; from `clarifying`
+                  // somebody has — they are the reason this page shows a question.
+                  <p className="tm-pt-quiet">
                     {found.status === 'clarifying'
                       ? 'You can still take this back, even with their question open. Withdrawing it is an answer too.'
                       : `You can still take this back — ${providerName} has not started on it.`}
                   </p>
-                  <div className="tm-row">
-                    <Button type="button" tone="outline" onClick={() => setConfirming(true)}>
-                      Withdraw request
-                    </Button>
-                  </div>
-                </>
-              )
-            ) : (
-              /*
-                Said rather than merely hidden. `23-ERD` §6 has no arrow out of `triage`, so a
-                request somebody at the studio has opened is no longer the client's to take
-                back — and a control that vanished without explanation would read as a fault.
-              */
-              <p className="tm-prose">
-                {providerName} has this request open, so it is no longer yours to take back. Ask
-                them to close it if you no longer need it.
-              </p>
-            )}
-          </section>
-
-          <BackendPending ticket="CHAT-001 · FILE-001">
-            The design draws a conversation with {providerName} on this page, with their messages
-            and a box to reply in. Messaging is not built, so the one thing they can say to you here
-            is a question when they need something — shown above when there is one. Attachments are
-            not built either.
-          </BackendPending>
-        </>
-      ) : null}
+                ) : (
+                  // Said rather than merely hidden: a control that vanished without explanation
+                  // would read as a fault.
+                  <p className="tm-pt-quiet">
+                    {providerName} has this request open, so it is no longer yours to take back. Ask
+                    them to close it if you no longer need it.
+                  </p>
+                )}
+              </section>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </ClientPortalShell>
   );
+}
+
+function journeyLabel(status: ClientRequestStatus, providerName: string): string {
+  switch (status) {
+    case 'clarifying':
+      return `${providerName} asked you something`;
+    case 'accepted':
+      return 'Studio accepted it';
+    case 'planned':
+      return 'Studio is planning it';
+    case 'delivered':
+      return 'Studio delivered it';
+    case 'deferred':
+      return 'Studio set it aside for now';
+    case 'declined':
+      return 'Studio declined it';
+    case 'withdrawn':
+      return 'You withdrew it';
+    default:
+      return 'Studio has it';
+  }
 }
 
 function describe(error: unknown): string {

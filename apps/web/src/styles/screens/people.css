@@ -1,0 +1,1266 @@
+/*
+ * People group screens — PEO-01 Directory, PEO-02 Profile, PEO-03 Team detail, PEO-04 Availability
+ * (TManage Screens - People.dc.html), plus the capacity heatmap and the org chart, which have no
+ * frame of their own and borrow the same cards, rows and mono labels.
+ *
+ * Every value is the artboard's, expressed through the shared tokens so the dark theme follows.
+ * Prefix `ppl-` so nothing here collides with the shell or another screen group.
+ */
+
+:root {
+  /* The design's "quiet ink" note card (#121311) — darker than paper, lighter than pure ink. */
+  --ppl-ink-panel: #121311;
+  --ppl-ink-panel-text: #a7aca0;
+  --ppl-ink-panel-chip: #242720;
+}
+
+/* ---------- Header: the 44/46px headline the People frames use ---------- */
+
+.tm-app:has(.ppl-screen) .tm-canvas-header {
+  align-items: flex-end;
+}
+
+.tm-app:has(.ppl-screen) .tm-canvas-header__title {
+  font-size: 44px;
+  line-height: 48px;
+  letter-spacing: -0.03em;
+}
+
+.tm-app:has(.ppl-screen) .tm-canvas-header__description {
+  max-inline-size: 640px;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+/* The profile draws its own header (avatar, breadcrumb); the shell's is replaced, not doubled. */
+.tm-app:has(.ppl-screen--own-header) .tm-canvas-header {
+  display: none;
+}
+
+.ppl-screen {
+  display: contents;
+}
+
+/* ---------- Shared pieces ---------- */
+
+.ppl-mono {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.ppl-mono--meta {
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+}
+
+.ppl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+.ppl-card--tight {
+  border-radius: var(--r-card);
+  padding: 20px;
+}
+
+.ppl-card--flush,
+.ppl-card--flush.ppl-main {
+  padding: 0;
+  overflow: hidden;
+  gap: 0;
+  border-radius: var(--r-card);
+}
+
+.ppl-card--selected {
+  border: var(--b-expressive) solid var(--ink-950);
+}
+
+.ppl-card--warning {
+  border: var(--b-structural) solid var(--warning-600);
+  border-radius: var(--r-card);
+}
+
+.ppl-card--ink {
+  flex: 1;
+  border-color: var(--ppl-ink-panel);
+  background: var(--ppl-ink-panel);
+  color: var(--ppl-ink-panel-text);
+}
+
+[data-theme='dark'] .ppl-card--ink {
+  border-color: var(--line-300);
+}
+
+.ppl-card--ink .ppl-mono {
+  color: var(--ppl-ink-panel-text);
+}
+
+.ppl-card__title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.ppl-card__title--lg {
+  font-size: 22px;
+  line-height: 29px;
+}
+
+.ppl-card__head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ppl-card__head--split {
+  justify-content: space-between;
+}
+
+.ppl-note {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-500);
+  text-wrap: pretty;
+}
+
+.ppl-note--body {
+  color: var(--ink-650);
+}
+
+.ppl-note--ink {
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--ppl-ink-panel-text);
+}
+
+.ppl-note a,
+.ppl-link {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ppl-dashed-note {
+  margin: 0;
+  padding: 14px 16px;
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.ppl-body {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+  min-inline-size: 0;
+}
+
+.ppl-body--wide-gap {
+  gap: 22px;
+}
+
+.ppl-main {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ppl-aside {
+  flex: none;
+  inline-size: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ppl-aside--352 {
+  inline-size: 352px;
+  gap: 16px;
+}
+
+.ppl-aside--392 {
+  inline-size: 392px;
+  gap: 16px;
+}
+
+.ppl-pair {
+  display: flex;
+  gap: 16px;
+  flex: 1;
+}
+
+.ppl-pair > * {
+  flex: 1;
+}
+
+/* Initials orb (the design's avatars: paper fill, 600 weight initials). */
+.ppl-avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 38px;
+  block-size: 38px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.ppl-avatar--32 {
+  inline-size: 32px;
+  block-size: 32px;
+  font-size: 11px;
+}
+
+.ppl-avatar--44 {
+  inline-size: 44px;
+  block-size: 44px;
+  font-size: 14px;
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+}
+
+.ppl-avatar--56 {
+  inline-size: 56px;
+  block-size: 56px;
+  font-size: 17px;
+}
+
+.ppl-avatar--88 {
+  inline-size: 88px;
+  block-size: 88px;
+  font-size: 26px;
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+}
+
+/* Small status capsule (2 at risk / 1 live / 26h wait). */
+.ppl-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.ppl-pill--lg {
+  padding: 4px 11px;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.ppl-pill--lime {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime, #090a09);
+}
+
+.ppl-pill--warning {
+  border-color: var(--warning-600);
+  color: var(--warning-600);
+}
+
+.ppl-pill--danger {
+  border-color: var(--danger-600);
+  color: var(--danger-600);
+}
+
+/* Soft list rows inside a card (TEAMS / HOW TO REACH / COVER AND HAND-OFF). */
+.ppl-soft-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ppl-soft-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-800);
+  text-decoration: none;
+}
+
+.ppl-soft-row--roomy {
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+}
+
+.ppl-soft-row__end {
+  margin-inline-start: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.ppl-soft-row__end--text {
+  font-family: inherit;
+  font-weight: 400;
+}
+
+/* Lime "next commitment" block. */
+.ppl-lime-block {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: var(--lime-500);
+  color: var(--tm-on-lime, #090a09);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+}
+
+.ppl-rule {
+  block-size: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--paper-150);
+}
+
+.ppl-button-row {
+  display: flex;
+  gap: 8px;
+}
+
+.ppl-button-row > * {
+  flex: 1;
+}
+
+.ppl-loading {
+  padding: 20px;
+}
+
+/* ---------- PEO-01 Directory ---------- */
+
+.ppl-search {
+  inline-size: 240px;
+}
+
+.ppl-search .tm-search-field__control {
+  inline-size: 100%;
+  min-block-size: 38px;
+  padding-block: 9px;
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.ppl-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ppl-cta {
+  min-block-size: 37px;
+  padding: 10px 18px;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.ppl-cta--lg {
+  min-block-size: 41px;
+  padding: 11px 18px;
+}
+
+.ppl-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ppl-filters .tm-chip {
+  min-block-size: 35px;
+  padding: 8px 16px;
+  font-size: 12px;
+  line-height: 17px;
+  cursor: pointer;
+}
+
+.ppl-filters__end {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: auto;
+}
+
+.ppl-filters__end .ppl-mono {
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+}
+
+.ppl-static-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.ppl-table-head,
+.ppl-person {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-inline: 20px;
+}
+
+.ppl-table-head {
+  block-size: 36px;
+  background: var(--paper-50);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.ppl-table-head > span {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.ppl-col-person {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.ppl-col-role {
+  inline-size: 186px;
+  flex: none;
+}
+
+.ppl-col-projects {
+  inline-size: 150px;
+  flex: none;
+}
+
+.ppl-col-status {
+  inline-size: 112px;
+  flex: none;
+}
+
+.ppl-group {
+  margin: 0;
+  padding: 9px 20px 5px;
+  background: var(--paper-50);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.ppl-people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ppl-person {
+  min-block-size: 60px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.ppl-person[data-selected='true'] {
+  padding-inline-start: 17px;
+  border-inline-start: 3px solid var(--ink-950);
+  background: var(--paper-50);
+}
+
+.ppl-person__who {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-inline-size: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.ppl-person__name {
+  display: block;
+  font-size: 14px;
+  line-height: 19px;
+  font-weight: 600;
+  color: var(--ink-950);
+  white-space: nowrap;
+}
+
+.ppl-person__sub {
+  display: block;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-500);
+}
+
+.ppl-cell-strong {
+  display: block;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.ppl-cell-sub {
+  display: block;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-500);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.ppl-cell-sub--grant {
+  color: var(--success-600);
+}
+
+.ppl-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.ppl-status::before {
+  content: '';
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--r-capsule);
+  background: var(--success-600);
+}
+
+.ppl-status--quiet::before {
+  background: var(--warning-600);
+}
+
+.ppl-person-card__who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.ppl-person-card__name {
+  margin: 0;
+  font-size: 19px;
+  line-height: 25px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.ppl-person-card__role {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-500);
+}
+
+/* ---------- PEO-02 Profile / PEO-03 Team detail: own header ---------- */
+
+.ppl-crumbs {
+  margin: 0;
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-500);
+}
+
+.ppl-crumbs a {
+  color: var(--ink-800);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.ppl-hero {
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+}
+
+.ppl-hero__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-inline-size: 0;
+}
+
+.ppl-hero__eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.ppl-hero__title {
+  margin: 0;
+  font-size: 46px;
+  line-height: 50px;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--ink-950);
+}
+
+.ppl-hero__lede {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.ppl-hero__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-inline-start: auto;
+}
+
+/* Commitment rows (PEO-02) — a soft card with a coloured leading edge. */
+.ppl-commitments {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ppl-commitment {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--r-compact);
+  border-inline-start: 3px solid var(--line-300);
+  background: var(--paper-50);
+}
+
+.ppl-commitment--current {
+  border-inline-start-color: var(--ink-950);
+}
+
+.ppl-commitment--warning {
+  border-inline-start-color: var(--warning-600);
+}
+
+.ppl-commitment__text {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.ppl-commitment__title {
+  display: block;
+  text-decoration: none;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.ppl-commitment__sub {
+  display: block;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-500);
+}
+
+/* Authority list (✓ / ✕). */
+.ppl-authority {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ppl-authority li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 19px;
+  color: var(--ink-800);
+}
+
+.ppl-authority li[data-kind='withhold'] {
+  color: var(--ink-650);
+}
+
+.ppl-authority__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 18px;
+  block-size: 18px;
+  border-radius: var(--r-capsule);
+  background: var(--success-600);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+}
+
+.ppl-authority li[data-kind='withhold'] .ppl-authority__mark {
+  background: transparent;
+  border: var(--b-structural) solid var(--danger-600);
+  color: var(--danger-600);
+}
+
+.ppl-authority__rule {
+  block-size: 1px;
+  margin: 2px 0;
+  background: var(--paper-150);
+}
+
+/* Big tabular metric (LOAD / DECLARED DAYS). */
+.ppl-metric {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.ppl-metric__value {
+  font-size: 56px;
+  line-height: 56px;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-950);
+}
+
+.ppl-metric__label {
+  margin-block-start: 12px;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+/* ---------- PEO-03 Teams ---------- */
+
+.ppl-member {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  inline-size: 100%;
+  padding: 14px;
+  border: 0;
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+  font: inherit;
+  color: inherit;
+  text-align: start;
+}
+
+button.ppl-member {
+  cursor: pointer;
+}
+
+.ppl-member[aria-pressed='true'],
+.ppl-member--lead {
+  padding-inline-start: 11px;
+  border-inline-start: 3px solid var(--ink-950);
+}
+
+.ppl-inner-table {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.ppl-inner-table .ppl-table-head {
+  padding-inline: 18px;
+  gap: 14px;
+}
+
+.ppl-inner-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-block-size: 56px;
+  padding-inline: 18px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.ppl-inner-row:last-child {
+  border-block-end: 0;
+}
+
+.ppl-col-owner {
+  inline-size: 150px;
+  flex: none;
+}
+
+.ppl-col-when {
+  inline-size: 120px;
+  flex: none;
+}
+
+/* ---------- PEO-04 Availability ---------- */
+
+.ppl-legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ppl-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-650);
+}
+
+.ppl-legend__end {
+  margin-inline-start: auto;
+}
+
+.ppl-swatch {
+  inline-size: 20px;
+  block-size: 12px;
+  border-radius: 6px;
+  background: var(--paper-150);
+}
+
+.ppl-swatch--away {
+  background: var(--paper-0);
+  border: var(--b-quiet) dashed var(--warning-600);
+}
+
+.ppl-swatch--today {
+  background: var(--lime-500);
+}
+
+.ppl-swatch--over {
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--danger-600);
+}
+
+.ppl-swatch--under {
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+}
+
+.ppl-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.ppl-grid__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-block: 9px;
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+}
+
+.ppl-grid__row--head {
+  align-items: flex-end;
+  padding-block: 0 10px;
+  border-block-start: 0;
+}
+
+.ppl-grid__who {
+  inline-size: 176px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ppl-grid__name {
+  display: block;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-950);
+  white-space: nowrap;
+}
+
+.ppl-grid__team {
+  display: block;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--ink-500);
+}
+
+.ppl-grid__week {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.ppl-grid__gap {
+  inline-size: 16px;
+  flex: none;
+}
+
+.ppl-grid__day-head {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.ppl-grid__day-head span {
+  display: block;
+  color: var(--ink-500);
+  opacity: 0.7;
+}
+
+.ppl-day {
+  display: grid;
+  place-items: center;
+  block-size: 44px;
+  border-radius: var(--r-micro);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.ppl-day--away {
+  background: var(--paper-0);
+  border: var(--b-quiet) dashed var(--warning-600);
+  color: var(--warning-600);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.ppl-day--today {
+  background: var(--lime-500);
+  color: var(--tm-on-lime, #090a09);
+}
+
+.ppl-grid__declared {
+  inline-size: 150px;
+  flex: none;
+  text-align: end;
+}
+
+.ppl-grid__declared strong {
+  display: block;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.ppl-grid__declared strong[data-away='true'] {
+  color: var(--warning-600);
+}
+
+.ppl-grid__declared span {
+  display: block;
+  font-size: 10px;
+  line-height: 14px;
+  color: var(--ink-500);
+}
+
+.ppl-grid-card {
+  flex: 1;
+  border-radius: var(--r-card);
+}
+
+.ppl-grid-card__foot {
+  margin-block-start: auto;
+  padding-block-start: 16px;
+}
+
+.ppl-windows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ppl-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ppl-form .tm-field__control {
+  min-block-size: 40px;
+  font-size: 13px;
+}
+
+.ppl-form__pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* ---------- Capacity heatmap / Org chart (no frame of their own) ---------- */
+
+.ppl-toolbar {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ppl-toolbar .tm-field {
+  min-inline-size: 180px;
+}
+
+.ppl-toolbar > .tm-button {
+  margin-block-start: 26px;
+}
+
+.ppl-swatch--none {
+  background: var(--paper-250);
+}
+
+.ppl-heat {
+  inline-size: 100%;
+  border-collapse: separate;
+  border-spacing: 6px;
+}
+
+.ppl-heat th {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ppl-heat th[scope='row'] {
+  text-align: start;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 18px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-950);
+}
+
+.ppl-heat td {
+  block-size: 44px;
+  min-inline-size: 64px;
+  border-radius: var(--r-micro);
+  background: var(--paper-150);
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-800);
+}
+
+.ppl-heat td[data-band='under'] {
+  background: var(--paper-0);
+  box-shadow: inset 0 0 0 1px var(--line-300);
+}
+
+.ppl-heat td[data-band='healthy'] {
+  background: var(--lime-500);
+  color: var(--tm-on-lime, #090a09);
+}
+
+.ppl-heat td[data-band='over'] {
+  background: var(--paper-0);
+  box-shadow: inset 0 0 0 1.5px var(--danger-600);
+  color: var(--danger-600);
+}
+
+.ppl-tree,
+.ppl-tree ul {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ppl-tree ul {
+  margin-block-start: 8px;
+  padding-inline-start: 22px;
+  border-inline-start: var(--b-quiet) dashed var(--line-300);
+}
+
+.ppl-tree__node {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-800);
+}
+
+/* ---------- Responsive (responsive-and-desktop.md) ---------- */
+
+@media (max-width: 1199px) {
+  .ppl-body {
+    flex-direction: column;
+  }
+
+  .ppl-aside,
+  .ppl-aside--352,
+  .ppl-aside--392 {
+    inline-size: auto;
+  }
+
+  .ppl-col-status {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .tm-app:has(.ppl-screen) .tm-canvas-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tm-app:has(.ppl-screen) .tm-canvas-header__title,
+  .ppl-hero__title {
+    font-size: 32px;
+    line-height: 36px;
+  }
+
+  .ppl-header-actions {
+    flex-wrap: wrap;
+  }
+
+  .ppl-search {
+    inline-size: 100%;
+    flex: 1 1 200px;
+  }
+
+  .ppl-hero {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .ppl-hero__actions {
+    margin-inline-start: 0;
+  }
+
+  .ppl-avatar--88 {
+    inline-size: 64px;
+    block-size: 64px;
+    font-size: 20px;
+  }
+
+  .ppl-col-role,
+  .ppl-col-owner {
+    display: none;
+  }
+
+  .ppl-pair {
+    flex-direction: column;
+  }
+
+  .ppl-filters__end {
+    margin-inline-start: 0;
+  }
+
+  .ppl-grid-scroll {
+    overflow-x: auto;
+  }
+
+  .ppl-grid {
+    min-inline-size: 640px;
+  }
+}
+
+@media (max-width: 599px) {
+  .ppl-col-projects,
+  .ppl-col-when {
+    inline-size: auto;
+  }
+
+  .ppl-legend__end {
+    margin-inline-start: 0;
+  }
+
+  .ppl-form__pair {
+    grid-template-columns: 1fr;
+  }
+}

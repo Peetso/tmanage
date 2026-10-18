@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   acceptClientRequest,
@@ -22,9 +21,9 @@ import {
   describeDateGap,
   formatDay,
   previewClientSentence,
-  triageStateCapsule,
   triageStateLabel,
 } from '../../lib/triage-presentation';
+import '../../styles/screens/work-planning.css';
 
 export interface RequestTriageScreenProps {
   organizationSlug: string;
@@ -168,22 +167,65 @@ export function RequestTriageScreen({
   const gap = unscheduled ? null : describeDateGap(found?.desiredAt ?? null, committedDay || null);
   const acceptable = scopeSummary.trim() !== '' && (unscheduled || committedDay !== '');
 
+  const outcomeProps: OutcomeFormProps = {
+    outcome,
+    question,
+    onQuestion: setQuestion,
+    reason,
+    onReason: setReason,
+    scopeSummary,
+    onScopeSummary: setScopeSummary,
+    committedDay,
+    onCommittedDay: setCommittedDay,
+    unscheduled,
+    onUnscheduled: setUnscheduled,
+    gap,
+    acceptable,
+    working,
+    impact: impactOf(projectWork.data ?? [], unscheduled ? null : committedDay),
+    onAsk: () => {
+      if (!found) return;
+      void run(() =>
+        transitionClientRequest(api, organizationSlug, found.id, found.version, {
+          to: 'needs_clarification',
+          clarificationQuestion: question.trim(),
+        }),
+      );
+    },
+    onDefer: () => {
+      if (!found) return;
+      void run(() =>
+        transitionClientRequest(api, organizationSlug, found.id, found.version, {
+          to: 'deferred',
+          clientVisibleReason: reason.trim(),
+        }),
+      );
+    },
+    onDecline: () => {
+      if (!found) return;
+      void run(() =>
+        transitionClientRequest(api, organizationSlug, found.id, found.version, {
+          to: 'declined',
+          clientVisibleReason: reason.trim(),
+        }),
+      );
+    },
+    onReview: () => setReviewing(true),
+  };
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
       title={found?.title ?? 'Client request'}
-      description={
-        found
-          ? `From ${found.clientOrganizationName ?? 'a client'} · received ${formatDay(found.createdAt)}`
-          : undefined
+      eyebrow="Request detail / Triage"
+      actions={
+        <Link className="wp-capsule" href={`/${organizationSlug}/work/requests`}>
+          Back to the request inbox
+        </Link>
       }
     >
-      <p className="tm-prose">
-        <Link href={`/${organizationSlug}/work/requests`}>Back to the request inbox</Link>
-      </p>
-
       {request.isError ? (
         <InlineAlert tone="danger" title="Could not load this request" live>
           {describeFailure(request.error)}
@@ -192,8 +234,8 @@ export function RequestTriageScreen({
 
       {request.isPending ? (
         <LoadingRegion label="Loading the request.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
+          <Skeleton height="56px" />
+          <Skeleton height="220px" />
         </LoadingRegion>
       ) : null}
 
@@ -212,72 +254,7 @@ export function RequestTriageScreen({
 
       {found ? (
         <>
-          <section className="tm-panel tm-stack" aria-labelledby="tm-triage-state">
-            <h2 id="tm-triage-state" className="tm-eyebrow">
-              Where this request is
-            </h2>
-            <div className="tm-row tm-row--wrap">
-              <StateCapsule state={triageStateCapsule(found.state)}>
-                {triageStateLabel(found.state)}
-              </StateCapsule>
-            </div>
-            <dl className="tm-detail-list">
-              <div className="tm-detail-list__pair">
-                <dt>They asked for</dt>
-                <dd>{found.desiredAt === null ? 'no date' : formatDay(found.desiredAt)}</dd>
-              </div>
-              <div className="tm-detail-list__pair">
-                <dt>Committed</dt>
-                <dd>{describeCommitted(found)}</dd>
-              </div>
-            </dl>
-            {/*
-              §6 and CL-06 both: a desired date is a wish. Said on this side too, because the
-              screen where a promise is made is the one that most needs to distinguish them.
-            */}
-            <p className="tm-field__hint">
-              A desired date is what the client asked for. It becomes a commitment only when
-              somebody here accepts the request and names one.
-            </p>
-          </section>
-
-          <section className="tm-panel tm-stack" aria-labelledby="tm-triage-asked">
-            <h2 id="tm-triage-asked" className="tm-eyebrow">
-              What they asked
-            </h2>
-            <p className="tm-prose">{found.description}</p>
-            {found.urgencyReason !== null ? (
-              <>
-                <h3 className="tm-eyebrow">Why the timing matters to them</h3>
-                <p className="tm-prose">{found.urgencyReason}</p>
-              </>
-            ) : null}
-            <p className="tm-field__hint">Category: {found.category}</p>
-          </section>
-
-          {found.clarificationQuestion !== null ? (
-            <section className="tm-panel tm-stack" aria-labelledby="tm-triage-question">
-              <h2 id="tm-triage-question" className="tm-eyebrow">
-                What was already asked
-              </h2>
-              <p className="tm-prose">{found.clarificationQuestion}</p>
-            </section>
-          ) : null}
-
-          {found.clientVisibleReason !== null ? (
-            <section className="tm-panel tm-stack" aria-labelledby="tm-triage-reason">
-              <h2 id="tm-triage-reason" className="tm-eyebrow">
-                The reason the client was given
-              </h2>
-              <p className="tm-prose">{found.clientVisibleReason}</p>
-            </section>
-          ) : null}
-
-          {failure ? (
-            <InlineAlert tone="danger" title="That did not go through" live>
-              {failure}
-            </InlineAlert>
-          ) : null}
+          <StateTrack request={found} />
 
           {reviewing ? (
             <CommitmentReview
@@ -290,69 +267,89 @@ export function RequestTriageScreen({
               onCommit={() => void commit()}
             />
           ) : (
-            <TriageActions
-              request={found}
-              outcome={outcome}
-              onChoose={(next) => {
-                setOutcome(next);
-                setFailure(undefined);
-              }}
-              question={question}
-              onQuestion={setQuestion}
-              reason={reason}
-              onReason={setReason}
-              scopeSummary={scopeSummary}
-              onScopeSummary={setScopeSummary}
-              committedDay={committedDay}
-              onCommittedDay={setCommittedDay}
-              unscheduled={unscheduled}
-              onUnscheduled={setUnscheduled}
-              gap={gap}
-              acceptable={acceptable}
-              working={working}
-              impact={impactOf(projectWork.data ?? [], unscheduled ? null : committedDay)}
-              onOpenTriage={() =>
-                void run(() =>
-                  transitionClientRequest(api, organizationSlug, found.id, found.version, {
-                    to: 'triage',
-                  }),
-                )
-              }
-              onAsk={() =>
-                void run(() =>
-                  transitionClientRequest(api, organizationSlug, found.id, found.version, {
-                    to: 'needs_clarification',
-                    clarificationQuestion: question.trim(),
-                  }),
-                )
-              }
-              onDefer={() =>
-                void run(() =>
-                  transitionClientRequest(api, organizationSlug, found.id, found.version, {
-                    to: 'deferred',
-                    clientVisibleReason: reason.trim(),
-                  }),
-                )
-              }
-              onDecline={() =>
-                void run(() =>
-                  transitionClientRequest(api, organizationSlug, found.id, found.version, {
-                    to: 'declined',
-                    clientVisibleReason: reason.trim(),
-                  }),
-                )
-              }
-              onReview={() => setReviewing(true)}
-            />
+            <>
+              <div className="wp-triage">
+                <section className="wp-triage__asked" aria-labelledby="tm-triage-asked">
+                  <h2 id="tm-triage-asked" className="wp-mono-label">
+                    What they asked
+                  </h2>
+                  <p className="wp-triage__quote">&ldquo;{found.description}&rdquo;</p>
+                  {found.urgencyReason !== null ? (
+                    <>
+                      <h3 className="wp-mono-label">Why the timing matters to them</h3>
+                      <p className="wp-triage__quote">{found.urgencyReason}</p>
+                    </>
+                  ) : null}
+                  {/*
+                    §6 and CL-06 both: a desired date is a wish. The two dates sit side by side,
+                    the wish in warning orange, so the screen where a promise is made is the one
+                    that most plainly distinguishes them.
+                  */}
+                  <dl className="wp-triage__facts">
+                    <div>
+                      <dt>Desired</dt>
+                      <dd className={found.desiredAt === null ? 'wp-unset' : 'wp-desired'}>
+                        {found.desiredAt === null ? 'no date' : formatDay(found.desiredAt)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Committed</dt>
+                      <dd className={found.commitment === 'committed' ? undefined : 'wp-unset'}>
+                        {describeCommitted(found)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Category</dt>
+                      <dd>{found.category}</dd>
+                    </div>
+                  </dl>
+                  {found.clarificationQuestion !== null ? (
+                    <section className="wp-stack" aria-labelledby="tm-triage-question">
+                      <h3 id="tm-triage-question" className="wp-mono-label">
+                        What was already asked
+                      </h3>
+                      <p className="wp-note">{found.clarificationQuestion}</p>
+                    </section>
+                  ) : null}
+                  {found.clientVisibleReason !== null ? (
+                    <section className="wp-stack" aria-labelledby="tm-triage-reason">
+                      <h3 id="tm-triage-reason" className="wp-mono-label">
+                        The reason the client was given
+                      </h3>
+                      <p className="wp-note">{found.clientVisibleReason}</p>
+                    </section>
+                  ) : null}
+                </section>
+
+                <TriageActions
+                  request={found}
+                  outcome={outcome}
+                  onChoose={(next) => {
+                    setOutcome(next);
+                    setFailure(undefined);
+                  }}
+                  working={working}
+                  onOpenTriage={() =>
+                    void run(() =>
+                      transitionClientRequest(api, organizationSlug, found.id, found.version, {
+                        to: 'triage',
+                      }),
+                    )
+                  }
+                />
+              </div>
+
+              {found.state === 'triage' && outcome !== null ? (
+                <OutcomeForm {...outcomeProps} />
+              ) : null}
+            </>
           )}
 
-          <BackendPending ticket="CHAT-001 · FILE-001 · milestones, unscheduled">
-            The design draws a collision warning — &ldquo;collides with Content migration, which
-            already forecasts 8 Sep&rdquo; — a discussion thread, the client&rsquo;s own request
-            history, and a duplicate suggestion. Milestones, messaging and files are not built, and
-            nothing models capacity or similarity. What is above the actions instead is a count of
-            work already due that week, which is a fact this system can check.
-          </BackendPending>
+          {failure ? (
+            <InlineAlert tone="danger" title="That did not go through" live>
+              {failure}
+            </InlineAlert>
+          ) : null}
         </>
       ) : null}
     </AppShell>
@@ -361,10 +358,190 @@ export function RequestTriageScreen({
 
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * REQ-02's state capsule track: received (ink), where it is now (lime, stretching), and the two
+ * steps still ahead (dashed). Every step is a fact the record carries — nothing is projected.
+ */
+function StateTrack({ request }: { request: ClientRequestRecord }) {
+  const answered = ['accepted', 'planned', 'delivered'].includes(request.state);
+  const planned = request.state === 'planned' || request.state === 'delivered';
+  const committed = request.commitment === 'committed' && request.committedAt !== null;
+  const asked = request.clarificationQuestion !== null && request.state === 'needs_clarification';
+
+  return (
+    <ol className="wp-track" aria-label="Where this request is">
+      <li className="wp-track__step wp-track__step--done">
+        Received {formatDay(request.createdAt)}
+      </li>
+      <li
+        className={`wp-track__step ${answered ? 'wp-track__step--done' : 'wp-track__step--current'}`}
+        aria-current={answered ? undefined : 'step'}
+      >
+        {triageStateLabel(request.state)}
+        {asked ? ' · 1 question asked' : ''}
+      </li>
+      <li
+        className={`wp-track__step ${
+          committed
+            ? planned
+              ? 'wp-track__step--done'
+              : 'wp-track__step--current'
+            : answered && !planned
+              ? 'wp-track__step--current'
+              : ''
+        }`}
+      >
+        {committed && request.committedAt !== null
+          ? `Committed ${formatDay(request.committedAt)}`
+          : answered
+            ? 'Accepted, no date set'
+            : 'Committed'}
+      </li>
+      <li
+        className={`wp-track__step ${planned ? 'wp-track__step--current' : ''}`}
+        aria-current={planned ? 'step' : undefined}
+      >
+        Planned
+      </li>
+    </ol>
+  );
+}
+
 interface TriageActionsProps {
   request: ClientRequestRecord;
   outcome: Outcome;
   onChoose: (outcome: Outcome) => void;
+  working: boolean;
+  onOpenTriage: () => void;
+}
+
+/**
+ * The four outcomes, each naming what it needs — REQ-02's right-hand column.
+ *
+ * Two states get a panel of their own instead, and both exist for the same reason: `23-ERD` §6
+ * routes every answer through `triage`, and a manager should not have to discover that by being
+ * refused. A request nobody has opened yet gets "Start triaging". A request waiting on a
+ * clarification gets "The client has answered", which is the only edge §6 draws out of
+ * `needs_clarification` besides the client's own withdrawal — the outcomes are hidden there
+ * rather than offered and then rejected.
+ */
+function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: TriageActionsProps) {
+  if (request.state === 'submitted') {
+    return (
+      <section className="wp-triage__actions" aria-labelledby="tm-triage-start">
+        <h2 id="tm-triage-start" className="wp-triage__heading">
+          Nobody has picked this up
+        </h2>
+        <p>
+          Opening it tells the client somebody is looking. It also means they can no longer withdraw
+          it themselves — once triage has started, only somebody here can close it.
+        </p>
+        <Button
+          type="button"
+          tone="ink"
+          size="accessible"
+          loading={working}
+          loadingLabel="Opening"
+          onClick={onOpenTriage}
+        >
+          Start triaging
+        </Button>
+      </section>
+    );
+  }
+
+  if (request.state === 'needs_clarification') {
+    return (
+      <section className="wp-triage__actions" aria-labelledby="tm-triage-waiting">
+        <h2 id="tm-triage-waiting" className="wp-triage__heading">
+          Waiting on the client
+        </h2>
+        {/*
+          The three outcomes are deliberately absent here. `23-ERD` §6 routes every answer back
+          through triage — `needs_clarification` to `triage`, and only then to accepted, deferred
+          or declined — so offering them in this state would render three buttons the state
+          machine refuses with a 422.
+        */}
+        <p>
+          They have been asked something, and the request sits with them until they answer. When
+          their reply reaches you, record it here — committing, deferring and declining come back
+          once the request is in triage again.
+        </p>
+        <Button
+          type="button"
+          tone="ink"
+          size="accessible"
+          loading={working}
+          loadingLabel="Reopening"
+          onClick={onOpenTriage}
+        >
+          The client has answered
+        </Button>
+      </section>
+    );
+  }
+
+  if (request.state !== 'triage') {
+    return (
+      <section className="wp-triage__actions" aria-labelledby="tm-triage-closed">
+        <h2 id="tm-triage-closed" className="wp-triage__heading">
+          This request has been answered
+        </h2>
+        <p>
+          It is {triageStateLabel(request.state).toLowerCase()}, and there is no move back from
+          here. A client who needs something else sends a new request.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="wp-triage__actions" aria-labelledby="tm-triage-actions">
+      <h2 id="tm-triage-actions" className="tm-visually-hidden">
+        Answer this request
+      </h2>
+      <button
+        type="button"
+        className="wp-outcome wp-outcome--ink"
+        aria-pressed={outcome === 'accept'}
+        onClick={() => onChoose('accept')}
+      >
+        Commit with a date
+      </button>
+      <button
+        type="button"
+        className="wp-outcome wp-outcome--strong"
+        aria-pressed={outcome === 'clarify'}
+        onClick={() => onChoose('clarify')}
+      >
+        Ask another question
+      </button>
+      <button
+        type="button"
+        className="wp-outcome"
+        aria-pressed={outcome === 'defer'}
+        onClick={() => onChoose('defer')}
+      >
+        Defer with a reason
+      </button>
+      <button
+        type="button"
+        className="wp-outcome wp-outcome--danger"
+        aria-pressed={outcome === 'decline'}
+        onClick={() => onChoose('decline')}
+      >
+        Decline with a reason
+      </button>
+      {/* The artifact's caption, and it is the design rather than decoration. */}
+      <p className="wp-caption">
+        <strong>Every outcome requires a reason the client can read.</strong>
+      </p>
+    </section>
+  );
+}
+
+interface OutcomeFormProps {
+  outcome: Outcome;
   question: string;
   onQuestion: (value: string) => void;
   reason: string;
@@ -379,27 +556,15 @@ interface TriageActionsProps {
   acceptable: boolean;
   working: boolean;
   impact: string;
-  onOpenTriage: () => void;
   onAsk: () => void;
   onDefer: () => void;
   onDecline: () => void;
   onReview: () => void;
 }
 
-/**
- * The four outcomes, each naming what it needs.
- *
- * Two states get a panel of their own instead, and both exist for the same reason: `23-ERD` §6
- * routes every answer through `triage`, and a manager should not have to discover that by being
- * refused. A request nobody has opened yet gets "Start triaging". A request waiting on a
- * clarification gets "The client has answered", which is the only edge §6 draws out of
- * `needs_clarification` besides the client's own withdrawal — the outcomes are hidden there
- * rather than offered and then rejected.
- */
-function TriageActions({
-  request,
+/** What the chosen outcome needs, beneath the REQ-02 card. */
+function OutcomeForm({
   outcome,
-  onChoose,
   question,
   onQuestion,
   reason,
@@ -414,250 +579,149 @@ function TriageActions({
   acceptable,
   working,
   impact,
-  onOpenTriage,
   onAsk,
   onDefer,
   onDecline,
   onReview,
-}: TriageActionsProps) {
-  const open = request.state === 'triage';
-
-  if (request.state === 'submitted') {
+}: OutcomeFormProps) {
+  if (outcome === 'clarify') {
     return (
-      <section className="tm-panel tm-stack" aria-labelledby="tm-triage-start">
-        <h2 id="tm-triage-start" className="tm-eyebrow">
-          Nobody has picked this up
-        </h2>
-        <p className="tm-prose">
-          Opening it tells the client somebody is looking. It also means they can no longer withdraw
-          it themselves — once triage has started, only somebody here can close it.
-        </p>
+      <section className="wp-outcome-form" aria-label="Ask another question">
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-triage-question-field">
+            What do you need to know?
+          </label>
+          <textarea
+            id="tm-triage-question-field"
+            className="tm-field__control tm-field__control--multiline"
+            rows={3}
+            value={question}
+            onChange={(event) => onQuestion(event.target.value)}
+            aria-describedby="tm-triage-question-hint"
+          />
+          <span className="tm-field__hint" id="tm-triage-question-hint">
+            The client reads this word for word, and the request waits for them until they answer.
+          </span>
+        </div>
         <div className="tm-row">
           <Button
             type="button"
             tone="ink"
-            size="accessible"
             loading={working}
-            loadingLabel="Opening"
-            onClick={onOpenTriage}
+            loadingLabel="Sending"
+            disabled={question.trim() === ''}
+            onClick={onAsk}
           >
-            Start triaging
+            Ask the client
           </Button>
         </div>
       </section>
     );
   }
 
-  if (request.state === 'needs_clarification') {
+  if (outcome === 'defer' || outcome === 'decline') {
     return (
-      <section className="tm-panel tm-stack" aria-labelledby="tm-triage-waiting">
-        <h2 id="tm-triage-waiting" className="tm-eyebrow">
-          Waiting on the client
-        </h2>
-        <p className="tm-prose">
-          They have been asked something, and the request sits with them until they answer. There is
-          nowhere for them to answer it in the portal yet, so the reply reaches you however you
-          normally hear from them. This is where you record that it arrived.
-        </p>
-        {/*
-          The three outcomes are deliberately absent here. `23-ERD` §6 routes every answer back
-          through triage — `needs_clarification` to `triage`, and only then to accepted, deferred
-          or declined — so offering them in this state would render three buttons the state
-          machine refuses with a 422, which is how the first end-to-end run of this journey
-          found the gap: the screen let a manager ask a question and then never let them answer.
-        */}
-        <p className="tm-field__hint">
-          Committing, deferring and declining come back once the request is in triage. §6 draws no
-          route from here to any of them.
-        </p>
+      <section
+        className="wp-outcome-form"
+        aria-label={outcome === 'defer' ? 'Defer with a reason' : 'Decline with a reason'}
+      >
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-triage-reason-field">
+            {outcome === 'defer' ? 'Why not now?' : 'Why not at all?'}
+          </label>
+          <textarea
+            id="tm-triage-reason-field"
+            className="tm-field__control tm-field__control--multiline"
+            rows={3}
+            value={reason}
+            onChange={(event) => onReason(event.target.value)}
+            aria-describedby="tm-triage-reason-hint"
+          />
+          <span className="tm-field__hint" id="tm-triage-reason-hint">
+            This is shown to the client as your answer. Write it for them, not for the team.
+          </span>
+        </div>
         <div className="tm-row">
           <Button
             type="button"
-            tone="ink"
-            size="accessible"
+            tone={outcome === 'decline' ? 'destructive' : 'ink'}
             loading={working}
-            loadingLabel="Reopening"
-            onClick={onOpenTriage}
+            loadingLabel="Sending"
+            disabled={reason.trim() === ''}
+            onClick={outcome === 'defer' ? onDefer : onDecline}
           >
-            The client has answered
+            {outcome === 'defer' ? 'Defer this request' : 'Decline this request'}
           </Button>
         </div>
       </section>
     );
   }
 
-  if (!open) {
-    return (
-      <section className="tm-panel tm-stack" aria-labelledby="tm-triage-closed">
-        <h2 id="tm-triage-closed" className="tm-eyebrow">
-          This request has been answered
-        </h2>
-        <p className="tm-prose">
-          It is {triageStateLabel(request.state).toLowerCase()}, and §6 has no move back from here.
-          A client who needs something else sends a new request.
-        </p>
-      </section>
-    );
-  }
+  if (outcome !== 'accept') return null;
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-triage-actions">
-      <h2 id="tm-triage-actions" className="tm-eyebrow">
-        Answer this request
-      </h2>
-      {/* The artifact's caption, and it is the design rather than decoration. */}
-      <p className="tm-prose">
-        <strong>Every outcome requires a reason the client can read.</strong>
-      </p>
-
-      <div className="tm-row tm-row--wrap">
-        <Button type="button" tone="ink" onClick={() => onChoose('accept')}>
-          Commit with a date
-        </Button>
-        <Button type="button" tone="outline" onClick={() => onChoose('clarify')}>
-          Ask another question
-        </Button>
-        <Button type="button" tone="outline" onClick={() => onChoose('defer')}>
-          Defer with a reason
-        </Button>
-        <Button type="button" tone="destructive" onClick={() => onChoose('decline')}>
-          Decline with a reason
-        </Button>
+    <section className="wp-outcome-form" aria-label="Commit with a date">
+      <div className="tm-field">
+        <label className="tm-field__label" htmlFor="tm-triage-scope-field">
+          What are you agreeing to do?
+        </label>
+        <textarea
+          id="tm-triage-scope-field"
+          className="tm-field__control tm-field__control--multiline"
+          rows={3}
+          value={scopeSummary}
+          onChange={(event) => onScopeSummary(event.target.value)}
+          aria-describedby="tm-triage-scope-hint"
+        />
+        <span className="tm-field__hint" id="tm-triage-scope-hint">
+          The client-safe scope summary. It is what the client will hold you to.
+        </span>
       </div>
 
-      {outcome === 'clarify' ? (
-        <div className="tm-stack">
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-triage-question-field">
-              What do you need to know?
-            </label>
-            <textarea
-              id="tm-triage-question-field"
-              className="tm-field__control tm-field__control--multiline"
-              rows={3}
-              value={question}
-              onChange={(event) => onQuestion(event.target.value)}
-              aria-describedby="tm-triage-question-hint"
-            />
-            <span className="tm-field__hint" id="tm-triage-question-hint">
-              The client reads this word for word, and the request waits for them until they answer.
-            </span>
-          </div>
-          <div className="tm-row">
-            <Button
-              type="button"
-              tone="ink"
-              loading={working}
-              loadingLabel="Sending"
-              disabled={question.trim() === ''}
-              onClick={onAsk}
-            >
-              Ask the client
-            </Button>
-          </div>
-        </div>
+      <Field
+        label="Committed date"
+        name="committedDay"
+        type="date"
+        value={committedDay}
+        onChange={(event) => onCommittedDay(event.target.value)}
+        dir="ltr"
+        disabled={unscheduled}
+        hint="A promise, not an estimate. The client sees this one as agreed."
+      />
+
+      <label className="tm-choice tm-choice--inline">
+        <input
+          className="tm-choice__input"
+          type="checkbox"
+          checked={unscheduled}
+          onChange={(event) => onUnscheduled(event.target.checked)}
+        />
+        <span className="tm-choice__name">Accept without a date yet</span>
+        <span className="tm-choice__detail">
+          The client is told you have taken it on and have not scheduled it — which is an answer,
+          unlike silence.
+        </span>
+      </label>
+
+      {gap ? (
+        <InlineAlert tone="warning" title="That is not the date they asked for">
+          {gap}
+        </InlineAlert>
       ) : null}
 
-      {outcome === 'defer' || outcome === 'decline' ? (
-        <div className="tm-stack">
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-triage-reason-field">
-              {outcome === 'defer' ? 'Why not now?' : 'Why not at all?'}
-            </label>
-            <textarea
-              id="tm-triage-reason-field"
-              className="tm-field__control tm-field__control--multiline"
-              rows={3}
-              value={reason}
-              onChange={(event) => onReason(event.target.value)}
-              aria-describedby="tm-triage-reason-hint"
-            />
-            <span className="tm-field__hint" id="tm-triage-reason-hint">
-              This is shown to the client as your answer. Write it for them, not for the team.
-            </span>
-          </div>
-          <div className="tm-row">
-            <Button
-              type="button"
-              tone={outcome === 'decline' ? 'destructive' : 'ink'}
-              loading={working}
-              loadingLabel="Sending"
-              disabled={reason.trim() === ''}
-              onClick={outcome === 'defer' ? onDefer : onDecline}
-            >
-              {outcome === 'defer' ? 'Defer this request' : 'Decline this request'}
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      <p className="wp-note">Impact: {impact}</p>
 
-      {outcome === 'accept' ? (
-        <div className="tm-stack">
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-triage-scope-field">
-              What are you agreeing to do?
-            </label>
-            <textarea
-              id="tm-triage-scope-field"
-              className="tm-field__control tm-field__control--multiline"
-              rows={3}
-              value={scopeSummary}
-              onChange={(event) => onScopeSummary(event.target.value)}
-              aria-describedby="tm-triage-scope-hint"
-            />
-            <span className="tm-field__hint" id="tm-triage-scope-hint">
-              §6 calls this the client-safe scope summary. It is what the client will hold you to.
-            </span>
-          </div>
-
-          <Field
-            label="Committed date"
-            name="committedDay"
-            type="date"
-            value={committedDay}
-            onChange={(event) => onCommittedDay(event.target.value)}
-            dir="ltr"
-            disabled={unscheduled}
-            hint="A promise, not an estimate. The client sees this one as agreed."
-          />
-
-          <label className="tm-choice tm-choice--inline">
-            <input
-              className="tm-choice__input"
-              type="checkbox"
-              checked={unscheduled}
-              onChange={(event) => onUnscheduled(event.target.checked)}
-            />
-            <span className="tm-choice__name">Accept without a date yet</span>
-            <span className="tm-choice__detail">
-              §6 allows an explicit unscheduled state. The client is told you have taken it on and
-              have not scheduled it — which is an answer, unlike silence.
-            </span>
-          </label>
-
-          {gap ? (
-            <InlineAlert tone="warning" title="That is not the date they asked for">
-              {gap}
-            </InlineAlert>
-          ) : null}
-
-          <InlineAlert tone="neutral" title="What else is due that week">
-            {impact}
-          </InlineAlert>
-
-          <div className="tm-row">
-            <Button
-              type="button"
-              tone="ink"
-              size="accessible"
-              disabled={!acceptable}
-              onClick={onReview}
-            >
-              Review the commitment
-            </Button>
-          </div>
-        </div>
-      ) : null}
+      <div className="tm-row">
+        <Button
+          type="button"
+          tone="ink"
+          size="accessible"
+          disabled={!acceptable}
+          onClick={onReview}
+        >
+          Review the commitment
+        </Button>
+      </div>
     </section>
   );
 }
@@ -673,12 +737,9 @@ interface CommitmentReviewProps {
 }
 
 /**
- * **REQ-03 Commitment review.** The last thing before a promise.
- *
- * Its heading is the artifact's, in the second person and naming the client, because a manager
- * about to commit a date is doing something to somebody rather than filling in a form. The panel
- * below shows the sentence the client will read, built from the same two fields the API is about
- * to store, so what is previewed cannot drift from what is written.
+ * REQ-03 — the promise, restated before it is made: the ink card with its lime ring, and beside
+ * it the dark card with the exact sentence the client will read. The gap between their date and
+ * ours is stated there, not hidden.
  */
 function CommitmentReview({
   request,
@@ -690,56 +751,54 @@ function CommitmentReview({
   onCommit,
 }: CommitmentReviewProps) {
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-triage-review">
-      <h2 id="tm-triage-review" className="tm-eyebrow">
-        You are about to promise a date to {request.clientOrganizationName ?? 'this client'}
-      </h2>
+    <section className="wp-review" aria-labelledby="tm-triage-review">
+      <div className="wp-review__promise">
+        <p className="wp-mono-label">Commitment review</p>
+        <h2 id="tm-triage-review" className="wp-review__title">
+          You are about to promise a date to {request.clientOrganizationName ?? 'this client'}
+        </h2>
 
-      <dl className="tm-detail-list">
-        <div className="tm-detail-list__pair">
-          <dt>Scope</dt>
-          <dd>{scopeSummary}</dd>
+        <dl className="wp-review__facts">
+          <div>
+            <dt>Scope</dt>
+            <dd>{scopeSummary}</dd>
+          </div>
+          <div>
+            <dt>Committed</dt>
+            <dd>
+              {commitment.kind === 'unscheduled'
+                ? 'No date yet, stated'
+                : formatDay(commitment.day)}
+            </dd>
+          </div>
+          <div>
+            <dt>Work</dt>
+            <dd>A work item in this project, created with the acceptance</dd>
+          </div>
+        </dl>
+
+        <div className="wp-review__buttons">
+          <Button
+            type="button"
+            tone="ink"
+            size="accessible"
+            loading={working}
+            loadingLabel="Committing"
+            onClick={onCommit}
+          >
+            Commit and tell the client
+          </Button>
+          <Button type="button" tone="outline" size="accessible" onClick={onBack}>
+            Back
+          </Button>
         </div>
-        <div className="tm-detail-list__pair">
-          <dt>Committed</dt>
-          <dd>
-            {commitment.kind === 'unscheduled' ? 'No date yet, stated' : formatDay(commitment.day)}
-          </dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Work</dt>
-          <dd>A work item in this project, created with the acceptance</dd>
-        </div>
-      </dl>
-
-      {gap ? (
-        <InlineAlert tone="warning" title="The difference is stated, not hidden">
-          {gap}
-        </InlineAlert>
-      ) : null}
-
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-triage-preview">
-        <h3 id="tm-triage-preview" className="tm-eyebrow">
-          What the client will read
-        </h3>
-        <p className="tm-prose">{previewClientSentence(scopeSummary, commitment)}</p>
-      </section>
-
-      <div className="tm-row">
-        <Button
-          type="button"
-          tone="ink"
-          size="accessible"
-          loading={working}
-          loadingLabel="Committing"
-          onClick={onCommit}
-        >
-          Commit and tell the client
-        </Button>
-        <Button type="button" tone="outline" onClick={onBack}>
-          Back
-        </Button>
       </div>
+
+      <section className="wp-review__client" aria-labelledby="tm-triage-preview">
+        <h3 id="tm-triage-preview">What the client will read</h3>
+        <p>&ldquo;{previewClientSentence(scopeSummary, commitment)}&rdquo;</p>
+        {gap ? <p className="wp-caption">{gap} · The difference is stated, not hidden</p> : null}
+      </section>
     </section>
   );
 }

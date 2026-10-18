@@ -1,7 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -57,6 +57,8 @@ export function OnboardingTourScreen({
 
   const steps = tour.data?.steps ?? [];
   const doneCount = steps.filter((step) => step.completed).length;
+  const nextIndex = steps.findIndex((step) => !step.completed);
+  const next = nextIndex === -1 ? undefined : steps[nextIndex];
 
   return (
     <AppShell
@@ -64,51 +66,100 @@ export function OnboardingTourScreen({
       organizationName={organizationName}
       activeNavigationId="home"
       title="Guided tour"
-      description="A short tour of TManage. Mark each step done as you go — your progress is your own."
+      titleVariant="display"
+      description="Five short steps through TManage. Mark each one done as you go — your progress is your own."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-tour-heading">
-        <h2 id="tm-tour-heading" className="tm-eyebrow">
-          Your progress
-        </h2>
+      <style href="tm-onboarding-tour" precedence="default">
+        {TOUR_CSS}
+      </style>
 
-        {tour.isError ? (
-          <InlineAlert tone="danger" title="Could not load the tour" live>
-            {describeError(tour.error)}
-          </InlineAlert>
-        ) : null}
+      {tour.isError ? (
+        <InlineAlert tone="danger" title="Could not load the tour" live>
+          {describeError(tour.error)}
+        </InlineAlert>
+      ) : null}
 
-        {complete.isError ? (
-          <InlineAlert tone="danger" title="Could not mark that step done" live>
-            {describeError(complete.error)}
-          </InlineAlert>
-        ) : null}
+      {complete.isError ? (
+        <InlineAlert tone="danger" title="Could not mark that step done" live>
+          {describeError(complete.error)}
+        </InlineAlert>
+      ) : null}
 
-        {tour.isPending ? (
-          <LoadingRegion label="Loading the tour.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+      {tour.isPending ? (
+        <LoadingRegion label="Loading the tour." className="tm-tour">
+          <Skeleton height="72px" />
+          <Skeleton height="var(--row)" />
+          <Skeleton height="var(--row)" />
+        </LoadingRegion>
+      ) : null}
 
-        {!tour.isPending && !tour.isError ? (
-          <>
-            <p className="tm-prose" aria-live="polite">
+      {!tour.isPending && !tour.isError ? (
+        <div className="tm-tour">
+          {next ? (
+            <div className="tm-tour__next">
+              <span className="tm-tour__next-orb" aria-hidden="true">
+                ▸
+              </span>
+              <div>
+                <p className="tm-tour__next-title">{next.label}</p>
+                <p className="tm-tour__next-why">{STEP_COPY[next.step]}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="tm-tour__next tm-tour__next--done">
+              <span className="tm-tour__next-orb" aria-hidden="true">
+                ✓
+              </span>
+              <div>
+                <p className="tm-tour__next-title">Tour complete</p>
+                <p className="tm-tour__next-why">Every step is done. Nothing here needs you.</p>
+              </div>
+            </div>
+          )}
+
+          <section className="tm-tour__card" aria-labelledby="tm-tour-heading">
+            <div className="tm-tour__head">
+              <h2 id="tm-tour-heading" className="tm-tour__eyebrow">
+                Tour · your progress
+              </h2>
+              <div className="tm-tour__dashes" aria-hidden="true">
+                {steps.map((step, index) => (
+                  <span
+                    key={step.step}
+                    className="tm-tour__dash"
+                    data-state={
+                      step.completed ? 'done' : index === nextIndex ? 'current' : 'future'
+                    }
+                  />
+                ))}
+              </div>
+            </div>
+            <p className="tm-tour__count" aria-live="polite">
               {doneCount} of {steps.length} steps done.
             </p>
-            <ol className="tm-list tm-stack tm-stack--tight">
-              {steps.map((step) => (
-                <li key={step.step} className="tm-row">
-                  <StateCapsule state={step.completed ? 'done' : 'future'}>
-                    {step.completed ? 'Done' : 'To do'}
-                  </StateCapsule>
-                  <span className="tm-prose">{step.label}</span>
+            <ol className="tm-tour__steps">
+              {steps.map((step, index) => (
+                <li
+                  key={step.step}
+                  className="tm-tour__step"
+                  data-state={step.completed ? 'done' : index === nextIndex ? 'current' : 'future'}
+                >
+                  <span className="tm-tour__glyph" aria-hidden="true">
+                    {step.completed ? '✓' : index + 1}
+                  </span>
+                  <span className="tm-tour__label">
+                    {step.label}
+                    <span className="tm-visually-hidden">
+                      {step.completed ? ' — done' : ' — to do'}
+                    </span>
+                  </span>
                   {step.completed ? (
-                    <span className="tm-field__hint">Completed</span>
+                    <span className="tm-tour__done">Done</span>
                   ) : (
                     <Button
                       type="button"
-                      tone="outline"
-                      size="accessible"
+                      tone={index === nextIndex ? 'ink' : 'outline'}
+                      size="compact"
                       loading={complete.isPending && complete.variables === step.step}
                       loadingLabel="Saving"
                       onClick={() => complete.mutate(step.step)}
@@ -120,13 +171,71 @@ export function OnboardingTourScreen({
                 </li>
               ))}
             </ol>
-          </>
-        ) : null}
-      </section>
+          </section>
+        </div>
+      ) : null}
     </AppShell>
   );
 }
 
+/** What each fixed step is for — the "and it always says why" line under the next action. */
+const STEP_COPY: Record<OnboardingTourStep, string> = {
+  welcome: 'My Day shows the one action that is next, and why. Start there.',
+  create_project: 'A project holds the milestones, deliverables and client portal.',
+  invite_team: 'Bring in the people who deliver. Clients are invited separately.',
+  explore_work: 'The work board shows what is moving, waiting and blocked.',
+  share_portal: 'Clients see only what you publish to them — nothing internal.',
+};
+
+const TOUR_CSS = `
+.tm-tour { display: flex; flex-direction: column; gap: 22px; max-inline-size: 760px; }
+.tm-tour__next {
+  display: flex; align-items: center; gap: 18px; padding: 12px 22px 12px 12px; border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute); color: var(--tm-paper-absolute); box-shadow: 0 0 0 3px var(--lime-500);
+}
+.tm-tour__next--done { box-shadow: none; }
+.tm-tour__next-orb {
+  flex-shrink: 0; display: grid; place-items: center; inline-size: 48px; block-size: 48px;
+  border-radius: var(--r-capsule); background: var(--lime-500); color: var(--tm-ink-absolute);
+  font: 500 18px/1 var(--font-mono);
+}
+.tm-tour__next-title { margin: 0; font-size: 17px; line-height: 23px; font-weight: 600; }
+.tm-tour__next-why { margin: 0; font-size: var(--t-caption); line-height: var(--t-caption-line); color: #a7aca0; }
+.tm-tour__card {
+  display: flex; flex-direction: column; gap: 14px; max-inline-size: 460px; padding: 24px;
+  border: var(--b-structural) solid var(--ink-950); border-radius: var(--r-sheet); background: var(--paper-0);
+  box-shadow: 0 24px 56px rgb(9 10 9 / 0.12);
+}
+.tm-tour__head { display: flex; align-items: center; gap: 12px; }
+.tm-tour__eyebrow {
+  margin: 0; font-family: var(--font-mono); font-size: 10px; line-height: 14px; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-500);
+}
+.tm-tour__dashes { display: flex; gap: 5px; margin-inline-start: auto; }
+.tm-tour__dash { inline-size: 22px; block-size: 5px; border-radius: var(--r-capsule); background: var(--line-300); }
+.tm-tour__dash[data-state='done'] { background: var(--ink-950); }
+.tm-tour__dash[data-state='current'] { background: var(--lime-600); }
+.tm-tour__count { margin: 0; font-size: 20px; line-height: 27px; font-weight: 600; color: var(--ink-950); }
+.tm-tour__steps { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.tm-tour__step {
+  display: flex; align-items: center; gap: 12px; min-block-size: 52px; padding: 6px 8px 6px 12px;
+  border-radius: var(--r-control); background: var(--paper-50);
+}
+.tm-tour__glyph {
+  flex-shrink: 0; display: grid; place-items: center; inline-size: 24px; block-size: 24px;
+  border: var(--b-structural) solid var(--line-300); border-radius: var(--r-capsule);
+  font: 600 10px/1 var(--font-mono); color: var(--ink-650);
+}
+.tm-tour__step[data-state='done'] .tm-tour__glyph { border-color: var(--tm-ink-absolute); background: var(--tm-ink-absolute); color: var(--lime-500); }
+.tm-tour__step[data-state='current'] .tm-tour__glyph { border-color: var(--lime-500); background: var(--lime-500); color: var(--tm-ink-absolute); }
+.tm-tour__label { flex: 1; min-inline-size: 0; font-size: var(--t-ui-md); line-height: 21px; color: var(--ink-800); }
+.tm-tour__step[data-state='done'] .tm-tour__label { color: var(--ink-650); }
+.tm-tour__done { padding-inline: 12px; font-family: var(--font-mono); font-size: 11px; line-height: 15px; text-transform: uppercase; color: var(--ink-500); }
+@media (max-width: 40rem) {
+  .tm-tour__next { border-radius: var(--r-card); }
+  .tm-tour__card { padding: 18px; }
+}
+`;
 function describeError(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return 'The API did not answer. Is it running?';

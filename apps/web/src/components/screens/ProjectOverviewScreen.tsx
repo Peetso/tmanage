@@ -3,9 +3,17 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Badge, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import {
+  Avatar,
+  Badge,
+  Button,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+  StateCapsule,
+} from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import { BackendPending } from './BackendPending';
+import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getProject } from '../../lib/api/projects';
 import {
@@ -111,213 +119,381 @@ export function ProjectOverviewScreen({
   const done = items.filter((item) => item.state === 'done' || item.state === 'archived');
   const clientFacing = items.filter((item) => isClientFacing(item.audience));
 
+  // The same query (and cache entry) `MilestoneComposer` reads, so the pulse track and the list
+  // under the composer can never disagree.
+  const milestones = useQuery({
+    queryKey: ['project-milestones', organizationSlug, projectId],
+    queryFn: () => listProjectMilestones(api, organizationSlug, projectId),
+  });
+  const track = pulseTrack(Array.isArray(milestones.data) ? milestones.data : []);
+  const currentMilestone = track.find((entry) => entry.state === 'current');
+
+  const nameOf = (userId: string | null) =>
+    memberDisplayName(userId, directory.members, directory.isPending);
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
       title={project.data?.name ?? 'Project'}
-      description="Where this project stands, and what it is waiting on."
-      actions={
-        <Link
-          className="tm-button tm-button--ink tm-button--accessible"
-          href={`/${organizationSlug}/work?project=${encodeURIComponent(projectId)}`}
-        >
-          Update work
-        </Link>
+      eyebrow="Project"
+      description="Progress is measured by milestone evidence, not by counting finished tasks."
+      topBar={
+        <ProjectTabs
+          organizationSlug={organizationSlug}
+          projectId={projectId}
+          current="overview"
+          end={
+            <>
+              <Link
+                className="tm-button tm-button--outline tm-button--accessible"
+                href={`/${organizationSlug}/work?project=${encodeURIComponent(projectId)}`}
+              >
+                Update work
+              </Link>
+              <a
+                className="tm-button tm-button--ink tm-button--accessible"
+                href="#tm-project-update-composer"
+              >
+                <span className="tm-button__orb" aria-hidden="true">
+                  ✎
+                </span>
+                Post update
+              </a>
+            </>
+          }
+        />
+      }
+      headerAside={
+        workItems.data ? (
+          <div className="tm-prj-metrics">
+            {currentMilestone?.milestone.dueOn ? (
+              <MilestoneMetric milestone={currentMilestone.milestone} now={now} />
+            ) : null}
+            <div className="tm-metric">
+              <div className="tm-metric__value-row">
+                <span className="tm-metric__value">{pad(blocked.length)}</span>
+                <span
+                  className={`tm-pill ${blocked.length > 0 ? 'tm-pill--danger' : 'tm-pill--current'}`}
+                >
+                  {blocked.length > 0 ? 'blocked' : 'clear'}
+                </span>
+              </div>
+              <span className="tm-metric__label">items blocked</span>
+              <span className="tm-metric__source">
+                {done.length} of {items.length} finished
+              </span>
+            </div>
+            <div className="tm-metric">
+              <div className="tm-metric__value-row">
+                <span className="tm-metric__value">{pad(overdue.length)}</span>
+                <span className={`tm-pill ${overdue.length > 0 ? 'tm-pill--warning' : ''}`}>
+                  {overdue.length > 0 ? 'late' : 'on time'}
+                </span>
+              </div>
+              <span className="tm-metric__label">past their due date</span>
+              <span className="tm-metric__source">across {items.length} work items</span>
+            </div>
+          </div>
+        ) : undefined
       }
     >
-      {project.isError || workItems.isError ? (
-        <InlineAlert tone="danger" title="Could not load this project" live>
-          {describe(project.error ?? workItems.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-prj">
+        {project.isError || workItems.isError ? (
+          <InlineAlert tone="danger" title="Could not load this project" live>
+            {describe(project.error ?? workItems.error)}
+          </InlineAlert>
+        ) : null}
 
-      {project.isPending ? (
-        <LoadingRegion label="Loading this project.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {project.data ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-project-header">
-          <h2 id="tm-project-header" className="tm-eyebrow">
-            This project
-          </h2>
-          <div className="tm-row tm-row--wrap">
-            {/*
-              The badge states what `project_clients` actually holds, or nothing. "Internal"
-              is asserted only after the shares endpoint answered with an empty list;
-              "Shared with a client" only after it answered with a non-empty one. While the
-              query is in flight — or refused, the endpoint sits behind `project.manage` —
-              there is no badge, because the unconditional "Internal" this replaces was
-              wrong for every shared project from the day CLIENT-001 landed.
-            */}
-            {shares.data !== undefined ? (
-              shares.data.length > 0 ? (
-                <Badge tone="client">Shared with a client</Badge>
-              ) : (
-                <Badge>Internal</Badge>
-              )
-            ) : null}
-            <StateCapsule state={project.data.status === 'active' ? 'current' : 'archived'}>
-              {project.data.status === 'active' ? 'Active' : project.data.status}
-            </StateCapsule>
-          </div>
-
-          <dl className="tm-detail-list">
-            <div className="tm-detail-list__pair">
-              <dt>Owner</dt>
-              {/*
-                D16: who is accountable, by name. `memberDisplayName` reads `null` as
-                "Unassigned", a name when the directory holds the id, the loading label while it
-                is in flight, and a stable "Former or hidden member" label for an id it does not.
-              */}
-              <dd>
-                {memberDisplayName(
-                  project.data.ownerUserId,
-                  directory.members,
-                  directory.isPending,
-                )}
-              </dd>
-            </div>
-            <div className="tm-detail-list__pair">
-              <dt>Committed</dt>
-              <dd>
-                {project.data.committedAt === null
-                  ? 'Nothing committed yet'
-                  : formatDay(project.data.committedAt)}
-              </dd>
-            </div>
-            <div className="tm-detail-list__pair">
-              <dt>Forecast</dt>
-              <dd>
-                {project.data.forecastAt === null
-                  ? 'No forecast yet'
-                  : formatDay(project.data.forecastAt)}
-              </dd>
-            </div>
-          </dl>
-
-          <p className="tm-prose">
-            A <strong>commitment</strong> is a date the client has been given. A{' '}
-            <strong>forecast</strong> is the team’s current estimate. They are kept apart on
-            purpose: a forecast that slips is ordinary, and a commitment that slips is a
-            conversation.
-          </p>
-        </section>
-      ) : null}
-
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-project-health">
-        <h2 id="tm-project-health" className="tm-eyebrow">
-          How it is going
-        </h2>
-        {workItems.isPending ? (
-          <LoadingRegion label="Counting the work.">
+        {project.isPending ? (
+          <LoadingRegion label="Loading this project.">
+            <Skeleton height="56px" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
-        ) : (
-          <>
-            <p className="tm-prose">
-              {healthSentence(items.length, blocked.length, overdue.length)}
-            </p>
-            <dl className="tm-detail-list">
-              <div className="tm-detail-list__pair">
-                <dt>Work items</dt>
-                <dd>{items.length}</dd>
-              </div>
-              <div className="tm-detail-list__pair">
-                <dt>Blocked</dt>
-                <dd>{blocked.length}</dd>
-              </div>
-              <div className="tm-detail-list__pair">
-                <dt>Past due</dt>
-                <dd>{overdue.length}</dd>
-              </div>
-              <div className="tm-detail-list__pair">
-                <dt>Finished</dt>
-                <dd>
-                  {done.length} of {items.length}
-                </dd>
-              </div>
-            </dl>
-            <p className="tm-field__hint">
-              These are counts, not a score. Every one of them is a number you can check in the work
-              list.
-            </p>
-            {items.length >= MAX_WORK_ITEM_PAGE ? (
-              <InlineAlert tone="warning" title="These counts are a page, not a total">
-                This project has at least {MAX_WORK_ITEM_PAGE} work items, which is a full page from
-                the API. The counts above describe what was fetched, not the whole project.
-              </InlineAlert>
-            ) : null}
-          </>
-        )}
-      </section>
+        ) : null}
 
-      <WorkSection
-        id="tm-project-next"
-        title="Next actions"
-        empty="Nothing is ready or in progress. Everything is either in the backlog or finished."
-        items={nextActions}
-        organizationSlug={organizationSlug}
-        now={now}
-      />
+        {project.data ? (
+          <section className="tm-prj-strip" aria-labelledby="tm-project-header">
+            <div className="tm-prj-strip__head">
+              <h2 id="tm-project-header" className="tm-prj-eyebrow">
+                This project
+              </h2>
+              {/*
+                The badge states what `project_clients` actually holds, or nothing. "Internal"
+                is asserted only after the shares endpoint answered with an empty list;
+                "Shared with a client" only after it answered with a non-empty one. While the
+                query is in flight — or refused, the endpoint sits behind `project.manage` —
+                there is no badge.
+              */}
+              {shares.data !== undefined ? (
+                shares.data.length > 0 ? (
+                  <Badge tone="client">Shared with a client</Badge>
+                ) : (
+                  <Badge>Internal</Badge>
+                )
+              ) : null}
+              <StateCapsule state={project.data.status === 'active' ? 'current' : 'archived'}>
+                {project.data.status === 'active' ? 'Active' : project.data.status}
+              </StateCapsule>
+              {/* D16: the owner by name; committed and forecast stay two dates (PROJ-001). */}
+              <dl className="tm-prj-strip__facts">
+                <div>
+                  <dt>Owner</dt>
+                  <dd>{nameOf(project.data.ownerUserId)}</dd>
+                </div>
+                <div>
+                  <dt>Committed</dt>
+                  <dd>
+                    {project.data.committedAt === null
+                      ? 'Nothing committed yet'
+                      : formatDay(project.data.committedAt)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Forecast</dt>
+                  <dd>
+                    {project.data.forecastAt === null
+                      ? 'No forecast yet'
+                      : formatDay(project.data.forecastAt)}
+                  </dd>
+                </div>
+              </dl>
+            </div>
 
-      <WorkSection
-        id="tm-project-blockers"
-        title="Blockers"
-        empty="Nothing is blocked."
-        items={blocked}
-        organizationSlug={organizationSlug}
-        now={now}
-      />
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-project-client">
-        <h2 id="tm-project-client" className="tm-eyebrow">
-          What the client can see
-        </h2>
-        {clientFacing.length === 0 ? (
-          <p className="tm-prose">
-            Nothing in this project is shared with a client. Every item is internal, which is what a
-            new item starts as.
-          </p>
-        ) : (
-          <>
-            <p className="tm-prose">
-              {clientFacing.length === 1
-                ? 'One item is visible in the client portal.'
-                : `${clientFacing.length} items are visible in the client portal.`}
-            </p>
-            <ul className="tm-list">
-              {clientFacing.map((item) => (
-                <li key={item.id}>
-                  <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>{' '}
-                  <StateCapsule state="client">{audienceLabel(item.audience)}</StateCapsule>
+            {track.length === 0 ? (
+              <ol
+                className="tm-pulse-track tm-pulse-track--bare tm-prj-track"
+                aria-label="Milestones"
+              >
+                <li data-state="uncertain">
+                  <span className="tm-prj-track__title">No milestones yet</span>
+                  <span className="tm-prj-track__meta">add the first one below</span>
                 </li>
-              ))}
-            </ul>
-          </>
-        )}
-        <p className="tm-field__hint">
-          This is what the client portal shows for this project. The portal is built and live, so
-          the list is what a client member reading it right now would see — not a preview of
-          something later.
-        </p>
-      </section>
+              </ol>
+            ) : (
+              <ol
+                className="tm-pulse-track tm-pulse-track--bare tm-prj-track"
+                aria-label="Milestones"
+              >
+                {track.map(({ milestone, state }) => (
+                  <li key={milestone.id} data-state={state}>
+                    {state === 'current' ? (
+                      <>
+                        <span className="tm-stack tm-stack--tight">
+                          <span className="tm-prj-track__kicker">Current</span>
+                          <span className="tm-prj-track__title">{milestone.title}</span>
+                        </span>
+                        <span className="tm-pulse-track__meta">
+                          {milestone.dueOn === null
+                            ? 'no date'
+                            : `due ${formatDay(milestone.dueOn)}`}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="tm-prj-track__title">
+                          {state === 'done' ? '✓ ' : ''}
+                          {milestone.title}
+                        </span>
+                        <span className="tm-prj-track__meta">
+                          {milestone.status === 'missed'
+                            ? 'missed'
+                            : milestone.dueOn === null
+                              ? 'no date'
+                              : formatDay(milestone.dueOn)}
+                        </span>
+                      </>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </section>
+        ) : null}
 
-      <MilestoneComposer api={api} organizationSlug={organizationSlug} projectId={projectId} />
+        <div className="tm-prj__grid">
+          <div className="tm-prj__col">
+            <section className="tm-stack" aria-labelledby="tm-project-blockers">
+              <div className="tm-section-head">
+                <h2 id="tm-project-blockers" className="tm-section-head__title">
+                  Blockers
+                </h2>
+                <span className="tm-section-head__meta">
+                  {blocked.length === 1 ? '1 item' : `${blocked.length} items`}
+                </span>
+              </div>
+              {blocked.length === 0 ? (
+                <div className="tm-card tm-card--empty tm-prj-card">
+                  <p className="tm-card__meta">Nothing is blocked.</p>
+                </div>
+              ) : (
+                <ul className="tm-card-grid">
+                  {blocked.map((item) => (
+                    <li key={item.id} className="tm-card tm-prj-card">
+                      <span className="tm-card__eyebrow">
+                        Blocked · {item.dueAt === null ? 'no date' : `due ${formatDay(item.dueAt)}`}
+                      </span>
+                      <h3 className="tm-prj-card__title">
+                        <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>
+                      </h3>
+                      <span className="tm-prj-flag">
+                        {stateLabel(item.state)} · {nameOf(item.ownerUserId)}
+                      </span>
+                      {isOverdue(item, now) ? (
+                        <StateCapsule state="blocked">Overdue</StateCapsule>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
-      <UpdateComposer api={api} organizationSlug={organizationSlug} projectId={projectId} />
+            <WorkSection
+              id="tm-project-next"
+              title="Next actions"
+              empty="Nothing is ready or in progress. Everything is either in the backlog or finished."
+              items={nextActions}
+              organizationSlug={organizationSlug}
+              now={now}
+              nameOf={nameOf}
+              workHref={`/${organizationSlug}/work?project=${encodeURIComponent(projectId)}`}
+            />
 
-      <BackendPending ticket="internal pulse — unscheduled">
-        The latest internal pulse is not built and is not scheduled to be. It has nowhere to be
-        stored yet, so it is not drawn: an empty “Pulse” heading would read as a team that has said
-        nothing rather than a feature that does not exist.
-      </BackendPending>
+            <MilestoneComposer
+              api={api}
+              organizationSlug={organizationSlug}
+              projectId={projectId}
+            />
+          </div>
+
+          <div className="tm-prj__col">
+            <section
+              className="tm-card tm-card--ink tm-prj-client"
+              aria-labelledby="tm-project-client"
+            >
+              <h2 id="tm-project-client" className="tm-prj-eyebrow">
+                What the client can see
+              </h2>
+              <div className="tm-prj-client__figure">
+                <span className="tm-prj-client__value">{clientFacing.length}</span>
+                <span>
+                  {clientFacing.length === 1
+                    ? 'item is visible in the client portal'
+                    : 'items are visible in the client portal'}
+                </span>
+              </div>
+              {clientFacing.length > 0 ? (
+                <ul className="tm-prj-client__list">
+                  {clientFacing.map((item) => (
+                    <li key={item.id}>
+                      <span className="tm-prj-client__ring" aria-hidden="true">
+                        CL
+                      </span>
+                      <span className="tm-stack tm-stack--tight">
+                        <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>
+                        <span className="tm-meta-mono">
+                          {audienceLabel(item.audience)} · {stateLabel(item.state)}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              <hr className="tm-prj-client__rule" />
+              <p className="tm-prj-client__prose">
+                {clientFacing.length === 0
+                  ? 'Nothing in this project is shared with a client. Every item is internal, which is what a new item starts as.'
+                  : 'This is what a client member reading the portal right now would see. Internal work, risks and comments stay internal.'}
+              </p>
+            </section>
+
+            <section className="tm-card tm-prj-card" aria-labelledby="tm-project-health">
+              <h2 id="tm-project-health" className="tm-section-head__title">
+                How it is going
+              </h2>
+              {workItems.isPending ? (
+                <LoadingRegion label="Counting the work.">
+                  <Skeleton height="var(--row)" />
+                </LoadingRegion>
+              ) : (
+                <>
+                  <p className="tm-prose">
+                    {healthSentence(items.length, blocked.length, overdue.length)}
+                  </p>
+                  <p className="tm-card__meta">
+                    These are counts, not a score. Every one of them is a number you can check in
+                    the work list.
+                  </p>
+                  {items.length >= MAX_WORK_ITEM_PAGE ? (
+                    <InlineAlert tone="warning" title="These counts are a page, not a total">
+                      This project has at least {MAX_WORK_ITEM_PAGE} work items, which is a full
+                      page. The counts above describe what was loaded, not the whole project.
+                    </InlineAlert>
+                  ) : null}
+                </>
+              )}
+            </section>
+
+            <UpdateComposer api={api} organizationSlug={organizationSlug} projectId={projectId} />
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
+}
+
+type TrackState = 'done' | 'current' | 'future' | 'risk' | 'uncertain';
+
+/**
+ * The milestone pulse track: met is confirmed history (ink), the first planned milestone is now
+ * (lime), a missed one is a risk, and the rest are future; an undated future one is uncertain.
+ */
+function pulseTrack(
+  rows: readonly ProjectMilestone[],
+): readonly { milestone: ProjectMilestone; state: TrackState }[] {
+  const ordered = rows.slice().sort((left, right) => {
+    if (left.dueOn === right.dueOn) return 0;
+    if (left.dueOn === null) return 1;
+    if (right.dueOn === null) return -1;
+    return left.dueOn < right.dueOn ? -1 : 1;
+  });
+  let currentTaken = false;
+  return ordered.map((milestone) => {
+    if (milestone.status === 'met') return { milestone, state: 'done' as const };
+    if (milestone.status === 'missed') return { milestone, state: 'risk' as const };
+    if (!currentTaken) {
+      currentTaken = true;
+      return { milestone, state: 'current' as const };
+    }
+    return { milestone, state: milestone.dueOn === null ? 'uncertain' : 'future' } as const;
+  });
+}
+
+function MilestoneMetric({ milestone, now }: { milestone: ProjectMilestone; now: Date }) {
+  const due =
+    milestone.dueOn === null ? null : Date.parse(`${milestone.dueOn.slice(0, 10)}T00:00:00Z`);
+  if (due === null || Number.isNaN(due)) return null;
+  const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const days = Math.round((due - today) / 86_400_000);
+  return (
+    <div className="tm-metric">
+      <div className="tm-metric__value-row">
+        <span className="tm-metric__value">{pad(Math.abs(days))}</span>
+        <span className={`tm-pill ${days < 0 ? 'tm-pill--warning' : 'tm-pill--current'}`}>
+          {days < 0 ? 'late' : 'next'}
+        </span>
+      </div>
+      <span className="tm-metric__label">
+        {days < 0 ? 'days past' : 'days to'} {milestone.title}
+      </span>
+      <span className="tm-metric__source">milestone due {formatDay(milestone.dueOn)}</span>
+    </div>
+  );
+}
+
+function pad(value: number): string {
+  return value < 10 ? `0${value}` : String(value);
 }
 
 interface WorkSectionProps {
@@ -327,32 +503,82 @@ interface WorkSectionProps {
   items: readonly WorkItemSummary[];
   organizationSlug: string;
   now: Date;
+  nameOf: (userId: string | null) => string;
+  workHref: string;
 }
 
-function WorkSection({ id, title, empty, items, organizationSlug, now }: WorkSectionProps) {
+/**
+ * PRJ-01 "What decides the milestone" + "Open commitments": the first next action is the one lime
+ * card on the screen; the rest are rows with the owner's disc, state and due date.
+ */
+function WorkSection({
+  id,
+  title,
+  empty,
+  items,
+  organizationSlug,
+  now,
+  nameOf,
+  workHref,
+}: WorkSectionProps) {
+  const [lead, ...rest] = items;
   return (
-    <section className="tm-panel tm-stack" aria-labelledby={id}>
-      <h2 id={id} className="tm-eyebrow">
-        {title}
-      </h2>
-      {items.length === 0 ? (
-        <p className="tm-prose">{empty}</p>
+    <section className="tm-stack" aria-labelledby={id}>
+      <div className="tm-section-head">
+        <h2 id={id} className="tm-section-head__title">
+          {title}
+        </h2>
+        <span className="tm-section-head__meta">
+          {items.length === 1 ? '1 item' : `${items.length} items`}
+        </span>
+        <span className="tm-section-head__end">
+          <Link className="tm-meta-mono" href={workHref}>
+            Open all
+          </Link>
+        </span>
+      </div>
+      {lead === undefined ? (
+        <div className="tm-card tm-card--empty tm-prj-card">
+          <p className="tm-card__meta">{empty}</p>
+        </div>
       ) : (
-        <ul className="tm-list">
-          {items.map((item) => (
-            <li key={item.id}>
-              <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>{' '}
-              <StateCapsule state={stateCapsule(item.state)}>{stateLabel(item.state)}</StateCapsule>{' '}
-              <span className="tm-prose">{formatInstant(item.dueAt)}</span>
-              {isOverdue(item, now) ? (
-                <>
-                  {' '}
-                  <StateCapsule state="blocked">Overdue</StateCapsule>
-                </>
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <>
+          <article className="tm-card tm-card--lime tm-prj-card">
+            <span className="tm-card__eyebrow">Next · {audienceLabel(lead.audience)}</span>
+            <h3 className="tm-prj-card__title">
+              <Link href={`/${organizationSlug}/work/${lead.id}`}>{lead.title}</Link>
+            </h3>
+            <span className="tm-prj-capsule">
+              <span className="tm-prj-capsule__orb" aria-hidden="true">
+                !
+              </span>
+              {stateLabel(lead.state)} · {nameOf(lead.ownerUserId)}
+            </span>
+            <span className="tm-meta-mono">
+              {lead.dueAt === null ? 'no due date' : `due ${formatInstant(lead.dueAt)}`}
+              {isOverdue(lead, now) ? ' · overdue' : ''}
+            </span>
+          </article>
+          {rest.length > 0 ? (
+            <ul className="tm-row-list tm-prj-rows">
+              {rest.map((item) => (
+                <li key={item.id}>
+                  <Avatar name={nameOf(item.ownerUserId)} size="compact" decorative />
+                  <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>
+                  <span className="tm-row-list__end">
+                    <StateCapsule state={stateCapsule(item.state)}>
+                      {stateLabel(item.state)}
+                    </StateCapsule>
+                    {isOverdue(item, now) ? (
+                      <StateCapsule state="blocked">Overdue</StateCapsule>
+                    ) : null}
+                    <span className="tm-meta-mono">{formatInstant(item.dueAt)}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
       )}
     </section>
   );
@@ -429,8 +655,8 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
   const rows: readonly ProjectMilestone[] = milestones.data ?? [];
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-project-milestones">
-      <h2 id="tm-project-milestones" className="tm-eyebrow">
+    <section className="tm-card tm-prj-card" aria-labelledby="tm-project-milestones">
+      <h2 id="tm-project-milestones" className="tm-section-head__title">
         Milestones
       </h2>
 
@@ -441,31 +667,26 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
       ) : rows.length === 0 ? (
         <p className="tm-prose">No milestones yet. Add the first below.</p>
       ) : (
-        <ol className="tm-list tm-stack">
+        <ol className="tm-prj-milestones">
           {rows.map((milestone) => (
-            <li key={milestone.id} className="tm-stack tm-stack--tight">
-              <div className="tm-row tm-row--wrap">
-                <h3 className="tm-heading-3">{milestone.title}</h3>
-                <StateCapsule
-                  state={milestoneCapsuleState(milestone.status)}
-                  className="tm-push-end"
-                >
-                  {milestone.status}
-                </StateCapsule>
-                {!milestone.published ? <StateCapsule state="neutral">Draft</StateCapsule> : null}
-              </div>
-              <p className="tm-field__hint">
+            <li key={milestone.id}>
+              <h3 className="tm-prj-milestones__title">{milestone.title}</h3>
+              <span className="tm-meta-mono">
                 {milestone.dueOn === null
                   ? 'No date committed'
                   : `Due ${formatDay(milestone.dueOn)}`}
-              </p>
+              </span>
+              <StateCapsule state={milestoneCapsuleState(milestone.status)} className="tm-push-end">
+                {milestone.status}
+              </StateCapsule>
+              {!milestone.published ? <StateCapsule state="neutral">Draft</StateCapsule> : null}
             </li>
           ))}
         </ol>
       )}
 
       <form
-        className="tm-stack"
+        className="tm-prj-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (canCreate)
@@ -477,49 +698,51 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
             });
         }}
       >
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-project-milestone-title">
-            Title
-          </label>
-          <input
-            id="tm-project-milestone-title"
-            className="tm-field__control"
-            value={title}
-            maxLength={MAX_MILESTONE_TITLE_LENGTH}
-            required
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </div>
+        <div className="tm-prj-form__row">
+          <div className="tm-field">
+            <label className="tm-field__label" htmlFor="tm-project-milestone-title">
+              Title
+            </label>
+            <input
+              id="tm-project-milestone-title"
+              className="tm-field__control"
+              value={title}
+              maxLength={MAX_MILESTONE_TITLE_LENGTH}
+              required
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </div>
 
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-project-milestone-due">
-            Target date
-          </label>
-          <input
-            id="tm-project-milestone-due"
-            className="tm-field__control"
-            type="date"
-            value={dueOn}
-            onChange={(event) => setDueOn(event.target.value)}
-          />
-        </div>
+          <div className="tm-field">
+            <label className="tm-field__label" htmlFor="tm-project-milestone-due">
+              Target date
+            </label>
+            <input
+              id="tm-project-milestone-due"
+              className="tm-field__control"
+              type="date"
+              value={dueOn}
+              onChange={(event) => setDueOn(event.target.value)}
+            />
+          </div>
 
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-project-milestone-status">
-            Status
-          </label>
-          <select
-            id="tm-project-milestone-status"
-            className="tm-field__control"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as MilestoneStatus)}
-          >
-            {MILESTONE_STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="tm-field">
+            <label className="tm-field__label" htmlFor="tm-project-milestone-status">
+              Status
+            </label>
+            <select
+              id="tm-project-milestone-status"
+              className="tm-field__control"
+              value={status}
+              onChange={(event) => setStatus(event.target.value as MilestoneStatus)}
+            >
+              {MILESTONE_STATUS_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         <label className="tm-choice tm-choice--inline">
@@ -533,8 +756,8 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
         </label>
         <span className="tm-field__hint">
           A published milestone is visible in the client portal straight away. Leave this unchecked
-          to keep it a draft only your studio can see. Editing or unpublishing a milestone is not
-          built yet, so add it the way you mean it.
+          to keep it a draft only your studio can see. Add it the way you mean it: a milestone
+          cannot be edited or unpublished afterwards.
         </span>
 
         {create.isError ? (
@@ -611,13 +834,17 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
   const canPost = title.trim() !== '' && body.trim() !== '' && !post.isPending;
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-project-update-composer">
-      <h2 id="tm-project-update-composer" className="tm-eyebrow">
+    <section
+      className="tm-card tm-prj-card"
+      id="tm-project-update-composer-card"
+      aria-labelledby="tm-project-update-composer"
+    >
+      <h2 id="tm-project-update-composer" className="tm-section-head__title" tabIndex={-1}>
         Post an update
       </h2>
 
       <form
-        className="tm-stack"
+        className="tm-prj-form"
         onSubmit={(event) => {
           event.preventDefault();
           if (canPost)
@@ -663,8 +890,8 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
         </label>
         <span className="tm-field__hint">
           A published update is visible in the client portal straight away. Leave this unchecked to
-          keep it a draft only your studio can see. Editing or unpublishing an update is not built
-          yet, so post it the way you mean it.
+          keep it a draft only your studio can see. Post it the way you mean it: an update cannot be
+          edited or unpublished afterwards.
         </span>
 
         {post.isError ? (

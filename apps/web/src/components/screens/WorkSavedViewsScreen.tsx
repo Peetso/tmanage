@@ -11,6 +11,7 @@ import type { SavedViewInput, SavedViewView } from '../../lib/api/work-views';
 import { savedViewKeys } from '../../lib/query-keys';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/work-planning.css';
 
 export interface WorkSavedViewsScreenProps {
   organizationSlug: string;
@@ -115,129 +116,21 @@ export function WorkSavedViewsScreen({
     setGrouping(view.config.grouping ?? '');
   }
 
+  const previewColumns = columnsText
+    .split(',')
+    .map((column) => column.trim())
+    .filter((column) => column !== '');
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
       title="Saved views"
-      description="Name and re-apply a filter, grouping and columns configuration for your work."
+      eyebrow="Work"
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-saved-view-editor">
-        <h2 id="tm-saved-view-editor" className="tm-eyebrow">
-          {editingId === null ? 'New saved view' : 'Edit saved view'}
-        </h2>
-
-        <form
-          className="tm-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSave) save.mutate();
-          }}
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-saved-view-name">
-              Name
-            </label>
-            <input
-              id="tm-saved-view-name"
-              className="tm-field__control"
-              value={name}
-              maxLength={300}
-              required
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-saved-view-project">
-              Project
-            </label>
-            <select
-              id="tm-saved-view-project"
-              className="tm-field__control"
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
-            >
-              <option value="">All projects (org-wide)</option>
-              {(projects.data ?? []).map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-            <span className="tm-field__hint">
-              Scope the view to one project, or leave it org-wide.
-            </span>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-saved-view-columns">
-              Columns
-            </label>
-            <input
-              id="tm-saved-view-columns"
-              className="tm-field__control"
-              value={columnsText}
-              placeholder="title, state, due"
-              onChange={(event) => setColumnsText(event.target.value)}
-            />
-            <span className="tm-field__hint">
-              A comma-separated list of column names, in order.
-            </span>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-saved-view-grouping">
-              Group by
-            </label>
-            <input
-              id="tm-saved-view-grouping"
-              className="tm-field__control"
-              value={grouping}
-              placeholder="Optional — e.g. state"
-              onChange={(event) => setGrouping(event.target.value)}
-            />
-          </div>
-
-          <label className="tm-choice tm-choice--inline">
-            <input
-              className="tm-choice__input"
-              type="checkbox"
-              checked={shared}
-              onChange={(event) => setShared(event.target.checked)}
-            />
-            <span className="tm-choice__name">Share with everyone in this studio</span>
-          </label>
-
-          {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save the view" live>
-              {describeError(save.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              disabled={!canSave}
-              loading={save.isPending}
-              loadingLabel="Saving"
-            >
-              {editingId === null ? 'Save view' : 'Save changes'}
-            </Button>
-            {editingId !== null ? (
-              <Button tone="outline" size="accessible" onClick={resetForm}>
-                Cancel edit
-              </Button>
-            ) : null}
-          </div>
-        </form>
-      </section>
-
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-saved-view-list">
-        <h2 id="tm-saved-view-list" className="tm-eyebrow">
+      <section className="wp-stack" aria-labelledby="tm-saved-view-list">
+        <h2 id="tm-saved-view-list" className="wp-views-title">
           Your saved views
         </h2>
 
@@ -249,40 +142,180 @@ export function WorkSavedViewsScreen({
 
         {savedViews.isPending ? (
           <LoadingRegion label="Loading your saved views.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
+            <Skeleton height="120px" />
           </LoadingRegion>
         ) : null}
 
         {!savedViews.isPending && !savedViews.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No saved views yet">
-            Save a configuration above and it will appear here for you to re-apply.
-          </InlineAlert>
+          <div className="wp-empty">
+            <h3 className="wp-empty__title">No saved views yet</h3>
+            <p className="wp-empty__body">
+              Save a configuration below and it will appear here for you to re-apply.
+            </p>
+          </div>
         ) : null}
 
         {rows.length > 0 ? (
-          <ul className="tm-list tm-stack">
+          <ul className="wp-views">
             {rows.map((view) => (
-              <li key={view.id} className="tm-row tm-row--wrap">
-                <div className="tm-stack tm-stack--tight">
-                  <strong>{view.name}</strong>
-                  <span className="tm-field__hint">
-                    {view.projectId === null
-                      ? 'All projects'
-                      : (projectNames.get(view.projectId) ?? view.projectId)}
-                    {view.shared ? ' · Shared' : ' · Private'}
+              <li
+                key={view.id}
+                className={`wp-view-card${view.id === editingId ? ' wp-view-card--lime' : ''}`}
+              >
+                <span className="wp-view-card__eyebrow">
+                  {view.projectId === null
+                    ? 'All projects'
+                    : (projectNames.get(view.projectId) ?? 'One project')}
+                  {view.shared ? ' · Shared' : ' · Private'}
+                </span>
+                <h3 className="wp-view-card__name">{view.name}</h3>
+                <div className="wp-view-card__foot">
+                  <span className="wp-view-card__count">{view.config.columns.length}</span>
+                  <span className="wp-view-card__meta">
                     {view.config.columns.length > 0
-                      ? ` · ${view.config.columns.join(', ')}`
-                      : ' · No columns set'}
+                      ? `${view.config.columns.length === 1 ? 'column' : 'columns'} · ${view.config.columns.join(', ')}`
+                      : 'No columns set'}
+                    {view.config.grouping ? ` · grouped by ${view.config.grouping}` : ''}
                   </span>
+                  <Button tone="outline" size="compact" onClick={() => loadIntoForm(view)}>
+                    Load
+                  </Button>
                 </div>
-                <Button tone="outline" size="accessible" onClick={() => loadIntoForm(view)}>
-                  Load
-                </Button>
               </li>
             ))}
           </ul>
         ) : null}
+      </section>
+
+      <section className="wp-stack" aria-labelledby="tm-saved-view-editor">
+        <h2 id="tm-saved-view-editor" className="wp-views-title">
+          {editingId === null
+            ? 'New saved view'
+            : `Edit ${name.trim() === '' ? 'saved view' : name}`}
+        </h2>
+
+        <form
+          className="wp-editor"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (canSave) save.mutate();
+          }}
+        >
+          <div className="wp-editor__main">
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-saved-view-name">
+                Name
+              </label>
+              <input
+                id="tm-saved-view-name"
+                className="tm-field__control"
+                value={name}
+                maxLength={300}
+                required
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-saved-view-project">
+                Project
+              </label>
+              <select
+                id="tm-saved-view-project"
+                className="tm-field__control"
+                value={projectId}
+                onChange={(event) => setProjectId(event.target.value)}
+              >
+                <option value="">All projects (org-wide)</option>
+                {(projects.data ?? []).map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+              <span className="tm-field__hint">
+                Scope the view to one project, or leave it org-wide.
+              </span>
+            </div>
+
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-saved-view-grouping">
+                Group by
+              </label>
+              <input
+                id="tm-saved-view-grouping"
+                className="tm-field__control"
+                value={grouping}
+                placeholder="Optional — e.g. state"
+                onChange={(event) => setGrouping(event.target.value)}
+              />
+            </div>
+
+            {save.isError ? (
+              <InlineAlert tone="danger" title="Could not save the view" live>
+                {describeError(save.error)}
+              </InlineAlert>
+            ) : null}
+          </div>
+
+          <div className="wp-editor__side">
+            <p className="wp-mono-label" aria-hidden="true">
+              Columns · {previewColumns.length}
+            </p>
+            <ul className="wp-colchips" aria-hidden="true">
+              {previewColumns.length === 0 ? (
+                <li className="wp-colchips__none">None yet</li>
+              ) : (
+                previewColumns.map((column, index) => <li key={`${column}-${index}`}>{column}</li>)
+              )}
+            </ul>
+            <div className="tm-field">
+              <label className="tm-visually-hidden" htmlFor="tm-saved-view-columns">
+                Columns
+              </label>
+              <input
+                id="tm-saved-view-columns"
+                className="tm-field__control"
+                value={columnsText}
+                placeholder="title, state, due"
+                onChange={(event) => setColumnsText(event.target.value)}
+              />
+              <span className="tm-field__hint">
+                A comma-separated list of column names, in order.
+              </span>
+            </div>
+
+            <p className="wp-mono-label" aria-hidden="true">
+              Sharing
+            </p>
+            <label className="wp-share">
+              <input
+                type="checkbox"
+                checked={shared}
+                onChange={(event) => setShared(event.target.checked)}
+              />
+              <span>Share with everyone in this studio</span>
+            </label>
+
+            <div className="wp-editor__buttons">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                disabled={!canSave}
+                loading={save.isPending}
+                loadingLabel="Saving"
+              >
+                {editingId === null ? 'Save view' : 'Save changes'}
+              </Button>
+              {editingId !== null ? (
+                <Button tone="outline" size="accessible" onClick={resetForm}>
+                  Cancel edit
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </form>
       </section>
 
       <Announce message={save.isSuccess ? 'Saved view stored.' : ''} />

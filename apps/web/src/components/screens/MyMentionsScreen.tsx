@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listMyMentions } from '../../lib/api/my-mentions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/chat.css';
 
 export interface MyMentionsScreenProps {
   organizationSlug: string;
@@ -49,11 +50,13 @@ export function MyMentionsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
+      eyebrow="Chat"
       title="Your mentions"
-      description="The recent messages that mention you, newest first. Only messages in channels you are in appear here."
+      {...(rows.length > 0 ? { titleMeta: `${rows.length} recent` } : {})}
+      description="Recent messages that mention you, newest first — only from channels you are in."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-mentions-heading">
-        <h2 id="tm-mentions-heading" className="tm-eyebrow">
+      <section className="tm-stack" aria-labelledby="tm-mentions-heading">
+        <h2 id="tm-mentions-heading" className="tm-chat-eyebrow">
           Recent mentions
         </h2>
 
@@ -71,13 +74,19 @@ export function MyMentionsScreen({
         ) : null}
 
         {!mentions.isPending && !mentions.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No mentions yet">
-            When someone mentions you in a channel you are in, it will appear here.
-          </InlineAlert>
+          <p className="tm-chat-empty">
+            <span className="tm-chat-audience__orb" aria-hidden="true">
+              @
+            </span>
+            <span>
+              <strong>No mentions yet</strong>
+              When someone mentions you in a channel you are in, it will appear here.
+            </span>
+          </p>
         ) : null}
 
         {rows.length > 0 ? (
-          <ul className="tm-stack" aria-label="Your mentions">
+          <ul className="tm-chat-mentions" aria-label="Your mentions">
             {rows.map((mention) => (
               <MentionView
                 key={mention.messageId}

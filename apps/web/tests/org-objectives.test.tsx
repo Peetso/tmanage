@@ -16,7 +16,7 @@ import { expectNoAxeViolations } from './axe';
  * What only this file can prove is what the *screen* does: it renders the server's order without
  * re-sorting, sets an objective through `POST …/objectives` and refetches, transitions one through
  * `PATCH …/objectives/:id`, shows the empty state plainly, and carries an accessible form and list
- * (labelled regions, a caption, column headers) with no axe violation jsdom can detect.
+ * (a labelled list of cards, each titled by a heading) with no axe violation jsdom can detect.
  */
 
 interface Call {
@@ -37,6 +37,8 @@ function clientOver(handler: (call: Call) => Response): { client: ApiClient; cal
         body: init?.body ? JSON.parse(String(init.body)) : undefined,
       };
       calls.push(call);
+      // OBJ-02 shows the selected objective's key results; they are not under test here.
+      if (call.url.includes('/key-results')) return Promise.resolve(json({ keyResults: [] }));
       return Promise.resolve(handler(call));
     }) as typeof globalThis.fetch,
     readCsrfToken: () => 'csrf-token',
@@ -103,9 +105,10 @@ describe('OrgObjectivesScreen', () => {
 
     const { container } = renderScreen(client);
 
-    const table = await screen.findByRole('table');
-    const rowHeaders = within(table).getAllByRole('rowheader');
-    expect(rowHeaders.map((cell) => cell.textContent)).toEqual([
+    // OBJ-01: one card per objective, titled by a level-3 heading, in server order.
+    const list = await screen.findByRole('list', { name: 'Objectives' });
+    const titles = within(list).getAllByRole('heading', { level: 3 });
+    expect(titles.map((heading) => heading.textContent)).toEqual([
       'First objective',
       'Second objective',
     ]);

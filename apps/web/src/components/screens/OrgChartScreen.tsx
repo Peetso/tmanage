@@ -9,6 +9,7 @@ import { getOrgChart, setReportingManager } from '../../lib/api/reporting-lines'
 import type { ReportingLine } from '../../lib/api/reporting-lines';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/people.css';
 
 export interface OrgChartScreenProps {
   organizationSlug: string;
@@ -108,103 +109,133 @@ export function OrgChartScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="work"
+      activeNavigationId="people"
+      eyebrow="People · Org chart"
       title="Org chart"
       description="Who reports to whom — the reporting tree, folded from each member's manager."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-orgchart-set">
-        <h2 id="tm-orgchart-set" className="tm-eyebrow">
-          Set a reporting line
-        </h2>
-        <form
-          className="tm-row tm-row--wrap"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!canSet) return;
-            save.mutate({ member: memberId.trim(), manager: managerId.trim() });
-          }}
-          noValidate
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-orgchart-member">
-              Member
-            </label>
-            <input
-              id="tm-orgchart-member"
-              name="member"
-              className="tm-field__control"
-              value={memberId}
-              onChange={(event) => setMemberId(event.target.value)}
-              placeholder="membership id"
-              required
-            />
+      <div className="ppl-screen">
+        <div className="ppl-body">
+          <div className="ppl-main">
+            {chart.isError ? (
+              <InlineAlert tone="danger" title="Could not load the org chart" live>
+                {describeError(chart.error)}
+              </InlineAlert>
+            ) : null}
+
+            {chart.isPending ? (
+              <LoadingRegion label="Loading the org chart.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {chart.data !== undefined && forest.length === 0 ? (
+              <section className="ppl-card" aria-label="No reporting lines yet">
+                <h2 className="ppl-card__title">No reporting lines yet</h2>
+                <p className="ppl-dashed-note">
+                  No one has a manager set. Add a reporting line to start the chart.
+                </p>
+              </section>
+            ) : null}
+
+            {forest.length > 0 ? (
+              <section className="ppl-card" aria-labelledby="tm-orgchart-tree">
+                <h2 id="tm-orgchart-tree" className="ppl-mono">
+                  Reporting tree
+                </h2>
+                <ul className="ppl-tree">
+                  {forest.map((node) => (
+                    <TreeBranch key={node.membershipId} node={node} />
+                  ))}
+                </ul>
+              </section>
+            ) : null}
           </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-orgchart-manager">
-              Manager
-            </label>
-            <input
-              id="tm-orgchart-manager"
-              name="manager"
-              className="tm-field__control"
-              value={managerId}
-              onChange={(event) => setManagerId(event.target.value)}
-              placeholder="membership id"
-            />
-          </div>
-          <div className="tm-row">
-            <Button type="submit" tone="ink" size="accessible" disabled={!canSet || save.isPending}>
-              Set manager
-            </Button>
-            <Button
-              type="button"
-              tone="outline"
-              size="accessible"
-              disabled={!canClear || save.isPending}
-              onClick={() => save.mutate({ member: memberId.trim(), manager: null })}
+
+          <div className="ppl-aside ppl-aside--352">
+            <section className="ppl-card ppl-card--tight" aria-labelledby="tm-orgchart-set">
+              <h2 id="tm-orgchart-set" className="ppl-card__title">
+                Set a reporting line
+              </h2>
+              <form
+                className="ppl-form"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (!canSet) return;
+                  save.mutate({ member: memberId.trim(), manager: managerId.trim() });
+                }}
+                noValidate
+              >
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-orgchart-member">
+                    Member
+                  </label>
+                  <input
+                    id="tm-orgchart-member"
+                    name="member"
+                    className="tm-field__control"
+                    value={memberId}
+                    onChange={(event) => setMemberId(event.target.value)}
+                    placeholder="membership id"
+                    required
+                  />
+                </div>
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-orgchart-manager">
+                    Manager
+                  </label>
+                  <input
+                    id="tm-orgchart-manager"
+                    name="manager"
+                    className="tm-field__control"
+                    value={managerId}
+                    onChange={(event) => setManagerId(event.target.value)}
+                    placeholder="membership id"
+                  />
+                </div>
+                <div className="ppl-button-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    disabled={!canSet || save.isPending}
+                  >
+                    Set manager
+                  </Button>
+                  <Button
+                    type="button"
+                    tone="outline"
+                    size="accessible"
+                    disabled={!canClear || save.isPending}
+                    onClick={() => save.mutate({ member: memberId.trim(), manager: null })}
+                  >
+                    Clear manager
+                  </Button>
+                </div>
+              </form>
+              {save.isError ? (
+                <InlineAlert tone="danger" title="Could not save the reporting line" live>
+                  {describeError(save.error)}
+                </InlineAlert>
+              ) : null}
+            </section>
+
+            <section
+              className="ppl-card ppl-card--tight ppl-card--ink"
+              aria-labelledby="tm-orgchart-note"
             >
-              Clear manager
-            </Button>
+              <h2 id="tm-orgchart-note" className="ppl-mono">
+                What a reporting line means
+              </h2>
+              <p className="ppl-note ppl-note--ink">
+                A line records who someone reports to, set on record by someone who may manage the
+                organization. Access and approval come from roles, not from the chart.
+              </p>
+            </section>
           </div>
-        </form>
-        {save.isError ? (
-          <InlineAlert tone="danger" title="Could not save the reporting line" live>
-            {describeError(save.error)}
-          </InlineAlert>
-        ) : null}
-      </section>
-
-      {chart.isError ? (
-        <InlineAlert tone="danger" title="Could not load the org chart" live>
-          {describeError(chart.error)}
-        </InlineAlert>
-      ) : null}
-
-      {chart.isPending ? (
-        <LoadingRegion label="Loading the org chart.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {chart.data !== undefined && forest.length === 0 ? (
-        <InlineAlert tone="neutral" title="No reporting lines yet">
-          No one has a manager set. Add a reporting line above to start the chart.
-        </InlineAlert>
-      ) : null}
-
-      {forest.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-orgchart-tree">
-          <h2 id="tm-orgchart-tree" className="tm-eyebrow">
-            Reporting tree
-          </h2>
-          <ul className="tm-stack" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-            {forest.map((node) => (
-              <TreeBranch key={node.membershipId} node={node} />
-            ))}
-          </ul>
-        </section>
-      ) : null}
+        </div>
+      </div>
     </AppShell>
   );
 }
@@ -212,12 +243,9 @@ export function OrgChartScreen({
 function TreeBranch({ node }: { node: TreeNode }) {
   return (
     <li>
-      <span className="tm-table__title">{node.membershipId}</span>
+      <span className="ppl-tree__node">{node.membershipId}</span>
       {node.reports.length > 0 ? (
-        <ul
-          className="tm-stack"
-          style={{ listStyle: 'none', margin: 0, paddingInlineStart: 'var(--space-4, 16px)' }}
-        >
+        <ul>
           {node.reports.map((child) => (
             <TreeBranch key={child.membershipId} node={child} />
           ))}

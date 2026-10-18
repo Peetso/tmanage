@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   INSIGHT_CUSTOM_REPORT_LAYOUTS,
@@ -116,198 +117,201 @@ export function InsightCustomReportsView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
+      eyebrow="Insights"
       title="Custom insight reports"
       description="Compose the metrics you care about into a named report and render it against today’s numbers."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-custom-report-editor">
-        <h2 id="tm-custom-report-editor" className="tm-eyebrow">
-          New custom report
-        </h2>
-
-        <form
-          className="tm-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSave) save.mutate();
-          }}
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-custom-report-name">
-              Name
-            </label>
-            <input
-              id="tm-custom-report-name"
-              className="tm-field__control"
-              value={name}
-              maxLength={300}
-              required
-              onChange={(event) => setName(event.target.value)}
-            />
-          </div>
-
-          <fieldset className="tm-field">
-            <legend className="tm-field__label">Metrics</legend>
-            <div className="tm-stack tm-stack--tight">
-              {INSIGHT_CUSTOM_REPORT_METRICS.map((metric) => (
-                <label key={metric} className="tm-row tm-row--tight">
-                  <input
-                    type="checkbox"
-                    checked={metricKeys.includes(metric)}
-                    onChange={() => toggleMetric(metric)}
-                  />
-                  <span>{METRIC_LABELS[metric]}</span>
-                </label>
-              ))}
-            </div>
-            <span className="tm-field__hint">
-              Pick one or more metrics. The report renders them in the order you add them.
-            </span>
-          </fieldset>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-custom-report-layout">
-              Layout
-            </label>
-            <select
-              id="tm-custom-report-layout"
-              className="tm-field__control"
-              value={layout}
-              onChange={(event) => setLayout(event.target.value as InsightCustomReportLayout)}
-            >
-              {INSIGHT_CUSTOM_REPORT_LAYOUTS.map((option) => (
-                <option key={option} value={option}>
-                  {LAYOUT_LABELS[option]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save the report" live>
-              {describeError(save.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              disabled={!canSave}
-              loading={save.isPending}
-              loadingLabel="Saving"
-            >
-              Save report
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-custom-report-list"
-      >
-        <h2 id="tm-custom-report-list" className="tm-eyebrow">
-          Your custom reports
-        </h2>
-
-        {reports.isError ? (
-          <InlineAlert tone="danger" title="Could not load your reports" live>
-            {describeError(reports.error)}
-          </InlineAlert>
-        ) : null}
-
-        {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not remove the report" live>
-            {describeError(remove.error)}
-          </InlineAlert>
-        ) : null}
-
-        {reports.isPending ? (
-          <LoadingRegion label="Loading your reports.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!reports.isPending && !reports.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No custom reports yet">
-            Compose a report above and it will appear here for you to render.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <ul className="tm-list tm-stack">
-            {rows.map((report) => (
-              <li key={report.id} className="tm-row tm-row--wrap">
-                <div className="tm-stack tm-stack--tight">
-                  <strong>{report.name}</strong>
-                  <span className="tm-field__hint">
-                    {LAYOUT_LABELS[report.layout]} ·{' '}
-                    {report.metricKeys.map((metric) => METRIC_LABELS[metric]).join(', ')}
-                  </span>
-                </div>
-                <div className="tm-row tm-row--tight">
-                  <Button
-                    tone="ink"
-                    size="accessible"
-                    loading={rendered.isFetching && renderId === report.id}
-                    loadingLabel="Rendering"
-                    onClick={() => setRenderId(report.id)}
-                  >
-                    Render
-                  </Button>
-                  <Button
-                    tone="outline"
-                    size="accessible"
-                    loading={remove.isPending && remove.variables === report.id}
-                    loadingLabel="Removing"
-                    onClick={() => remove.mutate(report.id)}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
-
-      {renderId !== null ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-custom-report-rendered">
-          <h2 id="tm-custom-report-rendered" className="tm-eyebrow">
-            Rendered report
+      <div className="tm-ins tm-ins-tool">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-custom-report-editor">
+          <h2 id="tm-custom-report-editor" className="tm-eyebrow">
+            New custom report
           </h2>
 
-          {rendered.isError ? (
-            <InlineAlert tone="danger" title="Could not render the report" live>
-              {describeError(rendered.error)}
+          <form
+            className="tm-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSave) save.mutate();
+            }}
+          >
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-custom-report-name">
+                Name
+              </label>
+              <input
+                id="tm-custom-report-name"
+                className="tm-field__control"
+                value={name}
+                maxLength={300}
+                required
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
+
+            <fieldset className="tm-field">
+              <legend className="tm-field__label">Metrics</legend>
+              <div className="tm-stack tm-stack--tight">
+                {INSIGHT_CUSTOM_REPORT_METRICS.map((metric) => (
+                  <label key={metric} className="tm-row tm-row--tight">
+                    <input
+                      type="checkbox"
+                      checked={metricKeys.includes(metric)}
+                      onChange={() => toggleMetric(metric)}
+                    />
+                    <span>{METRIC_LABELS[metric]}</span>
+                  </label>
+                ))}
+              </div>
+              <span className="tm-field__hint">
+                Pick one or more metrics. The report renders them in the order you add them.
+              </span>
+            </fieldset>
+
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-custom-report-layout">
+                Layout
+              </label>
+              <select
+                id="tm-custom-report-layout"
+                className="tm-field__control"
+                value={layout}
+                onChange={(event) => setLayout(event.target.value as InsightCustomReportLayout)}
+              >
+                {INSIGHT_CUSTOM_REPORT_LAYOUTS.map((option) => (
+                  <option key={option} value={option}>
+                    {LAYOUT_LABELS[option]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {save.isError ? (
+              <InlineAlert tone="danger" title="Could not save the report" live>
+                {describeError(save.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                disabled={!canSave}
+                loading={save.isPending}
+                loadingLabel="Saving"
+              >
+                Save report
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="tm-panel tm-panel--quiet tm-stack"
+          aria-labelledby="tm-custom-report-list"
+        >
+          <h2 id="tm-custom-report-list" className="tm-eyebrow">
+            Your custom reports
+          </h2>
+
+          {reports.isError ? (
+            <InlineAlert tone="danger" title="Could not load your reports" live>
+              {describeError(reports.error)}
             </InlineAlert>
           ) : null}
 
-          {rendered.isPending ? (
-            <LoadingRegion label="Rendering the report.">
+          {remove.isError ? (
+            <InlineAlert tone="danger" title="Could not remove the report" live>
+              {describeError(remove.error)}
+            </InlineAlert>
+          ) : null}
+
+          {reports.isPending ? (
+            <LoadingRegion label="Loading your reports.">
+              <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
-          {rendered.data ? (
-            <>
-              <strong>{rendered.data.report.name}</strong>
-              <ul className="tm-list tm-stack tm-stack--tight">
-                {rendered.data.metrics.map((entry) => (
-                  <li key={entry.metric} className="tm-row tm-row--wrap">
-                    <span>{METRIC_LABELS[entry.metric]}</span>
-                    <strong>{entry.value}</strong>
-                  </li>
-                ))}
-              </ul>
-            </>
+          {!reports.isPending && !reports.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No custom reports yet">
+              Compose a report above and it will appear here for you to render.
+            </InlineAlert>
+          ) : null}
+
+          {rows.length > 0 ? (
+            <ul className="tm-list tm-stack">
+              {rows.map((report) => (
+                <li key={report.id} className="tm-row tm-row--wrap">
+                  <div className="tm-stack tm-stack--tight">
+                    <strong>{report.name}</strong>
+                    <span className="tm-field__hint">
+                      {LAYOUT_LABELS[report.layout]} ·{' '}
+                      {report.metricKeys.map((metric) => METRIC_LABELS[metric]).join(', ')}
+                    </span>
+                  </div>
+                  <div className="tm-row tm-row--tight">
+                    <Button
+                      tone="ink"
+                      size="accessible"
+                      loading={rendered.isFetching && renderId === report.id}
+                      loadingLabel="Rendering"
+                      onClick={() => setRenderId(report.id)}
+                    >
+                      Render
+                    </Button>
+                    <Button
+                      tone="outline"
+                      size="accessible"
+                      loading={remove.isPending && remove.variables === report.id}
+                      loadingLabel="Removing"
+                      onClick={() => remove.mutate(report.id)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
           ) : null}
         </section>
-      ) : null}
 
-      <Announce message={save.isSuccess ? 'Custom report stored.' : ''} />
+        {renderId !== null ? (
+          <section className="tm-panel tm-stack" aria-labelledby="tm-custom-report-rendered">
+            <h2 id="tm-custom-report-rendered" className="tm-eyebrow">
+              Rendered report
+            </h2>
+
+            {rendered.isError ? (
+              <InlineAlert tone="danger" title="Could not render the report" live>
+                {describeError(rendered.error)}
+              </InlineAlert>
+            ) : null}
+
+            {rendered.isPending ? (
+              <LoadingRegion label="Rendering the report.">
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {rendered.data ? (
+              <>
+                <strong>{rendered.data.report.name}</strong>
+                <ul className="tm-list tm-stack tm-stack--tight">
+                  {rendered.data.metrics.map((entry) => (
+                    <li key={entry.metric} className="tm-row tm-row--wrap">
+                      <span>{METRIC_LABELS[entry.metric]}</span>
+                      <strong>{entry.value}</strong>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : null}
+          </section>
+        ) : null}
+
+        <Announce message={save.isSuccess ? 'Custom report stored.' : ''} />
+      </div>
     </AppShell>
   );
 }

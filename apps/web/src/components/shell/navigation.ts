@@ -27,17 +27,33 @@ export interface NavigationItem {
   readonly glyph: string;
 }
 
-/** The internal orbital rail. Order is the export's, top to bottom. */
+/**
+ * The internal orbital rail. Order is the export's, top to bottom. Labels and glyphs follow
+ * HOME-01: Home is "My Day" there, and the glyphs are the rail's own (◉ ✉ ◌ ▤ ◫ ◔).
+ */
 export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
-  { id: 'home', label: 'Home', href: '/home', glyph: '◉' },
-  { id: 'inbox', label: 'Inbox', href: '/inbox', glyph: '▤' },
-  { id: 'chat', label: 'Chat', href: '/chat', glyph: '◍' },
-  { id: 'work', label: 'Work', href: '/work', glyph: '▦' },
-  { id: 'calendar', label: 'Calendar', href: '/calendar', glyph: '▥' },
-  { id: 'docs', label: 'Docs', href: '/docs', glyph: '▧' },
+  { id: 'home', label: 'My Day', href: '/home', glyph: '◉' },
+  { id: 'inbox', label: 'Inbox', href: '/inbox', glyph: '✉' },
+  { id: 'chat', label: 'Chat', href: '/chat', glyph: '◌' },
+  { id: 'work', label: 'Work', href: '/work', glyph: '▤' },
+  { id: 'calendar', label: 'Calendar', href: '/calendar', glyph: '◷' },
+  { id: 'docs', label: 'Docs', href: '/docs', glyph: '◫' },
   { id: 'people', label: 'People', href: '/people', glyph: '◎' },
-  { id: 'insights', label: 'Insights', href: '/insights', glyph: '◈' },
+  { id: 'insights', label: 'Insights', href: '/insights', glyph: '◔' },
 ];
+
+/**
+ * The Control Center orb at the foot of the rail. `sitemap-and-role-navigation.md`: "Owner /
+ * Admin — all 8 + Control Center … the Control Center orb is the only path to policy, roles,
+ * audit, billing". It is not in `INTERNAL_NAVIGATION` because it is role-gated: `AppShell`
+ * renders it only once the session's role for this organization is known to be owner or admin.
+ */
+export const CONTROL_CENTER_NAVIGATION: NavigationItem = {
+  id: 'admin',
+  label: 'Control',
+  href: '/admin',
+  glyph: '⚙',
+};
 
 /**
  * The mobile primary navigation — Module 23's "five-item primary navigation", the bottom

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
@@ -8,6 +9,7 @@ import { listPortalPeople, listPortalProjects } from '../../lib/api/portal';
 import type { PortalPerson } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { Avatar, humanize, Tag } from './PortalParts';
 
 export interface PortalPeopleScreenProps {
   organizationSlug: string;
@@ -18,23 +20,15 @@ export interface PortalPeopleScreenProps {
 }
 
 /**
- * **People** — the client-portal team screen (`22-SCREEN-BY-SCREEN` §1, x142).
+ * **CL-13 People** — who is on the work and who to ask.
  *
- * ## Who, not how much
+ * The studio's delivery team on the client's first shared project, as the client-visible roster
+ * endpoint returns it (x142): a display name and a role, nothing more — no email, no internal
+ * notes. Drawn as the handoff's CL-13: the contact to ask first in an ink-outlined card, the rest
+ * of the team in a two-column grid of avatar cards.
  *
- * `12-PERMISSION-MATRIX` §4 excludes staff from the client projection and permits "approved
- * contacts": a curated name-and-role list. So this screen shows exactly that — the people at
- * {providerName} working on the client's project, each as a name and a role — and cannot show
- * more, because `PortalPerson` carries no email, no id and no "last seen". Contacting a person,
- * avatars and a cross-project directory are deferred (NS-13); this screen names none of them
- * rather than promising them.
- *
- * ## Keyed on the first shared project
- *
- * The endpoint names the project in the path, so there is nothing to ask for until the projects
- * list has answered. People is enabled only once the first shared project's id is known — the same
- * shape `ClientOverviewScreen` uses for the updates timeline. The API returns 404 for a project
- * the client cannot read, which surfaces here as the error state rather than an empty list.
+ * The contact is the first person whose role reads as a manager or lead, otherwise the first
+ * person the API returned; the roster's own order is the studio's.
  */
 export function PortalPeopleScreen({
   organizationSlug,
@@ -58,79 +52,116 @@ export function PortalPeopleScreen({
 
   const project = projects.data?.[0];
   const roster = people.data ?? [];
+  const contact = roster.find((person) => /manager|lead|owner|pm/i.test(person.role)) ?? roster[0];
+  const others = roster.filter((person) => person !== contact);
+  const firstName = contact?.displayName.split(' ')[0];
 
   return (
     <ClientPortalShell
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      {...(project ? { projectName: project.name } : {})}
       activeNavigationId="people"
-      title="People"
-      description={`Who you are working with at ${providerName}.`}
+      title={firstName ? `Ask ${firstName} first. They will route it.` : 'People'}
+      eyebrow={project ? `People on ${project.name}` : 'People'}
     >
-      {projects.isError ? (
-        <InlineAlert tone="danger" title="Could not load your portal" live>
-          {describe(projects.error)}
-        </InlineAlert>
-      ) : null}
-
-      {projects.isPending ? (
-        <LoadingRegion label="Loading your project.">
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-portal-people">
-        <h2 id="tm-portal-people" className="tm-eyebrow">
-          {project ? `Your team on ${project.name}` : 'Your team'}
-        </h2>
-
-        {!projects.isPending && project == null ? (
-          <p className="tm-prose">
-            Nothing has been shared with you yet. {providerName} decides what appears here, and they
-            will tell you when a project is ready to see.
-          </p>
-        ) : null}
-
-        {people.isError ? (
-          <InlineAlert tone="danger" title="Could not load your team" live>
-            {describe(people.error)}
+      <div className="tm-pt tm-pt--compact">
+        {projects.isError ? (
+          <InlineAlert tone="danger" title="Could not load your portal" live>
+            {describe(projects.error)}
           </InlineAlert>
         ) : null}
 
-        {people.isPending && firstProjectId != null ? (
-          <LoadingRegion label="Loading your team.">
-            <Skeleton height="var(--row)" />
+        {projects.isPending ? (
+          <LoadingRegion label="Loading your project.">
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
-        {project != null && !people.isPending && !people.isError ? (
-          roster.length === 0 ? (
-            <p className="tm-prose">
+        <section className="tm-pt-col tm-pt-people" aria-labelledby="tm-portal-people">
+          <h2 id="tm-portal-people" className="tm-pt-eyebrow">
+            {project
+              ? `${providerName} · ${roster.length} ${roster.length === 1 ? 'person' : 'people'}`
+              : 'Your team'}
+          </h2>
+
+          {!projects.isPending && project == null ? (
+            <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
+              Nothing has been shared with you yet. {providerName} decides what appears here, and
+              they will tell you when a project is ready to see.
+            </p>
+          ) : null}
+
+          {people.isError ? (
+            <InlineAlert tone="danger" title="Could not load your team" live>
+              {describe(people.error)}
+            </InlineAlert>
+          ) : null}
+
+          {people.isPending && firstProjectId != null ? (
+            <LoadingRegion label="Loading your team.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {project != null && !people.isPending && !people.isError && roster.length === 0 ? (
+            <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
               No contacts have been shared for this project yet. {providerName} chooses who appears
               here, and will introduce your team as the work starts.
             </p>
-          ) : (
-            <ul className="tm-list tm-stack tm-stack--tight">
-              {roster.map((person) => (
-                <li key={`${person.displayName}:${person.role}`}>
-                  <strong>{person.displayName}</strong>{' '}
-                  <span className="tm-prose">{roleLabel(person.role)}</span>
+          ) : null}
+
+          {contact ? (
+            <ul
+              className="tm-pt-list"
+              aria-label={`Your team on ${project?.name ?? 'the project'}`}
+            >
+              <li className="tm-pt-person-card tm-pt-person-card--lead">
+                <Avatar name={contact.displayName} tone="soft" size="lg" />
+                <div className="tm-pt-item__main">
+                  <div className="tm-pt-action__meta">
+                    <p className="tm-pt-person-card__name">{contact.displayName}</p>
+                    <Tag tone="lime">Your contact</Tag>
+                  </div>
+                  <p className="tm-pt-person-card__role">{roleLabel(contact.role)}</p>
+                </div>
+                <Link
+                  className="tm-pt-btn tm-pt-btn--ink"
+                  href={`/${organizationSlug}/portal/requests/new`}
+                >
+                  Ask for something
+                </Link>
+              </li>
+              {others.length > 0 ? (
+                <li>
+                  <ul className="tm-pt-grid">
+                    {others.map((person) => (
+                      <li
+                        key={`${person.displayName}:${person.role}`}
+                        className="tm-pt-person-card"
+                      >
+                        <Avatar name={person.displayName} tone="soft" size="md" />
+                        <div className="tm-pt-item__main">
+                          <p className="tm-pt-person-card__name">{person.displayName}</p>
+                          <p className="tm-pt-person-card__role">{roleLabel(person.role)}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 </li>
-              ))}
+              ) : null}
             </ul>
-          )
-        ) : null}
-      </section>
+          ) : null}
+        </section>
+      </div>
     </ClientPortalShell>
   );
 }
 
-/** A role is a short label; the API sends the stored value, so present it as it stands. */
+/** The roster's role, said in words (`project_manager` → "Project manager"). */
 function roleLabel(role: PortalPerson['role']): string {
-  return role;
+  return humanize(role);
 }
 
 function describe(error: unknown): string {

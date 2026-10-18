@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
-import { Button, Field, InlineAlert, StatusDot } from '@tmanage/ui';
+import { useId, useState, type FormEvent } from 'react';
+import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { completeMfaChallenge, completeWithRecoveryCode } from '../../lib/api/auth';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
+import '../../styles/screens/identity.css';
 
 export interface MfaChallengeScreenProps {
   client?: ApiClient;
@@ -72,6 +72,7 @@ export function MfaChallengeScreen({
   // hydration. In the sign-in flow this screen is only ever mounted after React is already live,
   // where the signal is already true and the gate is a no-op.
   const hydrated = useHydrated();
+  const codeId = useId();
 
   const [method, setMethod] = useState<Method>('code');
   const [value, setValue] = useState('');
@@ -111,91 +112,82 @@ export function MfaChallengeScreen({
     }
   }
 
+  function choose(next: Method) {
+    setMethod(next);
+    setValue('');
+    setFailure(undefined);
+  }
+
+  const cells = Array.from({ length: 6 }, (_, index) => digitsOnly.charAt(index));
+  const activeCell = Math.min(digitsOnly.length, 5);
+
   return (
     <IdentityShell screenId="ID-02" eyebrow="Second factor">
-      <div className="tm-stack tm-stack--tight">
-        <h1 className="tm-identity__title">Confirm it&rsquo;s you</h1>
-        <p className="tm-prose">
-          {organizationName ?? 'Your organization'} requires a second factor for internal members.
-        </p>
-        <StatusDot tone="neutral">{factorLabel}</StatusDot>
-      </div>
-
-      {rateLimited ? (
-        <InlineAlert tone="danger" title="Rate limited" live>
-          Too many attempts. Try again in a few minutes, or use a recovery code. The attempt was
-          recorded in the audit log.
-        </InlineAlert>
-      ) : null}
-
-      {challengeToken === undefined ? (
-        <InlineAlert tone="warning" title="There is nothing to verify here">
-          This screen is the second step of a sign-in and holds the challenge in memory rather than
-          in the address bar, so it cannot be reached directly. Start again from the sign-in screen.
-        </InlineAlert>
-      ) : null}
-
-      <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
-        <fieldset className="tm-fieldset">
-          <legend className="tm-field__label">How do you want to verify?</legend>
-          <div className="tm-stack tm-stack--tight">
-            <label className="tm-choice">
-              <input
-                className="tm-choice__input"
-                type="radio"
-                name="method"
-                value="code"
-                checked={method === 'code'}
-                onChange={() => {
-                  setMethod('code');
-                  setValue('');
-                  setFailure(undefined);
-                }}
-              />
-              <span className="tm-choice__name">A code from your authenticator</span>
-              <span className="tm-choice__detail">Six digits, from {factorLabel}.</span>
-            </label>
-            <label className="tm-choice">
-              <input
-                className="tm-choice__input"
-                type="radio"
-                name="method"
-                value="recovery"
-                checked={method === 'recovery'}
-                onChange={() => {
-                  setMethod('recovery');
-                  setValue('');
-                  setFailure(undefined);
-                }}
-              />
-              <span className="tm-choice__name">A recovery code</span>
-              <span className="tm-choice__detail">
-                One of the ten you saved. Each one works once.
-              </span>
-            </label>
+      <form className="tm-id-bare tm-id-card tm-id-mfa" noValidate onSubmit={submit}>
+        <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+          <div className="tm-id-intro">
+            <h1 className="tm-identity__title">Confirm it&rsquo;s you</h1>
+            <p className="tm-id-lede">
+              {organizationName ?? 'Your organization'} requires a second factor for internal
+              members.
+            </p>
           </div>
-        </fieldset>
 
-        <form className="tm-stack" noValidate onSubmit={submit}>
+          {challengeToken === undefined ? (
+            <InlineAlert tone="warning" title="There is nothing to verify here">
+              This screen is the second step of a sign-in and holds the challenge in memory rather
+              than in the address bar, so it cannot be reached directly. Start again from the
+              sign-in screen.
+            </InlineAlert>
+          ) : null}
+
           {method === 'code' ? (
-            <Field
-              label="Six-digit code"
-              name="code"
-              value={value}
-              onChange={(event) => {
-                setValue(event.target.value);
-                setFailure(undefined);
-              }}
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={7}
-              // Codes are digits in every locale, so the field stays LTR in an RTL document.
-              dir="ltr"
-              hint="From your authenticator app."
-              disabled={rateLimited}
-            />
+            <div className="tm-id-code">
+              <label className="tm-field__label" htmlFor={codeId}>
+                Six-digit code
+              </label>
+              <div className="tm-id-code__frame">
+                <input
+                  id={codeId}
+                  className="tm-id-code__input"
+                  name="code"
+                  value={value}
+                  onChange={(event) => {
+                    setValue(event.target.value);
+                    setFailure(undefined);
+                  }}
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={7}
+                  // Codes are digits in every locale, so the field stays LTR in an RTL document.
+                  dir="ltr"
+                  aria-describedby={`${codeId}-hint`}
+                  disabled={rateLimited}
+                />
+                <div className="tm-id-code__cells" aria-hidden="true" dir="ltr">
+                  {cells.map((digit, index) => (
+                    <span
+                      key={index}
+                      className={[
+                        'tm-id-code__cell',
+                        digit === '' ? 'tm-id-code__cell--empty' : null,
+                        index === activeCell ? 'tm-id-code__cell--active' : null,
+                      ]
+                        .filter(Boolean)
+                        .join(' ')}
+                    >
+                      {digit === '' ? '·' : digit}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <span className="tm-field__hint" id={`${codeId}-hint`}>
+                From your authenticator app.
+              </span>
+            </div>
           ) : (
             <Field
+              className="tm-id-recovery-field"
               label="Recovery code"
               name="recoveryCode"
               value={value}
@@ -217,7 +209,7 @@ export function MfaChallengeScreen({
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
+          <div className="tm-id-action-row">
             <Button
               type="submit"
               tone="ink"
@@ -228,15 +220,85 @@ export function MfaChallengeScreen({
             >
               Verify
             </Button>
+            <p className="tm-id-expiry">
+              <span className="tm-visually-hidden">Factor: </span>
+              <span>{factorLabel}</span>
+            </p>
           </div>
-        </form>
+        </fieldset>
+      </form>
+
+      <fieldset className="tm-id-fallbacks" disabled={!hydrated}>
+        <legend>How do you want to verify?</legend>
+        <label className="tm-id-fallback">
+          <input
+            className="tm-id-fallback__input"
+            type="radio"
+            name="method"
+            value="code"
+            checked={method === 'code'}
+            onChange={() => choose('code')}
+          />
+          <span className="tm-id-fallback__glyph" aria-hidden="true">
+            #
+          </span>
+          <span className="tm-id-fallback__text">
+            <span className="tm-id-fallback__name">A code from your authenticator</span>
+            <span className="tm-id-fallback__detail">Six digits, from {factorLabel}.</span>
+          </span>
+          <span className="tm-id-fallback__action" aria-hidden="true">
+            Use
+          </span>
+        </label>
+        <label className="tm-id-fallback">
+          <input
+            className="tm-id-fallback__input"
+            type="radio"
+            name="method"
+            value="recovery"
+            checked={method === 'recovery'}
+            onChange={() => choose('recovery')}
+          />
+          <span className="tm-id-fallback__glyph" aria-hidden="true">
+            ▤
+          </span>
+          <span className="tm-id-fallback__text">
+            <span className="tm-id-fallback__name">A recovery code</span>
+            <span className="tm-id-fallback__detail">
+              One of the ten you saved. Each one works once.
+            </span>
+          </span>
+          <span className="tm-id-fallback__action" aria-hidden="true">
+            Enter
+          </span>
+        </label>
+        {/* Passkeys and admin-assisted verification are not built: shown, never offered. */}
+        <div className="tm-id-fallback tm-id-fallback--off">
+          <span className="tm-id-fallback__glyph" aria-hidden="true">
+            ◉
+          </span>
+          <span className="tm-id-fallback__text">
+            <span className="tm-id-fallback__name">Use a passkey on this device</span>
+          </span>
+          <span className="tm-id-fallback__action">Not available yet</span>
+        </div>
+        <div className="tm-id-fallback tm-id-fallback--off">
+          <span className="tm-id-fallback__glyph" aria-hidden="true">
+            ✉
+          </span>
+          <span className="tm-id-fallback__text">
+            <span className="tm-id-fallback__name">Ask an admin to verify you</span>
+          </span>
+          <span className="tm-id-fallback__action">Not available yet</span>
+        </div>
       </fieldset>
 
-      <BackendPending ticket="ID-002 · passkeys">
-        &ldquo;Use a passkey on this device&rdquo; and &ldquo;Ask an admin to verify you&rdquo; are
-        not built. A passkey needs a browser authenticator; an admin-assisted verification needs the
-        notification surface, which is a later ticket.
-      </BackendPending>
+      {rateLimited ? (
+        <InlineAlert className="tm-id-notice" tone="warning" title="Rate limited" live>
+          Too many attempts. Try again in a few minutes, or use a recovery code. The attempt was
+          recorded in the audit log.
+        </InlineAlert>
+      ) : null}
     </IdentityShell>
   );
 }

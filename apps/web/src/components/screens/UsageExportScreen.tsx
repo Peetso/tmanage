@@ -5,6 +5,7 @@ import { Field, InlineAlert } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { apiBaseUrl } from '../../lib/api/browser-client';
 import { usageExportUrl, MAX_USAGE_EXPORT_WINDOW_DAYS } from '../../lib/api/billing-usage-export';
+import '../../styles/screens/billing.css';
 
 export interface UsageExportScreenProps {
   organizationSlug: string;
@@ -78,43 +79,60 @@ export function UsageExportScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Export usage"
       description="Download a CSV of the organization's usage counters for a bounded date window."
     >
-      <form className="tm-stack tm-stack--tight" aria-label="Usage export filters">
-        <Field
-          label="From"
-          type="date"
-          value={fromDay}
-          onChange={(event) => setFromDay(event.currentTarget.value)}
-          required
-        />
-        <Field
-          label="To"
-          type="date"
-          value={toDay}
-          onChange={(event) => setToDay(event.currentTarget.value)}
-          required
-        />
+      <div className="tm-bil">
+        <form className="tm-bil-card tm-bil-main tm-bil-export" aria-label="Usage export filters">
+          <h2 className="tm-bil-card__title">Date window</h2>
+          <div className="tm-row tm-row--wrap tm-bil-request-fields">
+            <Field
+              label="From"
+              type="date"
+              value={fromDay}
+              onChange={(event) => setFromDay(event.currentTarget.value)}
+              required
+            />
+            <Field
+              label="To"
+              type="date"
+              value={toDay}
+              onChange={(event) => setToDay(event.currentTarget.value)}
+              required
+            />
+          </div>
 
-        {windowError ? <InlineAlert tone="danger">{windowError}</InlineAlert> : null}
+          {windowError ? <InlineAlert tone="danger">{windowError}</InlineAlert> : null}
 
-        <div className="tm-row tm-row--wrap">
-          {href ? (
-            <a
-              className="tm-button tm-button--ink tm-button--compact"
-              href={href}
-              download="usage-export.csv"
-            >
-              Export CSV
-            </a>
-          ) : windowError ? null : (
-            <InlineAlert tone="neutral">
-              Choose a from and to date to enable the export.
-            </InlineAlert>
-          )}
-        </div>
-      </form>
+          <div className="tm-row tm-row--wrap">
+            {href ? (
+              <a
+                className="tm-button tm-button--ink tm-button--compact"
+                href={href}
+                download="usage-export.csv"
+              >
+                Export CSV
+              </a>
+            ) : windowError ? null : (
+              <InlineAlert tone="neutral">
+                Choose a from and to date to enable the export.
+              </InlineAlert>
+            )}
+          </div>
+        </form>
+        <section className="tm-bil-card tm-bil-card--paper" aria-labelledby="tm-usage-export-note">
+          <h2 id="tm-usage-export-note" className="tm-bil-eyebrow">
+            What the file holds
+          </h2>
+          <p className="tm-bil-card__body">
+            The organization&rsquo;s usage counters for the window, as a CSV a spreadsheet opens.
+            The window can be at most {MAX_USAGE_EXPORT_WINDOW_DAYS} days.
+          </p>
+          <p className="tm-bil-card__foot">Only owners can export usage.</p>
+        </section>
+      </div>
     </AppShell>
   );
 }

@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchAdminOverview } from '../../lib/api/admin-overview';
 import type { AdminOverviewView } from '../../lib/api/admin-overview';
+import { listAuditEvents } from '../../lib/api/admin-audit';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -18,20 +19,19 @@ export interface AdminOverviewScreenProps {
 }
 
 /**
- * **Administration overview** — module 18 (x175, audit rank #9 "Admin Partial"). It reads
- * `GET /v1/organizations/:orgSlug/admin/overview` (gated on the server by `org.manage`) and renders
- * the org-health roll-up as accessible stat tiles, with links to the existing administration
- * sub-screens (audit log, members, offboarding, settings) so the overview is the module's front door.
+ * **Control Center home** — ADM-01 "What needs a decision" (module 18, x175). It reads
+ * `GET /v1/organizations/:orgSlug/admin/overview` (gated on the server by `org.manage`) and draws the
+ * frame: the black "act first" card, the metric cards and the recent-changes list, with ADM-01's
+ * section map on the left.
  *
  * The decisions are the sibling admin screens':
  * 1. **Authorization is the API's.** A caller without `org.manage` gets the ordinary 403, which
- *    `describe()` turns into a sentence in the panel's own alert; the screen never guesses a
+ *    `describe()` turns into a sentence in the page's own alert; the screen never guesses a
  *    capability of its own and never renders blank on a refusal.
- * 2. **No invented numbers.** Every figure is the API's; the audit window it was computed over is
- *    shown plainly rather than assumed.
- * 3. **No new nav destination.** Administration is not one of the eight internal-rail destinations
- *    (`22-SCREEN-BY-SCREEN` §1), so the shell names none — the screen is reached directly and links
- *    onward with ordinary in-app links.
+ * 2. **No invented numbers.** Every figure is the API's; the frame's sample copy ("Karim Nabil
+ *    leaves on 22 Aug") is replaced by sentences built from the live counts.
+ * 3. **Recent changes are the audit log's.** The newest four events, read with `audit.read`; a
+ *    refusal there is a quiet line, not a broken page.
  */
 export function AdminOverviewScreen({
   organizationSlug,
@@ -45,15 +45,30 @@ export function AdminOverviewScreen({
     queryFn: () => fetchAdminOverview(api, organizationSlug),
   });
 
+  const recent = useQuery({
+    queryKey: ['admin-overview', organizationSlug, 'recent-audit'],
+    queryFn: () => listAuditEvents(api, organizationSlug, { limit: 4 }),
+  });
+
   return (
-    <AppShell
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Administration"
-      description="Organization health at a glance, with links to the administration screens."
+      section="overview"
+      crumbs={['Overview']}
+      title="What needs a decision"
+      actions={
+        <Link
+          href={`/${organizationSlug}/admin/audit`}
+          className="tm-button tm-button--outline tm-button--compact"
+        >
+          Everything is logged
+        </Link>
+      }
+      rail="sections"
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-admin-overview-heading">
-        <h2 id="tm-admin-overview-heading" className="tm-eyebrow">
+      <section aria-labelledby="tm-admin-overview-heading" className="tm-cc-column">
+        <h2 id="tm-admin-overview-heading" className="tm-visually-hidden">
           Organization health
         </h2>
 
@@ -73,76 +88,115 @@ export function AdminOverviewScreen({
           </InlineAlert>
         ) : null}
 
-        {overview.isSuccess ? <OverviewMetrics overview={overview.data} /> : null}
+        {overview.isSuccess ? (
+          <OverviewMetrics organizationSlug={organizationSlug} overview={overview.data} />
+        ) : null}
       </section>
 
-      <nav className="tm-panel tm-stack" aria-labelledby="tm-admin-links-heading">
-        <h2 id="tm-admin-links-heading" className="tm-eyebrow">
-          Administration
-        </h2>
-        <ul className="tm-stack tm-stack--tight">
-          {ADMIN_LINKS.map(({ href, label, description }) => (
-            <li key={href}>
-              <Link href={`/${organizationSlug}${href}`} className="tm-prose">
-                {label}
-              </Link>
-              <p className="tm-prose tm-muted">{description}</p>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </AppShell>
+      <section className="tm-cc-card" aria-labelledby="tm-admin-recent-heading">
+        <div className="tm-cc-card__head">
+          <h2 id="tm-admin-recent-heading" className="tm-cc-card__title">
+            Recent changes to the way this studio works
+          </h2>
+          <Link href={`/${organizationSlug}/admin/audit`}>Open audit log</Link>
+        </div>
+        {recent.isPending ? (
+          <LoadingRegion label="Loading recent changes." className="tm-stack tm-stack--tight">
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
+        {recent.isError ? <p className="tm-cc-note">{describe(recent.error)}</p> : null}
+        {recent.isSuccess && recent.data.length === 0 ? (
+          <p className="tm-cc-note">Nothing has changed yet. Every change will be listed here.</p>
+        ) : null}
+        {recent.isSuccess && recent.data.length > 0 ? (
+          <ul className="tm-cc-recent" aria-label="Recent changes">
+            {recent.data.map((event) => (
+              <li key={event.id}>
+                <span className="tm-cc-recent__when">{formatWhen(event.occurredAt)}</span>
+                <span>{event.summary}</span>
+                <span className="tm-cc-recent__mark" aria-hidden="true" />
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </section>
+    </ControlCenterShell>
   );
 }
 
-/** The administration sub-screens the overview links to, in the order they are shown. */
-const ADMIN_LINKS: readonly { href: string; label: string; description: string }[] = [
+/** The metric cards in the order they are shown, keyed to the fields the API returns. */
+const METRICS: readonly {
+  id: Exclude<keyof AdminOverviewView, 'computedAt'>;
+  label: string;
+  source: string;
+  kind: 'count' | 'bytes';
+}[] = [
+  { id: 'activeMembers', label: 'active members', source: 'Members', kind: 'count' },
+  { id: 'seatsUsed', label: 'seats used', source: 'Billing', kind: 'count' },
   {
-    href: '/admin/audit',
-    label: 'Audit log',
-    description: 'The append-only trail of what changed.',
+    id: 'auditEventsWindow',
+    label: 'audit events in the window',
+    source: 'Audit log',
+    kind: 'count',
   },
-  {
-    href: '/people',
-    label: 'Members and roles',
-    description: "The organization's people and their roles.",
-  },
-  {
-    href: '/people/offboarding',
-    label: 'Offboarding',
-    description: 'Withdraw a member who is leaving.',
-  },
-  { href: '/settings', label: 'Settings and policy', description: 'Organization-wide settings.' },
+  { id: 'storageBytesUsed', label: 'storage used', source: 'Files', kind: 'bytes' },
 ];
 
-/** The roll-up figures in the order they are shown, keyed to the fields the API returns. */
-const METRICS: readonly { id: keyof AdminOverviewView; label: string; kind: 'count' | 'bytes' }[] =
-  [
-    { id: 'activeMembers', label: 'Active members', kind: 'count' },
-    { id: 'seatsUsed', label: 'Seats used', kind: 'count' },
-    { id: 'storageBytesUsed', label: 'Storage used', kind: 'bytes' },
-    { id: 'auditEventsWindow', label: 'Audit events (30 days)', kind: 'count' },
-    { id: 'openOffboardings', label: 'Offboardings in progress', kind: 'count' },
-  ];
-
-function OverviewMetrics({ overview }: { overview: AdminOverviewView }) {
+function OverviewMetrics({
+  organizationSlug,
+  overview,
+}: {
+  organizationSlug: string;
+  overview: AdminOverviewView;
+}) {
+  const leaving = overview.openOffboardings;
   return (
     <>
-      <dl className="tm-detail-list">
-        {METRICS.map(({ id, label, kind }) => (
-          <div className="tm-detail-list__pair" key={id}>
-            <dt>{label}</dt>
-            <dd className="tm-mono">
-              {kind === 'bytes' ? formatBytes(overview.storageBytesUsed) : overview[id]}
-            </dd>
+      <div className="tm-cc-card tm-cc-card--ink tm-cc-hero">
+        <div className="tm-stack tm-stack--tight">
+          <p className="tm-cc-eyebrow">
+            <span className="tm-cc-orb" aria-hidden="true" />
+            {leaving > 0 ? 'Act first' : 'All clear'}
+          </p>
+          <p className="tm-cc-card__lead">
+            {leaving > 0
+              ? `${leaving} ${leaving === 1 ? 'offboarding is' : 'offboardings are'} in progress — transfer what they own before access ends`
+              : 'Nobody is being offboarded and nothing is waiting on an owner decision'}
+          </p>
+          <p className="tm-cc-card__body">
+            {leaving > 0
+              ? 'Review the impact so no work item or milestone lands unowned.'
+              : `Computed ${formatMoment(overview.computedAt)} from live counts.`}
+          </p>
+        </div>
+        {leaving > 0 ? (
+          <div className="tm-cc-hero__actions">
+            <Link
+              href={`/${organizationSlug}/people/offboarding`}
+              className="tm-button tm-button--lime"
+            >
+              Review offboarding impact
+            </Link>
           </div>
-        ))}
-      </dl>
+        ) : null}
+      </div>
 
-      <p className="tm-prose">
-        Audit events are counted over the last {overview.auditWindowDays} days.
-      </p>
-      <p className="tm-prose tm-mono">Computed {formatMoment(overview.computedAt)}.</p>
+      <ul className="tm-cc-metrics" aria-label="Organization health">
+        {METRICS.map(({ id, label, source, kind }) => (
+          <li className="tm-cc-metric" key={id}>
+            <p className="tm-cc-metric__value">
+              {kind === 'bytes' ? formatBytes(overview.storageBytesUsed) : overview[id]}
+            </p>
+            <p className="tm-cc-metric__label">
+              {id === 'auditEventsWindow'
+                ? `audit events in ${overview.auditWindowDays} days`
+                : label}
+            </p>
+            <p className="tm-cc-metric__source">Source · {source}</p>
+          </li>
+        ))}
+      </ul>
     </>
   );
 }
@@ -182,4 +236,17 @@ function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
+}
+
+/** "Today 09:40", "Yest 16:12", "13 Aug" — ADM-01's timestamp column. */
+function formatWhen(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  const time = at.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (at.toDateString() === today.toDateString()) return `Today ${time}`;
+  if (at.toDateString() === yesterday.toDateString()) return `Yest ${time}`;
+  return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }

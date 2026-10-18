@@ -15,7 +15,9 @@ export interface BackendPendingProps {
    */
   ticket: string;
   /**
-   * Whether to append the ticket to the heading. Defaults to "not a production build".
+   * Whether to append the ticket to the heading. Defaults to `false` in every build: Peter
+   * (2026-10-18) reviews on the development server, and a ticket id is a developer artefact on a
+   * screen a person uses. A caller that wants it for the team passes `showTicket`.
    *
    * Passed explicitly by tests so that neither the development nor the production rendering
    * depends on what `NODE_ENV` happens to be when the suite runs.
@@ -60,11 +62,7 @@ export interface BackendPendingProps {
  * a production bundle does not merely hide the ticket at runtime — the branch is dead code and
  * the string is the only thing left.
  */
-export function BackendPending({
-  ticket,
-  showTicket = process.env.NODE_ENV !== 'production',
-  children,
-}: BackendPendingProps) {
+export function BackendPending({ ticket, showTicket = false, children }: BackendPendingProps) {
   return (
     <InlineAlert
       tone="warning"

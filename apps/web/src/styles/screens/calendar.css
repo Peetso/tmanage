@@ -1,0 +1,1134 @@
+/*
+ * Calendar and meetings group: the meetings hub (CAL-02 day schedule), the week/month grid
+ * (CAL-01 "Calendar · week"), the agenda, focus blocks (CAL-04), recurring series, agenda
+ * templates (MTG-04) and a meeting's notes / attendees / RSVP / time poll / action items
+ * (MTG-01, MTG-03, CAL-03).
+ *
+ * The design draws every calendar surface from the same few marks: a white 24px sheet with a
+ * paper-50 mono header row, paper-50 12px item rows with a 20px ink orb, mono 10px eyebrows,
+ * ink and outline capsules, and small status pills. They live here; colours, radii and type
+ * sizes are tokens. Secondary text is `--ink-650`, never `--ink-500` (the shell's contrast rule).
+ */
+
+/* ── Page header: CAL-02 sets the title in 48/52, and the view switch at the end ─────────── */
+
+.tm-app:has(.tm-cal) .tm-canvas-header__title {
+  font-size: 48px;
+  line-height: 52px;
+  letter-spacing: -0.025em;
+}
+
+.tm-cal-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* "Day · Week · Month · Agenda": a 4px-padded white capsule holding 12px segments. */
+.tm-cal-views {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+}
+
+.tm-cal-views__item {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 31px;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-cal-views__item:hover {
+  color: var(--ink-950);
+}
+
+.tm-cal-views__item[aria-current='page'],
+.tm-cal-views__item[aria-pressed='true'] {
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+/* ── Capsule buttons ─────────────────────────────────────────────────────────────────── */
+
+.tm-cal-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-block-size: 37px;
+  padding: 9px 16px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font: inherit;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-cal-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.tm-cal-btn--ink {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-cal-btn--danger {
+  border-color: var(--danger-600);
+  color: var(--danger-600);
+}
+
+/* The 13/18 full-width primary at the foot of a detail card ("Open the companion"). */
+.tm-cal-btn--lg {
+  min-block-size: 44px;
+  padding: 13px 20px;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-cal-btn--header {
+  padding: 10px 18px;
+}
+
+.tm-cal-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────────────────── */
+
+.tm-cal {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-inline-size: 0;
+}
+
+/* CAL-02's body: the schedule sheet (flex 1.3) beside a 380px column of cards. */
+.tm-cal-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--s5);
+  align-items: start;
+}
+
+.tm-cal-main,
+.tm-cal-side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+}
+
+/* The single-column reading width the MTG detail frames use (620–640px cards). */
+.tm-cal-narrow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: 100%;
+  max-inline-size: 720px;
+}
+
+/* "DAY TRACK  segment 3 of 7 · live · ordered list": a mono label and a quiet line of links. */
+.tm-cal-subnav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 0;
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-650);
+}
+
+.tm-cal-subnav__label {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tm-cal-subnav a {
+  color: var(--ink-650);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tm-cal-subnav a[aria-current='page'] {
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+/* ── The track (CAL-02 "Day track"): one black capsule of slots, the next one in lime ───── */
+
+.tm-cal-track-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+.tm-cal-track {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-inline-size: 0;
+  margin: 0;
+  padding: 9px;
+  overflow-x: auto;
+  border-radius: var(--r-capsule);
+  background: var(--tm-capsule-ground);
+  list-style: none;
+  scrollbar-width: none;
+}
+
+.tm-cal-track__item {
+  display: flex;
+  flex: none;
+  min-inline-size: 0;
+}
+
+.tm-cal-track__item:has([data-state='next']) {
+  flex: 1.6 0 auto;
+  max-inline-size: 560px;
+}
+
+.tm-cal-track__end {
+  display: flex;
+  flex: 1 0 auto;
+  justify-content: flex-end;
+}
+
+.tm-cal-track__lead {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s3);
+  padding: 0 var(--s4) 0 6px;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--tm-paper-absolute);
+  white-space: nowrap;
+}
+
+.tm-cal-track__day {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 38px;
+  block-size: 38px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-inverted-raised);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: 1;
+  font-weight: 500;
+  color: var(--lime-500);
+}
+
+.tm-cal-track__slot {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s2);
+  max-inline-size: 280px;
+  block-size: 46px;
+  padding: 0 var(--s4);
+  border: var(--b-quiet) solid var(--tm-inverted-line);
+  border-radius: var(--r-capsule);
+  color: var(--tm-inverted-ink);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-cal-track__slot:is(a):hover .tm-cal-track__label {
+  text-decoration: underline;
+}
+
+.tm-cal-track__time {
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--tm-inverted-muted);
+}
+
+.tm-cal-track__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+.tm-cal-track__tick {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  color: var(--tm-inverted-muted);
+}
+
+.tm-cal-track__slot[data-state='done'] {
+  border-color: var(--tm-inverted-raised);
+  background: var(--tm-inverted-raised);
+  color: var(--tm-inverted-muted);
+}
+
+.tm-cal-track__slot[data-state='next'] {
+  flex: 1;
+  max-inline-size: none;
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-cal-track__slot[data-state='next'] .tm-cal-track__time,
+.tm-cal-track__slot[data-state='next'] .tm-cal-track__label {
+  font-weight: 600;
+  color: var(--tm-on-lime);
+}
+
+.tm-cal-track__out {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 46px;
+  block-size: 46px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-paper-absolute);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-md);
+  line-height: 1;
+  color: var(--tm-ink-absolute);
+  text-decoration: none;
+}
+
+/* ── Eyebrows ────────────────────────────────────────────────────────────────────────── */
+
+.tm-cal-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────────────────── */
+
+.tm-cal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-inline-size: 0;
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+/* CAL-04 / CAL-03: the 1.5px warning-bordered card ("14:00 is double-booked"). */
+.tm-cal-card--warn {
+  border: var(--b-structural) solid var(--warning-600);
+}
+
+/* MTG-03: the dashed note at the foot of a summary ("Nothing here has been published…"). */
+.tm-cal-card--dashed {
+  flex-direction: row;
+  gap: var(--s3);
+  padding: 14px;
+  border-style: dashed;
+  border-radius: var(--r-compact);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-cal-card__title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 23px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-cal-card__body {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-cal-card__foot {
+  margin-block-start: auto;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-650);
+}
+
+/* The 22px ringed glyph ("!" warning, "◎" quiet) that opens a warn or dashed card. */
+.tm-cal-mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  border: var(--b-expressive) solid var(--warning-600);
+  border-radius: var(--r-capsule);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--warning-600);
+}
+
+.tm-cal-mark--quiet {
+  border-width: var(--b-structural);
+  border-color: var(--ink-650);
+  color: var(--ink-650);
+}
+
+/* A group inside a card: an eyebrow and its rows, 9px apart. */
+.tm-cal-group {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+/* ── The schedule sheet (CAL-02 "TIME · WHAT · KIND") ────────────────────────────────── */
+
+.tm-cal-sheet {
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-cal-sheet__scroll {
+  overflow-x: auto;
+}
+
+.tm-cal-sheet table {
+  inline-size: 100%;
+  border-collapse: collapse;
+}
+
+.tm-cal-sheet th,
+.tm-cal-sheet td {
+  padding: 0 var(--s3);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.tm-cal-sheet th:first-child,
+.tm-cal-sheet td:first-child {
+  padding-inline-start: 18px;
+}
+
+.tm-cal-sheet th:last-child,
+.tm-cal-sheet td:last-child {
+  padding-inline-end: 18px;
+}
+
+.tm-cal-sheet thead th {
+  block-size: 34px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cal-sheet tbody tr {
+  block-size: 44px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-cal-sheet tbody tr:last-child {
+  border-block-end: 0;
+}
+
+.tm-cal-sheet__time {
+  inline-size: 132px;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-950);
+  white-space: nowrap;
+}
+
+.tm-cal-sheet__what {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-cal-sheet__what a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-cal-sheet__what a:hover {
+  text-decoration: underline;
+}
+
+.tm-cal-sheet__sub {
+  display: block;
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 400;
+  color: var(--ink-650);
+}
+
+.tm-cal-sheet__kind {
+  inline-size: 150px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  text-transform: uppercase;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-cal-sheet__end {
+  inline-size: 1%;
+  text-align: end;
+  white-space: nowrap;
+}
+
+/* Past rows are struck through at 60%; the next one gets the lime edge and paper ground. */
+.tm-cal-sheet tr[data-state='done'] {
+  opacity: 0.6;
+}
+
+.tm-cal-sheet tr[data-state='done'] .tm-cal-sheet__what {
+  color: var(--ink-650);
+  text-decoration: line-through;
+}
+
+.tm-cal-sheet tr[data-state='done'] .tm-cal-sheet__time {
+  color: var(--ink-650);
+}
+
+.tm-cal-sheet tr[data-state='next'] {
+  block-size: 52px;
+  background: var(--paper-50);
+  box-shadow: inset 3px 0 0 var(--lime-500);
+}
+
+[dir='rtl'] .tm-cal-sheet tr[data-state='next'] {
+  box-shadow: inset -3px 0 0 var(--lime-500);
+}
+
+.tm-cal-sheet tr[data-state='next'] .tm-cal-sheet__time,
+.tm-cal-sheet tr[data-state='next'] .tm-cal-sheet__what {
+  font-weight: 600;
+}
+
+.tm-cal-sheet tr[data-state='next'] .tm-cal-sheet__what {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+/* A sheet section heading row (the agenda's day buckets). */
+.tm-cal-sheet__day th {
+  block-size: 34px;
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+/* ── Status pills (MEETING · LIVE, DEADLINE, FILED 11:52) ────────────────────────────── */
+
+.tm-cal-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  inline-size: fit-content;
+  padding: 4px 11px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-cal-pill--lime {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-cal-pill--warn {
+  border-color: var(--warning-600);
+  color: var(--warning-600);
+}
+
+.tm-cal-pill--success {
+  border-color: var(--success-600);
+  color: var(--success-600);
+}
+
+.tm-cal-pill--ink {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+/* CAL-01's filter capsules, used here as the grid's legend ("Meetings", "Recurring"). */
+.tm-cal-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.tm-cal-chip--ink {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+/* ── Item rows (MTG-01 agenda, MTG-03 decisions/actions, MTG-04 sections) ────────────── */
+
+.tm-cal-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-cal-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+  padding: 11px 12px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: 12px;
+  background: var(--paper-50);
+}
+
+.tm-cal-item--dashed {
+  border-color: var(--line-300);
+  border-style: dashed;
+  background: var(--paper-0);
+}
+
+.tm-cal-item--warn {
+  border-color: var(--warning-600);
+  background: var(--paper-0);
+}
+
+.tm-cal-item__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-cal-item__title {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+.tm-cal-item__title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tm-cal-item__title a:hover {
+  text-decoration: underline;
+}
+
+.tm-cal-item__text {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: 18px;
+  color: var(--ink-650);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.tm-cal-item__meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-cal-item__end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+/* A poll option: the slot line, then its vote capsules beneath. */
+.tm-cal-poll {
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--s3);
+}
+
+.tm-cal-poll__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+/* The 20px ink orb with a lime numeral or tick ("1", "✓"). */
+.tm-cal-orb {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--lime-500);
+}
+
+.tm-cal-orb--empty {
+  border: var(--b-structural) solid var(--line-300);
+  background: transparent;
+  color: var(--ink-650);
+}
+
+.tm-cal-orb--quiet {
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  color: var(--ink-650);
+}
+
+/* The 24px initials avatar (CAL-03 participants, MTG-03 action owners). */
+.tm-cal-avatar {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--paper-50);
+}
+
+[data-theme='dark'] .tm-cal-avatar {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+/* ── Forms inside the cards ──────────────────────────────────────────────────────────── */
+
+.tm-cal-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+}
+
+.tm-cal-form fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+}
+
+.tm-cal-form-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+  gap: var(--s3);
+}
+
+/* Empty and "choose first" states inside a calendar column: dashed, on paper (tm-card--empty). */
+.tm-cal .tm-inline-alert--neutral {
+  padding: var(--s5);
+  border-style: dashed;
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+}
+
+/* ── Agenda templates (MTG-04): one card per template ──────────────────────────────────── */
+
+.tm-cal-templates {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-cal-template__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.tm-cal-template__name {
+  flex: 1;
+  margin: 0;
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
+}
+
+/* Small controls that sit inside an item row (an RSVP picker beside its capsule). */
+.tm-cal-item .tm-field__control {
+  min-block-size: 32px;
+  padding-block: 0;
+  font-size: var(--t-caption);
+}
+
+/* ── Counts (RSVP and poll tallies) ──────────────────────────────────────────────────── */
+
+.tm-cal-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s2);
+  margin: 0;
+}
+
+.tm-cal-counts > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--paper-50);
+}
+
+.tm-cal-counts dt {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cal-counts dd {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Week / month grid (CAL-01) ──────────────────────────────────────────────────────── */
+
+.tm-cal-grid-bar {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.tm-cal-grid-bar__range {
+  margin: 0;
+  font-size: 28px;
+  line-height: 34px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
+}
+
+.tm-cal-grid-bar__end {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+.tm-cal-grid-bar__anchor {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-cal-grid-bar__anchor input {
+  min-block-size: 37px;
+  padding: 0 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font: inherit;
+  font-size: var(--t-caption);
+}
+
+.tm-cal-week {
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: 20px;
+  background: var(--paper-0);
+}
+
+.tm-cal-week__scroll {
+  overflow-x: auto;
+}
+
+.tm-cal-week table {
+  inline-size: 100%;
+  min-inline-size: 720px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tm-cal-week thead th {
+  block-size: 32px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  border-inline-end: var(--b-quiet) solid var(--paper-150);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--ink-650);
+}
+
+.tm-cal-week thead th:last-child,
+.tm-cal-week td:last-child {
+  border-inline-end: 0;
+}
+
+.tm-cal-week td {
+  block-size: 112px;
+  padding: 6px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  border-inline-end: var(--b-quiet) solid var(--paper-150);
+  vertical-align: top;
+}
+
+.tm-cal-week[data-range='week'] td {
+  block-size: 420px;
+}
+
+.tm-cal-week tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.tm-cal-week__pad {
+  background: var(--paper-50);
+}
+
+.tm-cal-week__date {
+  display: block;
+  margin-block-end: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cal-week th[data-today='true'],
+.tm-cal-week td[data-today='true'] .tm-cal-week__date {
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-cal-week__items {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A grid event: paper for recurring, ink for a meeting, lime for the current day's next. */
+.tm-cal-evt {
+  display: block;
+  padding: 4px 7px;
+  border: var(--b-quiet) solid transparent;
+  border-radius: 6px;
+  background: var(--paper-50);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  color: var(--ink-650);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+a.tm-cal-evt:hover {
+  text-decoration: underline;
+}
+
+.tm-cal-evt--ink {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-cal-evt--line {
+  border-color: var(--line-300);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+/* ── Responsive (responsive-and-desktop.md: 900 / 640 breakpoints) ───────────────────── */
+
+@media (max-width: 1180px) {
+  .tm-cal-body {
+    grid-template-columns: minmax(0, 1fr) 320px;
+  }
+}
+
+@media (max-width: 899px) {
+  .tm-app:has(.tm-cal) .tm-canvas-header__title {
+    font-size: 30px;
+    line-height: 36px;
+  }
+
+  .tm-cal-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-cal-sheet__kind {
+    inline-size: auto;
+  }
+}
+
+@media (max-width: 639px) {
+  .tm-cal-sheet thead {
+    display: none;
+  }
+
+  .tm-cal-sheet tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 2px var(--s3);
+    block-size: auto;
+    padding: 10px 14px;
+  }
+
+  .tm-cal-sheet th,
+  .tm-cal-sheet td,
+  .tm-cal-sheet th:first-child,
+  .tm-cal-sheet td:first-child,
+  .tm-cal-sheet th:last-child,
+  .tm-cal-sheet td:last-child {
+    padding: 0;
+    inline-size: auto;
+  }
+
+  .tm-cal-sheet__what {
+    grid-column: 1 / -1;
+  }
+
+  .tm-cal-sheet tbody tr[data-state] {
+    block-size: auto;
+  }
+
+  .tm-cal-sheet tbody tr.tm-cal-sheet__day {
+    padding-block: 8px;
+    background: var(--paper-50);
+  }
+
+  .tm-cal-sheet__day th {
+    grid-column: 1 / -1;
+    block-size: auto;
+    background: transparent;
+  }
+
+  .tm-cal-views {
+    inline-size: 100%;
+  }
+
+  .tm-cal-grid-bar__end {
+    margin-inline-start: 0;
+  }
+}

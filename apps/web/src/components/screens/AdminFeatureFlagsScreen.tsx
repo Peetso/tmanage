@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   OPTIONAL_MODULE_FLAGS,
@@ -71,12 +71,17 @@ export function AdminFeatureFlagsScreen({
     },
   });
 
+  const ordered = flags.isSuccess ? orderFlags(flags.data.flags) : [];
+  const onCount = ordered.filter((flag) => flag.enabled).length;
+
   return (
-    <AppShell
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Feature flags"
-      description="Turn optional modules on or off for this organization."
+      section="modules"
+      crumbs={['Modules']}
+      title="What this studio uses"
+      {...(flags.isSuccess ? { titleMeta: `${onCount} of ${ordered.length} modules on` } : {})}
     >
       {flags.isPending ? (
         <LoadingRegion label="Loading feature flags">
@@ -87,44 +92,62 @@ export function AdminFeatureFlagsScreen({
           {errorMessage(flags.error)}
         </InlineAlert>
       ) : (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-feature-flags-heading">
-          <h2 id="tm-feature-flags-heading" className="tm-eyebrow">
-            Optional modules
-          </h2>
+        <div className="tm-cc-split tm-cc-split--even">
+          <section className="tm-cc-card" aria-labelledby="tm-feature-flags-heading">
+            <h2 id="tm-feature-flags-heading" className="tm-cc-eyebrow">
+              Optional modules
+            </h2>
 
-          {toggle.isError ? (
-            <InlineAlert tone="danger" title="We could not save that change">
-              {errorMessage(toggle.error)}
-            </InlineAlert>
-          ) : null}
+            {toggle.isError ? (
+              <InlineAlert tone="danger" title="We could not save that change">
+                {errorMessage(toggle.error)}
+              </InlineAlert>
+            ) : null}
 
-          <ul className="tm-stack" aria-label="Optional modules">
-            {orderFlags(flags.data.flags).map((flag) => (
-              <li className="tm-field tm-field--inline" key={flag.key}>
-                <input
-                  id={`tm-flag-${flag.key}`}
-                  className="tm-field__control"
-                  type="checkbox"
-                  checked={flag.enabled}
-                  disabled={toggle.isPending}
-                  onChange={(event) =>
-                    toggle.mutate({ key: flag.key, enabled: event.target.checked })
-                  }
-                />
-                <label className="tm-field__label" htmlFor={`tm-flag-${flag.key}`}>
-                  {FLAG_LABELS[flag.key]}
-                </label>
-                <span className="tm-field__hint">{changedNote(flag)}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
+            <ul className="tm-cc-rows" aria-label="Optional modules">
+              {ordered.map((flag) => (
+                <li key={flag.key}>
+                  <div className="tm-cc-rows__text">
+                    <label className="tm-cc-rows__title" htmlFor={`tm-flag-${flag.key}`}>
+                      {FLAG_LABELS[flag.key]}
+                    </label>
+                    <span className="tm-cc-rows__sub">{changedNote(flag)}</span>
+                  </div>
+                  <input
+                    id={`tm-flag-${flag.key}`}
+                    className="tm-switch"
+                    type="checkbox"
+                    role="switch"
+                    checked={flag.enabled}
+                    disabled={toggle.isPending}
+                    onChange={(event) =>
+                      toggle.mutate({ key: flag.key, enabled: event.target.checked })
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section
+            className="tm-cc-card tm-cc-card--quiet tm-cc-card--fill"
+            aria-labelledby="tm-feature-flags-effect"
+          >
+            <p className="tm-cc-eyebrow">Switching a module</p>
+            <h2 id="tm-feature-flags-effect" className="tm-cc-card__title">
+              A switch applies to everyone in {organizationName}
+            </h2>
+            <p className="tm-cc-card__body">
+              Each switch saves as soon as it changes. Modules that were never changed are off by
+              default.
+            </p>
+          </section>
+        </div>
       )}
-    </AppShell>
+    </ControlCenterShell>
   );
 }
 
-/** Present the flags in the fixed allowlist order, defaulting any the API omits to off. */
 function orderFlags(flags: readonly FeatureFlagAdminView[]): FeatureFlagAdminView[] {
   const byKey = new Map(flags.map((f) => [f.key, f]));
   return OPTIONAL_MODULE_FLAGS.map(

@@ -1,11 +1,12 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getHomePulse } from '../../lib/api/home';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/home.css';
 
 export interface HomeHeroSectionProps {
   organizationSlug: string;
@@ -13,14 +14,13 @@ export interface HomeHeroSectionProps {
 }
 
 /**
- * **HOME-01 Focus hero** — the top-of-Home Focus capsule (`41-WHOLE-APP-SCREEN` §1 HOME-01). It
- * reads the API's Pulse summary (`/home/pulse`) and states the acting user's day in four headline
- * numbers: open work, of it due today, what is waiting on them, and their meetings today.
+ * **HOME-01 header metrics** — the three big numbers at the end of the My Day header
+ * (`display.metric`: a tabular number, a tone pill, what it means and where it comes from).
  *
- * An additive region mounted above the existing My Day sections — it owns its own query and error
- * state and rewrites none of them, so it is disjoint from the rest of the screen. Every number is
- * the API's, derived from the same reads the sections render, so the capsule can show nothing the
- * lists below it do not. Read-only; no write, no new capability.
+ * It reads the API's Pulse summary (`/home/pulse`) and states the acting user's day: open work
+ * (with how much of it is due today), what is waiting on them, and their meetings today. Every
+ * number is the API's, derived from the same reads the sections below render, so the header can
+ * show nothing the lists do not. Read-only; it owns its own query and error state.
  */
 export function HomeHeroSection({ organizationSlug, client }: HomeHeroSectionProps) {
   const api = client ?? browserApiClient();
@@ -31,44 +31,81 @@ export function HomeHeroSection({ organizationSlug, client }: HomeHeroSectionPro
   });
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-home-focus">
-      <h2 id="tm-home-focus" className="tm-eyebrow">
+    <section className="tm-home-metrics" aria-labelledby="tm-home-focus">
+      <h2 id="tm-home-focus" className="tm-home-metrics__heading">
         Your focus today
       </h2>
 
       {pulse.isError ? (
-        <InlineAlert tone="danger" title="Could not load your focus" live>
+        <p className="tm-metric__source" role="alert">
           {describePulseError(pulse.error)}
-        </InlineAlert>
+        </p>
       ) : null}
 
       {pulse.isPending ? (
-        <LoadingRegion label="Loading your focus.">
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
+        <div className="tm-metric" aria-busy="true" aria-label="Loading your focus.">
+          <Skeleton width="160px" height="56px" />
+        </div>
       ) : null}
 
       {!pulse.isPending && !pulse.isError && pulse.data ? (
-        <dl className="tm-detail-list" aria-label="Your focus today, in numbers">
-          <div className="tm-detail-list__pair">
-            <dt>Open work</dt>
-            <dd>
-              {pulse.data.openWork} open
-              {pulse.data.dueToday > 0 ? `, ${pulse.data.dueToday} due today` : ''}
-            </dd>
-          </div>
-          <div className="tm-detail-list__pair">
-            <dt>Waiting on you</dt>
-            <dd>{pulse.data.waitingOnYou} waiting</dd>
-          </div>
-          <div className="tm-detail-list__pair">
-            <dt>Meetings today</dt>
-            <dd>{pulse.data.meetingsToday} scheduled</dd>
-          </div>
-        </dl>
+        <>
+          <Metric
+            value={pad(pulse.data.openWork)}
+            pill={pulse.data.dueToday > 0 ? `${pulse.data.dueToday} due today` : 'on track'}
+            tone={pulse.data.dueToday > 0 ? 'warning' : 'current'}
+            label="open work items"
+            source="assigned to you, every project"
+          />
+          <Metric
+            value={String(pulse.data.waitingOnYou)}
+            pill={pulse.data.waitingOnYou > 0 ? 'waiting' : 'clear'}
+            tone={pulse.data.waitingOnYou > 0 ? 'warning' : 'neutral'}
+            label="waiting on you"
+            source="reviews and client requests"
+          />
+          <Metric
+            value={String(pulse.data.meetingsToday)}
+            pill="today"
+            tone="neutral"
+            label={pulse.data.meetingsToday === 1 ? 'meeting today' : 'meetings today'}
+            source="on your calendar"
+          />
+        </>
       ) : null}
     </section>
   );
+}
+
+function Metric({
+  value,
+  pill,
+  tone,
+  label,
+  source,
+}: {
+  value: string;
+  pill: string;
+  tone: 'current' | 'warning' | 'neutral';
+  label: string;
+  source: string;
+}) {
+  const pillClass = tone === 'neutral' ? 'tm-pill' : `tm-pill tm-pill--${tone}`;
+  return (
+    <div className="tm-metric">
+      <div className="tm-metric__value-row">
+        <span className="tm-metric__value">{value}</span>
+        <span className={pillClass}>{pill}</span>
+      </div>
+      <span className="tm-metric__label">{label}</span>
+      <span className="tm-metric__source">{source}</span>
+    </div>
+  );
+}
+
+/** HOME-01 draws single-digit day counts with a leading zero ("04"). */
+function pad(value: number): string {
+  return value < 10 ? `0${value}` : String(value);
 }
 
 function describePulseError(error: unknown): string {

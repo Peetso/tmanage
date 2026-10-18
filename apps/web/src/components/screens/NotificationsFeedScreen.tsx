@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -10,6 +10,7 @@ import type { NotificationView } from '../../lib/api/notifications-feed';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/home.css';
 
 export interface NotificationsFeedScreenProps {
   organizationSlug: string;
@@ -71,13 +72,18 @@ export function NotificationsFeedScreen({
   const items = useMemo(() => (feed.data?.pages ?? []).flatMap((page) => page.items), [feed.data]);
   const unread = useMemo(() => items.filter((item) => !item.read), [items]);
   const read = useMemo(() => items.filter((item) => item.read), [items]);
+  const [filter, setFilter] = useState<'all' | 'unread' | 'read'>('all');
+
+  const shown = filter === 'unread' ? unread : filter === 'read' ? read : items;
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="inbox"
+      eyebrow="Inbox"
       title="Notifications"
+      titleMeta={items.length > 0 ? `${unread.length} unread` : undefined}
       description="Everything you have been told, newest first — unread first, then what you have cleared."
     >
       {feed.isError ? (
@@ -92,71 +98,134 @@ export function NotificationsFeedScreen({
         </InlineAlert>
       ) : null}
 
+      {items.length > 0 ? (
+        <div className="tm-chip-row" role="group" aria-label="Show">
+          <button
+            type="button"
+            className="tm-chip"
+            aria-pressed={filter === 'all'}
+            onClick={() => setFilter('all')}
+          >
+            All · {items.length}
+          </button>
+          <button
+            type="button"
+            className="tm-chip"
+            aria-pressed={filter === 'unread'}
+            onClick={() => setFilter('unread')}
+          >
+            Unread · {unread.length}
+          </button>
+          <button
+            type="button"
+            className="tm-chip"
+            aria-pressed={filter === 'read'}
+            onClick={() => setFilter('read')}
+          >
+            Read · {read.length}
+          </button>
+        </div>
+      ) : null}
+
       {feed.isPending ? (
         <LoadingRegion label="Loading your notifications.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
+          <Skeleton height="44px" />
+          <Skeleton height="44px" />
         </LoadingRegion>
       ) : null}
 
       {!feed.isPending && !feed.isError && items.length === 0 && !feed.hasNextPage ? (
-        <InlineAlert tone="neutral" title="Nothing to catch up on">
-          <p className="tm-prose">
+        <div className="tm-card tm-card--empty tm-notif-empty">
+          <h2 className="tm-card__title">Nothing to catch up on</h2>
+          <p className="tm-card__meta">
             When something happens that involves you — a blocker, a mention, an answer — it shows up
             here.
           </p>
-        </InlineAlert>
+        </div>
       ) : null}
 
-      {unread.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-notif-unread">
-          <h2 id="tm-notif-unread" className="tm-eyebrow">
-            Unread
-          </h2>
-          <ul className="tm-stack tm-list" aria-label="Unread notifications">
-            {unread.map((item) => (
-              <li key={item.id} className="tm-panel tm-stack tm-stack--tight">
-                <p className="tm-prose">
-                  <strong>{describeType(item.type)}</strong>
-                </p>
-                <p className="tm-field__hint">
-                  {describeObject(item)} · {formatInstant(item.createdAt)}
-                </p>
-                <div className="tm-row">
-                  <Button
-                    tone="outline"
-                    size="accessible"
-                    loading={markRead.isPending && markRead.variables === item.id}
-                    loadingLabel="Marking read"
-                    aria-label={`Mark read: ${describeType(item.type)}`}
-                    onClick={() => markRead.mutate(item.id)}
-                  >
-                    Mark read
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {items.length > 0 ? (
+        <div className="tm-notif-table">
+          <div className="tm-notif-table__head" aria-hidden="true">
+            <span>Event</span>
+            <span>About</span>
+            <span>State</span>
+            <span>When</span>
+          </div>
 
-      {read.length > 0 ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-notif-read">
-          <h2 id="tm-notif-read" className="tm-eyebrow">
-            Read
-          </h2>
-          <ul className="tm-stack tm-list" aria-label="Read notifications">
-            {read.map((item) => (
-              <li key={item.id} className="tm-panel tm-stack tm-stack--tight">
-                <p className="tm-prose">{describeType(item.type)}</p>
-                <p className="tm-field__hint">
-                  {describeObject(item)} · {formatInstant(item.createdAt)}
-                  {item.readAt ? ` · Read ${formatInstant(item.readAt)}` : ''}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </section>
+          {shown.length === 0 ? (
+            <p className="tm-notif-row">
+              <span className="tm-notif-row__sub">
+                {filter === 'unread' ? 'Nothing unread.' : 'Nothing read yet.'}
+              </span>
+            </p>
+          ) : null}
+
+          {filter !== 'read' && unread.length > 0 ? (
+            <section aria-labelledby="tm-notif-unread">
+              <h2 id="tm-notif-unread" className="tm-visually-hidden">
+                Unread
+              </h2>
+              <ul className="tm-notif-list" aria-label="Unread notifications">
+                {unread.map((item) => (
+                  <li key={item.id} className="tm-notif-row" data-read="false">
+                    <div className="tm-notif-row__event">
+                      <p className="tm-notif-row__title">
+                        <strong>{describeType(item.type)}</strong>
+                      </p>
+                    </div>
+                    <span className="tm-notif-row__object">{describeObject(item)}</span>
+                    <span className="tm-notif-row__state">
+                      <span className="tm-notif-pill" data-tone="unread">
+                        unread
+                      </span>
+                    </span>
+                    <span className="tm-notif-row__when">
+                      <time dateTime={item.createdAt}>{formatWhen(item.createdAt)}</time>
+                      <Button
+                        tone="outline"
+                        size="compact"
+                        loading={markRead.isPending && markRead.variables === item.id}
+                        loadingLabel="Marking read"
+                        aria-label={`Mark read: ${describeType(item.type)}`}
+                        onClick={() => markRead.mutate(item.id)}
+                      >
+                        Mark read
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {filter !== 'unread' && read.length > 0 ? (
+            <section aria-labelledby="tm-notif-read">
+              <h2 id="tm-notif-read" className="tm-visually-hidden">
+                Read
+              </h2>
+              <ul className="tm-notif-list" aria-label="Read notifications">
+                {read.map((item) => (
+                  <li key={item.id} className="tm-notif-row" data-read="true">
+                    <div className="tm-notif-row__event">
+                      <p className="tm-notif-row__title">{describeType(item.type)}</p>
+                      {item.readAt ? (
+                        <p className="tm-notif-row__sub">Read {formatInstant(item.readAt)}</p>
+                      ) : null}
+                    </div>
+                    <span className="tm-notif-row__object">{describeObject(item)}</span>
+                    <span className="tm-notif-row__state">
+                      <span className="tm-notif-pill">read</span>
+                    </span>
+                    <span className="tm-notif-row__when">
+                      <time dateTime={item.createdAt}>{formatWhen(item.createdAt)}</time>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </div>
       ) : null}
 
       {feed.hasNextPage ? (
@@ -183,6 +252,15 @@ export function NotificationsFeedScreen({
       />
     </AppShell>
   );
+}
+
+/** "11:02" today, "18 Oct · 11:02" before — IN-06 draws the time in mono at the row end. */
+function formatWhen(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return formatInstant(value);
+  const time = parsed.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  if (parsed.toDateString() === new Date().toDateString()) return time;
+  return `${parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} · ${time}`;
 }
 
 /**

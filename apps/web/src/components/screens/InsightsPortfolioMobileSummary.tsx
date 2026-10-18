@@ -26,7 +26,7 @@ export function InsightsPortfolioMobileSummary({
   organizationSlug,
 }: InsightsPortfolioMobileSummaryProps) {
   if (portfolio.projectCount === 0) {
-    return <p className="tm-prose">No projects you can read have insights yet.</p>;
+    return <p className="tm-ins-card__body">No projects you can read have insights yet.</p>;
   }
 
   const blocked = sum(portfolio.projects, (project) => project.deliveryFlow.counts.blocked);
@@ -41,7 +41,7 @@ export function InsightsPortfolioMobileSummary({
 
   return (
     <div className="tm-stack">
-      <dl className="tm-stack tm-stack--tight" aria-label="Portfolio headline figures">
+      <dl className="tm-ins-mfigures" aria-label="Portfolio headline figures">
         <Figure label="Projects" value={portfolio.projectCount} />
         <Figure label="Blocked work items" value={blocked} />
         <Figure label="Changes requested" value={changesRequested} />
@@ -49,10 +49,10 @@ export function InsightsPortfolioMobileSummary({
 
       {needsAttention.length > 0 ? (
         <section className="tm-stack tm-stack--tight" aria-labelledby="tm-portfolio-attention">
-          <h3 id="tm-portfolio-attention" className="tm-eyebrow">
+          <h3 id="tm-portfolio-attention" className="tm-ins-eyebrow">
             Needs attention
           </h3>
-          <ul className="tm-list tm-stack tm-stack--tight">
+          <ul className="tm-ins-mlist">
             {needsAttention.map((project) => (
               <AttentionRow
                 key={project.projectId}
@@ -63,7 +63,7 @@ export function InsightsPortfolioMobileSummary({
           </ul>
         </section>
       ) : (
-        <p className="tm-prose">Nothing is blocked across your projects.</p>
+        <p className="tm-ins-card__body">Nothing is blocked across your projects.</p>
       )}
     </div>
   );
@@ -71,9 +71,9 @@ export function InsightsPortfolioMobileSummary({
 
 function Figure({ label, value }: { label: string; value: number }) {
   return (
-    <div>
-      <dt className="tm-prose">{label}</dt>
-      <dd className="tm-mono">{value}</dd>
+    <div className="tm-ins-mfigure">
+      <dt className="tm-ins-mfigure__label">{label}</dt>
+      <dd className="tm-ins-mfigure__value">{value}</dd>
     </div>
   );
 }
@@ -90,7 +90,9 @@ function AttentionRow({
       <Link href={`/${organizationSlug}/insights/projects/${project.projectId}`}>
         {project.name}
       </Link>
-      <span className="tm-mono"> — {project.deliveryFlow.counts.blocked} blocked</span>
+      <span className="tm-ins-badge" data-tone="danger">
+        {project.deliveryFlow.counts.blocked} blocked
+      </span>
     </li>
   );
 }

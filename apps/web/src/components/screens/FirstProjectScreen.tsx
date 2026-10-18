@@ -2,9 +2,9 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
-import { BackendPending } from './BackendPending';
+import { OnboardingScreenStyles } from './CreateOrganizationScreen';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createProject, listWorkspaces } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -125,18 +125,11 @@ export function FirstProjectScreen({
   }
 
   return (
-    <OnboardingShell
-      current="ON-03"
-      signedInAs={signedInAs}
-      title="Create your first project"
-      description="One project is enough to start. Milestones, deliverables and the client portal all hang off it."
-    >
-      <BackendPending ticket="this screen's client link · a people directory, unscheduled">
-        The project itself is created. Choosing a client and choosing an owner are not saved yet. A
-        project is shared with a client by linking it to a client organization, and this step does
-        not do that linking yet; nothing in this system lists the people in your organization
-        either, so there is nobody else to choose. The owner will be you.
-      </BackendPending>
+    <OnboardingShell current="ON-03" signedInAs={signedInAs} title="Create your first project">
+      <OnboardingScreenStyles />
+      <style href="tm-onboarding-project" precedence="default">
+        {PROJECT_CSS}
+      </style>
 
       {workspaces.isError ? (
         <InlineAlert tone="danger" title="Could not load this organization" live>
@@ -146,7 +139,7 @@ export function FirstProjectScreen({
         </InlineAlert>
       ) : null}
 
-      <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
+      <form className="tm-ob-project" noValidate onSubmit={submit}>
         {/*
           The controls take nothing until this screen's data has arrived. "Create project" has
           always carried `disabled={workspaces.isPending}`; the fields did not, so on a cold page
@@ -158,128 +151,186 @@ export function FirstProjectScreen({
           `isPending === false`, so a failed load leaves the form editable and the alert above it
           explains itself.
         */}
-        <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={workspaces.isPending}>
+        <fieldset className="tm-fieldset tm-ob-sheet" disabled={workspaces.isPending}>
+          <legend className="tm-visually-hidden">Your first project</legend>
           <Field
             label="Project name"
             name="projectName"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            hint="What your team calls it. Clients see this name too."
             required
           />
 
-          <fieldset className="tm-fieldset">
-            <legend className="tm-field__label">Who is this for</legend>
-            <div className="tm-stack tm-stack--tight">
-              <label className="tm-choice">
+          <fieldset className="tm-fieldset tm-field">
+            <legend className="tm-field__label tm-ob-legend">Who is this for</legend>
+            <div className="tm-ob-pills">
+              <label className="tm-ob-pill tm-ob-pill--client">
                 <input
-                  className="tm-choice__input"
                   type="radio"
                   name="audience"
                   value="client"
                   checked={audience === 'client'}
                   onChange={() => setAudience('client')}
                 />
-                <span className="tm-choice__name">A client</span>
-                <span className="tm-choice__detail">
-                  A client organization and a portal can be set up for it in the next steps.
+                <span className="tm-ob-pill__ring" aria-hidden="true">
+                  ◎
                 </span>
+                A client
               </label>
-              <label className="tm-choice">
+              <label className="tm-ob-pill">
                 <input
-                  className="tm-choice__input"
                   type="radio"
                   name="audience"
                   value="internal"
                   checked={audience === 'internal'}
                   onChange={() => setAudience('internal')}
                 />
-                <span className="tm-choice__name">Internal only</span>
-                <span className="tm-choice__detail">
-                  No portal. You can switch one on later without recreating the project.
-                </span>
+                Internal only
               </label>
             </div>
+            <span className="tm-field__hint">
+              {audience === 'client'
+                ? 'The client organization and its portal are linked to the project after setup.'
+                : 'No portal. You can switch one on later without recreating the project.'}
+            </span>
           </fieldset>
 
-          {/*
-          A statement rather than a picker.
-          `22` §3 lists an owner field, and there is no endpoint that lists the people in an
-          organization, and no ticket builds one. A select with one invented name in it would
-          look like a choice and be a fiction; the API defaults the owner to the person
-          creating the project, and this says so.
-        */}
+          <div className="tm-ob-grid-2">
+            {/*
+              A statement rather than a picker.
+              `22` §3 lists an owner field, and there is no endpoint that lists the people in an
+              organization, and no ticket builds one. A select with one invented name in it would
+              look like a choice and be a fiction; the API defaults the owner to the person
+              creating the project, and this says so.
+            */}
+            <div className="tm-field">
+              <span className="tm-field__label">Project owner</span>
+              <div className="tm-ob-project__owner">
+                <span className="tm-ob-avatar" aria-hidden="true">
+                  {initialsOf(signedInAs)}
+                </span>
+                <span className="tm-ob-project__owner-name">{signedInAs}</span>
+              </div>
+              <span className="tm-field__hint">You, until your team has joined.</span>
+            </div>
+
+            <Field
+              label="Target date"
+              name="targetDate"
+              type="date"
+              value={targetDate}
+              onChange={(event) => setTargetDate(event.target.value)}
+              dir="ltr"
+              hint="A target, not a commitment, until a milestone plan is confirmed."
+              {...(dateProblem === undefined ? {} : { error: dateProblem })}
+            />
+          </div>
+
           <div className="tm-field">
-            <span className="tm-field__label">Project owner</span>
-            <p className="tm-prose">{signedInAs}</p>
-            <span className="tm-field__hint">
-              You, because there is nobody else in this organization yet. It can be changed at any
-              time once you have invited your team.
-            </span>
+            <span className="tm-field__label">Default audience for new content</span>
+            <div className="tm-ob-project__audience">
+              <span className="tm-ob-project__square" aria-hidden="true">
+                ■
+              </span>
+              <span>
+                <strong>Default audience: internal</strong>
+                <span className="tm-ob-project__audience-detail">
+                  {' '}
+                  — only your team can see new content until it is published.
+                </span>
+              </span>
+              <span className="tm-ob-project__fixed" aria-hidden="true">
+                Fixed
+              </span>
+            </div>
           </div>
 
-          <Field
-            label="Target date"
-            name="targetDate"
-            type="date"
-            value={targetDate}
-            onChange={(event) => setTargetDate(event.target.value)}
-            dir="ltr"
-            hint="A target, not a commitment. It stays a target until a milestone plan is confirmed."
-            {...(dateProblem === undefined ? {} : { error: dateProblem })}
-          />
+          <hr className="tm-ob-rule" />
+
+          <section className="tm-ob-project__preview" aria-labelledby="tm-project-summary">
+            <h2 id="tm-project-summary" className="tm-ob-eyebrow">
+              Live pulse track preview
+            </h2>
+            <ol className="tm-ob-track">
+              <li className="tm-ob-capsule tm-ob-capsule--tall tm-ob-capsule--lime">
+                START · TODAY
+              </li>
+              <li className="tm-ob-capsule tm-ob-capsule--tall tm-ob-capsule--grow">
+                Milestones added next
+              </li>
+              <li className="tm-ob-capsule tm-ob-capsule--tall tm-ob-capsule--future">
+                {targetDate === '' ? 'No target yet' : `Target ${formatDate(targetDate)}`}
+              </li>
+            </ol>
+          </section>
+
+          {workspaces.isPending ? (
+            <LoadingRegion label="Loading this organization.">
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {failure ? (
+            <InlineAlert tone="danger" title="Could not create the project" live>
+              {failure}
+            </InlineAlert>
+          ) : null}
+
+          <div className="tm-ob-actions">
+            <Button
+              type="submit"
+              tone="ink"
+              size="feature"
+              className="tm-ob-cta"
+              loading={creating}
+              loadingLabel="Creating"
+              disabled={workspaces.isPending}
+            >
+              Create project
+            </Button>
+          </div>
         </fieldset>
-
-        <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-project-summary">
-          <h2 id="tm-project-summary" className="tm-eyebrow">
-            What will be created
-          </h2>
-          <div className="tm-row">
-            <StateCapsule state="future">
-              {audience === 'client' ? 'For a client' : 'Internal'}
-            </StateCapsule>
-            <span className="tm-prose">Not saved yet</span>
-          </div>
-          <div className="tm-row">
-            <StateCapsule state="future">Target</StateCapsule>
-            <span className="tm-prose">
-              {targetDate === '' ? 'No date yet' : formatDate(targetDate)}
-            </span>
-          </div>
-          <InlineAlert tone="neutral" title="Default audience: internal">
-            New content in this project starts internal. Publishing to the client is a separate,
-            deliberate act with its own safety check.
-          </InlineAlert>
-        </section>
-
-        {workspaces.isPending ? (
-          <LoadingRegion label="Loading this organization.">
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {failure ? (
-          <InlineAlert tone="danger" title="Could not create the project" live>
-            {failure}
-          </InlineAlert>
-        ) : null}
-
-        <div className="tm-row">
-          <Button
-            type="submit"
-            tone="ink"
-            size="accessible"
-            loading={creating}
-            loadingLabel="Creating"
-            disabled={workspaces.isPending}
-          >
-            Create project
-          </Button>
-        </div>
       </form>
     </OnboardingShell>
   );
 }
+
+/** "omar@northstar.studio" → "OM"; "Omar Adel" → "OA". Decoration only — the name is beside it. */
+function initialsOf(identity: string): string {
+  const local = identity.split('@')[0] ?? identity;
+  const words = local.split(/[\s._-]+/).filter(Boolean);
+  const letters =
+    words.length >= 2 ? `${words[0]?.[0] ?? ''}${words[1]?.[0] ?? ''}` : local.slice(0, 2);
+  return letters.toUpperCase();
+}
+
+const PROJECT_CSS = `
+.tm-ob-project { max-inline-size: 700px; }
+.tm-ob-project > .tm-ob-sheet { gap: 16px; padding: 26px; }
+.tm-ob-project__owner, .tm-ob-project__audience {
+  display: flex; align-items: center; gap: 10px; min-block-size: 50px; padding: 0 14px;
+  border-radius: var(--r-control); background: var(--paper-50); color: var(--ink-950);
+  font-size: var(--t-ui-sm); line-height: var(--t-ui-sm-line); font-weight: 500;
+}
+.tm-ob-project__owner { border: var(--b-quiet) solid var(--line-300); }
+.tm-ob-project__owner-name { min-inline-size: 0; overflow-wrap: anywhere; }
+.tm-ob-project__audience strong { font-weight: 500; }
+.tm-ob-project__audience-detail { color: var(--ink-650); font-weight: 400; }
+.tm-ob-project__square {
+  flex-shrink: 0; display: grid; place-items: center; inline-size: 20px; block-size: 20px;
+  border: var(--b-structural) solid var(--ink-800); border-radius: var(--r-capsule);
+  font: 600 9px/1 var(--font-mono); color: var(--ink-800);
+}
+.tm-ob-project__fixed {
+  margin-inline-start: auto; font-family: var(--font-mono); font-size: 11px; line-height: 15px;
+  text-transform: uppercase; color: var(--ink-500);
+}
+.tm-ob-project__preview { display: flex; flex-direction: column; gap: 10px; }
+.tm-ob-project .tm-ob-track { flex-wrap: nowrap; }
+@media (max-width: 40rem) {
+  .tm-ob-project .tm-ob-track { flex-wrap: wrap; }
+}
+`;
 
 /**
  * The one date rule this screen can enforce without a server: a target in the past.

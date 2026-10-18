@@ -10,6 +10,8 @@ import { getMeetingAgenda } from '../../lib/api/meeting-agenda';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatDay, formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { CalendarHeaderActions, CalendarSubnav, MeetingTrack, clockLabel } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface MeetingAgendaScreenProps {
   organizationSlug: string;
@@ -59,6 +61,17 @@ export function MeetingAgendaScreen({
   });
 
   const days = useMemo(() => agenda.data?.days ?? [], [agenda.data]);
+  const allMeetings = useMemo(() => days.flatMap((day) => day.meetings), [days]);
+  const now = Date.now();
+  const nextId = useMemo(() => {
+    let best: { id: string; at: number } | null = null;
+    for (const meeting of allMeetings) {
+      const at = Date.parse(meeting.startsAt);
+      if (Number.isNaN(at) || at < now) continue;
+      if (best === null || at < best.at) best = { id: meeting.id, at };
+    }
+    return best?.id ?? null;
+  }, [allMeetings, now]);
 
   return (
     <AppShell
@@ -66,120 +79,170 @@ export function MeetingAgendaScreen({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Agenda"
-      description="Your meetings grouped by the day they start on, across a range you choose."
+      eyebrow="Calendar · Agenda"
+      actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="agenda" />}
     >
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-agenda-filters">
-        <h2 id="tm-agenda-filters" className="tm-eyebrow">
-          Range
-        </h2>
-        <fieldset className="tm-fieldset tm-stack">
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-agenda-from">
-              From
-            </label>
-            <input
-              id="tm-agenda-from"
-              className="tm-field__control"
-              type="date"
-              value={from}
-              max={to || undefined}
-              onChange={(event) => setFrom(event.target.value)}
-            />
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-agenda-to">
-              To
-            </label>
-            <input
-              id="tm-agenda-to"
-              className="tm-field__control"
-              type="date"
-              value={to}
-              min={from || undefined}
-              onChange={(event) => setTo(event.target.value)}
-            />
-          </div>
-          <span className="tm-field__hint">
-            The agenda covers a range of up to {MAX_WINDOW_DAYS} days. Meetings appear on the day
-            they start.
-          </span>
-        </fieldset>
-      </section>
+      <div className="tm-cal">
+        <CalendarSubnav organizationSlug={organizationSlug} />
 
-      {!rangeValid ? (
-        <InlineAlert tone="warning" title="Choose a valid range">
-          Set a start date on or before the end date, no more than {MAX_WINDOW_DAYS} days apart, to
-          load the agenda.
-        </InlineAlert>
-      ) : null}
+        {allMeetings.length > 0 ? (
+          <MeetingTrack
+            organizationSlug={organizationSlug}
+            label="Agenda track"
+            meetings={allMeetings}
+            nextId={nextId}
+            now={now}
+          />
+        ) : null}
 
-      {agenda.isError ? (
-        <InlineAlert tone="danger" title="Could not load the agenda" live>
-          {describeError(agenda.error)}
-        </InlineAlert>
-      ) : null}
+        <div className="tm-cal-body">
+          <div className="tm-cal-main">
+            {!rangeValid ? (
+              <InlineAlert tone="warning" title="Choose a valid range">
+                Set a start date on or before the end date, no more than {MAX_WINDOW_DAYS} days
+                apart, to load the agenda.
+              </InlineAlert>
+            ) : null}
 
-      {rangeValid && agenda.isPending ? (
-        <LoadingRegion label="Loading the agenda.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+            {agenda.isError ? (
+              <InlineAlert tone="danger" title="Could not load the agenda" live>
+                {describeError(agenda.error)}
+              </InlineAlert>
+            ) : null}
 
-      {rangeValid && !agenda.isPending && !agenda.isError && days.length === 0 ? (
-        <InlineAlert tone="neutral" title="Nothing on the agenda yet">
-          No meetings you can see start in this range. Widen the range, or schedule one from the
-          calendar.
-        </InlineAlert>
-      ) : null}
+            {rangeValid && agenda.isPending ? (
+              <LoadingRegion label="Loading the agenda.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
 
-      {days.length > 0
-        ? days.map((day) => (
-            <section
-              key={day.date}
-              className="tm-panel tm-stack"
-              aria-labelledby={`tm-agenda-day-${day.date}`}
-            >
-              <h2 id={`tm-agenda-day-${day.date}`} className="tm-eyebrow">
-                {formatDay(day.date)}
-              </h2>
-              <div
-                className="tm-table-scroll"
-                // A scrollable region must be focusable or a keyboard cannot reach its overflow
-                // columns (WCAG 2.2 2.1.1), matching WorkCalendarScreen's table.
-                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-                tabIndex={0}
-                role="region"
-                aria-label={`Meetings on ${formatDay(day.date)}`}
-              >
-                <table className="tm-table">
-                  <caption className="tm-visually-hidden">
-                    Meetings on {formatDay(day.date)}, {day.meetings.length} shown.
-                  </caption>
-                  <thead>
-                    <tr>
-                      <th scope="col">Meeting</th>
-                      <th scope="col">Starts</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {day.meetings.map((meeting) => (
-                      <tr key={meeting.id}>
-                        <th scope="row" className="tm-table__title">
-                          <Link href={`/${organizationSlug}/calendar/meetings/${meeting.id}`}>
-                            {meeting.title}
-                          </Link>
-                        </th>
-                        <td>{formatInstant(meeting.startsAt)}</td>
+            {rangeValid && !agenda.isPending && !agenda.isError && days.length === 0 ? (
+              <InlineAlert tone="neutral" title="Nothing on the agenda yet">
+                No meetings you can see start in this range. Widen the range, or schedule one from
+                the calendar.
+              </InlineAlert>
+            ) : null}
+
+            {days.length > 0 ? (
+              <div className="tm-cal-sheet">
+                <div
+                  className="tm-cal-sheet__scroll"
+                  // A scrollable region must be focusable or a keyboard cannot reach its overflow
+                  // columns (WCAG 2.2 2.1.1), matching WorkCalendarScreen's table.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Agenda"
+                >
+                  <table>
+                    <caption className="tm-visually-hidden">
+                      Meetings grouped by the day they start on, {allMeetings.length} shown.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Time</th>
+                        <th scope="col">What</th>
+                        <th scope="col">Kind</th>
                       </tr>
+                    </thead>
+                    {days.map((day) => (
+                      <tbody key={day.date} aria-labelledby={`tm-agenda-day-${day.date}`}>
+                        <tr className="tm-cal-sheet__day">
+                          <th id={`tm-agenda-day-${day.date}`} scope="colgroup" colSpan={3}>
+                            {formatDay(day.date)} · {day.meetings.length}{' '}
+                            {day.meetings.length === 1 ? 'meeting' : 'meetings'}
+                          </th>
+                        </tr>
+                        {day.meetings.map((meeting) => {
+                          const at = Date.parse(meeting.startsAt);
+                          const state =
+                            meeting.id === nextId
+                              ? 'next'
+                              : !Number.isNaN(at) && at < now
+                                ? 'done'
+                                : 'later';
+                          return (
+                            <tr key={meeting.id} data-state={state}>
+                              <td className="tm-cal-sheet__time">
+                                <time dateTime={meeting.startsAt}>
+                                  {clockLabel(meeting.startsAt)}
+                                </time>
+                              </td>
+                              <th scope="row" className="tm-cal-sheet__what">
+                                <Link href={`/${organizationSlug}/calendar/meetings/${meeting.id}`}>
+                                  {meeting.title}
+                                </Link>
+                                <span className="tm-cal-sheet__sub">
+                                  {formatInstant(meeting.startsAt)}
+                                </span>
+                              </th>
+                              <td className="tm-cal-sheet__kind">
+                                {state === 'next' ? (
+                                  <span className="tm-cal-pill tm-cal-pill--lime">
+                                    Meeting · next
+                                  </span>
+                                ) : state === 'done' ? (
+                                  'Meeting · done'
+                                ) : (
+                                  'Meeting'
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
                     ))}
-                  </tbody>
-                </table>
+                  </table>
+                </div>
               </div>
+            ) : null}
+          </div>
+
+          <div className="tm-cal-side">
+            <section className="tm-cal-card" aria-labelledby="tm-agenda-filters">
+              <h2 id="tm-agenda-filters" className="tm-cal-eyebrow">
+                Range
+              </h2>
+              <fieldset className="tm-fieldset tm-stack">
+                <div className="tm-cal-form-row">
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-agenda-from">
+                      From
+                    </label>
+                    <input
+                      id="tm-agenda-from"
+                      className="tm-field__control"
+                      type="date"
+                      value={from}
+                      max={to || undefined}
+                      onChange={(event) => setFrom(event.target.value)}
+                    />
+                  </div>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-agenda-to">
+                      To
+                    </label>
+                    <input
+                      id="tm-agenda-to"
+                      className="tm-field__control"
+                      type="date"
+                      value={to}
+                      min={from || undefined}
+                      onChange={(event) => setTo(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <span className="tm-field__hint">
+                  The agenda covers a range of up to {MAX_WINDOW_DAYS} days. Meetings appear on the
+                  day they start.
+                </span>
+              </fieldset>
             </section>
-          ))
-        : null}
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
 }

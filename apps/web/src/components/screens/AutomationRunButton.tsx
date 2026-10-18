@@ -39,10 +39,10 @@ export function AutomationRunButton({
   });
 
   return (
-    <div className="tm-stack tm-stack--tight">
+    <div className="tm-stack tm-stack--tight tm-aut-run">
       <Button
         type="button"
-        tone="ink"
+        tone="lime"
         size="accessible"
         loading={run.isPending}
         loadingLabel="Running"

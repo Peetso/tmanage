@@ -18,14 +18,26 @@ export function MentionView({ organizationSlug, mention }: MentionViewProps) {
   const href = `/${organizationSlug}/chat/${mention.conversationId}#message-${mention.messageId}`;
 
   return (
-    <li className="tm-stack">
-      <Link href={href} className="tm-table__title">
-        {mention.conversationName}
-      </Link>
-      <p className="tm-text-muted">{mention.body}</p>
-      <time dateTime={mention.createdAt} className="tm-eyebrow">
-        {new Date(mention.createdAt).toLocaleString()}
-      </time>
+    <li className="tm-chat-mention">
+      <div className="tm-chat-mention__head">
+        <Link href={href}>#{mention.conversationName.replace(/^#/u, '')}</Link>
+        <time dateTime={mention.createdAt} className="tm-chat-mono">
+          {formatStamp(mention.createdAt)}
+        </time>
+      </div>
+      <p className="tm-chat-mention__body">{mention.body}</p>
     </li>
   );
+}
+
+function formatStamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat(undefined, {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(parsed);
 }

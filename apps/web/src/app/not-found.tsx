@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function NotFound() {
   return (
-    <StateScreen>
+    <StateScreen label="Not found">
       <NotFoundState />
     </StateScreen>
   );

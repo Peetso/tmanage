@@ -4,6 +4,14 @@ import { useQuery } from '@tanstack/react-query';
 import type { WorkItemState } from '@tmanage/domain';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import {
+  InsightsCard,
+  InsightsCardHead,
+  InsightsMetric,
+  InsightsMetrics,
+  InsightsSplit,
+  InsightsTabs,
+} from './InsightsKit';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchProjectDeliveryFlow } from '../../lib/api/delivery-flow';
 import type { DeliveryFlow } from '../../lib/api/delivery-flow';
@@ -14,6 +22,7 @@ import type {
   ApprovalOutcomeMetric,
 } from '../../lib/api/approval-cycle';
 import { fetchOrgWorkload } from '../../lib/api/insights-workload';
+import { fetchInsightsPortfolio } from '../../lib/api/insights-portfolio';
 import type { InsightsWorkloadView } from '../../lib/api/insights-workload';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -71,77 +80,254 @@ export function InsightsScreen({
     queryFn: () => fetchOrgWorkload(api, organizationSlug),
   });
 
+  // Project names for the workload rows: the workload read carries ids only, the portfolio read
+  // (same `work.read` gate, same cache key as INS-01) carries the names. Until it answers — or if
+  // it is refused — a row falls back to its id rather than inventing a label.
+  const portfolio = useQuery({
+    queryKey: ['insights-portfolio', organizationSlug],
+    queryFn: () => fetchInsightsPortfolio(api, organizationSlug),
+    retry: false,
+  });
+  const projectNames = new Map(
+    (portfolio.data?.projects ?? []).map((project) => [project.projectId, project.name]),
+  );
+
+  const flow = deliveryFlow.data;
+  const cycle = approvalCycle.data;
+  const open = flow ? OPEN_STATES.reduce((total, id) => total + flow.counts[id], 0) : 0;
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      title="Insights"
-      description="How this project's work is moving and how its approvals were decided."
+      eyebrow="Insights · Project health"
+      title="Which promises are still true"
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-delivery-flow-heading">
-        <h2 id="tm-delivery-flow-heading" className="tm-eyebrow">
-          Delivery flow
-        </h2>
+      <div className="tm-ins">
+        <InsightsTabs organizationSlug={organizationSlug} current="health" projectId={projectId} />
 
-        {deliveryFlow.isPending ? (
-          <LoadingRegion label="Loading delivery flow." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
+        {flow || cycle ? (
+          <InsightsMetrics label="Project headline figures">
+            {flow ? (
+              <InsightsMetric
+                value={flow.counts.blocked}
+                badge={`of ${flow.itemCount}`}
+                badgeTone={flow.counts.blocked > 0 ? 'danger' : 'quiet'}
+                label="work items blocked in this project"
+                note={flow.counts.blocked > 0 ? 'each one holds the plan' : 'nothing is blocked'}
+              />
+            ) : null}
+            {cycle ? (
+              <InsightsMetric
+                value={cycle.metrics.changes_requested.count}
+                badge={`of ${cycle.approvalCount}`}
+                badgeTone={cycle.metrics.changes_requested.count > 0 ? 'warning' : 'quiet'}
+                label="approvals sent back for changes"
+                note={`${cycle.metrics.invalidated.count} invalidated by a new version`}
+              />
+            ) : null}
+            {flow ? (
+              <InsightsMetric
+                value={open}
+                badge={`${flow.counts.done} done`}
+                badgeTone="lime"
+                label="work items still open"
+                note={`${flow.counts.internal_review} in internal review`}
+              />
+            ) : null}
+          </InsightsMetrics>
         ) : null}
 
-        {deliveryFlow.isError ? (
-          <InlineAlert tone="danger" title="Could not load the delivery flow" live>
-            {describe(deliveryFlow.error)}
-          </InlineAlert>
-        ) : null}
+        <InsightsSplit
+          main={
+            <>
+              <InsightsCard
+                variant="table"
+                id="tm-delivery-flow"
+                labelledBy="tm-delivery-flow-heading"
+              >
+                <div className="tm-ins-card__lead tm-stack tm-stack--tight">
+                  <InsightsCardHead
+                    id="tm-delivery-flow-heading"
+                    title="Delivery flow"
+                    units="Pulse track · items by status"
+                  />
+                  {flow ? <PulseTrack flow={flow} /> : null}
+                </div>
 
-        {deliveryFlow.isSuccess ? <DeliveryFlowTable flow={deliveryFlow.data} /> : null}
-      </section>
+                {deliveryFlow.isPending ? (
+                  <LoadingRegion label="Loading delivery flow." className="tm-ins-card__lead">
+                    <Skeleton height="var(--row)" />
+                    <Skeleton height="var(--row)" />
+                  </LoadingRegion>
+                ) : null}
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-approval-cycle-heading">
-        <h2 id="tm-approval-cycle-heading" className="tm-eyebrow">
-          Approval cycle
-        </h2>
+                {deliveryFlow.isError ? (
+                  <div className="tm-ins-card__lead">
+                    <InlineAlert tone="danger" title="Could not load the delivery flow" live>
+                      {describe(deliveryFlow.error)}
+                    </InlineAlert>
+                  </div>
+                ) : null}
 
-        {approvalCycle.isPending ? (
-          <LoadingRegion label="Loading approval cycle." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+                {deliveryFlow.isSuccess ? <DeliveryFlowTable flow={deliveryFlow.data} /> : null}
+              </InsightsCard>
 
-        {approvalCycle.isError ? (
-          <InlineAlert tone="danger" title="Could not load the approval cycle" live>
-            {describe(approvalCycle.error)}
-          </InlineAlert>
-        ) : null}
+              <InsightsCard variant="table" labelledBy="tm-approval-cycle-heading">
+                <div className="tm-ins-card__lead">
+                  <InsightsCardHead
+                    id="tm-approval-cycle-heading"
+                    title="Approval cycle"
+                    units="Requested → decided"
+                  />
+                </div>
 
-        {approvalCycle.isSuccess ? <ApprovalCycleTable cycle={approvalCycle.data} /> : null}
-      </section>
+                {approvalCycle.isPending ? (
+                  <LoadingRegion label="Loading approval cycle." className="tm-ins-card__lead">
+                    <Skeleton height="var(--row)" />
+                    <Skeleton height="var(--row)" />
+                  </LoadingRegion>
+                ) : null}
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-workload-heading">
-        <h2 id="tm-workload-heading" className="tm-eyebrow">
-          Workload across projects
-        </h2>
+                {approvalCycle.isError ? (
+                  <div className="tm-ins-card__lead">
+                    <InlineAlert tone="danger" title="Could not load the approval cycle" live>
+                      {describe(approvalCycle.error)}
+                    </InlineAlert>
+                  </div>
+                ) : null}
 
-        {workload.isPending ? (
-          <LoadingRegion label="Loading workload." className="tm-stack tm-stack--tight">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+                {approvalCycle.isSuccess ? <ApprovalCycleTable cycle={approvalCycle.data} /> : null}
+              </InsightsCard>
 
-        {workload.isError ? (
-          <InlineAlert tone="danger" title="Could not load the workload roll-up" live>
-            {describe(workload.error)}
-          </InlineAlert>
-        ) : null}
+              <InsightsCard variant="table" labelledBy="tm-workload-heading">
+                <div className="tm-ins-card__lead">
+                  <InsightsCardHead
+                    id="tm-workload-heading"
+                    title="Workload across projects"
+                    units="Open · scheduled · people"
+                  />
+                </div>
 
-        {workload.isSuccess ? <WorkloadTable workload={workload.data} /> : null}
-      </section>
+                {workload.isPending ? (
+                  <LoadingRegion label="Loading workload." className="tm-ins-card__lead">
+                    <Skeleton height="var(--row)" />
+                    <Skeleton height="var(--row)" />
+                  </LoadingRegion>
+                ) : null}
+
+                {workload.isError ? (
+                  <div className="tm-ins-card__lead">
+                    <InlineAlert tone="danger" title="Could not load the workload roll-up" live>
+                      {describe(workload.error)}
+                    </InlineAlert>
+                  </div>
+                ) : null}
+
+                {workload.isSuccess ? (
+                  <WorkloadTable workload={workload.data} names={projectNames} />
+                ) : null}
+              </InsightsCard>
+            </>
+          }
+          side={
+            <>
+              {flow ? (
+                <InsightsCard variant="callout">
+                  <p className="tm-ins-eyebrow">What would move this project</p>
+                  <p className="tm-ins-callout__title">{nextMove(flow)}</p>
+                  <p className="tm-ins-card__body">
+                    Everything downstream of a blocked item moves with it. Clearing the blocker
+                    moves the forecast; working faster around it does not.
+                  </p>
+                </InsightsCard>
+              ) : null}
+              <InsightsCard>
+                <p className="tm-ins-eyebrow">How health is derived</p>
+                <p className="tm-ins-card__body">
+                  Health is the gap between the committed date and the current forecast, plus the
+                  decisions blocking it. Nothing is inferred from message volume, activity or hours
+                  logged.
+                </p>
+                <ul className="tm-ins-legend">
+                  <li>
+                    <span className="tm-ins-pulse__seg" data-state="done" aria-hidden="true" />
+                    done
+                  </li>
+                  <li>
+                    <span className="tm-ins-pulse__seg" data-state="current" aria-hidden="true" />
+                    in progress or in review
+                  </li>
+                  <li>
+                    <span className="tm-ins-pulse__seg" aria-hidden="true" />
+                    still to do
+                  </li>
+                  <li>
+                    <span className="tm-ins-pulse__seg" data-state="unknown" aria-hidden="true" />
+                    nothing to show yet
+                  </li>
+                  <li>
+                    <span className="tm-ins-pulse__edge" aria-hidden="true" />
+                    risk edge: blocked work
+                  </li>
+                </ul>
+              </InsightsCard>
+            </>
+          }
+        />
+      </div>
     </AppShell>
+  );
+}
+
+/** The open (not done, not archived) statuses, summed for the "still open" figure. */
+const OPEN_STATES: readonly WorkItemState[] = [
+  'backlog',
+  'ready',
+  'in_progress',
+  'blocked',
+  'internal_review',
+];
+
+/** The callout's one sentence, read from the counts: blocked first, then review. */
+function nextMove(flow: DeliveryFlow): string {
+  const { blocked, internal_review: review } = flow.counts;
+  if (blocked > 0)
+    return `${blocked} blocked ${blocked === 1 ? 'item holds' : 'items hold'} the plan.`;
+  if (review > 0)
+    return `${review} ${review === 1 ? 'item waits' : 'items wait'} on internal review.`;
+  return 'Nothing is blocked or waiting on review.';
+}
+
+/**
+ * INS-02's pulse track for one project: a segment per lifecycle status sized by its items — done
+ * is ink, in progress and review are lime, the rest is still to do — and the risk edge when
+ * anything is blocked. Decorative: the status table under it carries the same figures.
+ */
+function PulseTrack({ flow }: { flow: DeliveryFlow }) {
+  const segments: { id: WorkItemState; state?: 'done' | 'current' }[] = [
+    { id: 'done', state: 'done' },
+    { id: 'internal_review', state: 'current' },
+    { id: 'in_progress', state: 'current' },
+    { id: 'ready' },
+    { id: 'backlog' },
+  ];
+  return (
+    <div className="tm-ins-pulse" aria-hidden="true">
+      {segments
+        .filter(({ id }) => flow.counts[id] > 0)
+        .map(({ id, state }) => (
+          <span
+            key={id}
+            className="tm-ins-pulse__seg"
+            style={{ flexGrow: flow.counts[id] }}
+            {...(state ? { 'data-state': state } : {})}
+          />
+        ))}
+      {flow.itemCount === 0 ? <span className="tm-ins-pulse__seg" data-state="unknown" /> : null}
+      {flow.counts.blocked > 0 ? <span className="tm-ins-pulse__edge" /> : null}
+    </div>
   );
 }
 
@@ -160,15 +346,17 @@ function DeliveryFlowTable({ flow }: { flow: DeliveryFlow }) {
   return (
     <>
       {flow.itemCount === 0 ? (
-        <p className="tm-prose">No work items you can read in this project yet.</p>
+        <p className="tm-ins-card__body tm-ins-card__lead">
+          No work items you can read in this project yet.
+        </p>
       ) : null}
 
-      <table className="tm-table">
+      <table className="tm-ins-table tm-ins-table--dense">
         <caption className="tm-visually-hidden">Work items by workflow status</caption>
         <thead>
           <tr>
             <th scope="col">Status</th>
-            <th scope="col" className="tm-table__number">
+            <th scope="col" className="tm-ins-table__num">
               Items
             </th>
           </tr>
@@ -177,19 +365,19 @@ function DeliveryFlowTable({ flow }: { flow: DeliveryFlow }) {
           {STATUSES.map(({ id, label }) => (
             <tr key={id}>
               <th scope="row">{label}</th>
-              <td className="tm-mono tm-table__number">{flow.counts[id]}</td>
+              <td className="tm-ins-table__num">{flow.counts[id]}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr>
             <th scope="row">Total</th>
-            <td className="tm-mono tm-table__number">{flow.itemCount}</td>
+            <td className="tm-ins-table__num">{flow.itemCount}</td>
           </tr>
         </tfoot>
       </table>
 
-      <p className="tm-prose tm-mono">Computed {formatMoment(flow.computedAt)}.</p>
+      <p className="tm-ins-card__foot">Computed {formatMoment(flow.computedAt)}.</p>
     </>
   );
 }
@@ -205,21 +393,23 @@ function ApprovalCycleTable({ cycle }: { cycle: ApprovalCycle }) {
   return (
     <>
       {cycle.approvalCount === 0 ? (
-        <p className="tm-prose">No approvals have reached a decision in this project yet.</p>
+        <p className="tm-ins-card__body tm-ins-card__lead">
+          No approvals have reached a decision in this project yet.
+        </p>
       ) : null}
 
-      <table className="tm-table">
+      <table className="tm-ins-table tm-ins-table--dense">
         <caption className="tm-visually-hidden">Approvals by terminal outcome</caption>
         <thead>
           <tr>
             <th scope="col">Outcome</th>
-            <th scope="col" className="tm-table__number">
+            <th scope="col" className="tm-ins-table__num">
               Approvals
             </th>
-            <th scope="col" className="tm-table__number">
+            <th scope="col" className="tm-ins-table__num">
               Decided
             </th>
-            <th scope="col" className="tm-table__number">
+            <th scope="col" className="tm-ins-table__num">
               Mean time to decide
             </th>
           </tr>
@@ -228,15 +418,15 @@ function ApprovalCycleTable({ cycle }: { cycle: ApprovalCycle }) {
           {OUTCOMES.map(({ id, label }) => (
             <tr key={id}>
               <th scope="row">{label}</th>
-              <td className="tm-mono tm-table__number">{cycle.metrics[id].count}</td>
-              <td className="tm-mono tm-table__number">{cycle.metrics[id].decidedCount}</td>
-              <td className="tm-mono tm-table__number">{formatMeanDuration(cycle.metrics[id])}</td>
+              <td className="tm-ins-table__num">{cycle.metrics[id].count}</td>
+              <td className="tm-ins-table__num">{cycle.metrics[id].decidedCount}</td>
+              <td className="tm-ins-table__num">{formatMeanDuration(cycle.metrics[id])}</td>
             </tr>
           ))}
         </tbody>
       </table>
 
-      <p className="tm-prose tm-mono">Computed {formatMoment(cycle.computedAt)}.</p>
+      <p className="tm-ins-card__foot">Computed {formatMoment(cycle.computedAt)}.</p>
     </>
   );
 }
@@ -246,25 +436,33 @@ function ApprovalCycleTable({ cycle }: { cycle: ApprovalCycle }) {
  * it) with the aggregate in the footer, and a drill-in link to each project's own delivery-flow
  * screen. No invented numbers: an empty portfolio (nothing the caller may read) is stated plainly.
  */
-function WorkloadTable({ workload }: { workload: InsightsWorkloadView }) {
+function WorkloadTable({
+  workload,
+  names,
+}: {
+  workload: InsightsWorkloadView;
+  names: ReadonlyMap<string, string>;
+}) {
   return (
     <>
       {workload.totals.projectCount === 0 ? (
-        <p className="tm-prose">No projects you can read have open work yet.</p>
+        <p className="tm-ins-card__body tm-ins-card__lead">
+          No projects you can read have open work yet.
+        </p>
       ) : null}
 
-      <table className="tm-table">
+      <table className="tm-ins-table tm-ins-table--dense">
         <caption className="tm-visually-hidden">Open work by project</caption>
         <thead>
           <tr>
             <th scope="col">Project</th>
-            <th scope="col" className="tm-table__number">
+            <th scope="col" className="tm-ins-table__num">
               Open items
             </th>
-            <th scope="col" className="tm-table__number">
+            <th scope="col" className="tm-ins-table__num">
               Scheduled
             </th>
-            <th scope="col" className="tm-table__number">
+            <th scope="col" className="tm-ins-table__num">
               People
             </th>
           </tr>
@@ -277,26 +475,26 @@ function WorkloadTable({ workload }: { workload: InsightsWorkloadView }) {
                   className="tm-link"
                   href={`insights/projects/${encodeURIComponent(project.projectId)}`}
                 >
-                  {project.projectId}
+                  {names.get(project.projectId) ?? project.projectId}
                 </a>
               </th>
-              <td className="tm-mono tm-table__number">{project.openItemCount}</td>
-              <td className="tm-mono tm-table__number">{project.scheduledItemCount}</td>
-              <td className="tm-mono tm-table__number">{project.assigneeCount}</td>
+              <td className="tm-ins-table__num">{project.openItemCount}</td>
+              <td className="tm-ins-table__num">{project.scheduledItemCount}</td>
+              <td className="tm-ins-table__num">{project.assigneeCount}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr>
             <th scope="row">All projects ({workload.totals.projectCount})</th>
-            <td className="tm-mono tm-table__number">{workload.totals.openItemCount}</td>
-            <td className="tm-mono tm-table__number">{workload.totals.scheduledItemCount}</td>
-            <td className="tm-mono tm-table__number">{workload.totals.assigneeCount}</td>
+            <td className="tm-ins-table__num">{workload.totals.openItemCount}</td>
+            <td className="tm-ins-table__num">{workload.totals.scheduledItemCount}</td>
+            <td className="tm-ins-table__num">{workload.totals.assigneeCount}</td>
           </tr>
         </tfoot>
       </table>
 
-      <p className="tm-prose tm-mono">Computed {formatMoment(workload.computedAt)}.</p>
+      <p className="tm-ins-card__foot">Computed {formatMoment(workload.computedAt)}.</p>
     </>
   );
 }

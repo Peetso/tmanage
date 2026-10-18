@@ -11,6 +11,7 @@ import type {
 } from '../../lib/api/inbox-snooze';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/inbox.css';
 
 export interface InboxSnoozeViewProps {
   organizationSlug: string;
@@ -74,8 +75,8 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
   const rows = useMemo<readonly InboxSnooze[]>(() => snoozed.data?.snoozes ?? [], [snoozed.data]);
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-inbox-snoozed">
-      <h2 id="tm-inbox-snoozed" className="tm-eyebrow">
+    <section className="tm-card tm-inbox-panel" aria-labelledby="tm-inbox-snoozed">
+      <h2 id="tm-inbox-snoozed" className="tm-card__title">
         Snoozed
       </h2>
 

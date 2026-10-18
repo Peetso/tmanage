@@ -12,6 +12,8 @@ import type { MeetingNoteView } from '../../lib/api/meetings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface MeetingNotesScreenProps {
   organizationSlug: string;
@@ -60,6 +62,7 @@ export function MeetingNotesScreen({
   });
 
   const rows = useMemo(() => notes.data?.notes ?? [], [notes.data]);
+  const decisions = rows.filter((note) => note.kind === 'decision').length;
   const notFound =
     notes.isError && notes.error instanceof ApiRequestError && notes.error.status === 404;
 
@@ -69,63 +72,93 @@ export function MeetingNotesScreen({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Meeting notes"
-      description="The notes captured and decisions taken in this meeting."
+      eyebrow="Calendar · Meeting"
+      actions={
+        <MeetingHeaderActions
+          organizationSlug={organizationSlug}
+          meetingId={notFound ? '' : meetingId}
+          current="notes"
+        >
+          {meetingId !== '' && !notFound ? (
+            <MeetingIcsButton organizationSlug={organizationSlug} meetingId={meetingId} />
+          ) : null}
+        </MeetingHeaderActions>
+      }
     >
-      {meetingId === '' ? (
-        <InlineAlert tone="neutral" title="No meeting chosen">
-          Open a meeting to see the notes and decisions captured in it.
-        </InlineAlert>
-      ) : null}
+      <div className="tm-cal">
+        <MeetingBackLink organizationSlug={organizationSlug} />
 
-      {notFound ? (
-        <InlineAlert tone="neutral" title="Meeting not found" live>
-          This meeting does not exist or you do not have access to it.
-        </InlineAlert>
-      ) : null}
+        <div className="tm-cal-narrow">
+          {meetingId === '' ? (
+            <InlineAlert tone="neutral" title="No meeting chosen">
+              Open a meeting to see the notes and decisions captured in it.
+            </InlineAlert>
+          ) : null}
 
-      {meetingId !== '' && !notFound ? (
-        <div className="tm-row" aria-label="Meeting actions">
-          <MeetingIcsButton organizationSlug={organizationSlug} meetingId={meetingId} />
+          {notFound ? (
+            <InlineAlert tone="neutral" title="Meeting not found" live>
+              This meeting does not exist or you do not have access to it.
+            </InlineAlert>
+          ) : null}
+
+          {notes.isError && !notFound ? (
+            <InlineAlert tone="danger" title="Could not load the notes" live>
+              {describeError(notes.error)}
+            </InlineAlert>
+          ) : null}
+
+          {meetingId !== '' && notes.isPending ? (
+            <LoadingRegion label="Loading the meeting notes.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {meetingId !== '' && !notes.isPending && !notes.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No notes yet">
+              Nothing has been captured in this meeting yet.
+            </InlineAlert>
+          ) : null}
+
+          {rows.length > 0 ? (
+            <section
+              className="tm-cal-card"
+              aria-label="Meeting notes and decisions"
+              aria-describedby="tm-meeting-notes-count"
+            >
+              <p id="tm-meeting-notes-count" className="tm-cal-eyebrow">
+                Captured · {rows.length} · {decisions} {decisions === 1 ? 'decision' : 'decisions'}
+              </p>
+              <ul className="tm-cal-items">
+                {rows.map((note) => (
+                  <li key={note.id} className="tm-cal-item">
+                    <span
+                      className={
+                        note.kind === 'decision' ? 'tm-cal-orb' : 'tm-cal-orb tm-cal-orb--quiet'
+                      }
+                      aria-hidden="true"
+                    >
+                      {note.kind === 'decision' ? '✓' : '■'}
+                    </span>
+                    <div className="tm-cal-item__body">
+                      <p className="tm-cal-item__title tm-prose">{note.body}</p>
+                      <time className="tm-cal-item__meta" dateTime={note.createdAt}>
+                        {formatInstant(note.createdAt)}
+                      </time>
+                    </div>
+                    <span className="tm-cal-item__end">
+                      <StateCapsule state={kindCapsule(note.kind)}>
+                        {kindLabel(note.kind)}
+                      </StateCapsule>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
         </div>
-      ) : null}
-
-      {notes.isError && !notFound ? (
-        <InlineAlert tone="danger" title="Could not load the notes" live>
-          {describeError(notes.error)}
-        </InlineAlert>
-      ) : null}
-
-      {meetingId !== '' && notes.isPending ? (
-        <LoadingRegion label="Loading the meeting notes.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {meetingId !== '' && !notes.isPending && !notes.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No notes yet">
-          Nothing has been captured in this meeting yet.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section className="tm-stack" aria-label="Meeting notes and decisions">
-          <ul className="tm-stack tm-list">
-            {rows.map((note) => (
-              <li key={note.id} className="tm-panel tm-panel--quiet tm-stack tm-stack--tight">
-                <div className="tm-row">
-                  <StateCapsule state={kindCapsule(note.kind)}>{kindLabel(note.kind)}</StateCapsule>
-                  <time className="tm-eyebrow tm-push-end" dateTime={note.createdAt}>
-                    {formatInstant(note.createdAt)}
-                  </time>
-                </div>
-                <p className="tm-prose">{note.body}</p>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      </div>
     </AppShell>
   );
 }

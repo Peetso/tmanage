@@ -10,6 +10,7 @@ import { addWorkComment, createWorkItem } from '../../lib/api/work-items';
 import type { CreateWorkItemInput, WorkItemSummary } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/home.css';
 
 /**
  * **Quick capture (modules 22 Desktop companion / 23 Mobile companion, 38-MODULE-MAP rows 22–23).**
@@ -147,12 +148,13 @@ export function QuickCaptureScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      eyebrow="Work"
       title="Quick capture"
       description="File a note or task without leaving what you are doing."
     >
       {projects.isPending ? (
         <LoadingRegion label="Loading your projects">
-          <Skeleton />
+          <Skeleton height="220px" radius="var(--r-feature)" />
         </LoadingRegion>
       ) : projects.isError ? (
         <InlineAlert tone="danger" title="We could not load your projects">
@@ -160,76 +162,107 @@ export function QuickCaptureScreen({
         </InlineAlert>
       ) : (
         <form
-          className="tm-panel tm-stack"
+          className="tm-capture"
           aria-labelledby={headingId}
           onSubmit={(event) => {
             event.preventDefault();
             submit();
           }}
         >
-          <h2 id={headingId} className="tm-eyebrow">
+          <h2 id={headingId} className="tm-visually-hidden">
             Capture
           </h2>
 
-          <Field
-            label="Title"
-            required
-            value={title}
-            maxLength={500}
-            onChange={(event) => setTitle(event.target.value)}
-          />
+          <div className="tm-capture__capsule">
+            <Field
+              className="tm-capture__title"
+              label="Title"
+              required
+              value={title}
+              maxLength={500}
+              onChange={(event) => setTitle(event.target.value)}
+            />
 
-          <Field
-            label="Note"
-            hint="Optional. Filed as the first comment on the new item."
-            value={note}
-            maxLength={2000}
-            onChange={(event) => setNote(event.target.value)}
-          />
+            <div className="tm-capture__chips" role="group" aria-label="What this capture will be">
+              <span className="tm-chip tm-chip--compact tm-capture__chip-static">
+                Owner · unassigned
+              </span>
+              <span className="tm-chip tm-chip--compact tm-chip--dashed">
+                Committed date · not set
+              </span>
+            </div>
 
-          {available.length === 0 ? (
-            <InlineAlert tone="neutral" title="No project to capture into">
-              You are not a member of a project that accepts new work yet. Create or join one, then
-              capture here.
-            </InlineAlert>
-          ) : (
-            <Select
-              label="Destination"
-              hint="The project the captured item is filed in."
-              value={effectiveProjectId}
-              onChange={(event) => setProjectId(event.target.value)}
-            >
-              {available.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </Select>
-          )}
+            <Field
+              className="tm-capture__note"
+              label="Note"
+              hint="Optional. Filed as the first comment on the new item."
+              value={note}
+              maxLength={2000}
+              onChange={(event) => setNote(event.target.value)}
+            />
 
-          {formError ? (
-            <InlineAlert tone="danger" title="Check the capture">
-              {formError}
-            </InlineAlert>
-          ) : null}
+            {available.length === 0 ? (
+              <InlineAlert tone="neutral" title="No project to capture into">
+                You are not a member of a project that accepts new work yet. Create or join one,
+                then capture here.
+              </InlineAlert>
+            ) : (
+              <Select
+                className="tm-capture__note"
+                label="Destination"
+                hint="The project the captured item is filed in."
+                value={effectiveProjectId}
+                onChange={(event) => setProjectId(event.target.value)}
+              >
+                {available.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </Select>
+            )}
 
-          {capture.isError ? (
-            <InlineAlert tone="danger" title="We could not file the capture">
-              {errorMessage(capture.error)}
-            </InlineAlert>
-          ) : null}
+            {formError ? (
+              <InlineAlert tone="danger" title="Check the capture">
+                {formError}
+              </InlineAlert>
+            ) : null}
 
-          {captured ? (
-            <InlineAlert tone="success" title="Captured">
-              “{captured}” was filed. Capture another, or carry on.
-            </InlineAlert>
-          ) : null}
+            {capture.isError ? (
+              <InlineAlert tone="danger" title="We could not file the capture">
+                {errorMessage(capture.error)}
+              </InlineAlert>
+            ) : null}
 
-          <div>
-            <Button type="submit" disabled={capture.isPending || available.length === 0}>
-              {capture.isPending ? 'Filing…' : 'Capture'}
-            </Button>
+            {captured ? (
+              <InlineAlert tone="success" title="Captured">
+                “{captured}” was filed. Capture another, or carry on.
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-capture__actions">
+              <Button
+                type="submit"
+                tone="ink"
+                size="feature"
+                disabled={capture.isPending || available.length === 0}
+              >
+                {capture.isPending ? 'Filing…' : 'Capture'}
+              </Button>
+            </div>
           </div>
+
+          <p className="tm-capture__note-callout">
+            <span className="tm-capture__note-glyph" aria-hidden="true">
+              !
+            </span>
+            <span>
+              A capture is filed without an owner or a committed date. Open it afterwards to assign
+              it and commit a date — until then it is not a commitment.
+            </span>
+          </p>
+
+          <p className="tm-capture__keys">Enter captures · the note is optional</p>
         </form>
       )}
     </AppShell>

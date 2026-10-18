@@ -2,11 +2,15 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import Link from 'next/link';
 import { AppShell } from '../shell/AppShell';
+import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listWorkActivity, type WorkActivityEntry } from '../../lib/api/work-activity';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { memberDisplayName } from '../../lib/members-presentation';
+import { useMembers } from '../../lib/use-members';
 
 export interface WorkItemActivityFeedProps {
   organizationSlug: string;
@@ -29,7 +33,7 @@ function formatWhen(iso: string): string {
 
 /** A small glyph per entry kind — a spoken label goes on the row, this is decoration only. */
 function icon(kind: WorkActivityEntry['kind']): string {
-  return kind === 'comment' ? '💬' : '●';
+  return kind === 'comment' ? '◌' : '●';
 }
 
 /**
@@ -55,6 +59,9 @@ export function WorkItemActivityFeed({
     queryFn: () => listWorkActivity(api, organizationSlug, workItemId),
   });
 
+  // Who did it, by name: the same directory the work item screens resolve owners through.
+  const directory = useMembers(api, organizationSlug);
+
   const entries: readonly WorkActivityEntry[] = activity.data ?? [];
 
   return (
@@ -62,48 +69,64 @@ export function WorkItemActivityFeed({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
+      eyebrow="Work item"
       title="Activity"
       description="The item’s history — status changes and comments — newest first."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-work-activity">
-        <h2 id="tm-work-activity" className="tm-eyebrow">
-          Activity
-        </h2>
+      <div className="tm-wk-page tm-stack">
+        <nav className="tm-segmented tm-wk-subnav" aria-label="This work item">
+          <Link href={`/${organizationSlug}/work/${workItemId}`}>Overview</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/activity`} aria-current="page">
+            Activity
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`}>Time</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/estimate`}>Estimate</Link>
+        </nav>
+        <section className="tm-panel tm-stack" aria-labelledby="tm-work-activity">
+          <h2 id="tm-work-activity" className="tm-eyebrow">
+            Activity
+          </h2>
 
-        {activity.isPending ? (
-          <LoadingRegion label="Loading this item’s activity.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+          {activity.isPending ? (
+            <LoadingRegion label="Loading this item’s activity.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {activity.isError ? (
-          <InlineAlert tone="danger" title="Could not load the activity" live>
-            {describe(activity.error)}
-          </InlineAlert>
-        ) : null}
+          {activity.isError ? (
+            <InlineAlert tone="danger" title="Could not load the activity" live>
+              {describe(activity.error)}
+            </InlineAlert>
+          ) : null}
 
-        {activity.data ? (
-          entries.length === 0 ? (
-            <p className="tm-prose">Nothing has happened on this item yet.</p>
-          ) : (
-            <ol className="tm-list" aria-label="Activity timeline">
-              {entries.map((entry) => (
-                <li key={`${entry.kind}:${entry.id}`} className="tm-stack">
-                  <p className="tm-prose">
-                    <span aria-hidden="true">{icon(entry.kind)}</span>{' '}
-                    {entry.actorId ? `${entry.actorId} — ` : 'System — '}
-                    {entry.summary}
-                  </p>
-                  <time className="tm-eyebrow" dateTime={entry.occurredAt}>
-                    {formatWhen(entry.occurredAt)}
-                  </time>
-                </li>
-              ))}
-            </ol>
-          )
-        ) : null}
-      </section>
+          {activity.data ? (
+            entries.length === 0 ? (
+              <p className="tm-prose">Nothing has happened on this item yet.</p>
+            ) : (
+              <ol className="tm-wk-story" aria-label="Activity timeline">
+                {entries.map((entry, index) => (
+                  <li
+                    key={`${entry.kind}:${entry.id}`}
+                    {...(index === 0 ? { 'data-state': 'now' } : {})}
+                  >
+                    <time className="tm-wk-story__when" dateTime={entry.occurredAt}>
+                      <span aria-hidden="true">{icon(entry.kind)}</span>{' '}
+                      {formatWhen(entry.occurredAt)}
+                    </time>
+                    <span className="tm-wk-story__what">
+                      {entry.actorId
+                        ? `${memberDisplayName(entry.actorId, directory.members, directory.isPending)} — `
+                        : 'System — '}
+                      {entry.summary}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

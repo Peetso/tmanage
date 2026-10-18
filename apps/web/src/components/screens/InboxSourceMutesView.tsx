@@ -17,6 +17,7 @@ import type {
 } from '../../lib/api/inbox-source-mutes';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/inbox.css';
 
 export interface InboxSourceMutesViewProps {
   organizationSlug: string;
@@ -88,8 +89,8 @@ export function InboxSourceMutesView({
   });
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-inbox-muted">
-      <h2 id="tm-inbox-muted" className="tm-eyebrow">
+    <section className="tm-card tm-inbox-panel" aria-labelledby="tm-inbox-muted">
+      <h2 id="tm-inbox-muted" className="tm-card__title">
         Muted sources
       </h2>
 

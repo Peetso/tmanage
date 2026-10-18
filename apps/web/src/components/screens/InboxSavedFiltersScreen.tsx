@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/inbox-saved-filters';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/inbox.css';
 
 export interface InboxSavedFiltersScreenProps {
   organizationSlug: string;
@@ -78,8 +79,8 @@ export function InboxSavedFiltersScreen({
       title="Saved inbox filters"
       description="Your saved inbox filter sets. Save the current filter under a name, then apply it as a chip above the inbox."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-inbox-filters-heading">
-        <h2 id="tm-inbox-filters-heading" className="tm-eyebrow">
+      <section className="tm-card tm-inbox-panel" aria-labelledby="tm-inbox-filters-heading">
+        <h2 id="tm-inbox-filters-heading" className="tm-card__title">
           Your saved filters
         </h2>
 
@@ -149,7 +150,7 @@ export function InboxSavedFiltersScreen({
             <div className="tm-actions">
               <button
                 type="submit"
-                className="tm-button tm-button--primary"
+                className="tm-button tm-button--ink"
                 disabled={create.isPending || name.trim().length === 0}
               >
                 Save filter
@@ -168,7 +169,7 @@ export function InboxSavedFiltersScreen({
           <div className="tm-actions">
             <button
               type="button"
-              className="tm-button tm-button--primary"
+              className="tm-button tm-button--ink"
               onClick={() => setDialogOpen(true)}
             >
               Save current filter

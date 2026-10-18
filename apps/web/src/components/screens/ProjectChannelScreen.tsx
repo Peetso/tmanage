@@ -4,19 +4,20 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
-import { Badge, Button, InlineAlert, LoadingRegion, Skeleton, VisuallyHidden } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton, VisuallyHidden } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import { BackendPending } from './BackendPending';
 import { RichTextBody } from '../RichTextBody';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { newCorrelationId } from '../../lib/api/client';
 import { getProject } from '../../lib/api/projects';
+import { useMembers } from '../../lib/use-members';
 import {
   MAX_MESSAGE_PAGE,
   clearDraft,
   convertMessageToWork,
   getConversation,
   getDraft,
+  listConversations,
   listMessages,
   listRevisions,
   moderateMessage,
@@ -35,6 +36,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { audienceLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { workItemKeys } from '../../lib/query-keys';
+import '../../styles/screens/chat.css';
 
 export interface ProjectChannelScreenProps {
   organizationSlug: string;
@@ -58,12 +60,15 @@ type WorkAudience = 'internal' | 'client_visible' | 'client_action_required';
  * `22-SCREEN-BY-SCREEN` §4 lists the message actions: "reply, react, save, create work,
  * quote to decision, edit history." Three of those exist as API — reply (a thread), create
  * work (CHAT-003's conversion) and edit history (CHAT-002's revisions) — and are built here.
- * React, save and quote-to-decision have no endpoint, no table and no ticket, so they are
- * named in `BackendPending` rather than drawn as buttons that could never work. The same is
- * true of presence, pins, and §4's "persistent external audience banner": a conversation has
- * no audience column — no client role holds any conversation capability, a gap the status
- * file records — so every channel is internal today and a banner would assert a distinction
- * the data cannot make.
+ * React, save and quote-to-decision are not wired to this transcript, so they are not drawn
+ * as buttons that could never work. A conversation has no audience column — no client role
+ * holds any conversation capability, a gap the status file records — so every channel is
+ * internal today: CH-02's audience capsule and composer notice say "Internal" rather than the
+ * frame's client-visible example.
+ *
+ * Painted as CH-02 / CH-05 / CH-08: the channel list as the context rail, the transcript as
+ * orb-led messages, the composer as the rounded CH-06 card, the thread and the convert form
+ * in the 400px lens, the edit history as CH-07's dark card.
  *
  * ## The retry that cannot double-post
  *
@@ -82,10 +87,10 @@ type WorkAudience = 'internal' | 'client_visible' | 'client_action_required';
  *
  * ## Who is speaking
  *
- * There is no people directory (`28-SPRINT-TICKETS` schedules none), so the author is shown
- * as the first eight characters of their id, monospaced. An id is not a name, but in a
- * transcript the reader needs *at least* to tell speakers apart, which "Someone" for every
- * row would not do. The moment a directory exists this becomes a name lookup.
+ * The author's name comes from the member directory (`useMembers`). Where the directory has
+ * no row for them — a former member, or a directory that could not be read — the author falls
+ * back to the first eight characters of their id, monospaced: an id is not a name, but in a
+ * transcript the reader needs *at least* to tell speakers apart.
  */
 export function ProjectChannelScreen({
   organizationSlug,
@@ -206,17 +211,63 @@ export function ProjectChannelScreen({
    */
   const channelRevoked = liveStatus === 'revoked';
 
+  // Author names from the member directory; an id the directory does not know keeps its short
+  // form (see "Who is speaking" above).
+  const directory = useMembers(api, organizationSlug);
+  const names = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const member of directory.members ?? []) byId.set(member.userId, member.displayName);
+    return byId;
+  }, [directory.members]);
+  const nameOf = (userId: string) => names.get(userId) ?? shortAuthor(userId);
+
+  const convertTarget = rows.find((message) => message.id === convertTargetId);
+  const selectedId = convertTargetId ?? threadRootId;
+  const channelName = conversation.data?.name;
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
-      title={conversation.data === undefined ? 'Channel' : `#${conversation.data.name}`}
+      title={channelName === undefined ? 'Channel' : `#${channelName}`}
+      actionsPlacement="inline"
+      actions={
+        <div className="tm-chat-header-tools">
+          <span className="tm-chat-audience">
+            <span className="tm-chat-audience__orb" aria-hidden="true">
+              ■
+            </span>
+            Internal — only your team reads this channel
+          </span>
+        </div>
+      }
+      headerAside={
+        <div className="tm-chat-header-tools">
+          <Link
+            className="tm-chat-icon"
+            href={`/${organizationSlug}/chat/${conversationId}/search`}
+            aria-label="Search this channel"
+            title="Search this channel"
+          >
+            <span aria-hidden="true">⌕</span>
+          </Link>
+          <Link
+            className="tm-chat-icon"
+            href={`/${organizationSlug}/chat/mentions`}
+            aria-label="Your mentions"
+            title="Your mentions"
+          >
+            <span aria-hidden="true">@</span>
+          </Link>
+        </div>
+      }
       description={
         <>
-          <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
+          Project channel
           {project.data ? <> · {project.data.name}</> : null}
-          {archived ? <> · Archived</> : null}
+          {archived ? <> · Archived</> : null} ·{' '}
+          <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
           {/*
            * The separator belongs only before a status that actually renders text. Keying it off
            * `!== 'off'` left a dangling " · " while the socket was `'connecting'` or `'revoked'`,
@@ -248,8 +299,31 @@ export function ProjectChannelScreen({
           </span>
         </>
       }
+      contextRail={
+        <ChannelRail
+          api={api}
+          organizationSlug={organizationSlug}
+          conversationId={conversationId}
+        />
+      }
       lens={
-        threadRoot ? (
+        convertTarget ? (
+          <ConvertDialog
+            key={convertTarget.id}
+            api={api}
+            organizationSlug={organizationSlug}
+            conversationId={conversationId}
+            message={convertTarget}
+            authorName={nameOf(convertTarget.authorUserId)}
+            projectName={project.data?.name}
+            onDone={() => {
+              void queries.invalidateQueries({
+                queryKey: workItemKeys.all(organizationSlug),
+              });
+            }}
+            onClose={() => setConvertTargetId(undefined)}
+          />
+        ) : threadRoot ? (
           <ThreadPane
             /*
              * WCAG 2.2 2.4.3, second half. Without a key, opening thread B while thread A's pane
@@ -264,211 +338,295 @@ export function ProjectChannelScreen({
             conversationId={conversationId}
             root={threadRoot}
             archived={archived}
+            nameOf={nameOf}
             onClose={closeThread}
           />
         ) : undefined
       }
     >
-      <BackendPending ticket="unscheduled APIs">
-        Reactions, saved messages, quote-to-decision, pins and presence are not built — none has an
-        endpoint. Live updates arrive over the socket where this deployment runs one; otherwise new
-        messages appear when the channel is reloaded.
-      </BackendPending>
+      <div className="tm-chat-channel">
+        {channelRevoked ? (
+          <InlineAlert tone="warning" title="You no longer have access to this channel" live>
+            <p className="tm-prose">
+              Live updates have stopped and the transcript is no longer shown here. You are still
+              signed in and your other channels are unaffected.
+            </p>
+            <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
+          </InlineAlert>
+        ) : null}
 
-      {channelRevoked ? (
-        <InlineAlert tone="warning" title="You no longer have access to this channel" live>
-          <p className="tm-prose">
-            Live updates have stopped and the transcript is no longer shown here. You are still
-            signed in and your other channels are unaffected.
+        {conversation.isError ? (
+          <InlineAlert tone="danger" title="Could not load this channel" live>
+            {describeError(conversation.error)}
+          </InlineAlert>
+        ) : null}
+
+        {messages.isPending ? (
+          <LoadingRegion label="Loading the conversation.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
+
+        {messages.isError ? (
+          <InlineAlert tone="danger" title="Could not load the messages" live>
+            {describeError(messages.error)}
+          </InlineAlert>
+        ) : null}
+
+        {messages.hasNextPage && !channelRevoked ? (
+          <InlineAlert tone="warning" title="This is not the whole transcript">
+            {rows.length} messages loaded — there are more. &ldquo;Load more&rdquo; below the
+            transcript continues it.
+          </InlineAlert>
+        ) : null}
+
+        {!messages.isPending && !messages.isError && rows.length === 0 && !channelRevoked ? (
+          <p className="tm-chat-empty">
+            <span>
+              <strong>Nothing said yet</strong>
+              The first message starts the channel&rsquo;s record. Everything said here stays with
+              the project.
+            </span>
           </p>
-          <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
-        </InlineAlert>
-      ) : null}
+        ) : null}
 
-      {conversation.isError ? (
-        <InlineAlert tone="danger" title="Could not load this channel" live>
-          {describeError(conversation.error)}
-        </InlineAlert>
-      ) : null}
-
-      {messages.isPending ? (
-        <LoadingRegion label="Loading the conversation.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {messages.isError ? (
-        <InlineAlert tone="danger" title="Could not load the messages" live>
-          {describeError(messages.error)}
-        </InlineAlert>
-      ) : null}
-
-      {messages.hasNextPage && !channelRevoked ? (
-        <InlineAlert tone="warning" title="This is not the whole transcript">
-          {rows.length} messages loaded — there are more. &ldquo;Load more&rdquo; below the
-          transcript continues it.
-        </InlineAlert>
-      ) : null}
-
-      {!messages.isPending && !messages.isError && rows.length === 0 && !channelRevoked ? (
-        <InlineAlert tone="neutral" title="Nothing said yet">
-          The first message starts the channel&rsquo;s record. Everything said here stays with the
-          project.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 && !channelRevoked ? (
-        <ol
-          className="tm-list tm-stack"
-          aria-label="Messages, oldest first"
-          aria-live={announceMessages ? 'polite' : 'off'}
-          aria-relevant="additions"
-        >
-          {rows.map((message) => (
-            <li key={message.id} className="tm-panel tm-stack tm-stack--tight">
-              <MessageHeader message={message} />
-              <MessageBody message={message} />
-
-              <div className="tm-row tm-row--wrap">
-                <Button
-                  tone="outline"
-                  size="compact"
-                  onClick={(event) => openThread(message.id, event.currentTarget)}
-                >
-                  Reply in thread
-                </Button>
-                {message.deletedAt === null ? (
-                  <>
-                    <Button
-                      tone="outline"
-                      size="compact"
-                      onClick={() =>
-                        setConvertTargetId((current) =>
-                          current === message.id ? undefined : message.id,
-                        )
-                      }
-                    >
-                      Create work from this
-                    </Button>
-                    <Button
-                      tone="outline"
-                      size="compact"
-                      onClick={() =>
-                        setRemoveTargetId((current) =>
-                          current === message.id ? undefined : message.id,
-                        )
-                      }
-                    >
-                      Remove
-                    </Button>
-                  </>
-                ) : null}
-                {message.editedAt !== null ? (
-                  <Button
-                    tone="outline"
-                    size="compact"
-                    onClick={() =>
-                      setHistoryMessageId((current) =>
-                        current === message.id ? undefined : message.id,
-                      )
-                    }
-                  >
-                    Edit history
-                  </Button>
-                ) : null}
-              </div>
-
-              {removeTargetId === message.id ? (
-                <InlineAlert tone="warning" title="Remove this message?" live>
-                  <p className="tm-prose">
-                    The body is withheld from everyone and a tombstone stays in the transcript. The
-                    record of who removed it, and when, is kept. This is moderation, not deletion.
-                  </p>
-                  <div className="tm-row">
-                    <Button
-                      tone="destructive"
-                      size="accessible"
-                      loading={moderate.isPending}
-                      loadingLabel="Removing"
-                      onClick={() => moderate.mutate(message.id)}
-                    >
-                      Remove it
-                    </Button>
-                    <Button
-                      tone="outline"
-                      size="accessible"
-                      onClick={() => setRemoveTargetId(undefined)}
-                    >
-                      Leave it
-                    </Button>
-                  </div>
-                  {moderate.isError ? (
-                    <p className="tm-prose">{describeError(moderate.error)}</p>
-                  ) : null}
-                </InlineAlert>
-              ) : null}
-
-              {historyMessageId === message.id ? (
-                <RevisionHistory
-                  api={api}
-                  organizationSlug={organizationSlug}
-                  conversationId={conversationId}
-                  messageId={message.id}
-                />
-              ) : null}
-
-              {convertTargetId === message.id ? (
-                <ConvertDialog
-                  api={api}
-                  organizationSlug={organizationSlug}
-                  conversationId={conversationId}
-                  message={message}
-                  projectName={project.data?.name}
-                  onDone={() => {
-                    void queries.invalidateQueries({
-                      queryKey: workItemKeys.all(organizationSlug),
-                    });
-                  }}
-                  onClose={() => setConvertTargetId(undefined)}
-                />
-              ) : null}
-            </li>
-          ))}
-        </ol>
-      ) : null}
-
-      {messages.hasNextPage && !channelRevoked ? (
-        <div className="tm-row">
-          <Button
-            tone="outline"
-            size="accessible"
-            loading={messages.isFetchingNextPage}
-            loadingLabel="Loading more"
-            onClick={() => void messages.fetchNextPage()}
+        {rows.length > 0 && !channelRevoked ? (
+          <ol
+            className="tm-chat-transcript"
+            aria-label="Messages, oldest first"
+            aria-live={announceMessages ? 'polite' : 'off'}
+            aria-relevant="additions"
           >
-            Load more
-          </Button>
-        </div>
-      ) : null}
+            {rows.map((message) => (
+              <li
+                key={message.id}
+                id={`message-${message.id}`}
+                className="tm-chat-message"
+                {...(selectedId === message.id ? { 'data-selected': 'true' } : {})}
+              >
+                <AuthorOrb name={nameOf(message.authorUserId)} />
+                <div className="tm-chat-message__main">
+                  <MessageHeader
+                    message={message}
+                    author={nameOf(message.authorUserId)}
+                    selected={selectedId === message.id}
+                  />
+                  <MessageBody message={message} />
 
-      {/*
-       * Only for a channel that actually loaded. A member outside the room gets the load
-       * error and nothing else — a composer under a denial would be a control that cannot
-       * work, and AUTH-04's e2e journey asserts its absence. A revoked channel is the same
-       * denial arriving mid-session.
-       */}
-      {conversation.data !== undefined && !channelRevoked ? (
-        <Composer
-          api={api}
-          organizationSlug={organizationSlug}
-          conversationId={conversationId}
-          archived={archived}
-          label="Message the channel"
-        />
-      ) : null}
+                  <div className="tm-chat-message__actions">
+                    <button
+                      type="button"
+                      className="tm-chat-chip"
+                      aria-expanded={threadRootId === message.id}
+                      onClick={(event) => openThread(message.id, event.currentTarget)}
+                    >
+                      Reply in thread
+                    </button>
+                    {message.deletedAt === null ? (
+                      <>
+                        <button
+                          type="button"
+                          className="tm-chat-chip tm-chat-chip--ink"
+                          aria-expanded={convertTargetId === message.id}
+                          onClick={() =>
+                            setConvertTargetId((current) =>
+                              current === message.id ? undefined : message.id,
+                            )
+                          }
+                        >
+                          Create work from this
+                        </button>
+                        <button
+                          type="button"
+                          className="tm-chat-chip tm-chat-chip--danger"
+                          aria-expanded={removeTargetId === message.id}
+                          onClick={() =>
+                            setRemoveTargetId((current) =>
+                              current === message.id ? undefined : message.id,
+                            )
+                          }
+                        >
+                          Remove
+                        </button>
+                      </>
+                    ) : null}
+                    {message.editedAt !== null ? (
+                      <button
+                        type="button"
+                        className="tm-chat-chip"
+                        aria-expanded={historyMessageId === message.id}
+                        onClick={() =>
+                          setHistoryMessageId((current) =>
+                            current === message.id ? undefined : message.id,
+                          )
+                        }
+                      >
+                        Edit history
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {removeTargetId === message.id ? (
+                    <InlineAlert tone="warning" title="Remove this message?" live>
+                      <p className="tm-prose">
+                        The body is withheld from everyone and a tombstone stays in the transcript.
+                        The record of who removed it, and when, is kept. This is moderation, not
+                        deletion.
+                      </p>
+                      <div className="tm-row">
+                        <Button
+                          tone="destructive"
+                          size="accessible"
+                          loading={moderate.isPending}
+                          loadingLabel="Removing"
+                          onClick={() => moderate.mutate(message.id)}
+                        >
+                          Remove it
+                        </Button>
+                        <Button
+                          tone="outline"
+                          size="accessible"
+                          onClick={() => setRemoveTargetId(undefined)}
+                        >
+                          Leave it
+                        </Button>
+                      </div>
+                      {moderate.isError ? (
+                        <p className="tm-prose">{describeError(moderate.error)}</p>
+                      ) : null}
+                    </InlineAlert>
+                  ) : null}
+
+                  {historyMessageId === message.id ? (
+                    <RevisionHistory
+                      api={api}
+                      organizationSlug={organizationSlug}
+                      conversationId={conversationId}
+                      messageId={message.id}
+                    />
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+
+        {messages.hasNextPage && !channelRevoked ? (
+          <div className="tm-row">
+            <Button
+              tone="outline"
+              size="accessible"
+              loading={messages.isFetchingNextPage}
+              loadingLabel="Loading more"
+              onClick={() => void messages.fetchNextPage()}
+            >
+              Load more
+            </Button>
+          </div>
+        ) : null}
+
+        {/*
+         * Only for a channel that actually loaded. A member outside the room gets the load
+         * error and nothing else — a composer under a denial would be a control that cannot
+         * work, and AUTH-04's e2e journey asserts its absence. A revoked channel is the same
+         * denial arriving mid-session.
+         */}
+        {conversation.data !== undefined && !channelRevoked ? (
+          <div className="tm-chat-foot">
+            {!archived ? (
+              <span className="tm-chat-notice">
+                <span className="tm-chat-audience__orb" aria-hidden="true">
+                  ■
+                </span>
+                Anything you send here is visible to your team only
+              </span>
+            ) : null}
+            <Composer
+              api={api}
+              organizationSlug={organizationSlug}
+              conversationId={conversationId}
+              archived={archived}
+              label="Message the channel"
+              placeholder={`Message #${conversation.data.name}…`}
+            />
+          </div>
+        ) : null}
+      </div>
     </AppShell>
+  );
+}
+
+/**
+ * CH-02's channel column: a find field over the channels this person can open, the current one
+ * inked. The list is the same `listConversations` read the channel browser makes, so it can
+ * only name channels the API already lets this member see.
+ */
+function ChannelRail({
+  api,
+  organizationSlug,
+  conversationId,
+}: {
+  api: ApiClient;
+  organizationSlug: string;
+  conversationId: string;
+}) {
+  const [find, setFind] = useState('');
+  const channels = useQuery({
+    queryKey: ['conversations', organizationSlug, '', false],
+    queryFn: () => listConversations(api, organizationSlug, {}),
+  });
+  const all = Array.isArray(channels.data) ? channels.data : [];
+  const needle = find.trim().replace(/^#/u, '').toLowerCase();
+  const shown = (
+    needle === '' ? all : all.filter((channel) => channel.name.toLowerCase().includes(needle))
+  ).slice(0, 12);
+
+  return (
+    <div className="tm-chat-rail">
+      <label className="tm-chat-rail__find">
+        <span aria-hidden="true">⌕</span>
+        <span className="tm-visually-hidden">Find a channel</span>
+        <input
+          type="search"
+          value={find}
+          onChange={(event) => setFind(event.target.value)}
+          placeholder="Find a channel"
+        />
+      </label>
+      <div className="tm-chat-rail__group">
+        <h2 className="tm-chat-eyebrow">
+          Project channels{channels.data ? ` · ${all.length}` : ''}
+        </h2>
+        <ul className="tm-chat-rail__list" aria-label="Project channels">
+          {shown.map((channel) => {
+            const current = channel.id === conversationId;
+            return (
+              <li key={channel.id}>
+                <Link
+                  className="tm-chat-rail__item"
+                  href={`/${organizationSlug}/chat/${channel.id}`}
+                  {...(current ? { 'aria-current': 'page' as const } : {})}
+                >
+                  #{channel.name}
+                  {current ? (
+                    <span className="tm-chat-rail__item-orb" aria-hidden="true">
+                      ◎
+                    </span>
+                  ) : null}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+        {all.length > shown.length ? (
+          <Link className="tm-chat-rail__more" href={`/${organizationSlug}/chat`}>
+            + {all.length - shown.length} more
+          </Link>
+        ) : null}
+      </div>
+    </div>
   );
 }
 
@@ -483,16 +641,60 @@ function shortAuthor(userId: string): string {
   return userId.slice(0, 8);
 }
 
-function MessageHeader({ message }: { message: MessageSummary }) {
+/** Up to two initials for an author orb: "Lina Samir" → "LS", a short id → its first two. */
+function initialsOf(name: string): string {
+  const words = name
+    .trim()
+    .split(/\s+/u)
+    .filter((word) => word !== '');
+  if (words.length >= 2) return `${words[0]?.[0] ?? ''}${words[1]?.[0] ?? ''}`.toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function AuthorOrb({ name, size }: { name: string; size?: 'sm' | 'md' }) {
   return (
-    <div className="tm-row tm-row--wrap">
-      <Badge mono>{shortAuthor(message.authorUserId)}</Badge>
-      <span className="tm-field__hint">
-        <time dateTime={message.createdAt}>{formatWhen(message.createdAt)}</time>
+    <span
+      className={`tm-chat-orb${size === undefined ? '' : ` tm-chat-orb--${size}`}`}
+      aria-hidden="true"
+    >
+      {initialsOf(name)}
+    </span>
+  );
+}
+
+function MessageHeader({
+  message,
+  author,
+  selected = false,
+}: {
+  message: MessageSummary;
+  author: string;
+  selected?: boolean;
+}) {
+  return (
+    <div className="tm-chat-message__head">
+      <span className="tm-chat-message__author">{author}</span>
+      <span className="tm-chat-mono">
+        <time dateTime={message.createdAt}>{formatStamp(message.createdAt)}</time>
         {message.editedAt !== null && message.deletedAt === null ? <> · edited</> : null}
+        {selected ? <> · selected message</> : null}
       </span>
     </div>
   );
+}
+
+/** CH-02's transcript stamp: the time alone for today, the day and time otherwise. */
+function formatStamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  const today = new Date();
+  const sameDay = parsed.toDateString() === today.toDateString();
+  return new Intl.DateTimeFormat(
+    undefined,
+    sameDay
+      ? { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }
+      : { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' },
+  ).format(parsed);
 }
 
 function formatWhen(value: string): string {
@@ -506,21 +708,23 @@ function formatWhen(value: string): string {
 function MessageBody({ message }: { message: MessageSummary }) {
   if (message.deletedAt !== null) {
     return (
-      <p className="tm-prose">
-        <em>
-          Removed by a moderator{' '}
-          <time dateTime={message.deletedAt}>{formatWhen(message.deletedAt)}</time>. The record of
-          the removal is kept.
-        </em>
+      <p className="tm-chat-message__tombstone">
+        Removed by a moderator{' '}
+        <time dateTime={message.deletedAt}>{formatWhen(message.deletedAt)}</time>. The record of the
+        removal is kept.
       </p>
     );
   }
   if (message.bodyRich !== null) {
-    return <RichTextBody document={message.bodyRich} />;
+    return (
+      <div className="tm-chat-message__body">
+        <RichTextBody document={message.bodyRich} />
+      </div>
+    );
   }
   // A plain body renders as text with its line breaks honoured — the one formatting a plain
   // message can carry.
-  return <p className="tm-prose tm-break">{message.body}</p>;
+  return <p className="tm-chat-message__body tm-break">{message.body}</p>;
 }
 
 /**
@@ -533,16 +737,16 @@ type ToolbarEdit =
   | { readonly kind: 'prefix'; readonly marker: string }
   | { readonly kind: 'fence' };
 
-const TOOLBAR: readonly { label: string; edit: ToolbarEdit }[] = [
-  { label: 'Bold', edit: { kind: 'wrap', before: '**', after: '**' } },
-  { label: 'Italic', edit: { kind: 'wrap', before: '_', after: '_' } },
-  { label: 'Strikethrough', edit: { kind: 'wrap', before: '~~', after: '~~' } },
-  { label: 'Code', edit: { kind: 'wrap', before: '`', after: '`' } },
-  { label: 'Link', edit: { kind: 'wrap', before: '[', after: '](https://)' } },
-  { label: 'Quote', edit: { kind: 'prefix', marker: '> ' } },
-  { label: 'Bulleted list', edit: { kind: 'prefix', marker: '- ' } },
-  { label: 'Numbered list', edit: { kind: 'prefix', marker: '1. ' } },
-  { label: 'Code block', edit: { kind: 'fence' } },
+const TOOLBAR: readonly { label: string; glyph: string; edit: ToolbarEdit }[] = [
+  { label: 'Bold', glyph: 'B', edit: { kind: 'wrap', before: '**', after: '**' } },
+  { label: 'Italic', glyph: 'I', edit: { kind: 'wrap', before: '_', after: '_' } },
+  { label: 'Strikethrough', glyph: 'S', edit: { kind: 'wrap', before: '~~', after: '~~' } },
+  { label: 'Code', glyph: '`', edit: { kind: 'wrap', before: '`', after: '`' } },
+  { label: 'Link', glyph: '↗', edit: { kind: 'wrap', before: '[', after: '](https://)' } },
+  { label: 'Quote', glyph: '❝', edit: { kind: 'prefix', marker: '> ' } },
+  { label: 'Bulleted list', glyph: '•', edit: { kind: 'prefix', marker: '- ' } },
+  { label: 'Numbered list', glyph: '1.', edit: { kind: 'prefix', marker: '1. ' } },
+  { label: 'Code block', glyph: '{}', edit: { kind: 'fence' } },
 ];
 
 /** Apply one toolbar edit to the draft at the current selection. Returns the new draft. */
@@ -596,6 +800,7 @@ function Composer({
   conversationId,
   archived,
   label,
+  placeholder,
   parentMessageId,
 }: {
   api: ApiClient;
@@ -603,6 +808,7 @@ function Composer({
   conversationId: string;
   archived: boolean;
   label: string;
+  placeholder?: string;
   parentMessageId?: string;
 }) {
   const queries = useQueryClient();
@@ -717,51 +923,31 @@ function Composer({
 
   if (archived) {
     return (
-      <p className="tm-prose">
+      <p className="tm-chat-archived">
         This channel is archived. What was said stays readable; nothing new can be said here.
       </p>
     );
   }
 
   return (
-    <form className="tm-panel tm-stack" onSubmit={submit}>
-      <div className="tm-row tm-row--wrap" role="group" aria-label="Formatting">
-        {TOOLBAR.map((tool) => (
-          <Button
-            key={tool.label}
-            type="button"
-            tone="outline"
-            size="compact"
-            onClick={() => applyEdit(tool.edit)}
-          >
-            {tool.label}
-          </Button>
-        ))}
-      </div>
-
-      <div className="tm-field">
-        <label className="tm-field__label" htmlFor={controlId}>
-          {label}
-        </label>
-        <textarea
-          id={controlId}
-          ref={controlRef}
-          className="tm-field__control"
-          rows={3}
-          maxLength={16000}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-        />
-        <span className="tm-field__hint">
-          Formatting is written as notation — **bold**, _italic_, `code`, a &ldquo;- &rdquo; list, a
-          &ldquo;&gt; &rdquo; quote — and converted before sending. The notation itself is never
-          sent; the preview shows exactly what is.
-        </span>
-      </div>
+    <form className="tm-chat-composer" onSubmit={submit}>
+      <label className="tm-visually-hidden" htmlFor={controlId}>
+        {label}
+      </label>
+      <textarea
+        id={controlId}
+        ref={controlRef}
+        className="tm-chat-composer__input"
+        rows={parentMessageId === undefined ? 2 : 3}
+        maxLength={16000}
+        value={draft}
+        placeholder={placeholder ?? label}
+        onChange={(event) => setDraft(event.target.value)}
+      />
 
       {composed?.kind === 'rich' ? (
-        <section className="tm-panel tm-panel--quiet tm-stack tm-stack--tight" aria-label="Preview">
-          <h3 className="tm-eyebrow">Preview — what will be sent</h3>
+        <section className="tm-chat-preview" aria-label="Preview">
+          <h3 className="tm-chat-eyebrow">Preview — what will be sent</h3>
           <RichTextBody document={composed.document} />
         </section>
       ) : null}
@@ -781,17 +967,32 @@ function Composer({
         </InlineAlert>
       ) : null}
 
-      <div className="tm-row tm-row--end">
-        <Button
+      <div className="tm-chat-composer__bar">
+        <div className="tm-chat-composer__tools" role="group" aria-label="Formatting">
+          {TOOLBAR.map((tool) => (
+            <button
+              key={tool.label}
+              type="button"
+              className="tm-chat-composer__tool"
+              aria-label={tool.label}
+              title={tool.label}
+              onClick={() => applyEdit(tool.edit)}
+            >
+              <span aria-hidden="true">{tool.glyph}</span>
+            </button>
+          ))}
+        </div>
+        <button
           type="submit"
-          tone="ink"
-          size="accessible"
-          loading={send.isPending}
-          loadingLabel="Sending"
-          disabled={composed === undefined}
+          className="tm-chat-send"
+          disabled={composed === undefined || send.isPending}
+          aria-busy={send.isPending}
         >
-          Send
-        </Button>
+          <span className="tm-chat-send__orb" aria-hidden="true">
+            ↑
+          </span>
+          {send.isPending ? 'Sending' : 'Send'}
+        </button>
       </div>
     </form>
   );
@@ -808,6 +1009,7 @@ function ThreadPane({
   conversationId,
   root,
   archived,
+  nameOf,
   onClose,
 }: {
   api: ApiClient;
@@ -815,6 +1017,7 @@ function ThreadPane({
   conversationId: string;
   root: MessageSummary;
   archived: boolean;
+  nameOf: (userId: string) => string;
   onClose: () => void;
 }) {
   // The transcript's paging, applied to a thread: same cursor, same accumulation.
@@ -856,20 +1059,24 @@ function ThreadPane({
   }, []);
 
   return (
-    <div className="tm-stack">
-      <div className="tm-row">
-        <h2 className="tm-eyebrow" tabIndex={-1} ref={headingRef}>
+    <div className="tm-chat-thread">
+      <div className="tm-chat-thread__head">
+        <h2 tabIndex={-1} ref={headingRef}>
           Thread
         </h2>
-        <span className="tm-push-end">
-          <Button tone="outline" size="compact" onClick={onClose}>
-            Close thread
-          </Button>
-        </span>
+        <button type="button" className="tm-chat-close" aria-label="Close thread" onClick={onClose}>
+          <span aria-hidden="true">✕</span>
+        </button>
       </div>
 
-      <div className="tm-panel tm-panel--quiet tm-stack tm-stack--tight">
-        <MessageHeader message={root} />
+      <div className="tm-chat-source">
+        <div className="tm-chat-source__head">
+          <AuthorOrb name={nameOf(root.authorUserId)} size="md" />
+          <span>
+            Source message · {nameOf(root.authorUserId)} ·{' '}
+            <time dateTime={root.createdAt}>{formatStamp(root.createdAt)}</time>
+          </span>
+        </div>
         <MessageBody message={root} />
       </div>
 
@@ -885,19 +1092,24 @@ function ThreadPane({
         </InlineAlert>
       ) : null}
 
-      {replies.data && replyRows.length === 0 ? <p className="tm-prose">No replies yet.</p> : null}
+      {replies.data && replyRows.length === 0 ? (
+        <p className="tm-chat-mono">No replies yet.</p>
+      ) : null}
 
       {replyRows.length > 0 ? (
         <ol
-          className="tm-list tm-stack"
+          className="tm-chat-replies"
           aria-label="Replies, oldest first"
           aria-live={announceReplies ? 'polite' : 'off'}
           aria-relevant="additions"
         >
           {replyRows.map((reply) => (
-            <li key={reply.id} className="tm-panel tm-stack tm-stack--tight">
-              <MessageHeader message={reply} />
-              <MessageBody message={reply} />
+            <li key={reply.id} className="tm-chat-message">
+              <AuthorOrb name={nameOf(reply.authorUserId)} />
+              <div className="tm-chat-message__main">
+                <MessageHeader message={reply} author={nameOf(reply.authorUserId)} />
+                <MessageBody message={reply} />
+              </div>
             </li>
           ))}
         </ol>
@@ -923,6 +1135,7 @@ function ThreadPane({
         conversationId={conversationId}
         archived={archived}
         label="Reply in this thread"
+        placeholder="Reply in thread…"
         parentMessageId={root.id}
       />
     </div>
@@ -962,15 +1175,15 @@ function RevisionHistory({
   }
 
   return (
-    <section className="tm-panel tm-panel--quiet tm-stack" aria-label="Edit history">
-      <h3 className="tm-eyebrow">Before it was edited</h3>
+    <section className="tm-chat-history" aria-label="Edit history">
+      <h3 className="tm-chat-eyebrow">Before it was edited · {revisions.data.length}</h3>
       {revisions.data.length === 0 ? (
         <p className="tm-prose">No earlier versions.</p>
       ) : (
-        <ol className="tm-list tm-stack tm-stack--tight">
+        <ol className="tm-chat-history__list">
           {revisions.data.map((revision) => (
-            <li key={revision.revisionNo} className="tm-stack tm-stack--tight">
-              <span className="tm-field__hint">
+            <li key={revision.revisionNo}>
+              <span className="tm-chat-mono">
                 Version {revision.revisionNo}, replaced{' '}
                 <time dateTime={revision.replacedAt}>{formatWhen(revision.replacedAt)}</time>
               </span>
@@ -992,22 +1205,23 @@ function RevisionHistory({
 }
 
 /**
- * **TM-09 Convert message dialog.** `22-SCREEN-BY-SCREEN` §4: "Type, title, project, owner,
- * due date, audience. Source preview and access warning. Defaults: internal audience; no
- * owner/date invented. Duplicate conversion shows existing link."
+ * **TM-09 Convert message dialog**, painted as CH-08 in the 400px lens. `22-SCREEN-BY-SCREEN`
+ * §4: "Type, title, project, owner, due date, audience. Source preview and access warning.
+ * Defaults: internal audience; no owner/date invented. Duplicate conversion shows existing link."
  *
  * The project is shown, not chosen — the API files the work on the conversation's project by
  * design, and a dialog that offered a choice it cannot honour would be a lie with a dropdown.
- * The owner is neither shown nor invented: there is no people directory to choose from, so
- * the item is created unowned, exactly as §4's "no owner/date invented" asks. The audience
- * defaults to internal and widening it warns before submit, because conversion is the moment
- * a sentence written for the room can become a sentence a client reads.
+ * The owner is neither shown nor invented: the conversion endpoint takes no owner, so the item
+ * is created unowned, exactly as §4's "no owner/date invented" asks. The audience defaults to
+ * internal and widening it warns before submit, because conversion is the moment a sentence
+ * written for the room can become a sentence a client reads.
  */
 function ConvertDialog({
   api,
   organizationSlug,
   conversationId,
   message,
+  authorName,
   projectName,
   onDone,
   onClose,
@@ -1016,6 +1230,7 @@ function ConvertDialog({
   organizationSlug: string;
   conversationId: string;
   message: MessageSummary;
+  authorName: string;
   projectName: string | undefined;
   onDone: () => void;
   onClose: () => void;
@@ -1047,52 +1262,66 @@ function ConvertDialog({
     convert.mutate();
   }
 
+  const source = (
+    <div className="tm-chat-source">
+      <div className="tm-chat-source__head">
+        <AuthorOrb name={authorName} size="md" />
+        <span>
+          Source message · {authorName} ·{' '}
+          <time dateTime={message.createdAt}>{formatStamp(message.createdAt)}</time>
+        </span>
+      </div>
+      <blockquote className="tm-chat-source__body tm-break">“{message.body}”</blockquote>
+    </div>
+  );
+
   if (result !== undefined) {
     return (
-      <InlineAlert
-        tone={result.created ? 'neutral' : 'warning'}
-        title={result.created ? 'Work item created' : 'Already converted'}
-        live
-      >
-        <p className="tm-prose">
-          {result.created
-            ? 'The message is now linked to the work item, and the link cannot be rewritten.'
-            : 'This message was converted before. A message becomes work exactly once; here is the existing item.'}
-        </p>
-        <p className="tm-prose">
+      <div className="tm-chat-thread">
+        <div className="tm-chat-thread__head">
+          <h2>Convert to work</h2>
+        </div>
+        {source}
+        <InlineAlert
+          tone={result.created ? 'neutral' : 'warning'}
+          title={result.created ? 'Work item created' : 'Already converted'}
+          live
+        >
+          <p className="tm-prose">
+            {result.created
+              ? 'The message is now linked to the work item, and the link cannot be rewritten.'
+              : 'This message was converted before. A message becomes work exactly once; here is the existing item.'}
+          </p>
+        </InlineAlert>
+        <div className="tm-chat-work">
+          <span className="tm-chat-work__orb" aria-hidden="true">
+            ▤
+          </span>
           <Link href={`/${organizationSlug}/work/${result.workItem.id}`}>
             {result.workItem.title}
           </Link>
-        </p>
-        <div className="tm-row">
+        </div>
+        <div className="tm-chat-convert__actions">
           <Button tone="outline" size="accessible" onClick={onClose}>
             Close
           </Button>
         </div>
-      </InlineAlert>
+      </div>
     );
   }
 
   return (
-    <form
-      className="tm-panel tm-panel--quiet tm-stack"
-      onSubmit={submit}
-      aria-label="Create work from this message"
-    >
-      <h3 className="tm-eyebrow">Create work from this message</h3>
-
-      <div className="tm-stack tm-stack--tight">
-        <span className="tm-field__hint">The source, as the work item will link to it:</span>
-        <blockquote className="tm-prose tm-break">{message.body}</blockquote>
+    <form className="tm-chat-thread" onSubmit={submit} aria-label="Create work from this message">
+      <div className="tm-chat-thread__head">
+        <h2>Convert to work</h2>
+        <button type="button" className="tm-chat-close" aria-label="Dismiss" onClick={onClose}>
+          <span aria-hidden="true">✕</span>
+        </button>
       </div>
 
-      <p className="tm-prose">
-        Filed on <strong>{projectName ?? 'this channel’s project'}</strong> — the channel’s project,
-        not a choice. No owner is set; there is no people directory to choose one from, and a due
-        date is only set if you set one.
-      </p>
+      {source}
 
-      <div className="tm-field">
+      <div className="tm-field tm-chat-convert__title">
         <label className="tm-field__label" htmlFor="tm-convert-title">
           Title
         </label>
@@ -1109,51 +1338,60 @@ function ConvertDialog({
         </span>
       </div>
 
-      <div className="tm-field">
-        <label className="tm-field__label" htmlFor="tm-convert-type">
-          Type
-        </label>
-        <input
-          id="tm-convert-type"
-          className="tm-field__control"
-          value={type}
-          onChange={(event) => setType(event.target.value)}
-          maxLength={32}
-        />
-      </div>
-
-      <div className="tm-field">
-        <label className="tm-field__label" htmlFor="tm-convert-due">
-          Due (optional)
-        </label>
-        <input
-          id="tm-convert-due"
-          className="tm-field__control"
-          value={dueAt}
-          onChange={(event) => setDueAt(event.target.value)}
-          placeholder="2026-09-30T17:00:00Z"
-        />
-        <span className="tm-field__hint">An ISO 8601 instant, or leave it empty.</span>
-      </div>
-
-      <fieldset className="tm-fieldset">
-        <legend className="tm-field__label">Audience</legend>
-        <div className="tm-row tm-row--wrap">
-          {(['internal', 'client_visible', 'client_action_required'] as const).map((option) => (
-            <label key={option} className="tm-choice tm-choice--inline">
-              <input
-                className="tm-choice__input"
-                type="radio"
-                name="tm-convert-audience"
-                value={option}
-                checked={audience === option}
-                onChange={() => setAudience(option)}
-              />
-              <span className="tm-choice__name">{audienceLabel(option)}</span>
-            </label>
-          ))}
+      <div className="tm-chat-convert__pair">
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-convert-type">
+            Type
+          </label>
+          <input
+            id="tm-convert-type"
+            className="tm-field__control"
+            value={type}
+            onChange={(event) => setType(event.target.value)}
+            maxLength={32}
+          />
         </div>
+
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-convert-due">
+            Due (optional)
+          </label>
+          <input
+            id="tm-convert-due"
+            className="tm-field__control"
+            value={dueAt}
+            onChange={(event) => setDueAt(event.target.value)}
+            placeholder="2026-09-30T17:00:00Z"
+          />
+        </div>
+      </div>
+
+      <fieldset className="tm-chat-audience-picker">
+        <legend>Audience</legend>
+        {(['internal', 'client_visible', 'client_action_required'] as const).map((option) => (
+          <label key={option} className="tm-chat-audience-option">
+            <input
+              type="radio"
+              name="tm-convert-audience"
+              value={option}
+              checked={audience === option}
+              onChange={() => setAudience(option)}
+            />
+            <span>{audienceLabel(option)}</span>
+          </label>
+        ))}
       </fieldset>
+
+      <div className="tm-chat-warning">
+        <span className="tm-chat-warning__orb" aria-hidden="true">
+          !
+        </span>
+        <p>
+          <strong>Filed on {projectName ?? 'this channel’s project'}</strong>
+          The channel&rsquo;s project, not a choice. No owner is set, and a due date is only set if
+          you set one.
+        </p>
+      </div>
 
       {audience !== 'internal' ? (
         <InlineAlert tone="client" title="This work item will be visible to the client" live>
@@ -1172,7 +1410,7 @@ function ConvertDialog({
         </InlineAlert>
       ) : null}
 
-      <div className="tm-row">
+      <div className="tm-chat-convert__actions">
         <Button
           type="submit"
           tone="ink"

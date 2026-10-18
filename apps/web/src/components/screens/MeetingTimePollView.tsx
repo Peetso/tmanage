@@ -9,6 +9,8 @@ import { getMeetingTimePoll, voteMeetingTimePollOption } from '../../lib/api/mee
 import type { MeetingTimePollVoteChoice } from '../../lib/api/meeting-time-poll';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { MeetingBackLink, MeetingHeaderActions, clockLabel, whenLabel } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface MeetingTimePollViewProps {
   organizationSlug: string;
@@ -74,118 +76,138 @@ export function MeetingTimePollView({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Meeting time poll"
-      description="Vote on the proposed times so the organiser can pick one that works."
+      eyebrow="Calendar · Meeting"
+      actions={
+        <MeetingHeaderActions
+          organizationSlug={organizationSlug}
+          meetingId={notFound ? '' : meetingId}
+          current="time-poll"
+        />
+      }
     >
-      {meetingId === '' ? (
-        <InlineAlert tone="neutral" title="No meeting chosen">
-          Open a meeting to vote on its proposed times.
-        </InlineAlert>
-      ) : null}
+      <div className="tm-cal">
+        <MeetingBackLink organizationSlug={organizationSlug} />
 
-      {notFound ? (
-        <InlineAlert tone="neutral" title="Meeting not found" live>
-          This meeting does not exist or you do not have access to it.
-        </InlineAlert>
-      ) : null}
-
-      {poll.isError && !notFound ? (
-        <InlineAlert tone="danger" title="Could not load the poll" live>
-          {describeError(poll.error)}
-        </InlineAlert>
-      ) : null}
-
-      {meetingId !== '' && poll.isPending ? (
-        <LoadingRegion label="Loading the time poll.">
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {meetingId !== '' && !notFound && !poll.isError && !poll.isPending ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-time-poll-heading">
-          <h2 id="tm-time-poll-heading" className="tm-eyebrow">
-            Proposed times
-          </h2>
-
-          {vote.isError ? (
-            <InlineAlert tone="danger" title="Could not save your vote" live>
-              {describeError(vote.error)}
+        <div className="tm-cal-narrow">
+          {meetingId === '' ? (
+            <InlineAlert tone="neutral" title="No meeting chosen">
+              Open a meeting to vote on its proposed times.
             </InlineAlert>
           ) : null}
 
-          {options.length === 0 ? (
-            <InlineAlert tone="neutral" title="No times proposed yet">
-              The organiser has not proposed any candidate times for this meeting.
+          {notFound ? (
+            <InlineAlert tone="neutral" title="Meeting not found" live>
+              This meeting does not exist or you do not have access to it.
             </InlineAlert>
-          ) : (
-            <ul className="tm-stack" aria-label="Candidate times">
-              {options.map((option) => (
-                <li key={option.id} className="tm-panel tm-stack" aria-live="polite">
-                  <div className="tm-row">
-                    <span className="tm-table__title">
-                      {formatSlot(option.startsAt, option.endsAt)}
-                    </span>
-                    {option.ownVote === null ? (
-                      <StateCapsule state="waiting">Not voted</StateCapsule>
-                    ) : (
-                      <StateCapsule state={choiceCapsule(option.ownVote)}>
-                        You: {CHOICE_LABELS[option.ownVote]}
-                      </StateCapsule>
-                    )}
-                  </div>
+          ) : null}
 
-                  <div
-                    className="tm-row"
-                    role="group"
-                    aria-label={`Vote on ${formatSlot(option.startsAt, option.endsAt)}`}
-                  >
-                    {CHOICE_ORDER.map((choice) => (
-                      <Button
-                        key={choice}
-                        type="button"
-                        tone={choice === option.ownVote ? 'ink' : 'outline'}
-                        size="accessible"
-                        loading={
-                          vote.isPending &&
-                          vote.variables?.optionId === option.id &&
-                          vote.variables?.choice === choice
-                        }
-                        loadingLabel="Saving"
-                        disabled={vote.isPending}
-                        onClick={() => vote.mutate({ optionId: option.id, choice })}
+          {poll.isError && !notFound ? (
+            <InlineAlert tone="danger" title="Could not load the poll" live>
+              {describeError(poll.error)}
+            </InlineAlert>
+          ) : null}
+
+          {meetingId !== '' && poll.isPending ? (
+            <LoadingRegion label="Loading the time poll.">
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {meetingId !== '' && !notFound && !poll.isError && !poll.isPending ? (
+            <section className="tm-cal-card" aria-labelledby="tm-time-poll-heading">
+              <h2 id="tm-time-poll-heading" className="tm-cal-eyebrow">
+                Proposed times · {options.length}
+              </h2>
+
+              {vote.isError ? (
+                <InlineAlert tone="danger" title="Could not save your vote" live>
+                  {describeError(vote.error)}
+                </InlineAlert>
+              ) : null}
+
+              {options.length === 0 ? (
+                <InlineAlert tone="neutral" title="No times proposed yet">
+                  The organiser has not proposed any candidate times for this meeting.
+                </InlineAlert>
+              ) : (
+                <ul className="tm-cal-items" aria-label="Candidate times">
+                  {options.map((option, index) => (
+                    <li key={option.id} className="tm-cal-item tm-cal-poll" aria-live="polite">
+                      <div className="tm-cal-poll__head">
+                        <span className="tm-cal-orb" aria-hidden="true">
+                          {index + 1}
+                        </span>
+                        <span className="tm-cal-item__body">
+                          <span className="tm-cal-item__title">
+                            {formatSlot(option.startsAt, option.endsAt)}
+                          </span>
+                          <span className="tm-cal-item__meta" aria-hidden="true">
+                            Yes {option.tally.yes} · Maybe {option.tally.maybe} · No{' '}
+                            {option.tally.no}
+                          </span>
+                        </span>
+                        <span className="tm-cal-item__end">
+                          {option.ownVote === null ? (
+                            <StateCapsule state="waiting">Not voted</StateCapsule>
+                          ) : (
+                            <StateCapsule state={choiceCapsule(option.ownVote)}>
+                              You: {CHOICE_LABELS[option.ownVote]}
+                            </StateCapsule>
+                          )}
+                        </span>
+                      </div>
+
+                      <div
+                        className="tm-cal-btn-row"
+                        role="group"
+                        aria-label={`Vote on ${formatSlot(option.startsAt, option.endsAt)}`}
                       >
-                        {CHOICE_LABELS[choice]}
-                      </Button>
-                    ))}
-                  </div>
+                        {CHOICE_ORDER.map((choice) => (
+                          <Button
+                            key={choice}
+                            type="button"
+                            tone={choice === option.ownVote ? 'ink' : 'outline'}
+                            size="default"
+                            loading={
+                              vote.isPending &&
+                              vote.variables?.optionId === option.id &&
+                              vote.variables?.choice === choice
+                            }
+                            loadingLabel="Saving"
+                            disabled={vote.isPending}
+                            onClick={() => vote.mutate({ optionId: option.id, choice })}
+                          >
+                            {CHOICE_LABELS[choice]}
+                          </Button>
+                        ))}
+                      </div>
 
-                  <dl className="tm-row" aria-label="Vote tally">
-                    <div>
-                      <dt className="tm-eyebrow">Yes</dt>
-                      <dd className="tm-table__title">{option.tally.yes}</dd>
-                    </div>
-                    <div>
-                      <dt className="tm-eyebrow">Maybe</dt>
-                      <dd className="tm-table__title">{option.tally.maybe}</dd>
-                    </div>
-                    <div>
-                      <dt className="tm-eyebrow">No</dt>
-                      <dd className="tm-table__title">{option.tally.no}</dd>
-                    </div>
-                  </dl>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
+                      <dl className="tm-visually-hidden" aria-label="Vote tally">
+                        <div>
+                          <dt>Yes</dt>
+                          <dd>{option.tally.yes}</dd>
+                        </div>
+                        <div>
+                          <dt>Maybe</dt>
+                          <dd>{option.tally.maybe}</dd>
+                        </div>
+                        <div>
+                          <dt>No</dt>
+                          <dd>{option.tally.no}</dd>
+                        </div>
+                      </dl>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ) : null}
+        </div>
+      </div>
     </AppShell>
   );
 }
 
-/**
- * A distinct word, colour and shape per vote so the state never rests on colour alone: yes is `done`
- * (✓), no is `blocked` (✕), and a tentative maybe is `waiting` (◷).
- */
 function choiceCapsule(choice: MeetingTimePollVoteChoice): CapsuleState {
   if (choice === 'yes') return 'done';
   if (choice === 'no') return 'blocked';
@@ -199,7 +221,10 @@ function formatSlot(startsAt: string, endsAt: string): string {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
     return `${startsAt} – ${endsAt}`;
   }
-  return `${start.toLocaleString()} – ${end.toLocaleString()}`;
+  // "Tue 20 Oct · 10:00 – 10:30", or both days in full when the slot crosses midnight.
+  return start.toDateString() === end.toDateString()
+    ? `${whenLabel(startsAt)} – ${clockLabel(endsAt)}`
+    : `${whenLabel(startsAt)} – ${whenLabel(endsAt)}`;
 }
 
 function describeError(error: unknown): string {

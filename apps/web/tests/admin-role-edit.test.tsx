@@ -60,8 +60,10 @@ describe('RoleEditScreen — Administration role clone + edit (x195)', () => {
       ),
     );
 
-    // The role list drives a picker and primes the edit form.
-    expect(await screen.findByRole('combobox', { name: 'Role' })).toBeInTheDocument();
+    // The role list (ADM-03's left column) marks the chosen role and primes the edit form.
+    expect(
+      await screen.findByRole('button', { name: 'Coordinator', pressed: true }),
+    ).toBeInTheDocument();
     const nameField = await screen.findByLabelText('Role name');
     expect(nameField).toHaveValue('Coordinator');
     // A capability the role holds is checked; the fixed allowlist is offered.

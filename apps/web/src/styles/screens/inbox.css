@@ -1,0 +1,852 @@
+/*
+ * Inbox screens — IN-01 / IN-05 (important inbox + bundle detail, `TManage Screens - Personal`),
+ * IN-01 mobile (`TManage Screens - Mobile`) and IN-02…IN-07 (`Personal and Inbox Extended`).
+ *
+ * Every colour is a design token. The pixel sizes that have no token (the 504px list column, the
+ * 18/24 and 17/23 card titles, the 30/36 bundle headline, the 11px mono eyebrows, the 9px 18px
+ * capsule padding) are the frames' own numbers. Logical properties throughout, so Arabic mirrors
+ * without an override.
+ */
+
+/* ── Header: "Inbox" + the ink "N unread" capsule ─────────────────────────────── */
+
+.tm-app__body:has(.tm-inbox) .tm-canvas-header__title {
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.tm-canvas-header__meta:has(.tm-inbox-badge) {
+  align-self: center;
+  padding-block-end: 0;
+}
+
+.tm-inbox-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+[data-theme='dark'] .tm-inbox-badge {
+  background: var(--paper-250);
+}
+
+/* ── Layout: the 504px list column beside the bundle detail ───────────────────── */
+
+.tm-inbox {
+  display: grid;
+  grid-template-columns: minmax(0, 504px) minmax(0, 1fr);
+  gap: var(--s5) var(--s6);
+  align-items: start;
+}
+
+.tm-inbox__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  min-inline-size: 0;
+}
+
+.tm-inbox__alerts {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-inbox__alerts:empty {
+  display: none;
+}
+
+/* ── Mode capsules ───────────────────────────────────────────────────────────── */
+
+.tm-inbox-modes .tm-chip {
+  min-block-size: 35px;
+  padding-inline: 18px;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+/* "Client · 2": the external-boundary violet ring while it is not the pressed one. */
+.tm-inbox-modes .tm-chip--client:not([aria-pressed='true']) {
+  border: var(--b-structural) solid var(--client-500);
+}
+
+/* ── Bundle cards ────────────────────────────────────────────────────────────── */
+
+.tm-inbox-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-inbox-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+/* The bundle the detail shows: IN-01's first card, an ink 1.5px edge. */
+.tm-inbox-card[data-selected='true'] {
+  gap: var(--s3);
+  border: var(--b-structural) solid var(--ink-950);
+}
+
+.tm-inbox-card__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-inline-size: 0;
+}
+
+.tm-inbox-orb {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  border-radius: var(--r-capsule);
+  background: var(--ink-650);
+  color: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.tm-inbox-orb--client {
+  background: var(--paper-50);
+  color: var(--client-500);
+  box-shadow: inset 0 0 0 var(--b-structural) var(--client-500);
+}
+
+.tm-inbox-orb--quiet {
+  background: var(--paper-150);
+  color: var(--ink-650);
+}
+
+[data-theme='dark'] .tm-inbox-orb:not(.tm-inbox-orb--client):not(.tm-inbox-orb--quiet) {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+.tm-inbox-card__who {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-inbox-card__when {
+  margin-inline-start: auto;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-650);
+}
+
+.tm-inbox-card__title {
+  margin: 0;
+  font-size: 17px;
+  line-height: 23px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--ink-950);
+}
+
+.tm-inbox-card[data-selected='true'] .tm-inbox-card__title {
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.tm-inbox-card__title a {
+  color: inherit;
+  text-decoration: none;
+  background: none;
+}
+
+.tm-inbox-card__title a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--line-300);
+  text-underline-offset: 4px;
+}
+
+.tm-inbox-card__body {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--s2);
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-inbox-card__unread {
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+/* The bundle's path: each event as an ink capsule, the arrow, then its current state. */
+.tm-inbox-track {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+}
+
+.tm-inbox-track__step {
+  padding: 6px var(--s3);
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+[data-theme='dark'] .tm-inbox-track__step {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+.tm-inbox-track__arrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  color: var(--ink-650);
+}
+
+.tm-inbox-track .tm-state-capsule {
+  flex: 1;
+  justify-content: flex-start;
+}
+
+.tm-inbox-card__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tm-inbox-card__actions .tm-button {
+  --tm-control-h: 35px;
+  padding-inline: 18px;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-inbox-card[data-selected='true'] .tm-inbox-card__actions .tm-button {
+  --tm-control-h: 38px;
+  padding-inline: var(--s5);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-inbox-card__actions .tm-button--outline {
+  border-width: var(--b-quiet);
+  border-color: var(--line-300);
+  color: var(--ink-800);
+}
+
+.tm-inbox-card[data-selected='true'] .tm-inbox-card__actions .tm-button--outline {
+  border-width: var(--b-structural);
+  border-color: var(--line-700);
+  color: var(--ink-950);
+}
+
+/* "Snooze" in the frame: a quiet underlined word at the end of the action row. */
+.tm-inbox-textlink {
+  margin-inline-start: auto;
+  padding: 0;
+  border: 0;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: none;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.tm-inbox-textlink:hover {
+  color: var(--ink-950);
+  border-block-end-color: var(--lime-500);
+}
+
+.tm-inbox-textlink[aria-pressed='true'] {
+  color: var(--ink-950);
+  border-block-end-color: var(--ink-950);
+}
+
+/* "Then you're caught up." — the dashed paper card under the list. */
+.tm-inbox-caught-up {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
+}
+
+.tm-inbox-caught-up__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+}
+
+.tm-inbox-caught-up__title {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-inbox-caught-up__text p {
+  margin: 0;
+}
+
+.tm-inbox-caught-up .tm-inbox-textlink {
+  margin-inline-start: 0;
+  color: var(--ink-950);
+}
+
+/* "23 older events · load more" */
+.tm-inbox-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s3);
+}
+
+.tm-inbox-more .tm-button {
+  --tm-control-h: 35px;
+  padding-inline: 18px;
+  font-size: var(--t-caption);
+}
+
+.tm-inbox-pagenote {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.04em;
+  color: var(--ink-650);
+  text-align: center;
+}
+
+/* ── Bundle detail (IN-05) ───────────────────────────────────────────────────── */
+
+.tm-inbox-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  min-inline-size: 0;
+}
+
+.tm-inbox-detail__head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+}
+
+.tm-inbox-detail__titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-inbox-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-inbox-detail__title {
+  margin: 0;
+  font-size: 30px;
+  line-height: 36px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
+  text-wrap: balance;
+}
+
+.tm-inbox-detail__tools {
+  margin-inline-start: auto;
+  display: flex;
+  gap: var(--s2);
+  flex: none;
+}
+
+.tm-inbox-detail__tool {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--orb-default);
+  block-size: var(--orb-default);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  line-height: 1;
+  text-decoration: none;
+}
+
+.tm-inbox-detail__tool:hover {
+  color: var(--ink-950);
+  border-color: var(--line-700);
+}
+
+/* The bundle's track: event capsules, then the lime "now" capsule taking the rest. */
+.tm-inbox-detail__track {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-inbox-detail__step {
+  padding: 9px var(--s4);
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+[data-theme='dark'] .tm-inbox-detail__step {
+  background: var(--paper-250);
+  color: var(--ink-950);
+}
+
+.tm-inbox-detail__now {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px var(--s4);
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-inbox-detail__now strong {
+  font-weight: 600;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-inbox-detail__now span {
+  margin-inline-start: auto;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-inbox-detail__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--s5);
+  align-items: start;
+}
+
+.tm-inbox-detail__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.tm-inbox-detail__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-inbox-detail__card-title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-inbox-detail__inset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 18px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+  list-style: none;
+}
+
+.tm-inbox-detail__event {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-inbox-detail__event .tm-inbox-orb {
+  inline-size: 28px;
+  block-size: 28px;
+  font-size: 10px;
+}
+
+.tm-inbox-detail__mono {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-650);
+}
+
+.tm-inbox-detail__note {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: 0;
+  padding: 14px 18px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-inbox-detail__note .tm-inbox-orb {
+  inline-size: 28px;
+  block-size: 28px;
+  background: transparent;
+  color: var(--client-500);
+  box-shadow: inset 0 0 0 var(--b-expressive) var(--client-500);
+}
+
+.tm-inbox-detail__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-inbox-detail__actions .tm-button {
+  --tm-control-h: 46px;
+  padding-inline: var(--s6);
+}
+
+/* CONSEQUENCE IF UNRESOLVED — the ink card; here, what is still unread. */
+.tm-inbox-detail__aside {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tm-inbox-ink {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: 22px;
+  border-radius: var(--r-card);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+}
+
+[data-theme='dark'] .tm-inbox-ink {
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-350);
+  color: var(--ink-950);
+}
+
+.tm-inbox-ink .tm-inbox-eyebrow {
+  color: var(--line-300);
+}
+
+[data-theme='dark'] .tm-inbox-ink .tm-inbox-eyebrow,
+[data-theme='dark'] .tm-inbox-ink__muted {
+  color: var(--ink-650);
+}
+
+.tm-inbox-ink__figure {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.tm-inbox-ink__value {
+  font-size: 48px;
+  line-height: 48px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-inbox-ink__muted {
+  margin: 0;
+  padding-block-end: var(--s1);
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--line-300);
+  text-wrap: pretty;
+}
+
+.tm-inbox-ink__rule {
+  block-size: 1px;
+  background: var(--ink-650);
+}
+
+.tm-inbox-ink__list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-inbox-ink__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-inbox-ink__glyph {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--s6);
+  block-size: var(--s6);
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+}
+
+[data-theme='dark'] .tm-inbox-ink__glyph {
+  background: var(--paper-250);
+}
+
+.tm-inbox-why {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-inbox-why p {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-inbox-why a {
+  align-self: flex-start;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+/* ── Inbox rules (reached from "Tune what reaches me") ───────────────────────── */
+
+.tm-inbox-rules {
+  display: grid;
+  grid-template-columns: minmax(0, 560px) minmax(0, 1fr);
+  gap: var(--s5);
+  align-items: start;
+}
+
+.tm-inbox-rules__sentence {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--s3);
+}
+
+.tm-inbox-rules__sentence .tm-field {
+  flex: 1 1 140px;
+  min-inline-size: 0;
+}
+
+.tm-inbox-rule-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  overflow: hidden;
+}
+
+.tm-inbox-rule {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--paper-0);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-800);
+}
+
+.tm-inbox-rule + .tm-inbox-rule {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-inbox-rule__text {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-inbox-rule__index {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-650);
+}
+
+.tm-inbox-rule .tm-button {
+  --tm-control-h: 32px;
+  padding-inline: var(--s3);
+  font-size: var(--t-caption);
+}
+
+/* Unrouted inbox panels (saved filters, snooze, muted sources) take the card paint. */
+.tm-inbox-panel {
+  gap: var(--s4);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────────── */
+
+@media (max-width: 79.94rem) {
+  .tm-inbox {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-inbox__list {
+    max-inline-size: 760px;
+  }
+
+  /* The detail is the wide-screen companion; below it each card carries its own actions. */
+  .tm-inbox-detail,
+  .tm-inbox-card .tm-inbox-textlink {
+    display: none;
+  }
+
+  .tm-inbox-card[data-selected='true'] {
+    gap: 10px;
+    border: var(--b-quiet) solid var(--line-300);
+  }
+
+  .tm-inbox-card[data-selected='true'] .tm-inbox-card__title {
+    font-size: 17px;
+    line-height: 23px;
+  }
+
+  .tm-inbox-rules {
+    grid-template-columns: minmax(0, 1fr);
+    max-inline-size: 640px;
+  }
+}
+
+/* IN-01 mobile: the first card keeps its ink edge, actions become full-width 48px capsules. */
+@media (max-width: 39.94rem) {
+  .tm-inbox__list {
+    max-inline-size: none;
+  }
+
+  .tm-inbox-modes .tm-chip {
+    padding-inline: var(--s3);
+  }
+
+  .tm-inbox-card {
+    padding: 18px;
+    gap: var(--s3);
+  }
+
+  .tm-inbox-cards > li:first-child .tm-inbox-card {
+    border: var(--b-structural) solid var(--ink-950);
+  }
+
+  .tm-inbox-card .tm-inbox-track {
+    display: none;
+  }
+
+  .tm-inbox-card__actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tm-inbox-card__actions .tm-button,
+  .tm-inbox-card[data-selected='true'] .tm-inbox-card__actions .tm-button {
+    --tm-control-h: 46px;
+    font-size: var(--t-ui-sm);
+  }
+}

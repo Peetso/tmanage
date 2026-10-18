@@ -16,6 +16,8 @@ import {
 import type { AttendeeRsvp } from '../../lib/api/meeting-attendees';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { MeetingBackLink, MeetingHeaderActions, initials } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface MeetingAttendeesScreenProps {
   organizationSlug: string;
@@ -132,144 +134,177 @@ export function MeetingAttendeesScreen({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Meeting attendees"
-      description="Who is invited to this meeting, and whether they are coming."
+      eyebrow="Calendar · Meeting"
+      actions={
+        <MeetingHeaderActions
+          organizationSlug={organizationSlug}
+          meetingId={notFound ? '' : meetingId}
+          current="attendees"
+        />
+      }
     >
-      {meetingId === '' ? (
-        <InlineAlert tone="neutral" title="No meeting chosen">
-          Open a meeting to see and manage its attendees.
-        </InlineAlert>
-      ) : null}
+      <div className="tm-cal">
+        <MeetingBackLink organizationSlug={organizationSlug} />
 
-      {notFound ? (
-        <InlineAlert tone="neutral" title="Meeting not found" live>
-          This meeting does not exist or you do not have access to it.
-        </InlineAlert>
-      ) : null}
+        {meetingId === '' ? (
+          <InlineAlert tone="neutral" title="No meeting chosen">
+            Open a meeting to see and manage its attendees.
+          </InlineAlert>
+        ) : null}
 
-      {attendees.isError && !notFound ? (
-        <InlineAlert tone="danger" title="Could not load the attendees" live>
-          {describeError(attendees.error)}
-        </InlineAlert>
-      ) : null}
+        {notFound ? (
+          <InlineAlert tone="neutral" title="Meeting not found" live>
+            This meeting does not exist or you do not have access to it.
+          </InlineAlert>
+        ) : null}
 
-      {meetingId !== '' && !notFound ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-attendees-invite">
-          <h2 id="tm-attendees-invite" className="tm-eyebrow">
-            Invite a member
-          </h2>
-          <form className="tm-stack" onSubmit={submitInvite}>
-            <fieldset className="tm-fieldset tm-stack" disabled={members.isPending}>
-              <div className="tm-field">
-                <label className="tm-field__label" htmlFor="tm-attendees-member">
-                  Member
-                </label>
-                <select
-                  id="tm-attendees-member"
-                  className="tm-field__control"
-                  value={inviteUserId}
-                  onChange={(event) => setInviteUserId(event.target.value)}
-                >
-                  <option value="">Choose a member…</option>
-                  {invitable.map((m) => (
-                    <option key={m.userId} value={m.userId}>
-                      {m.displayName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </fieldset>
+        {attendees.isError && !notFound ? (
+          <InlineAlert tone="danger" title="Could not load the attendees" live>
+            {describeError(attendees.error)}
+          </InlineAlert>
+        ) : null}
 
-            {invite.isError ? (
-              <InlineAlert tone="danger" title="Could not invite the member" live>
-                {invite.error instanceof ApiRequestError
-                  ? invite.error.message
-                  : 'The API did not answer. Try again.'}
-              </InlineAlert>
-            ) : null}
+        {meetingId !== '' && !notFound ? (
+          <div className="tm-cal-body">
+            <div className="tm-cal-main">
+              {attendees.isPending ? (
+                <LoadingRegion label="Loading the attendees.">
+                  <Skeleton height="var(--row)" />
+                  <Skeleton height="var(--row)" />
+                  <Skeleton height="var(--row)" />
+                </LoadingRegion>
+              ) : null}
 
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={invite.isPending}
-                loadingLabel="Inviting"
-                disabled={inviteUserId === ''}
-              >
-                Invite member
-              </Button>
+              {rsvp.isError ? (
+                <InlineAlert tone="danger" title="Could not update the RSVP" live>
+                  {describeError(rsvp.error)}
+                </InlineAlert>
+              ) : null}
+
+              {!attendees.isPending && !attendees.isError && rows.length === 0 ? (
+                <InlineAlert tone="neutral" title="No attendees yet">
+                  Nobody has been invited to this meeting yet. Invite a member beside the list.
+                </InlineAlert>
+              ) : null}
+
+              {rows.length > 0 ? (
+                <section className="tm-cal-card" aria-label="Meeting attendees">
+                  <p className="tm-cal-eyebrow">
+                    Participants · {rows.length} ·{' '}
+                    {rows.filter((row) => row.rsvp === 'accepted').length} accepted
+                  </p>
+                  <ul className="tm-cal-items">
+                    {rows.map((attendee) => {
+                      const name = nameByUserId.get(attendee.userId) ?? 'A member';
+                      return (
+                        <li
+                          key={attendee.id}
+                          className={
+                            attendee.rsvp === 'invited'
+                              ? 'tm-cal-item tm-cal-item--warn'
+                              : 'tm-cal-item'
+                          }
+                        >
+                          <span className="tm-cal-avatar" aria-hidden="true">
+                            {initials(name)}
+                          </span>
+                          <span className="tm-cal-item__body">
+                            <span className="tm-cal-item__title">{name}</span>
+                          </span>
+                          <span className="tm-cal-item__end">
+                            <StateCapsule state={rsvpCapsule(attendee.rsvp)}>
+                              {RSVP_LABELS[attendee.rsvp]}
+                            </StateCapsule>
+                            <span className="tm-field">
+                              <label
+                                className="tm-visually-hidden"
+                                htmlFor={`tm-attendee-rsvp-${attendee.id}`}
+                              >
+                                RSVP for {nameByUserId.get(attendee.userId) ?? 'this member'}
+                              </label>
+                              <select
+                                id={`tm-attendee-rsvp-${attendee.id}`}
+                                className="tm-field__control"
+                                value={attendee.rsvp}
+                                disabled={rsvp.isPending}
+                                onChange={(event) =>
+                                  rsvp.mutate({
+                                    attendeeId: attendee.id,
+                                    rsvp: event.target.value as AttendeeRsvp,
+                                  })
+                                }
+                              >
+                                {RSVP_ORDER.map((value) => (
+                                  <option key={value} value={value}>
+                                    {RSVP_LABELS[value]}
+                                  </option>
+                                ))}
+                              </select>
+                            </span>
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ) : null}
             </div>
-          </form>
-        </section>
-      ) : null}
 
-      {meetingId !== '' && attendees.isPending ? (
-        <LoadingRegion label="Loading the attendees.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+            <div className="tm-cal-side">
+              <section className="tm-cal-card" aria-labelledby="tm-attendees-invite">
+                <h2 id="tm-attendees-invite" className="tm-cal-eyebrow">
+                  Invite a member
+                </h2>
+                <form className="tm-cal-form" onSubmit={submitInvite}>
+                  <fieldset className="tm-fieldset tm-stack" disabled={members.isPending}>
+                    <div className="tm-field">
+                      <label className="tm-field__label" htmlFor="tm-attendees-member">
+                        Member
+                      </label>
+                      <select
+                        id="tm-attendees-member"
+                        className="tm-field__control"
+                        value={inviteUserId}
+                        onChange={(event) => setInviteUserId(event.target.value)}
+                      >
+                        <option value="">Choose a member…</option>
+                        {invitable.map((m) => (
+                          <option key={m.userId} value={m.userId}>
+                            {m.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </fieldset>
 
-      {rsvp.isError ? (
-        <InlineAlert tone="danger" title="Could not update the RSVP" live>
-          {describeError(rsvp.error)}
-        </InlineAlert>
-      ) : null}
+                  {invite.isError ? (
+                    <InlineAlert tone="danger" title="Could not invite the member" live>
+                      {invite.error instanceof ApiRequestError
+                        ? invite.error.message
+                        : 'The API did not answer. Try again.'}
+                    </InlineAlert>
+                  ) : null}
 
-      {meetingId !== '' && !attendees.isPending && !attendees.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No attendees yet">
-          Nobody has been invited to this meeting yet. Invite a member above.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section className="tm-stack" aria-label="Meeting attendees">
-          <ul className="tm-stack tm-list">
-            {rows.map((attendee) => (
-              <li key={attendee.id} className="tm-panel tm-panel--quiet tm-row">
-                <span className="tm-table__title">
-                  {nameByUserId.get(attendee.userId) ?? 'A member'}
-                </span>
-                <StateCapsule state={rsvpCapsule(attendee.rsvp)}>
-                  {RSVP_LABELS[attendee.rsvp]}
-                </StateCapsule>
-                <div className="tm-field tm-push-end">
-                  <label className="tm-visually-hidden" htmlFor={`tm-attendee-rsvp-${attendee.id}`}>
-                    RSVP for {nameByUserId.get(attendee.userId) ?? 'this member'}
-                  </label>
-                  <select
-                    id={`tm-attendee-rsvp-${attendee.id}`}
-                    className="tm-field__control"
-                    value={attendee.rsvp}
-                    disabled={rsvp.isPending}
-                    onChange={(event) =>
-                      rsvp.mutate({
-                        attendeeId: attendee.id,
-                        rsvp: event.target.value as AttendeeRsvp,
-                      })
-                    }
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={invite.isPending}
+                    loadingLabel="Inviting"
+                    disabled={inviteUserId === ''}
                   >
-                    {RSVP_ORDER.map((value) => (
-                      <option key={value} value={value}>
-                        {RSVP_LABELS[value]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+                    Invite member
+                  </Button>
+                </form>
+              </section>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </AppShell>
   );
 }
 
-/**
- * A distinct word, colour and shape per RSVP so the state never rests on colour alone: accepted is
- * `done` (✓), declined is `blocked` (✕), and an unanswered invite is `waiting` (◷).
- */
 function rsvpCapsule(rsvp: AttendeeRsvp): CapsuleState {
   if (rsvp === 'accepted') return 'done';
   if (rsvp === 'declined') return 'blocked';

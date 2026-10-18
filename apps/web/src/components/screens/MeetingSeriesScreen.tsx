@@ -15,6 +15,8 @@ import {
 import type { MeetingSeriesFreq } from '../../lib/api/meeting-series';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface MeetingSeriesScreenProps {
   organizationSlug: string;
@@ -111,228 +113,263 @@ export function MeetingSeriesScreen({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Recurring meetings"
-      description="Recurring meeting series, and a preview of the dates they fall on."
+      eyebrow="Calendar · Series"
+      actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="none" />}
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-series-create">
-        <h2 id="tm-series-create" className="tm-eyebrow">
-          Create a series
-        </h2>
-        <form className="tm-stack" onSubmit={submitCreate}>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-series-title">
-              Title
-            </label>
-            <input
-              id="tm-series-title"
-              className="tm-field__control"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              maxLength={300}
-              required
-            />
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-series-freq">
-              Repeats
-            </label>
-            <select
-              id="tm-series-freq"
-              className="tm-field__control"
-              value={freq}
-              onChange={(event) => setFreq(event.target.value as MeetingSeriesFreq)}
-            >
-              {MEETING_SERIES_FREQS.map((value) => (
-                <option key={value} value={value}>
-                  {FREQ_LABEL[value]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-series-interval">
-              Every
-            </label>
-            <input
-              id="tm-series-interval"
-              type="number"
-              min={1}
-              className="tm-field__control"
-              value={interval}
-              onChange={(event) => setInterval(event.target.value)}
-              required
-            />
-            <span className="tm-field__hint">
-              1 = every {freq === 'daily' ? 'day' : freq === 'weekly' ? 'week' : 'month'}, 2 = every
-              other, and so on.
-            </span>
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-series-until">
-              Ends (optional)
-            </label>
-            <input
-              id="tm-series-until"
-              type="date"
-              className="tm-field__control"
-              value={until}
-              onChange={(event) => setUntil(event.target.value)}
-            />
-            <span className="tm-field__hint">Leave empty for an open-ended series.</span>
-          </div>
+      <div className="tm-cal">
+        <CalendarSubnav organizationSlug={organizationSlug} current="series" />
 
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not create the series" live>
-              {create.error instanceof ApiRequestError
-                ? create.error.message
-                : 'The API did not answer. Try again.'}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Creating"
-              disabled={!canCreate}
-            >
-              Create series
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      {series.isError ? (
-        <InlineAlert tone="danger" title="Could not load the series" live>
-          {describeError(series.error)}
-        </InlineAlert>
-      ) : null}
-
-      {series.isPending ? (
-        <LoadingRegion label="Loading the series.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {!series.isPending && !series.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No series yet">
-          You have no recurring meeting series. Create one above.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <div
-          className="tm-table-scroll"
-          // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-          // (WCAG 2.2 2.1.1), matching the other list screens' tables.
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-          tabIndex={0}
-          role="region"
-          aria-label="Meeting series"
-        >
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">
-              Recurring meeting series, {rows.length} shown.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Title</th>
-                <th scope="col">Repeats</th>
-                <th scope="col">Every</th>
-                <th scope="col">Ends</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <th scope="row" className="tm-table__title">
-                    {row.title}
-                  </th>
-                  <td>{FREQ_LABEL[row.freq]}</td>
-                  <td>{row.interval}</td>
-                  <td>{row.until ?? 'Open-ended'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-series-preview">
-          <h2 id="tm-series-preview" className="tm-eyebrow">
-            Preview occurrences
-          </h2>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-series-preview-series">
-              Series
-            </label>
-            <select
-              id="tm-series-preview-series"
-              className="tm-field__control"
-              value={previewSeriesId}
-              onChange={(event) => setPreviewSeriesId(event.target.value)}
-            >
-              <option value="">Choose a series…</option>
-              {rows.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.title}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-series-preview-from">
-              From
-            </label>
-            <input
-              id="tm-series-preview-from"
-              type="date"
-              className="tm-field__control"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-            />
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-series-preview-to">
-              To
-            </label>
-            <input
-              id="tm-series-preview-to"
-              type="date"
-              className="tm-field__control"
-              value={to}
-              onChange={(event) => setTo(event.target.value)}
-            />
-            <span className="tm-field__hint">The window is capped at 90 days.</span>
-          </div>
-
-          {occurrences.isError ? (
-            <InlineAlert tone="danger" title="Could not expand the series" live>
-              {describeError(occurrences.error)}
-            </InlineAlert>
-          ) : null}
-
-          {occurrences.data ? (
-            occurrences.data.occurrences.length === 0 ? (
-              <InlineAlert tone="neutral" title="No occurrences">
-                This series falls on no dates in that window.
+        <div className="tm-cal-body">
+          <div className="tm-cal-main">
+            {series.isError ? (
+              <InlineAlert tone="danger" title="Could not load the series" live>
+                {describeError(series.error)}
               </InlineAlert>
-            ) : (
-              <ul className="tm-stack" aria-label="Occurrences">
-                {occurrences.data.occurrences.map((date) => (
-                  <li key={date}>{date}</li>
-                ))}
-              </ul>
-            )
-          ) : null}
-        </section>
-      ) : null}
+            ) : null}
+
+            {series.isPending ? (
+              <LoadingRegion label="Loading the series.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {!series.isPending && !series.isError && rows.length === 0 ? (
+              <InlineAlert tone="neutral" title="No series yet">
+                You have no recurring meeting series. Create one beside the list.
+              </InlineAlert>
+            ) : null}
+
+            {rows.length > 0 ? (
+              <div className="tm-cal-sheet">
+                <div
+                  className="tm-cal-sheet__scroll"
+                  // A scrollable region must be focusable or a keyboard cannot reach its overflow
+                  // columns (WCAG 2.2 2.1.1), matching the other list screens' tables.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Meeting series"
+                >
+                  <table>
+                    <caption className="tm-visually-hidden">
+                      Recurring meeting series, {rows.length} shown.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Title</th>
+                        <th scope="col">Repeats</th>
+                        <th scope="col">Every</th>
+                        <th scope="col">Ends</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((row) => (
+                        <tr key={row.id}>
+                          <th scope="row" className="tm-cal-sheet__what">
+                            {row.title}
+                          </th>
+                          <td>
+                            <span className="tm-cal-chip tm-cal-chip--ink">
+                              {FREQ_LABEL[row.freq]}
+                            </span>
+                          </td>
+                          <td className="tm-cal-sheet__kind">
+                            {row.interval === 1
+                              ? `Every ${UNIT[row.freq]}`
+                              : `Every ${row.interval} ${UNIT[row.freq]}s`}
+                          </td>
+                          <td>
+                            <span className="tm-cal-chip">
+                              {row.until ? `Until ${row.until}` : 'Open-ended'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {rows.length > 0 ? (
+              <section className="tm-cal-card" aria-labelledby="tm-series-preview">
+                <h2 id="tm-series-preview" className="tm-cal-eyebrow">
+                  Preview occurrences
+                </h2>
+                <div className="tm-cal-form-row">
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-series-preview-series">
+                      Series
+                    </label>
+                    <select
+                      id="tm-series-preview-series"
+                      className="tm-field__control"
+                      value={previewSeriesId}
+                      onChange={(event) => setPreviewSeriesId(event.target.value)}
+                    >
+                      <option value="">Choose a series…</option>
+                      {rows.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.title}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-series-preview-from">
+                      From
+                    </label>
+                    <input
+                      id="tm-series-preview-from"
+                      type="date"
+                      className="tm-field__control"
+                      value={from}
+                      onChange={(event) => setFrom(event.target.value)}
+                    />
+                  </div>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-series-preview-to">
+                      To
+                    </label>
+                    <input
+                      id="tm-series-preview-to"
+                      type="date"
+                      className="tm-field__control"
+                      value={to}
+                      onChange={(event) => setTo(event.target.value)}
+                    />
+                  </div>
+                </div>
+                <span className="tm-field__hint">The window is capped at 90 days.</span>
+
+                {occurrences.isError ? (
+                  <InlineAlert tone="danger" title="Could not expand the series" live>
+                    {describeError(occurrences.error)}
+                  </InlineAlert>
+                ) : null}
+
+                {occurrences.data ? (
+                  occurrences.data.occurrences.length === 0 ? (
+                    <InlineAlert tone="neutral" title="No occurrences">
+                      This series falls on no dates in that window.
+                    </InlineAlert>
+                  ) : (
+                    <ul className="tm-chip-row" aria-label="Occurrences">
+                      {occurrences.data.occurrences.map((date) => (
+                        <li key={date} className="tm-cal-chip">
+                          {date}
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                ) : null}
+              </section>
+            ) : null}
+          </div>
+
+          <div className="tm-cal-side">
+            <section className="tm-cal-card" aria-labelledby="tm-series-create">
+              <h2 id="tm-series-create" className="tm-cal-eyebrow">
+                Create a series
+              </h2>
+              <form className="tm-cal-form" onSubmit={submitCreate}>
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-series-title">
+                    Title
+                  </label>
+                  <input
+                    id="tm-series-title"
+                    className="tm-field__control"
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    maxLength={300}
+                    required
+                  />
+                </div>
+                <div className="tm-cal-form-row">
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-series-freq">
+                      Repeats
+                    </label>
+                    <select
+                      id="tm-series-freq"
+                      className="tm-field__control"
+                      value={freq}
+                      onChange={(event) => setFreq(event.target.value as MeetingSeriesFreq)}
+                    >
+                      {MEETING_SERIES_FREQS.map((value) => (
+                        <option key={value} value={value}>
+                          {FREQ_LABEL[value]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-series-interval">
+                      Every
+                    </label>
+                    <input
+                      id="tm-series-interval"
+                      type="number"
+                      min={1}
+                      className="tm-field__control"
+                      value={interval}
+                      onChange={(event) => setInterval(event.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+                <span className="tm-field__hint">
+                  1 = every {UNIT[freq]}, 2 = every other, and so on.
+                </span>
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-series-until">
+                    Ends (optional)
+                  </label>
+                  <input
+                    id="tm-series-until"
+                    type="date"
+                    className="tm-field__control"
+                    value={until}
+                    onChange={(event) => setUntil(event.target.value)}
+                  />
+                  <span className="tm-field__hint">Leave empty for an open-ended series.</span>
+                </div>
+
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not create the series" live>
+                    {create.error instanceof ApiRequestError
+                      ? create.error.message
+                      : 'The API did not answer. Try again.'}
+                  </InlineAlert>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="accessible"
+                  loading={create.isPending}
+                  loadingLabel="Creating"
+                  disabled={!canCreate}
+                >
+                  Create series
+                </Button>
+              </form>
+            </section>
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
 }
+
+/** The unit a frequency counts in, for "Every 2 weeks". */
+const UNIT: Record<MeetingSeriesFreq, string> = {
+  daily: 'day',
+  weekly: 'week',
+  monthly: 'month',
+};
 
 function describeError(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;

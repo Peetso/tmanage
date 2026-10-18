@@ -3,9 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import { BackendPending } from './BackendPending';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { MAX_CLIENT_REQUEST_PAGE, listClientRequestRecords } from '../../lib/api/client-requests';
 import type { ClientRequestRecord } from '../../lib/api/client-requests';
@@ -16,10 +15,10 @@ import {
   bucketOf,
   describeAge,
   formatDay,
-  triageStateCapsule,
   triageStateLabel,
 } from '../../lib/triage-presentation';
 import type { TriageBucketId } from '../../lib/triage-presentation';
+import '../../styles/screens/work-planning.css';
 
 export interface RequestInboxScreenProps {
   organizationSlug: string;
@@ -91,8 +90,42 @@ export function RequestInboxScreen({
       organizationName={organizationName}
       activeNavigationId="work"
       title="Request inbox"
-      description={`What ${organizationName}'s clients have asked for.`}
+      eyebrow="Requests"
+      headerAside={
+        <span className="wp-total" aria-hidden="true">
+          {all.length} {requests.hasNextPage ? 'loaded' : 'total'}
+        </span>
+      }
     >
+      {/*
+        "in total" only when it is the total. With a further page unloaded, the honest word is
+        "loaded" — the counts beneath are counts of what is on screen, not of the queue. The
+        visible "18 total" beside the title is the artboard's; this heading says it in full.
+      */}
+      <h2 id="tm-inbox-counts" className="tm-visually-hidden">
+        {all.length} {all.length === 1 ? 'request' : 'requests'}{' '}
+        {requests.hasNextPage ? 'loaded — there are more' : 'in total'}
+      </h2>
+      <div className="wp-chips" role="group" aria-label="Filter by state">
+        <FilterButton
+          id="all"
+          label="All"
+          count={all.length}
+          active={bucket === 'all'}
+          onSelect={setBucket}
+        />
+        {TRIAGE_BUCKETS.map((candidate) => (
+          <FilterButton
+            key={candidate.id}
+            id={candidate.id}
+            label={candidate.label}
+            count={all.filter((row) => bucketOf(row.state) === candidate.id).length}
+            active={bucket === candidate.id}
+            onSelect={setBucket}
+          />
+        ))}
+      </div>
+
       {requests.isError ? (
         <InlineAlert tone="danger" title="Could not load the request inbox" live>
           {describe(requests.error)}
@@ -101,104 +134,113 @@ export function RequestInboxScreen({
 
       {requests.isPending ? (
         <LoadingRegion label="Loading requests.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
+          <Skeleton height="46px" />
+          <Skeleton height="46px" />
+          <Skeleton height="46px" />
         </LoadingRegion>
       ) : null}
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-inbox-counts">
-        {/*
-          "in total" only when it is the total. With a further page unloaded, the honest word
-          is "loaded" — the counts beneath are counts of what is on screen, not of the queue.
-        */}
-        <h2 id="tm-inbox-counts" className="tm-eyebrow">
-          {all.length} {all.length === 1 ? 'request' : 'requests'}{' '}
-          {requests.hasNextPage ? 'loaded — there are more' : 'in total'}
-        </h2>
-        <div className="tm-row tm-row--wrap" role="group" aria-label="Filter by state">
-          <FilterButton
-            id="all"
-            label="All"
-            count={all.length}
-            active={bucket === 'all'}
-            onSelect={setBucket}
-          />
-          {TRIAGE_BUCKETS.map((candidate) => (
-            <FilterButton
-              key={candidate.id}
-              id={candidate.id}
-              label={candidate.label}
-              count={all.filter((row) => bucketOf(row.state) === candidate.id).length}
-              active={bucket === candidate.id}
-              onSelect={setBucket}
-            />
-          ))}
-        </div>
-      </section>
-
       {!requests.isPending && !requests.isError && all.length === 0 ? (
-        <InlineAlert tone="neutral" title="No client has asked for anything yet">
-          <p className="tm-prose">
+        <div className="wp-empty">
+          <h2 className="wp-empty__title">No client has asked for anything yet</h2>
+          <p className="wp-empty__body">
             Requests arrive here when a client submits one from their portal. Nothing has to be set
             up for that — every client role can already do it.
           </p>
-        </InlineAlert>
+        </div>
       ) : null}
 
       {shown.length > 0 ? (
         <div
-          className="tm-table-scroll"
+          className="wp-rows"
           // A scrollable region must be focusable or a keyboard cannot reach its overflow
-          // columns (WCAG 2.2 2.1.1); the .tm-table-scroll CSS comment states the same.
+          // columns (WCAG 2.2 2.1.1).
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
           aria-label="Client requests"
         >
-          <table className="tm-table">
+          <table>
             <caption className="tm-visually-hidden">
               Client requests, oldest first. Each row links to its triage page.
             </caption>
             <thead>
               <tr>
                 <th scope="col">Request</th>
-                <th scope="col">State</th>
-                <th scope="col">Desired</th>
-                <th scope="col">Age</th>
+                <th scope="col" className="wp-col-state">
+                  State
+                </th>
+                <th scope="col" className="wp-col-desired wp-hide-sm">
+                  Desired
+                </th>
+                <th scope="col" className="wp-col-age wp-num">
+                  Age
+                </th>
               </tr>
             </thead>
             <tbody>
-              {shown.map((request) => (
-                <tr key={request.id}>
-                  <th scope="row">
-                    <Link href={`/${organizationSlug}/work/requests/${request.id}`}>
-                      {request.title}
-                    </Link>
-                    <span className="tm-field__hint">
-                      {/*
-                      The client organization's name, which a manager could not look up: the
-                      endpoint that lists them is gated on `org.manage`. The API puts it on the
-                      internal projection for exactly this row.
-                    */}
-                      {request.clientOrganizationName ?? 'A client of this organization'}
-                    </span>
-                  </th>
-                  <td>
-                    <StateCapsule state={triageStateCapsule(request.state)}>
-                      {triageStateLabel(request.state)}
-                    </StateCapsule>
-                  </td>
-                  <td>{request.desiredAt === null ? 'not set' : formatDay(request.desiredAt)}</td>
-                  <td>{describeAge(request.createdAt, now)}</td>
-                </tr>
-              ))}
+              {shown.map((request, index) => {
+                const rowBucket = bucketOf(request.state);
+                const actionable = rowBucket === 'new';
+                const rowClass = [
+                  index === 0 && actionable ? 'wp-row--first' : '',
+                  rowBucket === 'declined' ? 'wp-row--ended' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ');
+                return (
+                  <tr key={request.id} className={rowClass === '' ? undefined : rowClass}>
+                    <th scope="row">
+                      <Link
+                        className="wp-row-title"
+                        href={`/${organizationSlug}/work/requests/${request.id}`}
+                      >
+                        {request.title}
+                      </Link>
+                      <span className="wp-row-sub">
+                        {/*
+                          The client organization's name, which a manager could not look up: the
+                          endpoint that lists them is gated on `org.manage`. The API puts it on
+                          the internal projection for exactly this row.
+                        */}
+                        {request.clientOrganizationName ?? 'A client of this organization'}
+                      </span>
+                    </th>
+                    <td>
+                      <span className={`wp-pill ${PILL_CLASS[rowBucket]}`}>
+                        {triageStateLabel(request.state)}
+                      </span>
+                    </td>
+                    <td className="wp-hide-sm">
+                      <span
+                        className={
+                          request.desiredAt !== null && actionable
+                            ? 'wp-row-mono wp-row-mono--warn'
+                            : 'wp-row-mono'
+                        }
+                      >
+                        {request.desiredAt === null ? 'not set' : formatDay(request.desiredAt)}
+                      </span>
+                    </td>
+                    <td className="wp-num">
+                      <span
+                        className={actionable ? 'wp-row-mono wp-row-mono--warn' : 'wp-row-mono'}
+                      >
+                        {describeAge(request.createdAt, now)}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       ) : null}
 
       {!requests.isPending && all.length > 0 && shown.length === 0 ? (
-        <p className="tm-prose">Nothing in that state.</p>
+        <div className="wp-empty">
+          <p className="wp-empty__body">Nothing in that state.</p>
+        </div>
       ) : null}
 
       {requests.hasNextPage ? (
@@ -226,15 +268,18 @@ export function RequestInboxScreen({
             : ''
         }
       />
-
-      <BackendPending ticket="PEOPLE · FILE-001">
-        The artifact names the person who submitted each request beside their company. Nothing
-        returns a person&rsquo;s name in this system yet, so the row carries the company only.
-        Attachments are not built either, so a request with files looks the same as one without.
-      </BackendPending>
     </AppShell>
   );
 }
+
+/** REQ-01's pills: lime for the studio's own queue, outline while waiting, grey for an ending. */
+const PILL_CLASS: Record<TriageBucketId, string> = {
+  new: 'wp-pill--new',
+  clarifying: '',
+  accepted: '',
+  deferred: '',
+  declined: 'wp-pill--ended',
+};
 
 interface FilterButtonProps {
   id: TriageBucketId | 'all';
@@ -253,12 +298,7 @@ interface FilterButtonProps {
  */
 function FilterButton({ id, label, count, active, onSelect }: FilterButtonProps) {
   return (
-    <button
-      type="button"
-      className="tm-button tm-button--outline"
-      aria-pressed={active}
-      onClick={() => onSelect(id)}
-    >
+    <button type="button" className="tm-chip" aria-pressed={active} onClick={() => onSelect(id)}>
       {label} · {count}
     </button>
   );

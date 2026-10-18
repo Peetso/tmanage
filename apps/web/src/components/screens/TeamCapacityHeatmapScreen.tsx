@@ -9,6 +9,7 @@ import { getTeamCapacityHeatmap } from '../../lib/api/team-capacity-heatmap';
 import type { CapacityHeatmapView } from '../../lib/api/team-capacity-heatmap';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/people.css';
 
 export interface TeamCapacityHeatmapScreenProps {
   organizationSlug: string;
@@ -36,20 +37,15 @@ function currentMonday(today: Date): string {
 interface Band {
   readonly id: string;
   readonly label: string;
-  readonly background: string;
-  readonly color: string;
+  /** The legend swatch class; the cell paint is `data-band` in people.css, from the tokens. */
+  readonly swatch: string;
 }
 
 const BANDS: readonly Band[] = [
-  {
-    id: 'none',
-    label: 'No capacity set',
-    background: 'var(--surface-sunken, #eef0f3)',
-    color: 'var(--ink, #1c2024)',
-  },
-  { id: 'under', label: 'Under 70%', background: '#d7ecd9', color: '#12351a' },
-  { id: 'healthy', label: '70–100%', background: '#bfe0c4', color: '#0f2e17' },
-  { id: 'over', label: 'Over 100%', background: '#f6c9c1', color: '#4a140b' },
+  { id: 'none', label: 'No capacity set', swatch: 'ppl-swatch--none' },
+  { id: 'under', label: 'Under 70%', swatch: 'ppl-swatch--under' },
+  { id: 'healthy', label: '70–100%', swatch: 'ppl-swatch--today' },
+  { id: 'over', label: 'Over 100%', swatch: 'ppl-swatch--over' },
 ];
 
 function bandFor(utilisation: number | null, overAllocated: boolean): Band {
@@ -100,118 +96,104 @@ export function TeamCapacityHeatmapScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="work"
+      activeNavigationId="people"
+      eyebrow={`People · Capacity · ${applied.weeks} ${applied.weeks === 1 ? 'week' : 'weeks'}`}
       title="Team capacity heatmap"
       description="Every member's utilisation — allocated share against weekly capacity — across the weeks ahead."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-heatmap-window">
-        <h2 id="tm-heatmap-window" className="tm-eyebrow">
-          Window
-        </h2>
-        <form
-          className="tm-row tm-row--wrap"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!canApply) return;
-            setApplied({ from, weeks: weeksValue });
-          }}
-          noValidate
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-heatmap-from">
-              First week (Monday)
-            </label>
-            <input
-              id="tm-heatmap-from"
-              name="from"
-              type="date"
-              className="tm-field__control"
-              value={from}
-              onChange={(event) => setFrom(event.target.value)}
-              required
-            />
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-heatmap-weeks">
-              Weeks
-            </label>
-            <input
-              id="tm-heatmap-weeks"
-              name="weeks"
-              type="number"
-              min={1}
-              max={26}
-              step={1}
-              inputMode="numeric"
-              className="tm-field__control"
-              value={weeks}
-              onChange={(event) => setWeeks(event.target.value)}
-              aria-describedby="tm-heatmap-weeks-hint"
-              required
-            />
-            <span className="tm-field__hint" id="tm-heatmap-weeks-hint">
-              How many weeks to show, from 1 to 26.
-            </span>
-          </div>
-          <div className="tm-row">
+      <div className="ppl-screen">
+        <section className="ppl-card ppl-card--tight" aria-labelledby="tm-heatmap-window">
+          <h2 id="tm-heatmap-window" className="ppl-mono">
+            Window
+          </h2>
+          <form
+            className="ppl-toolbar"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!canApply) return;
+              setApplied({ from, weeks: weeksValue });
+            }}
+            noValidate
+          >
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-heatmap-from">
+                First week (Monday)
+              </label>
+              <input
+                id="tm-heatmap-from"
+                name="from"
+                type="date"
+                className="tm-field__control"
+                value={from}
+                onChange={(event) => setFrom(event.target.value)}
+                required
+              />
+            </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-heatmap-weeks">
+                Weeks
+              </label>
+              <input
+                id="tm-heatmap-weeks"
+                name="weeks"
+                type="number"
+                min={1}
+                max={26}
+                step={1}
+                inputMode="numeric"
+                className="tm-field__control"
+                value={weeks}
+                onChange={(event) => setWeeks(event.target.value)}
+                aria-describedby="tm-heatmap-weeks-hint"
+                required
+              />
+              <span className="tm-field__hint" id="tm-heatmap-weeks-hint">
+                How many weeks to show, from 1 to 26.
+              </span>
+            </div>
             <Button type="submit" tone="ink" size="accessible" disabled={!canApply}>
               Apply
             </Button>
-          </div>
-        </form>
-      </section>
+          </form>
+        </section>
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-heatmap-legend-heading">
-        <h2 id="tm-heatmap-legend-heading" className="tm-eyebrow">
-          Legend
-        </h2>
-        <ul
-          className="tm-row tm-row--wrap"
-          style={{ listStyle: 'none', margin: 0, padding: 0, gap: 'var(--space-3, 12px)' }}
-        >
-          {BANDS.map((band) => (
-            <li
-              key={band.id}
-              className="tm-row"
-              style={{ alignItems: 'center', gap: 'var(--space-2, 8px)' }}
-            >
-              <span
-                aria-hidden="true"
-                style={{
-                  display: 'inline-block',
-                  inlineSize: '1rem',
-                  blockSize: '1rem',
-                  borderRadius: '3px',
-                  background: band.background,
-                  border: '1px solid rgba(0,0,0,0.15)',
-                }}
-              />
-              <span>{band.label}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+        <section aria-labelledby="tm-heatmap-legend-heading">
+          <h2 id="tm-heatmap-legend-heading" className="tm-visually-hidden">
+            Legend
+          </h2>
+          <ul className="ppl-legend">
+            {BANDS.map((band) => (
+              <li key={band.id}>
+                <span className={`ppl-swatch ${band.swatch}`} aria-hidden="true" />
+                {band.label}
+              </li>
+            ))}
+          </ul>
+        </section>
 
-      {heatmap.isError ? (
-        <InlineAlert tone="danger" title="Could not load the heatmap" live>
-          {describeError(heatmap.error)}
-        </InlineAlert>
-      ) : null}
+        {heatmap.isError ? (
+          <InlineAlert tone="danger" title="Could not load the heatmap" live>
+            {describeError(heatmap.error)}
+          </InlineAlert>
+        ) : null}
 
-      {heatmap.isPending ? (
-        <LoadingRegion label="Loading the team capacity heatmap.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {heatmap.isPending ? (
+          <LoadingRegion label="Loading the team capacity heatmap.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {view !== undefined && view.members.length === 0 ? (
-        <InlineAlert tone="neutral" title="No members to show">
-          No one has capacity set or an allocation in this window.
-        </InlineAlert>
-      ) : null}
+        {view !== undefined && view.members.length === 0 ? (
+          <section className="ppl-card ppl-card--tight" aria-label="No members to show">
+            <p className="ppl-dashed-note">
+              No one has capacity set or an allocation in this window.
+            </p>
+          </section>
+        ) : null}
 
-      {view !== undefined && view.members.length > 0 ? <HeatmapGrid view={view} /> : null}
+        {view !== undefined && view.members.length > 0 ? <HeatmapGrid view={view} /> : null}
+      </div>
     </AppShell>
   );
 }
@@ -219,8 +201,8 @@ export function TeamCapacityHeatmapScreen({
 function HeatmapGrid({ view }: { view: CapacityHeatmapView }) {
   const columns = useMemo(() => view.weekStarts, [view.weekStarts]);
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-heatmap-heading">
-      <h2 id="tm-heatmap-heading" className="tm-eyebrow">
+    <section className="ppl-card ppl-card--tight" aria-labelledby="tm-heatmap-heading">
+      <h2 id="tm-heatmap-heading" className="ppl-mono">
         Utilisation
       </h2>
       <div
@@ -232,7 +214,7 @@ function HeatmapGrid({ view }: { view: CapacityHeatmapView }) {
         role="region"
         aria-label="Team capacity heatmap"
       >
-        <table className="tm-table">
+        <table className="ppl-heat">
           <caption className="tm-visually-hidden">
             Each member's weekly utilisation over {columns.length} weeks from {view.from}. A cell
             shows the allocated percent of the member's capacity; over 100% is over-allocated.
@@ -250,16 +232,11 @@ function HeatmapGrid({ view }: { view: CapacityHeatmapView }) {
           <tbody>
             {view.members.map((member) => (
               <tr key={member.membershipId}>
-                <th scope="row" className="tm-table__title">
-                  {member.membershipId}
-                </th>
+                <th scope="row">{member.membershipId}</th>
                 {member.cells.map((cell) => {
                   const band = bandFor(cell.utilisation, cell.overAllocated);
                   return (
-                    <td
-                      key={cell.weekStart}
-                      style={{ background: band.background, color: band.color }}
-                    >
+                    <td key={cell.weekStart} data-band={band.id}>
                       {cell.capacityHours === 0 ? '—' : `${cell.allocatedPercent}%`}
                       <span className="tm-visually-hidden">
                         {` (${band.label}${

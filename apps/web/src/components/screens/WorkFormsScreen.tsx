@@ -17,6 +17,7 @@ import {
 import { listProjects } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/work-planning.css';
 
 export interface WorkFormsScreenProps {
   organizationSlug: string;
@@ -145,262 +146,289 @@ export function WorkFormsScreen({
       organizationName={organizationName}
       activeNavigationId="work"
       title="Intake forms"
-      description="Reusable intake definitions your team fills in to create a work item."
+      eyebrow="Form builder"
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-form-new-heading">
-        <h2 id="tm-form-new-heading" className="tm-eyebrow">
-          New form
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canCreate) create.mutate();
-          }}
-        >
-          <Field
-            label="Name"
-            name="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as New client request."
-            required
-          />
-
-          <fieldset className="tm-stack tm-fieldset">
-            <legend className="tm-field__label">Fields</legend>
-            {draftFields.map((field, index) => (
-              <div key={index} className="tm-row tm-row--wrap">
-                <Field
-                  label={`Field ${index + 1} label`}
-                  name={`field-label-${index}`}
-                  value={field.label}
-                  onChange={(event) => updateDraft(index, { label: event.target.value })}
-                />
-                <div className="tm-field">
-                  <label className="tm-field__label" htmlFor={`tm-field-type-${index}`}>
-                    Field {index + 1} type
-                  </label>
-                  <select
-                    id={`tm-field-type-${index}`}
-                    className="tm-field__control"
-                    value={field.type}
-                    onChange={(event) =>
-                      updateDraft(index, { type: event.target.value as WorkFormFieldType })
-                    }
-                  >
-                    {FIELD_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="tm-field tm-field--checkbox">
-                  <label className="tm-field__label" htmlFor={`tm-field-required-${index}`}>
-                    Field {index + 1} required
-                  </label>
-                  <input
-                    id={`tm-field-required-${index}`}
-                    type="checkbox"
-                    checked={field.required}
-                    onChange={(event) => updateDraft(index, { required: event.target.checked })}
-                  />
-                </div>
-              </div>
-            ))}
-            <div className="tm-row">
-              <Button
-                type="button"
-                tone="outline"
-                size="accessible"
-                onClick={() => setDraftFields((current) => [...current, EMPTY_FIELD])}
-              >
-                Add field
-              </Button>
-            </div>
-          </fieldset>
-
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not create the form" live>
-              {describeError(create.error)}
-            </InlineAlert>
-          ) : null}
-
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Creating"
-              disabled={!canCreate}
-            >
-              Create form
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-form-list-heading">
-        <h2 id="tm-form-list-heading" className="tm-eyebrow">
-          Forms
-        </h2>
-
-        {created ? (
-          <InlineAlert tone="success" title="Work item created from the form" live>
-            <p className="tm-prose">
-              <Link href={`/${organizationSlug}/work/${created.id}`}>
-                Open &ldquo;{created.title}&rdquo;
-              </Link>{' '}
-              to work on the new item.
-            </p>
-          </InlineAlert>
-        ) : null}
-
-        {forms.isError ? (
-          <InlineAlert tone="danger" title="Could not load the forms" live>
-            {describeError(forms.error)}
-          </InlineAlert>
-        ) : null}
-
-        {forms.isPending ? (
-          <LoadingRegion label="Loading the forms.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!forms.isPending && !forms.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No forms yet">
-            Create a form above. Once you have one, you can fill it in to create a work item.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-form-select">
-              Form to fill in
-            </label>
-            <select
-              id="tm-form-select"
-              className="tm-field__control"
-              value={activeFormId}
-              onChange={(event) => {
-                setActiveFormId(event.target.value);
-                setValues({});
-                setChecks({});
-              }}
-            >
-              <option value="">Choose a form…</option>
-              {rows.map((form) => (
-                <option key={form.id} value={form.id}>
-                  {form.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
-
-        {activeForm ? (
+      <div className="wp-forms">
+        <section className="wp-forms__builder" aria-labelledby="tm-form-new-heading">
+          <h2 id="tm-form-new-heading" className="wp-section-title">
+            Builder
+          </h2>
           <form
-            className="tm-stack"
+            className="wp-stack wp-stack--fill"
             noValidate
-            aria-label={`Fill in ${activeForm.name}`}
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
-              if (canSubmit) submit.mutate(activeForm);
+              if (canCreate) create.mutate();
             }}
           >
-            {available.length > 0 ? (
-              <div className="tm-field">
-                <label className="tm-field__label" htmlFor="tm-form-project">
-                  Project
-                </label>
-                <select
-                  id="tm-form-project"
-                  className="tm-field__control"
-                  value={chosenProjectId}
-                  onChange={(event) => setProjectId(event.target.value)}
-                >
-                  {available.map((project) => (
-                    <option key={project.id} value={project.id}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <InlineAlert tone="neutral" title="No projects yet">
-                A work item is created in a project. Once a project exists, you can submit a form.
-              </InlineAlert>
-            )}
-
             <Field
-              label="Work item title"
-              name="title"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
+              label="Form name"
+              name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              hint="A short handle, such as New client request."
               required
             />
 
-            {activeForm.fields.map((field) =>
-              field.type === 'checkbox' ? (
-                <div key={field.label} className="tm-field tm-field--checkbox">
-                  <label className="tm-field__label" htmlFor={`tm-value-${field.label}`}>
-                    {field.label}
-                  </label>
-                  <input
-                    id={`tm-value-${field.label}`}
-                    type="checkbox"
-                    checked={checks[field.label] ?? false}
-                    onChange={(event) =>
-                      setChecks((current) => ({ ...current, [field.label]: event.target.checked }))
-                    }
+            <fieldset className="wp-stack tm-fieldset">
+              <legend className="wp-plain-label">Questions</legend>
+              {draftFields.map((field, index) => (
+                <div key={index} className="wp-forms__question">
+                  <Field
+                    label={`Question ${index + 1}`}
+                    name={`field-label-${index}`}
+                    value={field.label}
+                    onChange={(event) => updateDraft(index, { label: event.target.value })}
                   />
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor={`tm-field-type-${index}`}>
+                      Answer
+                    </label>
+                    <select
+                      id={`tm-field-type-${index}`}
+                      className="tm-field__control"
+                      value={field.type}
+                      onChange={(event) =>
+                        updateDraft(index, { type: event.target.value as WorkFormFieldType })
+                      }
+                    >
+                      {FIELD_TYPES.map((type) => (
+                        <option key={type} value={type}>
+                          {FIELD_TYPE_LABELS[type]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="wp-forms__check">
+                    <label className="wp-plain-label" htmlFor={`tm-field-required-${index}`}>
+                      Required
+                    </label>
+                    <input
+                      id={`tm-field-required-${index}`}
+                      type="checkbox"
+                      checked={field.required}
+                      onChange={(event) => updateDraft(index, { required: event.target.checked })}
+                    />
+                  </div>
                 </div>
-              ) : (
-                <Field
-                  key={field.label}
-                  label={field.label}
-                  name={`value-${field.label}`}
-                  type={
-                    field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'
-                  }
-                  value={values[field.label] ?? ''}
-                  onChange={(event) =>
-                    setValues((current) => ({ ...current, [field.label]: event.target.value }))
-                  }
-                  required={field.required}
-                />
-              ),
-            )}
+              ))}
+              <button
+                type="button"
+                className="wp-add"
+                onClick={() => setDraftFields((current) => [...current, EMPTY_FIELD])}
+              >
+                + Add a question
+              </button>
+            </fieldset>
 
-            {submit.isError ? (
-              <InlineAlert tone="danger" title="Could not submit the form" live>
-                {describeError(submit.error)}
+            {create.isError ? (
+              <InlineAlert tone="danger" title="Could not create the form" live>
+                {describeError(create.error)}
               </InlineAlert>
             ) : null}
 
-            <div className="tm-row">
+            <div className="wp-wide-button">
               <Button
                 type="submit"
                 tone="ink"
                 size="accessible"
-                loading={submit.isPending}
-                loadingLabel="Submitting"
-                disabled={!canSubmit}
+                loading={create.isPending}
+                loadingLabel="Creating"
+                disabled={!canCreate}
               >
-                Create work item
+                Create form
               </Button>
             </div>
+            <p className="wp-caption">
+              Each submission creates a work item in the project you choose
+            </p>
           </form>
-        ) : null}
-      </section>
+        </section>
+
+        <section className="wp-forms__client" aria-labelledby="tm-form-list-heading">
+          <div className="wp-forms__who">
+            <span className="wp-forms__orb" aria-hidden="true">
+              &#9678;
+            </span>
+            <span>What the person filling it in sees</span>
+          </div>
+          <h2 id="tm-form-list-heading" className="wp-forms__heading">
+            {activeForm ? activeForm.name : `Ask ${organizationName} for something`}
+          </h2>
+
+          {created ? (
+            <InlineAlert tone="success" title="Work item created from the form" live>
+              <p className="tm-prose">
+                <Link href={`/${organizationSlug}/work/${created.id}`}>
+                  Open &ldquo;{created.title}&rdquo;
+                </Link>{' '}
+                to work on the new item.
+              </p>
+            </InlineAlert>
+          ) : null}
+
+          {forms.isError ? (
+            <InlineAlert tone="danger" title="Could not load the forms" live>
+              {describeError(forms.error)}
+            </InlineAlert>
+          ) : null}
+
+          {forms.isPending ? (
+            <LoadingRegion label="Loading the forms.">
+              <Skeleton height="44px" />
+              <Skeleton height="44px" />
+            </LoadingRegion>
+          ) : null}
+
+          {!forms.isPending && !forms.isError && rows.length === 0 ? (
+            <div className="wp-empty">
+              <h3 className="wp-empty__title">No forms yet</h3>
+              <p className="wp-empty__body">
+                Build a form on the left. Once you have one, it can be filled in here to create a
+                work item.
+              </p>
+            </div>
+          ) : null}
+
+          {rows.length > 0 ? (
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-form-select">
+                Form to fill in
+              </label>
+              <select
+                id="tm-form-select"
+                className="tm-field__control"
+                value={activeFormId}
+                onChange={(event) => {
+                  setActiveFormId(event.target.value);
+                  setValues({});
+                  setChecks({});
+                }}
+              >
+                <option value="">Choose a form…</option>
+                {rows.map((form) => (
+                  <option key={form.id} value={form.id}>
+                    {form.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
+          {activeForm ? (
+            <form
+              className="wp-stack wp-stack--fill"
+              noValidate
+              aria-label={`Fill in ${activeForm.name}`}
+              onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                event.preventDefault();
+                if (canSubmit) submit.mutate(activeForm);
+              }}
+            >
+              {available.length > 0 ? (
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-form-project">
+                    Project
+                  </label>
+                  <select
+                    id="tm-form-project"
+                    className="tm-field__control"
+                    value={chosenProjectId}
+                    onChange={(event) => setProjectId(event.target.value)}
+                  >
+                    {available.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="wp-empty">
+                  <h3 className="wp-empty__title">No projects yet</h3>
+                  <p className="wp-empty__body">
+                    A work item is created in a project. Once a project exists, you can submit a
+                    form.
+                  </p>
+                </div>
+              )}
+
+              <Field
+                label="Work item title"
+                name="title"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                required
+              />
+
+              {activeForm.fields.map((field) =>
+                field.type === 'checkbox' ? (
+                  <div key={field.label} className="tm-field tm-field--checkbox">
+                    <label className="tm-field__label" htmlFor={`tm-value-${field.label}`}>
+                      {field.label}
+                    </label>
+                    <input
+                      id={`tm-value-${field.label}`}
+                      type="checkbox"
+                      checked={checks[field.label] ?? false}
+                      onChange={(event) =>
+                        setChecks((current) => ({
+                          ...current,
+                          [field.label]: event.target.checked,
+                        }))
+                      }
+                    />
+                  </div>
+                ) : (
+                  <Field
+                    key={field.label}
+                    label={field.label}
+                    name={`value-${field.label}`}
+                    type={
+                      field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : 'text'
+                    }
+                    value={values[field.label] ?? ''}
+                    onChange={(event) =>
+                      setValues((current) => ({ ...current, [field.label]: event.target.value }))
+                    }
+                    required={field.required}
+                  />
+                ),
+              )}
+
+              {submit.isError ? (
+                <InlineAlert tone="danger" title="Could not submit the form" live>
+                  {describeError(submit.error)}
+                </InlineAlert>
+              ) : null}
+
+              <div className="wp-wide-button">
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="accessible"
+                  loading={submit.isPending}
+                  loadingLabel="Submitting"
+                  disabled={!canSubmit}
+                >
+                  Create work item
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }
+
+/** How each answer type is said to a person. The stored value stays the API's key. */
+const FIELD_TYPE_LABELS: Record<WorkFormFieldType, string> = {
+  text: 'Short text',
+  number: 'Number',
+  date: 'Date',
+  checkbox: 'Yes or no',
+};
 
 function describeError(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;

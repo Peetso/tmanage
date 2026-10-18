@@ -15,6 +15,8 @@ import {
 import type { ApplyAgendaTemplateResult } from '../../lib/api/agenda-templates';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface MeetingAgendaTemplatesViewProps {
   organizationSlug: string;
@@ -117,206 +119,199 @@ export function MeetingAgendaTemplatesView({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Agenda templates"
-      description="Reusable meeting agendas you can apply to a meeting to seed its agenda items."
+      eyebrow="Calendar · Meeting templates"
+      actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="none" />}
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-agenda-template-create">
-        <h2 id="tm-agenda-template-create" className="tm-eyebrow">
-          Create a template
-        </h2>
-        <form className="tm-stack" onSubmit={submitCreate}>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-agenda-template-name">
-              Name
-            </label>
-            <input
-              id="tm-agenda-template-name"
-              className="tm-field__control"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              maxLength={300}
-              required
-            />
-          </div>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-agenda-template-items">
-              Agenda items
-            </label>
-            <textarea
-              id="tm-agenda-template-items"
-              className="tm-field__control"
-              value={itemsText}
-              onChange={(event) => setItemsText(event.target.value)}
-              rows={5}
-            />
-            <span className="tm-field__hint">
-              One item per line, in order. Blank lines are ignored.
-            </span>
-          </div>
+      <div className="tm-cal">
+        <CalendarSubnav organizationSlug={organizationSlug} current="agenda-templates" />
 
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not create the template" live>
-              {create.error instanceof ApiRequestError
-                ? create.error.message
-                : 'The API did not answer. Try again.'}
-            </InlineAlert>
-          ) : null}
+        <div className="tm-cal-body">
+          <div className="tm-cal-main">
+            {templates.isError ? (
+              <InlineAlert tone="danger" title="Could not load the templates" live>
+                {describeError(templates.error)}
+              </InlineAlert>
+            ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Creating"
-              disabled={!canCreate}
-            >
-              Create template
-            </Button>
-          </div>
-        </form>
-      </section>
+            {templates.isPending ? (
+              <LoadingRegion label="Loading the templates.">
+                <Skeleton height="var(--row)" />
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
 
-      {templates.isError ? (
-        <InlineAlert tone="danger" title="Could not load the templates" live>
-          {describeError(templates.error)}
-        </InlineAlert>
-      ) : null}
+            {!templates.isPending && !templates.isError && rows.length === 0 ? (
+              <InlineAlert tone="neutral" title="No templates yet">
+                You have no agenda templates. Create one beside the list.
+              </InlineAlert>
+            ) : null}
 
-      {templates.isPending ? (
-        <LoadingRegion label="Loading the templates.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {!templates.isPending && !templates.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No templates yet">
-          You have no agenda templates. Create one above.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <div
-          className="tm-table-scroll"
-          // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-          // (WCAG 2.2 2.1.1), matching the other list screens' tables.
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-          tabIndex={0}
-          role="region"
-          aria-label="Agenda templates"
-        >
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">Agenda templates, {rows.length} shown.</caption>
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Items</th>
-                <th scope="col">
-                  <span className="tm-visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <th scope="row" className="tm-table__title">
-                    {row.name}
-                  </th>
-                  <td>{row.items.map((item) => item.title).join(', ')}</td>
-                  <td>
-                    <Button
-                      type="button"
-                      tone="destructive"
-                      size="compact"
-                      loading={remove.isPending && remove.variables === row.id}
-                      loadingLabel="Removing"
-                      onClick={() => remove.mutate(row.id)}
-                    >
-                      Delete
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section
-          className="tm-panel tm-panel--quiet tm-stack"
-          aria-labelledby="tm-agenda-template-apply"
-        >
-          <h2 id="tm-agenda-template-apply" className="tm-eyebrow">
-            Apply to a meeting
-          </h2>
-          <form className="tm-stack" onSubmit={submitApply}>
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-agenda-template-apply-template">
-                Template
-              </label>
-              <select
-                id="tm-agenda-template-apply-template"
-                className="tm-field__control"
-                value={applyTemplateId}
-                onChange={(event) => setApplyTemplateId(event.target.value)}
-              >
-                <option value="">Choose a template…</option>
+            {rows.length > 0 ? (
+              <ul className="tm-cal-templates" aria-label="Agenda templates">
                 {rows.map((row) => (
-                  <option key={row.id} value={row.id}>
-                    {row.name}
-                  </option>
+                  <li key={row.id} className="tm-cal-card">
+                    <div className="tm-cal-template__head">
+                      <h2 className="tm-cal-template__name">{row.name}</h2>
+                      <Button
+                        type="button"
+                        tone="destructive"
+                        size="compact"
+                        loading={remove.isPending && remove.variables === row.id}
+                        loadingLabel="Removing"
+                        onClick={() => remove.mutate(row.id)}
+                        aria-label={`Delete ${row.name}`}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                    <p className="tm-cal-eyebrow">Agenda sections · {row.items.length}</p>
+                    <ol className="tm-cal-items">
+                      {row.items.map((item, index) => (
+                        <li key={`${row.id}-${index}`} className="tm-cal-item">
+                          <span className="tm-cal-orb" aria-hidden="true">
+                            {index + 1}
+                          </span>
+                          <span className="tm-cal-item__body">
+                            <span className="tm-cal-item__title">{item.title}</span>
+                          </span>
+                        </li>
+                      ))}
+                    </ol>
+                  </li>
                 ))}
-              </select>
-            </div>
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-agenda-template-apply-meeting">
-                Meeting ID
-              </label>
-              <input
-                id="tm-agenda-template-apply-meeting"
-                className="tm-field__control"
-                value={applyMeetingId}
-                onChange={(event) => setApplyMeetingId(event.target.value)}
-              />
-              <span className="tm-field__hint">
-                Applying seeds the meeting&rsquo;s agenda items. Items already present are skipped.
-              </span>
-            </div>
-
-            {apply.isError ? (
-              <InlineAlert tone="danger" title="Could not apply the template" live>
-                {describeError(apply.error)}
-              </InlineAlert>
+              </ul>
             ) : null}
+          </div>
 
-            {applyResult ? (
-              <InlineAlert tone="success" title="Template applied" live>
-                Seeded {applyResult.seeded} new item{applyResult.seeded === 1 ? '' : 's'}; skipped{' '}
-                {applyResult.skipped} already present.
-              </InlineAlert>
+          <div className="tm-cal-side">
+            <section className="tm-cal-card" aria-labelledby="tm-agenda-template-create">
+              <h2 id="tm-agenda-template-create" className="tm-cal-eyebrow">
+                Create a template
+              </h2>
+              <form className="tm-cal-form" onSubmit={submitCreate}>
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-agenda-template-name">
+                    Name
+                  </label>
+                  <input
+                    id="tm-agenda-template-name"
+                    className="tm-field__control"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    maxLength={300}
+                    required
+                  />
+                </div>
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-agenda-template-items">
+                    Agenda items
+                  </label>
+                  <textarea
+                    id="tm-agenda-template-items"
+                    className="tm-field__control"
+                    value={itemsText}
+                    onChange={(event) => setItemsText(event.target.value)}
+                    rows={5}
+                  />
+                  <span className="tm-field__hint">
+                    One item per line, in order. Blank lines are ignored.
+                  </span>
+                </div>
+
+                {create.isError ? (
+                  <InlineAlert tone="danger" title="Could not create the template" live>
+                    {create.error instanceof ApiRequestError
+                      ? create.error.message
+                      : 'The API did not answer. Try again.'}
+                  </InlineAlert>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="accessible"
+                  loading={create.isPending}
+                  loadingLabel="Creating"
+                  disabled={!canCreate}
+                >
+                  Create template
+                </Button>
+              </form>
+            </section>
+
+            {rows.length > 0 ? (
+              <section className="tm-cal-card" aria-labelledby="tm-agenda-template-apply">
+                <h2 id="tm-agenda-template-apply" className="tm-cal-eyebrow">
+                  Apply to a meeting
+                </h2>
+                <form className="tm-cal-form" onSubmit={submitApply}>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-agenda-template-apply-template">
+                      Template
+                    </label>
+                    <select
+                      id="tm-agenda-template-apply-template"
+                      className="tm-field__control"
+                      value={applyTemplateId}
+                      onChange={(event) => setApplyTemplateId(event.target.value)}
+                    >
+                      <option value="">Choose a template…</option>
+                      {rows.map((row) => (
+                        <option key={row.id} value={row.id}>
+                          {row.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-agenda-template-apply-meeting">
+                      Meeting ID
+                    </label>
+                    <input
+                      id="tm-agenda-template-apply-meeting"
+                      className="tm-field__control"
+                      value={applyMeetingId}
+                      onChange={(event) => setApplyMeetingId(event.target.value)}
+                    />
+                    <span className="tm-field__hint">
+                      Applying seeds the meeting&rsquo;s agenda items. Items already present are
+                      skipped.
+                    </span>
+                  </div>
+
+                  {apply.isError ? (
+                    <InlineAlert tone="danger" title="Could not apply the template" live>
+                      {describeError(apply.error)}
+                    </InlineAlert>
+                  ) : null}
+
+                  {applyResult ? (
+                    <InlineAlert tone="success" title="Template applied" live>
+                      Seeded {applyResult.seeded} new item{applyResult.seeded === 1 ? '' : 's'};
+                      skipped {applyResult.skipped} already present.
+                    </InlineAlert>
+                  ) : null}
+
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={apply.isPending}
+                    loadingLabel="Applying"
+                    disabled={!canApply}
+                  >
+                    Apply template
+                  </Button>
+                </form>
+              </section>
             ) : null}
-
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={apply.isPending}
-                loadingLabel="Applying"
-                disabled={!canApply}
-              >
-                Apply template
-              </Button>
-            </div>
-          </form>
-        </section>
-      ) : null}
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
 }
 
-/** One agenda item per non-blank line, trimmed, in order. */
 function parseItems(text: string): string[] {
   return text
     .split('\n')

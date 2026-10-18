@@ -12,7 +12,7 @@ import {
  * **Access-policy simulation (Administration module 18).** The read-only "can this member do
  * this?" dry run, shown with a decision on screen — the surface that distinguishes this screen from
  * the plain policy form. The decision panel appears only after the form is submitted, so the play
- * fills a member id and presses *Simulate*, waits for the allow result to paint, and only then lets
+ * fills a member id and presses *Simulate*, waits for the result card to paint, and only then lets
  * the shot land; a baseline of a faked panel would certify markup the screen never renders.
  */
 const meta = {
@@ -45,7 +45,7 @@ export const Decision: Story = {
       'form[aria-label="Policy simulation"] button[type="submit"]',
     );
     submit.click();
-    await waitForElement(canvasElement, '.tm-inline-alert--success');
+    await waitForElement(canvasElement, '.tm-cc-card--ink');
     markVrReady();
   },
 };

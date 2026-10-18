@@ -56,10 +56,17 @@ export function ImportReceiptScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       title="Import receipt"
+      titleVariant="display"
+      eyebrow="Import · receipt"
       description="What happened to this import and to each row it committed."
     >
+      <style href="tm-onboarding-import" precedence="default">
+        {IMPORT_CSS}
+      </style>
+
       {receipt.isPending ? (
-        <LoadingRegion label="Loading import receipt." className="tm-stack tm-stack--tight">
+        <LoadingRegion label="Loading import receipt." className="tm-import">
+          <Skeleton height="48px" />
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
@@ -79,33 +86,136 @@ export function ImportReceiptScreen({
 function ReceiptPanel({ receipt }: { receipt: ImportReceipt }) {
   const statusText = receipt.status === 'committed' ? 'Committed' : 'Committed with errors';
   const statusState = receipt.status === 'committed' ? 'done' : 'blocked';
+  const total = receipt.committedCount + receipt.failedCount;
+  const failures = groupFailures(receipt.rows);
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-receipt-heading">
-      <h2 id="tm-receipt-heading" className="tm-eyebrow">
-        This import
-      </h2>
+    <div className="tm-import">
+      <ol className="tm-import__track" aria-label="Import steps">
+        <li className="tm-import__capsule tm-import__capsule--ink">Validate ✓</li>
+        <li className="tm-import__capsule tm-import__capsule--ink">Commit ✓</li>
+        <li className="tm-import__capsule tm-import__capsule--lime" aria-current="step">
+          <span className="tm-import__capsule-key">Receipt</span>
+          <span className="tm-import__capsule-text">
+            {receipt.committedCount} of {total} {total === 1 ? 'record' : 'records'} committed
+          </span>
+        </li>
+      </ol>
 
-      <dl className="tm-detail-list">
-        <div className="tm-detail-list__pair">
-          <dt>Status</dt>
-          <dd>
-            <StateCapsule state={statusState}>{statusText}</StateCapsule>
-          </dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Committed</dt>
-          <dd className="tm-mono">{receipt.committedCount}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Failed</dt>
-          <dd className="tm-mono">{receipt.failedCount}</dd>
-        </div>
-      </dl>
+      <div className="tm-import__grid">
+        <section className="tm-import__card" aria-labelledby="tm-receipt-heading">
+          <h2 id="tm-receipt-heading" className="tm-import__eyebrow">
+            This import
+          </h2>
 
-      <RowsTable rows={receipt.rows} />
-    </section>
+          <dl className="tm-detail-list tm-import__summary">
+            <div className="tm-detail-list__pair">
+              <dt>Status</dt>
+              <dd>
+                <StateCapsule state={statusState}>{statusText}</StateCapsule>
+              </dd>
+            </div>
+            <div className="tm-detail-list__pair">
+              <dt>Committed</dt>
+              <dd className="tm-mono">{receipt.committedCount}</dd>
+            </div>
+            <div className="tm-detail-list__pair">
+              <dt>Failed</dt>
+              <dd className="tm-mono">{receipt.failedCount}</dd>
+            </div>
+          </dl>
+
+          <div className="tm-import__bars" aria-hidden="true">
+            <ProgressBar label="Committed" value={receipt.committedCount} total={total} />
+            <ProgressBar label="Failed" value={receipt.failedCount} total={total} tone="warning" />
+          </div>
+
+          <hr className="tm-import__rule" />
+          <p className="tm-import__note">
+            Every imported item is <strong>internal</strong> — nothing becomes client-visible by
+            import.
+          </p>
+        </section>
+
+        {receipt.failedCount > 0 ? (
+          <section
+            className="tm-import__card tm-import__card--warning"
+            aria-labelledby="tm-receipt-failures"
+          >
+            <div className="tm-import__failure-head">
+              <span className="tm-import__glyph" aria-hidden="true">
+                !
+              </span>
+              <h2 id="tm-receipt-failures" className="tm-import__failure-title">
+                Partial failure · {receipt.failedCount}{' '}
+                {receipt.failedCount === 1 ? 'record' : 'records'}
+              </h2>
+            </div>
+            <p className="tm-import__note">
+              The rows that did commit stay committed. Each failed row is listed below with its
+              reason.
+            </p>
+            <ul className="tm-import__reasons">
+              {failures.map((failure) => (
+                <li key={failure.reason}>
+                  {`${failure.count} ${failure.count === 1 ? 'row' : 'rows'} · ${failure.reason}`}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </div>
+
+      <section className="tm-import__card" aria-labelledby="tm-receipt-rows">
+        <h2 id="tm-receipt-rows" className="tm-import__eyebrow">
+          Row by row
+        </h2>
+        <RowsTable rows={receipt.rows} />
+      </section>
+    </div>
   );
+}
+
+function ProgressBar({
+  label,
+  value,
+  total,
+  tone,
+}: {
+  label: string;
+  value: number;
+  total: number;
+  tone?: 'warning';
+}) {
+  const share = total === 0 ? 0 : Math.round((value / total) * 100);
+  return (
+    <div className="tm-import__bar">
+      <span className="tm-import__bar-label">{label}</span>
+      <span className="tm-import__bar-track">
+        <span
+          className="tm-import__bar-fill"
+          data-tone={tone}
+          style={{ inlineSize: `${share}%` }}
+        />
+      </span>
+      <span className="tm-import__bar-count">
+        {value} / {total}
+      </span>
+    </div>
+  );
+}
+
+/** Failed rows grouped by their reason, most frequent first — the export's "18 items · …" list. */
+function groupFailures(rows: readonly ImportReceiptRow[]): { reason: string; count: number }[] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (row.outcome !== 'failed') continue;
+    const reason = row.error ?? 'No detail recorded.';
+    counts.set(reason, (counts.get(reason) ?? 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
 }
 
 function RowsTable({ rows }: { rows: readonly ImportReceiptRow[] }) {
@@ -160,3 +270,55 @@ function describe(error: unknown): string {
   if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
   return 'Something went wrong. Try again.';
 }
+
+const IMPORT_CSS = `
+.tm-import { display: flex; flex-direction: column; gap: 18px; }
+.tm-import__track { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.tm-import__capsule {
+  display: inline-flex; align-items: center; gap: 12px; min-block-size: 48px; padding: 0 18px;
+  border: var(--b-quiet) dashed var(--line-300); border-radius: var(--r-capsule); color: var(--ink-500);
+  font-size: var(--t-caption); line-height: var(--t-caption-line); font-weight: 500; white-space: nowrap;
+}
+.tm-import__capsule--ink { border: 0; background: var(--tm-ink-absolute); color: var(--tm-paper-absolute); }
+.tm-import__capsule--lime { flex: 1; border: 0; padding-inline: 20px; background: var(--lime-500); color: var(--tm-on-lime); }
+.tm-import__capsule-key { font-size: 11px; line-height: 15px; font-weight: 600; text-transform: uppercase; }
+.tm-import__capsule-text { font-size: var(--t-ui-sm); line-height: var(--t-ui-sm-line); font-weight: 600; white-space: normal; }
+.tm-import__grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 18px; }
+.tm-import__grid > :only-child { grid-column: 1 / -1; }
+.tm-import__card {
+  display: flex; flex-direction: column; gap: 14px; min-inline-size: 0; padding: 22px;
+  border: var(--b-quiet) solid var(--line-300); border-radius: var(--r-card); background: var(--paper-0);
+}
+.tm-import__card--warning { border: var(--b-structural) solid var(--warning-600); }
+.tm-import__eyebrow {
+  margin: 0; font-family: var(--font-mono); font-size: 10px; line-height: 14px; font-weight: 500;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-500);
+}
+.tm-import__summary { margin: 0; }
+.tm-import__bars { display: flex; flex-direction: column; gap: 12px; }
+.tm-import__bar { display: flex; align-items: center; gap: 12px; }
+.tm-import__bar-label { inline-size: 96px; font-size: var(--t-caption); line-height: var(--t-caption-line); font-weight: 500; color: var(--ink-800); }
+.tm-import__bar-track { flex: 1; block-size: 12px; overflow: hidden; border-radius: var(--r-capsule); background: var(--paper-150); }
+.tm-import__bar-fill { display: block; block-size: 100%; background: var(--ink-950); }
+.tm-import__bar-fill[data-tone='warning'] { background: var(--warning-600); }
+.tm-import__bar-count { inline-size: 74px; text-align: end; font-family: var(--font-mono); font-size: 11px; line-height: 15px; color: var(--ink-950); }
+.tm-import__rule { block-size: 1px; margin: 0; border: 0; background: var(--paper-150); }
+.tm-import__note { margin: 0; font-size: var(--t-ui-sm); line-height: 19px; color: var(--ink-650); text-wrap: pretty; }
+.tm-import__note strong { font-weight: 500; color: var(--ink-950); }
+.tm-import__failure-head { display: flex; align-items: center; gap: 10px; }
+.tm-import__glyph {
+  display: grid; place-items: center; inline-size: 24px; block-size: 24px; border: var(--b-expressive) solid var(--warning-600);
+  border-radius: var(--r-capsule); color: var(--warning-600); font: 600 11px/1 var(--font-mono);
+}
+.tm-import__failure-title { margin: 0; font-size: var(--t-body-md); line-height: 21px; font-weight: 600; color: var(--ink-800); }
+.tm-import__reasons { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.tm-import__reasons li {
+  padding: 10px 12px; border-radius: 12px; background: var(--paper-50); font-size: var(--t-caption);
+  line-height: var(--t-caption-line); font-weight: 500; color: var(--ink-800); overflow-wrap: anywhere;
+}
+.tm-import .tm-table-scroll { border: 0; }
+@media (max-width: 60rem) {
+  .tm-import__grid { grid-template-columns: minmax(0, 1fr); }
+  .tm-import__capsule--lime { flex-basis: 100%; }
+}
+`;

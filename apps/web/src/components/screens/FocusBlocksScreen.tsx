@@ -9,6 +9,8 @@ import { createFocusBlock, deleteFocusBlock, listFocusBlocks } from '../../lib/a
 import type { FocusBlockView } from '../../lib/api/focus-blocks';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { CalendarHeaderActions, CalendarSubnav, whenLabel } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface FocusBlocksScreenProps {
   organizationSlug: string;
@@ -100,116 +102,159 @@ export function FocusBlocksScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="calendar"
       title="Focus blocks"
-      description="Protect time on your calendar. Create a block, see your upcoming blocks, and remove one."
+      eyebrow="Calendar · Protected time"
+      actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="none" />}
     >
-      <form className="tm-panel tm-stack" aria-labelledby="tm-focus-heading" onSubmit={submit}>
-        <h2 id="tm-focus-heading" className="tm-eyebrow">
-          New focus block
-        </h2>
+      <div className="tm-cal">
+        <CalendarSubnav organizationSlug={organizationSlug} current="focus-blocks" />
 
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-focus-title">
-            Title
-          </label>
-          <input
-            id="tm-focus-title"
-            className="tm-field__control"
-            type="text"
-            value={title}
-            placeholder="e.g. Deep work"
-            maxLength={200}
-            onChange={(event) => setTitle(event.target.value)}
-          />
-        </div>
-
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-focus-start">
-            Start
-          </label>
-          <input
-            id="tm-focus-start"
-            className="tm-field__control"
-            type="datetime-local"
-            value={startsAt}
-            onChange={(event) => setStartsAt(event.target.value)}
-          />
-        </div>
-
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-focus-end">
-            End
-          </label>
-          <input
-            id="tm-focus-end"
-            className="tm-field__control"
-            type="datetime-local"
-            value={endsAt}
-            onChange={(event) => setEndsAt(event.target.value)}
-          />
-        </div>
-
-        {formError ? (
-          <InlineAlert tone="danger" title="Check the focus block">
-            {formError}
-          </InlineAlert>
-        ) : null}
-
-        {create.isError ? (
-          <InlineAlert tone="danger" title="We could not create the focus block">
-            {errorMessage(create.error)}
-          </InlineAlert>
-        ) : null}
-
-        <div>
-          <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? 'Creating…' : 'Create focus block'}
-          </Button>
-        </div>
-      </form>
-
-      {blocks.isPending ? (
-        <LoadingRegion label="Loading your focus blocks">
-          <Skeleton />
-        </LoadingRegion>
-      ) : blocks.isError ? (
-        <InlineAlert tone="danger" title="We could not load your focus blocks">
-          {errorMessage(blocks.error)}
-        </InlineAlert>
-      ) : blocks.data.length === 0 ? (
-        <InlineAlert tone="neutral" title="No focus blocks">
-          You have no upcoming focus blocks. Create one above.
-        </InlineAlert>
-      ) : (
-        <ul className="tm-list tm-stack" aria-label="Upcoming focus blocks">
-          {blocks.data.map((block) => (
-            <li key={block.id} className="tm-row tm-row--between">
-              <div className="tm-stack tm-stack--tight">
-                <strong>{block.title}</strong>
-                <span className="tm-muted">
-                  {formatInstant(block.startsAt)} — {formatInstant(block.endsAt)}
-                </span>
+        <div className="tm-cal-body">
+          <div className="tm-cal-main">
+            {blocks.isPending ? (
+              <LoadingRegion label="Loading your focus blocks">
+                <Skeleton />
+              </LoadingRegion>
+            ) : blocks.isError ? (
+              <InlineAlert tone="danger" title="We could not load your focus blocks">
+                {errorMessage(blocks.error)}
+              </InlineAlert>
+            ) : blocks.data.length === 0 ? (
+              <InlineAlert tone="neutral" title="No focus blocks">
+                You have no upcoming focus blocks. Create one beside the list.
+              </InlineAlert>
+            ) : (
+              <div className="tm-cal-sheet">
+                <table>
+                  <caption className="tm-visually-hidden">
+                    Your focus blocks for the next 30 days, {blocks.data.length} shown.
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Time</th>
+                      <th scope="col">What</th>
+                      <th scope="col">Kind</th>
+                      <th scope="col">
+                        <span className="tm-visually-hidden">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody aria-label="Upcoming focus blocks">
+                    {blocks.data.map((block) => (
+                      <tr key={block.id}>
+                        <td className="tm-cal-sheet__time">
+                          <time dateTime={block.startsAt}>{whenLabel(block.startsAt)}</time>
+                        </td>
+                        <th scope="row" className="tm-cal-sheet__what">
+                          {block.title}
+                          <span className="tm-cal-sheet__sub">
+                            {formatInstant(block.startsAt)} — {formatInstant(block.endsAt)}
+                          </span>
+                        </th>
+                        <td className="tm-cal-sheet__kind">
+                          Focus · {durationMinutes(block.startsAt, block.endsAt)} min
+                        </td>
+                        <td className="tm-cal-sheet__end">
+                          <Button
+                            type="button"
+                            tone="text"
+                            size="compact"
+                            disabled={remove.isPending}
+                            onClick={() => remove.mutate(block.id)}
+                          >
+                            Remove
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <Button
-                type="button"
-                tone="text"
-                disabled={remove.isPending}
-                onClick={() => remove.mutate(block.id)}
-              >
-                Remove
-              </Button>
-            </li>
-          ))}
-        </ul>
-      )}
+            )}
 
-      {remove.isError ? (
-        <InlineAlert tone="danger" title="We could not remove the focus block">
-          {errorMessage(remove.error)}
-        </InlineAlert>
-      ) : null}
+            {remove.isError ? (
+              <InlineAlert tone="danger" title="We could not remove the focus block">
+                {errorMessage(remove.error)}
+              </InlineAlert>
+            ) : null}
+          </div>
+
+          <div className="tm-cal-side">
+            <form className="tm-cal-card" aria-labelledby="tm-focus-heading" onSubmit={submit}>
+              <h2 id="tm-focus-heading" className="tm-cal-eyebrow">
+                New focus block
+              </h2>
+              <p className="tm-cal-card__title">Protect time on your calendar</p>
+
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-focus-title">
+                  Title
+                </label>
+                <input
+                  id="tm-focus-title"
+                  className="tm-field__control"
+                  type="text"
+                  value={title}
+                  placeholder="e.g. Deep work"
+                  maxLength={200}
+                  onChange={(event) => setTitle(event.target.value)}
+                />
+              </div>
+
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-focus-start">
+                  Start
+                </label>
+                <input
+                  id="tm-focus-start"
+                  className="tm-field__control"
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(event) => setStartsAt(event.target.value)}
+                />
+              </div>
+
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-focus-end">
+                  End
+                </label>
+                <input
+                  id="tm-focus-end"
+                  className="tm-field__control"
+                  type="datetime-local"
+                  value={endsAt}
+                  onChange={(event) => setEndsAt(event.target.value)}
+                />
+              </div>
+
+              {formError ? (
+                <InlineAlert tone="danger" title="Check the focus block">
+                  {formError}
+                </InlineAlert>
+              ) : null}
+
+              {create.isError ? (
+                <InlineAlert tone="danger" title="We could not create the focus block">
+                  {errorMessage(create.error)}
+                </InlineAlert>
+              ) : null}
+
+              <Button type="submit" disabled={create.isPending}>
+                {create.isPending ? 'Creating…' : 'Create focus block'}
+              </Button>
+            </form>
+          </div>
+        </div>
+      </div>
     </AppShell>
   );
+}
+
+/** Whole minutes between two instants, for the "Focus · 90 min" kind cell. */
+function durationMinutes(startsAt: string, endsAt: string): number {
+  const ms = Date.parse(endsAt) - Date.parse(startsAt);
+  return Number.isNaN(ms) ? 0 : Math.max(0, Math.round(ms / 60_000));
 }
 
 function errorMessage(error: unknown): string {

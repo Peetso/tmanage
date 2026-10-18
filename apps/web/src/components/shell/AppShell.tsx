@@ -1,12 +1,18 @@
+'use client';
+
+import { useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
-import { Badge, LiveAnnouncer, SkipLink } from '@tmanage/ui';
+import { QueryClientContext, useQuery } from '@tanstack/react-query';
+import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
-import { INTERNAL_NAVIGATION } from './navigation';
+import { CONTROL_CENTER_NAVIGATION, INTERNAL_NAVIGATION } from './navigation';
 import { MobilePrimaryNav } from './MobilePrimaryNav';
 import { MaintenanceBanner } from '../screens/MaintenanceBanner';
-import { CommandPalette } from '../screens/CommandPalette';
+import { CommandPalette, OPEN_COMMAND_PALETTE_EVENT } from '../screens/CommandPalette';
 import { InboxNotificationBridge } from '../pwa/InboxNotificationBridge';
+import { browserApiClient } from '../../lib/api/browser-client';
+import { listOrganizations } from '../../lib/api/organizations';
 
 export interface AppShellProps {
   /**
@@ -15,8 +21,7 @@ export interface AppShellProps {
    * Every rail destination lives under it — `INTERNAL_NAVIGATION` carries the suffix and this
    * supplies the prefix — for the reason `ClientPortalShell` gives: every screen is
    * tenant-scoped, and the slug in the path is the claim the API's `TenantContextGuard`
-   * resolves against a membership row. The rail carried org-less hrefs from WEB-001 until
-   * 2026-09-03, so its links pointed at routes that do not exist.
+   * resolves against a membership row.
    */
   organizationSlug: string;
   /** The organization the person is working in. Always visible — `22` §1 requires it. */
@@ -25,132 +30,379 @@ export interface AppShellProps {
   activeNavigationId?: string;
   /** The screen title. Rendered as the one `<h1>` of the document. */
   title: string;
+  /**
+   * `page` (default) is the design's `heading.page` (36/42, weight 500) used by list and detail
+   * screens (WK-02 "Delivery risk"); `display` is the 64px uppercase display headline HOME-01
+   * draws ("MY DAY").
+   */
+  titleVariant?: 'page' | 'display';
+  /**
+   * The eyebrow after the organization name — "Client delivery", "Saved view". The organization
+   * name always leads it, so no screen can omit the tenant.
+   */
+  eyebrow?: ReactNode;
+  /** Small text after the title on the same line, e.g. the item count ("214 items"). */
+  titleMeta?: ReactNode;
   /** Optional supporting line beneath the title. */
   description?: ReactNode;
-  /** Actions belonging to the whole screen, rendered at the end of the canvas header. */
+  /** Actions belonging to the whole screen. */
   actions?: ReactNode;
+  /**
+   * `end` (default) pushes the actions to the end of the title row (WK-02's view switch and
+   * "New work"); `inline` sets them right after the title (HOME-01's "New work" capsule).
+   */
+  actionsPlacement?: 'end' | 'inline';
+  /** The header's trailing block — HOME-01's three metrics. */
+  headerAside?: ReactNode;
+  /** The black day capsule above the header (HOME-01 only). Pass a `<DayPulseBar />`. */
+  topBar?: ReactNode;
   /** The contextual sidebar — saved views, channels, admin sections. */
   contextRail?: ReactNode;
   children: ReactNode;
   /** The optional detail pane, the "context lens" in the design language. */
   lens?: ReactNode;
+  /** The signed-in person's initials for the account orb at the foot of the rail. */
+  accountInitials?: string;
+}
+
+/** Owner and org admin reach the Control Center; `sitemap-and-role-navigation.md` hides it otherwise. */
+const CONTROL_CENTER_ROLES = new Set(['owner', 'org_admin', 'admin']);
+
+/**
+ * The Control Center orb. It reads the caller's role for this organization from the session's
+ * organization list (the same read `ID-04` makes) and renders nothing until the role is known to
+ * be owner or admin — the rail never offers a destination the person would be refused.
+ *
+ * Mounted only when a `QueryClient` is in the tree, so a test that renders the bare shell does not
+ * need one (the same rule `CommandPalette` follows).
+ */
+function ControlCenterOrb({
+  organizationSlug,
+  current,
+}: {
+  organizationSlug: string;
+  current: boolean;
+}) {
+  const organizations = useQuery({
+    queryKey: ['shell', 'organizations'],
+    queryFn: () => listOrganizations(browserApiClient()),
+    staleTime: 5 * 60_000,
+  });
+  const role = organizations.data?.find((org) => org.slug === organizationSlug)?.role;
+  if (!role || !CONTROL_CENTER_ROLES.has(role)) return null;
+  return (
+    <Link
+      href={`/${organizationSlug}${CONTROL_CENTER_NAVIGATION.href}`}
+      className="tm-rail__item"
+      {...(current ? { 'aria-current': 'page' as const } : {})}
+    >
+      <span className="tm-rail__orb" aria-hidden="true">
+        {CONTROL_CENTER_NAVIGATION.glyph}
+      </span>
+      <span className="tm-rail__label">{CONTROL_CENTER_NAVIGATION.label}</span>
+    </Link>
+  );
+}
+
+function RailFoot({
+  organizationSlug,
+  activeNavigationId,
+  accountInitials,
+}: {
+  organizationSlug: string;
+  activeNavigationId: string | undefined;
+  accountInitials: string | undefined;
+}) {
+  const queryClient = useContext(QueryClientContext);
+  return (
+    <div className="tm-rail__foot">
+      {queryClient ? (
+        <ControlCenterOrb
+          organizationSlug={organizationSlug}
+          current={activeNavigationId === CONTROL_CENTER_NAVIGATION.id}
+        />
+      ) : null}
+      {accountInitials ? (
+        <Link
+          href={`/${organizationSlug}/preferences`}
+          className="tm-rail__account"
+          aria-label="Your preferences"
+        >
+          {accountInitials}
+        </Link>
+      ) : null}
+    </div>
+  );
 }
 
 /**
- * The internal shell: orbital rail, contextual sidebar, canvas, optional detail pane.
+ * The internal shell: orbital rail, page header, canvas, optional context rail and lens.
  *
- * This is the first of the two shells `22-SCREEN-BY-SCREEN` §1 defines. It is built now,
- * ahead of the screens that will fill it, because WEB-001 stands up the application and a
- * shell that arrives with the first internal screen is a shell designed around one screen.
+ * Drawn from HOME-01 / WK-02 / SR-01 in the design handoff: an 88px rail on `--paper-350` with a
+ * black brand orb, a rule, and 44px navigation orbs (white with a quiet line; the current one
+ * inked), then a canvas on `--paper-150` whose header is a mono eyebrow, the title and the
+ * screen's actions.
  *
  * Three decisions worth stating:
  *
- * 1. **The rail is a `<nav>` with a list, and every destination is a real `<a>`.** The
- *    export draws it as a column of orbs; an orb that is a `<button>` with an onClick is not
- *    reachable by middle-click, cannot be opened in a new tab, and tells a screen reader
- *    nothing about where it goes. The orb is the appearance, the link is the element.
- * 2. **The organization name is in the shell, not in each screen.** `22` §1: "All screens
- *    expose current organization/project and audience context." Putting it here means no
- *    screen can omit it.
- * 3. **`aria-current="page"`** marks the active destination rather than a class alone, so
- *    the state that is communicated by colour is also communicated to assistive technology.
- *    That is law 3 of the token export — every state that uses colour also carries a word.
+ * 1. **The rail is a `<nav>` with a list, and every destination is a real `<a>`.** The orb is the
+ *    appearance, the link is the element.
+ * 2. **The organization name is in the shell, not in each screen** — it leads the eyebrow.
+ * 3. **`aria-current="page"`** marks the active destination rather than a class alone.
  */
 export function AppShell({
   organizationSlug,
   organizationName,
   activeNavigationId,
   title,
+  titleVariant = 'page',
+  eyebrow,
+  titleMeta,
   description,
   actions,
+  actionsPlacement = 'end',
+  headerAside,
+  topBar,
   contextRail,
   children,
   lens,
+  accountInitials,
 }: AppShellProps) {
   return (
     <LiveAnnouncer>
       <div className="tm-app">
         <SkipLink targetId="tm-main" />
 
-        {/* Platform states (x185): the maintenance / degraded-mode banner. Reads the public
-            endpoint and renders nothing unless a window is active, so every internal screen shares
-            it at no cost when the platform is healthy. */}
+        {/* Platform states (SYS-04): the maintenance / degraded-mode banner across the whole
+            window. Renders nothing unless a window is active. */}
         <MaintenanceBanner />
-        {/* SRCH command palette (x181): keyboard-driven (Ctrl/Cmd-K) navigation and quick actions
-            over the existing search. Rendered once here so every internal screen shares it. */}
+        {/* SR-01 command surface: keyboard-driven (Ctrl/Cmd-K) navigation and quick actions. */}
         <CommandPalette organizationSlug={organizationSlug} />
-        {/* Desktop companion (module 22, slice 08): mirrors new inbox notices as local desktop
-            notifications while the window is backgrounded. Renders nothing and polls only once the
-            person has opted in from Preferences; mounted here so every internal screen shares it. */}
+        {/* Desktop companion: mirrors new inbox notices as local notifications once opted in. */}
         <InboxNotificationBridge organizationSlug={organizationSlug} />
 
-        <nav className="tm-rail" aria-label="Primary">
-          <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
-            <Wordmark variant="icon" label="TManage home" />
-          </Link>
+        <div className="tm-app__frame">
+          <nav className="tm-rail" aria-label="Primary">
+            <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
+              <Wordmark variant="icon" label="TManage home" />
+            </Link>
+            <span className="tm-rail__rule" aria-hidden="true" />
 
-          <ul className="tm-rail__list">
-            {INTERNAL_NAVIGATION.map((item) => {
-              const current = item.id === activeNavigationId;
-              return (
-                <li key={item.id}>
-                  <Link
-                    href={`/${organizationSlug}${item.href}`}
-                    className="tm-rail__item"
-                    {...(current ? { 'aria-current': 'page' as const } : {})}
-                  >
-                    <span className="tm-rail__orb" aria-hidden="true">
-                      {item.glyph}
-                    </span>
-                    <span className="tm-rail__label">{item.label}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
+            <ul className="tm-rail__list">
+              {INTERNAL_NAVIGATION.map((item) => {
+                const current = item.id === activeNavigationId;
+                return (
+                  <li key={item.id}>
+                    <Link
+                      href={`/${organizationSlug}${item.href}`}
+                      className="tm-rail__item"
+                      {...(current ? { 'aria-current': 'page' as const } : {})}
+                    >
+                      <span className="tm-rail__orb" aria-hidden="true">
+                        {item.glyph}
+                      </span>
+                      <span className="tm-rail__label">{item.label}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
 
-        <div className="tm-app__body">
-          <header className="tm-canvas-header">
-            <div className="tm-canvas-header__context">
-              <Badge mono>{organizationName}</Badge>
-              <Badge mono>Internal</Badge>
+            <RailFoot
+              organizationSlug={organizationSlug}
+              activeNavigationId={activeNavigationId}
+              accountInitials={accountInitials}
+            />
+          </nav>
+
+          <div className="tm-app__body">
+            {topBar ? <div className="tm-app__topbar">{topBar}</div> : null}
+
+            <header
+              className="tm-canvas-header"
+              data-title-variant={titleVariant}
+              data-actions={actionsPlacement}
+            >
+              <div className="tm-canvas-header__titles">
+                <p className="tm-canvas-header__context">
+                  <span className="tm-canvas-header__org">{organizationName}</span>
+                  {eyebrow ? (
+                    <>
+                      <span aria-hidden="true"> · </span>
+                      <span>{eyebrow}</span>
+                    </>
+                  ) : null}
+                </p>
+                <div className="tm-canvas-header__title-row">
+                  <h1 className="tm-canvas-header__title">{title}</h1>
+                  {titleMeta ? <span className="tm-canvas-header__meta">{titleMeta}</span> : null}
+                  {actions ? <div className="tm-canvas-header__actions">{actions}</div> : null}
+                </div>
+                {description ? (
+                  <p className="tm-canvas-header__description">{description}</p>
+                ) : null}
+              </div>
+              {headerAside ? <div className="tm-canvas-header__aside">{headerAside}</div> : null}
+            </header>
+
+            <div className="tm-app__columns">
+              {contextRail ? (
+                <nav className="tm-context-rail" aria-label="Within this section">
+                  {contextRail}
+                </nav>
+              ) : null}
+
+              <main id="tm-main" className="tm-canvas" tabIndex={-1}>
+                {children}
+              </main>
+
+              {lens ? (
+                <aside className="tm-lens" aria-label="Details">
+                  {lens}
+                </aside>
+              ) : null}
             </div>
-            <div className="tm-canvas-header__titles">
-              <h1 className="tm-canvas-header__title">{title}</h1>
-              {description ? <p className="tm-canvas-header__description">{description}</p> : null}
-            </div>
-            {actions ? <div className="tm-canvas-header__actions">{actions}</div> : null}
-          </header>
-
-          <div className="tm-app__columns">
-            {contextRail ? (
-              <nav className="tm-context-rail" aria-label="Within this section">
-                {contextRail}
-              </nav>
-            ) : null}
-
-            <main id="tm-main" className="tm-canvas" tabIndex={-1}>
-              {children}
-            </main>
-
-            {lens ? (
-              <aside className="tm-lens" aria-label="Details">
-                {lens}
-              </aside>
-            ) : null}
           </div>
         </div>
 
-        {/* Mobile companion (Module 23): the five-item primary dock. Rendered after the body so
-            it is last in the document and, as a sticky bottom bar, sits after the canvas in
-            reading order. `globals.css` reveals it only below ~768px and hides the rail there, so
-            exactly one primary navigation is ever on screen. */}
+        {/* Mobile companion (Module 23): the five-item docked orbs, shown below ~900px in place
+            of the rail (`responsive-and-desktop.md`: "640–899 Docked Orbs appear, rail hidden"). */}
         <MobilePrimaryNav
           organizationSlug={organizationSlug}
           {...(activeNavigationId ? { activeNavigationId } : {})}
         />
       </div>
     </LiveAnnouncer>
+  );
+}
+
+/** One slot in the day capsule. `state` decides the paint: done is muted, now is lime. */
+export interface DayPulseItem {
+  readonly id: string;
+  /** The local time the slot starts, already formatted (e.g. `14:00`). */
+  readonly time: string;
+  readonly label: string;
+  readonly state: 'done' | 'now' | 'next' | 'later';
+  /** Initials of the people in a `now` slot, drawn as overlapping orbs. */
+  readonly people?: readonly string[];
+  readonly href?: string;
+}
+
+export interface DayPulseBarProps {
+  organizationSlug: string;
+  /** Today's slots from the caller's real calendar data. Never invent placeholder events. */
+  items?: readonly DayPulseItem[];
+  /** The `NOW` capsule's text when no slot is `now` (e.g. the next thing that needs you). */
+  nowLabel?: ReactNode;
+  /** Test seam: a fixed clock. */
+  now?: Date;
+}
+
+function useClock(fixed: Date | undefined): Date | null {
+  const [now, setNow] = useState<Date | null>(fixed ?? null);
+  useEffect(() => {
+    if (fixed) return;
+    setNow(new Date());
+    const id = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(id);
+  }, [fixed]);
+  return now;
+}
+
+/**
+ * HOME-01's day capsule: a black pill holding today's date orb, the day's slots and the live
+ * `NOW` capsule in lime, an arrow out to the calendar, and — beside it — the search orb that opens
+ * the command surface. The clock is read on the client after mount so the server render and the
+ * first client render agree.
+ */
+export function DayPulseBar({
+  organizationSlug,
+  items = [],
+  nowLabel,
+  now: fixed,
+}: DayPulseBarProps) {
+  const now = useClock(fixed);
+  const day = now ? String(now.getDate()).padStart(2, '0') : '··';
+  const date = now
+    ? now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+    : '';
+  const time = now
+    ? now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '';
+  const nowItem = items.find((item) => item.state === 'now');
+  const before = items.filter((item) => item.state === 'done');
+  const after = items.filter((item) => item.state === 'next' || item.state === 'later');
+
+  return (
+    <div className="tm-day-pulse">
+      <div className="tm-day-pulse__capsule" role="group" aria-label="Today">
+        <div className="tm-day-pulse__date">
+          <span className="tm-day-pulse__day" aria-hidden="true">
+            {day}
+          </span>
+          <span className="tm-day-pulse__date-label">
+            Today{date ? ` · ${date.replace(',', '')}` : ''}
+          </span>
+        </div>
+        {before.map((item) => (
+          <DayPulseSlot key={item.id} item={item} />
+        ))}
+        <div className="tm-day-pulse__now">
+          <span className="tm-day-pulse__now-time">NOW{time ? ` ${time}` : ''}</span>
+          <span className="tm-day-pulse__now-label">{nowItem ? nowItem.label : nowLabel}</span>
+          {nowItem?.people && nowItem.people.length > 0 ? (
+            <span className="tm-day-pulse__people" aria-hidden="true">
+              {nowItem.people.map((initials) => (
+                <span key={initials} className="tm-day-pulse__person">
+                  {initials}
+                </span>
+              ))}
+            </span>
+          ) : null}
+        </div>
+        {after.map((item) => (
+          <DayPulseSlot key={item.id} item={item} />
+        ))}
+        <Link
+          href={`/${organizationSlug}/calendar`}
+          className="tm-day-pulse__out"
+          aria-label="Open the calendar"
+        >
+          <span aria-hidden="true">↗</span>
+        </Link>
+      </div>
+      <button
+        type="button"
+        className="tm-day-pulse__search"
+        aria-label="Search and commands"
+        onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))}
+      >
+        <span aria-hidden="true">⌕</span>
+      </button>
+    </div>
+  );
+}
+
+function DayPulseSlot({ item }: { item: DayPulseItem }) {
+  const body = (
+    <>
+      <span className="tm-day-pulse__slot-time">{item.time}</span>
+      <span className="tm-day-pulse__slot-label">{item.label}</span>
+      {item.state === 'done' ? (
+        <span className="tm-day-pulse__slot-done">
+          <span aria-hidden="true">✓</span>
+          <span className="tm-visually-hidden">done</span>
+        </span>
+      ) : null}
+    </>
+  );
+  return item.href ? (
+    <Link href={item.href} className="tm-day-pulse__slot" data-state={item.state}>
+      {body}
+    </Link>
+  ) : (
+    <span className="tm-day-pulse__slot" data-state={item.state}>
+      {body}
+    </span>
   );
 }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   INSIGHT_REPORT_KINDS,
@@ -120,171 +121,175 @@ export function ReportSchedulesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
+      eyebrow="Insights"
       title="Report schedules"
       description="Schedule an insights report to run on a daily or weekly cadence."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-report-schedule-editor">
-        <h2 id="tm-report-schedule-editor" className="tm-eyebrow">
-          New schedule
-        </h2>
+      <div className="tm-ins tm-ins-tool">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-report-schedule-editor">
+          <h2 id="tm-report-schedule-editor" className="tm-eyebrow">
+            New schedule
+          </h2>
 
-        <form
-          className="tm-stack"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (!save.isPending) save.mutate();
-          }}
-        >
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-report-schedule-report">
-              Report
-            </label>
-            <select
-              id="tm-report-schedule-report"
-              className="tm-field__control"
-              value={reportKey}
-              onChange={(event) => setReportKey(event.target.value as InsightReportKind)}
-            >
-              {INSIGHT_REPORT_KINDS.map((kind) => (
-                <option key={kind} value={kind}>
-                  {REPORT_KIND_LABELS[kind]}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-report-schedule-cadence">
-              Cadence
-            </label>
-            <select
-              id="tm-report-schedule-cadence"
-              className="tm-field__control"
-              value={cadence}
-              onChange={(event) => setCadence(event.target.value as InsightReportCadence)}
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-            </select>
-          </div>
-
-          {cadence === 'weekly' ? (
+          <form
+            className="tm-stack"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!save.isPending) save.mutate();
+            }}
+          >
             <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-report-schedule-day">
-                Day of week
+              <label className="tm-field__label" htmlFor="tm-report-schedule-report">
+                Report
               </label>
               <select
-                id="tm-report-schedule-day"
+                id="tm-report-schedule-report"
                 className="tm-field__control"
-                value={dayOfWeek}
-                onChange={(event) => setDayOfWeek(Number(event.target.value))}
+                value={reportKey}
+                onChange={(event) => setReportKey(event.target.value as InsightReportKind)}
               >
-                {DAY_LABELS.map((label, index) => (
-                  <option key={label} value={index}>
-                    {label}
+                {INSIGHT_REPORT_KINDS.map((kind) => (
+                  <option key={kind} value={kind}>
+                    {REPORT_KIND_LABELS[kind]}
                   </option>
                 ))}
               </select>
             </div>
-          ) : null}
 
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-report-schedule-hour">
-              Hour (UTC)
-            </label>
-            <input
-              id="tm-report-schedule-hour"
-              className="tm-field__control"
-              type="number"
-              min={0}
-              max={23}
-              value={hour}
-              onChange={(event) => setHour(Number(event.target.value))}
-            />
-            <span className="tm-field__hint">The hour of day, 0–23, in UTC.</span>
-          </div>
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-report-schedule-cadence">
+                Cadence
+              </label>
+              <select
+                id="tm-report-schedule-cadence"
+                className="tm-field__control"
+                value={cadence}
+                onChange={(event) => setCadence(event.target.value as InsightReportCadence)}
+              >
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </div>
 
-          {save.isError ? (
-            <InlineAlert tone="danger" title="Could not create the schedule" live>
-              {describeError(save.error)}
+            {cadence === 'weekly' ? (
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-report-schedule-day">
+                  Day of week
+                </label>
+                <select
+                  id="tm-report-schedule-day"
+                  className="tm-field__control"
+                  value={dayOfWeek}
+                  onChange={(event) => setDayOfWeek(Number(event.target.value))}
+                >
+                  {DAY_LABELS.map((label, index) => (
+                    <option key={label} value={index}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : null}
+
+            <div className="tm-field">
+              <label className="tm-field__label" htmlFor="tm-report-schedule-hour">
+                Hour (UTC)
+              </label>
+              <input
+                id="tm-report-schedule-hour"
+                className="tm-field__control"
+                type="number"
+                min={0}
+                max={23}
+                value={hour}
+                onChange={(event) => setHour(Number(event.target.value))}
+              />
+              <span className="tm-field__hint">The hour of day, 0–23, in UTC.</span>
+            </div>
+
+            {save.isError ? (
+              <InlineAlert tone="danger" title="Could not create the schedule" live>
+                {describeError(save.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                disabled={save.isPending}
+                loading={save.isPending}
+                loadingLabel="Saving"
+              >
+                Create schedule
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="tm-panel tm-panel--quiet tm-stack"
+          aria-labelledby="tm-report-schedule-list"
+        >
+          <h2 id="tm-report-schedule-list" className="tm-eyebrow">
+            Your schedules
+          </h2>
+
+          {schedules.isError ? (
+            <InlineAlert tone="danger" title="Could not load your schedules" live>
+              {describeError(schedules.error)}
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              disabled={save.isPending}
-              loading={save.isPending}
-              loadingLabel="Saving"
-            >
-              Create schedule
-            </Button>
-          </div>
-        </form>
-      </section>
+          {remove.isError ? (
+            <InlineAlert tone="danger" title="Could not remove the schedule" live>
+              {describeError(remove.error)}
+            </InlineAlert>
+          ) : null}
 
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-report-schedule-list"
-      >
-        <h2 id="tm-report-schedule-list" className="tm-eyebrow">
-          Your schedules
-        </h2>
+          {schedules.isPending ? (
+            <LoadingRegion label="Loading your schedules.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {schedules.isError ? (
-          <InlineAlert tone="danger" title="Could not load your schedules" live>
-            {describeError(schedules.error)}
-          </InlineAlert>
-        ) : null}
+          {!schedules.isPending && !schedules.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No schedules yet">
+              Define a recurring report above and it will appear here with its next run.
+            </InlineAlert>
+          ) : null}
 
-        {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not remove the schedule" live>
-            {describeError(remove.error)}
-          </InlineAlert>
-        ) : null}
+          {rows.length > 0 ? (
+            <ul className="tm-list tm-stack">
+              {rows.map((schedule) => (
+                <li key={schedule.id} className="tm-row tm-row--wrap">
+                  <div className="tm-stack tm-stack--tight">
+                    <strong>{REPORT_KIND_LABELS[schedule.reportKey]}</strong>
+                    <span className="tm-field__hint">
+                      {describeSchedule(schedule)} · Next run{' '}
+                      {new Date(schedule.nextRunAt).toISOString().replace('T', ' ').slice(0, 16)}{' '}
+                      UTC
+                    </span>
+                  </div>
+                  <Button
+                    tone="outline"
+                    size="accessible"
+                    loading={remove.isPending && remove.variables === schedule.id}
+                    loadingLabel="Removing"
+                    onClick={() => remove.mutate(schedule.id)}
+                  >
+                    Remove
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
 
-        {schedules.isPending ? (
-          <LoadingRegion label="Loading your schedules.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!schedules.isPending && !schedules.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No schedules yet">
-            Define a recurring report above and it will appear here with its next run.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <ul className="tm-list tm-stack">
-            {rows.map((schedule) => (
-              <li key={schedule.id} className="tm-row tm-row--wrap">
-                <div className="tm-stack tm-stack--tight">
-                  <strong>{REPORT_KIND_LABELS[schedule.reportKey]}</strong>
-                  <span className="tm-field__hint">
-                    {describeSchedule(schedule)} · Next run{' '}
-                    {new Date(schedule.nextRunAt).toISOString().replace('T', ' ').slice(0, 16)} UTC
-                  </span>
-                </div>
-                <Button
-                  tone="outline"
-                  size="accessible"
-                  loading={remove.isPending && remove.variables === schedule.id}
-                  loadingLabel="Removing"
-                  onClick={() => remove.mutate(schedule.id)}
-                >
-                  Remove
-                </Button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
-
-      <Announce message={save.isSuccess ? 'Schedule created.' : ''} />
+        <Announce message={save.isSuccess ? 'Schedule created.' : ''} />
+      </div>
     </AppShell>
   );
 }

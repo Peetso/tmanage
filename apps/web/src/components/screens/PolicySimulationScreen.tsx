@@ -1,10 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { CAPABILITIES } from '@tmanage/domain';
 import { Button, Field, InlineAlert, Select } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { simulatePolicy, type PolicySimulationView } from '../../lib/api/policy-simulate';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -63,95 +64,126 @@ export function PolicySimulationScreen({
   });
 
   return (
-    <AppShell
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="people"
-      title="Policy simulation"
-      description="Dry-run a member's access. This reads the stored roles and policies; it changes nothing."
-    >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-policy-simulate-heading">
-        <h2 id="tm-policy-simulate-heading" className="tm-eyebrow">
-          Can this member do this?
-        </h2>
-
-        <form
-          className="tm-stack"
-          noValidate
-          aria-label="Policy simulation"
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            setResult(null);
-            if (!simulate.isPending && memberId.trim().length > 0) simulate.mutate();
-          }}
+      section="policy-simulation"
+      crumbs={['Access policy', 'Simulation']}
+      title="Can this person do this?"
+      description="A dry run over the stored roles and policies. It changes nothing."
+      actions={
+        <Link
+          href={`/${organizationSlug}/policies`}
+          className="tm-button tm-button--outline tm-button--compact"
         >
-          <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
-            <Field
-              label="Member id"
-              name="memberId"
-              value={memberId}
-              onChange={(event) => setMemberId(event.target.value)}
-              hint="The membership id of the person to evaluate."
-              required
-            />
-            <Select
-              label="Capability"
-              name="capability"
-              value={capability}
-              onChange={(event) => setCapability(event.target.value)}
-              hint="The action to test."
-            >
-              {CAPABILITIES.map((cap) => (
-                <option key={cap} value={cap}>
-                  {cap}
-                </option>
-              ))}
-            </Select>
-            <Field
-              label="Project id (optional)"
-              name="projectId"
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
-              hint="Leave empty to evaluate an organization-level action."
-            />
+          Access policy
+        </Link>
+      }
+    >
+      <div className="tm-cc-split tm-cc-split--even">
+        <section className="tm-cc-card" aria-labelledby="tm-policy-simulate-heading">
+          <h2 id="tm-policy-simulate-heading" className="tm-cc-eyebrow">
+            Can this member do this?
+          </h2>
 
-            {simulate.isError ? (
-              <InlineAlert tone="danger" title="Could not run the simulation" live>
-                {describeError(simulate.error)}
-              </InlineAlert>
-            ) : null}
-
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={simulate.isPending}
-                loadingLabel="Simulating"
-              >
-                Simulate
-              </Button>
-            </div>
-          </fieldset>
-        </form>
-
-        {result ? (
-          <InlineAlert
-            tone={result.allowed ? 'success' : 'danger'}
-            title={result.allowed ? 'Allowed' : 'Denied'}
-            live
+          <form
+            className="tm-stack"
+            noValidate
+            aria-label="Policy simulation"
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              setResult(null);
+              if (!simulate.isPending && memberId.trim().length > 0) simulate.mutate();
+            }}
           >
-            <p>
-              Role <strong>{result.role}</strong> — {result.detail}
-            </p>
-            <p>
-              Deciding rule: <code>{result.decidingRule}</code>
-              {result.denialCode ? <> (code {result.denialCode})</> : null}
-            </p>
-          </InlineAlert>
-        ) : null}
-      </section>
-    </AppShell>
+            <fieldset className="tm-fieldset tm-cc-form" disabled={!hydrated}>
+              <Field
+                label="Member id"
+                name="memberId"
+                value={memberId}
+                onChange={(event) => setMemberId(event.target.value)}
+                hint="The membership id of the person to evaluate."
+                required
+              />
+              <Select
+                label="Capability"
+                name="capability"
+                value={capability}
+                onChange={(event) => setCapability(event.target.value)}
+                hint="The action to test."
+              >
+                {CAPABILITIES.map((cap) => (
+                  <option key={cap} value={cap}>
+                    {cap}
+                  </option>
+                ))}
+              </Select>
+              <Field
+                label="Project id (optional)"
+                name="projectId"
+                value={projectId}
+                onChange={(event) => setProjectId(event.target.value)}
+                hint="Leave empty to evaluate an organization-level action."
+              />
+
+              {simulate.isError ? (
+                <InlineAlert tone="danger" title="Could not run the simulation" live>
+                  {describeError(simulate.error)}
+                </InlineAlert>
+              ) : null}
+
+              <div className="tm-row">
+                <Button
+                  type="submit"
+                  tone="ink"
+                  size="accessible"
+                  loading={simulate.isPending}
+                  loadingLabel="Simulating"
+                >
+                  Simulate
+                </Button>
+              </div>
+            </fieldset>
+          </form>
+        </section>
+
+        <section
+          className={result ? 'tm-cc-card tm-cc-card--ink' : 'tm-cc-card tm-cc-card--quiet'}
+          aria-labelledby="tm-policy-simulate-result"
+          aria-live="polite"
+        >
+          {result ? (
+            <>
+              <p className="tm-cc-eyebrow">
+                <span className="tm-cc-orb" aria-hidden="true" />
+                Result
+              </p>
+              <h2 id="tm-policy-simulate-result" className="tm-cc-card__lead">
+                {result.allowed ? 'Allowed' : 'Denied'}
+              </h2>
+              <p className="tm-cc-card__body">
+                Role <strong>{result.role}</strong> — {result.detail}
+              </p>
+              <hr className="tm-cc-rule" />
+              <p className="tm-cc-card__body">
+                Deciding rule: <code>{result.decidingRule}</code>
+                {result.denialCode ? <> (code {result.denialCode})</> : null}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="tm-cc-eyebrow">No simulation yet</p>
+              <h2 id="tm-policy-simulate-result" className="tm-cc-card__title">
+                The answer and the rule that decided it appear here
+              </h2>
+              <p className="tm-cc-card__body">
+                Choose a member and an action, then run the simulation.
+              </p>
+            </>
+          )}
+        </section>
+      </div>
+    </ControlCenterShell>
   );
 }
 

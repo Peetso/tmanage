@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { AutomationSectionTabs } from './AutomationSectionTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createWorkflowTemplate,
@@ -35,6 +37,15 @@ const ACTION_KINDS = [
   'post_message',
   'send_email_digest',
 ] as const satisfies readonly WorkflowActionKind[];
+
+/** The library's state filter (AUT-01's filter capsules), over the loaded rows only. */
+const STATE_FILTERS = [
+  { value: 'all', label: 'All' },
+  { value: 'live', label: 'Live' },
+  { value: 'off', label: 'Off' },
+] as const;
+
+type StateFilter = (typeof STATE_FILTERS)[number]['value'];
 
 /** Turn `work_item_created` into `Work item created` for the option labels. */
 function humanize(kind: string): string {
@@ -78,6 +89,8 @@ export function AutomationTemplatesScreen({
   const [triggerKind, setTriggerKind] = useState<WorkflowTriggerKind>(TRIGGER_KINDS[0]);
   const [actionKind, setActionKind] = useState<WorkflowActionKind>(ACTION_KINDS[0]);
 
+  const [stateFilter, setStateFilter] = useState<StateFilter>('all');
+
   const rows = templates.data ?? [];
 
   const create = useMutation({
@@ -98,160 +111,295 @@ export function AutomationTemplatesScreen({
 
   const canCreate = name.trim() !== '' && !create.isPending;
 
+  const liveCount = rows.filter((template) => template.enabled).length;
+  const offCount = rows.length - liveCount;
+  const shown =
+    stateFilter === 'all'
+      ? rows
+      : rows.filter((template) => (stateFilter === 'live' ? template.enabled : !template.enabled));
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Automations"
-      description="Workflow templates: pair a trigger with an action your team reuses."
+      activeNavigationId="admin"
+      eyebrow="Control center · Automations"
+      title="Rules that act on your behalf"
+      actions={
+        <>
+          <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
+            Run history
+          </Link>
+          <a href="#tm-automation-new" className="tm-aut-btn tm-aut-btn--ink">
+            New automation
+          </a>
+        </>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-automation-new-heading">
-        <h2 id="tm-automation-new-heading" className="tm-eyebrow">
-          New template
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canCreate) create.mutate();
-          }}
-        >
-          <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
-            <Field
-              label="Name"
-              name="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              hint="A short handle, such as Notify owner on new work."
-              required
-            />
+      <div className="tm-aut">
+        <AutomationSectionTabs
+          organizationSlug={organizationSlug}
+          current="library"
+          count={rows.length}
+          end={
+            <fieldset className="tm-aut-filters" disabled={!hydrated} aria-label="Show">
+              {STATE_FILTERS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="tm-aut-filter"
+                  aria-pressed={stateFilter === option.value}
+                  onClick={() => setStateFilter(option.value)}
+                >
+                  {option.label}
+                  {option.value === 'live' ? ` · ${liveCount}` : ''}
+                </button>
+              ))}
+            </fieldset>
+          }
+        />
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-automation-trigger">
-                Trigger
-              </label>
-              <select
-                id="tm-automation-trigger"
-                className="tm-field__control"
-                value={triggerKind}
-                onChange={(event) => setTriggerKind(event.target.value as WorkflowTriggerKind)}
-              >
-                {TRIGGER_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {humanize(kind)}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="tm-aut-split">
+          <section className="tm-aut-col" aria-labelledby="tm-automation-list-heading">
+            <h2 id="tm-automation-list-heading" className="tm-visually-hidden">
+              Templates
+            </h2>
 
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-automation-action">
-                Action
-              </label>
-              <select
-                id="tm-automation-action"
-                className="tm-field__control"
-                value={actionKind}
-                onChange={(event) => setActionKind(event.target.value as WorkflowActionKind)}
-              >
-                {ACTION_KINDS.map((kind) => (
-                  <option key={kind} value={kind}>
-                    {humanize(kind)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {create.isError ? (
-              <InlineAlert tone="danger" title="Could not create the template" live>
-                {describeError(create.error)}
+            {templates.isError ? (
+              <InlineAlert tone="danger" title="Could not load the templates" live>
+                {describeError(templates.error)}
               </InlineAlert>
             ) : null}
 
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={create.isPending}
-                loadingLabel="Creating"
-                disabled={!canCreate}
-              >
-                Create template
-              </Button>
+            <div className="tm-aut-tablecard">
+              {templates.isPending ? (
+                <div className="tm-aut-pad">
+                  <LoadingRegion label="Loading the templates.">
+                    <Skeleton height="var(--row)" />
+                    <Skeleton height="var(--row)" />
+                  </LoadingRegion>
+                </div>
+              ) : null}
+
+              {!templates.isPending && !templates.isError && rows.length === 0 ? (
+                <div className="tm-aut-empty">
+                  <p className="tm-aut-empty__title">No templates yet</p>
+                  <p className="tm-aut-empty__body">
+                    Use New automation to pair a trigger with an action. It appears here once it is
+                    saved.
+                  </p>
+                </div>
+              ) : null}
+
+              {rows.length > 0 ? (
+                <div
+                  className="tm-aut-tablecard__scroll"
+                  // A scrollable region must be focusable or a keyboard cannot reach its overflow
+                  // columns (WCAG 2.2 2.1.1), matching the sibling screens' tables.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Workflow templates"
+                >
+                  <table className="tm-aut-table">
+                    <caption className="tm-visually-hidden">
+                      Workflow templates for this organization, in name order, {shown.length} shown.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Automation</th>
+                        <th scope="col">Trigger</th>
+                        <th scope="col" className="tm-aut-hide-sm">
+                          Action
+                        </th>
+                        <th scope="col" className="tm-aut-end">
+                          State
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {shown.map((template) => (
+                        <tr key={template.id}>
+                          <th scope="row">
+                            <Link
+                              href={`/${organizationSlug}/automations/templates/${encodeURIComponent(template.id)}`}
+                              className="tm-aut-rowtitle"
+                            >
+                              {template.name}
+                            </Link>
+                            <span className="tm-aut-rowsub">
+                              when {humanize(template.triggerKind).toLowerCase()} →{' '}
+                              {humanize(template.actionKind).toLowerCase()}
+                            </span>
+                          </th>
+                          <td>{humanize(template.triggerKind)}</td>
+                          <td className="tm-aut-hide-sm">{humanize(template.actionKind)}</td>
+                          <td className="tm-aut-end">
+                            <span
+                              className={`tm-aut-state ${template.enabled ? 'tm-aut-state--live' : 'tm-aut-state--off'}`}
+                            >
+                              {template.enabled ? 'Live' : 'Off'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {shown.length === 0 ? (
+                    <div className="tm-aut-empty">
+                      <p className="tm-aut-empty__title">Nothing matches this filter</p>
+                      <p className="tm-aut-empty__body">Choose All to see every automation.</p>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
             </div>
-          </fieldset>
-        </form>
-      </section>
+          </section>
 
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-automation-list-heading"
-      >
-        <h2 id="tm-automation-list-heading" className="tm-eyebrow">
-          Templates
-        </h2>
+          <div className="tm-aut-col">
+            <section
+              id="tm-automation-new"
+              className="tm-aut-card tm-card--ink"
+              aria-labelledby="tm-automation-new-heading"
+            >
+              <p className="tm-aut-eyebrow">
+                <span className="tm-aut-eyebrow__orb" aria-hidden="true" />
+                New automation
+              </p>
+              <h2 id="tm-automation-new-heading" className="tm-aut-card__title">
+                New template
+              </h2>
+              <form
+                className="tm-stack"
+                noValidate
+                onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                  event.preventDefault();
+                  if (canCreate) create.mutate();
+                }}
+              >
+                <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
+                  <Field
+                    label="Name"
+                    name="name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    hint="A short handle, such as Notify owner on new work."
+                    required
+                  />
 
-        {templates.isError ? (
-          <InlineAlert tone="danger" title="Could not load the templates" live>
-            {describeError(templates.error)}
-          </InlineAlert>
-        ) : null}
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-automation-trigger">
+                      Trigger
+                    </label>
+                    <select
+                      id="tm-automation-trigger"
+                      className="tm-field__control"
+                      value={triggerKind}
+                      onChange={(event) =>
+                        setTriggerKind(event.target.value as WorkflowTriggerKind)
+                      }
+                    >
+                      {TRIGGER_KINDS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {humanize(kind)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-        {templates.isPending ? (
-          <LoadingRegion label="Loading the templates.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-automation-action">
+                      Action
+                    </label>
+                    <select
+                      id="tm-automation-action"
+                      className="tm-field__control"
+                      value={actionKind}
+                      onChange={(event) => setActionKind(event.target.value as WorkflowActionKind)}
+                    >
+                      {ACTION_KINDS.map((kind) => (
+                        <option key={kind} value={kind}>
+                          {humanize(kind)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
-        {!templates.isPending && !templates.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No templates yet">
-            Create a template above to pair a trigger with an action.
-          </InlineAlert>
-        ) : null}
+                  {create.isError ? (
+                    <InlineAlert tone="danger" title="Could not create the template" live>
+                      {describeError(create.error)}
+                    </InlineAlert>
+                  ) : null}
 
-        {rows.length > 0 ? (
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Workflow templates"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                Workflow templates for this organization, in name order, {rows.length} shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Trigger</th>
-                  <th scope="col">Action</th>
-                  <th scope="col">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((template) => (
-                  <tr key={template.id}>
-                    <th scope="row" className="tm-table__title">
-                      {template.name}
-                    </th>
-                    <td>{humanize(template.triggerKind)}</td>
-                    <td>{humanize(template.actionKind)}</td>
-                    <td>{template.enabled ? 'Enabled' : 'Disabled'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                  <div className="tm-aut-actions">
+                    <Button
+                      type="submit"
+                      tone="lime"
+                      size="accessible"
+                      loading={create.isPending}
+                      loadingLabel="Creating"
+                      disabled={!canCreate}
+                    >
+                      Create template
+                    </Button>
+                  </div>
+                </fieldset>
+              </form>
+            </section>
+
+            <section className="tm-aut-card" aria-labelledby="tm-automation-summary-heading">
+              <h2
+                id="tm-automation-summary-heading"
+                className="tm-aut-card__title tm-aut-card__title--section"
+              >
+                In the library
+              </h2>
+              <dl className="tm-aut-bars">
+                <div className="tm-aut-bars__row">
+                  <dt>Live</dt>
+                  <dd className="tm-aut-bars__value">
+                    <span className="tm-aut-bars__track" aria-hidden="true">
+                      <span
+                        className="tm-aut-bars__fill"
+                        style={{ inlineSize: `${share(liveCount, rows.length)}%` }}
+                      />
+                    </span>
+                    <span>{liveCount}</span>
+                  </dd>
+                </div>
+                <div className="tm-aut-bars__row">
+                  <dt>Off</dt>
+                  <dd className="tm-aut-bars__value">
+                    <span className="tm-aut-bars__track" aria-hidden="true">
+                      <span
+                        className="tm-aut-bars__fill tm-aut-bars__fill--muted"
+                        style={{ inlineSize: `${share(offCount, rows.length)}%` }}
+                      />
+                    </span>
+                    <span>{offCount}</span>
+                  </dd>
+                </div>
+              </dl>
+              <p className="tm-aut-card__foot">
+                Every automation is recorded with the person who created it. An automation that is
+                off is kept but never fires.
+              </p>
+              <div className="tm-aut-actions">
+                <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
+                  Open run history
+                </Link>
+              </div>
+            </section>
           </div>
-        ) : null}
-      </section>
+        </div>
+      </div>
     </AppShell>
   );
+}
+
+/** A bar's width as a percentage of the whole; an empty library draws empty bars. */
+function share(part: number, whole: number): number {
+  return whole === 0 ? 0 : Math.round((part / whole) * 100);
 }
 
 function describeError(error: unknown): string {

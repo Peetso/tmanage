@@ -16,6 +16,8 @@ import {
 import type { ActionItemStatus } from '../../lib/api/meeting-action-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface MeetingActionItemsScreenProps {
   organizationSlug: string;
@@ -122,158 +124,185 @@ export function MeetingActionItemsScreen({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Meeting action items"
-      description="What will be done after this meeting, who owns it, and when it is due."
+      eyebrow="Calendar · Meeting"
+      actions={
+        <MeetingHeaderActions
+          organizationSlug={organizationSlug}
+          meetingId={notFound ? '' : meetingId}
+          current="action-items"
+        />
+      }
     >
-      {meetingId === '' ? (
-        <InlineAlert tone="neutral" title="No meeting chosen">
-          Open a meeting to see and manage its action items.
-        </InlineAlert>
-      ) : null}
+      <div className="tm-cal">
+        <MeetingBackLink organizationSlug={organizationSlug} />
 
-      {notFound ? (
-        <InlineAlert tone="neutral" title="Meeting not found" live>
-          This meeting does not exist or you do not have access to it.
-        </InlineAlert>
-      ) : null}
+        {meetingId === '' ? (
+          <InlineAlert tone="neutral" title="No meeting chosen">
+            Open a meeting to see and manage its action items.
+          </InlineAlert>
+        ) : null}
 
-      {actionItems.isError && !notFound ? (
-        <InlineAlert tone="danger" title="Could not load the action items" live>
-          {describeError(actionItems.error)}
-        </InlineAlert>
-      ) : null}
+        {notFound ? (
+          <InlineAlert tone="neutral" title="Meeting not found" live>
+            This meeting does not exist or you do not have access to it.
+          </InlineAlert>
+        ) : null}
 
-      {meetingId !== '' && !notFound ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-action-items-capture">
-          <h2 id="tm-action-items-capture" className="tm-eyebrow">
-            Capture an action
-          </h2>
-          <form className="tm-stack" onSubmit={submitCapture}>
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-action-item-title">
-                What will be done
-              </label>
-              <input
-                id="tm-action-item-title"
-                className="tm-field__control"
-                type="text"
-                value={title}
-                maxLength={500}
-                onChange={(event) => setTitle(event.target.value)}
-                placeholder="e.g. Send the revised deck to the client"
-              />
+        {actionItems.isError && !notFound ? (
+          <InlineAlert tone="danger" title="Could not load the action items" live>
+            {describeError(actionItems.error)}
+          </InlineAlert>
+        ) : null}
+
+        {meetingId !== '' && !notFound ? (
+          <div className="tm-cal-body">
+            <div className="tm-cal-main">
+              {actionItems.isPending ? (
+                <LoadingRegion label="Loading the action items.">
+                  <Skeleton height="var(--row)" />
+                  <Skeleton height="var(--row)" />
+                  <Skeleton height="var(--row)" />
+                </LoadingRegion>
+              ) : null}
+
+              {toggle.isError ? (
+                <InlineAlert tone="danger" title="Could not update the action" live>
+                  {describeError(toggle.error)}
+                </InlineAlert>
+              ) : null}
+
+              {remove.isError ? (
+                <InlineAlert tone="danger" title="Could not remove the action" live>
+                  {describeError(remove.error)}
+                </InlineAlert>
+              ) : null}
+
+              {!actionItems.isPending && !actionItems.isError && rows.length === 0 ? (
+                <InlineAlert tone="neutral" title="No action items yet">
+                  Nothing has been captured for this meeting yet. Capture an action beside the list.
+                </InlineAlert>
+              ) : null}
+
+              {rows.length > 0 ? (
+                <section className="tm-cal-card" aria-label="Meeting action items">
+                  <p className="tm-cal-eyebrow">
+                    Actions · {rows.length} · {rows.filter((item) => item.status === 'open').length}{' '}
+                    open
+                  </p>
+                  <ul className="tm-cal-items">
+                    {rows.map((item) => (
+                      <li key={item.id} className="tm-cal-item">
+                        <span
+                          className={
+                            item.status === 'done' ? 'tm-cal-orb' : 'tm-cal-orb tm-cal-orb--empty'
+                          }
+                          aria-hidden="true"
+                        >
+                          {item.status === 'done' ? '✓' : ''}
+                        </span>
+                        <span className="tm-cal-item__body">
+                          <span className="tm-cal-item__title">{item.title}</span>
+                          <span className="tm-cal-item__meta">
+                            {item.dueOn ? `Due ${item.dueOn}` : 'No date yet'}
+                            {item.ownerMembershipId ? ' · Owner assigned' : ''}
+                          </span>
+                        </span>
+                        <span className="tm-cal-item__end">
+                          <StateCapsule state={statusCapsule(item.status)}>
+                            {STATUS_LABELS[item.status]}
+                          </StateCapsule>
+                          <Button
+                            type="button"
+                            tone="outline"
+                            size="compact"
+                            disabled={toggle.isPending}
+                            onClick={() =>
+                              toggle.mutate({
+                                actionItemId: item.id,
+                                status: item.status === 'open' ? 'done' : 'open',
+                              })
+                            }
+                          >
+                            {item.status === 'open' ? 'Mark done' : 'Reopen'}
+                          </Button>
+                          <Button
+                            type="button"
+                            tone="destructive"
+                            size="compact"
+                            disabled={remove.isPending}
+                            onClick={() => remove.mutate(item.id)}
+                          >
+                            Remove
+                          </Button>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
             </div>
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-action-item-due">
-                Due date (optional)
-              </label>
-              <input
-                id="tm-action-item-due"
-                className="tm-field__control"
-                type="date"
-                value={dueOn}
-                onChange={(event) => setDueOn(event.target.value)}
-              />
-            </div>
 
-            {capture.isError ? (
-              <InlineAlert tone="danger" title="Could not capture the action" live>
-                {capture.error instanceof ApiRequestError
-                  ? capture.error.message
-                  : 'The API did not answer. Try again.'}
-              </InlineAlert>
-            ) : null}
+            <div className="tm-cal-side">
+              <section className="tm-cal-card" aria-labelledby="tm-action-items-capture">
+                <h2 id="tm-action-items-capture" className="tm-cal-eyebrow">
+                  Capture an action
+                </h2>
+                <form className="tm-cal-form" onSubmit={submitCapture}>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-action-item-title">
+                      What will be done
+                    </label>
+                    <input
+                      id="tm-action-item-title"
+                      className="tm-field__control"
+                      type="text"
+                      value={title}
+                      maxLength={500}
+                      onChange={(event) => setTitle(event.target.value)}
+                      placeholder="e.g. Send the revised deck to the client"
+                    />
+                  </div>
+                  <div className="tm-field">
+                    <label className="tm-field__label" htmlFor="tm-action-item-due">
+                      Due date (optional)
+                    </label>
+                    <input
+                      id="tm-action-item-due"
+                      className="tm-field__control"
+                      type="date"
+                      value={dueOn}
+                      onChange={(event) => setDueOn(event.target.value)}
+                    />
+                  </div>
 
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={capture.isPending}
-                loadingLabel="Capturing"
-                disabled={title.trim() === ''}
-              >
-                Capture action
-              </Button>
-            </div>
-          </form>
-        </section>
-      ) : null}
+                  {capture.isError ? (
+                    <InlineAlert tone="danger" title="Could not capture the action" live>
+                      {capture.error instanceof ApiRequestError
+                        ? capture.error.message
+                        : 'The API did not answer. Try again.'}
+                    </InlineAlert>
+                  ) : null}
 
-      {meetingId !== '' && actionItems.isPending ? (
-        <LoadingRegion label="Loading the action items.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {toggle.isError ? (
-        <InlineAlert tone="danger" title="Could not update the action" live>
-          {describeError(toggle.error)}
-        </InlineAlert>
-      ) : null}
-
-      {remove.isError ? (
-        <InlineAlert tone="danger" title="Could not remove the action" live>
-          {describeError(remove.error)}
-        </InlineAlert>
-      ) : null}
-
-      {meetingId !== '' && !actionItems.isPending && !actionItems.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No action items yet">
-          Nothing has been captured for this meeting yet. Capture an action above.
-        </InlineAlert>
-      ) : null}
-
-      {rows.length > 0 ? (
-        <section className="tm-stack" aria-label="Meeting action items">
-          <ul className="tm-stack tm-list">
-            {rows.map((item) => (
-              <li key={item.id} className="tm-panel tm-panel--quiet tm-row">
-                <span className="tm-table__title">{item.title}</span>
-                <StateCapsule state={statusCapsule(item.status)}>
-                  {STATUS_LABELS[item.status]}
-                </StateCapsule>
-                {item.dueOn ? <span className="tm-muted">Due {item.dueOn}</span> : null}
-                {item.ownerMembershipId ? <span className="tm-muted">Owner assigned</span> : null}
-                <div className="tm-row tm-push-end">
                   <Button
-                    type="button"
-                    tone="outline"
+                    type="submit"
+                    tone="ink"
                     size="accessible"
-                    disabled={toggle.isPending}
-                    onClick={() =>
-                      toggle.mutate({
-                        actionItemId: item.id,
-                        status: item.status === 'open' ? 'done' : 'open',
-                      })
-                    }
+                    loading={capture.isPending}
+                    loadingLabel="Capturing"
+                    disabled={title.trim() === ''}
                   >
-                    {item.status === 'open' ? 'Mark done' : 'Reopen'}
+                    Capture action
                   </Button>
-                  <Button
-                    type="button"
-                    tone="destructive"
-                    size="accessible"
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(item.id)}
-                  >
-                    Remove
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+                </form>
+              </section>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </AppShell>
   );
 }
 
-/**
- * A distinct word, colour and shape per status so the state never rests on colour alone: done is
- * `done` (✓) and an outstanding action is `waiting` (◷).
- */
 function statusCapsule(status: ActionItemStatus): CapsuleState {
   return status === 'done' ? 'done' : 'waiting';
 }

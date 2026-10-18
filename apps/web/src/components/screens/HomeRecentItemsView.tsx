@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import '../../styles/screens/home.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getRecentItems } from '../../lib/api/home';
 import type { RecentItemObjectType } from '../../lib/api/home';
@@ -37,10 +38,13 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
   const items = recents.data?.items ?? [];
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-my-day-recents">
-      <h2 id="tm-my-day-recents" className="tm-eyebrow">
-        Recently viewed
-      </h2>
+    <section className="tm-home-saved" aria-labelledby="tm-my-day-recents">
+      <div className="tm-home-saved__head">
+        <h2 id="tm-my-day-recents" className="tm-home-saved__heading">
+          Recently viewed
+        </h2>
+        {items.length > 0 ? <span className="tm-home-saved__count">{items.length}</span> : null}
+      </div>
 
       {recents.isError ? (
         <InlineAlert tone="danger" title="Could not load your recently-viewed items" live>
@@ -50,38 +54,70 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
 
       {recents.isPending ? (
         <LoadingRegion label="Loading your recently-viewed items.">
-          <Skeleton height="var(--row)" />
+          <Skeleton height="52px" radius="var(--r-control)" />
         </LoadingRegion>
       ) : null}
 
       {!recents.isPending && !recents.isError && items.length === 0 ? (
-        <InlineAlert tone="neutral" title="Nothing viewed yet">
+        <p className="tm-home-saved__empty">
+          <strong>Nothing viewed yet</strong>
           Work, projects, documents and meetings you open are kept here, newest first, so you can
           return to them from any screen.
-        </InlineAlert>
+        </p>
       ) : null}
 
       {items.length > 0 ? (
-        <ul className="tm-list" aria-label="Recently viewed">
+        <ul className="tm-home-saved__list" aria-label="Recently viewed">
           {items.map((item) => (
-            <li key={item.id}>
-              {item.objectType === 'work' ? (
-                <Link href={`/${organizationSlug}/work/${item.objectId}`}>
-                  {recentTypeLabel(item.objectType)}
-                </Link>
-              ) : item.objectType === 'project' ? (
-                <Link href={`/${organizationSlug}/projects/${item.objectId}`}>
-                  {recentTypeLabel(item.objectType)}
-                </Link>
-              ) : (
-                <span>{recentTypeLabel(item.objectType)}</span>
-              )}
+            <li key={item.id} className="tm-home-saved__item" data-kind={item.objectType}>
+              <span className="tm-home-orb" aria-hidden="true">
+                {recentGlyph(item.objectType)}
+              </span>
+              <span className="tm-home-saved__text">
+                <span className="tm-home-saved__title">
+                  {item.objectType === 'work' ? (
+                    <Link href={`/${organizationSlug}/work/${item.objectId}`}>
+                      {recentTypeLabel(item.objectType)}
+                    </Link>
+                  ) : item.objectType === 'project' ? (
+                    <Link href={`/${organizationSlug}/projects/${item.objectId}`}>
+                      {recentTypeLabel(item.objectType)}
+                    </Link>
+                  ) : (
+                    <span>{recentTypeLabel(item.objectType)}</span>
+                  )}
+                </span>
+                <span className="tm-home-saved__meta">
+                  {item.objectType} · viewed {shortDay(item.viewedAt)}
+                </span>
+              </span>
             </li>
           ))}
         </ul>
       ) : null}
     </section>
   );
+}
+
+/** "13 Aug" — the design's short day in the saved-context meta line. */
+function shortDay(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? value
+    : parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+function recentGlyph(objectType: RecentItemObjectType): string {
+  switch (objectType) {
+    case 'work':
+      return '▤';
+    case 'project':
+      return '◎';
+    case 'document':
+      return '◫';
+    case 'meeting':
+      return '◷';
+  }
 }
 
 /** The word each recent reference shows. The live title/preview is the deferred read fan-out. */

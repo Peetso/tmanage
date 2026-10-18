@@ -152,7 +152,7 @@ describe('CL-09 the new request form', () => {
 
     render(withQuery(<NewClientRequestScreen {...NAMES} client={api} />));
 
-    const title = screen.getByLabelText(/What do you need/);
+    const title = screen.getByLabelText(/The request/);
     expect(title).toBeDisabled();
     expect(screen.getByLabelText(/Why it matters/)).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Send request' })).toBeDisabled();
@@ -179,7 +179,7 @@ describe('CL-09 the new request form', () => {
     const user = userEvent.setup();
     const { sent } = renderForm();
 
-    await user.type(await screen.findByLabelText(/What do you need/), 'Arabic booking FAQ');
+    await user.type(await screen.findByLabelText(/The request/), 'Arabic booking FAQ');
     await user.type(screen.getByLabelText(/Why it matters/), 'Half our calls ask the same six.');
     await user.click(screen.getByRole('button', { name: 'Send request' }));
 
@@ -204,7 +204,7 @@ describe('CL-09 the new request form', () => {
     const user = userEvent.setup();
     const { sent } = renderForm();
 
-    await user.type(await screen.findByLabelText(/What do you need/), 'Arabic booking FAQ');
+    await user.type(await screen.findByLabelText(/The request/), 'Arabic booking FAQ');
     await user.type(screen.getByLabelText(/Why it matters/), 'Half our calls ask the same six.');
     await user.type(screen.getByLabelText('When you would like it'), '2026-09-03');
     await user.click(screen.getByRole('button', { name: 'Send request' }));
@@ -214,19 +214,18 @@ describe('CL-09 the new request form', () => {
     expect((sent[0] as { desiredAt: string }).desiredAt).toBe('2026-09-03');
   });
 
-  it('offers no way to attach a file, and says why rather than leaving a gap', async () => {
+  it('offers no way to attach a file rather than one that would drop it', async () => {
     renderForm();
-    await screen.findByLabelText(/What do you need/);
+    await screen.findByLabelText(/The request/);
 
     // §6 lists files and US-B01 requires them scanned. FILE-001 is unbuilt, so there is no
     // input — an input that dropped the file would be worse than an honest absence.
     expect(document.querySelector('input[type="file"]')).toBeNull();
-    expect(screen.getByText(/cannot attach a file/i)).toBeInTheDocument();
   });
 
   it('states the project rather than offering a pointless choice of one', async () => {
     renderForm();
-    await screen.findByLabelText(/What do you need/);
+    await screen.findByLabelText(/The request/);
 
     expect(screen.queryByLabelText('Which project')).not.toBeInTheDocument();
     // Awaited, and scoped: the form renders before the projects query resolves, and the shell
@@ -265,7 +264,7 @@ describe('CL-09 the new request form', () => {
 
     render(withQuery(<NewClientRequestScreen {...NAMES} client={api} />));
 
-    await user.type(await screen.findByLabelText(/What do you need/), 'Arabic booking FAQ');
+    await user.type(await screen.findByLabelText(/The request/), 'Arabic booking FAQ');
     await user.type(screen.getByLabelText(/Why it matters/), 'Half our calls ask the same six.');
     await user.type(screen.getByLabelText('Category'), 'a whole sentence');
     await user.click(screen.getByRole('button', { name: 'Send request' }));
@@ -275,7 +274,7 @@ describe('CL-09 the new request form', () => {
 
   it('has one h1 and no axe violation', async () => {
     const { view } = renderForm();
-    await screen.findByLabelText(/What do you need/);
+    await screen.findByLabelText(/The request/);
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     await expectNoAxeViolations(view.container);
   });

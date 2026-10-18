@@ -83,8 +83,8 @@ export function ObjectiveWorkLinksPanel({
   }
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby={headingId}>
-      <h3 id={headingId} className="tm-eyebrow">
+    <section className="tm-card tm-prj-card" aria-labelledby={headingId}>
+      <h3 id={headingId} className="tm-prj-eyebrow">
         Linked work — {objectiveName}
       </h3>
 

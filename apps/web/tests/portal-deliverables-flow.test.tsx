@@ -110,7 +110,7 @@ describe('CL-03 the client deliverables', () => {
 
     await screen.findByText('Homepage redesign');
     expect(screen.getByText('The first cut of the new homepage.')).toBeInTheDocument();
-    expect(screen.getByText('in_review')).toBeInTheDocument();
+    expect(screen.getByText('In review')).toBeInTheDocument();
     expect(screen.getByText(/Copy is still being finalised/)).toBeInTheDocument();
     expect(screen.getByText(/Dana at the studio/)).toBeInTheDocument();
   });
@@ -143,11 +143,14 @@ describe('CL-03 the client deliverables', () => {
     expect(await screen.findByText(/Nothing has been shared with you yet/)).toBeInTheDocument();
   });
 
-  it('tells the client the download is not built rather than hiding the file', async () => {
+  it('opens each deliverable on its own decision page', async () => {
     renderScreen(portal({}));
 
     await screen.findByText('Homepage redesign');
-    expect(screen.getByText(/Downloading them from here is not built yet/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Homepage redesign' })).toHaveAttribute(
+      'href',
+      expect.stringMatching(/\/portal\/deliverables\/.+/),
+    );
   });
 
   it('has no axe violations, with files open', async () => {

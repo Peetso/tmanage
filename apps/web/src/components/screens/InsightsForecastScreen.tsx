@@ -3,6 +3,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import {
+  InsightsCard,
+  InsightsCardHead,
+  InsightsNote,
+  InsightsSplit,
+  InsightsTabs,
+} from './InsightsKit';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchWorkloadForecast } from '../../lib/api/workload-forecast';
 import type { WorkloadForecastView, WorkloadForecastWeek } from '../../lib/api/workload-forecast';
@@ -46,104 +53,167 @@ export function InsightsForecastScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      title="Workload forecast"
-      description="Committed work projected into the upcoming weeks, against a constant per-member capacity."
+      eyebrow={
+        forecast.data
+          ? `Insights · Workload · ${forecast.data.totals.weeks} weeks · ${forecast.data.totals.memberCount} ${forecast.data.totals.memberCount === 1 ? 'member' : 'members'}`
+          : 'Insights · Workload'
+      }
+      title="What we have promised for the coming weeks"
     >
-      {forecast.isPending ? (
-        <LoadingRegion label="Loading workload forecast." className="tm-stack tm-stack--tight">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+      <div className="tm-ins">
+        <InsightsTabs organizationSlug={organizationSlug} current="workload" />
 
-      {forecast.isError ? (
-        <InlineAlert tone="danger" title="Could not load the workload forecast" live>
-          {describe(forecast.error)}
-        </InlineAlert>
-      ) : null}
+        {forecast.isPending ? (
+          <LoadingRegion label="Loading workload forecast." className="tm-stack tm-stack--tight">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {forecast.isSuccess ? <ForecastPanel forecast={forecast.data} /> : null}
+        {forecast.isError ? (
+          <InlineAlert tone="danger" title="Could not load the workload forecast" live>
+            {describe(forecast.error)}
+          </InlineAlert>
+        ) : null}
+
+        {forecast.isSuccess ? <ForecastPanel forecast={forecast.data} /> : null}
+      </div>
     </AppShell>
   );
 }
 
 function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
   const { totals } = forecast;
-  const scale = Math.max(
-    totals.capacity === 0 ? 0 : Math.max(...forecast.weeks.map((w) => w.capacity)),
-    ...forecast.weeks.map((w) => w.committedItemCount),
-    1,
-  );
+  const firstOver = forecast.weeks.find((week) => week.overCapacity);
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-forecast-heading">
-      <h2 id="tm-forecast-heading" className="tm-eyebrow">
-        Across projects
-      </h2>
-
-      <p className="tm-prose">
-        Capacity is a constant {perMemberCapacity(totals)} items per member per week across{' '}
-        {totals.memberCount} {totals.memberCount === 1 ? 'member' : 'members'} carrying open work —
-        a placeholder until per-person assignment lands.
-      </p>
-
-      {totals.committedItemCount === 0 ? (
-        <p className="tm-prose">No committed, dated work in the forecast window yet.</p>
-      ) : null}
-
-      <table className="tm-table" aria-labelledby="tm-forecast-heading">
-        <caption className="tm-visually-hidden">
-          Committed work by upcoming week against capacity
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Week</th>
-            <th scope="col">Starting</th>
-            <th scope="col" className="tm-table__number">
-              Committed
-            </th>
-            <th scope="col" className="tm-table__number">
-              Capacity
-            </th>
-            <th scope="col">Status</th>
-          </tr>
-        </thead>
-        <tbody>
+    <>
+      <InsightsCard labelledBy="tm-forecast-capacity-heading">
+        <InsightsCardHead
+          id="tm-forecast-capacity-heading"
+          title="Committed work against capacity"
+          units="Team level · committed items, not hours logged"
+        />
+        <ul className="tm-ins-capacity" aria-hidden="true">
           {forecast.weeks.map((week) => (
-            <WeekRow key={week.weekIndex} week={week} scale={scale} />
+            <CapacityRow key={week.weekIndex} week={week} />
           ))}
-        </tbody>
-      </table>
+        </ul>
+        <p className="tm-ins-card__body">
+          A slot is one committed work item with a date. Capacity is a constant{' '}
+          {perMemberCapacity(totals)} items per member per week across {totals.memberCount}{' '}
+          {totals.memberCount === 1 ? 'member' : 'members'} carrying open work.
+        </p>
+      </InsightsCard>
 
-      <p className="tm-prose tm-mono">Computed {formatMoment(forecast.computedAt)}.</p>
-    </section>
+      <InsightsSplit
+        main={
+          <InsightsCard variant="table" labelledBy="tm-forecast-heading">
+            <div className="tm-ins-card__lead">
+              <InsightsCardHead
+                id="tm-forecast-heading"
+                title="Across projects"
+                units="Week · committed · capacity"
+              />
+            </div>
+            {totals.committedItemCount === 0 ? (
+              <p className="tm-ins-card__body tm-ins-card__lead">
+                No committed, dated work in the forecast window yet.
+              </p>
+            ) : null}
+            <table
+              className="tm-ins-table tm-ins-table--dense"
+              aria-labelledby="tm-forecast-heading"
+            >
+              <caption className="tm-visually-hidden">
+                Committed work by upcoming week against capacity
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Week</th>
+                  <th scope="col">Starting</th>
+                  <th scope="col" className="tm-ins-table__num">
+                    Committed
+                  </th>
+                  <th scope="col" className="tm-ins-table__num">
+                    Capacity
+                  </th>
+                  <th scope="col">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {forecast.weeks.map((week) => (
+                  <WeekRow key={week.weekIndex} week={week} />
+                ))}
+              </tbody>
+            </table>
+            <p className="tm-ins-card__foot">Computed {formatMoment(forecast.computedAt)}.</p>
+          </InsightsCard>
+        }
+        side={
+          <>
+            <InsightsCard variant="callout">
+              <p className="tm-ins-eyebrow">The one thing to fix first</p>
+              <p className="tm-ins-callout__title">
+                {firstOver
+                  ? `Week ${firstOver.weekIndex} carries ${firstOver.committedItemCount} committed items against ~${firstOver.capacity} slots.`
+                  : 'Every week in the window is within capacity.'}
+              </p>
+              <p className="tm-ins-card__body">
+                {totals.overCapacityWeekCount > 0
+                  ? `${totals.overCapacityWeekCount} of ${totals.weeks} weeks are over. Moving one date now is a conversation; moving it on the day is a missed commitment.`
+                  : `${totals.committedItemCount} committed items across ${totals.weeks} weeks, against ${totals.capacity} slots.`}
+              </p>
+            </InsightsCard>
+            <InsightsNote eyebrow="Not a productivity view">
+              No hours tracked, no output counted, no person ranked. Capacity is what the team
+              promised against what it declared it could take.
+            </InsightsNote>
+          </>
+        }
+      />
+    </>
   );
 }
 
-function WeekRow({ week, scale }: { week: WorkloadForecastWeek; scale: number }) {
-  const width = scale === 0 ? 0 : Math.round((week.committedItemCount / scale) * 100);
+/** INS-05's capacity row: the week, its committed share of the slots, and the "over" flag. */
+function CapacityRow({ week }: { week: WorkloadForecastWeek }) {
+  const width =
+    week.capacity === 0
+      ? week.committedItemCount > 0
+        ? 100
+        : 0
+      : Math.min(100, Math.round((week.committedItemCount / week.capacity) * 100));
   return (
-    <tr>
+    <li className="tm-ins-capacity__row" data-over={week.overCapacity || undefined}>
+      <span className="tm-ins-capacity__name">
+        Week {week.weekIndex}
+        <span className="tm-ins-capacity__sub">starting {formatDay(week.startsAt)}</span>
+      </span>
+      <span className="tm-ins-capacity__track">
+        <span className="tm-ins-capacity__fill" style={{ inlineSize: `${width}%` }} />
+      </span>
+      <span className="tm-ins-capacity__value">
+        {week.committedItemCount} of ~{week.capacity} slots{week.overCapacity ? ' · over' : ''}
+      </span>
+    </li>
+  );
+}
+
+function WeekRow({ week }: { week: WorkloadForecastWeek }) {
+  return (
+    <tr data-tone={week.overCapacity ? 'danger' : 'quiet'}>
       <th scope="row">Week {week.weekIndex}</th>
-      <td className="tm-mono">{formatDay(week.startsAt)}</td>
-      <td className="tm-mono tm-table__number">
+      <td>{formatDay(week.startsAt)}</td>
+      <td className="tm-ins-table__num" {...(week.overCapacity ? { 'data-tone': 'danger' } : {})}>
         {week.committedItemCount}
-        <span
-          className="tm-bar"
-          aria-hidden="true"
-          style={{
-            display: 'block',
-            height: '0.4rem',
-            marginTop: '0.25rem',
-            width: `${width}%`,
-            minWidth: week.committedItemCount > 0 ? '2px' : 0,
-            background: week.overCapacity ? 'var(--danger-600)' : 'var(--lime-600)',
-            borderRadius: '9999px',
-          }}
-        />
       </td>
-      <td className="tm-mono tm-table__number">{week.capacity}</td>
-      <td>{week.overCapacity ? 'Over capacity' : 'Within capacity'}</td>
+      <td className="tm-ins-table__num">{week.capacity}</td>
+      <td>
+        <span className="tm-ins-badge" data-tone={week.overCapacity ? 'danger' : 'quiet'}>
+          {week.overCapacity ? 'Over capacity' : 'Within capacity'}
+        </span>
+      </td>
     </tr>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { apiBaseUrl } from '../lib/api/browser-client';
+import '../styles/screens/calendar.css';
 
 /**
  * **CAL — ICS export (x128).** The download control for a meeting's calendar file.
@@ -32,7 +33,8 @@ export function MeetingIcsButton({ organizationSlug, meetingId, baseUrl }: Meeti
 
   return (
     <a
-      className="tm-button tm-button--outline tm-button--default"
+      // The outline capsule beside the meeting's view switch (calendar.css `tm-cal-btn`).
+      className="tm-cal-btn tm-cal-btn--header"
       href={href}
       download={`meeting-${meetingId}.ics`}
     >

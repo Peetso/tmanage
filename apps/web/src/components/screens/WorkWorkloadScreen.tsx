@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -9,38 +10,33 @@ import { listProjects } from '../../lib/api/projects';
 import { getWorkWorkload } from '../../lib/api/work-views';
 import type { WorkloadRow } from '../../lib/api/work-views';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { memberDisplayName } from '../../lib/members-presentation';
+import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/work-planning.css';
 
 export interface WorkWorkloadScreenProps {
   organizationSlug: string;
   organizationName: string;
-  /** Preselect a project — how a project screen hands off to its workload. */
+  /** Pre-select a project (deep link `?project=`). Defaults to the first project the caller sees. */
   initialProjectId?: string;
   client?: ApiClient;
 }
 
 /**
- * **WK-06 Work workload (accessible list).**
+ * **WK-06 Workload** — "Commitments against capacity" from `TManage Screens - Work
+ * Extended.dc.html`, over the workload read (`GET .../work-views/workload/:projectId`).
  *
- * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §Work WK-06: "Workload — capacity/assignment view."
- * This is the accessible list that view rests on — a table of a project's open work grouped by who
- * carries it, each row naming an assignee, how many open items they hold, and how many of those
- * sit on the calendar (the derived load). A capacity chart is a follow-up; the list is the part
- * everyone, including a screen-reader user, can read, and it is the part that is real today. Its
- * a11y is the timeline's: a labelled scrollable region, a table caption, and column headers.
+ * One row per assignee in the server's order (heaviest first, the unassigned pile named in
+ * words): the person's orb and name, their open and scheduled counts in mono, and a segmented
+ * bar with one block per open item — solid ink for what is on the calendar, an ink outline for
+ * what has no date yet, and the paper remainder up to the heaviest load on the project. Nobody
+ * is scored: the artboard's hours and stated capacity are not modelled, so the bar compares
+ * people only by count.
  *
- * ## What it draws, and what it cannot
- *
- * - **Order is the server's**, heaviest workload first, so the sequence a sighted user sees down
- *   the rows is the sequence the workload means — no client-side re-sort to drift from it.
- * - **The assignee is shown by id**, or "Unassigned" for the project's unowned pile. There is no
- *   endpoint that resolves a user id to a display name for an arbitrary member here, so the id is
- *   shown rather than invented — the same honesty `WorkTimelineScreen` applies to a predecessor it
- *   can only name by id.
- * - **Only open work is counted.** Done and archived items are not a workload, so the API leaves
- *   them out and the counts here are "still on the plate", not "ever touched".
- *
- * A project must be chosen before anything is fetched: the workload is per-project by definition.
+ * Still a table underneath — a labelled region, a caption, a row header per assignee and a cell
+ * per count — styled into the artboard's card, so the list structure a screen reader walks is
+ * the one the timeline carries.
  */
 export function WorkWorkloadScreen({
   organizationSlug,
@@ -50,61 +46,75 @@ export function WorkWorkloadScreen({
 }: WorkWorkloadScreenProps) {
   const api = client ?? browserApiClient();
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
+  const directory = useMembers(api, organizationSlug);
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
     queryFn: () => listProjects(api, organizationSlug),
   });
 
+  // A workload is per project: with none chosen, the first project the caller can see.
+  const chosenProjectId = projectId !== '' ? projectId : (projects.data?.[0]?.id ?? '');
+  const projectName = projects.data?.find((project) => project.id === chosenProjectId)?.name;
+
   const workload = useQuery({
-    queryKey: ['work-workload', organizationSlug, projectId],
-    queryFn: () => getWorkWorkload(api, organizationSlug, projectId),
-    enabled: projectId !== '',
+    queryKey: ['work-workload', organizationSlug, chosenProjectId],
+    queryFn: () => getWorkWorkload(api, organizationSlug, chosenProjectId),
+    enabled: chosenProjectId !== '',
   });
 
   const rows = useMemo(() => workload.data?.groups ?? [], [workload.data]);
+  const heaviest = Math.max(1, ...rows.map((group) => group.openItemCount));
+  const noProjects = projects.isSuccess && projects.data.length === 0;
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Work workload"
-      description="A project's open work grouped by who carries it, heaviest first."
-    >
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-workload-filters">
-        <h2 id="tm-workload-filters" className="tm-eyebrow">
-          Project
-        </h2>
-        <fieldset className="tm-fieldset tm-stack" disabled={projects.isPending}>
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-workload-project">
-              Show the workload for
-            </label>
-            <select
-              id="tm-workload-project"
-              className="tm-field__control"
-              value={projectId}
-              onChange={(event) => setProjectId(event.target.value)}
+      title="Commitments against capacity"
+      eyebrow={projectName ? `Workload · ${projectName}` : 'Workload'}
+      actions={
+        <div className="wp-toolbar">
+          <nav className="wp-segmented" aria-label="Work views">
+            <Link href={`/${organizationSlug}/work`}>List</Link>
+            <Link
+              href={`/${organizationSlug}/work/timeline${
+                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
+              }`}
             >
-              <option value="">Choose a project…</option>
-              {(projects.data ?? []).map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <span className="tm-field__hint">
-            A workload is per project. Choose one to see who is carrying its open work.
-          </span>
-        </fieldset>
-      </section>
-
-      {projectId === '' ? (
-        <InlineAlert tone="neutral" title="Choose a project">
-          Pick a project above to see its open work grouped by assignee.
-        </InlineAlert>
+              Timeline
+            </Link>
+            <span aria-current="page">Workload</span>
+          </nav>
+          <label className="tm-visually-hidden" htmlFor="tm-workload-project">
+            Show the workload for
+          </label>
+          <select
+            id="tm-workload-project"
+            className="wp-select"
+            value={chosenProjectId}
+            disabled={projects.isPending || noProjects}
+            onChange={(event) => setProjectId(event.target.value)}
+          >
+            {chosenProjectId === '' ? <option value="">Choose a project…</option> : null}
+            {(projects.data ?? []).map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      }
+    >
+      {noProjects ? (
+        <div className="wp-empty">
+          <h2 className="wp-empty__title">No project to show yet</h2>
+          <p className="wp-empty__body">
+            A workload is per project. Once you can see a project, who carries its open work appears
+            here.
+          </p>
+        </div>
       ) : null}
 
       {workload.isError ? (
@@ -113,31 +123,26 @@ export function WorkWorkloadScreen({
         </InlineAlert>
       ) : null}
 
-      {projectId !== '' && workload.isPending ? (
+      {chosenProjectId !== '' && workload.isPending ? (
         <LoadingRegion label="Loading the workload.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
+          <Skeleton height="60px" />
+          <Skeleton height="60px" />
+          <Skeleton height="60px" />
         </LoadingRegion>
       ) : null}
 
-      {projectId !== '' && !workload.isPending && !workload.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No open work on this project">
-          This project has no open work items you can see. Create one from the project.
-        </InlineAlert>
+      {chosenProjectId !== '' && workload.isSuccess && rows.length === 0 ? (
+        <div className="wp-empty">
+          <h2 className="wp-empty__title">No open work on this project</h2>
+          <p className="wp-empty__body">
+            This project has no open work items you can see. Create one from the project.
+          </p>
+        </div>
       ) : null}
 
       {rows.length > 0 ? (
-        <div
-          className="tm-table-scroll"
-          // A scrollable region must be focusable or a keyboard cannot reach its overflow
-          // columns (WCAG 2.2 2.1.1), matching WorkTimelineScreen's table.
-          // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-          tabIndex={0}
-          role="region"
-          aria-label="Work workload"
-        >
-          <table className="tm-table">
+        <div className="wp-load" role="region" aria-label="Work workload">
+          <table>
             <caption className="tm-visually-hidden">
               Assignees on this project by open workload, {rows.length} shown.
             </caption>
@@ -149,26 +154,75 @@ export function WorkWorkloadScreen({
               </tr>
             </thead>
             <tbody>
-              {rows.map((group) => (
-                <tr key={group.ownerUserId ?? '__unassigned__'}>
-                  <th scope="row" className="tm-table__title">
-                    {assigneeLabel(group)}
-                  </th>
-                  <td>{group.openItemCount}</td>
-                  <td>{group.scheduledItemCount}</td>
-                </tr>
-              ))}
+              {rows.map((group) => {
+                const name = memberDisplayName(
+                  group.ownerUserId,
+                  directory.members,
+                  directory.isPending,
+                );
+                return (
+                  <tr key={group.ownerUserId ?? '__unassigned__'}>
+                    <th scope="row">
+                      <span
+                        className={`wp-load__avatar${
+                          group.ownerUserId === null ? ' wp-load__avatar--none' : ''
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {group.ownerUserId === null ? '?' : initialsOf(name)}
+                      </span>
+                      <span>{name}</span>
+                    </th>
+                    <td className="wp-load__open">{group.openItemCount} open</td>
+                    <td className="wp-load__sched">· {group.scheduledItemCount} on the calendar</td>
+                    <td className="wp-load__barcell" aria-hidden="true">
+                      <LoadBar group={group} heaviest={heaviest} />
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+          <p className="wp-load__legend">
+            Solid = on the calendar · Outline = no date yet · Counts only, nobody is scored
+          </p>
         </div>
       ) : null}
     </AppShell>
   );
 }
 
-/** The assignee cell: the owner's id, or "Unassigned" for the project's unowned open work. */
-function assigneeLabel(group: WorkloadRow): string {
-  return group.ownerUserId ?? 'Unassigned';
+/** One block per open item: scheduled ones solid, undated ones outlined, the rest paper. */
+function LoadBar({ group, heaviest }: { group: WorkloadRow; heaviest: number }) {
+  const scheduled = Math.min(group.scheduledItemCount, group.openItemCount);
+  const unscheduled = group.openItemCount - scheduled;
+  const rest = heaviest - group.openItemCount;
+  return (
+    <div className="wp-load__bar">
+      {Array.from({ length: scheduled }, (_, index) => (
+        <span key={`s${index}`} className="wp-load__seg" />
+      ))}
+      {Array.from({ length: unscheduled }, (_, index) => (
+        <span key={`u${index}`} className="wp-load__seg wp-load__seg--open" />
+      ))}
+      {rest > 0 ? (
+        <span className="wp-load__seg wp-load__seg--rest" style={{ flexGrow: rest }} />
+      ) : null}
+    </div>
+  );
+}
+
+function initialsOf(name: string): string {
+  const words = name
+    .replace(/\(.*\)/, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  const letters = words.length > 1 ? [words[0]!, words[words.length - 1]!] : words.slice(0, 1);
+  return letters
+    .map((word) => word[0] ?? '')
+    .join('')
+    .toUpperCase();
 }
 
 function describeError(error: unknown): string {

@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listInvoiceLines } from '../../lib/api/invoice-line-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface InvoiceLineItemsScreenProps {
   organizationSlug: string;
@@ -50,74 +51,82 @@ export function InvoiceLineItemsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing · Invoices"
       title="Invoice line items"
       description="The line breakdown for this invoice, reconciled to its total."
     >
-      {lines.isPending ? (
-        <LoadingRegion label="Loading line items." className="tm-stack tm-stack--tight">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+      <div className="tm-bil">
+        {lines.isPending ? (
+          <LoadingRegion label="Loading line items." className="tm-stack tm-stack--tight">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {lines.isError ? (
-        <InlineAlert tone="danger" title="Could not load line items" live>
-          {describe(lines.error)}
-        </InlineAlert>
-      ) : null}
+        {lines.isError ? (
+          <InlineAlert tone="danger" title="Could not load line items" live>
+            {describe(lines.error)}
+          </InlineAlert>
+        ) : null}
 
-      {data ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-invoice-lines-heading">
-          <div className="tm-row tm-row--wrap">
-            <h2 id="tm-invoice-lines-heading" className="tm-eyebrow">
-              Line items
-            </h2>
-            <StatusDot tone={data.reconciled ? 'success' : 'warning'}>
-              {data.reconciled ? 'Reconciled' : 'Does not reconcile'}
-            </StatusDot>
-          </div>
+        {data ? (
+          <section className="tm-panel tm-stack" aria-labelledby="tm-invoice-lines-heading">
+            <div className="tm-row tm-row--wrap">
+              <h2 id="tm-invoice-lines-heading" className="tm-eyebrow">
+                Line items
+              </h2>
+              <StatusDot tone={data.reconciled ? 'success' : 'warning'}>
+                {data.reconciled ? 'Reconciled' : 'Does not reconcile'}
+              </StatusDot>
+            </div>
 
-          {data.lineItems.length > 0 ? (
-            <table className="tm-table" aria-label="Invoice line items">
-              <thead>
-                <tr>
-                  <th scope="col">Description</th>
-                  <th scope="col">Qty</th>
-                  <th scope="col">Unit</th>
-                  <th scope="col">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.lineItems.map((item) => (
-                  <tr key={item.id}>
-                    <td>{item.description}</td>
-                    <td className="tm-mono">{item.quantity}</td>
-                    <td className="tm-mono">{formatMoney(item.unitAmountCents, data.currency)}</td>
-                    <td className="tm-mono">{formatMoney(item.amountCents, data.currency)}</td>
+            {data.lineItems.length > 0 ? (
+              <table className="tm-table" aria-label="Invoice line items">
+                <thead>
+                  <tr>
+                    <th scope="col">Description</th>
+                    <th scope="col">Qty</th>
+                    <th scope="col">Unit</th>
+                    <th scope="col">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th scope="row" colSpan={3}>
-                    Lines total
-                  </th>
-                  <td className="tm-mono">{formatMoney(data.lineTotalCents, data.currency)}</td>
-                </tr>
-                <tr>
-                  <th scope="row" colSpan={3}>
-                    Invoice total
-                  </th>
-                  <td className="tm-mono">{formatMoney(data.invoiceTotalCents, data.currency)}</td>
-                </tr>
-              </tfoot>
-            </table>
-          ) : (
-            <InlineAlert tone="neutral">This invoice has no line-item breakdown.</InlineAlert>
-          )}
-        </section>
-      ) : null}
+                </thead>
+                <tbody>
+                  {data.lineItems.map((item) => (
+                    <tr key={item.id}>
+                      <td>{item.description}</td>
+                      <td className="tm-mono">{item.quantity}</td>
+                      <td className="tm-mono">
+                        {formatMoney(item.unitAmountCents, data.currency)}
+                      </td>
+                      <td className="tm-mono">{formatMoney(item.amountCents, data.currency)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th scope="row" colSpan={3}>
+                      Lines total
+                    </th>
+                    <td className="tm-mono">{formatMoney(data.lineTotalCents, data.currency)}</td>
+                  </tr>
+                  <tr>
+                    <th scope="row" colSpan={3}>
+                      Invoice total
+                    </th>
+                    <td className="tm-mono">
+                      {formatMoney(data.invoiceTotalCents, data.currency)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            ) : (
+              <InlineAlert tone="neutral">This invoice has no line-item breakdown.</InlineAlert>
+            )}
+          </section>
+        ) : null}
+      </div>
     </AppShell>
   );
 }

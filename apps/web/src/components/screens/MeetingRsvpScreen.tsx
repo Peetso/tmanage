@@ -9,6 +9,8 @@ import { getMeetingRsvp, setMeetingRsvp } from '../../lib/api/meeting-rsvp';
 import type { MeetingRsvpResponse } from '../../lib/api/meeting-rsvp';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
+import '../../styles/screens/calendar.css';
 
 export interface MeetingRsvpScreenProps {
   organizationSlug: string;
@@ -79,94 +81,111 @@ export function MeetingRsvpScreen({
       organizationName={organizationName}
       activeNavigationId="calendar"
       title="Meeting RSVP"
-      description="Whether you are coming to this meeting, and who else is."
+      eyebrow="Calendar · Meeting"
+      actions={
+        <MeetingHeaderActions
+          organizationSlug={organizationSlug}
+          meetingId={notFound ? '' : meetingId}
+          current="rsvp"
+        />
+      }
     >
-      {meetingId === '' ? (
-        <InlineAlert tone="neutral" title="No meeting chosen">
-          Open a meeting to respond to it.
-        </InlineAlert>
-      ) : null}
+      <div className="tm-cal">
+        <MeetingBackLink organizationSlug={organizationSlug} />
 
-      {notFound ? (
-        <InlineAlert tone="neutral" title="Meeting not found" live>
-          This meeting does not exist or you do not have access to it.
-        </InlineAlert>
-      ) : null}
-
-      {summary.isError && !notFound ? (
-        <InlineAlert tone="danger" title="Could not load the RSVP" live>
-          {describeError(summary.error)}
-        </InlineAlert>
-      ) : null}
-
-      {meetingId !== '' && summary.isPending ? (
-        <LoadingRegion label="Loading the RSVP.">
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      {meetingId !== '' && !notFound && !summary.isError && !summary.isPending ? (
-        <section className="tm-panel tm-stack" aria-labelledby="tm-rsvp-heading">
-          <h2 id="tm-rsvp-heading" className="tm-eyebrow">
-            Your response
-          </h2>
-
-          <div className="tm-row" aria-live="polite">
-            <span className="tm-table__title">You are:</span>
-            {own === null ? (
-              <StateCapsule state="waiting">No answer yet</StateCapsule>
-            ) : (
-              <StateCapsule state={responseCapsule(own)}>{RESPONSE_LABELS[own]}</StateCapsule>
-            )}
-          </div>
-
-          {respond.isError ? (
-            <InlineAlert tone="danger" title="Could not save your response" live>
-              {describeError(respond.error)}
+        <div className="tm-cal-narrow">
+          {meetingId === '' ? (
+            <InlineAlert tone="neutral" title="No meeting chosen">
+              Open a meeting to respond to it.
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row" role="group" aria-label="Set your response">
-            {RESPONSE_ORDER.map((value) => (
-              <Button
-                key={value}
-                type="button"
-                tone={value === own ? 'ink' : 'outline'}
-                size="accessible"
-                loading={respond.isPending && respond.variables === value}
-                loadingLabel="Saving"
-                disabled={respond.isPending}
-                onClick={() => respond.mutate(value)}
-              >
-                {RESPONSE_LABELS[value]}
-              </Button>
-            ))}
-          </div>
+          {notFound ? (
+            <InlineAlert tone="neutral" title="Meeting not found" live>
+              This meeting does not exist or you do not have access to it.
+            </InlineAlert>
+          ) : null}
 
-          <dl className="tm-row" aria-label="Response counts">
-            <div>
-              <dt className="tm-eyebrow">Going</dt>
-              <dd className="tm-table__title">{counts.accepted}</dd>
-            </div>
-            <div>
-              <dt className="tm-eyebrow">Maybe</dt>
-              <dd className="tm-table__title">{counts.tentative}</dd>
-            </div>
-            <div>
-              <dt className="tm-eyebrow">Not going</dt>
-              <dd className="tm-table__title">{counts.declined}</dd>
-            </div>
-          </dl>
-        </section>
-      ) : null}
+          {summary.isError && !notFound ? (
+            <InlineAlert tone="danger" title="Could not load the RSVP" live>
+              {describeError(summary.error)}
+            </InlineAlert>
+          ) : null}
+
+          {meetingId !== '' && summary.isPending ? (
+            <LoadingRegion label="Loading the RSVP.">
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {meetingId !== '' && !notFound && !summary.isError && !summary.isPending ? (
+            <section className="tm-cal-card" aria-labelledby="tm-rsvp-heading">
+              <h2 id="tm-rsvp-heading" className="tm-cal-eyebrow">
+                Your response
+              </h2>
+
+              <div className="tm-cal-item" aria-live="polite">
+                <span className="tm-cal-orb" aria-hidden="true">
+                  {own === 'accepted' ? '✓' : own === 'declined' ? '×' : '?'}
+                </span>
+                <span className="tm-cal-item__body">
+                  <span className="tm-cal-item__title">You are:</span>
+                </span>
+                <span className="tm-cal-item__end">
+                  {own === null ? (
+                    <StateCapsule state="waiting">No answer yet</StateCapsule>
+                  ) : (
+                    <StateCapsule state={responseCapsule(own)}>{RESPONSE_LABELS[own]}</StateCapsule>
+                  )}
+                </span>
+              </div>
+
+              {respond.isError ? (
+                <InlineAlert tone="danger" title="Could not save your response" live>
+                  {describeError(respond.error)}
+                </InlineAlert>
+              ) : null}
+
+              <div className="tm-cal-btn-row" role="group" aria-label="Set your response">
+                {RESPONSE_ORDER.map((value) => (
+                  <Button
+                    key={value}
+                    type="button"
+                    tone={value === own ? 'ink' : 'outline'}
+                    size="default"
+                    loading={respond.isPending && respond.variables === value}
+                    loadingLabel="Saving"
+                    disabled={respond.isPending}
+                    onClick={() => respond.mutate(value)}
+                  >
+                    {RESPONSE_LABELS[value]}
+                  </Button>
+                ))}
+              </div>
+
+              <p className="tm-cal-eyebrow">Who else is coming</p>
+              <dl className="tm-cal-counts" aria-label="Response counts">
+                <div>
+                  <dt>Going</dt>
+                  <dd>{counts.accepted}</dd>
+                </div>
+                <div>
+                  <dt>Maybe</dt>
+                  <dd>{counts.tentative}</dd>
+                </div>
+                <div>
+                  <dt>Not going</dt>
+                  <dd>{counts.declined}</dd>
+                </div>
+              </dl>
+            </section>
+          ) : null}
+        </div>
+      </div>
     </AppShell>
   );
 }
 
-/**
- * A distinct word, colour and shape per response so the state never rests on colour alone: going is
- * `done` (✓), not-going is `blocked` (✕), and a tentative answer is `waiting` (◷).
- */
 function responseCapsule(response: MeetingRsvpResponse): CapsuleState {
   if (response === 'accepted') return 'done';
   if (response === 'declined') return 'blocked';

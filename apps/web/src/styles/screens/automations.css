@@ -1,0 +1,1137 @@
+/*
+ * Automations and integrations group: the automation library (AUT-01), run history (AUT-04),
+ * schedules (laid out after AUT-05), the automation builder (AUT-02 / AUT-03), the integrations
+ * directory (INT-01) and the webhook screens (INT-02 / INT-03 layout).
+ *
+ * Only layout and the marks the shared primitives do not draw live here. Every colour, radius and
+ * type size is a token; the black cards reuse `tm-card--ink` so dark mode follows the primitive.
+ */
+
+/* ── Header: these frames use a 52px sentence-case headline, not HOME-01's uppercase display ── */
+
+.tm-app:has(.tm-aut) .tm-canvas-header__title {
+  font-size: 52px;
+  line-height: 56px;
+  letter-spacing: -0.03em;
+}
+
+.tm-app:has(.tm-aut) .tm-canvas-header__title-row {
+  align-items: flex-end;
+}
+
+.tm-app:has(.tm-aut) .tm-canvas-header__meta {
+  font-size: var(--t-ui-md);
+  color: var(--ink-500);
+}
+
+.tm-aut {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  min-inline-size: 0;
+}
+
+/* ── Capsule buttons and links (design: 12px capsules, 10px × 18px) ─────────────────────── */
+
+.tm-aut-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  min-block-size: 38px;
+  padding: 0 18px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tm-aut-btn:hover {
+  background: var(--paper-50);
+}
+
+.tm-aut-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aut-btn--ink {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: #f7f7f3;
+}
+
+.tm-aut-btn--ink:hover {
+  background: var(--ink-800);
+}
+
+[data-theme='dark'] .tm-aut-btn--ink {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-150);
+}
+
+/* ── Section tabs (AUT-01: Library 11 · Templates · Runs · Guardrails) ───────────────────── */
+
+.tm-aut-tabs {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--s3) 26px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-aut-tabs__list {
+  display: flex;
+  gap: 26px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aut-tabs__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-block-end: 9px;
+  border-block-end: 2px solid transparent;
+  color: var(--ink-500);
+  font-size: var(--t-ui-md);
+  line-height: 19px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-aut-tabs__link[aria-current='page'] {
+  border-block-end-color: var(--ink-950);
+  color: var(--ink-950);
+  font-weight: 600;
+}
+
+.tm-aut-tabs__link:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aut-tabs__count {
+  padding: 1px 8px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.tm-aut-tabs__end {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-inline-start: auto;
+  padding-block-end: 9px;
+}
+
+/* Filter capsules (AUT-01 "All projects", INT-01 "All · 12"). Pressed = ink, like the design. */
+.tm-aut-filter {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  padding: 0 14px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font: inherit;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.tm-aut-filter[aria-pressed='true'] {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: #f7f7f3;
+  font-weight: 600;
+}
+
+[data-theme='dark'] .tm-aut-filter[aria-pressed='true'] {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-150);
+}
+
+.tm-aut-filter:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aut-filter:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.tm-aut-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* ── Two-column body: the list on the left, the black/white side cards on the right ──────── */
+
+.tm-aut-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: var(--s6);
+  align-items: start;
+}
+
+.tm-aut-split--wide {
+  grid-template-columns: minmax(0, 1fr) 452px;
+  gap: var(--s10);
+}
+
+.tm-aut-split--builder {
+  grid-template-columns: minmax(0, 1fr) 380px;
+  gap: var(--s5);
+}
+
+.tm-aut-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+/* ── The table card (AUT-01 / AUT-04 / INT-03: white, 24px radius, 36px mono header) ─────── */
+
+.tm-aut-tablecard {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-aut-tablecard:empty {
+  display: none;
+}
+
+.tm-aut-tablecard__scroll {
+  overflow-x: auto;
+}
+
+.tm-aut-tablecard__scroll:focus-visible {
+  outline: none;
+  box-shadow: inset var(--focus-ring);
+}
+
+.tm-aut-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-ui-sm);
+}
+
+.tm-aut-table thead th {
+  block-size: 36px;
+  padding: 0 var(--s5);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-align: start;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-aut-table tbody th,
+.tm-aut-table tbody td {
+  block-size: 66px;
+  padding: var(--s2) var(--s5);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  color: var(--ink-800);
+  font-weight: 500;
+  text-align: start;
+  vertical-align: middle;
+}
+
+.tm-aut-table--compact tbody th,
+.tm-aut-table--compact tbody td {
+  block-size: 53px;
+}
+
+.tm-aut-table tbody tr:last-child > * {
+  border-block-end: 0;
+}
+
+.tm-aut-table tbody tr[aria-selected='true'] > *,
+.tm-aut-table tbody tr.is-selected > * {
+  background: var(--paper-50);
+}
+
+.tm-aut-table tbody tr.is-selected > :first-child {
+  box-shadow: inset 3px 0 0 var(--ink-950);
+}
+
+.tm-aut-table tbody tr.is-failed > :first-child {
+  box-shadow: inset 3px 0 0 var(--danger-600);
+}
+
+.tm-aut-table .tm-aut-end {
+  text-align: end;
+}
+
+.tm-aut-mono {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--ink-650);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.tm-aut-rowtitle {
+  display: block;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: 20px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+a.tm-aut-rowtitle:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--lime-600);
+  text-underline-offset: 3px;
+}
+
+.tm-aut-rowsub {
+  display: block;
+  margin-block-start: 3px;
+  color: var(--ink-500);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 400;
+}
+
+.tm-aut-rowsub--warning {
+  color: var(--warning-600);
+}
+
+.tm-aut-rowsub--danger {
+  color: var(--danger-600);
+}
+
+/* The link-styled button that opens a run (AUT-04's RUN·4C1E column). */
+.tm-aut-linkbtn {
+  padding: 0;
+  border: 0;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-aut-linkbtn:hover {
+  border-block-end-color: var(--lime-600);
+}
+
+.tm-aut-linkbtn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── State capsules (Live / On / Held / Failed / Draft / Off) ───────────────────────────── */
+
+.tm-aut-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 11px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-aut-state--live {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
+  font-weight: 600;
+}
+
+.tm-aut-state--off {
+  border-color: var(--paper-150);
+  background: var(--paper-150);
+}
+
+.tm-aut-state--warning {
+  border-color: var(--warning-600);
+  color: var(--warning-600);
+  font-weight: 600;
+}
+
+.tm-aut-state--danger {
+  border-color: var(--danger-600);
+  color: var(--danger-600);
+  font-weight: 600;
+}
+
+.tm-aut-state--draft {
+  border-style: dashed;
+  color: var(--ink-500);
+}
+
+/* ── Empty row inside a table card ─────────────────────────────────────────────────────── */
+
+.tm-aut-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: var(--s5);
+  padding: var(--s5);
+  border: var(--b-quiet) dashed var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+}
+
+.tm-aut-empty__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.tm-aut-empty__body {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-aut-pad {
+  padding: var(--s5);
+}
+
+/* ── Side cards: the black action card and the white summary card ──────────────────────── */
+
+.tm-aut-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 22px 24px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+.tm-aut-card--strong {
+  border-width: var(--b-expressive);
+  border-color: var(--tm-ink-absolute);
+}
+
+[data-theme='dark'] .tm-aut-card--strong {
+  border-color: var(--ink-950);
+}
+
+.tm-aut-card--warning {
+  border-color: var(--warning-600);
+}
+
+.tm-aut-card--danger {
+  border-color: var(--danger-600);
+}
+
+.tm-aut-card.tm-card--ink {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: #a7aca0;
+}
+
+[data-theme='dark'] .tm-aut-card.tm-card--ink {
+  border-color: var(--line-300);
+  background: var(--paper-350);
+  color: var(--ink-650);
+}
+
+.tm-aut-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.tm-card--ink .tm-aut-eyebrow {
+  color: var(--lime-500);
+}
+
+.tm-aut-eyebrow--danger {
+  color: var(--danger-600);
+}
+
+.tm-aut-eyebrow__orb {
+  inline-size: 22px;
+  block-size: 22px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  flex: none;
+}
+
+.tm-aut-eyebrow__square {
+  inline-size: 9px;
+  block-size: 9px;
+  background: currentColor;
+  flex: none;
+}
+
+.tm-aut-card__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: 22px;
+  line-height: 29px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tm-card--ink .tm-aut-card__title {
+  color: #f7f7f3;
+}
+
+[data-theme='dark'] .tm-card--ink .tm-aut-card__title {
+  color: var(--ink-950);
+}
+
+.tm-aut-card__title--section {
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.tm-aut-card__body {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+}
+
+.tm-card--ink .tm-aut-card__body {
+  color: #a7aca0;
+}
+
+.tm-aut-card__foot {
+  margin: 0;
+  padding-block-start: 14px;
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+  color: var(--ink-650);
+}
+
+.tm-card--ink .tm-aut-card__foot {
+  border-block-start-color: var(--line-700);
+}
+
+.tm-aut-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+}
+
+/* Fields inside the black card: the shared field primitive on a dark ground. */
+.tm-card--ink .tm-field__label,
+.tm-card--ink legend.tm-field__label {
+  color: #f7f7f3;
+}
+
+.tm-card--ink .tm-field__hint {
+  color: #a7aca0;
+}
+
+[data-theme='dark'] .tm-card--ink .tm-field__label {
+  color: var(--ink-950);
+}
+
+/* Bulleted facts (INT-01 "The rule for every integration", AUT-05 "Automation may never"). */
+.tm-aut-facts {
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aut-facts > li {
+  display: flex;
+  gap: 12px;
+  align-items: baseline;
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+}
+
+.tm-aut-facts > li::before {
+  content: '';
+  inline-size: 9px;
+  block-size: 9px;
+  flex: none;
+  transform: translateY(-1px);
+  background: var(--lime-500);
+}
+
+.tm-aut-facts--numbered {
+  counter-reset: tm-aut-fact;
+}
+
+.tm-aut-facts--numbered > li {
+  counter-increment: tm-aut-fact;
+}
+
+.tm-aut-facts--numbered > li::before {
+  content: counter(tm-aut-fact, decimal-leading-zero);
+  inline-size: auto;
+  block-size: auto;
+  min-inline-size: 22px;
+  background: none;
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+/* Ratio bars (AUT-01 "Last 14 days"). */
+.tm-aut-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  margin: 0;
+}
+
+.tm-aut-bars__row {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: center;
+}
+
+.tm-aut-bars__row dt {
+  font-size: var(--t-ui-sm);
+  line-height: 17px;
+  color: var(--ink-800);
+}
+
+.tm-aut-bars__row dd {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  gap: var(--s4);
+  align-items: center;
+  margin: 0;
+  text-align: end;
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-aut-bars__track {
+  display: block;
+  block-size: 12px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  overflow: hidden;
+}
+
+.tm-aut-bars__fill {
+  display: block;
+  block-size: 100%;
+  min-inline-size: 4px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-aut-bars__fill--muted {
+  background: var(--ink-500);
+}
+
+.tm-aut-bars__fill--danger {
+  background: var(--danger-600);
+}
+
+/* ── Run evidence (AUT-04 right panel) ─────────────────────────────────────────────────── */
+
+.tm-aut-evidence {
+  min-block-size: 560px;
+}
+
+.tm-aut-steps {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aut-steps > li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-inline-start: 36px;
+  padding-block-end: 18px;
+}
+
+.tm-aut-steps > li::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 4px;
+  inset-block-start: 5px;
+  inline-size: 11px;
+  block-size: 11px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-aut-steps > li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 9px;
+  inset-block: 18px 0;
+  inline-size: 1px;
+  background: var(--line-300);
+}
+
+.tm-aut-steps > li.is-danger::before {
+  background: var(--paper-0);
+  box-shadow: inset 0 0 0 2px var(--danger-600);
+}
+
+.tm-aut-steps__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: 19px;
+  font-weight: 600;
+}
+
+.tm-aut-steps > li.is-danger .tm-aut-steps__title {
+  color: var(--danger-600);
+}
+
+.tm-aut-steps__body {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+}
+
+.tm-aut-code {
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  color: var(--ink-800);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 17px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── Builder (AUT-02): numbered steps on a vertical rail ───────────────────────────────── */
+
+.tm-aut-builder {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  padding: 28px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-aut-flow {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aut-flow > li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--s4);
+  padding-block-end: 28px;
+}
+
+.tm-aut-flow > li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 21px;
+  inset-block: 44px 0;
+  inline-size: 2px;
+  background: var(--ink-950);
+}
+
+.tm-aut-flow > li.is-add::after {
+  display: none;
+}
+
+.tm-aut-flow__num {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
+  font-size: var(--t-ui-md);
+  font-weight: 600;
+}
+
+[data-theme='dark'] .tm-aut-flow__num {
+  background: var(--ink-950);
+  color: var(--paper-150);
+}
+
+.tm-aut-flow > li.is-current .tm-aut-flow__num {
+  border: var(--b-expressive) solid var(--tm-ink-absolute);
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
+}
+
+.tm-aut-flow > li.is-add .tm-aut-flow__num {
+  border: var(--b-quiet) dashed var(--line-300);
+  background: transparent;
+  color: var(--ink-500);
+}
+
+.tm-aut-flow__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-aut-flow__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+}
+
+.tm-aut-flow__note {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+}
+
+.tm-aut-flow > li.is-current .tm-field__control,
+.tm-aut-flow > li.is-current select {
+  border: var(--b-expressive) solid var(--tm-ink-absolute);
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-aut-flow__add-title {
+  margin: 0;
+  padding-block-start: 10px;
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  line-height: 20px;
+}
+
+/* ── Integrations (INT-01): four-up connected cards and the available list ─────────────── */
+
+.tm-aut-tools {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aut-tool {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-block-size: 208px;
+  padding: 22px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-aut-tool--danger {
+  border-color: var(--danger-600);
+}
+
+.tm-aut-tool__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-block-end: var(--s3);
+}
+
+.tm-aut-glyph {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 46px;
+  block-size: 46px;
+  flex: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+  color: var(--ink-800);
+  font-size: var(--t-ui-md);
+}
+
+.tm-aut-glyph--small {
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: 12px;
+}
+
+.tm-aut-glyph--large {
+  inline-size: 66px;
+  block-size: 66px;
+  border-radius: 18px;
+  background: var(--paper-0);
+  font-size: 18px;
+}
+
+.tm-aut-tool__name {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: 17px;
+  line-height: 23px;
+  font-weight: 500;
+}
+
+.tm-aut-tool__body {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+}
+
+.tm-aut-tool__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+  margin-block-start: auto;
+  padding-block-start: var(--s3);
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-aut-section-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--s2) 14px;
+  margin: 0;
+}
+
+.tm-aut-section-head__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: 20px;
+  line-height: 26px;
+  font-weight: 500;
+}
+
+.tm-aut-section-head__meta {
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-aut-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-aut-list > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  min-block-size: 58px;
+  padding: 10px var(--s5);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-aut-list > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-aut-list__main {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-aut-list__end {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  margin-inline-start: auto;
+}
+
+/* Scope rows (INT-02 "What it may do": READ / WRITE / DENIED in mono, colour-coded). */
+.tm-aut-scope {
+  min-inline-size: 64px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--success-600);
+}
+
+.tm-aut-scope--off {
+  color: var(--ink-500);
+}
+
+/* ── Smaller pieces shared by several screens ──────────────────────────────────────────── */
+
+.tm-aut-lede {
+  margin: 0;
+  max-inline-size: 540px;
+  color: var(--ink-650);
+  font-size: var(--t-body-lg);
+  line-height: 23px;
+}
+
+.tm-aut-run {
+  align-items: flex-start;
+}
+
+.tm-aut-filters--end {
+  justify-content: flex-end;
+}
+
+.tm-aut-empty--flush {
+  margin: 0;
+}
+
+.tm-aut-url {
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-aut-tool__foot {
+  flex-direction: column;
+  margin-inline: 0;
+  margin-block-end: 0;
+  padding-inline: 0;
+  list-style: none;
+}
+
+.tm-aut-tool__conn {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+/* INT-02 "What it may do": hairline-divided rows inside a white card. */
+.tm-aut-scopes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aut-scopes > li {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  min-block-size: 56px;
+  padding-block: 10px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-aut-scopes > li:last-child {
+  border-block-end: 0;
+}
+
+/* ── Responsive (responsive-and-desktop.md: one column below 1100, stacked cards on phones) ─ */
+
+@media (max-width: 1180px) {
+  .tm-aut-split,
+  .tm-aut-split--wide,
+  .tm-aut-split--builder {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-aut-tools {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .tm-app:has(.tm-aut) .tm-canvas-header__title {
+    font-size: var(--t-heading-page);
+    line-height: var(--t-heading-page-line);
+  }
+
+  .tm-aut-tools {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-aut-tabs__end {
+    margin-inline-start: 0;
+  }
+
+  .tm-aut-table tbody th,
+  .tm-aut-table tbody td,
+  .tm-aut-table thead th {
+    padding-inline: var(--s3);
+  }
+
+  .tm-aut-hide-sm {
+    display: none;
+  }
+
+  .tm-aut-builder {
+    padding: var(--s5);
+  }
+
+  .tm-aut-list > li {
+    flex-wrap: wrap;
+  }
+}

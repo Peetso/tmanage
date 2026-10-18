@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   INSIGHT_METRIC_KEYS,
@@ -81,77 +82,80 @@ export function MetricFavoritesView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
+      eyebrow="Insights"
       title="Favorite metrics"
       description="Star the insight metrics you watch most. Starred metrics surface first; only you see your favorites."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-metric-favorites-strip">
-        <h2 id="tm-metric-favorites-strip" className="tm-eyebrow">
-          Your favorites
-        </h2>
+      <div className="tm-ins tm-ins-tool">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-metric-favorites-strip">
+          <h2 id="tm-metric-favorites-strip" className="tm-eyebrow">
+            Your favorites
+          </h2>
 
-        {favorites.isError ? (
-          <InlineAlert tone="danger" title="Could not load your favorite metrics" live>
-            {describeError(favorites.error)}
-          </InlineAlert>
-        ) : null}
-
-        {favorites.isPending ? (
-          <LoadingRegion label="Loading your favorite metrics.">
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!favorites.isPending && !favorites.isError ? (
-          starredList.length === 0 ? (
-            <InlineAlert tone="neutral" title="No favorites yet">
-              Star a metric below to pin it here.
+          {favorites.isError ? (
+            <InlineAlert tone="danger" title="Could not load your favorite metrics" live>
+              {describeError(favorites.error)}
             </InlineAlert>
-          ) : (
-            <ul className="tm-tag-list">
-              {starredList.map((metricKey) => (
-                <li key={metricKey} className="tm-tag">
-                  {METRIC_LABELS[metricKey]}
+          ) : null}
+
+          {favorites.isPending ? (
+            <LoadingRegion label="Loading your favorite metrics.">
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {!favorites.isPending && !favorites.isError ? (
+            starredList.length === 0 ? (
+              <InlineAlert tone="neutral" title="No favorites yet">
+                Star a metric below to pin it here.
+              </InlineAlert>
+            ) : (
+              <ul className="tm-tag-list">
+                {starredList.map((metricKey) => (
+                  <li key={metricKey} className="tm-tag">
+                    {METRIC_LABELS[metricKey]}
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : null}
+        </section>
+
+        <section className="tm-panel tm-stack" aria-labelledby="tm-metric-favorites-all">
+          <h2 id="tm-metric-favorites-all" className="tm-eyebrow">
+            All metrics
+          </h2>
+
+          {toggle.isError ? (
+            <InlineAlert tone="danger" title="Could not update the favorite" live>
+              {describeError(toggle.error)}
+            </InlineAlert>
+          ) : null}
+
+          <ul className="tm-list">
+            {INSIGHT_METRIC_KEYS.map((metricKey) => {
+              const isStarred = starred.has(metricKey);
+              return (
+                <li key={metricKey} className="tm-list__row">
+                  <span>{METRIC_LABELS[metricKey]}</span>
+                  <Button
+                    type="button"
+                    tone={isStarred ? 'ink' : 'outline'}
+                    size="accessible"
+                    aria-pressed={isStarred}
+                    loading={toggle.isPending && toggle.variables === metricKey}
+                    loadingLabel={isStarred ? 'Removing' : 'Saving'}
+                    disabled={favorites.isPending}
+                    onClick={() => toggle.mutate(metricKey)}
+                  >
+                    {isStarred ? 'Starred' : 'Star'}
+                  </Button>
                 </li>
-              ))}
-            </ul>
-          )
-        ) : null}
-      </section>
-
-      <section className="tm-panel tm-stack" aria-labelledby="tm-metric-favorites-all">
-        <h2 id="tm-metric-favorites-all" className="tm-eyebrow">
-          All metrics
-        </h2>
-
-        {toggle.isError ? (
-          <InlineAlert tone="danger" title="Could not update the favorite" live>
-            {describeError(toggle.error)}
-          </InlineAlert>
-        ) : null}
-
-        <ul className="tm-list">
-          {INSIGHT_METRIC_KEYS.map((metricKey) => {
-            const isStarred = starred.has(metricKey);
-            return (
-              <li key={metricKey} className="tm-list__row">
-                <span>{METRIC_LABELS[metricKey]}</span>
-                <Button
-                  type="button"
-                  tone={isStarred ? 'ink' : 'outline'}
-                  size="accessible"
-                  aria-pressed={isStarred}
-                  loading={toggle.isPending && toggle.variables === metricKey}
-                  loadingLabel={isStarred ? 'Removing' : 'Saving'}
-                  disabled={favorites.isPending}
-                  onClick={() => toggle.mutate(metricKey)}
-                >
-                  {isStarred ? 'Starred' : 'Star'}
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+              );
+            })}
+          </ul>
+        </section>
+      </div>
     </AppShell>
   );
 }

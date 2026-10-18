@@ -56,7 +56,9 @@ describe('TrustScreen', () => {
     await waitFor(() => expect(screen.getByText('Hostinger')).toBeDefined());
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     expect(screen.getByRole('table', { name: /subprocessors/i })).toBeDefined();
-    expect(screen.getByRole('link', { name: /status/i }).getAttribute('href')).toBe('/status');
+    expect(screen.getByRole('link', { name: 'Open status page' }).getAttribute('href')).toBe(
+      '/status',
+    );
     await expectNoAxeViolations(container);
   });
 });

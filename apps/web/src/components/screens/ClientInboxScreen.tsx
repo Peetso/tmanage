@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -15,8 +15,9 @@ import {
 import type { PortalInboxBundle, PortalInboxMode } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
-import { requestStatusCapsule, requestStatusLabel } from '../../lib/client-request-presentation';
+import { requestStatusLabel } from '../../lib/client-request-presentation';
 import { formatInstant } from '../../lib/work-item-presentation';
+import { Segmented, Tag } from './PortalParts';
 
 export interface ClientInboxScreenProps {
   organizationSlug: string;
@@ -98,122 +99,126 @@ export function ClientInboxScreen({
       organizationSlug={organizationSlug}
       clientName={clientName}
       providerName={providerName}
-      {...(project ? { projectName: project.name } : {})}
       activeNavigationId="overview"
       title="What has changed"
+      eyebrow={project ? `Notifications · ${project.name}` : 'Notifications'}
       description={`Each time ${providerName} answers one of your requests, it appears here.`}
+      headerAside={
+        <Segmented<PortalInboxMode>
+          label="Notification mode"
+          value={mode}
+          onChange={selectMode}
+          options={MODES}
+        />
+      }
     >
-      {inbox.isError ? (
-        <InlineAlert tone="danger" title="Could not load your notifications" live>
-          {describe(inbox.error)}
-        </InlineAlert>
-      ) : null}
+      <div className="tm-pt tm-pt--compact">
+        {inbox.isError ? (
+          <InlineAlert tone="danger" title="Could not load your notifications" live>
+            {describe(inbox.error)}
+          </InlineAlert>
+        ) : null}
 
-      {markRead.isError ? (
-        <InlineAlert tone="danger" title="Could not mark that read" live>
-          {describe(markRead.error)}
-        </InlineAlert>
-      ) : null}
+        {markRead.isError ? (
+          <InlineAlert tone="danger" title="Could not mark that read" live>
+            {describe(markRead.error)}
+          </InlineAlert>
+        ) : null}
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-portal-inbox-modes">
-        <h2 id="tm-portal-inbox-modes" className="tm-eyebrow">
-          Show
-        </h2>
-        <div className="tm-row tm-row--wrap" role="group" aria-label="Notification mode">
-          {MODES.map((candidate) => (
-            <button
-              key={candidate.id}
-              type="button"
-              className="tm-button tm-button--outline"
-              aria-pressed={mode === candidate.id}
-              onClick={() => selectMode(candidate.id)}
-            >
-              {candidate.label}
-            </button>
-          ))}
-        </div>
-      </section>
+        {inbox.isPending ? (
+          <LoadingRegion label="Loading your notifications.">
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-      {inbox.isPending ? (
-        <LoadingRegion label="Loading your notifications.">
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
+        {/* "Nothing" only once the API has said it: a page can be short while a cursor remains. */}
+        {!inbox.isPending && !inbox.isError && bundles.length === 0 && !inbox.hasNextPage ? (
+          <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
+            <h2 className="tm-pt-card__title">{EMPTY_TITLES[mode]}</h2>
+            <p className="tm-pt-card__body">{EMPTY_BODIES[mode](providerName)}</p>
+          </div>
+        ) : null}
 
-      {/* "Nothing" only once the API has said it: a page can be short while a cursor remains. */}
-      {!inbox.isPending && !inbox.isError && bundles.length === 0 && !inbox.hasNextPage ? (
-        <InlineAlert tone="neutral" title={EMPTY_TITLES[mode]}>
-          <p className="tm-prose">{EMPTY_BODIES[mode](providerName)}</p>
-        </InlineAlert>
-      ) : null}
+        {!inbox.isPending && !inbox.isError && bundles.length === 0 && inbox.hasNextPage ? (
+          <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
+            Nothing you can still see on this page. There are older pages.
+          </p>
+        ) : null}
 
-      {!inbox.isPending && !inbox.isError && bundles.length === 0 && inbox.hasNextPage ? (
-        <p className="tm-prose">Nothing you can still see on this page. There are older pages.</p>
-      ) : null}
-
-      {bundles.length > 0 ? (
-        <ul className="tm-stack tm-list" aria-label="Your notifications">
-          {bundles.map((bundle) => (
-            <li key={bundle.bundleId} className="tm-panel tm-stack tm-stack--tight">
-              <div className="tm-row tm-row--wrap">
-                <StateCapsule state={requestStatusCapsule(bundle.status)}>
-                  {requestStatusLabel(bundle.status)}
-                </StateCapsule>
-                <span className="tm-field__hint">{describeCounts(bundle, mode)}</span>
-              </div>
-              <p className="tm-prose">
-                <Link href={`/${organizationSlug}/portal/requests/${bundle.requestId}`}>
-                  <strong>{bundle.title}</strong>
-                </Link>
-              </p>
-              <p className="tm-field__hint">
-                {describeWhy(bundle, providerName)} · Latest {formatInstant(bundle.latestAt)}
-              </p>
-              {bundle.unreadCount > 0 ? (
-                <div className="tm-row">
-                  <Button
-                    tone="outline"
-                    size="accessible"
-                    loading={markRead.isPending && markRead.variables === bundle.bundleId}
-                    loadingLabel="Marking read"
-                    aria-label={`Mark read: ${bundle.title}`}
-                    onClick={() => markRead.mutate(bundle.bundleId)}
-                  >
-                    Mark read
-                  </Button>
+        {bundles.length > 0 ? (
+          <ul className="tm-pt-list" aria-label="Your notifications">
+            {bundles.map((bundle) => (
+              <li
+                key={bundle.bundleId}
+                className={
+                  bundle.unreadCount > 0 ? 'tm-pt-action tm-pt-action--lead' : 'tm-pt-action'
+                }
+              >
+                <span className="tm-pt-action__orb" aria-hidden="true">
+                  {bundle.unreadCount > 0 ? bundle.unreadCount : '✓'}
+                </span>
+                <div className="tm-pt-action__body">
+                  <div className="tm-pt-action__meta">
+                    <Tag tone={bundle.status === 'clarifying' ? 'lime' : undefined}>
+                      {requestStatusLabel(bundle.status)}
+                    </Tag>
+                    <span className="tm-pt-mono">{describeCounts(bundle, mode)}</span>
+                  </div>
+                  <h2 className="tm-pt-action__title">
+                    <Link href={`/${organizationSlug}/portal/requests/${bundle.requestId}`}>
+                      {bundle.title}
+                    </Link>
+                  </h2>
+                  <p className="tm-pt-action__text">
+                    {describeWhy(bundle, providerName)} · Latest {formatInstant(bundle.latestAt)}
+                  </p>
                 </div>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-      ) : null}
+                {bundle.unreadCount > 0 ? (
+                  <div className="tm-pt-action__end">
+                    <Button
+                      tone="outline"
+                      size="accessible"
+                      loading={markRead.isPending && markRead.variables === bundle.bundleId}
+                      loadingLabel="Marking read"
+                      aria-label={`Mark read: ${bundle.title}`}
+                      onClick={() => markRead.mutate(bundle.bundleId)}
+                    >
+                      Mark read
+                    </Button>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
 
-      {inbox.hasNextPage ? (
-        <div className="tm-row">
-          <Button
-            tone="outline"
-            size="accessible"
-            loading={inbox.isFetchingNextPage}
-            loadingLabel="Loading more"
-            onClick={() => void inbox.fetchNextPage()}
-          >
-            Load more
-          </Button>
-        </div>
-      ) : null}
+        {inbox.hasNextPage ? (
+          <div className="tm-pt-form__actions">
+            <Button
+              tone="outline"
+              size="accessible"
+              loading={inbox.isFetchingNextPage}
+              loadingLabel="Loading more"
+              onClick={() => void inbox.fetchNextPage()}
+            >
+              Load more
+            </Button>
+          </div>
+        ) : null}
 
-      {/*
+        {/*
         WCAG 2.2 4.1.3: announce the running total when "Load more" adds notifications, so a
         screen-reader user is told the press landed instead of listening to silence.
       */}
-      <Announce
-        message={
-          (inbox.data?.pages.length ?? 0) > 1 && !inbox.isFetchingNextPage
-            ? `${bundles.length} ${bundles.length === 1 ? 'notification' : 'notifications'} loaded in total.`
-            : ''
-        }
-      />
+        <Announce
+          message={
+            (inbox.data?.pages.length ?? 0) > 1 && !inbox.isFetchingNextPage
+              ? `${bundles.length} ${bundles.length === 1 ? 'notification' : 'notifications'} loaded in total.`
+              : ''
+          }
+        />
+      </div>
     </ClientPortalShell>
   );
 }

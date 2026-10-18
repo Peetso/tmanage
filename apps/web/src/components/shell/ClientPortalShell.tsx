@@ -22,7 +22,11 @@ export interface ClientPortalShellProps {
   projectName?: string;
   activeNavigationId?: string;
   title: string;
+  /** The mono eyebrow over the title, e.g. "Your project · on track for the committed launch". */
+  eyebrow?: ReactNode;
   description?: ReactNode;
+  /** The header's trailing block — CL-01's "days to launch" / "action waiting for you" metrics. */
+  headerAside?: ReactNode;
   children: ReactNode;
   /**
    * Renders the internal-facing preview chrome around the portal — the `ClientPreviewBar`
@@ -54,7 +58,9 @@ export function ClientPortalShell({
   projectName,
   activeNavigationId,
   title,
+  eyebrow,
   description,
+  headerAside,
   children,
   preview = false,
 }: ClientPortalShellProps) {
@@ -72,47 +78,59 @@ export function ClientPortalShell({
           </div>
         ) : null}
 
+        {/* CL-01: one light bar — the brand orb with the client and their delivery team, the
+            portal's destinations as capsules, and the audience/project context at the end. */}
         <header className="tm-portal__header">
           <div className="tm-portal__identity">
-            <p className="tm-portal__client">{clientName}</p>
-            <p className="tm-portal__provider">
-              Delivered by {providerName} <Wordmark variant="icon" label="on TManage" />
-            </p>
+            <span className="tm-portal__mark">
+              <Wordmark variant="icon" label="TManage" />
+            </span>
+            <div>
+              <p className="tm-portal__client">{clientName}</p>
+              <p className="tm-portal__provider">Delivered by {providerName}</p>
+            </div>
           </div>
+
+          <nav className="tm-portal__nav" aria-label="Primary">
+            <ul className="tm-portal__nav-list">
+              {CLIENT_NAVIGATION.map((item) => {
+                const current = item.id === activeNavigationId;
+                return (
+                  <li key={item.id}>
+                    <Link
+                      href={`/${organizationSlug}${item.href}`}
+                      className="tm-portal__nav-item"
+                      {...(current ? { 'aria-current': 'page' as const } : {})}
+                    >
+                      <span className="tm-portal__nav-glyph" aria-hidden="true">
+                        {item.glyph}
+                      </span>
+                      {item.label}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </nav>
 
           <div className="tm-portal__context">
             <Badge tone="client" mono>
               Client portal
             </Badge>
-            {projectName ? <Badge mono>{projectName}</Badge> : null}
           </div>
         </header>
 
-        <nav className="tm-portal__nav" aria-label="Primary">
-          <ul className="tm-portal__nav-list">
-            {CLIENT_NAVIGATION.map((item) => {
-              const current = item.id === activeNavigationId;
-              return (
-                <li key={item.id}>
-                  <Link
-                    href={`/${organizationSlug}${item.href}`}
-                    className="tm-portal__nav-item"
-                    {...(current ? { 'aria-current': 'page' as const } : {})}
-                  >
-                    <span className="tm-portal__nav-glyph" aria-hidden="true">
-                      {item.glyph}
-                    </span>
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
         <main id="tm-main" className="tm-portal__canvas" tabIndex={-1}>
-          <h1 className="tm-portal__title">{title}</h1>
-          {description ? <p className="tm-portal__description">{description}</p> : null}
+          <div className="tm-portal__page-head">
+            <div className="tm-portal__titles">
+              {eyebrow || projectName ? (
+                <p className="tm-portal__eyebrow">{eyebrow ?? projectName}</p>
+              ) : null}
+              <h1 className="tm-portal__title">{title}</h1>
+              {description ? <p className="tm-portal__description">{description}</p> : null}
+            </div>
+            {headerAside ? <div className="tm-portal__aside">{headerAside}</div> : null}
+          </div>
           {children}
         </main>
       </div>

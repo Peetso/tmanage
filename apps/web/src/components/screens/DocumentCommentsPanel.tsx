@@ -19,8 +19,9 @@ export interface DocumentCommentsPanelProps {
  * **Docs "collaboration later" (x132) — document comments.**
  *
  * The collaboration surface `38-MODULE-MAP` §Docs defers ("collaboration later"): a document's
- * comments, read oldest-first, with an add form. It renders beside `DocumentViewScreen`, so it is a
- * plain labelled region rather than its own `AppShell` screen.
+ * comments, read oldest-first, with an add form. It renders as DOC-02's edge column beside the
+ * paper sheet of `DocumentViewScreen`, so it is a plain labelled region rather than its own
+ * `AppShell` screen.
  *
  * ## Not-found is the read's quiet case
  *
@@ -67,9 +68,10 @@ export function DocumentCommentsPanel({
   const canAdd = draft.trim() !== '';
 
   return (
-    <section className="tm-panel tm-stack" aria-labelledby="tm-document-comments">
-      <h2 id="tm-document-comments" className="tm-eyebrow">
+    <section className="tm-dx-edge" aria-labelledby="tm-document-comments">
+      <h2 id="tm-document-comments" className="tm-dx-edge__caption">
         Comments
+        {!comments.isPending && !comments.isError ? ` · ${rows.length}` : ''}
       </h2>
 
       {comments.isPending ? (
@@ -93,23 +95,29 @@ export function DocumentCommentsPanel({
 
       {!comments.isPending && !comments.isError ? (
         rows.length > 0 ? (
-          <ol className="tm-stack" aria-label="Comments on this document">
+          <ol className="tm-dx-comments" aria-label="Comments on this document">
             {rows.map((comment) => (
-              <li key={comment.id} className="tm-stack">
-                <p className="tm-prose">{comment.body}</p>
-                <p className="tm-field__hint">
-                  {comment.authorMembershipId} · {formatInstant(comment.createdAt)}
-                </p>
+              <li key={comment.id} className="tm-dx-comment">
+                <div className="tm-dx-comment__head">
+                  <span className="tm-dx-comment__orb" aria-hidden="true">
+                    ◌
+                  </span>
+                  <span className="tm-dx-comment__who">{comment.authorMembershipId}</span>
+                  <time className="tm-dx-comment__when" dateTime={comment.createdAt}>
+                    {formatInstant(comment.createdAt)}
+                  </time>
+                </div>
+                <p className="tm-dx-comment__body">{comment.body}</p>
               </li>
             ))}
           </ol>
         ) : (
-          <p className="tm-prose">No comments yet.</p>
+          <p className="tm-dx-quiet">No comments yet.</p>
         )
       ) : null}
 
       <form
-        className="tm-stack"
+        className="tm-dx-comment-form tm-dx-edge__foot"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -136,18 +144,16 @@ export function DocumentCommentsPanel({
           </InlineAlert>
         ) : null}
 
-        <div className="tm-row">
-          <Button
-            type="submit"
-            tone="ink"
-            size="accessible"
-            loading={add.isPending}
-            loadingLabel="Adding"
-            disabled={!canAdd}
-          >
-            Add comment
-          </Button>
-        </div>
+        <Button
+          type="submit"
+          tone="ink"
+          size="compact"
+          loading={add.isPending}
+          loadingLabel="Adding"
+          disabled={!canAdd}
+        >
+          Add comment
+        </Button>
       </form>
     </section>
   );

@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/purchase-orders';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface PurchaseOrdersViewProps {
   organizationSlug: string;
@@ -102,168 +103,172 @@ export function PurchaseOrdersView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Purchase orders"
       description="Record the purchase-order references your finance team issues, so invoices can cite one."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-po-new-heading">
-        <h2 id="tm-po-new-heading" className="tm-eyebrow">
-          New purchase order
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canCreate) create.mutate();
-          }}
-        >
-          <Field
-            label="PO number"
-            name="poNumber"
-            value={poNumber}
-            onChange={(event) => setPoNumber(event.target.value)}
-            hint="The reference your finance team issued."
-            required
-          />
-          <Field
-            label="Amount (minor units)"
-            name="amount"
-            type="number"
-            min={0}
-            value={amount}
-            onChange={(event) => setAmount(event.target.value)}
-            hint="Optional. A whole number in the smallest currency unit (e.g. cents)."
-          />
-          <Field
-            label="Currency"
-            name="currency"
-            value={currency}
-            onChange={(event) => setCurrency(event.target.value)}
-            hint="Optional. A 3-letter ISO-4217 code, e.g. USD."
-          />
-          <Field
-            label="Note"
-            name="note"
-            value={note}
-            onChange={(event) => setNote(event.target.value)}
-            hint="Optional. What the PO is for."
-          />
+      <div className="tm-bil">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-po-new-heading">
+          <h2 id="tm-po-new-heading" className="tm-eyebrow">
+            New purchase order
+          </h2>
+          <form
+            className="tm-stack"
+            noValidate
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (canCreate) create.mutate();
+            }}
+          >
+            <Field
+              label="PO number"
+              name="poNumber"
+              value={poNumber}
+              onChange={(event) => setPoNumber(event.target.value)}
+              hint="The reference your finance team issued."
+              required
+            />
+            <Field
+              label="Amount (minor units)"
+              name="amount"
+              type="number"
+              min={0}
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
+              hint="Optional. A whole number in the smallest currency unit (e.g. cents)."
+            />
+            <Field
+              label="Currency"
+              name="currency"
+              value={currency}
+              onChange={(event) => setCurrency(event.target.value)}
+              hint="Optional. A 3-letter ISO-4217 code, e.g. USD."
+            />
+            <Field
+              label="Note"
+              name="note"
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              hint="Optional. What the PO is for."
+            />
 
-          {create.isError ? (
-            <InlineAlert tone="danger" title="Could not record the purchase order" live>
-              {describeError(create.error)}
+            {create.isError ? (
+              <InlineAlert tone="danger" title="Could not record the purchase order" live>
+                {describeError(create.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={create.isPending}
+                loadingLabel="Recording"
+                disabled={!canCreate}
+              >
+                Record purchase order
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-po-list-heading">
+          <h2 id="tm-po-list-heading" className="tm-eyebrow">
+            Purchase orders
+          </h2>
+
+          {purchaseOrders.isError ? (
+            <InlineAlert tone="danger" title="Could not load the purchase orders" live>
+              {describeError(purchaseOrders.error)}
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={create.isPending}
-              loadingLabel="Recording"
-              disabled={!canCreate}
+          {close.isError || remove.isError ? (
+            <InlineAlert tone="danger" title="Could not update the purchase order" live>
+              {describeError(close.error ?? remove.error)}
+            </InlineAlert>
+          ) : null}
+
+          {purchaseOrders.isPending ? (
+            <LoadingRegion label="Loading the purchase orders.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
+
+          {!purchaseOrders.isPending && !purchaseOrders.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No purchase orders yet">
+              Record a purchase order with the form so an invoice can cite it.
+            </InlineAlert>
+          ) : null}
+
+          {rows.length > 0 ? (
+            <div
+              className="tm-table-scroll"
+              // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
+              // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+              tabIndex={0}
+              role="region"
+              aria-label="Purchase orders"
             >
-              Record purchase order
-            </Button>
-          </div>
-        </form>
-      </section>
-
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-po-list-heading">
-        <h2 id="tm-po-list-heading" className="tm-eyebrow">
-          Purchase orders
-        </h2>
-
-        {purchaseOrders.isError ? (
-          <InlineAlert tone="danger" title="Could not load the purchase orders" live>
-            {describeError(purchaseOrders.error)}
-          </InlineAlert>
-        ) : null}
-
-        {close.isError || remove.isError ? (
-          <InlineAlert tone="danger" title="Could not update the purchase order" live>
-            {describeError(close.error ?? remove.error)}
-          </InlineAlert>
-        ) : null}
-
-        {purchaseOrders.isPending ? (
-          <LoadingRegion label="Loading the purchase orders.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!purchaseOrders.isPending && !purchaseOrders.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No purchase orders yet">
-            Record a purchase order above so an invoice can cite it.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Purchase orders"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                Purchase-order references for this organization, in number order, {rows.length}{' '}
-                shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Number</th>
-                  <th scope="col">Amount</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((po) => (
-                  <tr key={po.id}>
-                    <th scope="row" className="tm-table__title">
-                      {po.poNumber}
-                    </th>
-                    <td>{formatAmount(po.amountMinor, po.currency)}</td>
-                    <td>{po.status === 'closed' ? 'Closed' : 'Open'}</td>
-                    <td>
-                      <div className="tm-row">
-                        {po.status === 'open' ? (
+              <table className="tm-table">
+                <caption className="tm-visually-hidden">
+                  Purchase-order references for this organization, in number order, {rows.length}{' '}
+                  shown.
+                </caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Number</th>
+                    <th scope="col">Amount</th>
+                    <th scope="col">Status</th>
+                    <th scope="col">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((po) => (
+                    <tr key={po.id}>
+                      <th scope="row" className="tm-table__title">
+                        {po.poNumber}
+                      </th>
+                      <td>{formatAmount(po.amountMinor, po.currency)}</td>
+                      <td>{po.status === 'closed' ? 'Closed' : 'Open'}</td>
+                      <td>
+                        <div className="tm-row">
+                          {po.status === 'open' ? (
+                            <Button
+                              type="button"
+                              tone="ink"
+                              size="compact"
+                              loading={close.isPending && close.variables === po.id}
+                              loadingLabel="Closing"
+                              onClick={() => close.mutate(po.id)}
+                            >
+                              Close
+                            </Button>
+                          ) : null}
                           <Button
                             type="button"
-                            tone="ink"
+                            tone="outline"
                             size="compact"
-                            loading={close.isPending && close.variables === po.id}
-                            loadingLabel="Closing"
-                            onClick={() => close.mutate(po.id)}
+                            loading={remove.isPending && remove.variables === po.id}
+                            loadingLabel="Removing"
+                            onClick={() => remove.mutate(po.id)}
                           >
-                            Close
+                            Remove
                           </Button>
-                        ) : null}
-                        <Button
-                          type="button"
-                          tone="outline"
-                          size="compact"
-                          loading={remove.isPending && remove.variables === po.id}
-                          loadingLabel="Removing"
-                          onClick={() => remove.mutate(po.id)}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }

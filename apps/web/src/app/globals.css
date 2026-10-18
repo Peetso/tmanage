@@ -26,6 +26,16 @@
   --tm-inverted-ink: var(--paper-50);
   --tm-inverted-muted: var(--line-300);
   --tm-inverted-line: var(--ink-650);
+  /* A step up from the inverted ground: the date orb and the finished slot in HOME-01's capsule. */
+  --tm-inverted-raised: var(--ink-800);
+  /* HOME-01's day capsule is true ink (#090A09), a shade deeper than the inverted ground. */
+  --tm-capsule-ground: var(--ink-950);
+  /*
+   * Geist Mono is the design's id/time face and is not packaged yet (developer-handoff: "still
+   * Google-hosted and need licensed files"). Until it is, fall to the platform's own UI mono
+   * rather than to Courier, which is what a bare `monospace` resolves to on Windows.
+   */
+  --font-mono: 'Geist Mono', ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
 }
 
 [data-theme='dark'] {
@@ -33,10 +43,44 @@
   --tm-inverted-ink: var(--ink-950);
   --tm-inverted-muted: var(--ink-650);
   --tm-inverted-line: var(--line-300);
+  --tm-inverted-raised: var(--paper-250);
+  --tm-capsule-ground: var(--paper-350);
 }
 
 body {
   font-family: var(--font-manrope, var(--font-latin));
+  color: var(--ink-800);
+  -webkit-font-smoothing: antialiased;
+}
+
+/*
+ * Links in running text, as the handoff draws them: quiet ink with a `--line-300` rule beneath
+ * that turns lime on hover. `:where()` keeps the specificity at zero, so every class that styles
+ * an anchor (`.tm-button`, rail items, chips) wins without having to undo this.
+ */
+:where(a) {
+  color: var(--ink-650);
+  text-decoration-line: underline;
+  text-decoration-color: var(--line-300);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.3em;
+}
+
+:where(a):hover {
+  color: var(--ink-950);
+  text-decoration-color: var(--lime-600);
+}
+
+/* On an inverted or toned ground a link takes the ground's own ink. */
+:where(
+    .tm-card--ink,
+    .tm-portal__header,
+    .tm-portal__preview-bar,
+    .tm-day-pulse,
+    .tm-maintenance-banner
+  )
+  :where(a) {
+  color: inherit;
 }
 
 /* ── Brand mark ─────────────────────────────────────────────────────────────
@@ -117,8 +161,10 @@ body {
 
 .tm-eyebrow {
   margin: 0;
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-650);
@@ -190,10 +236,20 @@ body {
 }
 
 .tm-panel {
-  padding: var(--s5);
+  padding: var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--surface-radius);
   background: var(--paper-0);
+}
+
+/* A section heading inside a panel or on the canvas: heading.section (24/31, 500). */
+.tm-section-title {
+  margin-block: 0 var(--s4);
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
 }
 
 .tm-panel--quiet {
@@ -238,7 +294,7 @@ body {
 
 .tm-choice:has(input:checked) {
   border-color: var(--ink-950);
-  background: var(--lime-100);
+  background: var(--paper-50);
 }
 
 .tm-choice:has(input:focus-visible) {
@@ -278,12 +334,12 @@ body {
 }
 
 .tm-identity__card {
-  inline-size: min(560px, 100%);
+  inline-size: min(640px, 100%);
   display: flex;
   flex-direction: column;
   gap: var(--s5);
-  padding: var(--s8);
-  border-radius: var(--r-feature);
+  padding: var(--s10);
+  border-radius: var(--r-card);
   background: var(--paper-150);
 }
 
@@ -296,8 +352,10 @@ body {
 
 .tm-identity__eyebrow {
   margin: 0;
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-650);
@@ -307,9 +365,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--s5);
-  padding: var(--s6);
+  padding: var(--s8);
   border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-sheet);
+  border-radius: var(--r-feature);
   background: var(--paper-0);
 }
 
@@ -320,9 +378,9 @@ body {
 .tm-identity__title {
   margin: 0;
   font-size: var(--t-heading-page);
-  line-height: var(--t-heading-page-line);
+  line-height: 40px;
   letter-spacing: -0.02em;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink-950);
 }
 
@@ -386,12 +444,19 @@ body {
   overflow-wrap: anywhere;
 }
 
-/* ── Onboarding shell (ON-01 … ON-04) ───────────────────────────────────── */
+/* ── Onboarding shell (ON-01 … ON-04) ───────────────────────────────────── *
+ *
+ * ON-01: the wordmark and "signed in as" on one line, then the steps as a row of capsules — the
+ * count and the current step in lime, finished steps white, the rest dashed — then a 56px
+ * display question straight on the paper, with the step's choices below it.
+ */
 
 .tm-onboarding {
   min-block-size: 100vh;
   display: flex;
   flex-direction: column;
+  gap: var(--s6);
+  padding: var(--s10) var(--s12);
   background: var(--paper-150);
 }
 
@@ -399,26 +464,30 @@ body {
   display: flex;
   align-items: center;
   gap: var(--s4);
-  padding: var(--s5) var(--s8);
   color: var(--ink-950);
-  border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-onboarding__identity {
   margin: 0;
   margin-inline-start: auto;
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
+  font-family: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
   color: var(--ink-650);
 }
 
 .tm-onboarding__body {
   flex: 1;
-  display: grid;
-  grid-template-columns: var(--context-rail) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: var(--s8);
-  padding: var(--s8);
-  align-items: start;
+}
+
+.tm-onboarding__steps {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex-wrap: wrap;
 }
 
 .tm-onboarding__step-list {
@@ -426,62 +495,75 @@ body {
   padding: 0;
   list-style: none;
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
   gap: var(--s2);
 }
 
 .tm-onboarding__step {
   display: flex;
   align-items: center;
-  gap: var(--s3);
-  padding: var(--s2) var(--s3);
+  gap: var(--s2);
+  min-block-size: 46px;
+  padding-inline: var(--s4);
+  border: var(--b-quiet) dashed var(--line-300);
   border-radius: var(--r-capsule);
   color: var(--ink-650);
-}
-
-.tm-onboarding__step[data-state='current'] {
-  background: var(--lime-100);
-  color: var(--ink-950);
-  font-weight: 600;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
 }
 
 .tm-onboarding__step[data-state='done'] {
-  color: var(--ink-800);
+  border-style: solid;
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-onboarding__step[data-state='current'] {
+  border-color: var(--lime-500);
+  border-style: solid;
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
+  font-weight: 600;
+  padding-inline-end: var(--s6);
 }
 
 .tm-onboarding__step-index {
   display: grid;
   place-items: center;
-  inline-size: var(--orb-compact);
-  block-size: var(--orb-compact);
+  inline-size: 22px;
+  block-size: 22px;
   border-radius: var(--r-capsule);
-  border: var(--b-structural) solid var(--line-300);
-  font-size: var(--t-ui-sm);
+  border: var(--b-quiet) solid currentColor;
+  font-size: 11px;
 }
 
-.tm-onboarding__step[data-state='current'] .tm-onboarding__step-index,
-.tm-onboarding__step[data-state='done'] .tm-onboarding__step-index {
-  border-color: var(--ink-950);
+.tm-onboarding__step[data-state='current'] .tm-onboarding__step-index {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
 }
 
 .tm-onboarding__step-count {
-  margin: var(--s4) 0 0;
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
-  letter-spacing: 0.14em;
+  order: -1;
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 46px;
+  padding-inline: var(--s4);
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+  color: var(--paper-50);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--ink-650);
 }
 
 .tm-onboarding__canvas {
   display: flex;
   flex-direction: column;
-  gap: var(--s5);
-  max-inline-size: var(--doc);
-  padding: var(--s8);
-  border-radius: var(--r-feature);
-  background: var(--paper-0);
-  border: var(--b-quiet) solid var(--line-300);
+  gap: var(--s6);
 }
 
 .tm-onboarding__canvas:focus {
@@ -490,41 +572,101 @@ body {
 
 .tm-onboarding__title {
   margin: 0;
-  font-size: var(--t-heading-page);
-  line-height: var(--t-heading-page-line);
+  font-size: var(--t-display-lg);
+  line-height: var(--t-display-lg-line);
   letter-spacing: -0.02em;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink-950);
 }
 
 .tm-onboarding__description {
   margin: 0;
-  max-inline-size: var(--reading);
+  max-inline-size: 640px;
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
   color: var(--ink-650);
 }
 
-/* ── Internal application shell ─────────────────────────────────────────── */
+/* ── Internal application shell ─────────────────────────────────────────── *
+ *
+ * HOME-01 / WK-02 / SR-01: an 88px rail on `--paper-350` (black brand orb, a short rule, 44px
+ * white navigation orbs with a quiet ring, the current one inked), then the canvas on
+ * `--paper-150`. The canvas has no panel chrome of its own — the header is type on paper and
+ * the screen's cards sit straight on the ground.
+ */
 
 .tm-app {
   min-block-size: 100vh;
-  display: grid;
-  grid-template-columns: var(--rail) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   background: var(--paper-150);
 }
 
+.tm-app__frame {
+  flex: 1;
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  min-block-size: 0;
+}
+
+/*
+ * PRJ-01 (Arabic RTL) keeps the rail at the physical left edge and mirrors the canvas inside
+ * it, so the grid's columns are swapped rather than letting `direction` move the rail.
+ */
+[dir='rtl'] .tm-app__frame {
+  grid-template-columns: minmax(0, 1fr) var(--rail);
+}
+
+[dir='rtl'] .tm-rail {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+[dir='rtl'] .tm-app__body {
+  grid-column: 1;
+  grid-row: 1;
+}
+
 .tm-rail {
+  position: sticky;
+  inset-block-start: 0;
+  block-size: 100vh;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--s4);
   padding-block: var(--s5);
-  background: var(--tm-inverted-ground);
-  color: var(--tm-inverted-ink);
+  background: var(--paper-350);
+  overflow-y: auto;
+  scrollbar-width: none;
 }
 
 .tm-rail__brand {
-  color: inherit;
-  display: block;
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--orb-navigation);
+  block-size: var(--orb-navigation);
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
+}
+
+.tm-rail__brand .tm-mark--icon {
+  inline-size: 26px;
+  block-size: 20px;
+}
+
+[data-theme='dark'] .tm-rail__brand {
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
+}
+
+.tm-rail__rule {
+  flex: none;
+  inline-size: var(--s6);
+  block-size: 1px;
+  background: var(--line-300);
 }
 
 .tm-rail__list {
@@ -533,7 +675,8 @@ body {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: var(--s2);
+  align-items: center;
+  gap: var(--s4);
   inline-size: 100%;
 }
 
@@ -542,54 +685,282 @@ body {
   flex-direction: column;
   align-items: center;
   gap: var(--s1);
-  padding-block: var(--s2);
-  color: var(--tm-inverted-muted);
+  color: var(--ink-650);
   text-decoration: none;
+  border-radius: var(--r-micro);
 }
 
 .tm-rail__item:hover,
 .tm-rail__item[aria-current='page'] {
-  color: var(--tm-inverted-ink);
+  color: var(--ink-950);
 }
 
 .tm-rail__orb {
   display: grid;
   place-items: center;
-  inline-size: var(--orb-navigation);
-  block-size: var(--orb-navigation);
+  inline-size: var(--orb-comfortable);
+  block-size: var(--orb-comfortable);
   border-radius: var(--r-capsule);
-  border: var(--b-structural) solid transparent;
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
   font-family: var(--font-mono);
+  font-size: var(--t-body-md);
+  line-height: 1;
+  transition:
+    background-color var(--t-micro) var(--ease),
+    border-color var(--t-micro) var(--ease);
+}
+
+.tm-rail__item:hover .tm-rail__orb {
+  border-color: var(--ink-650);
 }
 
 .tm-rail__item[aria-current='page'] .tm-rail__orb {
-  border-color: var(--lime-500);
-  background: var(--tm-inverted-line);
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
 }
 
 .tm-rail__label {
-  font-size: var(--t-caption);
-  line-height: var(--t-caption-line);
+  font-size: 9px;
+  line-height: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-rail__item[aria-current='page'] .tm-rail__label {
+  font-weight: 600;
+}
+
+.tm-rail__foot {
+  margin-block-start: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.tm-rail__account {
+  display: grid;
+  place-items: center;
+  inline-size: var(--orb-comfortable);
+  block-size: var(--orb-comfortable);
+  border-radius: var(--r-capsule);
+  background: var(--ink-800);
+  color: var(--paper-50);
+  font-size: var(--t-ui-md);
+  font-weight: 600;
+  text-decoration: none;
 }
 
 .tm-app__body {
   display: flex;
   flex-direction: column;
+  gap: 26px;
   min-inline-size: 0;
+  padding-block: var(--s5) var(--s8);
+  padding-inline: var(--s2) var(--s8);
 }
+
+/* ── HOME-01's day capsule ─────────────────────────────────────────────── */
+
+.tm-day-pulse {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tm-day-pulse__capsule {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--tm-capsule-ground);
+  color: var(--tm-inverted-ink);
+  overflow: hidden;
+}
+
+.tm-day-pulse__date {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex: none;
+  padding-inline: 6px var(--s4);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-day-pulse__day {
+  display: grid;
+  place-items: center;
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-inverted-raised);
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+.tm-day-pulse__slot {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+  block-size: var(--orb-comfortable);
+  padding-inline: var(--s4);
+  border: var(--b-quiet) solid var(--tm-inverted-line);
+  border-radius: var(--r-capsule);
+  color: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.tm-day-pulse__slot[data-state='done'] {
+  border-color: transparent;
+  background: var(--tm-inverted-raised);
+}
+
+.tm-day-pulse__slot[data-state='later'] {
+  border-style: dashed;
+}
+
+.tm-day-pulse__slot-time {
+  font-size: var(--t-caption);
+  color: var(--tm-inverted-muted);
+}
+
+/* A finished slot reads quieter than what is still ahead. */
+.tm-day-pulse__slot[data-state='done'] .tm-day-pulse__slot-label {
+  color: var(--tm-inverted-muted);
+}
+
+.tm-day-pulse__slot-done {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.tm-day-pulse__now {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  block-size: var(--orb-comfortable);
+  padding-inline: var(--s4) 9px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 600;
+}
+
+.tm-day-pulse__now-time {
+  flex: none;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.tm-day-pulse__now-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-day-pulse__people {
+  display: flex;
+  margin-inline-start: auto;
+  flex: none;
+}
+
+.tm-day-pulse__person {
+  display: grid;
+  place-items: center;
+  inline-size: 26px;
+  block-size: 26px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.tm-day-pulse__person + .tm-day-pulse__person {
+  margin-inline-start: -8px;
+}
+
+.tm-day-pulse__out {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--orb-comfortable);
+  block-size: var(--orb-comfortable);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  text-decoration: none;
+}
+
+.tm-day-pulse__search {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--orb-navigation);
+  block-size: var(--orb-navigation);
+  padding: 0;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: var(--t-body-md);
+  cursor: pointer;
+}
+
+/* ── Page header ───────────────────────────────────────────────────────── */
 
 .tm-canvas-header {
   display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-  padding: var(--s6) var(--s8);
-  border-block-end: var(--b-quiet) solid var(--line-300);
+  align-items: flex-start;
+  gap: var(--s8);
 }
 
-.tm-canvas-header__context {
+.tm-canvas-header__titles {
+  flex: 1;
+  min-inline-size: 0;
   display: flex;
+  flex-direction: column;
   gap: var(--s2);
+}
+
+/* WORK · SAVED VIEW — the mono eyebrow above every page title. */
+.tm-canvas-header__context {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-canvas-header__title-row {
+  display: flex;
+  align-items: center;
   flex-wrap: wrap;
+  gap: var(--s3) var(--s5);
 }
 
 .tm-canvas-header__title {
@@ -597,34 +968,89 @@ body {
   font-size: var(--t-heading-page);
   line-height: var(--t-heading-page-line);
   letter-spacing: -0.02em;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink-950);
 }
 
-.tm-canvas-header__description {
-  margin: var(--s1) 0 0;
-  max-inline-size: var(--reading);
+.tm-canvas-header__meta {
+  align-self: flex-end;
+  padding-block-end: var(--s1);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
   color: var(--ink-650);
+}
+
+.tm-canvas-header__actions {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-inline-start: auto;
+}
+
+.tm-canvas-header[data-actions='inline'] .tm-canvas-header__actions {
+  margin-inline-start: 0;
+}
+
+.tm-canvas-header__description {
+  margin: 0;
+  max-inline-size: 420px;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-canvas-header__aside {
+  display: flex;
+  gap: 44px;
+  margin-inline-start: auto;
+  padding-block-start: 22px;
+}
+
+/* HOME-01: "NORTHSTAR STUDIO · CLIENT DELIVERY" over a 64px uppercase display headline. */
+.tm-canvas-header[data-title-variant='display'] .tm-canvas-header__titles {
+  gap: var(--s4);
+}
+
+.tm-canvas-header[data-title-variant='display'] .tm-canvas-header__context {
+  font-family: inherit;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.06em;
+}
+
+.tm-canvas-header[data-title-variant='display'] .tm-canvas-header__title {
+  font-size: var(--t-display-metric);
+  line-height: var(--t-display-metric-line);
+  letter-spacing: -0.03em;
+  text-transform: uppercase;
 }
 
 .tm-app__columns {
   flex: 1;
   display: flex;
-  align-items: stretch;
+  align-items: flex-start;
+  gap: var(--s6);
   min-block-size: 0;
 }
 
 .tm-context-rail {
+  flex: none;
   inline-size: var(--context-rail);
   min-inline-size: var(--context-rail-min);
   padding: var(--s5);
-  border-inline-end: var(--b-quiet) solid var(--line-300);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-50);
 }
 
 .tm-canvas {
   flex: 1;
   min-inline-size: 0;
-  padding: var(--s6) var(--s8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
 }
 
 .tm-canvas:focus {
@@ -632,26 +1058,33 @@ body {
 }
 
 .tm-lens {
+  flex: none;
   inline-size: var(--lens);
-  padding: var(--s5);
-  border-inline-start: var(--b-quiet) solid var(--line-300);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
   background: var(--paper-0);
 }
 
-/* ── Client portal shell ────────────────────────────────────────────────── */
+/* ── Client portal shell ────────────────────────────────────────────────── *
+ *
+ * CL-01: the portal is a lighter room than the studio — `--paper-50` ground, one bar with the
+ * brand orb, the client's name over "delivered by", the destinations as capsules (the current
+ * one inked), then a 56px display title over an editorial description.
+ */
 
 .tm-portal {
   min-block-size: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--paper-150);
+  background: var(--paper-50);
 }
 
 .tm-portal__preview-bar {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  padding: var(--s3) var(--s6);
+  padding: var(--s3) var(--s12);
   background: var(--lime-100);
   border-block-end: var(--b-structural) solid var(--client-500);
 }
@@ -666,28 +1099,49 @@ body {
 .tm-portal__header {
   display: flex;
   align-items: center;
-  gap: var(--s4);
+  gap: var(--s8);
   flex-wrap: wrap;
-  padding: var(--s6);
-  background: var(--tm-inverted-ground);
-  color: var(--tm-inverted-ink);
+  min-block-size: 92px;
+  padding: var(--s5) var(--s12);
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+  background: var(--paper-50);
+}
+
+.tm-portal__identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.tm-portal__mark {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 44px;
+  block-size: 44px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
+}
+
+[data-theme='dark'] .tm-portal__mark {
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
 }
 
 .tm-portal__client {
   margin: 0;
-  font-size: var(--t-heading-section);
-  line-height: var(--t-heading-section-line);
-  font-weight: 600;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
 }
 
 .tm-portal__provider {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  margin: var(--s1) 0 0;
-  color: var(--tm-inverted-muted);
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
 }
 
 .tm-portal__context {
@@ -695,12 +1149,6 @@ body {
   display: flex;
   gap: var(--s2);
   flex-wrap: wrap;
-}
-
-.tm-portal__nav {
-  padding: 0 var(--s6);
-  background: var(--paper-0);
-  border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-portal__nav-list {
@@ -715,48 +1163,88 @@ body {
 .tm-portal__nav-item {
   display: inline-flex;
   align-items: center;
-  gap: var(--s2);
-  padding: var(--s3) var(--s4);
+  min-block-size: 38px;
+  padding-inline: var(--s4);
+  border-radius: var(--r-capsule);
   color: var(--ink-650);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
   text-decoration: none;
-  border-block-end: var(--b-expressive) solid transparent;
+}
+
+.tm-portal__nav-item:hover {
+  color: var(--ink-950);
+  background: var(--paper-150);
 }
 
 .tm-portal__nav-item[aria-current='page'] {
-  color: var(--ink-950);
-  border-block-end-color: var(--client-500);
-  font-weight: 600;
+  color: var(--paper-50);
+  background: var(--ink-950);
 }
 
+/* The glyphs belong to the internal rail; the portal's capsules carry the word alone. */
 .tm-portal__nav-glyph {
-  font-family: var(--font-mono);
+  display: none;
 }
 
 .tm-portal__canvas {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--s4);
-  padding: var(--s8) var(--s6);
-  max-inline-size: var(--doc);
+  gap: var(--s6);
+  padding: var(--s10) var(--s12) var(--s12);
 }
 
 .tm-portal__canvas:focus {
   outline: none;
 }
 
+.tm-portal__page-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s10);
+  flex-wrap: wrap;
+}
+
+.tm-portal__titles {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-portal__eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
 .tm-portal__title {
   margin: 0;
-  font-size: var(--t-heading-page);
-  line-height: var(--t-heading-page-line);
+  font-size: var(--t-display-lg);
+  line-height: var(--t-display-lg-line);
   letter-spacing: -0.02em;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--ink-950);
+}
+
+.tm-portal__aside {
+  display: flex;
+  gap: var(--s12);
+  padding-block-start: var(--s3);
 }
 
 .tm-portal__description {
   margin: 0;
-  max-inline-size: var(--reading);
+  max-inline-size: 620px;
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
   color: var(--ink-650);
 }
 
@@ -814,7 +1302,8 @@ body {
   overflow-x: auto;
   /* A scrollable region needs to be focusable, or a keyboard cannot reach the overflow. */
   border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-card);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
 }
 
 .tm-table {
@@ -825,17 +1314,44 @@ body {
 
 .tm-table th,
 .tm-table td {
-  padding: var(--s2) var(--s3);
-  border-block-end: var(--b-quiet) solid var(--line-300);
+  padding: var(--s3) 18px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
   text-align: start;
-  vertical-align: baseline;
+  vertical-align: middle;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
 }
 
+/* FILE · VERSION · PREVIEW — the mono column heads on paper-50 (SYS-04, WK-02). */
 .tm-table thead th {
+  padding-block: var(--s3);
+  border-block-end-color: var(--line-300);
   background: var(--paper-50);
-  font-size: var(--t-ui-sm);
-  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-650);
   white-space: nowrap;
+}
+
+.tm-table tbody tr:hover td,
+.tm-table tbody tr:hover th {
+  background: var(--paper-50);
+}
+
+.tm-table a {
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+.tm-table a:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--lime-600);
+  text-underline-offset: 0.2em;
 }
 
 .tm-table tbody tr:last-child th,
@@ -845,7 +1361,7 @@ body {
 
 /* The row header. It carries the link, so it is the cell a keyboard lands in. */
 .tm-table__title {
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /*
@@ -858,6 +1374,8 @@ body {
   background: none;
   padding: 0;
   font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
   color: inherit;
   cursor: pointer;
   text-decoration: underline;
@@ -929,54 +1447,92 @@ body {
 
 .tm-choice--inline {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: var(--s2);
-  padding: var(--s2) var(--s3);
+  min-block-size: var(--control);
+  padding: 0 var(--s4);
+  border-width: var(--b-quiet);
+  border-radius: var(--r-capsule);
+}
+
+/* Inline choices are the filter capsules of 04 Primitives: a word, inked when chosen. */
+.tm-choice--inline .tm-choice__name {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: inherit;
+}
+
+.tm-choice--inline:has(input:checked) {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
 }
 
 /* ── Platform states (403 / 404 / 500 / empty / loading) ─────────────────────
  *
- * One card for the standard state matrix. As a route page it sits centred on the inverted
- * ground the shared `StateScreen` frame paints (it reuses `.tm-identity`); embedded as an
- * empty region inside a screen's canvas it is simply a centred card. Every colour is a token,
- * so the card inverts with the theme, and the ratios it depends on — `--ink-950` and
- * `--ink-650` on `--paper-0` — are the ones `tests/contrast.test.ts` already asserts.
+ * Two compositions of one card.
+ *
+ * Embedded in a screen (SYS-03, APP-04) a state is a white card on the canvas: a 44px glyph
+ * ring, a heading.section title, the explanation and the way out, all start-aligned. The empty
+ * state is APP-04's "You're all caught up": a dashed paper card with the glyph beside the text.
+ *
+ * As a route page (SYS-06) it sits in `.tm-state-screen` — a quiet bar with the brand orb and
+ * the state's name, then the headline at display size on the paper ground, no card.
  */
 .tm-state {
-  inline-size: min(560px, 100%);
-  margin-inline: auto;
+  inline-size: 100%;
 }
 
 .tm-state__panel {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--s4);
-  padding: var(--s8);
+  padding: var(--s6);
   border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-feature);
+  border-radius: var(--r-card);
   background: var(--paper-0);
-  text-align: center;
 }
 
 .tm-state__glyph {
   display: grid;
   place-items: center;
+  flex: none;
   inline-size: var(--orb-comfortable);
   block-size: var(--orb-comfortable);
   border-radius: var(--r-capsule);
-  background: var(--paper-150);
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
   color: var(--ink-950);
   font-family: var(--font-mono);
-  font-size: var(--t-heading-section);
+  font-size: var(--t-body-md);
+}
+
+.tm-state__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-state__eyebrow {
+  display: none;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
 }
 
 .tm-state__title {
   margin: 0;
-  font-size: var(--t-heading-page);
-  line-height: var(--t-heading-page-line);
-  letter-spacing: -0.02em;
-  font-weight: 600;
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  letter-spacing: -0.01em;
+  font-weight: 500;
   color: var(--ink-950);
 }
 
@@ -990,7 +1546,282 @@ body {
   display: flex;
   gap: var(--s3);
   flex-wrap: wrap;
-  justify-content: center;
+  align-items: center;
+}
+
+/* APP-04: the empty queue reads as a calm dashed row, glyph beside the words. */
+.tm-state[data-state='empty'] .tm-state__panel {
+  flex-direction: row;
+  align-items: center;
+  border-style: dashed;
+  background: var(--paper-50);
+}
+
+.tm-state[data-state='empty'] .tm-state__title,
+.tm-state[data-state='loading'] .tm-state__title {
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+}
+
+.tm-state[data-state='empty'] .tm-state__description,
+.tm-state[data-state='loading'] .tm-state__description {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-state[data-state='loading'] .tm-state__panel {
+  flex-direction: row;
+  align-items: center;
+}
+
+/* SYS-06's reference card: label and id in mono, a Copy capsule at the end. */
+.tm-state__reference {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  inline-size: min(630px, 100%);
+  padding: var(--s4) var(--s4) var(--s4) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-state__reference-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-state__reference-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-state__reference-value {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+}
+
+.tm-state-screen {
+  min-block-size: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-150);
+}
+
+.tm-state-screen__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s6);
+  min-block-size: 64px;
+  padding-inline: 28px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-350);
+}
+
+.tm-state-screen__mark {
+  display: grid;
+  place-items: center;
+  inline-size: 36px;
+  block-size: 36px;
+  border-radius: var(--r-capsule);
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
+}
+
+.tm-state-screen__mark .tm-mark--icon {
+  inline-size: 20px;
+  block-size: 15px;
+}
+
+[data-theme='dark'] .tm-state-screen__mark {
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
+}
+
+.tm-state-screen__label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-state-screen__main {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: var(--s10);
+}
+
+.tm-state-screen__main:focus {
+  outline: none;
+}
+
+.tm-state-screen .tm-state {
+  inline-size: min(680px, 100%);
+}
+
+.tm-state-screen .tm-state__panel {
+  gap: var(--s5);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.tm-state-screen .tm-state__glyph {
+  display: none;
+}
+
+.tm-state-screen .tm-state__text {
+  gap: var(--s5);
+}
+
+.tm-state-screen .tm-state[data-state='serverError'] .tm-state__eyebrow,
+.tm-state-screen .tm-state[data-state='offline'] .tm-state__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-state-screen .tm-state[data-state='serverError'] .tm-state__eyebrow {
+  color: var(--danger-600);
+}
+
+.tm-state-screen .tm-state[data-state='serverError'] .tm-state__eyebrow::before {
+  content: '';
+  inline-size: 10px;
+  block-size: 10px;
+  background: var(--danger-600);
+}
+
+.tm-state-screen .tm-state__title {
+  font-size: 40px;
+  line-height: 48px;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+
+.tm-state-screen .tm-state__description {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+/* ── SYS-04: the platform-status banner across the whole window ─────────── */
+
+.tm-maintenance-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  min-block-size: 56px;
+  padding-block: var(--s2);
+  padding-inline: var(--s8);
+  background: var(--warning-600);
+  color: var(--tm-ink-absolute);
+}
+
+.tm-maintenance-banner--info {
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-maintenance-banner--down {
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
+}
+
+.tm-maintenance-banner__body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 600;
+}
+
+.tm-maintenance-banner__body::before {
+  content: '';
+  flex: none;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: var(--r-capsule);
+  background: currentColor;
+}
+
+.tm-maintenance-banner__label {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.tm-maintenance-banner__dismiss {
+  min-block-size: 36px;
+  padding-inline: var(--s4);
+  border: var(--b-quiet) solid currentColor;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--t-caption);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/*
+ * `responsive-and-desktop.md`:
+ *
+ *   1180–1439  Rail 72 compact + canvas 32; Lens becomes an overlay.
+ *   900–1179   Rail 72 icon+label; split workspaces become list→detail.
+ *   640–899    Docked Orbs appear, rail hidden; one column; Lens is a sheet.
+ *   ≤639       Docked Orbs + quick-action orb; display type 34–40px; 44px targets.
+ *
+ * Breakpoints are in rem so 200% zoom reaches them (`40-DESIGN-SYSTEM` §10).
+ */
+@media (max-width: 89.94rem) {
+  .tm-app__frame {
+    grid-template-columns: var(--rail-compact) minmax(0, 1fr);
+  }
+
+  [dir='rtl'] .tm-app__frame {
+    grid-template-columns: minmax(0, 1fr) var(--rail-compact);
+  }
+
+  .tm-canvas-header {
+    flex-wrap: wrap;
+  }
+
+  .tm-canvas-header__aside {
+    margin-inline-start: 0;
+    padding-block-start: 0;
+  }
+}
+
+@media (max-width: 73.69rem) {
+  .tm-app__columns {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tm-context-rail,
+  .tm-lens {
+    inline-size: auto;
+    min-inline-size: 0;
+  }
 }
 
 @media (max-width: 60rem) {
@@ -999,157 +1830,106 @@ body {
     gap: var(--s1) 0;
   }
 
-  .tm-app {
-    grid-template-columns: minmax(0, 1fr);
+  .tm-onboarding {
+    padding: var(--s6) var(--s5);
   }
 
-  /*
-   * WCAG 2.2 **2.4.11 Focus Not Obscured (Minimum)**: the dock below is a sticky bar that
-   * paints over the bottom of the page, so a control a keyboard user tabs to near the foot of
-   * the canvas — the last row of a table, the final button of a form — can end up hidden
-   * behind it. The dock sticks to the viewport, so the viewport's own scroller must keep
-   * focused elements clear of it: `scroll-padding-block-end` reserves the dock's height
-   * (~65px: a 32px `--orb-compact` orb, its caption, and the block padding) so the browser
-   * scrolls a newly focused element above the dock rather than under it. Scoped to `:has(.tm-app)`
-   * because only the internal shell mounts this dock; `5rem` so 200%/400% zoom scales it.
-   */
-  :root:has(.tm-app) {
-    scroll-padding-block-end: 5rem;
+  .tm-onboarding__title {
+    font-size: 40px;
+    line-height: 46px;
   }
 
-  .tm-rail {
-    position: sticky;
-    inset-block-end: 0;
-    order: 2;
-    flex-direction: row;
-    justify-content: space-around;
-    padding-block: var(--s2);
-  }
-
-  .tm-rail__brand {
-    display: none;
-  }
-
-  /*
-   * The dock has to fit 320px, which is the width 1.4.10 Reflow specifies.
-   *
-   * As a column the eight orbs are 48px each and a flex item's default `min-width: auto`
-   * forbids it shrinking below min-content, so laid out as a row they summed to roughly
-   * 444px of unshrinkable content — about 124px wider than the viewport, on every internal
-   * screen, because the dock is in `AppShell`. `.tm-app` collapses its grid track willingly
-   * (`minmax(0, 1fr)` above) but the content did not, so the overflow landed on the
-   * document as horizontal scroll.
-   *
-   * Three declarations make the row shrinkable rather than capping the destination list:
-   * `min-inline-size: 0` releases the min-content floor, `flex: 1 1 0` gives every
-   * destination an equal share, and the orb steps down to `--orb-compact`. At 320px that
-   * is (320 − 7 × 4px of gap) ÷ 8 = 36.5px per item around a 32px orb — it fits, and the
-   * item stays far above the 24px that 2.5.8 asks for. Every destination stays reachable,
-   * which a "More" disclosure would not have managed without inventing a menu.
-   *
-   * The label truncates with an ellipsis rather than wrapping ("Calendar" is the widest at
-   * roughly 52px). `text-overflow` does not touch the text node, so the accessible name is
-   * still the full word and 2.5.3 Label in Name holds.
-   */
-  .tm-rail__list {
-    flex-direction: row;
-    justify-content: space-around;
-    gap: var(--s1);
-  }
-
-  .tm-rail__list > li {
-    flex: 1 1 0;
-    min-inline-size: 0;
-  }
-
-  .tm-rail__item {
-    inline-size: 100%;
-    min-inline-size: 0;
-  }
-
-  .tm-rail__orb {
-    inline-size: var(--orb-compact);
-    block-size: var(--orb-compact);
-  }
-
-  .tm-rail__label {
-    max-inline-size: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .tm-app__columns {
-    flex-direction: column;
-  }
-
-  .tm-context-rail,
-  .tm-lens {
-    inline-size: auto;
-    border: none;
-    border-block-end: var(--b-quiet) solid var(--line-300);
-  }
-
-  .tm-onboarding__body {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--s5);
-    padding: var(--s4);
-  }
-
-  .tm-onboarding__step-list {
-    flex-direction: row;
-    flex-wrap: wrap;
-  }
-
-  .tm-onboarding__canvas,
   .tm-identity__card {
     padding: var(--s5);
   }
 }
 
-/* ── Mobile primary navigation (Module 23) ───────────────────────────────── */
+/* ── Docked orbs (Module 23) ─────────────────────────────────────────────── */
 
 /*
- * The five-item bottom dock. It is in the document on every internal screen but shows only
- * below ~768px; above that the orbital rail (as a column ≥60rem, as a reflowed row between)
- * is the primary navigation and this is `display: none`. The 60rem rail-dock rules above are
- * untouched — this adds a narrower band beneath them and, within it, stands the rail down so
- * the two never paint together. Source order matters: these follow the 60rem block so the
- * `display: none` on `.tm-rail` wins over the dock rules at phone width.
+ * The mobile primary navigation: a floating white capsule of five orbs at the foot of the
+ * screen (HOME-01 mobile). In the document on every internal screen, shown only where the rail
+ * is hidden. The current destination is the inked orb, exactly as on the rail.
  */
 .tm-mobile-nav {
   display: none;
-  background: var(--tm-inverted-ground);
-  color: var(--tm-inverted-ink);
 }
 
-@media (max-width: 47.99rem) {
+@media (max-width: 56.19rem) {
+  /*
+   * WCAG 2.2 2.4.11 Focus Not Obscured: the dock floats over the foot of the page, so the
+   * viewport's scroller keeps a focused control clear of it. `6rem` so zoom scales it.
+   */
+  :root:has(.tm-app) {
+    scroll-padding-block-end: 6rem;
+  }
+
+  .tm-app__frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [dir='rtl'] .tm-app__frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .tm-rail {
+    display: none;
+  }
+
+  [dir='rtl'] .tm-app__body {
+    grid-column: 1;
+  }
+
+  .tm-app__body {
+    gap: var(--s5);
+    padding-block: var(--s5) 7rem;
+    padding-inline: var(--s5);
+  }
+
+  .tm-canvas-header {
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  .tm-canvas-header__aside {
+    gap: var(--s6);
+    flex-wrap: wrap;
+  }
+
+  .tm-canvas-header[data-title-variant='display'] .tm-canvas-header__title {
+    font-size: 40px;
+    line-height: 44px;
+  }
+
+  .tm-day-pulse__date-label,
+  .tm-day-pulse__slot {
     display: none;
   }
 
   .tm-mobile-nav {
     display: block;
-    position: sticky;
-    inset-block-end: 0;
-    z-index: 1;
-    padding-block: var(--s2);
-    border-block-start: var(--b-quiet) solid var(--tm-inverted-line);
+    position: fixed;
+    inset-inline: var(--s4);
+    inset-block-end: var(--s4);
+    z-index: 10;
   }
 
   .tm-mobile-nav__list {
-    margin: 0;
-    padding: 0;
+    margin: 0 auto;
+    padding: 6px;
     list-style: none;
     display: flex;
-    justify-content: space-around;
+    justify-content: space-between;
     gap: var(--s1);
+    max-inline-size: 420px;
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-capsule);
+    background: var(--paper-0);
   }
 
   /*
-   * Five equal, shrinkable items, the same recipe the rail-dock uses for the same reason:
-   * `flex: 1 1 0` with `min-inline-size: 0` releases the min-content floor so the row fits
-   * 320px (1.4.10 Reflow) without capping the destination list.
+   * Five equal, shrinkable items: `flex: 1 1 0` with `min-inline-size: 0` releases the
+   * min-content floor so the row fits 320px (1.4.10 Reflow) without capping the list.
    */
   .tm-mobile-nav__list > li {
     flex: 1 1 0;
@@ -1160,41 +1940,43 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: var(--s1);
+    gap: 2px;
     inline-size: 100%;
     min-inline-size: 0;
-    padding-block: var(--s1);
-    color: var(--tm-inverted-muted);
+    color: var(--ink-650);
     text-decoration: none;
+    border-radius: var(--r-compact);
   }
 
   .tm-mobile-nav__item:hover,
   .tm-mobile-nav__item[aria-current='page'] {
-    color: var(--tm-inverted-ink);
+    color: var(--ink-950);
   }
 
   .tm-mobile-nav__orb {
     display: grid;
     place-items: center;
-    inline-size: var(--orb-compact);
-    block-size: var(--orb-compact);
+    inline-size: var(--orb-comfortable);
+    block-size: var(--orb-comfortable);
     border-radius: var(--r-capsule);
-    border: var(--b-structural) solid transparent;
+    background: var(--paper-150);
     font-family: var(--font-mono);
+    font-size: var(--t-ui-md);
   }
 
   .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__orb {
-    border-color: var(--lime-500);
-    background: var(--tm-inverted-line);
+    background: var(--ink-950);
+    color: var(--paper-50);
   }
 
   /*
    * The label truncates rather than wraps, and `text-overflow` never touches the text node,
-   * so the accessible name stays the full word (2.5.3 Label in Name) exactly as the rail does.
+   * so the accessible name stays the full word (2.5.3 Label in Name).
    */
   .tm-mobile-nav__label {
-    font-size: var(--t-caption);
-    line-height: var(--t-caption-line);
+    font-size: 10px;
+    line-height: 13px;
+    font-weight: 500;
     max-inline-size: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1202,17 +1984,29 @@ body {
   }
 }
 
+@media (max-width: 39.94rem) {
+  .tm-canvas-header__title {
+    font-size: 30px;
+    line-height: 36px;
+  }
+
+  .tm-state-screen__main {
+    padding: var(--s6) var(--s5);
+  }
+
+  .tm-state-screen .tm-state__title {
+    font-size: 32px;
+    line-height: 38px;
+  }
+}
+
 /*
- * SRCH command palette (x181). The dialog AppShell mounts on every internal screen shipped with
- * class hooks but no CSS, so it rendered as a bare, transparent node: the combobox input fell
- * under the 24px floor WCAG 2.2 §2.5.8 (Target Size, Minimum) asks for, and the option labels,
- * owning no opaque surface, were measured for contrast against whatever page content showed
- * through — a serious `color-contrast` failure. A11Y-AUDIT caught both in a real browser; both
- * are invisible to jsdom, which neither lays out nor paints. This gives the palette a real
- * overlay surface built from the design tokens: an opaque `--paper-0` card with ink text, every
- * target at least the standard control height, and the muted section label in `--ink-650`
- * (≥6.74:1 on both `--paper-0` and the selected row's `--paper-150`, in light and dark). Every
- * value is a token; the rules are additive and restyle no other component.
+ * SR-01 command surface: a dark overlay card over a dimmed app. A 40px live dot and the query
+ * at 24px, the Esc key, then rows of a 28px orb, the title and its section; the active row is
+ * lime-tinted with a lime edge; a mono footer says results are filtered to what you may see.
+ *
+ * The card is always dark — in both themes — so its colours come from the absolute ink and the
+ * dark-theme paper values, and every pairing on it is light-on-near-black (≥ 12:1).
  */
 .tm-command-palette__backdrop {
   position: fixed;
@@ -1221,53 +2015,79 @@ body {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 12vh var(--s4) var(--s4);
+  padding: 96px var(--s4) var(--s4);
+  background: var(--tm-scrim);
 }
 
 .tm-command-palette {
+  --tm-palette-ground: var(--tm-ink-absolute);
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
-  inline-size: min(560px, 100%);
-  max-block-size: 70vh;
-  padding: var(--s4);
-  background: var(--paper-0);
-  color: var(--ink-950);
-  border: var(--b-structural) solid var(--line-300);
-  border-radius: var(--r-card);
+  inline-size: min(820px, 100%);
+  max-block-size: 76vh;
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--ink-650);
+  border-radius: var(--r-feature);
+  background: var(--tm-palette-ground);
+  color: var(--paper-50);
+  box-shadow: var(--tm-overlay-shadow);
 }
 
-.tm-command-palette__title {
-  margin: 0;
-  font-size: var(--t-heading-card);
-  line-height: var(--t-heading-card-line);
-  color: var(--ink-950);
+.tm-command-palette__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s6) 28px;
+  border-block-end: var(--b-quiet) solid var(--ink-800);
+}
+
+.tm-command-palette__live {
+  flex: none;
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
 }
 
 .tm-command-palette__input {
-  box-sizing: border-box;
-  inline-size: 100%;
+  flex: 1;
+  min-inline-size: 0;
   min-block-size: var(--control);
-  padding-inline: var(--s4);
-  color: var(--ink-800);
-  background: var(--paper-0);
-  /* `--ink-500`, not `--line-300`: a control boundary must clear the 3:1 non-text floor
-     (WCAG 1.4.11), which `--line-300` does not — the same token `.tm-field__control` uses. */
-  border: var(--b-quiet) solid var(--ink-500);
-  border-radius: var(--r-control);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--paper-50);
   font-family: inherit;
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 500;
+  caret-color: var(--lime-500);
+}
+
+.tm-command-palette__input::placeholder {
+  color: var(--line-300);
 }
 
 .tm-command-palette__input:focus-visible {
   outline: none;
-  box-shadow: var(--focus-ring);
+  box-shadow: none;
+}
+
+.tm-command-palette__key {
+  flex: none;
+  padding: 5px 10px;
+  border: var(--b-quiet) solid var(--ink-650);
+  border-radius: var(--r-micro);
+  color: var(--line-300);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .tm-command-palette__list {
   margin: 0;
-  padding: 0;
+  padding: var(--s3) 0;
   list-style: none;
   overflow-y: auto;
 }
@@ -1275,29 +2095,90 @@ body {
 .tm-command-palette__option {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: var(--s3);
-  min-block-size: var(--control);
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r-control);
-  color: var(--ink-950);
+  gap: var(--s4);
+  min-block-size: 56px;
+  padding: var(--s2) 28px;
+  border-inline-start: 3px solid transparent;
+  color: var(--paper-50);
   cursor: pointer;
 }
 
 .tm-command-palette__option[aria-selected='true'] {
-  background: var(--paper-150);
+  border-inline-start-color: var(--lime-500);
+  background: var(--tm-lime-plane-dark);
+}
+
+.tm-command-palette__option-orb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 28px;
+  block-size: 28px;
+  border: var(--b-quiet) solid var(--ink-650);
+  border-radius: var(--r-capsule);
+  color: var(--line-300);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+.tm-command-palette__option[aria-selected='true'] .tm-command-palette__option-orb {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
 }
 
 .tm-command-palette__option-label {
-  color: var(--ink-950);
+  flex: 1;
+  min-inline-size: 0;
+  color: var(--paper-50);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: 500;
 }
 
 .tm-command-palette__option-section {
-  color: var(--ink-650);
+  flex: none;
+  color: var(--lime-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .tm-command-palette__empty {
-  padding: var(--s2) var(--s3);
+  padding: var(--s3) 28px;
+  color: var(--line-300);
+}
+
+.tm-command-palette__foot {
+  margin: 0;
+  padding: var(--s4) 28px;
+  border-block-start: var(--b-quiet) solid var(--ink-800);
+  color: var(--line-300);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+/* The dark card keeps its own palette inside a dark document too. */
+[data-theme='dark'] .tm-command-palette {
+  --tm-palette-ground: var(--paper-0);
+  border-color: var(--line-300);
+  color: var(--ink-950);
+}
+
+[data-theme='dark'] .tm-command-palette__input,
+[data-theme='dark'] .tm-command-palette__option,
+[data-theme='dark'] .tm-command-palette__option-label {
+  color: var(--ink-950);
+}
+
+[data-theme='dark'] .tm-command-palette__input::placeholder,
+[data-theme='dark'] .tm-command-palette__key,
+[data-theme='dark'] .tm-command-palette__option-orb,
+[data-theme='dark'] .tm-command-palette__empty,
+[data-theme='dark'] .tm-command-palette__foot {
   color: var(--ink-650);
 }
 

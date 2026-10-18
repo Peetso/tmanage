@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import Link from 'next/link';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getQuietHours, updateQuietHours } from '../../lib/api/quiet-hours';
 import type { QuietHoursView } from '../../lib/api/quiet-hours';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { PreferenceToggle } from './PreferencesScreen';
+import '../../styles/screens/preferences.css';
 
 export interface QuietHoursScreenProps {
   organizationSlug: string;
@@ -110,8 +113,8 @@ export function QuietHoursScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      eyebrow="Preferences · Notifications"
       title="Quiet hours"
-      description="Set a do-not-disturb window for notifications, in your timezone, on the days you choose."
     >
       {preferences.isPending ? (
         <LoadingRegion label="Loading your quiet hours">
@@ -122,108 +125,143 @@ export function QuietHoursScreen({
           {errorMessage(preferences.error)}
         </InlineAlert>
       ) : (
-        <form
-          className="tm-panel tm-stack"
-          aria-labelledby="tm-quiet-heading"
-          onSubmit={(event) => {
-            event.preventDefault();
-            setSaved(false);
-            save.mutate();
-          }}
-        >
-          <h2 id="tm-quiet-heading" className="tm-eyebrow">
-            Do-not-disturb window
-          </h2>
+        <div className="tm-prefs tm-prefs--a11y">
+          <div className="tm-prefs__main">
+            <form
+              className="tm-prefs-card"
+              aria-labelledby="tm-quiet-heading"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setSaved(false);
+                save.mutate();
+              }}
+            >
+              <h2 id="tm-quiet-heading" className="tm-prefs-eyebrow">
+                Do-not-disturb window
+              </h2>
 
-          <div className="tm-field tm-field--inline">
-            <input
-              id="tm-quiet-enabled"
-              className="tm-field__control"
-              type="checkbox"
-              checked={enabled}
-              onChange={(event) => setEnabled(event.target.checked)}
-            />
-            <label className="tm-field__label" htmlFor="tm-quiet-enabled">
-              Enable quiet hours
-            </label>
-          </div>
+              <PreferenceToggle
+                label="Enable quiet hours"
+                hint="notifications wait until the window ends"
+                checked={enabled}
+                onChange={(event) => setEnabled(event.target.checked)}
+              />
 
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-quiet-start">
-              Start time
-            </label>
-            <input
-              id="tm-quiet-start"
-              className="tm-field__control"
-              type="time"
-              value={startTime}
-              onChange={(event) => setStartTime(event.target.value)}
-            />
-          </div>
+              <hr className="tm-prefs-rule" />
 
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-quiet-end">
-              End time
-            </label>
-            <input
-              id="tm-quiet-end"
-              className="tm-field__control"
-              type="time"
-              value={endTime}
-              onChange={(event) => setEndTime(event.target.value)}
-            />
-          </div>
+              <div className="tm-prefs-fields">
+                <div className="tm-prefs-field">
+                  <label className="tm-prefs-field__label" htmlFor="tm-quiet-start">
+                    Start time
+                  </label>
+                  <input
+                    id="tm-quiet-start"
+                    className="tm-prefs-field__control"
+                    type="time"
+                    value={startTime}
+                    onChange={(event) => setStartTime(event.target.value)}
+                  />
+                </div>
 
-          <div className="tm-field">
-            <label className="tm-field__label" htmlFor="tm-quiet-timezone">
-              Timezone
-            </label>
-            <input
-              id="tm-quiet-timezone"
-              className="tm-field__control"
-              type="text"
-              value={timezone}
-              placeholder="e.g. America/New_York"
-              onChange={(event) => setTimezone(event.target.value)}
-            />
-          </div>
+                <div className="tm-prefs-field">
+                  <label className="tm-prefs-field__label" htmlFor="tm-quiet-end">
+                    End time
+                  </label>
+                  <input
+                    id="tm-quiet-end"
+                    className="tm-prefs-field__control"
+                    type="time"
+                    value={endTime}
+                    onChange={(event) => setEndTime(event.target.value)}
+                  />
+                </div>
 
-          <fieldset className="tm-fieldset tm-stack">
-            <legend className="tm-field__label">Days</legend>
-            {DAY_LABELS.map(({ value, label }) => (
-              <div className="tm-field tm-field--inline" key={value}>
-                <input
-                  id={`tm-quiet-day-${value}`}
-                  className="tm-field__control"
-                  type="checkbox"
-                  checked={days.includes(value)}
-                  onChange={() => toggleDay(value)}
-                />
-                <label className="tm-field__label" htmlFor={`tm-quiet-day-${value}`}>
-                  {label}
-                </label>
+                <div className="tm-prefs-field tm-prefs-field--wide">
+                  <label className="tm-prefs-field__label" htmlFor="tm-quiet-timezone">
+                    Timezone
+                  </label>
+                  <input
+                    id="tm-quiet-timezone"
+                    className="tm-prefs-field__control"
+                    type="text"
+                    value={timezone}
+                    placeholder="e.g. America/New_York"
+                    onChange={(event) => setTimezone(event.target.value)}
+                  />
+                </div>
               </div>
-            ))}
-          </fieldset>
 
-          {save.isError ? (
-            <InlineAlert tone="danger" title="We could not save your quiet hours">
-              {errorMessage(save.error)}
-            </InlineAlert>
-          ) : null}
+              <fieldset className="tm-prefs-section">
+                <legend className="tm-prefs-eyebrow">Days</legend>
+                <div className="tm-prefs-choices">
+                  {DAY_LABELS.map(({ value, label }) => (
+                    <label className="tm-prefs-choice" key={value}>
+                      <input
+                        id={`tm-quiet-day-${value}`}
+                        type="checkbox"
+                        checked={days.includes(value)}
+                        onChange={() => toggleDay(value)}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
 
-          {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved">
-              Your quiet hours have been saved.
-            </InlineAlert>
-          ) : null}
+              {save.isError ? (
+                <InlineAlert tone="danger" title="We could not save your quiet hours">
+                  {errorMessage(save.error)}
+                </InlineAlert>
+              ) : null}
 
-          <div>
-            <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save quiet hours'}
-            </Button>
+              {saved && !save.isPending && !save.isError ? (
+                <InlineAlert tone="success" title="Saved">
+                  Your quiet hours have been saved.
+                </InlineAlert>
+              ) : null}
+
+              <div>
+                <button
+                  type="submit"
+                  className="tm-prefs-capsule tm-prefs-capsule--ink"
+                  disabled={save.isPending}
+                >
+                  {save.isPending ? 'Saving…' : 'Save quiet hours'}
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
+
+          <aside className="tm-prefs__side" aria-labelledby="tm-quiet-summary">
+            <div className="tm-prefs-card tm-prefs-card--tight">
+              <h2 id="tm-quiet-summary" className="tm-prefs-card__title">
+                {enabled ? `${startTime} – ${endTime}` : 'Quiet hours are off'}
+              </h2>
+              <p className="tm-prefs-card__body">
+                {enabled
+                  ? `${timezone || browserTimezone()}, on ${days.length === 7 ? 'every day' : `${days.length} day${days.length === 1 ? '' : 's'} a week`}. Notifications wait until the window ends.`
+                  : 'Notifications arrive whenever they happen. Turn quiet hours on to hold them overnight.'}
+              </p>
+            </div>
+            <div className="tm-prefs-card tm-prefs-card--paper tm-prefs-card--grow">
+              <h3 className="tm-prefs-eyebrow">Also in notifications</h3>
+              <p className="tm-prefs-card__body">
+                Which kinds of notification reach you, and how often the summary email arrives.
+              </p>
+              <div className="tm-prefs-card__foot">
+                <Link
+                  className="tm-prefs-capsule"
+                  href={`/${organizationSlug}/inbox/notification-preferences`}
+                >
+                  Notifications
+                </Link>
+                <Link className="tm-prefs-capsule" href={`/${organizationSlug}/settings/digest`}>
+                  Summary email
+                </Link>
+              </div>
+            </div>
+          </aside>
+        </div>
       )}
     </AppShell>
   );

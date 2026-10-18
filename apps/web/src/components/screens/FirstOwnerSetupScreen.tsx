@@ -17,6 +17,7 @@ import {
   slugify,
 } from '../../lib/slug';
 import { useHydrated } from '../../lib/use-hydrated';
+import '../../styles/screens/identity.css';
 
 /** The password floor the API enforces; checked here too so the common mistake costs no attempt. */
 const MIN_PASSWORD = 8;
@@ -220,10 +221,10 @@ export function FirstOwnerSetupScreen({
 
   if (availability === 'unavailable') {
     return (
-      <IdentityShell screenId="Setup" eyebrow="Setup" footer={footer}>
-        <div className="tm-stack tm-stack--tight">
+      <IdentityShell screenId="Setup" eyebrow="First owner" footer={footer}>
+        <div className="tm-id-intro">
           <h1 className="tm-identity__title">Setup is not available</h1>
-          <p className="tm-prose">
+          <p className="tm-id-lede">
             If you already have an account, <Link href="/sign-in">sign in</Link>.
           </p>
         </div>
@@ -232,10 +233,10 @@ export function FirstOwnerSetupScreen({
   }
 
   return (
-    <IdentityShell screenId="Setup" eyebrow="Setup" footer={footer}>
-      <div className="tm-stack tm-stack--tight">
+    <IdentityShell screenId="Setup" eyebrow="First owner" footer={footer}>
+      <div className="tm-id-intro">
         <h1 className="tm-identity__title">Create the owner account</h1>
-        <p className="tm-prose">
+        <p className="tm-id-lede">
           This sets up the first organization on this installation and signs you in as its owner.
           You need the setup token the person who installed TManage was given.
         </p>

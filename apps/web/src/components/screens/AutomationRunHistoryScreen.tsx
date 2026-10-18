@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { AutomationSectionTabs } from './AutomationSectionTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getWorkflowRun,
   listWorkflowRuns,
+  listWorkflowTemplates,
   type WorkflowRunStatus,
 } from '../../lib/api/automations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -22,7 +24,7 @@ export interface AutomationRunHistoryScreenProps {
 
 /** The status filter options: "All" plus each allowlisted outcome the API accepts. */
 const STATUS_OPTIONS = [
-  { value: 'all', label: 'All runs' },
+  { value: 'all', label: 'All outcomes' },
   { value: 'succeeded', label: 'Succeeded' },
   { value: 'failed', label: 'Failed' },
 ] as const;
@@ -67,7 +69,9 @@ export function AutomationRunHistoryScreen({
   // made before hydration cannot change the DOM while the query keeps listing every status.
   const hydrated = useHydrated();
   const [status, setStatus] = useState<StatusFilter>('all');
-  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  // `undefined` = nothing chosen yet, so the newest run is shown (AUT-04 opens on a run's
+  // evidence); `null` = the person closed the panel.
+  const [chosenRunId, setSelectedRunId] = useState<string | null | undefined>(undefined);
 
   const runs = useQuery({
     queryKey: ['workflow-runs', organizationSlug, status],
@@ -79,6 +83,17 @@ export function AutomationRunHistoryScreen({
       ),
   });
 
+  // The library, read only to put a template's name beside its id (AUT-04 "Rule · what it did").
+  // A failure here is not shown: the run list stands on its own and falls back to the id.
+  const templates = useQuery({
+    queryKey: ['workflow-templates', organizationSlug],
+    queryFn: async () => (await listWorkflowTemplates(api, organizationSlug)) ?? [],
+  });
+  const templateName = (id: string): string =>
+    (Array.isArray(templates.data) ? templates.data : []).find((t) => t.id === id)?.name ?? id;
+
+  const selectedRunId = chosenRunId === undefined ? (runs.data?.[0]?.id ?? null) : chosenRunId;
+
   const detail = useQuery({
     queryKey: ['workflow-run-detail', organizationSlug, selectedRunId],
     queryFn: () => getWorkflowRun(api, organizationSlug, selectedRunId as string),
@@ -86,169 +101,257 @@ export function AutomationRunHistoryScreen({
   });
 
   const rows = runs.data ?? [];
+  const succeeded = rows.filter((run) => run.status === 'succeeded').length;
+  const failed = rows.filter((run) => run.status === 'failed').length;
+  const loaded = !runs.isPending && !runs.isError;
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Automation runs"
-      description="The history of every workflow run in this organization, newest first."
+      activeNavigationId="admin"
+      eyebrow="Control center · Automations · Run history"
+      title={loaded ? `${rows.length} ${rows.length === 1 ? 'run' : 'runs'}` : 'Automation runs'}
+      {...(loaded && rows.length > 0
+        ? { titleMeta: `${succeeded} succeeded · ${failed} failed` }
+        : {})}
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-run-filter-heading">
-        <h2 id="tm-run-filter-heading" className="tm-eyebrow">
-          Filter
-        </h2>
-        <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
-          <Select
-            label="Status"
-            name="status"
-            value={status}
-            onChange={(event) => setStatus(event.target.value as StatusFilter)}
-            hint="Show all runs, or only those with a given outcome."
-          >
-            {STATUS_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </fieldset>
-      </section>
+      <div className="tm-aut">
+        <AutomationSectionTabs
+          organizationSlug={organizationSlug}
+          current="runs"
+          end={
+            <fieldset className="tm-aut-filters" disabled={!hydrated}>
+              <legend className="tm-visually-hidden">Outcome</legend>
+              {STATUS_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className="tm-aut-filter"
+                  aria-pressed={status === option.value}
+                  onClick={() => setStatus(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </fieldset>
+          }
+        />
 
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-run-list-heading">
-        <h2 id="tm-run-list-heading" className="tm-eyebrow">
-          Runs
-        </h2>
-
-        {runs.isError ? (
-          <InlineAlert tone="danger" title="Could not load the run history" live>
-            {describeError(runs.error)}
-          </InlineAlert>
-        ) : null}
-
-        {runs.isPending ? (
-          <LoadingRegion label="Loading the run history.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {!runs.isPending && !runs.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No runs yet">
-            When a workflow template runs, its outcome is recorded here.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-            // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label="Workflow runs"
-          >
-            <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                Workflow runs for this organization, newest first, {rows.length} shown.
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col">Template</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Started</th>
-                  <th scope="col">Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((run) => (
-                  <tr key={run.id}>
-                    <th scope="row" className="tm-table__title">
-                      {run.templateId}
-                    </th>
-                    <td>{humanize(run.status)}</td>
-                    <td>{formatInstant(run.startedAt)}</td>
-                    <td>
-                      <Button
-                        type="button"
-                        tone="outline"
-                        size="accessible"
-                        onClick={() => setSelectedRunId(run.id)}
-                      >
-                        View details
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : null}
-      </section>
-
-      {selectedRunId !== null ? (
-        <aside
-          className="tm-panel tm-stack"
-          aria-labelledby="tm-run-detail-heading"
-          aria-live="polite"
-        >
-          <div className="tm-row tm-row--between">
-            <h2 id="tm-run-detail-heading" className="tm-eyebrow">
-              Run detail
+        <div className="tm-aut-split">
+          <section className="tm-aut-col" aria-labelledby="tm-run-list-heading">
+            <h2 id="tm-run-list-heading" className="tm-visually-hidden">
+              Runs
             </h2>
-            <Button
-              type="button"
-              tone="text"
-              size="accessible"
-              onClick={() => setSelectedRunId(null)}
-            >
-              Close
-            </Button>
-          </div>
 
-          {detail.isError ? (
-            <InlineAlert tone="danger" title="Could not load the run" live>
-              {describeError(detail.error)}
-            </InlineAlert>
-          ) : null}
+            {runs.isError ? (
+              <InlineAlert tone="danger" title="Could not load the run history" live>
+                {describeError(runs.error)}
+              </InlineAlert>
+            ) : null}
 
-          {detail.isPending ? (
-            <LoadingRegion label="Loading the run detail.">
-              <Skeleton height="var(--row)" />
-            </LoadingRegion>
-          ) : null}
+            <div className="tm-aut-tablecard">
+              {runs.isPending ? (
+                <div className="tm-aut-pad">
+                  <LoadingRegion label="Loading the run history.">
+                    <Skeleton height="var(--row)" />
+                    <Skeleton height="var(--row)" />
+                  </LoadingRegion>
+                </div>
+              ) : null}
 
-          {detail.data ? (
-            <dl className="tm-stack">
-              <div>
-                <dt className="tm-eyebrow">Template</dt>
-                <dd>{detail.data.templateId}</dd>
-              </div>
-              <div>
-                <dt className="tm-eyebrow">Status</dt>
-                <dd>{humanize(detail.data.status)}</dd>
-              </div>
-              <div>
-                <dt className="tm-eyebrow">Started</dt>
-                <dd>{formatInstant(detail.data.startedAt)}</dd>
-              </div>
-              <div>
-                <dt className="tm-eyebrow">Finished</dt>
-                <dd>{formatInstant(detail.data.finishedAt)}</dd>
-              </div>
-              <div>
-                <dt className="tm-eyebrow">Detail</dt>
-                <dd>
-                  <pre className="tm-code-block">{JSON.stringify(detail.data.detail, null, 2)}</pre>
-                </dd>
-              </div>
-            </dl>
-          ) : null}
-        </aside>
-      ) : null}
+              {loaded && rows.length === 0 ? (
+                <div className="tm-aut-empty">
+                  <p className="tm-aut-empty__title">No runs yet</p>
+                  <p className="tm-aut-empty__body">
+                    When a workflow template runs, its outcome is recorded here.
+                  </p>
+                </div>
+              ) : null}
+
+              {rows.length > 0 ? (
+                <div
+                  className="tm-aut-tablecard__scroll"
+                  // A scrollable region must be focusable or a keyboard cannot reach its overflow
+                  // columns (WCAG 2.2 2.1.1), matching the sibling screens' tables.
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Workflow runs"
+                >
+                  <table className="tm-aut-table tm-aut-table--compact">
+                    <caption className="tm-visually-hidden">
+                      Workflow runs for this organization, newest first, {rows.length} shown.
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Time (UTC)</th>
+                        <th scope="col">Template</th>
+                        <th scope="col">Run ID</th>
+                        <th scope="col" className="tm-aut-end">
+                          Outcome
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map((run) => {
+                        const isFailed = run.status === 'failed';
+                        const classes = [
+                          run.id === selectedRunId ? 'is-selected' : '',
+                          isFailed && run.id !== selectedRunId ? 'is-failed' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ');
+                        return (
+                          <tr key={run.id} className={classes || undefined}>
+                            <td className="tm-aut-mono">{formatWhen(run.startedAt)}</td>
+                            <th scope="row">
+                              <span className="tm-aut-rowtitle">
+                                {templateName(run.templateId)}
+                              </span>
+                              <span
+                                className={`tm-aut-rowsub ${isFailed ? 'tm-aut-rowsub--danger' : ''}`}
+                              >
+                                {isFailed ? 'failed' : 'succeeded'} · finished{' '}
+                                {formatWhen(run.finishedAt).toLowerCase()}
+                              </span>
+                            </th>
+                            <td>
+                              <button
+                                type="button"
+                                className="tm-aut-linkbtn tm-aut-mono"
+                                aria-label={`View details of run ${shortRunId(run.id)}`}
+                                aria-pressed={run.id === selectedRunId}
+                                onClick={() => setSelectedRunId(run.id)}
+                              >
+                                {shortRunId(run.id)}
+                              </button>
+                            </td>
+                            <td className="tm-aut-end">
+                              <span
+                                className={`tm-aut-state ${isFailed ? 'tm-aut-state--danger' : 'tm-aut-state--live'}`}
+                              >
+                                {humanize(run.status)}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
+          <aside
+            className="tm-aut-card tm-aut-evidence"
+            aria-labelledby="tm-run-detail-heading"
+            aria-live="polite"
+          >
+            <div className="tm-row tm-row--between">
+              <h2 id="tm-run-detail-heading" className="tm-aut-eyebrow">
+                Run detail
+              </h2>
+              {selectedRunId !== null ? (
+                <Button
+                  type="button"
+                  tone="text"
+                  size="accessible"
+                  onClick={() => setSelectedRunId(null)}
+                >
+                  Close
+                </Button>
+              ) : null}
+            </div>
+
+            {selectedRunId === null ? (
+              <>
+                <p className="tm-aut-card__title">Choose a run</p>
+                <p className="tm-aut-card__body">
+                  Pick a run ID on the left to see when it started, when it finished and what it
+                  recorded.
+                </p>
+              </>
+            ) : null}
+
+            {selectedRunId !== null && detail.isError ? (
+              <InlineAlert tone="danger" title="Could not load the run" live>
+                {describeError(detail.error)}
+              </InlineAlert>
+            ) : null}
+
+            {selectedRunId !== null && detail.isPending ? (
+              <LoadingRegion label="Loading the run detail.">
+                <Skeleton height="var(--row)" />
+              </LoadingRegion>
+            ) : null}
+
+            {selectedRunId !== null && detail.data ? (
+              <>
+                <p className="tm-aut-mono">
+                  {shortRunId(detail.data.id)} · {formatInstant(detail.data.startedAt)} UTC
+                </p>
+                <p className="tm-aut-card__title">
+                  {detail.data.status === 'succeeded'
+                    ? 'Ran as expected'
+                    : 'Stopped before it acted'}
+                </p>
+                <ol className="tm-aut-steps">
+                  <li>
+                    <p className="tm-aut-steps__title">Started</p>
+                    <p className="tm-aut-steps__body">
+                      {templateName(detail.data.templateId)} ·{' '}
+                      {formatInstant(detail.data.startedAt)} UTC
+                    </p>
+                  </li>
+                  <li className={detail.data.status === 'failed' ? 'is-danger' : undefined}>
+                    <p className="tm-aut-steps__title">{humanize(detail.data.status)}</p>
+                    <p className="tm-aut-steps__body">
+                      Finished {formatInstant(detail.data.finishedAt)} UTC
+                    </p>
+                  </li>
+                  <li>
+                    <p className="tm-aut-steps__title">What it recorded</p>
+                    <pre className="tm-aut-code">{JSON.stringify(detail.data.detail, null, 2)}</pre>
+                  </li>
+                </ol>
+                <p className="tm-aut-card__foot">
+                  History is append-only: a run is never edited or deleted.
+                </p>
+              </>
+            ) : null}
+          </aside>
+        </div>
+      </div>
     </AppShell>
   );
+}
+
+/** AUT-04's short run reference: the last four characters of the id, e.g. `RUN·4C1E`. */
+function shortRunId(id: string): string {
+  return `RUN·${id
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(-4)
+    .toUpperCase()}`;
+}
+
+/** AUT-04's mono time column: `TODAY 09:12`, `YEST 17:44`, or `13 AUG 16:00` (UTC). */
+function formatWhen(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  const time = date.toISOString().slice(11, 16);
+  const day = date.toISOString().slice(0, 10);
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  if (day === today) return `TODAY ${time}`;
+  if (day === yesterday) return `YEST ${time}`;
+  const label = date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+  return `${label.toUpperCase()} ${time}`;
 }
 
 function describeError(error: unknown): string {

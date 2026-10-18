@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import '../../styles/screens/automations.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   connectIntegrationApp,
@@ -53,9 +55,16 @@ export function IntegrationDirectoryScreen({
   const [settingKey, setSettingKey] = useState('');
   const [settingValue, setSettingValue] = useState('');
   const [connected, setConnected] = useState<{ appId: string; label: string } | null>(null);
+  const [filter, setFilter] = useState<DirectoryFilter>('all');
 
   const rows = apps.data ?? [];
   const activeApp = rows.find((app) => app.id === activeAppId) ?? null;
+  const connectedApps = rows.filter((app) => app.connections.length > 0);
+  const availableApps = rows.filter((app) => app.connections.length === 0);
+  const pendingCount = rows.reduce(
+    (sum, app) => sum + app.connections.filter((c) => c.status === 'pending').length,
+    0,
+  );
 
   const connect = useMutation({
     mutationFn: (app: IntegrationAppView) => {
@@ -78,18 +87,53 @@ export function IntegrationDirectoryScreen({
   });
 
   const canConnect = activeApp !== null && label.trim() !== '' && !connect.isPending;
+  const loaded = !apps.isPending && !apps.isError;
+
+  const title = !loaded
+    ? 'Integrations'
+    : connectedApps.length === 0
+      ? 'Nothing connected yet'
+      : `${capitalize(numberWord(connectedApps.length))} connected${
+          pendingCount > 0 ? `, ${numberWord(pendingCount)} pending` : ''
+        }`;
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="App directory"
-      description="Connect apps and integrations to your studio. Secrets are never stored here."
+      activeNavigationId="admin"
+      eyebrow="Control center · Integrations"
+      title={title}
+      description="TManage stays the record. Integrations bring information in or copy it out; they never become the place a decision lives."
+      actions={
+        <a href="#tm-connect" className="tm-aut-btn tm-aut-btn--ink">
+          Connect a tool
+        </a>
+      }
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-apps-heading">
-        <h2 id="tm-apps-heading" className="tm-eyebrow">
-          Available apps
-        </h2>
+      <div className="tm-aut">
+        {loaded ? (
+          <fieldset className="tm-aut-filters tm-aut-filters--end">
+            <legend className="tm-visually-hidden">Show</legend>
+            {(
+              [
+                ['all', `All · ${rows.length}`],
+                ['connected', `Connected · ${connectedApps.length}`],
+                ['available', `Available · ${availableApps.length}`],
+              ] as const
+            ).map(([value, text]) => (
+              <button
+                key={value}
+                type="button"
+                className="tm-aut-filter"
+                aria-pressed={filter === value}
+                onClick={() => setFilter(value)}
+              >
+                {text}
+              </button>
+            ))}
+          </fieldset>
+        ) : null}
 
         {apps.isError ? (
           <InlineAlert tone="danger" title="Could not load the app directory" live>
@@ -104,122 +148,254 @@ export function IntegrationDirectoryScreen({
           </LoadingRegion>
         ) : null}
 
-        {!apps.isPending && !apps.isError ? (
-          <ul className="tm-grid tm-grid--cards" aria-label="Apps in the directory">
-            {rows.map((app) => (
-              <li key={app.id} className="tm-card tm-stack">
-                <h3 className="tm-card__title">{app.name}</h3>
-                <p className="tm-muted">{app.category}</p>
-                <p className="tm-prose">Capabilities: {app.capabilities.join(', ')}</p>
-                <p className="tm-muted">
-                  {app.connections.length === 0
-                    ? 'Not connected'
-                    : `${app.connections.length} connection${app.connections.length === 1 ? '' : 's'}`}
-                </p>
-                {app.connections.length > 0 ? (
-                  <ul aria-label={`${app.name} connections`}>
-                    {app.connections.map((connection) => (
-                      <li key={connection.id}>
-                        {connection.label} — {connection.status}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
-
-      <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-connect-heading">
-        <h2 id="tm-connect-heading" className="tm-eyebrow">
-          Connect an app
-        </h2>
-
-        {connected ? (
-          <InlineAlert tone="success" title="Connection recorded" live>
-            &ldquo;{connected.label}&rdquo; was connected. Live credential exchange is set up
-            separately.
-          </InlineAlert>
+        {loaded && filter !== 'available' && connectedApps.length > 0 ? (
+          <section aria-labelledby="tm-apps-connected-heading" className="tm-aut-col">
+            <h2 id="tm-apps-connected-heading" className="tm-visually-hidden">
+              Connected
+            </h2>
+            <ul className="tm-aut-tools" aria-label="Connected apps">
+              {connectedApps.map((app) => {
+                const live = app.connections.some((c) => c.status === 'connected');
+                return (
+                  <li key={app.id} className="tm-aut-tool">
+                    <div className="tm-aut-tool__head">
+                      <span className="tm-aut-glyph" aria-hidden="true">
+                        {glyphFor(app.category)}
+                      </span>
+                      <span
+                        className={`tm-aut-state ${live ? 'tm-aut-state--live' : 'tm-aut-state--warning'}`}
+                      >
+                        {live ? 'Connected' : 'Pending'}
+                      </span>
+                    </div>
+                    <h3 className="tm-aut-tool__name">{app.name}</h3>
+                    <p className="tm-aut-tool__body">{describeCapabilities(app)}</p>
+                    <ul className="tm-aut-tool__foot" aria-label={`${app.name} connections`}>
+                      {app.connections.map((connection) => (
+                        <li key={connection.id} className="tm-aut-tool__conn">
+                          <span className="tm-aut-mono">{connection.label}</span>
+                          <span className="tm-aut-mono">{connection.status}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         ) : null}
 
-        {rows.length > 0 ? (
-          <form
-            className="tm-stack"
-            noValidate
-            onSubmit={(event: FormEvent<HTMLFormElement>) => {
-              event.preventDefault();
-              if (canConnect && activeApp) connect.mutate(activeApp);
-            }}
-          >
-            <div className="tm-field">
-              <label className="tm-field__label" htmlFor="tm-app-select">
-                App
-              </label>
-              <select
-                id="tm-app-select"
-                className="tm-field__control"
-                value={activeAppId}
-                onChange={(event) => setActiveAppId(event.target.value)}
-              >
-                <option value="">Choose an app…</option>
-                {rows.map((app) => (
-                  <option key={app.id} value={app.id}>
-                    {app.name}
-                  </option>
-                ))}
-              </select>
+        <div className="tm-aut-split">
+          <section className="tm-aut-col" aria-labelledby="tm-apps-heading">
+            <div className="tm-aut-section-head">
+              <h2 id="tm-apps-heading" className="tm-aut-section-head__title">
+                {filter === 'connected' ? 'Connected' : 'Available'}
+              </h2>
+              <span className="tm-aut-section-head__meta">
+                connecting one always shows what it may do first
+              </span>
             </div>
 
-            <Field
-              label="Connection label"
-              name="label"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              hint="A short handle, such as Ops workspace."
-              required
-            />
+            {!apps.isPending ? (
+              <ul className="tm-aut-list" aria-label="Apps in the directory">
+                {(filter === 'connected' ? connectedApps : availableApps).map((app) => (
+                  <li key={app.id}>
+                    <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
+                      {glyphFor(app.category)}
+                    </span>
+                    <div className="tm-aut-list__main">
+                      <h3 className="tm-aut-rowtitle">{app.name}</h3>
+                      <span className="tm-aut-rowsub">
+                        {app.category} · {describeCapabilities(app)}
+                        {app.connections.length > 0
+                          ? ` · ${app.connections.length} connection${app.connections.length === 1 ? '' : 's'}`
+                          : ''}
+                      </span>
+                    </div>
+                    <div className="tm-aut-list__end">
+                      <a
+                        href="#tm-connect"
+                        className="tm-aut-btn"
+                        aria-label={`Connect ${app.name}`}
+                        onClick={() => setActiveAppId(app.id)}
+                      >
+                        Connect
+                      </a>
+                    </div>
+                  </li>
+                ))}
+                <li>
+                  <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
+                    {'{ }'}
+                  </span>
+                  <div className="tm-aut-list__main">
+                    <h3 className="tm-aut-rowtitle">Webhooks</h3>
+                    <span className="tm-aut-rowsub">
+                      send automation events to an https endpoint you own
+                    </span>
+                  </div>
+                  <div className="tm-aut-list__end">
+                    <Link
+                      href={`/${organizationSlug}/admin/automations/webhooks`}
+                      className="tm-aut-btn"
+                    >
+                      Manage
+                    </Link>
+                  </div>
+                </li>
+              </ul>
+            ) : null}
+          </section>
 
-            <fieldset className="tm-stack tm-fieldset">
-              <legend className="tm-field__label">Optional setting (non-secret)</legend>
-              <Field
-                label="Setting name"
-                name="setting-key"
-                value={settingKey}
-                onChange={(event) => setSettingKey(event.target.value)}
-                hint="For example, channel or repo. Never a token or password."
-              />
-              <Field
-                label="Setting value"
-                name="setting-value"
-                value={settingValue}
-                onChange={(event) => setSettingValue(event.target.value)}
-              />
-            </fieldset>
+          <section
+            id="tm-connect"
+            className="tm-aut-card tm-card--ink"
+            aria-labelledby="tm-connect-heading"
+          >
+            <p className="tm-aut-eyebrow">Connect a tool</p>
+            <h2 id="tm-connect-heading" className="tm-aut-card__title">
+              Connect an app
+            </h2>
+            <ul className="tm-aut-facts">
+              <li>Secrets are never stored here: only a label and non-secret settings.</li>
+              <li>
+                Live credential exchange is set up separately, after the connection is recorded.
+              </li>
+            </ul>
 
-            {connect.isError ? (
-              <InlineAlert tone="danger" title="Could not connect the app" live>
-                {describeError(connect.error)}
+            {connected ? (
+              <InlineAlert tone="success" title="Connection recorded" live>
+                &ldquo;{connected.label}&rdquo; was connected. Live credential exchange is set up
+                separately.
               </InlineAlert>
             ) : null}
 
-            <div className="tm-row">
-              <Button
-                type="submit"
-                tone="ink"
-                size="accessible"
-                loading={connect.isPending}
-                loadingLabel="Connecting"
-                disabled={!canConnect}
+            {rows.length > 0 ? (
+              <form
+                className="tm-stack"
+                noValidate
+                onSubmit={(event: FormEvent<HTMLFormElement>) => {
+                  event.preventDefault();
+                  if (canConnect && activeApp) connect.mutate(activeApp);
+                }}
               >
-                Connect app
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </section>
+                <div className="tm-field">
+                  <label className="tm-field__label" htmlFor="tm-app-select">
+                    App
+                  </label>
+                  <select
+                    id="tm-app-select"
+                    className="tm-field__control"
+                    value={activeAppId}
+                    onChange={(event) => setActiveAppId(event.target.value)}
+                  >
+                    <option value="">Choose an app…</option>
+                    {rows.map((app) => (
+                      <option key={app.id} value={app.id}>
+                        {app.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <Field
+                  label="Connection label"
+                  name="label"
+                  value={label}
+                  onChange={(event) => setLabel(event.target.value)}
+                  hint="A short handle, such as Ops workspace."
+                  required
+                />
+
+                <fieldset className="tm-stack tm-fieldset">
+                  <legend className="tm-field__label">Optional setting (non-secret)</legend>
+                  <Field
+                    label="Setting name"
+                    name="setting-key"
+                    value={settingKey}
+                    onChange={(event) => setSettingKey(event.target.value)}
+                    hint="For example, channel or repo. Never a token or password."
+                  />
+                  <Field
+                    label="Setting value"
+                    name="setting-value"
+                    value={settingValue}
+                    onChange={(event) => setSettingValue(event.target.value)}
+                  />
+                </fieldset>
+
+                {connect.isError ? (
+                  <InlineAlert tone="danger" title="Could not connect the app" live>
+                    {describeError(connect.error)}
+                  </InlineAlert>
+                ) : null}
+
+                <div className="tm-aut-actions">
+                  <Button
+                    type="submit"
+                    tone="lime"
+                    size="accessible"
+                    loading={connect.isPending}
+                    loadingLabel="Connecting"
+                    disabled={!canConnect}
+                  >
+                    Connect app
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+          </section>
+        </div>
+      </div>
     </AppShell>
   );
+}
+
+type DirectoryFilter = 'all' | 'connected' | 'available';
+
+const NUMBER_WORDS = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+  'eleven',
+  'twelve',
+];
+
+/** INT-01 writes small counts as words ("Four connected, one broken"). */
+function numberWord(count: number): string {
+  return NUMBER_WORDS[count] ?? String(count);
+}
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** The square glyph on each tool card, from the app's category (INT-01's ▦ ✉ ⇪ ◫). */
+function glyphFor(category: string): string {
+  const key = category.toLowerCase();
+  if (key.includes('calendar')) return '▦';
+  if (key.includes('mail')) return '✉';
+  if (key.includes('storage') || key.includes('file')) return '⇪';
+  if (key.includes('design')) return '◫';
+  if (key.includes('chat') || key.includes('messag') || key.includes('communic')) return '◌';
+  if (key.includes('time')) return '◔';
+  if (key.includes('account') || key.includes('financ') || key.includes('billing')) return '◈';
+  if (key.includes('dev') || key.includes('code')) return '‹›';
+  return '◇';
+}
+
+function describeCapabilities(app: IntegrationAppView): string {
+  return app.capabilities.length === 0
+    ? app.category
+    : app.capabilities.map((capability) => capability.replace(/[_.]/g, ' ')).join(', ');
 }
 
 function describeError(error: unknown): string {

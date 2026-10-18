@@ -2,15 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import {
-  Avatar,
-  Badge,
-  Button,
-  InlineAlert,
-  LoadingRegion,
-  Skeleton,
-  StateCapsule,
-} from '@tmanage/ui';
+import { Avatar, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { acceptInvitation, previewInvitation } from '../../lib/api/invitations';
@@ -18,6 +10,7 @@ import type { InvitationPreview } from '../../lib/api/invitations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { describeInternalRole } from '../../lib/roles';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/identity.css';
 
 export interface InvitationScreenProps {
   /** From the route. Sent in a body, never rendered into the document. */
@@ -134,23 +127,22 @@ function Details({ invitation, failure, accept }: DetailsProps) {
 
   return (
     <IdentityShell screenId="ID-03" eyebrow="Invitation">
-      <div className="tm-row">
-        <Avatar name={invitation.inviterName} audience={invitation.audience} />
-        <div className="tm-stack tm-stack--tight">
-          <h1 className="tm-identity__title">{invitation.inviterName} invited you</h1>
-          <p className="tm-prose tm-mono">
+      <div className="tm-id-inviter">
+        <Avatar name={invitation.inviterName} audience={invitation.audience} decorative />
+        <div>
+          <p className="tm-id-inviter__name">{invitation.inviterName} invited you</p>
+          <p className="tm-id-inviter__meta">
             {invitation.inviterEmail} · {formatDay(invitation.invitedAt)}
           </p>
         </div>
       </div>
 
-      <p className="tm-prose">
-        Join <strong>{invitation.organizationName}</strong>
+      <h1 className="tm-identity__title">
+        Join <span>{invitation.organizationName}</span>
         {isClient && invitation.clientOrganizationName
           ? ` as part of ${invitation.clientOrganizationName}`
           : ''}
-        .
-      </p>
+      </h1>
 
       {isClient ? (
         <InlineAlert tone="client" title="This is client portal access">
@@ -159,29 +151,29 @@ function Details({ invitation, failure, accept }: DetailsProps) {
         </InlineAlert>
       ) : null}
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-invitation-role">
-        <h2 id="tm-invitation-role" className="tm-eyebrow">
-          Role
-        </h2>
-        <div className="tm-row">
-          <StateCapsule state={isClient ? 'client' : 'current'}>{role.label}</StateCapsule>
-          <Badge mono>{invitation.role}</Badge>
-        </div>
-      </section>
+      <div className="tm-id-panels">
+        <section className="tm-id-panel tm-id-panel--row" aria-labelledby="tm-invitation-role">
+          <h2 id="tm-invitation-role" className="tm-id-panel__label">
+            Role
+          </h2>
+          <span className="tm-id-panel__value">{role.label}</span>
+          <span className={isClient ? 'tm-id-capsule tm-id-capsule--client' : 'tm-id-capsule'}>
+            {isClient ? 'client portal' : 'internal team'}
+          </span>
+        </section>
 
-      <section className="tm-panel tm-stack" aria-labelledby="tm-invitation-access">
-        <h2 id="tm-invitation-access" className="tm-eyebrow">
-          Exactly what you will see
-        </h2>
-        <ul className="tm-stack tm-stack--tight tm-list">
-          {role.grants.map((line) => (
-            <li key={line}>{line}</li>
-          ))}
-        </ul>
-        <p className="tm-prose">
-          <strong>{role.withholds}</strong>
-        </p>
-      </section>
+        <section className="tm-id-panel" aria-labelledby="tm-invitation-access">
+          <h2 id="tm-invitation-access" className="tm-id-panel__label">
+            Exactly what you will see
+          </h2>
+          <ul className="tm-id-grants">
+            {role.grants.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <p className="tm-id-withholds">{role.withholds}</p>
+        </section>
+      </div>
 
       {failure ? (
         <InlineAlert tone="danger" title="That did not go through" live>
@@ -189,7 +181,7 @@ function Details({ invitation, failure, accept }: DetailsProps) {
         </InlineAlert>
       ) : null}
 
-      <div className="tm-row">
+      <div className="tm-id-action-row">
         <Button
           tone="ink"
           size="accessible"
@@ -201,9 +193,9 @@ function Details({ invitation, failure, accept }: DetailsProps) {
         </Button>
       </div>
 
-      <InlineAlert tone="warning" title="This invitation expires">
-        It expires on {formatDay(invitation.expiresAt)}. After that, ask {invitation.inviterName}{' '}
-        for a new one — expired links never grant access.
+      <InlineAlert className="tm-id-note--dashed" tone="warning">
+        This invitation expires on {formatDay(invitation.expiresAt)}. After that, ask{' '}
+        {invitation.inviterName} for a new one — expired links never grant access.
       </InlineAlert>
     </IdentityShell>
   );

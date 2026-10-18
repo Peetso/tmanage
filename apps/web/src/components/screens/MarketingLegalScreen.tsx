@@ -1,7 +1,8 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LiveAnnouncer, LoadingRegion, Skeleton, SkipLink } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { PublicIntro, PublicPage } from './public/PublicSite';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicLegal } from '../../lib/api/public-legal';
 import type { LegalDoc, PublicLegalView } from '../../lib/api/public-legal';
@@ -23,8 +24,8 @@ export interface MarketingLegalScreenProps {
  * an effective date, and long-form sections — with an in-page anchor nav so a reader can jump to a
  * clause.
  *
- * The landmarks are the screen's own here rather than a shared shell's: a skip link, a single
- * `<main>`, exactly one `<h1>`, and a labelled `<nav>` for the section index. `27-TEST-CATALOG`
+ * `PublicPage` owns the landmarks (skip link, banner, one `<main>`); this screen owns exactly one
+ * `<h1>` and a labelled `<nav>` for the section index. `27-TEST-CATALOG`
  * A11Y-01, proved axe-clean.
  */
 export function MarketingLegalScreen({ doc, client }: MarketingLegalScreenProps) {
@@ -36,67 +37,67 @@ export function MarketingLegalScreen({ doc, client }: MarketingLegalScreenProps)
   });
 
   return (
-    <LiveAnnouncer>
-      <SkipLink targetId="tm-main" />
-      <main id="tm-main" className="tm-public tm-stack" tabIndex={-1}>
-        {legal.isPending ? (
-          <LoadingRegion label="Loading the document.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : legal.isError || !legal.data ? (
-          <>
-            <h1 className="tm-title">Legal</h1>
-            <InlineAlert tone="danger" title="This document could not be loaded" live>
-              {legal.error instanceof NetworkError
-                ? 'The API did not answer. Please try again shortly.'
-                : 'Something went wrong loading this page. Please try again shortly.'}
-            </InlineAlert>
-          </>
-        ) : (
-          <Content legal={legal.data} />
-        )}
-      </main>
-    </LiveAnnouncer>
+    <PublicPage>
+      {legal.isPending ? (
+        <LoadingRegion label="Loading the document.">
+          <Skeleton height="var(--row)" />
+          <Skeleton height="var(--row)" />
+          <Skeleton height="var(--row)" />
+        </LoadingRegion>
+      ) : legal.isError || !legal.data ? (
+        <div className="tm-pub-columns">
+          <PublicIntro eyebrow="Legal" title="Legal" />
+          <InlineAlert tone="danger" title="This document could not be loaded" live>
+            {legal.error instanceof NetworkError
+              ? 'The API did not answer. Please try again shortly.'
+              : 'Something went wrong loading this page. Please try again shortly.'}
+          </InlineAlert>
+        </div>
+      ) : (
+        <Content legal={legal.data} />
+      )}
+    </PublicPage>
   );
 }
 
 function Content({ legal }: { legal: PublicLegalView }) {
   return (
-    <>
-      <header className="tm-stack tm-stack--tight">
-        <p className="tm-eyebrow tm-mono">Legal</p>
-        <h1 className="tm-title">{legal.title}</h1>
-        <p className="tm-prose">
-          Effective <time dateTime={legal.effectiveDate}>{legal.effectiveDate}</time>
-        </p>
-        <p className="tm-prose">{legal.intro}</p>
-      </header>
+    <div className="tm-pub-columns">
+      <div className="tm-pub-aside">
+        <PublicIntro eyebrow="Legal" title={legal.title}>
+          <p className="tm-pub-eyebrow">
+            Effective <time dateTime={legal.effectiveDate}>{legal.effectiveDate}</time>
+          </p>
+          <p className="tm-pub-lede tm-pub-lede--md">{legal.intro}</p>
+        </PublicIntro>
 
-      <nav className="tm-panel tm-stack tm-stack--tight" aria-label={`${legal.title} sections`}>
-        <ul className="tm-stack tm-stack--tight tm-list">
-          {legal.sections.map((section) => (
-            <li key={section.id}>
-              <a href={`#${section.id}`}>{section.heading}</a>
-            </li>
-          ))}
-        </ul>
-      </nav>
+        <nav className="tm-pub-card tm-pub-toc" aria-label={`${legal.title} sections`}>
+          <p className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">On this page</p>
+          <ul>
+            {legal.sections.map((section) => (
+              <li key={section.id}>
+                <a href={`#${section.id}`}>{section.heading}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
 
-      {legal.sections.map((section) => (
-        <section
-          key={section.id}
-          id={section.id}
-          className="tm-panel tm-stack"
-          aria-labelledby={`tm-legal-${section.id}`}
-        >
-          <h2 id={`tm-legal-${section.id}`} className="tm-eyebrow">
-            {section.heading}
-          </h2>
-          <p className="tm-prose">{section.body}</p>
-        </section>
-      ))}
-    </>
+      <div className="tm-pub-stack">
+        {legal.sections.map((section) => (
+          <section
+            key={section.id}
+            id={section.id}
+            className="tm-pub-card tm-pub-card--roomy tm-pub-section"
+            aria-labelledby={`tm-legal-${section.id}`}
+          >
+            <h2 id={`tm-legal-${section.id}`} className="tm-pub-card__title">
+              {section.heading}
+            </h2>
+            <p className="tm-pub-prose">{section.body}</p>
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/billing-contacts';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import '../../styles/screens/billing.css';
 
 export interface BillingContactsScreenProps {
   organizationSlug: string;
@@ -82,138 +83,142 @@ export function BillingContactsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      activeNavigationId="admin"
+      eyebrow="Control center · Billing"
       title="Billing contacts"
       description="Nominate the people who receive your billing and account notices."
     >
-      <section className="tm-panel tm-stack" aria-labelledby="tm-contact-add-heading">
-        <h2 id="tm-contact-add-heading" className="tm-eyebrow">
-          Add a contact
-        </h2>
-        <form
-          className="tm-stack"
-          noValidate
-          onSubmit={(event: FormEvent<HTMLFormElement>) => {
-            event.preventDefault();
-            if (canAdd) add.mutate();
-          }}
-        >
-          <Field
-            label="Name"
-            name="name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-          />
-          <Field
-            label="Email"
-            name="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            hint="Where billing notices for this contact would be sent."
-            required
-          />
-          <Field
-            label="Role"
-            name="role"
-            value={role}
-            onChange={(event) => setRole(event.target.value)}
-            hint="Optional — e.g. Accounts payable."
-          />
+      <div className="tm-bil">
+        <section className="tm-panel tm-stack" aria-labelledby="tm-contact-add-heading">
+          <h2 id="tm-contact-add-heading" className="tm-eyebrow">
+            Add a contact
+          </h2>
+          <form
+            className="tm-stack"
+            noValidate
+            onSubmit={(event: FormEvent<HTMLFormElement>) => {
+              event.preventDefault();
+              if (canAdd) add.mutate();
+            }}
+          >
+            <Field
+              label="Name"
+              name="name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+            <Field
+              label="Email"
+              name="email"
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              hint="Where billing notices for this contact would be sent."
+              required
+            />
+            <Field
+              label="Role"
+              name="role"
+              value={role}
+              onChange={(event) => setRole(event.target.value)}
+              hint="Optional — e.g. Accounts payable."
+            />
 
-          {add.isError ? (
-            <InlineAlert tone="danger" title="Could not add the contact" live>
-              {describeError(add.error)}
+            {add.isError ? (
+              <InlineAlert tone="danger" title="Could not add the contact" live>
+                {describeError(add.error)}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-row">
+              <Button
+                type="submit"
+                tone="ink"
+                size="accessible"
+                loading={add.isPending}
+                loadingLabel="Adding"
+                disabled={!canAdd}
+              >
+                Add contact
+              </Button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="tm-panel tm-panel--quiet tm-stack"
+          aria-labelledby="tm-contact-list-heading"
+        >
+          <h2 id="tm-contact-list-heading" className="tm-eyebrow">
+            Contacts {contacts.isSuccess ? `(${rows.length})` : ''}
+          </h2>
+
+          {contacts.isError ? (
+            <InlineAlert tone="danger" title="Could not load the contacts" live>
+              {describeError(contacts.error)}
             </InlineAlert>
           ) : null}
 
-          <div className="tm-row">
-            <Button
-              type="submit"
-              tone="ink"
-              size="accessible"
-              loading={add.isPending}
-              loadingLabel="Adding"
-              disabled={!canAdd}
-            >
-              Add contact
-            </Button>
-          </div>
-        </form>
-      </section>
+          {remove.isError ? (
+            <InlineAlert tone="danger" title="Could not remove the contact" live>
+              {describeError(remove.error)}
+            </InlineAlert>
+          ) : null}
 
-      <section
-        className="tm-panel tm-panel--quiet tm-stack"
-        aria-labelledby="tm-contact-list-heading"
-      >
-        <h2 id="tm-contact-list-heading" className="tm-eyebrow">
-          Contacts {contacts.isSuccess ? `(${rows.length})` : ''}
-        </h2>
+          {contacts.isPending ? (
+            <LoadingRegion label="Loading the contacts.">
+              <Skeleton height="var(--row)" />
+              <Skeleton height="var(--row)" />
+            </LoadingRegion>
+          ) : null}
 
-        {contacts.isError ? (
-          <InlineAlert tone="danger" title="Could not load the contacts" live>
-            {describeError(contacts.error)}
-          </InlineAlert>
-        ) : null}
+          {contacts.isSuccess && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title="No billing contacts yet">
+              Add a contact with the form to nominate who receives your billing notices.
+            </InlineAlert>
+          ) : null}
 
-        {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not remove the contact" live>
-            {describeError(remove.error)}
-          </InlineAlert>
-        ) : null}
-
-        {contacts.isPending ? (
-          <LoadingRegion label="Loading the contacts.">
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
-          </LoadingRegion>
-        ) : null}
-
-        {contacts.isSuccess && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No billing contacts yet">
-            Add a contact above to nominate who receives your billing notices.
-          </InlineAlert>
-        ) : null}
-
-        {rows.length > 0 ? (
-          <table className="tm-table">
-            <caption className="tm-visually-hidden">
-              The organization&rsquo;s billing contacts.
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Email</th>
-                <th scope="col">Role</th>
-                <th scope="col">
-                  <span className="tm-visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((contact) => (
-                <tr key={contact.id}>
-                  <td>{contact.name}</td>
-                  <td>{contact.email}</td>
-                  <td>{contact.role ?? '—'}</td>
-                  <td>
-                    <Button
-                      type="button"
-                      tone="outline"
-                      size="accessible"
-                      loading={remove.isPending && remove.variables?.id === contact.id}
-                      loadingLabel="Removing"
-                      onClick={() => remove.mutate(contact)}
-                    >
-                      Remove
-                    </Button>
-                  </td>
+          {rows.length > 0 ? (
+            <table className="tm-table">
+              <caption className="tm-visually-hidden">
+                The organization&rsquo;s billing contacts.
+              </caption>
+              <thead>
+                <tr>
+                  <th scope="col">Name</th>
+                  <th scope="col">Email</th>
+                  <th scope="col">Role</th>
+                  <th scope="col">
+                    <span className="tm-visually-hidden">Actions</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : null}
-      </section>
+              </thead>
+              <tbody>
+                {rows.map((contact) => (
+                  <tr key={contact.id}>
+                    <td>{contact.name}</td>
+                    <td>{contact.email}</td>
+                    <td>{contact.role ?? '—'}</td>
+                    <td>
+                      <Button
+                        type="button"
+                        tone="outline"
+                        size="accessible"
+                        loading={remove.isPending && remove.variables?.id === contact.id}
+                        loadingLabel="Removing"
+                        onClick={() => remove.mutate(contact)}
+                      >
+                        Remove
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : null}
+        </section>
+      </div>
     </AppShell>
   );
 }
