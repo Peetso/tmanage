@@ -1,12 +1,12 @@
-'use client';
-
+import { LEGAL_DOCUMENTS } from '@tmanage/domain';
 import { MarketingLegalScreen } from '../../../../components/screens/MarketingLegalScreen';
 
 /**
- * **Terms of Service (x188).** The public terms page, routed at `/legal/terms`. The screen lives in
- * `components/screens` so a test can mount it with an injected client; this route is the thin entry
- * point. It takes no params and needs no session — the endpoint it reads is `@Public()`.
+ * **Terms of Service (x188).** The public terms page, routed at `/legal/terms` (and `/terms`, which redirects
+ * here). A server component: it hands the screen the document from `@tmanage/domain`, the same
+ * object the API serves, so the full text is in the server HTML — Google's OAuth brand review reads
+ * the page without running JavaScript. Statically generated at build time.
  */
 export default function TermsPage() {
-  return <MarketingLegalScreen doc="terms" />;
+  return <MarketingLegalScreen doc="terms" document={LEGAL_DOCUMENTS.terms} />;
 }

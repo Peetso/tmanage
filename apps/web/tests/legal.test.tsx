@@ -100,3 +100,28 @@ describe('legal short addresses', () => {
     );
   });
 });
+
+describe('legal pages render their full text on the server', () => {
+  it('puts the whole privacy policy, Google section included, in the server HTML', async () => {
+    const { renderToString } = await import('react-dom/server');
+    const { default: PrivacyPage } = await import('../src/app/(website)/legal/privacy/page');
+    const html = renderToString(withQuery(<PrivacyPage />));
+
+    expect(html).toContain('Privacy Policy');
+    expect(html).toContain('Google user data');
+    expect(html).toContain(
+      'Google API Services User Data Policy, including the Limited Use requirements',
+    );
+    expect(html).toContain('https://developers.google.com/terms/api-services-user-data-policy');
+    expect(html).not.toContain('Loading the document');
+  });
+
+  it('puts the terms in the server HTML too', async () => {
+    const { renderToString } = await import('react-dom/server');
+    const { default: TermsPage } = await import('../src/app/(website)/legal/terms/page');
+    const html = renderToString(withQuery(<TermsPage />));
+
+    expect(html).toContain('Terms of Service');
+    expect(html).toContain('Google Drive and other integrations');
+  });
+});

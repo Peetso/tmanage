@@ -204,3 +204,7 @@ export type {
   QuietHoursBypassPredicate,
   QuietHoursPreferences,
 } from './notifications/quiet-hours.js';
+
+// Public legal documents — x188, rendered server-side by the web and served by the API
+export { LEGAL_DOCUMENTS } from './legal/legal-content.js';
+export type { LegalDocument, LegalDocumentKey } from './legal/legal-content.js';

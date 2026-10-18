@@ -14,6 +14,12 @@ export interface MarketingLegalScreenProps {
   doc: LegalDoc;
   /** Injectable so a test drives a fake client; the browser gets the shared one. */
   client?: ApiClient;
+  /**
+   * The document itself, passed by the route from `@tmanage/domain` so the page is rendered with its
+   * full text on the server. Readers and crawlers that run no JavaScript (Google's OAuth brand
+   * review) get the whole policy in the HTML; when it is given, no request is made.
+   */
+  document?: PublicLegalView;
 }
 
 /**
@@ -28,17 +34,20 @@ export interface MarketingLegalScreenProps {
  * `<h1>` and a labelled `<nav>` for the section index. `27-TEST-CATALOG`
  * A11Y-01, proved axe-clean.
  */
-export function MarketingLegalScreen({ doc, client }: MarketingLegalScreenProps) {
+export function MarketingLegalScreen({ doc, client, document }: MarketingLegalScreenProps) {
   const api = client ?? browserApiClient();
   const legal = useQuery({
     queryKey: ['public-legal', doc],
     queryFn: () => fetchPublicLegal(api, doc),
     retry: false,
+    enabled: document === undefined,
   });
 
   return (
     <PublicPage>
-      {legal.isPending ? (
+      {document ? (
+        <Content legal={document} />
+      ) : legal.isPending ? (
         <LoadingRegion label="Loading the document.">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
