@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
@@ -14,6 +14,9 @@ import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useHydrated } from '../../lib/use-hydrated';
 import { isPublicSignupOffered } from '../../lib/public-signup';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+import { takeGooglePendingMfa } from '../../lib/api/google-auth';
+import { GoogleSignInButton, googleErrorKey, useGoogleAvailability } from './GoogleSignInButton';
 import '../../styles/screens/identity.css';
 
 export interface SignInScreenProps {
@@ -112,6 +115,39 @@ export function SignInScreen({
   );
   const [developmentFailure, setDevelopmentFailure] = useState<string | undefined>(undefined);
 
+  // "Continue with Google": shown only when the API has it configured.
+  const google = useGoogleAvailability(api);
+  const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
+  /** Where a Google sign-in that needed a second factor goes afterwards (e.g. the invitation). */
+  const [googleReturnTo, setGoogleReturnTo] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    const search = window.location.search;
+    setGoogleError(googleErrorKey(search));
+    if (new URLSearchParams(search).get('google') !== 'mfa') return;
+    let cancelled = false;
+    // The challenge was parked in an HttpOnly cookie by the callback; it is taken once, here,
+    // and kept in React state like a password sign-in's — never in the URL.
+    takeGooglePendingMfa(api)
+      .then((pending) => {
+        if (cancelled || !pending) return;
+        setGoogleReturnTo(pending.returnTo);
+        setChallenge({
+          status: 'mfa_required',
+          challengeToken: pending.challengeToken,
+          expiresAt: pending.expiresAt,
+          factors: pending.factors,
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setGoogleError('google.error.failed');
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (email.trim() === '' || password === '') {
@@ -146,7 +182,18 @@ export function SignInScreen({
         client={api}
         challengeToken={challenge.challengeToken}
         {...(challenge.factors[0] ? { factorLabel: challenge.factors[0].label } : {})}
-        onCompleted={signedIn}
+        onCompleted={() => {
+          if (
+            googleReturnTo &&
+            googleReturnTo.startsWith('/') &&
+            googleReturnTo !== '/organizations'
+          ) {
+            boundary.announce('signed-in');
+            window.location.assign(googleReturnTo);
+            return;
+          }
+          signedIn();
+        }}
       />
     );
   }
@@ -192,7 +239,20 @@ export function SignInScreen({
         Passkeys and company SSO are not built (WebAuthn needs a browser authenticator, SSO an
         identity provider), so both stay disabled and the line under them says so in plain words.
       */}
+      {googleError ? (
+        <InlineAlert tone="danger" live>
+          {t(googleError)}
+          {googleError === 'google.error.noAccount' && signUpOffered ? (
+            <>
+              {' '}
+              <Link href="/sign-up">{t('signIn.createAccount')}</Link>
+            </>
+          ) : null}
+        </InlineAlert>
+      ) : null}
+
       <div className="tm-id-methods">
+        {google ? <GoogleSignInButton api={api} input={() => ({ intent: 'sign-in' })} /> : null}
         <Button tone="ink" size="accessible" disabled aria-describedby="tm-sign-in-methods-note">
           <span className="tm-id-orb" aria-hidden="true">
             ◉

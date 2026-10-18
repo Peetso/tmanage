@@ -45,5 +45,17 @@
   "signUp.unavailableTitle": "إنشاء الحسابات غير متاح",
   "signUp.unavailableBody": "تُنشأ الحسابات الجديدة هنا بالدعوة. إن كان لديك حساب فسجّل الدخول.",
   "signIn.newHere": "جديد على TManage؟",
-  "signIn.createAccount": "أنشئ حسابًا"
+  "signIn.createAccount": "أنشئ حسابًا",
+  "google.continue": "المتابعة باستخدام Google",
+  "google.redirecting": "جارٍ فتح Google",
+  "google.or": "أو بالبريد الإلكتروني",
+  "google.error.failed": "لم يكتمل تسجيل الدخول عبر Google. حاول مجددًا أو استخدم بريدك وكلمة المرور.",
+  "google.error.noAccount": "لا يوجد حساب TManage بعنوان Google هذا بعد. أنشئ حسابًا أولًا.",
+  "google.error.signupClosed": "إنشاء حسابات جديدة غير متاح حاليًا.",
+  "google.error.emailMismatch": "أُرسلت هذه الدعوة إلى عنوان بريد مختلف. اختر حساب Google الخاص بالعنوان المدعو، أو استخدم النموذج أدناه.",
+  "google.error.invitationUnusable": "لم يعد بالإمكان استخدام هذه الدعوة. اطلب رابطًا جديدًا ممن دعاك.",
+  "google.error.alreadyLinked": "حساب TManage هذا مرتبط بحساب Google آخر. سجّل الدخول ببريدك وكلمة المرور.",
+  "google.error.unverified": "لم يتحقق Google من عنوان البريد هذا، لذا لا يمكن استخدامه لتسجيل الدخول.",
+  "google.error.cancelled": "أُلغي تسجيل الدخول عبر Google.",
+  "google.error.state": "انتهت صلاحية تسجيل الدخول عبر Google أو بدأ في متصفح آخر. ابدأ من جديد."
 }

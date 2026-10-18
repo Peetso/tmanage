@@ -1056,6 +1056,9 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // ID-002 recovery (ACC-02, migration 0204). A reset link belongs to a person, asked for by
   // somebody with no session who names no tenant — global for the reason the credentials are.
   'password_reset_tokens',
+  // "Continue with Google" (migration 0205). A linked sign-in identity belongs to a person and is
+  // read on the unauthenticated callback before any tenant exists — global like the credentials.
+  'user_identities',
   // Public & trust site (x159, migration 0060). The status-page incidents are GLOBAL: a status
   // page is read by anyone before any organization is named and describes the service as a whole,
   // so `incidents` carries no `organization_id` (0060 explains). Registered here — NOT in

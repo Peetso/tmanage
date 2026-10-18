@@ -153,6 +153,7 @@ import { PublicChangelogModule } from './modules/public-site/changelog.module.js
 import { ContactModule } from './modules/public-site/contact.module.js';
 import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
 import { publicSignupModules } from './modules/signup/public-signup.module.js';
+import { googleAuthModules } from './modules/google-auth/google-auth.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 import { ConnectionHealthModule } from './modules/automations/connection-health.controller.js';
@@ -885,6 +886,9 @@ export class AppModule {
         // Public self-service sign-up (`GET/POST /v1/public/sign-up`). Registered only while
         // `PUBLIC_SIGNUP` is on (the default); off means the routes do not exist and 404.
         ...publicSignupModules(options.config),
+        // "Continue with Google" (`/v1/auth/google/*`). Registered only when GOOGLE_CLIENT_ID and
+        // GOOGLE_CLIENT_SECRET are both set; otherwise the routes 404 and the web hides the button.
+        ...googleAuthModules(options.config),
         // AUTO-01 / module 17 (x162). Org-scoped automation workflow templates (define/list), behind
         // `org.manage`. Depends only on the global tenant database — an org-admin definition with no
         // project to resolve — so its position here is by subject, not by need. Execution/runs are x163.

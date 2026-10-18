@@ -157,3 +157,58 @@ describe('the sign-in page link and the PUBLIC_SIGNUP build flag', () => {
     expect(isPublicSignupOffered('false')).toBe(false);
   });
 });
+
+describe('Continue with Google', () => {
+  it('is hidden when the API has no Google client (404) and shown when it has one', async () => {
+    const off = clientOver((call) =>
+      call.url.endsWith('/v1/auth/google')
+        ? json({ error: { code: 'not_found', message: 'x' } }, 404)
+        : json({}),
+    );
+    const { unmount } = render(
+      <SignInScreen client={off.client} signUpOffered developmentSignInEnabled={false} />,
+    );
+    await waitFor(() =>
+      expect(off.calls.some((c) => c.url.endsWith('/v1/auth/google'))).toBe(true),
+    );
+    expect(screen.queryByRole('button', { name: /Continue with Google/ })).toBeNull();
+    unmount();
+
+    const on = clientOver((call) =>
+      call.url.endsWith('/v1/auth/google') ? json({ available: true, signUp: true }) : json({}),
+    );
+    render(<SignInScreen client={on.client} signUpOffered developmentSignInEnabled={false} />);
+    expect(await screen.findByRole('button', { name: /Continue with Google/ })).toBeInTheDocument();
+  });
+
+  it('starts a sign-up attempt carrying the typed workspace name', async () => {
+    const user = userEvent.setup();
+    const assign = vi.fn();
+    const original = window.location;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...original, assign, search: '' },
+    });
+    try {
+      const { client, calls } = clientOver((call) => {
+        if (call.url.endsWith('/v1/auth/google')) return json({ available: true, signUp: true });
+        if (call.url.endsWith('/v1/auth/google/start'))
+          return json({ url: 'https://accounts.google.com/o/oauth2/v2/auth?x=1' });
+        return json({ available: true });
+      });
+      render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
+      await ready();
+      await user.type(screen.getByLabelText(/^Workspace name/), 'Nile Studio');
+      await user.click(await screen.findByRole('button', { name: /Continue with Google/ }));
+      await waitFor(() =>
+        expect(assign).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?x=1'),
+      );
+      expect(calls.find((c) => c.url.endsWith('/v1/auth/google/start'))?.body).toEqual({
+        intent: 'sign-up',
+        organizationName: 'Nile Studio',
+      });
+    } finally {
+      Object.defineProperty(window, 'location', { configurable: true, value: original });
+    }
+  });
+});

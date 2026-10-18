@@ -52,6 +52,13 @@ export interface ApiConfig extends SessionServiceOptions {
    * suites' hand-built literals) leaves them unregistered, so they 404.
    */
   readonly publicSignup?: boolean;
+  /**
+   * `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. Null or absent = "Continue with Google" routes
+   * are not registered. Never log the secret.
+   */
+  readonly googleOAuth?: { readonly clientId: string; readonly clientSecret: string } | null;
+  /** `WEB_PUBLIC_URL` — the origin the browser uses; the Google callback lives under it. */
+  readonly webPublicUrl?: string;
   /** ID-002. The lockout window, counted from `authentication_events` because there is no Redis. */
   readonly maxFailuresInWindow: number;
   readonly failureWindowSeconds: number;
@@ -132,6 +139,10 @@ export interface ApiConfigSource {
   readonly SETUP_TOKEN?: string | undefined;
   /** Public self-service sign-up; `packages/config` defaults it to true. */
   readonly PUBLIC_SIGNUP?: boolean;
+  /** `| undefined` for EOPT, like `SETUP_TOKEN`. */
+  readonly GOOGLE_CLIENT_ID?: string | undefined;
+  readonly GOOGLE_CLIENT_SECRET?: string | undefined;
+  readonly WEB_PUBLIC_URL?: string;
   readonly SESSION_COOKIE_NAME: string;
   readonly SESSION_SECRET: string;
   readonly SESSION_TTL_SECONDS: number;
@@ -202,6 +213,11 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       : { contactWindowMs: env.RATE_LIMIT_CONTACT_WINDOW_SECONDS * 1_000 }),
     setupToken: env.SETUP_TOKEN && env.SETUP_TOKEN.length > 0 ? env.SETUP_TOKEN : null,
     publicSignup: env.PUBLIC_SIGNUP === true,
+    googleOAuth:
+      env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+        ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
+        : null,
+    ...(env.WEB_PUBLIC_URL === undefined ? {} : { webPublicUrl: env.WEB_PUBLIC_URL }),
     maxFailuresInWindow: env.AUTH_MAX_FAILURES_IN_WINDOW,
     failureWindowSeconds: env.AUTH_FAILURE_WINDOW_SECONDS,
     totpIssuer: env.AUTH_TOTP_ISSUER,

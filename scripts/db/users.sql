@@ -1139,6 +1139,10 @@ GRANT INSERT, UPDATE ON `tmanage`.`user_passwords`      TO 'tmanage_app'@'%';
 -- links retired). No DELETE: a used or superseded link stays as evidence, like the other
 -- credential tables. The worker holds nothing here.
 GRANT INSERT, UPDATE ON `tmanage`.`password_reset_tokens` TO 'tmanage_app'@'%';
+-- 0205 external sign-in identities ("Continue with Google"). INSERT (a Google account is linked),
+-- UPDATE (`last_used_at` on each sign-in). No DELETE: unlinking is not built, and a person's
+-- removal cascades from `users`. The worker holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`user_identities`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 

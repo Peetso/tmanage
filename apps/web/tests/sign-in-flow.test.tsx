@@ -31,6 +31,11 @@ function clientOver(handler: (call: Call) => Response): { client: ApiClient; cal
         method: init?.method,
         body: init?.body === undefined ? undefined : JSON.parse(String(init.body)),
       };
+      // The "Continue with Google" availability probe is not part of these flows: answer it
+      // "not configured" (404) and keep it out of the recorded calls.
+      if (call.url.endsWith('/v1/auth/google')) {
+        return Promise.resolve(json({ error: { code: 'not_found', message: 'Not found' } }, 404));
+      }
       calls.push(call);
       return Promise.resolve(handler(call));
     }) as typeof globalThis.fetch,

@@ -5757,6 +5757,27 @@ export const passwordResetTokens = mysqlTable(
 );
 
 /**
+ * 0205. External sign-in identities ("Continue with Google"): the provider's stable subject,
+ * linked to one person. Global (no `organization_id`), like the other credential tables.
+ */
+export const userIdentities = mysqlTable(
+  'user_identities',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    provider: varchar('provider', { length: 32 }).notNull(),
+    subject: varchar('subject', { length: 255 }).notNull(),
+    email: varchar('email', { length: 254 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+  },
+  (table) => [
+    uniqueIndex('uq_user_identities_subject').on(table.provider, table.subject),
+    uniqueIndex('uq_user_identities_user_provider').on(table.userId, table.provider),
+  ],
+);
+
+/**
  * Second factors. A table rather than a column because the plural is the real case — a
  * phone, a tablet, and later a passkey.
  */
@@ -8175,6 +8196,7 @@ export const TABLES = {
   upload_sessions: uploadSessions,
   user_passwords: userPasswords,
   password_reset_tokens: passwordResetTokens,
+  user_identities: userIdentities,
   user_mfa_factors: userMfaFactors,
   user_recovery_codes: userRecoveryCodes,
   authentication_events: authenticationEvents,

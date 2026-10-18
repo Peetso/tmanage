@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Avatar, Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -18,6 +18,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { GoogleSignInButton, googleErrorKey, useGoogleAvailability } from './GoogleSignInButton';
 import '../../styles/screens/identity.css';
 
 export interface InvitationScreenProps {
@@ -191,6 +192,9 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<{ displayName?: string; password?: string }>({});
+  const google = useGoogleAvailability(api);
+  const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
+  useEffect(() => setGoogleError(googleErrorKey(window.location.search)), []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -229,6 +233,23 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
       <p className="tm-id-inviter__meta">
         New to TManage? Choose your name and a password to join.
       </p>
+      {googleError ? (
+        <InlineAlert tone="danger" live>
+          {t(googleError)}
+        </InlineAlert>
+      ) : null}
+      {google ? (
+        <>
+          {/* Google's email must equal the invited one; the API refuses any other. */}
+          <div className="tm-id-methods">
+            <GoogleSignInButton
+              api={api}
+              input={() => ({ intent: 'invitation', invitationToken: token })}
+            />
+          </div>
+          <p className="tm-divider">{t('google.or')}</p>
+        </>
+      ) : null}
       {/*
         The invited address, filled in and locked: the API creates the account for the
         invitation's own email and ignores anything else, so an editable field would only

@@ -456,6 +456,23 @@ export const envSchema = z
      * Public self-service sign-up (/sign-up). ON when unset — Peter opened it for testing on
      * 2026-10-18. `off` (or false / 0 / no) removes the API routes (404) and the web links.
      */
+    /**
+     * "Continue with Google" (OpenID Connect, scopes openid email profile). Both set = the
+     * button shows and /v1/auth/google/* exists; either unset (or blank) = no button, routes 404.
+     * The OAuth client must list <WEB_PUBLIC_URL>/v1/auth/google/callback as a redirect URI.
+     */
+    GOOGLE_CLIENT_ID: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value === undefined || value.trim() === '' ? undefined : value.trim(),
+      ),
+    GOOGLE_CLIENT_SECRET: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value === undefined || value.trim() === '' ? undefined : value.trim(),
+      ),
     PUBLIC_SIGNUP: z
       .string()
       .optional()

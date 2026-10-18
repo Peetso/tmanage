@@ -45,5 +45,17 @@
   "signUp.unavailableTitle": "Sign-up is not open",
   "signUp.unavailableBody": "New accounts are created by invitation here. If you already have one, sign in.",
   "signIn.newHere": "New to TManage?",
-  "signIn.createAccount": "Create an account"
+  "signIn.createAccount": "Create an account",
+  "google.continue": "Continue with Google",
+  "google.redirecting": "Opening Google",
+  "google.or": "Or with email",
+  "google.error.failed": "Google sign-in did not go through. Try again, or use your email and password.",
+  "google.error.noAccount": "No TManage account uses this Google address yet. Create an account first.",
+  "google.error.signupClosed": "New accounts are not open right now.",
+  "google.error.emailMismatch": "This invitation was sent to a different email address. Choose the Google account for the invited address, or use the form below.",
+  "google.error.invitationUnusable": "This invitation cannot be used any more. Ask whoever invited you for a new link.",
+  "google.error.alreadyLinked": "This TManage account is already linked to a different Google account. Sign in with your email and password.",
+  "google.error.unverified": "Google has not verified this email address, so it cannot be used to sign in.",
+  "google.error.cancelled": "Google sign-in was cancelled.",
+  "google.error.state": "That Google sign-in expired or was started in another browser. Start again."
 }

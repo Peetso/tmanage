@@ -1,0 +1,306 @@
+import type { IdentityQueryRunner, TenantDatabase } from '../../common/database/tenant-context.js';
+import { ApiError } from '../../common/http/errors.js';
+import type { CredentialsRepository } from '../identity/credentials.repository.js';
+import { CHALLENGE_TTL_SECONDS, signChallengeToken } from '../identity/challenge-token.js';
+import type { SignInContext } from '../identity/authentication.service.js';
+import { uuidv7 } from '@tmanage/domain';
+import type { PublicSignupService } from '../signup/public-signup.service.js';
+import {
+  SignupAccountsRepository,
+  SignupEmailTakenError,
+} from '../signup/signup-accounts.repository.js';
+import type { GoogleClaims, GoogleFlow, PendingMfa } from './google-oidc.js';
+import {
+  GOOGLE_IDENTITY_TABLES,
+  IdentityAlreadyLinkedError,
+  UserIdentitiesRepository,
+} from './user-identities.repository.js';
+
+/**
+ * What a verified Google identity is allowed to do, per intent (Peter, 2026-10-18):
+ *
+ * - **Existing account with that email** (or already linked by `sub`): sign in, linking the
+ *   Google identity on first use. If the account has a second factor, it is still required —
+ *   the outcome is a pending MFA challenge, exactly the one a correct password produces.
+ * - **sign-in, no account**: refused (`no_account`). Signing in never creates an account; the
+ *   person has to choose sign-up.
+ * - **sign-up, no account**: creates the user and a NEW organization they own through
+ *   `PublicSignupService.createOwnerAccount` — only while `PUBLIC_SIGNUP` is on.
+ * - **invitation**: the Google email must equal the invited email (`email_mismatch` otherwise).
+ *   No account: one is created for the invited address, linked, and the invitation accepted.
+ *   An existing account signs in (MFA first, if enabled) and the invitation is accepted.
+ */
+
+export const GOOGLE_PROVIDER = 'google';
+export const GOOGLE_SIGN_IN_ACTION = 'google_sign_in';
+
+export type GoogleRefusal =
+  'no_account' | 'signup_closed' | 'email_mismatch' | 'invitation_unusable' | 'already_linked';
+
+export type GoogleOutcome =
+  | { readonly kind: 'signed-in'; readonly userId: string; readonly returnTo: string }
+  | { readonly kind: 'mfa'; readonly userId: string; readonly pending: PendingMfa }
+  | { readonly kind: 'refused'; readonly reason: GoogleRefusal };
+
+export interface InvitationsPort {
+  preview(token: string, correlationId: string): Promise<{ readonly inviteeEmail: string }>;
+  accept(token: string, userId: string, correlationId: string): Promise<unknown>;
+}
+
+export interface GoogleAuthServiceDeps {
+  readonly database: TenantDatabase;
+  readonly credentials: CredentialsRepository;
+  readonly invitations: InvitationsPort;
+  /** Null while `PUBLIC_SIGNUP` is off. */
+  readonly signup: PublicSignupService | null;
+  readonly sessionSecret: string;
+  readonly identities?: UserIdentitiesRepository;
+  readonly accounts?: SignupAccountsRepository;
+  readonly now?: () => number;
+}
+
+const AFTER_SIGN_IN = '/organizations';
+
+export class GoogleAuthService {
+  private readonly identities: UserIdentitiesRepository;
+  private readonly accounts: SignupAccountsRepository;
+  private readonly now: () => number;
+
+  constructor(private readonly deps: GoogleAuthServiceDeps) {
+    this.identities = deps.identities ?? new UserIdentitiesRepository();
+    this.accounts = deps.accounts ?? new SignupAccountsRepository();
+    this.now = deps.now ?? Date.now;
+  }
+
+  get signupOpen(): boolean {
+    return this.deps.signup !== null;
+  }
+
+  async complete(
+    flow: GoogleFlow,
+    claims: GoogleClaims,
+    context: SignInContext,
+  ): Promise<GoogleOutcome> {
+    if (flow.intent === 'invitation') return this.completeInvitation(flow, claims, context);
+
+    const existing = await this.findOrLink(claims, context);
+    if (existing === 'already_linked') return { kind: 'refused', reason: 'already_linked' };
+    if (existing !== null) return this.signIn(existing, AFTER_SIGN_IN, context);
+
+    if (flow.intent === 'sign-in') {
+      await this.record(context, null, 'failed', 'no_such_user');
+      return { kind: 'refused', reason: 'no_account' };
+    }
+    if (this.deps.signup === null) return { kind: 'refused', reason: 'signup_closed' };
+
+    const displayName = claims.name !== '' ? claims.name : (claims.email.split('@')[0] ?? 'Owner');
+    const organizationName =
+      flow.organizationName && flow.organizationName.trim() !== ''
+        ? flow.organizationName.trim()
+        : `${displayName.split(/\s+/u)[0] ?? displayName}'s workspace`;
+    try {
+      const created = await this.deps.signup.createOwnerAccount({
+        email: claims.email,
+        displayName,
+        passwordHash: null,
+        organizationName,
+        timezone: 'UTC',
+        defaultLocale: 'en',
+        emailVerified: true,
+        correlationId: context.correlationId,
+        alsoWithin: (identity, userId) => this.link(identity, userId, claims),
+      });
+      await this.record(context, created.userId, 'succeeded', null);
+      return {
+        kind: 'signed-in',
+        userId: created.userId,
+        returnTo: `/${encodeURIComponent(created.slug)}`,
+      };
+    } catch (error) {
+      // Raced with another sign-up for the same address: sign in to the account that won.
+      if (error instanceof SignupEmailTakenError) {
+        const again = await this.findOrLink(claims, context);
+        if (again !== null && again !== 'already_linked')
+          return this.signIn(again, AFTER_SIGN_IN, context);
+      }
+      throw error;
+    }
+  }
+
+  private async completeInvitation(
+    flow: GoogleFlow,
+    claims: GoogleClaims,
+    context: SignInContext,
+  ): Promise<GoogleOutcome> {
+    const token = flow.invitationToken ?? '';
+    let invitedEmail: string;
+    try {
+      invitedEmail = (await this.deps.invitations.preview(token, context.correlationId))
+        .inviteeEmail;
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404) {
+        return { kind: 'refused', reason: 'invitation_unusable' };
+      }
+      throw error;
+    }
+    if (invitedEmail.trim().toLowerCase() !== claims.email) {
+      await this.record(context, null, 'failed', 'google_email_mismatch');
+      return { kind: 'refused', reason: 'email_mismatch' };
+    }
+
+    let userId = await this.findOrLink(claims, context);
+    if (userId === 'already_linked') return { kind: 'refused', reason: 'already_linked' };
+
+    if (userId === null) {
+      const newId = uuidv7();
+      const displayName =
+        claims.name !== '' ? claims.name : (claims.email.split('@')[0] ?? 'Member');
+      try {
+        await this.deps.database.identityTransaction(
+          { correlationId: context.correlationId, tables: [...GOOGLE_IDENTITY_TABLES] },
+          async (tx) => {
+            await this.accounts.insertUser(tx, {
+              id: newId,
+              email: invitedEmail,
+              displayName,
+              locale: 'en',
+              timezone: 'UTC',
+              emailVerified: true,
+            });
+            await this.link(tx, newId, claims);
+          },
+        );
+        userId = newId;
+      } catch (error) {
+        if (!(error instanceof SignupEmailTakenError)) throw error;
+        const again = await this.findOrLink(claims, context);
+        if (again === null || again === 'already_linked')
+          return { kind: 'refused', reason: 'already_linked' };
+        userId = again;
+      }
+    }
+
+    const factors = await this.factorsOf(userId, context);
+    if (factors.length > 0) {
+      // Second factor first; the invitation is accepted from its own page once signed in.
+      return this.challenge(userId, factors, `/invitations/${encodeURIComponent(token)}`, context);
+    }
+    try {
+      await this.deps.invitations.accept(token, userId, context.correlationId);
+    } catch (error) {
+      // Already a member (ACC-04) is not a reason to refuse a sign-in.
+      if (!(error instanceof ApiError && error.status === 409)) {
+        if (error instanceof ApiError && error.status === 404) {
+          return { kind: 'refused', reason: 'invitation_unusable' };
+        }
+        throw error;
+      }
+    }
+    await this.record(context, userId, 'succeeded', null);
+    return { kind: 'signed-in', userId, returnTo: AFTER_SIGN_IN };
+  }
+
+  /** The person this Google identity belongs to, linking by verified email on first use. */
+  private async findOrLink(
+    claims: GoogleClaims,
+    context: SignInContext,
+  ): Promise<string | null | 'already_linked'> {
+    return this.deps.database.identityTransaction(
+      { correlationId: context.correlationId, tables: [...GOOGLE_IDENTITY_TABLES] },
+      async (tx) => {
+        const bySubject = await this.identities.findUserBySubject(
+          tx,
+          GOOGLE_PROVIDER,
+          claims.subject,
+        );
+        if (bySubject) {
+          await this.identities.touch(tx, GOOGLE_PROVIDER, claims.subject);
+          return bySubject.userId;
+        }
+        const byEmail = await this.identities.findUserByEmail(tx, claims.email);
+        if (!byEmail) return null;
+        try {
+          await this.link(tx, byEmail.userId, claims);
+        } catch (error) {
+          // The account is linked to a DIFFERENT Google account already: never silently swap.
+          if (error instanceof IdentityAlreadyLinkedError) return 'already_linked' as const;
+          throw error;
+        }
+        return byEmail.userId;
+      },
+    );
+  }
+
+  private link(tx: IdentityQueryRunner, userId: string, claims: GoogleClaims): Promise<void> {
+    return this.identities.link(tx, {
+      userId,
+      provider: GOOGLE_PROVIDER,
+      subject: claims.subject,
+      email: claims.email,
+    });
+  }
+
+  private async signIn(
+    userId: string,
+    returnTo: string,
+    context: SignInContext,
+  ): Promise<GoogleOutcome> {
+    const factors = await this.factorsOf(userId, context);
+    if (factors.length > 0) return this.challenge(userId, factors, returnTo, context);
+    await this.record(context, userId, 'succeeded', null);
+    return { kind: 'signed-in', userId, returnTo };
+  }
+
+  private factorsOf(userId: string, context: SignInContext) {
+    return this.deps.database.identityRead(
+      { correlationId: context.correlationId, tables: [...GOOGLE_IDENTITY_TABLES] },
+      (db) => this.deps.credentials.listActiveFactors(db, userId),
+    );
+  }
+
+  /** The same challenge a correct password yields; `/v1/auth/mfa` completes it. */
+  private async challenge(
+    userId: string,
+    factors: readonly { id: string; kind: string; label: string }[],
+    returnTo: string,
+    context: SignInContext,
+  ): Promise<GoogleOutcome> {
+    await this.record(context, userId, 'succeeded', 'mfa_required');
+    const expiresAt = new Date(this.now() + CHALLENGE_TTL_SECONDS * 1000);
+    return {
+      kind: 'mfa',
+      userId,
+      pending: {
+        challengeToken: signChallengeToken({ userId, expiresAt }, this.deps.sessionSecret),
+        expiresAt: expiresAt.toISOString(),
+        factors: factors.map((factor) => ({
+          id: factor.id,
+          kind: factor.kind,
+          label: factor.label,
+        })),
+        returnTo,
+      },
+    };
+  }
+
+  async record(
+    context: SignInContext,
+    userId: string | null,
+    outcome: 'succeeded' | 'failed',
+    reason: string | null,
+  ): Promise<void> {
+    await this.deps.database.identityTransaction(
+      { correlationId: context.correlationId, tables: [...GOOGLE_IDENTITY_TABLES] },
+      (tx) =>
+        this.deps.credentials.recordAuthenticationEvent(tx, {
+          userId,
+          action: GOOGLE_SIGN_IN_ACTION,
+          outcome,
+          reason,
+          ip: context.ip ?? null,
+          userAgent: context.userAgent ?? null,
+          correlationId: context.correlationId,
+        }),
+    );
+  }
+}

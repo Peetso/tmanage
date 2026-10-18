@@ -314,6 +314,8 @@ export async function truncateAll(admin: Pool): Promise<void> {
       'user_passwords',
       // ACC-02 (0204). Reset links name a user.
       'password_reset_tokens',
+      // 0205. Linked Google identities name a user.
+      'user_identities',
       'idempotency_records',
       // USAGE-001 slice 2. Before `outbox_events`: a ledger row names the event that produced
       // it (and `usage_counters`, cleared below).

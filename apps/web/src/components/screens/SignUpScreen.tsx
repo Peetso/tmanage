@@ -13,6 +13,7 @@ import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { GoogleSignInButton, googleErrorKey, useGoogleAvailability } from './GoogleSignInButton';
 import '../../styles/screens/identity.css';
 
 /** `PASSWORD_MIN_LENGTH` in `apps/api/src/modules/identity/password.ts`. */
@@ -65,6 +66,9 @@ export function SignUpScreen({
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [accountExists, setAccountExists] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<SignUpField, string>>>({});
+  const google = useGoogleAvailability(api);
+  const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
+  useEffect(() => setGoogleError(googleErrorKey(window.location.search)), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -193,7 +197,28 @@ export function SignUpScreen({
 
       {availability === 'available' ? (
         <>
+          {googleError ? (
+            <InlineAlert tone="danger" live>
+              {t(googleError)}
+            </InlineAlert>
+          ) : null}
           {alternatives}
+          {google?.signUp ? (
+            <>
+              <div className="tm-id-methods">
+                <GoogleSignInButton
+                  api={api}
+                  input={() => ({
+                    intent: 'sign-up',
+                    ...(organizationName.trim() === ''
+                      ? {}
+                      : { organizationName: organizationName.trim() }),
+                  })}
+                />
+              </div>
+              <p className="tm-divider">{t('google.or')}</p>
+            </>
+          ) : null}
           <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
             <fieldset className="tm-fieldset tm-stack" disabled={!hydrated || submitting}>
               <Field

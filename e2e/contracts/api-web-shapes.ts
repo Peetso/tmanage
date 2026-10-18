@@ -113,6 +113,11 @@ import type {
   PublicSignupView as ApiPublicSignupView,
 } from '../../apps/api/src/modules/signup/public-signup.service.js';
 import type {
+  GoogleAvailabilityView as ApiGoogleAvailabilityView,
+  GooglePendingMfaView as ApiGooglePendingMfaView,
+  GoogleStartView as ApiGoogleStartView,
+} from '../../apps/api/src/modules/google-auth/google-auth.controller.js';
+import type {
   ImportCommitRowView as ApiImportCommitRowView,
   ImportCommitView as ApiImportCommitView,
 } from '../../apps/api/src/modules/import/import.service.js';
@@ -652,6 +657,11 @@ import type {
   PublicSignupAvailabilityView as WebPublicSignupAvailabilityView,
   PublicSignupView as WebPublicSignupView,
 } from '../../apps/web/src/lib/api/sign-up';
+import type {
+  GoogleAvailabilityView as WebGoogleAvailabilityView,
+  GooglePendingMfaView as WebGooglePendingMfaView,
+  GoogleStartView as WebGoogleStartView,
+} from '../../apps/web/src/lib/api/google-auth';
 import type { Command as WebCommand } from '../../apps/web/src/lib/api/commands';
 import type { CopilotAnswerView as WebCopilotAnswerView } from '../../apps/web/src/lib/api/copilot';
 import type {
@@ -2706,6 +2716,10 @@ type _publicSignupAvailability = Assert<
   Exact<ApiPublicSignupAvailabilityView, WebPublicSignupAvailabilityView>
 >;
 type _publicSignup = Assert<Exact<ApiPublicSignupView, WebPublicSignupView>>;
+/** `/v1/auth/google/*` — "Continue with Google" (registered only with a Google client). */
+type _googleAvailability = Assert<Exact<ApiGoogleAvailabilityView, WebGoogleAvailabilityView>>;
+type _googleStart = Assert<Exact<ApiGoogleStartView, WebGoogleStartView>>;
+type _googlePendingMfa = Assert<Exact<ApiGooglePendingMfaView, WebGooglePendingMfaView>>;
 
 /** x255 - calendar focus blocks (personal protected time). Paired Exact. */
 type _focusBlock = Assert<Exact<ApiFocusBlockView, WebFocusBlockView>>;
