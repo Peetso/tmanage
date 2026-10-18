@@ -1,0 +1,550 @@
+/*
+ * Pricing page (/pricing) — composed from the website layer and Limeframe tokens only
+ * (packages/ui/src/styles/tokens.css, components.css). No new colours, fonts or sizes.
+ */
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+
+/* 11-pricing draws its section eyebrows as plain small grey sans capitals, with no dot. */
+.tm-pricing .tm-web-eyebrow {
+  font-family: inherit;
+}
+
+.tm-pricing .tm-web-eyebrow__dot {
+  display: none;
+}
+
+.tm-pricing-hero.tm-web-section--default {
+  padding-block: var(--s20) var(--s24);
+}
+
+/* The page head runs wider than a section head so the title breaks as drawn. */
+.tm-pricing-hero .tm-web-header {
+  max-inline-size: calc(var(--doc) + var(--s20));
+}
+
+.tm-pricing-hero .tm-web-header__title {
+  font-weight: 400;
+}
+
+.tm-pricing-hero .tm-web-header__lede {
+  max-inline-size: calc(var(--doc) + var(--s16));
+}
+
+.tm-pricing-hero__toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s3);
+  margin-block-start: var(--s4);
+}
+
+/* The plan picker (a packages/ui Select) only shows where one plan is shown at a time. */
+.tm-pricing-picker.tm-field {
+  display: none;
+}
+
+.tm-pricing-hero__note {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-pricing-toggle.tm-segmented {
+  background: var(--paper-150);
+}
+
+/* The segmented switch from components.css. 11-pricing draws the pressed segment as a paper
+ * pill with a flat lime rule under its label, not the app's ink fill. */
+.tm-pricing-toggle.tm-segmented > .tm-pricing-toggle__item {
+  position: relative;
+  min-block-size: var(--orb-default);
+  transition:
+    background-color var(--t-selection) var(--ease),
+    color var(--t-selection) var(--ease);
+}
+
+.tm-pricing-toggle.tm-segmented > .tm-pricing-toggle__item[aria-pressed='true'] {
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-pricing-toggle__item::after {
+  content: '';
+  position: absolute;
+  inset-inline: var(--s3);
+  inset-block-end: 0;
+  block-size: var(--b-expressive);
+  background: transparent;
+}
+
+.tm-pricing-toggle__item[aria-pressed='true']::after {
+  background: var(--lime-500);
+}
+
+.tm-pricing-toggle__item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Plan cards ──────────────────────────────────────────────────────────── */
+
+.tm-pricing .tm-pricing-plans,
+.tm-pricing .tm-pricing-compare {
+  margin-block-start: var(--s12);
+}
+
+.tm-pricing-plans {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--s4);
+  align-items: stretch;
+}
+
+.tm-pricing-plan {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s8) var(--s6) var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+}
+
+.tm-pricing-plan--featured {
+  border: var(--b-expressive) solid var(--lime-500);
+}
+
+.tm-pricing-plan--ink {
+  border-color: var(--tm-ink-absolute);
+  background: var(--tm-ink-absolute);
+  color: var(--tm-paper-absolute);
+}
+
+.tm-pricing-plan__flag.tm-badge {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  transform: translate(-50%, -50%);
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+[dir='rtl'] .tm-pricing-plan__flag.tm-badge {
+  transform: translate(50%, -50%);
+}
+
+.tm-pricing-plan__name {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pricing-plan__positioning {
+  margin-block-start: var(--s2);
+  min-block-size: calc(var(--t-body-md-line) * 3);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-pricing-plan--ink .tm-pricing-plan__name,
+.tm-pricing-plan--ink .tm-pricing-plan__positioning,
+.tm-pricing-plan--ink .tm-pricing-plan__unit,
+.tm-pricing-plan--ink .tm-pricing-plan__feature {
+  color: var(--tm-paper-absolute);
+}
+
+.tm-pricing-plan__price {
+  margin-block-start: var(--s6);
+}
+
+.tm-pricing-plan__figure {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-pricing-plan__amount {
+  font-size: var(--t-display-metric);
+  line-height: var(--t-display-metric-line);
+  font-weight: 300;
+  color: inherit;
+  white-space: nowrap;
+}
+
+.tm-pricing-plan__unit {
+  padding-block-end: var(--s1);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-800);
+}
+
+.tm-pricing-plan__note {
+  margin-block-start: var(--s1);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-pricing-plan--ink .tm-pricing-plan__note {
+  color: var(--web-on-ink-muted);
+}
+
+.tm-pricing-plan__cta.tm-button {
+  inline-size: 100%;
+  justify-content: center;
+  margin-block-start: var(--s6);
+}
+
+.tm-pricing-plan__features {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin-block-start: var(--s6);
+  padding-block-start: var(--s5);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-pricing-plan--ink .tm-pricing-plan__features {
+  border-color: var(--line-700);
+}
+
+.tm-pricing-plan__feature {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-800);
+}
+
+.tm-pricing-plan__check {
+  flex: none;
+  /* Centres the 16px glyph on the 20px label line. */
+  margin-block-start: calc((var(--t-ui-md-line) - var(--s4)) / 2);
+}
+
+.tm-pricing-plan--ink .tm-pricing-plan__check {
+  color: var(--lime-500);
+}
+
+/* ── How it's counted ────────────────────────────────────────────────────── */
+
+.tm-pricing-counted.tm-web-section--default {
+  padding-block: var(--s20);
+}
+
+.tm-pricing-rules {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s6);
+}
+
+.tm-pricing-rule {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-pricing-rule__scene {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  min-block-size: var(--orb-default);
+}
+
+.tm-pricing-rule__scene--compact {
+  gap: var(--s3);
+}
+
+.tm-pricing-rule__avatar.tm-avatar,
+[data-theme='dark'] .tm-pricing-rule__avatar.tm-avatar {
+  background: var(--paper-250);
+  color: var(--ink-800);
+}
+
+.tm-pricing-rule__mono {
+  font-family: var(--font-mono);
+}
+
+.tm-pricing-rule__ink {
+  color: var(--ink-950);
+}
+
+.tm-pricing-rule__title {
+  margin-block-start: var(--s4);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pricing-rule__body {
+  margin-block-start: var(--s4);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+/* ── Comparison table ────────────────────────────────────────────────────── */
+
+.tm-pricing-compare {
+  position: relative;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow: clip;
+}
+
+.tm-pricing-compare__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.tm-pricing-compare__table th,
+.tm-pricing-compare__table td {
+  padding: var(--s4) var(--s6);
+  font-weight: 400;
+  text-align: center;
+}
+
+.tm-pricing-compare__table thead th {
+  position: sticky;
+  inset-block-start: var(--web-nav-h);
+  z-index: 1;
+  padding-block: var(--s5);
+  background: var(--paper-0);
+  box-shadow: inset 0 calc(var(--b-quiet) * -1) 0 var(--line-700);
+}
+
+.tm-pricing-compare__corner {
+  inline-size: 38%;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-pricing-compare__table .tm-pricing-compare__corner,
+.tm-pricing-compare__table .tm-pricing-compare__feature,
+.tm-pricing-compare__group th {
+  text-align: start;
+}
+
+.tm-pricing-compare__table .tm-pricing-compare__plan {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pricing-compare__group th {
+  padding-block: var(--s3);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-150);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pricing-compare__table tbody:first-of-type .tm-pricing-compare__group th {
+  border-block-start: 0;
+}
+
+.tm-pricing-compare__table tbody tr:not(.tm-pricing-compare__group) > * {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-pricing-compare__table .tm-pricing-compare__feature {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-800);
+}
+
+.tm-pricing-compare__check {
+  color: var(--ink-950);
+  vertical-align: middle;
+}
+
+.tm-pricing-compare__none {
+  color: var(--ink-500);
+}
+
+.tm-pricing-compare__word {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+/* ── FAQ ─────────────────────────────────────────────────────────────────── */
+
+.tm-pricing-faq {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--s12);
+}
+
+.tm-pricing-faq__item {
+  padding-block: var(--s6) var(--s8);
+  border-block-start: var(--b-quiet) solid var(--line-700);
+}
+
+/* The last row closes on the section padding, as drawn. */
+.tm-pricing-faq__item:nth-last-child(-n + 2) {
+  padding-block-end: 0;
+}
+
+.tm-pricing-faq__question {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pricing-faq__answer {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+/* ── CTA band (text-only, two buttons) ───────────────────────────────────── */
+
+.tm-pricing-cta .tm-web-cta__title {
+  max-inline-size: var(--doc);
+}
+
+.tm-pricing-cta .tm-web-cta__lede {
+  max-inline-size: var(--reading);
+  margin-block-start: var(--s5);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1279px) {
+  .tm-pricing-plans {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: var(--s8);
+  }
+
+  .tm-pricing-plan--ink {
+    grid-column: 1 / -1;
+  }
+
+  .tm-pricing-plan__positioning {
+    min-block-size: 0;
+  }
+
+  .tm-pricing-rules {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-pricing-compare__table thead th {
+    position: static;
+  }
+
+  .tm-pricing-compare__table th,
+  .tm-pricing-compare__table td {
+    padding-inline: var(--s4);
+  }
+}
+
+/* Below 1024 the five plan columns no longer fit: the table shows one plan at a time,
+ * picked with the Select above it (Slack's mobile pattern), so nothing scrolls sideways. */
+@media (max-width: 1023px) {
+  .tm-pricing-picker--compare.tm-field {
+    display: flex;
+  }
+
+  .tm-pricing .tm-pricing-picker--compare + .tm-pricing-compare {
+    margin-block-start: var(--s4);
+  }
+
+  .tm-pricing-compare__plan:not(.is-active),
+  .tm-pricing-compare__cell:not(.is-active) {
+    display: none;
+  }
+
+  /* Auto layout lets the hidden plan columns collapse to nothing. */
+  .tm-pricing-compare__table {
+    table-layout: auto;
+  }
+
+  .tm-pricing-compare__corner {
+    inline-size: 60%;
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-pricing-hero.tm-web-section--default {
+    padding-block: var(--s16);
+  }
+
+  .tm-pricing-plans {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* One plan card at a time on a phone, picked with the Select above the cards. */
+  .tm-pricing-picker--plans.tm-field {
+    display: flex;
+  }
+
+  .tm-pricing .tm-pricing-picker--plans + .tm-pricing-plans {
+    margin-block-start: var(--s6);
+  }
+
+  .tm-pricing-plan:not(.is-active) {
+    display: none;
+  }
+
+  /* Section heads read from the start edge on a phone, as the FAQ head already does. */
+  .tm-pricing .tm-web-header--center:not(.tm-web-header--page) {
+    align-items: flex-start;
+    margin-inline: 0;
+    text-align: start;
+  }
+
+  .tm-pricing-compare__table th,
+  .tm-pricing-compare__table td {
+    padding: var(--s3) var(--s4);
+  }
+
+  .tm-pricing-compare__table thead th {
+    padding-block: var(--s4);
+  }
+
+  .tm-pricing-compare__table .tm-pricing-compare__feature {
+    font-size: var(--t-ui-md);
+    line-height: var(--t-ui-md-line);
+  }
+
+  .tm-pricing-faq {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-pricing-faq__item:nth-last-child(2) {
+    padding-block-end: var(--s8);
+  }
+
+  .tm-pricing-counted.tm-web-section--default {
+    padding-block: var(--s16);
+  }
+
+  .tm-pricing-rule {
+    padding: var(--s6);
+  }
+
+  .tm-pricing-cta.tm-web-cta {
+    padding: var(--s12) var(--s6);
+  }
+}

@@ -18,12 +18,10 @@ import { API_URL } from '../setup/stack.js';
  *
  * The properties under test are the ones a public write door owns:
  *
- *  - **Form to lead record.** A valid submission in the browser records exactly one lead,
- *    attributed to `contact_form`, carrying exactly what was typed (trimmed), and the page
- *    acknowledges receipt without echoing anything stored.
- *  - **The server is the authority.** An email the client's own bounds let through but the
- *    server's shape check rejects is a 400 the screen renders verbatim, and no lead is
- *    written on that path.
+ *  - **Form to lead record.** A valid demo request in the browser records exactly one lead,
+ *    attributed to `contact_form`, carrying what was typed (trimmed, the demo fields as
+ *    labelled lines of the message), and the page acknowledges receipt without echoing it.
+ *  - **A malformed email never leaves the form**, and no lead is written on that path.
  *  - **The door needs no session and no CSRF token** — unlike every other write — and still
  *    refuses malformed and over-length input with a 400 that writes nothing.
  *
@@ -89,33 +87,40 @@ function uniqueEmail(): string {
 }
 
 test.describe('the public-site lead-capture journeys', () => {
-  test('E2E-public-lead-a: the contact form records exactly one lead, and the URL carries no PII', async ({
+  test('E2E-public-lead-a: the demo form records exactly one lead, and the URL carries no PII', async ({
     page,
   }) => {
     const email = uniqueEmail();
     const name = 'Ada Lovelace';
-    const message = 'We would like a demo for our studio of six.';
 
     await page.goto('/contact');
     // The form ships disabled until React hydrates (the standing barrier the request
     // journey documents): an enabled field is the app saying it will keep what is typed.
-    await expect(page.getByLabel('Your name')).toBeEnabled();
+    await expect(page.getByLabel('Full name')).toBeEnabled();
 
-    await page.getByLabel('Your name').fill(name);
+    await page.getByLabel('Full name').fill(name);
     await page.getByLabel('Work email').fill(email);
-    await page.getByLabel('Message').fill(message);
-    await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByLabel('Company').fill('Northwind Studio');
+    await page.getByLabel('Team size').selectOption('1–10');
+    await page.getByLabel('What would you like to see?').fill('A demo for our studio of six.');
+    await page.getByRole('button', { name: 'Book my demo' }).click();
 
-    await expect(page.getByText('Thanks — we have your message')).toBeVisible();
+    await expect(
+      page.getByText("Thanks — we'll be in touch within one business day."),
+    ).toBeVisible();
     // No PII in the URL: the submission is a POST, so the page stays on /contact with no
     // query string carrying the name or email.
     const url = new URL(page.url());
     expect(url.pathname).toBe('/contact');
     expect(url.search).toBe('');
 
+    // The demo fields travel inside the one message the public door takes, as labelled lines.
     const leads = await readLeads(email);
     expect(leads.count).toBe(1);
-    expect(leads.rows[0]).toMatchObject({ name, email, message, source: 'contact_form' });
+    expect(leads.rows[0]).toMatchObject({ name, email, source: 'contact_form' });
+    expect(leads.rows[0]!.message).toContain('Company: Northwind Studio');
+    expect(leads.rows[0]!.message).toContain('Team size: 1–10');
+    expect(leads.rows[0]!.message).toContain('A demo for our studio of six.');
   });
 
   test('E2E-public-lead-b: the form trims each field and stores the trimmed value', async ({
@@ -124,46 +129,47 @@ test.describe('the public-site lead-capture journeys', () => {
     const email = uniqueEmail();
 
     await page.goto('/contact');
-    await expect(page.getByLabel('Your name')).toBeEnabled();
+    await expect(page.getByLabel('Full name')).toBeEnabled();
 
-    await page.getByLabel('Your name').fill('  Grace Hopper  ');
+    await page.getByLabel('Full name').fill('  Grace Hopper  ');
     await page.getByLabel('Work email').fill(`  ${email}  `);
-    await page.getByLabel('Message').fill('  Please get in touch about onboarding.  ');
-    await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByLabel('Company').fill('  Harbour Partners  ');
+    await page.getByLabel('Team size').selectOption('11–50');
+    await page.getByLabel('What would you like to see?').fill('  Onboarding, please.  ');
+    await page.getByRole('button', { name: 'Book my demo' }).click();
 
-    await expect(page.getByText('Thanks — we have your message')).toBeVisible();
+    await expect(
+      page.getByText("Thanks — we'll be in touch within one business day."),
+    ).toBeVisible();
 
     const leads = await readLeads(email);
     expect(leads.count).toBe(1);
-    expect(leads.rows[0]).toMatchObject({
-      name: 'Grace Hopper',
-      email,
-      message: 'Please get in touch about onboarding.',
-      source: 'contact_form',
-    });
+    expect(leads.rows[0]).toMatchObject({ name: 'Grace Hopper', email, source: 'contact_form' });
+    expect(leads.rows[0]!.message).toContain('Company: Harbour Partners\nTeam size: 11–50');
+    expect(leads.rows[0]!.message).toMatch(/Onboarding, please\.$/);
   });
 
-  test('E2E-public-lead-c: the screen surfaces the server’s rejection of a malformed email and writes nothing', async ({
+  test('E2E-public-lead-c: the form refuses a malformed email before sending and writes nothing', async ({
     page,
   }) => {
-    // The client mirrors the column *bounds* but not the email *shape* — a value that is
-    // non-empty and short enough passes the browser's own check and reaches the server,
-    // which is the authority on shape. The address has no `@`, so the server refuses it.
+    // The demo form checks the email shape itself; the server stays the authority on the raw
+    // door (cases d and e). The address has no `@`, so nothing is sent.
     const malformed = `not-an-email-${randomUUID()}`;
 
     await page.goto('/contact');
-    await expect(page.getByLabel('Your name')).toBeEnabled();
+    await expect(page.getByLabel('Full name')).toBeEnabled();
 
-    await page.getByLabel('Your name').fill('Katherine Johnson');
+    await page.getByLabel('Full name').fill('Katherine Johnson');
     await page.getByLabel('Work email').fill(malformed);
-    await page.getByLabel('Message').fill('Hoping to talk about a pilot.');
-    await page.getByRole('button', { name: 'Send message' }).click();
+    await page.getByLabel('Company').fill('Langley Analytics');
+    await page.getByLabel('Team size').selectOption('51–200');
+    await page.getByRole('button', { name: 'Book my demo' }).click();
 
-    // The API's 400 is rendered verbatim — a shape message with nothing stored in it — and
-    // the success alert never appears.
-    await expect(page.getByText('Could not send your message')).toBeVisible();
-    await expect(page.getByText('name, email and message are required')).toBeVisible();
-    await expect(page.getByText('Thanks — we have your message')).toHaveCount(0);
+    await expect(page.getByText('Could not send your request')).toBeVisible();
+    await expect(page.getByText('Enter a work email like name@company.com.')).toBeVisible();
+    await expect(page.getByText("Thanks — we'll be in touch within one business day.")).toHaveCount(
+      0,
+    );
 
     const leads = await readLeads(malformed);
     expect(leads.count).toBe(0);

@@ -1,0 +1,643 @@
+/*
+ * WEB-07 · Client portal — page-only layout and the portal scenes. Limeframe tokens only
+ * (packages/ui tokens.css, components.css constants and the website layer's --web-* aliases);
+ * no new colours, fonts or sizes.
+ */
+
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+
+.tm-cp-hero__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+  align-items: center;
+  gap: var(--s16);
+}
+
+.tm-cp-hero .tm-web-header__lede {
+  color: var(--web-on-ink-muted);
+}
+
+.tm-cp-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+  margin-block-start: var(--s4);
+}
+
+.tm-cp-hero__visual {
+  min-inline-size: 0;
+}
+
+.tm-cp-hero__visual .tm-cp-card {
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+/* ── Thirty seconds ──────────────────────────────────────────────────────── */
+
+.tm-cp-three {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s6);
+}
+
+/* Each card ends in a peek of the portal fragment it names, bottom-aligned across the row. */
+/* The peek takes the rest of the card, so the three peeks share one height and baseline. */
+.tm-cp-glance__peek {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  inline-size: 100%;
+  padding-block-start: var(--s8);
+}
+
+.tm-cp-peek {
+  display: grid;
+  flex: 1;
+  align-content: center;
+  padding: var(--s4);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+  color: var(--ink-950);
+}
+
+.tm-cp-peek .tm-cp-stages,
+.tm-cp-peek .tm-cp-list--peek {
+  margin-block-start: 0;
+}
+
+.tm-cp-peek .tm-cp-stage__label {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-cp-peek .tm-cp-stage__label .tm-web-icon {
+  display: none;
+}
+
+.tm-cp-metric--peek {
+  margin-block-start: 0;
+  padding: 0;
+  background: none;
+}
+
+/* ── Invisible, not hidden ───────────────────────────────────────────────── */
+
+.tm-cp-split {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  align-items: center;
+  gap: var(--s16);
+}
+
+.tm-cp-split .tm-web-header + * {
+  margin-block-start: 0;
+}
+
+.tm-cp-audiences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-cp-audience {
+  display: flex;
+  align-items: center;
+  gap: var(--s5);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-cp-audience__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-cp-audience__title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-cp-audience__body {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+/* ── Free for clients ────────────────────────────────────────────────────── */
+
+.tm-cp-free {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  align-items: center;
+  gap: var(--s24);
+}
+
+.tm-cp-free__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s5);
+}
+
+.tm-cp-free__text .tm-web-stat {
+  margin-block-start: var(--s6);
+}
+
+.tm-cp-free__text .tm-web-stat__note {
+  max-inline-size: 36ch;
+}
+
+/* ── Bilingual lime card ─────────────────────────────────────────────────── */
+
+.tm-cp-arabic {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  align-items: center;
+  gap: var(--s16);
+  padding: var(--s16);
+  border-radius: var(--r-feature);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-cp-arabic__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s5);
+}
+
+.tm-cp-arabic .tm-web-eyebrow {
+  color: var(--tm-on-lime);
+}
+
+/* The lime dot would vanish on the lime card, so it takes the ink it sits on. */
+.tm-cp-arabic .tm-web-eyebrow__dot {
+  background: var(--tm-on-lime);
+}
+
+.tm-cp-arabic .tm-web-eyebrow [lang='ar'] {
+  font-family: var(--font-arabic);
+  letter-spacing: 0;
+}
+
+.tm-cp-arabic__title {
+  font-size: var(--t-display-lg);
+  line-height: var(--t-display-lg-line);
+  color: var(--tm-on-lime);
+  text-wrap: balance;
+}
+
+.tm-cp-arabic__body {
+  max-inline-size: 44ch;
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+}
+
+.tm-cp-arabic__visual {
+  min-inline-size: 0;
+}
+
+/* ── Portal scenes ───────────────────────────────────────────────────────── */
+
+.tm-cp-card {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  text-align: start;
+}
+
+.tm-cp-card:lang(ar) {
+  font-family: var(--font-arabic);
+}
+
+.tm-cp-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-150);
+}
+
+.tm-cp-url {
+  min-inline-size: 0;
+  overflow: hidden;
+  padding: var(--s1) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-800);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+.tm-cp-pad {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s6);
+}
+
+.tm-cp-kicker {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-cp-title {
+  margin-block-start: var(--s2);
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 500;
+  text-wrap: balance;
+}
+
+.tm-cp-title--small {
+  margin-block-start: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+}
+
+.tm-cp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.tm-cp-head + .tm-cp-title {
+  margin-block-start: var(--s4);
+}
+
+.tm-cp-heading {
+  margin-block-start: var(--s6);
+}
+
+/* Stage track */
+.tm-cp-stages {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s2);
+  margin-block-start: var(--s5);
+}
+
+.tm-cp-stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-cp-stage__bar {
+  block-size: var(--s1);
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+}
+
+.tm-cp-stage--done .tm-cp-stage__bar {
+  background: var(--ink-950);
+}
+
+.tm-cp-stage--current .tm-cp-stage__bar {
+  background: var(--lime-500);
+}
+
+.tm-cp-stage__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  overflow: hidden;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+.tm-cp-stage--current .tm-cp-stage__label {
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+/* One number */
+.tm-cp-metric {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  margin-block-start: var(--s5);
+  padding: var(--s4) var(--s5);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+}
+
+.tm-cp-metric__value {
+  font-size: var(--t-display-lg);
+  line-height: var(--t-display-lg-line);
+}
+
+.tm-cp-metric__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-cp-metric__label {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: 600;
+}
+
+/* Rows */
+.tm-cp-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin-block-start: var(--s3);
+}
+
+.tm-cp-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-cp-row--live {
+  border-color: var(--lime-500);
+  background: var(--lime-100);
+}
+
+.tm-cp-row--invite {
+  border-style: dashed;
+}
+
+/* The text keeps at least 144px; when the row is narrower the capsule and button wrap
+   below it instead of truncating the title. */
+.tm-cp-row__text {
+  display: flex;
+  flex: 1 1 calc(var(--s24) + var(--s12));
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-cp-row__title {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 600;
+  text-wrap: pretty;
+}
+
+.tm-cp-row__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-cp-row .tm-state-capsule {
+  flex: none;
+}
+
+.tm-cp-row__action {
+  flex: none;
+}
+
+.tm-cp-mono-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.tm-cp-mono-chip--dashed {
+  border-style: dashed;
+}
+
+.tm-cp-people {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-block-start: var(--s5);
+}
+
+.tm-cp-avatars {
+  display: inline-flex;
+  gap: var(--s1);
+}
+
+/* Approval */
+.tm-cp-version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+  margin-block-start: var(--s3);
+}
+
+.tm-cp-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin-block-start: var(--s3);
+}
+
+.tm-cp-checks li {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-cp-checks .tm-web-icon {
+  flex: none;
+  color: var(--success-600);
+}
+
+.tm-cp-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+  margin-block-start: var(--s5);
+  padding: var(--s4);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+}
+
+.tm-cp-feedback__text {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-cp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-block-start: var(--s6);
+}
+
+/* Requests */
+.tm-cp-field {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: var(--control);
+  margin-block-start: var(--s4);
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  overflow: hidden;
+  font-size: var(--t-ui-md);
+  color: var(--ink-650);
+  white-space: nowrap;
+}
+
+/* Seats */
+.tm-cp-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-block-start: var(--s5);
+}
+
+/* Scene widths inside the sunken frames: the row scenes fill most of their frame, so the
+   grey panel frames a product screen rather than surrounding a small card. */
+.tm-cp-scene--approval,
+.tm-cp-scene--requests {
+  max-inline-size: calc(var(--s24) * 6);
+}
+
+.tm-cp-scene--seats {
+  max-inline-size: calc(var(--s24) * 5);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1279px) {
+  .tm-cp-hero__grid,
+  .tm-cp-split,
+  .tm-cp-free,
+  .tm-cp-arabic {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s12);
+  }
+
+  .tm-cp-arabic {
+    padding: var(--s12);
+  }
+}
+
+/* Three peeks side by side need desktop width; on tablet each card takes the row. */
+@media (max-width: 1023px) {
+  .tm-cp-three {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s4);
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-cp-hero__grid,
+  .tm-cp-split,
+  .tm-cp-free,
+  .tm-cp-arabic {
+    gap: var(--s10);
+  }
+
+  .tm-cp-arabic {
+    padding: var(--s8) var(--s5);
+  }
+
+  .tm-cp-arabic__title {
+    font-size: var(--t-heading-page);
+    line-height: var(--t-heading-page-line);
+  }
+
+  .tm-cp-audience {
+    flex-wrap: wrap;
+    padding: var(--s5);
+  }
+
+  .tm-cp-audience__text {
+    flex-basis: calc(100% - var(--orb-default) - var(--s5));
+  }
+
+  .tm-cp-audience .tm-badge,
+  .tm-cp-audience .tm-state-capsule {
+    margin-inline-start: calc(var(--orb-default) + var(--s5));
+  }
+
+  .tm-cp-pad {
+    padding: var(--s4);
+  }
+
+  .tm-cp-bar {
+    padding-inline: var(--s4);
+  }
+
+  .tm-cp-title {
+    font-size: var(--t-heading-card);
+    line-height: var(--t-heading-card-line);
+  }
+
+  .tm-cp-row {
+    padding: var(--s3);
+  }
+
+  .tm-cp-stages {
+    gap: var(--s1);
+  }
+
+  .tm-cp-stage__label {
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+  }
+
+  .tm-cp-stage__label .tm-web-icon {
+    display: none;
+  }
+
+  /* Approve first and full width, Request changes under it. */
+  .tm-cp-actions {
+    flex-direction: column-reverse;
+  }
+
+  .tm-cp-actions .tm-button {
+    inline-size: 100%;
+    justify-content: center;
+  }
+
+  .tm-cp-metric__value {
+    font-size: var(--t-heading-page);
+    line-height: var(--t-heading-page-line);
+  }
+}

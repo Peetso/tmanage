@@ -1,0 +1,758 @@
+/*
+ * Security & trust page (/security, Figma 12-security). Page-only layout on top of website.css.
+ * Every value is a Limeframe token (tokens.css) or a website.css variable; the only sizes are
+ * token multiples (the cropped product windows are `--s24` multiples, as website.css does for
+ * the CTA crop).
+ */
+
+/*
+ * Page constants. Limeframe has size, line and space tokens but no weight token: the medium
+ * weight is the 500 that components.css uses for labels and titles, named once here. The scene
+ * scales are the SITE-SPEC §0 "clone at 0.5–0.75" rule, the same `zoom` the other pages use.
+ */
+.tm-sec {
+  --sec-weight-medium: 500;
+  --sec-scene-scale: 0.75;
+  --sec-scene-scale-dense: 0.62;
+  --sec-scene-scale-publish: 0.68;
+  --sec-scene-scale-phone: 0.5;
+}
+
+/* ── Hero (ink) ──────────────────────────────────────────────────────────── */
+
+.tm-sec-hero .tm-web-header--hero {
+  max-inline-size: calc(var(--web-column) - var(--s24) * 2);
+}
+
+.tm-sec-hero .tm-web-header__lede {
+  color: var(--web-on-ink);
+}
+
+.tm-sec-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s3);
+  margin-block-start: var(--s2);
+}
+
+/* ── Six guarantees ──────────────────────────────────────────────────────── */
+
+/* As drawn: the title breaks after "not in", and the grid sits a step further from the lede. */
+#guarantees .tm-web-header__title {
+  max-inline-size: calc(var(--s24) * 7 + var(--s12));
+}
+
+.tm-sec .tm-sec-pillars {
+  margin-block-start: var(--s16);
+}
+
+.tm-sec-pillars {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s6);
+}
+
+.tm-sec-pillar {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-sec-pillar__n {
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-sec-pillar__title {
+  margin-block-start: var(--s5);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: var(--sec-weight-medium);
+  color: var(--ink-950);
+}
+
+.tm-sec-pillar__body {
+  margin-block-start: var(--s4);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+/* ── Feature rows ────────────────────────────────────────────────────────── */
+
+.tm-sec-rows.tm-web-section--compact {
+  padding-block: var(--s8) var(--s24);
+}
+
+.tm-sec-rows .tm-web-feature {
+  grid-template-columns: minmax(0, 4fr) minmax(0, 5fr);
+}
+
+.tm-sec-rows .tm-web-feature--reverse {
+  grid-template-columns: minmax(0, 5fr) minmax(0, 4fr);
+}
+
+.tm-sec-rows .tm-web-feature + .tm-web-feature {
+  margin-block-start: var(--s24);
+}
+
+.tm-sec-rows .tm-web-visual {
+  place-items: start;
+  block-size: calc(var(--s24) * 4 + var(--s12));
+  padding: var(--s10) 0 0;
+  padding-inline-start: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+}
+
+/* ── Product windows (cropped scenes) ────────────────────────────────────── */
+
+.tm-sec-scene {
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-sec-scene--window {
+  inline-size: calc(var(--s24) * 10);
+  max-inline-size: none;
+  zoom: var(--sec-scene-scale);
+}
+
+/* The audit log is a dense table: drawn smaller so the whole table ends inside the frame. */
+.tm-sec-scene--dense {
+  inline-size: calc(var(--s24) * 11);
+  zoom: var(--sec-scene-scale-dense);
+}
+
+/* The safety check is tall: a little smaller and nearer the frame top so its warning shows whole. */
+.tm-sec-scene--publish {
+  zoom: var(--sec-scene-scale-publish);
+}
+
+.tm-sec-rows .tm-web-visual:has(.tm-sec-scene--publish) {
+  padding-block-start: var(--s6);
+}
+
+.tm-sec-window {
+  border: var(--b-quiet) solid var(--line-300);
+  border-start-start-radius: var(--r-sheet);
+  background: var(--paper-150);
+  box-shadow: calc(var(--s3) * -1) 0 0 calc(var(--s1) * -1) var(--paper-250);
+}
+
+.tm-sec-window__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s5);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-250);
+}
+
+.tm-sec-window__tile {
+  inline-size: var(--s5);
+  block-size: var(--s5);
+  border-radius: var(--r-micro);
+  background: var(--web-ink);
+  flex: none;
+}
+
+.tm-sec-window__controls {
+  display: inline-flex;
+  gap: var(--s2);
+  margin-inline-start: var(--s2);
+}
+
+.tm-sec-window__controls .tm-web-chip {
+  min-block-size: var(--s6);
+  font-size: var(--t-caption);
+}
+
+.tm-sec-window--plain {
+  background: var(--paper-250);
+}
+
+.tm-sec-window__body {
+  padding: var(--s5);
+}
+
+.tm-sec-split {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 3fr);
+  gap: var(--s3);
+  align-items: start;
+}
+
+.tm-sec-split--publish {
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+}
+
+.tm-sec-split__main,
+.tm-sec-split__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-sec-card {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  padding: var(--s4);
+}
+
+.tm-sec-card__title {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: var(--sec-weight-medium);
+}
+
+.tm-sec-scene__title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: var(--sec-weight-medium);
+}
+
+.tm-sec-scene__note {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-sec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-sec-chip--ink {
+  border-color: var(--web-ink);
+  background: var(--web-ink);
+  color: var(--web-on-ink);
+}
+
+.tm-sec-chip--lime {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-sec-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--s2);
+}
+
+.tm-sec-chips .tm-web-chip {
+  white-space: nowrap;
+}
+
+.tm-sec-chips .tm-web-chip,
+.tm-sec-recipient .tm-web-chip {
+  min-block-size: var(--s6);
+  font-size: var(--t-caption);
+}
+
+/* Offboarding steps */
+
+.tm-sec-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s4);
+  list-style: none;
+}
+
+.tm-sec-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.tm-sec-step__mark {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--s4);
+  block-size: var(--s4);
+  margin-block-start: var(--s1);
+  border: var(--b-structural) solid var(--line-700);
+  border-radius: var(--r-capsule);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  flex: none;
+}
+
+.tm-sec-step--done .tm-sec-step__mark {
+  background: var(--web-ink);
+  border-color: var(--web-ink);
+  color: var(--web-on-ink);
+}
+
+.tm-sec-step--now .tm-sec-step__mark {
+  background: var(--lime-500);
+  border-color: var(--lime-500);
+}
+
+.tm-sec-step--next .tm-sec-step__mark {
+  border-color: var(--line-300);
+}
+
+.tm-sec-step__text {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-sec-step__title {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: var(--sec-weight-medium);
+}
+
+.tm-sec-step__note {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+/* Receipt key/values */
+
+.tm-sec-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-sec-kv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: 0;
+}
+
+.tm-sec-kv__row {
+  display: grid;
+  grid-template-columns: calc(var(--s20) + var(--s2)) minmax(0, 1fr);
+  gap: var(--s2);
+  align-items: baseline;
+}
+
+.tm-sec-kv dd {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  white-space: nowrap;
+}
+
+/* Audit log */
+
+.tm-sec-audit {
+  padding: 0;
+  overflow: hidden;
+}
+
+.tm-sec-audit__count {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s3);
+  padding: var(--s4) var(--s4) var(--s3);
+}
+
+.tm-sec-audit__row {
+  display: grid;
+  grid-template-columns: calc(var(--s20) + var(--s2)) minmax(0, 1fr) var(--s16) var(--s16);
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s4);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-sec-audit__row--head {
+  background: var(--paper-50);
+}
+
+.tm-sec-audit__row--on {
+  background: var(--lime-100);
+}
+
+.tm-sec-audit__row .tm-sec-step__title,
+.tm-sec-audit__row .tm-sec-step__note {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tm-sec-audit__row .tm-badge {
+  justify-self: start;
+  font-size: var(--t-caption);
+}
+
+/* Publication safety check */
+
+.tm-sec-publish {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-sec-recipients {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-sec-recipient {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+}
+
+.tm-sec-recipient .tm-web-chip {
+  margin-inline-start: auto;
+}
+
+.tm-sec-publish .tm-inline-alert {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-sec-projection {
+  align-self: stretch;
+  padding: var(--s4);
+  border-radius: var(--r-control);
+  background: var(--web-ink);
+}
+
+.tm-sec-projection > .tm-web-chip {
+  align-self: flex-start;
+  border-color: var(--ink-650);
+}
+
+.tm-sec-portal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  border-radius: var(--r-sheet);
+}
+
+/* Approval card (CTA visual) */
+
+.tm-sec-scene--approval {
+  max-inline-size: calc(var(--s24) * 5);
+  margin-inline-start: auto;
+}
+
+.tm-sec-approval {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5);
+  border-radius: var(--r-card);
+}
+
+.tm-sec-scene--approval .tm-web-scene__body {
+  padding: var(--s3);
+  border-radius: var(--r-feature);
+  background: var(--paper-150);
+}
+
+/* The app's globals paint .tm-choice as a choice card; in the approval card it is a plain row. */
+.tm-sec-checks .tm-choice {
+  display: flex;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+
+.tm-sec-cta {
+  grid-template-columns: minmax(0, 5fr) minmax(0, 4fr);
+}
+
+.tm-sec-version {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s1) var(--s3);
+  padding: var(--s2) var(--s3);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+}
+
+.tm-sec-version__id {
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  font-weight: var(--sec-weight-medium);
+  white-space: nowrap;
+}
+
+.tm-sec-rule {
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-sec-checks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-sec-approval__button {
+  inline-size: 100%;
+}
+
+.tm-sec-cta .tm-web-cta__lede {
+  max-inline-size: none;
+}
+
+/* ── Documents, status, disclosure ───────────────────────────────────────── */
+
+.tm-sec-docs {
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow: hidden;
+}
+
+.tm-sec-doc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s6);
+  padding: var(--s5) var(--s6);
+}
+
+.tm-sec-doc + .tm-sec-doc {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-sec-doc__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-sec-doc__title {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: var(--sec-weight-medium);
+  color: var(--ink-950);
+}
+
+.tm-sec-doc__body {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-sec-doc__end {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s5);
+  flex: none;
+}
+
+.tm-sec-notes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s6);
+  margin-block-start: var(--s12);
+}
+
+.tm-sec-note {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s4);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-sec-note__label {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  text-transform: uppercase;
+  color: var(--ink-800);
+}
+
+.tm-sec-note__text {
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+  color: var(--ink-950);
+}
+
+/* ── Responsive ──────────────────────────────────────────────────────────── */
+
+@media (max-width: 1279px) {
+  .tm-sec-pillars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tm-sec-rows .tm-web-feature,
+  .tm-sec-rows .tm-web-feature--reverse {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s10);
+  }
+
+  .tm-sec-rows .tm-web-feature + .tm-web-feature {
+    margin-block-start: var(--s20);
+  }
+
+  .tm-sec-scene--approval {
+    margin-inline: 0;
+  }
+
+  .tm-sec-cta {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-sec-pillars,
+  .tm-sec-notes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-sec-note {
+    padding: var(--s6);
+  }
+
+  /* Six guarantees as one dense list: number orb, title and line per row, ruled between. */
+  .tm-sec .tm-sec-pillars {
+    gap: 0;
+    margin-block-start: var(--s10);
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+    overflow: hidden;
+  }
+
+  .tm-sec-pillar {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: var(--s4);
+    align-items: start;
+    padding: var(--s5);
+    border: 0;
+    border-radius: 0;
+    background: none;
+  }
+
+  .tm-sec-pillar + .tm-sec-pillar {
+    border-block-start: var(--b-quiet) solid var(--line-300);
+  }
+
+  .tm-sec-pillar__n {
+    grid-row: span 2;
+  }
+
+  .tm-sec-pillar__title {
+    margin-block-start: 0;
+    font-size: var(--t-body-lg);
+    line-height: var(--t-body-lg-line);
+  }
+
+  .tm-sec-pillar__body {
+    grid-column: 2;
+    margin-block-start: var(--s1);
+    font-size: var(--t-ui-md);
+    line-height: var(--t-ui-md-line);
+  }
+
+  /* Both button pairs (hero and CTA) stack full width on a phone. */
+  .tm-sec-hero__actions,
+  .tm-sec-cta .tm-web-cta__actions {
+    flex-direction: column;
+    align-items: stretch;
+    align-self: stretch;
+  }
+
+  /*
+   * Product scenes on a phone: drawn at half size and only as wide as the frame, so nothing is
+   * cut at the side. The side panels drop out (the main column carries the story), long text
+   * wraps instead of truncating, and the frame crops only at the bottom.
+   */
+  .tm-sec-scene--window,
+  .tm-sec-scene--dense,
+  .tm-sec-scene--publish {
+    zoom: var(--sec-scene-scale-phone);
+    inline-size: calc(var(--s24) * 6);
+  }
+
+  .tm-sec-split,
+  .tm-sec-split--publish {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-sec-split > .tm-sec-split__side {
+    display: none;
+  }
+
+  .tm-sec-window__bar {
+    flex-wrap: wrap;
+    row-gap: var(--s2);
+  }
+
+  .tm-sec-window__bar .tm-web-scene__mono {
+    flex: 1 1 0;
+    min-inline-size: 0;
+    white-space: normal;
+  }
+
+  .tm-sec-window__controls {
+    flex-wrap: wrap;
+    margin-inline-start: 0;
+  }
+
+  .tm-sec-audit__row {
+    grid-template-columns: calc(var(--s20) + var(--s2)) minmax(0, 1fr) auto;
+  }
+
+  .tm-sec-audit__row > :nth-child(3) {
+    display: none;
+  }
+
+  .tm-sec-audit__row .tm-sec-step__title,
+  .tm-sec-audit__row .tm-sec-step__note {
+    white-space: normal;
+  }
+
+  .tm-sec-chips {
+    flex-wrap: wrap;
+  }
+
+  .tm-sec-rows.tm-web-section--compact {
+    padding-block: 0 var(--s16);
+  }
+
+  .tm-sec-rows .tm-web-visual {
+    block-size: calc(var(--s24) * 3 + var(--s8));
+    padding: var(--s6) 0 0;
+    padding-inline-start: var(--s6);
+  }
+
+  .tm-sec-doc {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s3);
+    padding: var(--s5);
+  }
+}

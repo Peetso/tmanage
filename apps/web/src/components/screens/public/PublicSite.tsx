@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../../brand/Wordmark';
+import { useInWebsiteChrome } from '../../website/WebsiteChrome';
 import '../../../styles/screens/public.css';
 
 /**
@@ -50,6 +51,24 @@ export function PublicPage({
   tone = 'default',
   width = 'wide',
 }: PublicPageProps) {
+  const inWebsite = useInWebsiteChrome();
+  if (inWebsite) {
+    // Inside the `(website)` route group the shared Web/Nav, `<main>` and Web/Footer already
+    // frame the page (components/website/WebsiteChrome.tsx), so only the content renders here.
+    return (
+      <div className={`tm-pub${tone === 'paper' ? ' tm-pub--paper' : ''}`}>
+        <div className={`tm-pub__inner${width === 'narrow' ? ' tm-pub__inner--narrow' : ''}`}>
+          {bar === 'status' ? (
+            <div className="tm-pub__bar tm-pub__bar--status">
+              <p className="tm-pub-eyebrow">Status</p>
+              {statusMeta ? <p className="tm-pub__bar-meta">{statusMeta}</p> : null}
+            </div>
+          ) : null}
+          <div className="tm-pub__main">{children}</div>
+        </div>
+      </div>
+    );
+  }
   return (
     <LiveAnnouncer>
       <div className={`tm-pub${tone === 'paper' ? ' tm-pub--paper' : ''}`}>

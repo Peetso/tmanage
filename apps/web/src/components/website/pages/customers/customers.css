@@ -1,0 +1,661 @@
+/*
+ * /customers — page layout only (Figma 14-customers). Every value is a Limeframe token or a
+ * website-layer variable from website.css. The two visual columns are composed from spacing
+ * tokens: the hero stack is 460 (5 × s24 − s5) and the featured scene 552 (6 × s24 − s6) on
+ * the 1248 column, as measured from the design.
+ */
+
+.tm-web-customers {
+  --customers-hero-visual: calc(var(--s24) * 5 - var(--s5));
+  --customers-featured-visual: calc(var(--s24) * 6 - var(--s6));
+}
+
+/* Grids put a header beside a visual; the header's "+ *" section rhythm must not apply there. */
+.tm-web-customers__hero-grid > .tm-web-header + *,
+.tm-web-customers__programme-grid > .tm-web-header + * {
+  margin-block-start: 0;
+}
+
+.tm-web-customers__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s5);
+  margin-block-start: var(--s2);
+}
+
+.tm-web-customers__caption {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-web-customers__caption--ink {
+  color: var(--web-on-ink-muted);
+}
+
+/* ── Hero ─────────────────────────────────────────────────────────────────── */
+
+.tm-web-customers__hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--customers-hero-visual));
+  align-items: center;
+  gap: var(--s20);
+}
+
+/* Design rhythm: the hero sits closer to the partner strip than a default section does. */
+@media (min-width: 1280px) {
+  .tm-web-customers .tm-web-customers__hero {
+    padding-block-end: calc(var(--s16) + var(--s2));
+  }
+}
+
+.tm-web-customers__hero .tm-web-header {
+  gap: var(--s5);
+  max-inline-size: none;
+}
+
+/* The design's subhead runs the full text column (wraps after "became one"). */
+.tm-web-customers__hero .tm-web-header__lede {
+  max-inline-size: none;
+}
+
+.tm-web-customers__hero .tm-web-customers__actions {
+  margin-block-start: var(--s1);
+}
+
+/* Cards sit evenly inset in the grey tray: 36 above and below, 32 at the sides. */
+.tm-web-customers__hero .tm-web-scene--stack .tm-web-scene__body {
+  padding-block: calc(var(--s8) + var(--s1));
+  border-radius: var(--r-feature);
+}
+
+.tm-web-customers__hero .tm-web-object__title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+}
+
+.tm-web-customers__hero .tm-web-object__meta {
+  margin-block-start: var(--s4);
+}
+
+.tm-web-customers__hero .tm-web-object__foot {
+  margin-block-start: var(--s5);
+}
+
+/*
+ * State capsules in the hero cards and the portal scene match the design's Badge/State
+ * variant: UI-sm type, a full-size glyph, and the live (current) state outlined in ink.
+ */
+.tm-web-customers__hero .tm-state-capsule,
+.tm-web-customers__portal .tm-state-capsule {
+  padding-block: var(--s1);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-950);
+}
+
+.tm-web-customers__hero .tm-state-capsule__glyph,
+.tm-web-customers__portal .tm-state-capsule__glyph {
+  font-family: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-web-customers__hero .tm-state-capsule--current,
+.tm-web-customers__portal .tm-state-capsule--current {
+  border-color: var(--tm-on-lime);
+  color: var(--tm-on-lime);
+}
+
+.tm-web-customers__portal .tm-state-capsule--client .tm-state-capsule__glyph {
+  color: var(--client-500);
+}
+
+.tm-web-customers__portal .tm-state-capsule--future {
+  border-style: solid;
+}
+
+.tm-web-customers__portal .tm-state-capsule--future .tm-state-capsule__glyph {
+  color: var(--ink-650);
+}
+
+/* ── Partner strip ────────────────────────────────────────────────────────── */
+
+.tm-web-customers__partners .tm-web-logos__label {
+  color: var(--ink-650);
+}
+
+/* ── Featured story ───────────────────────────────────────────────────────── */
+
+.tm-web-customers__featured-section {
+  padding-block: var(--s24) 0;
+}
+
+.tm-web-customers__featured {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--customers-featured-visual));
+  align-items: center;
+  gap: var(--s16);
+  padding: var(--s16);
+  border-radius: var(--r-feature);
+  background: var(--web-ink);
+  color: var(--web-on-ink);
+}
+
+.tm-web-customers__featured-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s6);
+}
+
+/* 12em keeps the design's three-line break: "…studio / …status / calls". */
+.tm-web-customers__featured-title {
+  max-inline-size: 12em;
+  margin-block-start: calc(var(--s2) * -1);
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--web-on-ink);
+}
+
+.tm-web-customers__outcomes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.tm-web-customers__outcomes li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s4);
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+}
+
+.tm-web-customers__featured-text .tm-web-button {
+  gap: var(--s2);
+}
+
+.tm-web-customers__featured-text .tm-web-customers__caption {
+  margin-block-start: calc(var(--s3) * -1);
+}
+
+/* The partner pill: lime orb + one or two lines, a capsule outline. */
+.tm-web-customers__pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-block: var(--s2);
+  padding-inline: var(--s2) var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-web-customers__pill-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-web-customers__pill-sub {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-web-customers__featured .tm-web-customers__pill,
+.tm-web-customers__story-visual--ink .tm-web-customers__pill {
+  border-color: var(--ink-800);
+  background: var(--web-ink);
+  color: var(--web-on-ink);
+}
+
+/* Client portal scene on the featured panel */
+.tm-web-customers__portal .tm-web-scene__body {
+  padding: var(--s6);
+  border-radius: var(--r-feature);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-web-customers__portal-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+/* Avatar/Client on a sunken fill: grey disc, violet ring (the design's client avatar). */
+.tm-web-customers__portal-head .tm-avatar--client {
+  background: var(--paper-250);
+  color: var(--ink-800);
+}
+
+.tm-web-customers__portal-org {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-web-customers__portal-name {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-web-customers__portal-sub {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-web-customers__portal-eyebrow {
+  margin-block-start: var(--s5);
+}
+
+.tm-web-customers__portal-title {
+  margin-block-start: var(--s2);
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.tm-web-customers__portal-body {
+  margin-block-start: var(--s3);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-web-customers__portal-track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin-block-start: var(--s5);
+}
+
+.tm-web-customers__portal-actions {
+  margin-block: var(--s6) var(--s4);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+}
+
+.tm-web-customers__portal .tm-web-object__title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+}
+
+.tm-web-customers__portal-live {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2) var(--s3);
+  margin-block-start: var(--s5);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+/* ── Filter row and story grid ────────────────────────────────────────────── */
+
+.tm-web-customers__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3) var(--s6);
+  padding-block: var(--s2);
+  padding-inline: var(--s2) var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+}
+
+.tm-web-customers__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-web-customers__chips .tm-web-chip {
+  color: var(--ink-950);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color var(--t-micro) var(--ease);
+}
+
+.tm-web-customers__chips .tm-web-chip:hover {
+  border-color: var(--ink-500);
+}
+
+.tm-web-customers__chips .tm-web-chip--on:hover {
+  border-color: var(--lime-500);
+}
+
+.tm-web-customers__chips .tm-web-chip:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-web-customers__count {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-web-customers__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s6);
+  margin-block-start: var(--s6);
+}
+
+.tm-web-customers__grid > li {
+  display: flex;
+}
+
+.tm-web-customers__story {
+  display: flex;
+  flex-direction: column;
+  inline-size: 100%;
+  padding: var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-web-customers__story-visual {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s8);
+  padding: var(--s5) var(--s4);
+  border-radius: var(--r-card);
+  color: var(--ink-950);
+}
+
+.tm-web-customers__story-visual--lime {
+  background: var(--lime-100);
+}
+
+.tm-web-customers__story-visual--sunken {
+  background: var(--paper-150);
+}
+
+.tm-web-customers__story-visual--ink {
+  background: var(--web-ink);
+  color: var(--web-on-ink);
+}
+
+.tm-web-customers__story-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+}
+
+.tm-web-customers__story-row .tm-web-customers__pill {
+  gap: var(--s2);
+  padding-inline-end: var(--s3);
+  white-space: nowrap;
+}
+
+.tm-web-customers__story-row .tm-badge {
+  white-space: nowrap;
+}
+
+.tm-web-customers__story-change {
+  justify-content: flex-start;
+  gap: var(--s3);
+}
+
+.tm-web-customers__story-title {
+  margin-block-start: var(--s8);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-web-customers__story-summary {
+  margin-block-start: var(--s5);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-web-customers__story-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  margin-block-start: auto;
+  padding-block-start: var(--s8);
+  padding-inline-start: var(--s2);
+}
+
+/* ── Quote wall ───────────────────────────────────────────────────────────── */
+
+.tm-web-customers__quotes {
+  padding-block-end: var(--s24);
+}
+
+.tm-web-customers__quote-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s6);
+}
+
+/* ── Programme band ───────────────────────────────────────────────────────── */
+
+.tm-web-customers__programme-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(
+      0,
+      calc(var(--customers-featured-visual) + var(--s10))
+    );
+  align-items: center;
+  gap: var(--s24);
+}
+
+.tm-web-customers__benefits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+}
+
+.tm-web-customers__benefits .tm-web-graph-card {
+  padding: var(--s5);
+}
+
+.tm-web-customers__benefits .tm-web-graph-card__title {
+  margin-block-start: var(--s4);
+}
+
+.tm-web-customers__benefits .tm-web-graph-card__body {
+  margin-block-start: var(--s3);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+
+@media (max-width: 1279px) {
+  .tm-web-customers__hero-grid,
+  .tm-web-customers__featured,
+  .tm-web-customers__programme-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s12);
+  }
+
+  .tm-web-customers__hero-grid > .tm-web-scene {
+    max-inline-size: var(--customers-featured-visual);
+  }
+
+  .tm-web-customers__featured {
+    padding: var(--s12);
+  }
+
+  .tm-web-customers__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tm-web-customers__quote-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1023px) {
+  .tm-web-customers__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-web-customers__filters {
+    border-radius: var(--r-card);
+    padding: var(--s3);
+  }
+}
+
+@media (max-width: 767px) {
+  .tm-web-customers__featured-section {
+    padding-block: var(--s16) 0;
+  }
+
+  .tm-web-customers__quotes {
+    padding-block-end: var(--s16);
+  }
+
+  .tm-web-customers__featured {
+    padding: var(--s8) var(--s5);
+    border-radius: var(--r-card);
+  }
+
+  .tm-web-customers__featured-title {
+    font-size: var(--t-heading-section);
+    line-height: var(--t-heading-section-line);
+  }
+
+  .tm-web-customers__outcomes li {
+    font-size: var(--t-body-md);
+    line-height: var(--t-body-md-line);
+  }
+
+  .tm-web-customers__portal .tm-web-scene__body {
+    padding: var(--s4);
+    border-radius: var(--r-card);
+  }
+
+  .tm-web-customers__benefits {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-web-customers__story {
+    padding: var(--s5);
+  }
+
+  /* Hero cards: the avatar keeps its row, the two actions share the full card width below. */
+  .tm-web-customers .tm-web-object__foot {
+    flex-wrap: wrap;
+    row-gap: var(--s4);
+  }
+
+  .tm-web-customers .tm-web-object__actions {
+    flex: 1 1 100%;
+  }
+
+  .tm-web-customers .tm-web-object__actions > * {
+    flex: 1 1 0;
+  }
+
+  .tm-web-customers__hero .tm-web-scene--stack .tm-web-scene__body {
+    padding-block: var(--s4);
+  }
+
+  /* Partner chips: one swipeable row, every label on one line, bleeding to the screen edge. */
+  .tm-web-customers__partners .tm-web-logos__list {
+    grid-template-columns: none;
+    grid-auto-flow: column;
+    grid-auto-columns: max-content;
+    margin-inline: calc(var(--web-gutter) * -1);
+    padding-inline: var(--web-gutter);
+    padding-block-end: var(--s1);
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scroll-snap-type: x proximity;
+    scroll-padding-inline: var(--web-gutter);
+    scrollbar-width: none;
+  }
+
+  .tm-web-customers__partners .tm-web-logos__tile {
+    scroll-snap-align: start;
+    white-space: nowrap;
+  }
+
+  /* Portal header: the org takes the full width, the "Client portal" badge drops below it. */
+  .tm-web-customers__portal-head {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--s3);
+  }
+
+  .tm-web-customers__portal-head > .tm-badge {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  /* Final CTA: the Delivery-risk scene reflows inside its card instead of clipping mid-word. */
+  .tm-web-customers .tm-web-risk {
+    padding-inline-end: var(--s5);
+    padding-block-end: var(--s5);
+  }
+
+  .tm-web-customers .tm-web-risk__search {
+    inline-size: 100%;
+  }
+
+  .tm-web-customers .tm-web-risk__bulk {
+    border-radius: var(--r-compact);
+  }
+
+  .tm-web-customers .tm-web-risk__bulk > :nth-child(n + 3) {
+    display: none;
+  }
+
+  .tm-web-customers .tm-web-risk__table {
+    min-inline-size: 0;
+    border-inline-end: var(--b-quiet) solid var(--line-300);
+    border-block-end: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-compact);
+    overflow: hidden;
+  }
+
+  .tm-web-customers .tm-web-risk__row {
+    flex-wrap: wrap;
+    padding-block: var(--s2);
+    white-space: normal;
+  }
+
+  .tm-web-customers .tm-web-risk__row--head {
+    justify-content: space-between;
+  }
+
+  .tm-web-customers .tm-web-risk__row--head span:first-child {
+    inline-size: auto;
+  }
+
+  .tm-web-customers .tm-web-risk__row--group .tm-web-scene__mono {
+    flex: 1 1 100%;
+    white-space: normal;
+  }
+
+  .tm-web-customers .tm-web-risk__item {
+    flex: 1 1 100%;
+    inline-size: auto;
+  }
+}
