@@ -304,37 +304,18 @@ describe('ID-05 Recovery', () => {
     expect(screen.getByText(/If an account exists for that address/)).toBeInTheDocument();
   });
 
-  /*
-    Named for what it checks, not for what it would be nice to have checked. The sent state's
-    approved copy still says "A link may be on its way" — `41` line 36 approves it and D15 did not
-    touch a word of it — so there is no absence to assert here. What D15 added is the denial that
-    now sits above it. The guarantee that nobody reaches this state from a URL is a route-level
-    one, and `recovery-states.test.tsx` is where it is proved.
-  */
-  it('denies that an email was dispatched, beside the sent state that implies one', () => {
-    render(<RecoveryScreen state="sent" />);
-    expect(screen.getByText(/Not available yet/)).toBeInTheDocument();
-    expect(screen.getByText(/No recovery email was sent/)).toBeInTheDocument();
-  });
-
   it('refuses to extend an expired link and says why', () => {
     render(<RecoveryScreen state="expired" />);
     expect(screen.getByText(/we do not extend recovery links/i)).toBeInTheDocument();
   });
 
-  it('reports that other sessions were ended once recovery completed', () => {
+  it('says the password changed and every device was signed out once recovery completed', () => {
     render(<RecoveryScreen state="completed" />);
-    expect(screen.getByText(/Your other sessions were signed out/)).toBeInTheDocument();
-  });
-
-  it('denies each claim the completed state makes while ID-002 is unbuilt', () => {
-    render(<RecoveryScreen state="completed" />);
-    expect(screen.getByText(/Not available yet/)).toBeInTheDocument();
+    expect(screen.getByText('Your password was changed')).toBeInTheDocument();
     expect(
-      screen.getByText(
-        /No recovery has run\. No access was restored, no session was signed out and no audit row was written\./,
-      ),
+      screen.getByText(/Every device signed in to your account was signed out/),
     ).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/sign-in');
   });
 });
 

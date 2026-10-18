@@ -56,11 +56,11 @@ const OUTCOME_CLAIMS: readonly RegExp[] = [
   /A link may be on its way/,
 ];
 
-/** The page renders `request`, and says of itself that recovery is not built. */
+/** The page renders `request`: the form that asks for a link, and nothing that claims one went. */
 function expectHonestRequestState() {
   expect(screen.getByRole('heading', { level: 1, name: 'Recover access' })).toBeInTheDocument();
-  expect(screen.getByText(/Not available yet/)).toBeInTheDocument();
-  expect(screen.getByText(/No recovery email is sent/)).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'Send a recovery link' })).toBeInTheDocument();
+  expect(screen.getByLabelText(/Work email/)).toBeInTheDocument();
 }
 
 /** No sentence on the page asserts an outcome, whatever was asked for. */

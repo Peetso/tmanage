@@ -5740,6 +5740,23 @@ export const userPasswords = mysqlTable('user_passwords', {
 });
 
 /**
+ * Password reset links (0204, ACC-02). Global like the other credential tables; only the hash of
+ * the mailed token is stored, and `used_at` makes a link single-use.
+ */
+export const passwordResetTokens = mysqlTable(
+  'password_reset_tokens',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    tokenHash: char('token_hash', { length: 64 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    usedAt: datetime('used_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_password_reset_tokens_hash').on(table.tokenHash)],
+);
+
+/**
  * Second factors. A table rather than a column because the plural is the real case — a
  * phone, a tablet, and later a passkey.
  */

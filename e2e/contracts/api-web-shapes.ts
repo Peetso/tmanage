@@ -127,6 +127,8 @@ import type { UserPreferencesView as ApiUserPreferencesView } from '../../apps/a
 import type { HomeWidgetPrefsView as ApiHomeWidgetPrefsView } from '../../apps/api/src/modules/home/widget-prefs.controller.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { InvitationRegistrationView as ApiInvitationRegistrationView } from '../../apps/api/src/modules/tenancy/invitations.controller.js';
+import type { PasswordResetRequestedView as ApiPasswordResetRequestedView } from '../../apps/api/src/modules/identity/password-reset.controller.js';
+import type { PasswordResetRequestedView as WebPasswordResetRequestedView } from '../../apps/web/src/lib/api/password-reset';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
@@ -2491,6 +2493,9 @@ type _issuedInvitation = Assert<Exact<ApiIssuedInvitationView, WebIssuedInvitati
 
 /** `POST /v1/invitations/previews` — ID-03's pre-acceptance preview. */
 type _invitationPreview = Assert<Exact<ApiInvitationPreviewView, WebInvitationPreview>>;
+type _passwordResetRequested = Assert<
+  Exact<ApiPasswordResetRequestedView, WebPasswordResetRequestedView>
+>;
 type _invitationRegistration = Assert<
   Exact<ApiInvitationRegistrationView, WebInvitationRegistration>
 >;

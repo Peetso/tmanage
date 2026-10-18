@@ -1053,6 +1053,9 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // deliberately NOT `outbox_events` — that table's `organization_id` is NOT NULL and this
   // path has no organization to put in it. `0020_credential_change_notices.sql` explains.
   'credential_change_notices',
+  // ID-002 recovery (ACC-02, migration 0204). A reset link belongs to a person, asked for by
+  // somebody with no session who names no tenant — global for the reason the credentials are.
+  'password_reset_tokens',
   // Public & trust site (x159, migration 0060). The status-page incidents are GLOBAL: a status
   // page is read by anyone before any organization is named and describes the service as a whole,
   // so `incidents` carries no `organization_id` (0060 explains). Registered here — NOT in

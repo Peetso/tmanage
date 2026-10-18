@@ -19,6 +19,16 @@ import { AuthenticationController, CredentialsController } from './authenticatio
 import { CredentialsRepository } from './credentials.repository.js';
 import { createSeedCipher } from './seed-cipher.js';
 import { createSignInAbuseControl } from './sign-in-abuse-control.js';
+import {
+  PASSWORD_RESET_ADMISSION,
+  PASSWORD_RESET_SERVICE,
+  PasswordResetController,
+} from './password-reset.controller.js';
+import { PasswordResetService } from './password-reset.service.js';
+import type { PasswordResetMailer } from '../../common/email/password-reset-email.js';
+import { PASSWORD_RESET_MAILER } from '../../common/http/tokens.js';
+import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
+import { CONTACT_MAX_PER_WINDOW, CONTACT_WINDOW_MS } from '../public-site/contact.module.js';
 
 /**
  * ID-001's HTTP surface.
@@ -110,9 +120,30 @@ export class IdentityModule {
       useFactory: (database: TenantDatabase) => new PersonalAccessTokensService(database),
     };
 
+    // ACC-02. Self-service password reset. The mailer is optional so a suite that builds this
+    // module without `MailerModule` still boots; with no mailer a request is accepted and no
+    // mail is composed, exactly like `EMAIL_DRIVER` unset for invitations.
+    const passwordResetService: Provider = {
+      provide: PASSWORD_RESET_SERVICE,
+      inject: [TENANT_DATABASE, { token: PASSWORD_RESET_MAILER, optional: true }],
+      useFactory: (database: TenantDatabase, mailer: PasswordResetMailer | undefined) =>
+        new PasswordResetService(database, mailer ?? null),
+    };
+    const passwordResetAdmission: Provider = {
+      provide: PASSWORD_RESET_ADMISSION,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig) =>
+        createFixedWindowLimiter({
+          windowMs: config.contactWindowMs ?? CONTACT_WINDOW_MS,
+          max: config.contactMaxPerWindow ?? CONTACT_MAX_PER_WINDOW,
+        }),
+    };
+
     return {
       module: IdentityModule,
       providers: [
+        passwordResetService,
+        passwordResetAdmission,
         sessionService,
         authenticationService,
         authenticationEventRecorder,
@@ -124,7 +155,12 @@ export class IdentityModule {
         authenticationEventRecorder,
         personalAccessTokenAuthenticator,
       ],
-      controllers: [SessionController, AuthenticationController, CredentialsController],
+      controllers: [
+        SessionController,
+        AuthenticationController,
+        CredentialsController,
+        PasswordResetController,
+      ],
     };
   }
 

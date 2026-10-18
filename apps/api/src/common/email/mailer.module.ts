@@ -2,8 +2,9 @@ import { Global, Module } from '@nestjs/common';
 import { ConsoleMailer, SmtpMailer } from '@tmanage/mail';
 import type { Mailer } from '@tmanage/mail';
 import type { DynamicModule, Provider } from '@nestjs/common';
-import { INVITATION_MAILER, MAILER } from '../http/tokens.js';
+import { INVITATION_MAILER, MAILER, PASSWORD_RESET_MAILER } from '../http/tokens.js';
 import { InvitationMailer } from './invitation-mailer.js';
+import { PasswordResetMailer } from './password-reset-email.js';
 
 /**
  * The mail wiring — `DatabaseModule`'s dual shape, applied to the other network resource.
@@ -57,11 +58,15 @@ function moduleFor(mailer: Mailer | null, webPublicUrl: string): DynamicModule {
     provide: INVITATION_MAILER,
     useValue: new InvitationMailer(mailer, webPublicUrl),
   };
+  const passwordResetMailer: Provider = {
+    provide: PASSWORD_RESET_MAILER,
+    useValue: new PasswordResetMailer(mailer, webPublicUrl),
+  };
   return {
     module: MailerModule,
     global: true,
-    providers: [mailerProvider, invitationMailer],
-    exports: [mailerProvider, invitationMailer],
+    providers: [mailerProvider, invitationMailer, passwordResetMailer],
+    exports: [mailerProvider, invitationMailer, passwordResetMailer],
   };
 }
 

@@ -1135,6 +1135,10 @@ GRANT INSERT, UPDATE         ON `tmanage`.`insight_dashboard_layouts` TO 'tmanag
 -- because "this code was used on the 3rd" is the sentence that distinguishes a legitimate
 -- recovery from a stolen one.
 GRANT INSERT, UPDATE ON `tmanage`.`user_passwords`      TO 'tmanage_app'@'%';
+-- 0204 password reset links (ACC-02). INSERT (a link is requested), UPDATE (used once; older
+-- links retired). No DELETE: a used or superseded link stays as evidence, like the other
+-- credential tables. The worker holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`password_reset_tokens` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 

@@ -43,10 +43,19 @@ import { expectNoAxeViolations } from './axe';
 const TICKET_ID = /\b[A-Z][A-Z0-9]*-\d{3}(?!\d)/;
 const PLANNING_FILE_REFERENCE = /\b\d{2}-[A-Z][A-Z-]{3,}/;
 
-/** The next step the recovery screen owes a person while recovery is unbuilt. */
+/** The fallback the recovery screen still owes a person whose email never arrives. */
 const NEXT_STEP = /whoever administers your TManage workspace/;
 
-const RECOVERY_STATES: readonly RecoveryState[] = ['request', 'sent', 'expired', 'completed'];
+const RECOVERY_STATES: readonly RecoveryState[] = [
+  'request',
+  'sent',
+  'reset',
+  'expired',
+  'completed',
+];
+
+/** The states where a person can still be stuck: no link yet, or a dead one. */
+const STUCK_STATES: readonly RecoveryState[] = ['request', 'sent', 'expired'];
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -142,7 +151,7 @@ describe('ID-05 Recovery shows a person no internal identifier in production', (
 });
 
 describe('ID-05 Recovery gives a locked-out person a next step', () => {
-  for (const state of RECOVERY_STATES) {
+  for (const state of STUCK_STATES) {
     it(`names who can let them back in, from the ${state} state`, () => {
       productionBuild();
       const { container } = render(<RecoveryScreen state={state} />);
