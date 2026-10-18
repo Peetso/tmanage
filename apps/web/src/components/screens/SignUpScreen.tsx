@@ -28,7 +28,7 @@ type Availability = 'checking' | 'available' | 'unavailable' | 'failed';
 
 export interface SignUpScreenProps {
   client?: ApiClient;
-  /** Called with the new workspace's slug once signed in. Default: full navigation there. */
+  /** Called with the new workspace's slug once signed in. Default: full navigation to its home. */
   onCompleted?: (organizationSlug: string) => void;
   boundary?: AuthBoundary;
   /** Rendered under the form's intro — the "Continue with Google" button when configured. */
@@ -128,7 +128,7 @@ export function SignUpScreen({
       api.rememberCsrfToken(outcome.csrfToken);
       boundary.announce('signed-in');
       if (onCompleted) onCompleted(outcome.organizationSlug);
-      else window.location.assign(`/${encodeURIComponent(outcome.organizationSlug)}`);
+      else window.location.assign(`/${encodeURIComponent(outcome.organizationSlug)}/home`);
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 404) {
         setAvailability('unavailable');

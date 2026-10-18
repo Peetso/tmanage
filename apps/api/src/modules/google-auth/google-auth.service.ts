@@ -125,7 +125,7 @@ export class GoogleAuthService {
       return {
         kind: 'signed-in',
         userId: created.userId,
-        returnTo: `/${encodeURIComponent(created.slug)}`,
+        returnTo: `/${encodeURIComponent(created.slug)}/home`,
       };
     } catch (error) {
       // Raced with another sign-up for the same address: sign in to the account that won.

@@ -236,7 +236,7 @@ describe('GoogleAuthService', () => {
     await expect(open.service.complete(flowOf('sign-up'), CLAIMS, CONTEXT)).resolves.toMatchObject({
       kind: 'signed-in',
       userId: 'new-user',
-      returnTo: '/mona-s-workspace',
+      returnTo: '/mona-s-workspace/home',
     });
     expect(open.createOwnerAccount).toHaveBeenCalledWith(
       expect.objectContaining({
