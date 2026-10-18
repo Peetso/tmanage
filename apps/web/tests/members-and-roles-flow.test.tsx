@@ -145,6 +145,18 @@ describe('ADM-02 members and roles', () => {
     expect(post?.body).toEqual({ userId: 'u-2', role: 'member' });
   });
 
+  it('offers project roles only, never organization roles (ADM-17)', async () => {
+    const { client } = clientOver(defaultHandler);
+    renderScreen(client);
+
+    await screen.findByText('Omar Haddad');
+    const offered = Array.from(
+      (screen.getByLabelText('Role') as HTMLSelectElement).options,
+      (option) => option.value,
+    );
+    expect(offered).toEqual(['manager', 'member', 'guest']);
+  });
+
   it('changes a role as a compare-and-swap on the current role', async () => {
     const user = userEvent.setup();
     const { client, calls } = clientOver(defaultHandler);

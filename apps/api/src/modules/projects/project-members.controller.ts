@@ -9,8 +9,8 @@ import {
   Patch,
   Post,
 } from '@nestjs/common';
-import { authorize, INTERNAL_ROLES, isInternalRole } from '@tmanage/domain';
-import type { InternalRole, Principal } from '@tmanage/domain';
+import { authorize, INTERNAL_ROLES, isInternalRole, isProjectRole } from '@tmanage/domain';
+import type { InternalRole, Principal, ProjectRole } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import {
@@ -178,7 +178,7 @@ export class ProjectMembersController {
     await this.resolveManageableProject(context, principal, projectId);
 
     const userId = typeof body?.userId === 'string' && body.userId !== '' ? body.userId : undefined;
-    const role = this.requireInternalRole(body?.role, 'role');
+    const role = this.requireProjectRole(body?.role);
     if (!userId) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
         { field: 'userId', message: 'must be a non-empty string' },
@@ -223,7 +223,9 @@ export class ProjectMembersController {
   ): Promise<ProjectMemberView> {
     await this.resolveManageableProject(context, principal, projectId);
 
-    const role = this.requireInternalRole(body?.role, 'role');
+    // The new role must be a project role (ADM-17); the expected role may be any internal role,
+    // so a row written before `PROJECT_ROLES` existed can still be changed to one.
+    const role = this.requireProjectRole(body?.role);
     const expectedRole = this.requireInternalRole(body?.expectedRole, 'expectedRole');
 
     const membership = await this.resolveMembership(context, projectId, projectMembershipId);
@@ -237,8 +239,9 @@ export class ProjectMembersController {
     if (outranks(role, principal.role) || outranks(membership.role, principal.role)) {
       throw forbidden('role_above_caller_ceiling');
     }
-    // Last owner: the final owner seat may not be demoted away.
-    if (membership.role === 'owner' && role !== 'owner') {
+    // Last owner: the final owner seat may not be demoted away. `owner` is no longer a project
+    // role, so any change to an older owner seat is a demotion.
+    if (membership.role === 'owner') {
       await this.assertNotLastOwner(context, projectId);
     }
 
@@ -325,6 +328,14 @@ export class ProjectMembersController {
     );
     const owners = rows.filter((row) => row.role === 'owner').length;
     if (owners <= 1) throw forbidden('last_owner_seat');
+  }
+
+  /** Organization-level roles (owner, admins) and chat roles are never assigned on a project. */
+  private requireProjectRole(raw: unknown): ProjectRole {
+    if (typeof raw === 'string' && isProjectRole(raw)) return raw;
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      { field: 'role', message: 'must be Manager, Team member or Freelancer or partner' },
+    ]);
   }
 
   private requireInternalRole(raw: unknown, field: string): InternalRole {

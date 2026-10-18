@@ -70,11 +70,14 @@ export {
   CLIENT_ROLES,
   INTERNAL_ROLES,
   INTERNAL_ONLY_CAPABILITIES,
+  PROJECT_CREATOR_ROLE,
+  PROJECT_ROLES,
   capabilitiesFor,
   hasCapability,
   isClientRole,
   isInternalOnlyCapability,
   isInternalRole,
+  isProjectRole,
   isRole,
 } from './policies/capabilities.js';
 export type {
@@ -82,6 +85,7 @@ export type {
   ClientRole,
   InternalRole,
   PrincipalKind,
+  ProjectRole,
   Role,
 } from './policies/capabilities.js';
 

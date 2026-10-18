@@ -307,17 +307,19 @@ describe('ADM-02 project member admin — capability and escalation guards', () 
     expect(pmListByProject).not.toHaveBeenCalled();
   });
 
-  it('refuses assigning a role above the caller’s ceiling (403, no write)', async () => {
+  it('refuses an organization-level role on a project, even from an owner (400, no write)', async () => {
     projectFindById.mockResolvedValue(project());
     memberFindByUserId.mockResolvedValue({ id: 'm-2', userId: OTHER_USER, status: 'active' });
-    // org_admin (rank below owner) may manage members but may not mint an owner.
-    const res = await app.inject({
-      method: 'POST',
-      url: BASE,
-      headers: { ...AUTH, 'x-test-role': 'org_admin' },
-      payload: { userId: OTHER_USER, role: 'owner' },
-    });
-    expect(res.statusCode).toBe(403);
+    // ADM-17: owner and the admin roles describe the organization, not one project.
+    for (const role of ['owner', 'org_admin', 'workspace_admin', 'moderator']) {
+      const res = await app.inject({
+        method: 'POST',
+        url: BASE,
+        headers: { ...AUTH, 'x-test-role': 'owner' },
+        payload: { userId: OTHER_USER, role },
+      });
+      expect(res.statusCode).toBe(400);
+    }
     expect(cmdAdd).not.toHaveBeenCalled();
   });
 

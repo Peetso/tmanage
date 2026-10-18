@@ -1,8 +1,9 @@
-import { authorize } from '@tmanage/domain';
+import { authorize, PROJECT_CREATOR_ROLE } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from './projects.repository.js';
+import { ProjectMembershipsRepository } from './project-memberships.repository.js';
 import type { CreateProjectInput, ListProjectsOptions } from './projects.repository.js';
 import type { ProjectRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
@@ -86,6 +87,7 @@ export class ProjectsService {
      * a fact a test can assert rather than a silence it has to trust.
      */
     private readonly audit?: AuditService,
+    private readonly memberships: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
   ) {}
 
   /**
@@ -173,6 +175,12 @@ export class ProjectsService {
    * a project nothing can be escalated to, and the person creating one on a setup screen is
    * the obvious answer until there is a people picker to choose otherwise. No ticket in
    * `28-SPRINT-TICKETS` builds one.
+   *
+   * The creator is also put on the project, as its manager, in the same transaction (PRJ-01).
+   * Without that row a creator without organization-wide scope — a manager — could not read the
+   * project they had just made: `Principal.projectIds` comes from `project_memberships`, and an
+   * empty relation is "not found". Only roles at or above manager hold `project.create`, so the
+   * grant never exceeds the creator's own ceiling.
    */
   async create(context: TenantContext, input: CreateProjectInput): Promise<ProjectView> {
     const withOwner: CreateProjectInput = {
@@ -182,6 +190,22 @@ export class ProjectsService {
 
     const row = await this.database.transaction(context, async (tx) => {
       const created = await this.projects.create(tx, context, withOwner);
+
+      const creator = await this.memberships.add(tx, context, {
+        projectId: created.id,
+        userId: context.userId,
+        role: PROJECT_CREATOR_ROLE,
+      });
+      await this.audit?.record(tx, context, {
+        action: 'project_membership.granted',
+        result: 'allowed',
+        objectId: creator.id,
+        metadata: {
+          project_id: creator.projectId,
+          target_user_id: creator.userId,
+          granted_role: creator.role,
+        },
+      });
 
       await this.audit?.record(tx, context, {
         action: 'project.created',

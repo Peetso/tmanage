@@ -93,6 +93,20 @@ export const INTERNAL_ROLES = [
   'guest',
 ] as const;
 
+/**
+ * The roles a person can hold *on a project* — a subset of {@link INTERNAL_ROLES}.
+ *
+ * `owner`, `org_admin` and `workspace_admin` describe a person's place in the organization, not
+ * on one project, so the project team list never offers them (ADM-17). `moderator` is a chat
+ * role. Ordered most-privileged first, like `INTERNAL_ROLES`. A `project_memberships` row written
+ * before this list existed may still carry another internal role; it is shown and can be changed
+ * away from, but never newly assigned.
+ */
+export const PROJECT_ROLES = ['manager', 'member', 'guest'] as const;
+
+/** The project role the person who creates a project receives (PRJ-01). */
+export const PROJECT_CREATOR_ROLE = 'manager' as const;
+
 /** `12-PERMISSION-MATRIX.md` §1. External principals. */
 export const CLIENT_ROLES = [
   'client_admin',
@@ -103,6 +117,7 @@ export const CLIENT_ROLES = [
 
 export type InternalRole = (typeof INTERNAL_ROLES)[number];
 export type ClientRole = (typeof CLIENT_ROLES)[number];
+export type ProjectRole = (typeof PROJECT_ROLES)[number];
 export type Role = InternalRole | ClientRole;
 
 /**
@@ -132,6 +147,10 @@ export function isClientRole(role: string): role is ClientRole {
 
 export function isInternalRole(role: string): role is InternalRole {
   return (INTERNAL_ROLES as readonly string[]).includes(role);
+}
+
+export function isProjectRole(role: string): role is ProjectRole {
+  return (PROJECT_ROLES as readonly string[]).includes(role);
 }
 
 export function isRole(role: string): role is Role {

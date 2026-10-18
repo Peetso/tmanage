@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { INTERNAL_ROLES } from '@tmanage/domain';
+import { isProjectRole, PROJECT_ROLES } from '@tmanage/domain';
 import { Avatar, Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
@@ -33,7 +33,8 @@ export interface MembersAndRolesScreenProps {
  *
  * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` ADM-02 — who is on a project and in what role, with add,
  * change-role and remove behind `project.member.manage`. The write boundary is the API's: this
- * screen offers every internal role, and the server refuses an assignment above the caller's own
+ * screen offers the project roles only (ADM-17; organization roles such as Owner and the admin
+ * roles describe the organization, not one project), and the server refuses an assignment above the caller's own
  * ceiling, a caller changing their own role, and the removal of the last owner. The screen shows
  * the refusal rather than trying to pre-empt a decision that is not the browser's to make.
  *
@@ -47,6 +48,14 @@ export interface MembersAndRolesScreenProps {
  * ADM-03 (the capability-matrix editor) and the affected-users preview are a separate ticket;
  * this screen assigns one of the fixed internal roles, it never edits what a role can do.
  */
+/**
+ * The roles a member's row offers: the project roles, plus the role they already hold when it is
+ * an older organization-level one, so the current value still shows and can be changed away from.
+ */
+function roleChoices(current: string): readonly string[] {
+  return isProjectRole(current) ? PROJECT_ROLES : [current, ...PROJECT_ROLES];
+}
+
 export function MembersAndRolesScreen({
   organizationSlug,
   organizationName,
@@ -186,7 +195,7 @@ export function MembersAndRolesScreen({
                               changeRole.mutate({ member, role: event.target.value })
                             }
                           >
-                            {INTERNAL_ROLES.map((role) => (
+                            {roleChoices(member.role).map((role) => (
                               <option key={role} value={role}>
                                 {describeInternalRole(role).label}
                               </option>
@@ -240,7 +249,7 @@ export function MembersAndRolesScreen({
                 value={addRole}
                 onChange={(event) => setAddRole(event.target.value)}
               >
-                {INTERNAL_ROLES.map((role) => (
+                {PROJECT_ROLES.map((role) => (
                   <option key={role} value={role}>
                     {describeInternalRole(role).label}
                   </option>
