@@ -30,6 +30,7 @@ import {
   stateLabel,
 } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { WorkItemTagsAndFiles } from './WorkItemTagsAndFiles';
 
 export interface WorkItemDetailScreenProps {
   organizationSlug: string;
@@ -143,10 +144,11 @@ function factsForWire(
  *
  * ## What is not here
  *
- * Description, checklist, dependencies, source, discussion, files, decisions and activity are
- * each their own object and their own ticket. None is drawn as an empty section: an empty
- * "Files" heading looks like a project with no files rather than a feature that does not
- * exist. `BackendPending` names them once, plainly.
+ * Description, checklist, dependencies, source, discussion, decisions and activity are each
+ * their own object and their own ticket. None is drawn as an empty section: an empty heading
+ * looks like an item with nothing in it rather than a feature that does not exist.
+ * `BackendPending` names them once, plainly. Labels and attached files are shown, read-only
+ * ({@link WorkItemTagsAndFiles}) — they are what the New work capsule adds to an item.
  */
 export function WorkItemDetailScreen({
   organizationSlug,
@@ -470,6 +472,12 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
               : `Currently ${stateLabel(item.state).toLowerCase()}, ${audienceLabel(item.audience).toLowerCase()}.`}
           </p>
         </section>
+
+        <WorkItemTagsAndFiles
+          organizationSlug={organizationSlug}
+          workItemId={item.id}
+          client={api}
+        />
 
         {conflict ? (
           <InlineAlert tone="warning" title="Somebody else changed this first" live>

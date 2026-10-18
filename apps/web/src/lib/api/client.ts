@@ -124,6 +124,12 @@ export interface ApiRequest {
    * not an expiry.
    */
   readonly authentication?: 'session' | 'none';
+  /**
+   * Extra request headers a route requires beyond the three this client always sends — today
+   * only `Idempotency-Key` on an upload session. They cannot replace the CSRF, correlation or
+   * content-type headers: those are set after these and win.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 export interface ApiResponse<T> {
@@ -258,9 +264,11 @@ export class ApiClient {
     path,
     body,
     signal,
+    headers: extraHeaders,
   }: ApiRequest): Promise<ApiResponse<T>> {
     const correlationId = this.options.newCorrelationId();
-    const headers = new Headers({ [CORRELATION_HEADER]: correlationId });
+    const headers = new Headers(extraHeaders);
+    headers.set(CORRELATION_HEADER, correlationId);
 
     if (body !== undefined) headers.set('content-type', 'application/json');
 

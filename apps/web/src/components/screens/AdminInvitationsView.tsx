@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPendingInvitations, revokeInvitation } from '../../lib/api/admin-invitations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { describeInternalRole } from '../../lib/roles';
 
 export interface AdminInvitationsViewProps {
   organizationSlug: string;
@@ -94,7 +95,7 @@ export function AdminInvitationsView({
             {rows.map((invitation) => (
               <li key={invitation.id} className="tm-row">
                 <strong>{invitation.email}</strong>
-                <span className="tm-muted">{invitation.role}</span>
+                <span className="tm-muted">{describeInternalRole(invitation.role).label}</span>
                 <span>Invited by {invitation.invitedByName}</span>
                 <span>Expires {formatMoment(invitation.expiresAt)}</span>
                 {invitation.isExpired ? <Badge>Expired</Badge> : null}

@@ -200,9 +200,9 @@ export function QuickCaptureScreen({
         } catch (error) {
           failures.push(
             error instanceof ApiRequestError
-              ? `“${file.name}” was not attached: ${error.message}`
+              ? `“${file.name}” was not attached: ${withFullStop(error.message)}`
               : error instanceof Error
-                ? error.message
+                ? withFullStop(error.message)
                 : `“${file.name}” was not attached.`,
           );
         }
@@ -401,4 +401,9 @@ export function QuickCaptureScreen({
 function errorMessage(error: unknown): string {
   if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
   return 'Something went wrong. Please try again.';
+}
+
+/** The API's messages carry no full stop; the failures are joined into one paragraph. */
+function withFullStop(message: string): string {
+  return /[.!?]$/.test(message.trim()) ? message.trim() : `${message.trim()}.`;
 }

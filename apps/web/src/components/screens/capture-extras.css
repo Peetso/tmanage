@@ -1,0 +1,102 @@
+/*
+ * New work capsule (WK-10 "Quick capsule"): the Labels and Attachments rows. Same mono caption
+ * as the capsule's Title / Note labels, the same compact capsules as its chips row.
+ */
+
+.tm-capture-extra {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-capture-extra__label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-capture-extra__chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-capture-extra__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-capture-extra__chips .tm-chip {
+  max-inline-size: 100%;
+}
+
+.tm-capture-extra__add {
+  color: var(--ink-800);
+}
+
+.tm-capture-extra__new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-capture-extra__new-input {
+  min-block-size: 32px;
+  inline-size: 180px;
+  padding-inline: var(--s3);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-capture-extra__file-name {
+  overflow: hidden;
+  max-inline-size: 240px;
+  text-overflow: ellipsis;
+}
+
+.tm-capture-extra__file-size {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-650);
+}
+
+.tm-capture-extra__remove {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  margin-inline-end: calc(var(--s1) * -1);
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-capture-extra__remove:hover,
+.tm-capture-extra__remove:focus-visible {
+  background: var(--paper-150);
+  color: var(--ink-950);
+}
+
+.tm-capture-extra__hint {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+@media (max-width: 480px) {
+  .tm-capture-extra__file-name {
+    max-inline-size: 150px;
+  }
+
+  .tm-capture-extra__new-input {
+    inline-size: 140px;
+  }
+}

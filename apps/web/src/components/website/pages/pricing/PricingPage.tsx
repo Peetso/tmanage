@@ -269,7 +269,7 @@ export function PricingPage() {
           id="pricing-title"
           eyebrow="Pricing"
           title="Priced per internal seat. Clients are always free."
-          lede="Pay only for the people on your team who plan and deliver the work. Clients, guests and approvers join their portal at no cost, on every plan."
+          lede="Pay only for the people on your team who plan and deliver the work. Clients and their approvers join their portal at no cost, on every plan."
         >
           <div className="tm-pricing-hero__toggle">
             <BillingToggle period={period} onChange={setPeriod} />

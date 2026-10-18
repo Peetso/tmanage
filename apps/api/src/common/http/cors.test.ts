@@ -102,6 +102,23 @@ describe('the CORS policy (D20)', () => {
     expect(allowedMethods(patch.headers)).toContain('PATCH');
   });
 
+  it('lets an upload session be opened cross-origin with its Idempotency-Key', async () => {
+    const response = await app.inject({
+      method: 'OPTIONS',
+      url: '/probe/upload-sessions',
+      headers: {
+        origin: WEB_ORIGIN,
+        'access-control-request-method': 'POST',
+        'access-control-request-headers': 'content-type, x-csrf-token, idempotency-key',
+      },
+    });
+
+    expect(response.headers['access-control-allow-origin']).toBe(WEB_ORIGIN);
+    expect(String(response.headers['access-control-allow-headers']).toLowerCase()).toContain(
+      'idempotency-key',
+    );
+  });
+
   it('still names no allowed origin to an origin that is not allowed', async () => {
     const response = await preflight(app, 'DELETE', '/probe/session', OTHER_ORIGIN);
 

@@ -1,5 +1,5 @@
-import { INTERNAL_ROLES } from '@tmanage/domain';
-import type { InternalRole } from '@tmanage/domain';
+import { CLIENT_ROLES, INTERNAL_ROLES } from '@tmanage/domain';
+import type { ClientRole, InternalRole } from '@tmanage/domain';
 
 /**
  * What each internal role can actually do, in sentences.
@@ -80,10 +80,55 @@ const DESCRIPTIONS: Record<InternalRole, RoleDescription> = {
     ],
     withholds: 'Cannot change roles, publish to clients, or open the Control Center.',
   },
+  // Stored as `guest`. On screen it is "Freelancer or partner": somebody from outside the
+  // company who is not a client. Clients are a different kind of person (a client organization
+  // with its own portal and the `client_*` roles below), and "Guest" read as if it meant them.
   guest: {
-    label: 'Guest',
-    grants: ['Read-only access to the projects they are assigned to'],
-    withholds: 'Cannot change anything at all.',
+    label: 'Freelancer or partner',
+    grants: [
+      'Someone outside your company who is not a client, such as a freelancer or a partner agency',
+      'Read-only access to the projects they are added to',
+    ],
+    withholds:
+      'Cannot change anything. Not for clients: clients are invited to their own portal, separately.',
+  },
+};
+
+/**
+ * The client side of the matrix (`12-PERMISSION-MATRIX` §1, "External"). These people belong to a
+ * client organization and only ever see that client's portal. They are never invited from the
+ * team screen, but their invitations and memberships still need a name a person can read.
+ */
+const CLIENT_DESCRIPTIONS: Record<ClientRole, RoleDescription> = {
+  client_admin: {
+    label: 'Client admin',
+    grants: [
+      'Their client portal: shared projects, milestones, updates and files',
+      'Send requests and, where your policy allows, approve deliverables',
+      'Invite other people from their own client organization',
+    ],
+    withholds: 'Never sees your internal projects, notes, costs or other clients.',
+  },
+  client_reviewer: {
+    label: 'Client reviewer',
+    grants: [
+      'The projects shared with them in their client portal',
+      'Review and approve the deliverables assigned to them, and send requests',
+    ],
+    withholds: 'Never sees your internal projects, notes, costs or other clients.',
+  },
+  client_member: {
+    label: 'Client member',
+    grants: [
+      'The projects shared with them in their client portal',
+      'Send requests and complete actions asked of them',
+    ],
+    withholds: 'Cannot invite anyone, and approves only what is assigned to them.',
+  },
+  client_viewer: {
+    label: 'Client viewer',
+    grants: ['Read-only view of what is shared with them in their client portal'],
+    withholds: 'Cannot approve or change anything.',
   },
 };
 
@@ -92,6 +137,7 @@ export const INVITABLE_ROLES: readonly InternalRole[] = ['member', 'org_admin', 
 
 export function describeInternalRole(role: string): RoleDescription {
   if (isInternalRoleName(role)) return DESCRIPTIONS[role];
+  if (isClientRoleName(role)) return CLIENT_DESCRIPTIONS[role];
   // A role the API knows and this file does not. The label is the raw value rather than a
   // guess, because inventing a description for an unknown grant is the one failure mode this
   // whole file exists to prevent.
@@ -104,4 +150,8 @@ export function describeInternalRole(role: string): RoleDescription {
 
 function isInternalRoleName(value: string): value is InternalRole {
   return (INTERNAL_ROLES as readonly string[]).includes(value);
+}
+
+function isClientRoleName(value: string): value is ClientRole {
+  return (CLIENT_ROLES as readonly string[]).includes(value);
 }

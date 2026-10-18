@@ -248,6 +248,25 @@ export function IntegrationDirectoryScreen({
                     </Link>
                   </div>
                 </li>
+                <li>
+                  <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
+                    ✦
+                  </span>
+                  <div className="tm-aut-list__main">
+                    <h3 className="tm-aut-rowtitle">AI assistant</h3>
+                    <span className="tm-aut-rowsub">
+                      connect Claude, ChatGPT or another MCP assistant to your work
+                    </span>
+                  </div>
+                  <div className="tm-aut-list__end">
+                    <Link
+                      href={`/${organizationSlug}/settings/ai-assistant`}
+                      className="tm-aut-btn"
+                    >
+                      Set up
+                    </Link>
+                  </div>
+                </li>
               </ul>
             ) : null}
           </section>

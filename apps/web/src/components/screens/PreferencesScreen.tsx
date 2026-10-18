@@ -60,13 +60,14 @@ const ROLE_COPY: Readonly<Record<string, string>> = {
   admin: 'Admin. An owner can change this from People.',
   manager: 'Manager. An owner or admin can change this from People.',
   member: 'Member. An owner or admin can change this from People.',
+  guest: 'Freelancer or partner. An owner or admin can change this from People.',
 };
 
 // ── Shared pieces for the preference screens (PREF-01…05) ─────────────────────────────────────
 
 /** The sections under the account orb, in PREF-01's "YOURS ONLY" order. */
 export type PreferencesSection =
-  'profile' | 'appearance' | 'notifications' | 'accessibility' | 'keyboard';
+  'profile' | 'appearance' | 'notifications' | 'accessibility' | 'keyboard' | 'ai-assistant';
 
 const SECTIONS: readonly { id: PreferencesSection; label: string; href: string }[] = [
   { id: 'profile', label: 'Profile', href: '/preferences' },
@@ -74,6 +75,8 @@ const SECTIONS: readonly { id: PreferencesSection; label: string; href: string }
   { id: 'notifications', label: 'Notifications', href: '/inbox/notification-preferences' },
   { id: 'accessibility', label: 'Accessibility', href: '/settings/accessibility' },
   { id: 'keyboard', label: 'Keyboard', href: '/preferences?section=keyboard' },
+  // Every member's own keys, so it sits under the account orb, not under Control.
+  { id: 'ai-assistant', label: 'AI assistant', href: '/settings/ai-assistant' },
 ];
 
 /** PREF-01's left column: the person's own settings, one link per section. */

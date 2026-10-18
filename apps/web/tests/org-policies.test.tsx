@@ -61,7 +61,7 @@ describe('AdminPoliciesScreen — Administration access policies (x174)', () => 
     expect(screen.getByLabelText('Invite domain allowlist')).toHaveValue(
       'example.com, partner.test',
     );
-    expect(screen.getByLabelText('Allow guest access')).toBeChecked();
+    expect(screen.getByLabelText('Allow freelancers and partners')).toBeChecked();
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
 

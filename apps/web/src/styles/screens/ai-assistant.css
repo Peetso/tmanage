@@ -1,0 +1,145 @@
+/* AI assistant (Settings) — composes the Preferences card vocabulary; only the pieces it lacks. */
+
+.tm-ai .tm-prefs__main {
+  flex: 1.6;
+}
+
+.tm-ai .tm-prefs__side {
+  flex: 1;
+}
+
+.tm-ai-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-ai-step {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+}
+
+.tm-ai-step__num {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+  color: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  font-weight: 600;
+}
+
+.tm-ai-step__text,
+.tm-ai-status__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-ai-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-ai-detail__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: center;
+}
+
+.tm-ai-detail__row .tm-prefs-secret {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-ai-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-ai-tab {
+  padding: 8px var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  font: inherit;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-800);
+  cursor: pointer;
+}
+
+.tm-ai-tab:hover {
+  border-color: var(--ink-650);
+  color: var(--ink-950);
+}
+
+.tm-ai-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-ai-tab[aria-selected='true'] {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-ai-howto {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  margin: 0;
+  padding-inline-start: 1.25em;
+}
+
+.tm-ai-snippet {
+  margin: 0;
+  padding: var(--s4);
+  overflow-x: auto;
+  border-radius: 12px;
+  background: var(--paper-50);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: 18px;
+  white-space: pre;
+}
+
+.tm-ai-status {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+  margin: 0;
+}
+
+.tm-ai-status .tm-prefs-dot {
+  margin-block-start: 7px;
+}
+
+@media (max-width: 73.69rem) {
+  .tm-ai .tm-prefs__main,
+  .tm-ai .tm-prefs__side {
+    flex: none;
+  }
+}

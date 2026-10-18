@@ -254,7 +254,9 @@ describe('ON-04, creating invitations', () => {
 
     expect(screen.getByRole('option', { name: 'Team member' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Organization admin' })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Guest' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Freelancer or partner' })).toBeInTheDocument();
+    // `guest` is not a client: it must not read as one, and must not read as "Guest".
+    expect(screen.queryByRole('option', { name: 'Guest' })).toBeNull();
     // The two the screen used to offer, and which no role in `packages/domain` matches.
     expect(screen.queryByRole('option', { name: 'Admin' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Viewer' })).toBeNull();

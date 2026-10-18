@@ -77,8 +77,14 @@ const EXEMPT = new Map([
     'ConversationMemberView',
     'No web consumer: membership is never fetched by apps/web; the channel screen reads messages only.',
   ],
-  ['UploadSessionView', 'No web consumer: FILE-002 has no web client module at all.'],
-  ['FileAssetView', 'No web consumer: FILE-002 has no web client module at all.'],
+  [
+    'UploadSessionView',
+    'Not mirrored: apps/web/src/lib/api/uploads.ts (New work attachments) reads only id, fileAssetId, partSizeBytes and uploadUrls through an unexported partial type; no screen renders the session.',
+  ],
+  [
+    'FileAssetView',
+    'Not mirrored: apps/web/src/lib/api/uploads.ts reads only the completed asset id through an unexported partial type; no screen renders a file asset.',
+  ],
   [
     'WorkItemDependencyView',
     'No web consumer: the work-graph endpoints (dependencies) have no screen; WEB work-items.ts wraps list/get/create/update/transition only.',

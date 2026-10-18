@@ -9,6 +9,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations, type OrganizationSummary } from '../../lib/api/organizations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { describeInternalRole } from '../../lib/roles';
 import '../../styles/screens/identity.css';
 
 export interface OrganizationSelectorScreenProps {
@@ -131,7 +132,7 @@ export function OrganizationSelectorScreen({ client }: OrganizationSelectorScree
                           <span className="tm-id-org__meta">
                             <span>{isClient ? 'Client portal' : 'Internal member'}</span>
                             {' · '}
-                            <span>{humanise(organization.role)}</span>
+                            <span>{roleLabel(organization.role)}</span>
                             {isClient ? (
                               <>
                                 {' · '}
@@ -177,8 +178,14 @@ function heading(organizations: readonly OrganizationSummary[] | undefined): str
   return `${organizations.length} organizations use your email`;
 }
 
-/** `client_reviewer` reads as "Client reviewer". The stored value never changes. */
-function humanise(role: string): string {
+/**
+ * The role in words, from `lib/roles` so `guest` reads "Freelancer or partner" and `client_reviewer`
+ * "Client reviewer" here exactly as everywhere else. A value `lib/roles` does not know is spaced
+ * and capitalised rather than shown raw. The stored value never changes.
+ */
+function roleLabel(role: string): string {
+  const label = describeInternalRole(role).label;
+  if (label !== role) return label;
   const spaced = role.replace(/_/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }

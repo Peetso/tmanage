@@ -21,7 +21,16 @@
  */
 export const CORS_ALLOWED_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] as const;
 
-export const CORS_ALLOWED_HEADERS = ['content-type', 'x-csrf-token', 'x-correlation-id'] as const;
+/**
+ * `Idempotency-Key` is required on `POST …/upload-sessions` (FILE-001), which the web's New work
+ * capsule now sends from the browser; on a split-origin deployment the preflight would refuse it.
+ */
+export const CORS_ALLOWED_HEADERS = [
+  'content-type',
+  'x-csrf-token',
+  'x-correlation-id',
+  'idempotency-key',
+] as const;
 
 export const CORS_EXPOSED_HEADERS = ['x-correlation-id', 'etag'] as const;
 

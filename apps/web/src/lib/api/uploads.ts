@@ -1,0 +1,203 @@
+import type { ApiClient } from './client';
+import { NetworkError } from './errors';
+
+/**
+ * The browser side of the upload pipeline (FILE-001/002), for a work item's attachments.
+ *
+ * Three calls, the same three the upload journey (`e2e/tests/upload-journeys.spec.ts`) makes:
+ *
+ * 1. `POST …/upload-sessions` (signed in, with an `Idempotency-Key`) reserves quota and answers
+ *    one target URL per part.
+ * 2. Each part is `PUT` to its target **with no cookie** — the target carries its own signed part
+ *    token, and on the production host it is the API's own `/v1/uploads/…` route (the local
+ *    filesystem driver). The API answers each part's `ETag`.
+ * 3. `POST …/upload-sessions/:id/complete` with those etags. The asset is then `uploaded`; the
+ *    verifier and scanner take it from there, exactly as for every other upload.
+ *
+ * Nothing here decides what is allowed: the API refuses an oversized file, a purpose the caller
+ * may not use and a project the caller cannot write to, and the verifier refuses a type outside
+ * decision F5's families whatever the browser declared. The checks below only say so earlier, in
+ * words, before any byte moves.
+ *
+ * The two response shapes are read partially (only the fields this flow needs) and are not
+ * exported, so they are not web response projections for `contracts-check`; the API's
+ * `UploadSessionView` and `FileAssetView` stay listed there as not fully mirrored by the web.
+ */
+
+/** The single-upload ceiling the API applies by default (`UPLOAD_MAX_BYTES`, 100 MiB). */
+export const MAX_ATTACHMENT_BYTES = 104_857_600;
+
+/** How many files one new work item takes in one go. */
+export const MAX_ATTACHMENTS = 10;
+
+/**
+ * The media types the verifier admits (decision F5, `content-signature.ts`), keyed by extension
+ * so a file whose browser-reported type is empty (common for `.md` and `.csv`) still declares one.
+ */
+const TYPE_BY_EXTENSION: Readonly<Record<string, string>> = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  zip: 'application/zip',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  txt: 'text/plain',
+  csv: 'text/csv',
+  md: 'text/markdown',
+};
+
+const ADMITTED_TYPES: ReadonlySet<string> = new Set(Object.values(TYPE_BY_EXTENSION));
+
+/** The `accept` attribute for the file input: every admitted extension and type. */
+export const ATTACHMENT_ACCEPT = [
+  ...Object.keys(TYPE_BY_EXTENSION).map((extension) => `.${extension}`),
+  ...ADMITTED_TYPES,
+].join(',');
+
+/** A human list of the admitted kinds, for the hint under the picker. */
+export const ATTACHMENT_KINDS_LABEL =
+  'PDF, images (PNG, JPEG, GIF, WebP), Word, Excel, PowerPoint, ZIP, text, CSV or Markdown';
+
+/** The minimal file facts these checks read — `File` has them, and a test can fake them. */
+export interface AttachmentFileInput {
+  readonly name: string;
+  readonly size: number;
+  readonly type: string;
+}
+
+/**
+ * The media type to declare for a file, or `null` when it is not one the verifier admits. The
+ * browser's own type wins when it is admitted; otherwise the extension decides.
+ */
+export function attachmentMimeType(file: AttachmentFileInput): string | null {
+  const reported = file.type.trim().toLowerCase();
+  if (ADMITTED_TYPES.has(reported)) return reported;
+  const dot = file.name.lastIndexOf('.');
+  if (dot === -1) return null;
+  return TYPE_BY_EXTENSION[file.name.slice(dot + 1).toLowerCase()] ?? null;
+}
+
+/** Why a file cannot be attached, in a sentence — or `null` when it can. */
+export function attachmentProblem(file: AttachmentFileInput): string | null {
+  if (file.size < 1) return `“${file.name}” is empty.`;
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    return `“${file.name}” is larger than ${formatBytes(MAX_ATTACHMENT_BYTES)}.`;
+  }
+  if (/[/\\]/.test(file.name)) return `“${file.name}” has a name that cannot be used.`;
+  if (attachmentMimeType(file) === null) {
+    return `“${file.name}” is not a file type TManage accepts.`;
+  }
+  return null;
+}
+
+/** `1.2 MB`-style sizes for the chips and messages. */
+export function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  const megabytes = bytes / (1024 * 1024);
+  return `${megabytes >= 10 ? Math.round(megabytes) : megabytes.toFixed(1)} MB`;
+}
+
+interface UploadSessionReply {
+  readonly id: string;
+  readonly fileAssetId: string;
+  readonly partSizeBytes: number;
+  readonly uploadUrls: readonly { readonly partNumber: number; readonly url: string }[];
+}
+
+interface UploadedAssetReply {
+  readonly id: string;
+  readonly status: string;
+}
+
+export interface UploadAttachmentOptions {
+  /** The fetch the part PUTs use. Injectable so a test sees exactly what is sent. */
+  readonly fetch?: typeof globalThis.fetch;
+  /** A fresh `Idempotency-Key` (16–128 of `[A-Za-z0-9_-]`). */
+  readonly newKey?: () => string;
+}
+
+function defaultKey(): string {
+  const cryptoRef = globalThis.crypto as Crypto | undefined;
+  if (cryptoRef?.randomUUID) return `wa-${cryptoRef.randomUUID()}`;
+  return `wa-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e12).toString(36)}`;
+}
+
+function orgBase(organizationSlug: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}`;
+}
+
+/**
+ * Upload one file into a project and answer the new file asset's id. A failure after the session
+ * opened cancels it, so the reservation is released rather than left for the sweeper.
+ */
+export async function uploadProjectFile(
+  client: ApiClient,
+  organizationSlug: string,
+  input: { readonly projectId: string; readonly file: Blob & AttachmentFileInput },
+  deps: UploadAttachmentOptions = {},
+): Promise<string> {
+  const mimeType = attachmentMimeType(input.file);
+  if (mimeType === null)
+    throw new Error(`“${input.file.name}” is not a file type TManage accepts.`);
+  const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
+
+  const { data: session } = await client.request<UploadSessionReply>({
+    method: 'POST',
+    path: `${orgBase(organizationSlug)}/upload-sessions`,
+    headers: { 'idempotency-key': (deps.newKey ?? defaultKey)() },
+    body: {
+      projectId: input.projectId,
+      fileName: input.file.name,
+      mimeType,
+      sizeBytes: input.file.size,
+      // The internal purpose for a project's own files; `internal` audience by default, so an
+      // attachment is never shown to a client by being uploaded.
+      purpose: 'deliverable',
+    },
+  });
+
+  try {
+    const parts: { partNumber: number; etag: string }[] = [];
+    for (const target of [...session.uploadUrls].sort((a, b) => a.partNumber - b.partNumber)) {
+      const start = (target.partNumber - 1) * session.partSizeBytes;
+      const chunk = input.file.slice(start, start + session.partSizeBytes);
+      let response: Response;
+      try {
+        response = await send(target.url, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/octet-stream' },
+          body: chunk,
+          // The part token authorises the PUT; the session cookie must not travel with it.
+          credentials: 'omit',
+        });
+      } catch (cause) {
+        throw new NetworkError(`“${input.file.name}” did not reach TManage.`, cause);
+      }
+      const etag = response.headers.get('etag');
+      if (!response.ok || !etag) {
+        throw new Error(`“${input.file.name}” could not be uploaded (part ${target.partNumber}).`);
+      }
+      parts.push({ partNumber: target.partNumber, etag });
+    }
+
+    const { data: asset } = await client.request<UploadedAssetReply>({
+      method: 'POST',
+      path: `${orgBase(organizationSlug)}/upload-sessions/${encodeURIComponent(session.id)}/complete`,
+      body: { parts },
+    });
+    return asset.id;
+  } catch (error) {
+    await client
+      .request<unknown>({
+        method: 'POST',
+        path: `${orgBase(organizationSlug)}/upload-sessions/${encodeURIComponent(session.id)}/cancel`,
+      })
+      .catch(() => undefined);
+    throw error;
+  }
+}

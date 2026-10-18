@@ -154,11 +154,11 @@ export function AdminPoliciesScreen({
                 </li>
                 <li>
                   <Checkbox
-                    label="Allow guest access"
+                    label="Allow freelancers and partners"
                     name="guest_access_enabled"
                     checked={guestAccess}
                     onChange={(event) => setGuestAccess(event.target.checked)}
-                    hint="Whether external guests may access shared surfaces at all."
+                    hint="Outside people who are not clients. Clients are not affected."
                   />
                   <span className={guestAccess ? 'tm-cc-pill tm-cc-pill--on' : 'tm-cc-pill'}>
                     {guestAccess ? 'On' : 'Off'}
@@ -237,8 +237,8 @@ export function AdminPoliciesScreen({
               </tr>
               <tr>
                 <td>
-                  <span className="tm-cc-cell-title">Guests</span>
-                  <span className="tm-cc-cell-sub">external people on shared surfaces</span>
+                  <span className="tm-cc-cell-title">Freelancers and partners</span>
+                  <span className="tm-cc-cell-sub">outside people who are not clients</span>
                 </td>
                 <td className="tm-cc-end">
                   {current ? (

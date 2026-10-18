@@ -124,7 +124,7 @@ export const PRICING_FAQ: readonly { question: string; answer: string }[] = [
   {
     question: 'Who counts as a seat?',
     answer:
-      'Anyone on your team with an internal login. Clients, guests and approvers never use a seat.',
+      'Anyone on your team with an internal login. Clients and their approvers never use a seat.',
   },
   {
     question: 'Why is there no price yet?',
