@@ -100,11 +100,15 @@ export interface InvitationPreviewRow {
   readonly inviterName: string;
   readonly inviterEmail: string;
   readonly clientOrganizationName: string | null;
+  /** The address the invitation was sent to — the invitee's own, shown back to them. */
+  readonly inviteeEmail: string;
 }
 
 /** The names the invitation email interpolates — `previewByTokenHash`'s joins, tenant-scoped. */
 export interface InvitationMailFactsRow {
   readonly organizationName: string;
+  /** `organizations.default_locale` — an Arabic organization's invitation is written in Arabic. */
+  readonly organizationLocale: string;
   readonly inviterName: string;
   readonly inviterEmail: string;
   readonly clientOrganizationName: string | null;
@@ -180,6 +184,7 @@ export class InvitationsRepository {
     const rows = await tenantDrizzle(runner)
       .select({
         organizationName: organizations.name,
+        organizationLocale: organizations.defaultLocale,
         inviterName: users.displayName,
         inviterEmail: users.email,
         clientOrganizationName: clientOrganizations.name,
@@ -423,6 +428,7 @@ export class InvitationsRepository {
         inviterName: users.displayName,
         inviterEmail: users.email,
         clientOrganizationName: clientOrganizations.name,
+        inviteeEmail: invitations.email,
       })
       .from(invitations)
       .innerJoin(organizations, eq(organizations.id, invitations.organizationId))

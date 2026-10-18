@@ -20,6 +20,15 @@ import {
   looksLikeInvitationToken,
 } from '../identity/invitation-token.js';
 import type { InvitationRow } from '../../common/database/schema.js';
+import type { TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { CredentialsRepository } from '../identity/credentials.repository.js';
+import { describePasswordRejection, hashPassword, screenPassword } from '../identity/password.js';
+import type { SeedCipher } from '../identity/seed-cipher.js';
+import {
+  InviteeAccountExistsError,
+  InviteeAccountsRepository,
+  isDuplicateKey,
+} from './invitee-accounts.repository.js';
 
 /**
  * TEN-003 — issuing, accepting, revoking and expiring an invitation.
@@ -63,6 +72,38 @@ import type { InvitationRow } from '../../common/database/schema.js';
 
 /** `22-SCREEN-BY-SCREEN` §3 ON-06 sends a link; the link is useless after this long. */
 const DEFAULT_TTL_DAYS = 14;
+
+/** `users.display_name` is `VARCHAR(190)`. */
+const DISPLAY_NAME_MAX_LENGTH = 190;
+
+/**
+ * Accepting while signed in to an account that already belongs where the invitation leads
+ * (ACC-04). Before this, the membership insert hit `uq_memberships_org_user` and the caller
+ * got a bare 500; the invitation stays pending either way, so the person it was really meant
+ * for can still use it.
+ */
+export const ALREADY_MEMBER_MESSAGE =
+  'The account you are signed in with is already a member here. If this invitation is for ' +
+  'someone else, sign out and open the link again.';
+
+/** Registering from an invitation whose address already has an account. */
+export const ACCOUNT_EXISTS_MESSAGE =
+  'An account already uses this email address. Sign in with it, then open the link again.';
+
+/**
+ * Registration writes only a password row; `setPassword` never touches MFA seeds. The cipher
+ * refuses every call, so a later change that reached for a seed here fails loudly — the same
+ * guard `FirstOwnerService` uses.
+ */
+const refuseSeed = (): never => {
+  throw new Error('invitation registration has no MFA seed cipher');
+};
+const NO_SEED_CIPHER: SeedCipher = {
+  encrypt: refuseSeed,
+  decrypt: refuseSeed,
+  keyVersionOf: refuseSeed,
+  needsRotation: refuseSeed,
+};
 
 export interface InvitationView {
   readonly id: string;
@@ -135,6 +176,17 @@ export interface InvitationPreviewView {
   readonly clientOrganizationName: string | null;
   readonly invitedAt: string;
   readonly expiresAt: string;
+  /**
+   * The address the invitation was sent to. Disclosed only to whoever holds the token that was
+   * mailed to it — the person reading their own address back.
+   */
+  readonly inviteeEmail: string;
+  /**
+   * Whether an account already uses that address (ACC-01). `false` is what lets `ID-03` offer
+   * "set a password and join" instead of sending a brand-new invitee to a sign-in screen they
+   * can never pass. Same audience as `inviteeEmail`, so it tells nobody anything new.
+   */
+  readonly hasAccount: boolean;
 }
 
 export interface AcceptedInvitationView {
@@ -142,6 +194,16 @@ export interface AcceptedInvitationView {
   readonly membershipId: string;
   readonly clientOrganizationId: string | null;
   readonly role: string;
+}
+
+/** A registration: the new account's id (the controller starts its session) and the grant. */
+export interface RegisteredInvitation extends AcceptedInvitationView {
+  readonly userId: string;
+}
+
+export interface RegisterInvitationInput {
+  readonly displayName?: unknown;
+  readonly password?: unknown;
 }
 
 export interface InvitationsServiceOptions {
@@ -159,6 +221,8 @@ export class InvitationsService {
     /** Optional the same way: absent means every delivery answers `'none'`. */
     private readonly invitationMail?: InvitationMailer,
     private readonly options: InvitationsServiceOptions = {},
+    private readonly inviteeAccounts: InviteeAccountsRepository = new InviteeAccountsRepository(),
+    private readonly credentials: CredentialsRepository = new CredentialsRepository(NO_SEED_CIPHER),
   ) {}
 
   async list(
@@ -368,69 +432,141 @@ export class InvitationsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_not_pending');
     }
 
-    // The context this transaction runs under. Its membership id is created inside it, exactly
-    // as `ProvisioningService` does — see that file for why this is narrower than an escape
-    // hatch rather than wider.
-    const membershipId = uuidv7();
-    const context = createTenantContext({
-      organizationId: invitation.organizationId,
-      userId,
-      membershipId,
-      principalKind: invitation.clientOrganizationId === null ? 'internal' : 'client',
-      capabilities: [],
-      policyVersion: 'invitation-acceptance',
-      correlationId,
-    });
+    const context = acceptanceContext(invitation, userId, correlationId);
 
-    return this.database.transaction(context, async (tx) => {
-      // Marked accepted *first*. The `status = 'pending'` predicate is what makes the token
-      // single-use, so two requests racing with one token both reach here and exactly one
-      // proceeds — rather than both creating a membership and one failing on a unique key
-      // afterwards, which would leave the invitation accepted twice in the log.
-      const accepted = await this.invitations.markAccepted(tx, context, invitation.id, userId);
+    try {
+      return await this.database.transaction(context, (tx) =>
+        this.grantWithin(tx, context, invitation.id, userId),
+      );
+    } catch (error) {
+      throw alreadyMemberOr(error);
+    }
+  }
 
-      if (accepted.clientOrganizationId === null) {
-        const created = await this.memberships.invite(tx, context, {
-          userId,
-          role: accepted.role as Parameters<MembershipsRepository['invite']>[2]['role'],
-        });
-        // `invited → active`: the row records both states, because the invitation *was* the
-        // invited state and the acceptance is what makes it active. Writing `active` directly
-        // would lose the transition the membership machine exists to describe.
-        const active = await this.memberships.transitionStatus(
-          tx,
-          context,
-          created.id,
-          created.version,
-          'active',
-        );
+  /**
+   * Accept an invitation as somebody who has no account yet (ACC-01): create the account with
+   * the invitation's own address, set its password, and grant what the invitation grants — in
+   * one transaction, so there is never an account without its membership or the reverse.
+   *
+   * **Public**, like `preview`: the token is the credential. It was mailed to the address the
+   * account is created for, so holding it proves the mailbox; the address comes from the row,
+   * never from the body. If an account already uses the address the answer is 409 and the
+   * person signs in instead — a registration never touches an existing account.
+   *
+   * Returns the new user's id; the controller starts the session once this has committed, as
+   * `FirstOwnerController` does.
+   */
+  async register(
+    token: string,
+    input: RegisterInvitationInput,
+    correlationId: string,
+  ): Promise<RegisteredInvitation> {
+    if (!looksLikeInvitationToken(token)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_malformed');
+    }
 
-        await this.audit?.record(tx, context, {
-          action: 'invitation.accepted',
-          objectId: accepted.id,
-          result: 'allowed',
-          metadata: { role: accepted.role, destination: 'organization' },
-        });
+    const invitation = await this.database.bootstrapRead(
+      {
+        correlationId,
+        reason:
+          'resolving which organization an invitation token belongs to so its invitee can ' +
+          'create an account and join; they have no account and no membership, so no tenant ' +
+          'context can exist to scope this read',
+        tables: ['invitations'],
+      },
+      (runner) => this.invitations.findPendingByTokenHash(runner, hashInvitationToken(token)),
+    );
+    if (!invitation) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_not_pending');
+    }
 
-        return {
-          organizationId: accepted.organizationId,
-          membershipId: active.id,
-          clientOrganizationId: null,
-          role: active.role,
-        };
-      }
-
-      const created = await this.clientMemberships.invite(tx, context, {
-        clientOrganizationId: accepted.clientOrganizationId,
-        userId,
-        role: accepted.role as Parameters<ClientMembershipsRepository['invite']>[2]['role'],
-        expiresAt: null,
+    const details: { field: string; message: string }[] = [];
+    const displayName = typeof input.displayName === 'string' ? input.displayName.trim() : '';
+    if (displayName === '') {
+      details.push({ field: 'displayName', message: 'Your name is required.' });
+    } else if (displayName.length > DISPLAY_NAME_MAX_LENGTH) {
+      details.push({
+        field: 'displayName',
+        message: `Keep your name to ${DISPLAY_NAME_MAX_LENGTH} characters.`,
       });
-      const active = await this.clientMemberships.transitionStatus(
+    }
+    const password = typeof input.password === 'string' ? input.password : '';
+    const screened = await screenPassword({
+      password,
+      identifiers: [invitation.email.split('@')[0] ?? '', displayName],
+    });
+    for (const rejection of screened.rejections) {
+      details.push({ field: 'password', message: describePasswordRejection(rejection) });
+    }
+    if (details.length > 0) {
+      throw new ApiError(422, 'validation_failed', 'That account cannot be created.', details);
+    }
+
+    // Before the transaction: argon2 is slow on purpose and must not hold a connection open.
+    const passwordHash = await hashPassword(password);
+    const userId = uuidv7();
+    const context = acceptanceContext(invitation, userId, correlationId);
+
+    try {
+      const granted = await this.database.invitationRegistrationTransaction(
+        { correlationId },
+        async (scope) => {
+          await this.inviteeAccounts.insertUser(scope.identity, {
+            id: userId,
+            email: invitation.email,
+            displayName,
+            locale: 'en',
+            timezone: 'UTC',
+          });
+          await this.credentials.setPassword(scope.identity, userId, passwordHash);
+          return this.grantWithin(scope.tenant(context), context, invitation.id, userId);
+        },
+      );
+      return { ...granted, userId };
+    } catch (error) {
+      if (error instanceof InviteeAccountExistsError) {
+        throw new ApiError(
+          409,
+          'conflict',
+          ACCOUNT_EXISTS_MESSAGE,
+          [{ field: 'email', message: 'account_exists' }],
+          'invitation_registration_account_exists',
+        );
+      }
+      throw alreadyMemberOr(error);
+    }
+  }
+
+  /**
+   * The grant itself, inside the caller's transaction: mark the invitation accepted, create the
+   * membership it names, and record both. Shared by `accept` (an existing account) and
+   * `register` (an account created in the same transaction).
+   */
+  private async grantWithin(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    invitationId: string,
+    userId: string,
+  ): Promise<AcceptedInvitationView> {
+    // Marked accepted *first*. The `status = 'pending'` predicate is what makes the token
+    // single-use, so two requests racing with one token both reach here and exactly one
+    // proceeds — rather than both creating a membership and one failing on a unique key
+    // afterwards, which would leave the invitation accepted twice in the log.
+    const accepted = await this.invitations.markAccepted(tx, context, invitationId, userId);
+
+    if (accepted.clientOrganizationId === null) {
+      const created = await this.memberships.invite(tx, context, {
+        userId,
+        role: accepted.role as Parameters<MembershipsRepository['invite']>[2]['role'],
+      });
+      // `invited → active`: the row records both states, because the invitation *was* the
+      // invited state and the acceptance is what makes it active. Writing `active` directly
+      // would lose the transition the membership machine exists to describe.
+      const active = await this.memberships.transitionStatus(
         tx,
         context,
         created.id,
-        created.updatedAt,
+        created.version,
         'active',
       );
 
@@ -438,20 +574,48 @@ export class InvitationsService {
         action: 'invitation.accepted',
         objectId: accepted.id,
         result: 'allowed',
-        metadata: {
-          role: accepted.role,
-          destination: 'client_organization',
-          client_organization_id: accepted.clientOrganizationId,
-        },
+        metadata: { role: accepted.role, destination: 'organization' },
       });
 
       return {
         organizationId: accepted.organizationId,
         membershipId: active.id,
-        clientOrganizationId: active.clientOrganizationId,
+        clientOrganizationId: null,
         role: active.role,
       };
+    }
+
+    const created = await this.clientMemberships.invite(tx, context, {
+      clientOrganizationId: accepted.clientOrganizationId,
+      userId,
+      role: accepted.role as Parameters<ClientMembershipsRepository['invite']>[2]['role'],
+      expiresAt: null,
     });
+    const active = await this.clientMemberships.transitionStatus(
+      tx,
+      context,
+      created.id,
+      created.updatedAt,
+      'active',
+    );
+
+    await this.audit?.record(tx, context, {
+      action: 'invitation.accepted',
+      objectId: accepted.id,
+      result: 'allowed',
+      metadata: {
+        role: accepted.role,
+        destination: 'client_organization',
+        client_organization_id: accepted.clientOrganizationId,
+      },
+    });
+
+    return {
+      organizationId: accepted.organizationId,
+      membershipId: active.id,
+      clientOrganizationId: active.clientOrganizationId,
+      role: active.role,
+    };
   }
 
   /**
@@ -487,6 +651,11 @@ export class InvitationsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_not_pending');
     }
 
+    const account = await this.database.identityRead(
+      { correlationId, tables: ['users'] },
+      (runner) => this.credentials.findUserIdByEmail(runner, row.inviteeEmail),
+    );
+
     return {
       organizationName: row.organizationName,
       inviterName: row.inviterName,
@@ -496,6 +665,8 @@ export class InvitationsService {
       clientOrganizationName: row.clientOrganizationName,
       invitedAt: row.createdAt.toISOString(),
       expiresAt: row.expiresAt.toISOString(),
+      inviteeEmail: row.inviteeEmail,
+      hasAccount: account !== null,
     };
   }
 
@@ -572,6 +743,7 @@ export class InvitationsService {
         organizationName: facts.organizationName,
         inviterName: facts.inviterName,
         inviterEmail: facts.inviterEmail,
+        locale: facts.organizationLocale,
         role: row.role,
         expiresAt: row.expiresAt,
         token,
@@ -759,4 +931,46 @@ export class InvitationsService {
       );
     }
   }
+}
+
+/**
+ * The context an acceptance runs under. Its membership id is created inside the transaction,
+ * exactly as `ProvisioningService` does — see that file for why this is narrower than an
+ * escape hatch rather than wider. `policyVersion` is a literal no resolved context produces.
+ */
+function acceptanceContext(
+  invitation: InvitationRow,
+  userId: string,
+  correlationId: string,
+): TenantContext {
+  return createTenantContext({
+    organizationId: invitation.organizationId,
+    userId,
+    membershipId: uuidv7(),
+    principalKind: invitation.clientOrganizationId === null ? 'internal' : 'client',
+    capabilities: [],
+    policyVersion: 'invitation-acceptance',
+    correlationId,
+  });
+}
+
+/**
+ * ACC-04: the account accepting already holds the membership this invitation would create.
+ * A 409 that says so, instead of the bare 500 the unique key produced. Anything else passes
+ * through untouched.
+ */
+function alreadyMemberOr(error: unknown): unknown {
+  if (
+    isDuplicateKey(error, 'uq_memberships_org_user') ||
+    isDuplicateKey(error, 'uq_client_memberships_identity')
+  ) {
+    return new ApiError(
+      409,
+      'conflict',
+      ALREADY_MEMBER_MESSAGE,
+      [{ field: 'token', message: 'already_member' }],
+      'invitation_already_member',
+    );
+  }
+  return error;
 }

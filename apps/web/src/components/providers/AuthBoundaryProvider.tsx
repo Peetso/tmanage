@@ -4,6 +4,7 @@ import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, type ReactNode } from 'react';
 import { authBoundary, type AuthBoundary, type AuthNotice } from '../../lib/auth-boundary';
+import { signInPathFor } from '../../lib/sign-in-return';
 
 /**
  * What a change of principal does to this tab — review finding D01.
@@ -34,7 +35,10 @@ export function useAuthBoundaryEffects(
       boundary.subscribe((notice) => {
         void queryClient.cancelQueries();
         queryClient.clear();
-        if (sendsToSignIn(notice)) navigate('/sign-in');
+        if (sendsToSignIn(notice)) {
+          // An invitation page comes back after sign-in (ACC-01); every other page does not.
+          navigate(signInPathFor(typeof window === 'undefined' ? '' : window.location.pathname));
+        }
       }),
     [boundary, navigate, queryClient],
   );

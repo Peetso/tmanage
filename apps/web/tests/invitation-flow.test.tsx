@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { InvitationScreen } from '../src/components/screens/InvitationScreen';
 import { InviteTeamScreen } from '../src/components/screens/InviteTeamScreen';
 import { ApiClient } from '../src/lib/api/client';
+import { authBoundary } from '../src/lib/auth-boundary';
 import { expectNoAxeViolations } from './axe';
 
 /**
@@ -76,6 +77,8 @@ const PREVIEW = {
   clientOrganizationName: null,
   invitedAt: '2026-08-26T09:00:00.000Z',
   expiresAt: '2026-09-09T09:00:00.000Z',
+  inviteeEmail: 'sara@northstar.studio',
+  hasAccount: true,
 };
 
 describe('ID-03, accepting an invitation', () => {
@@ -196,6 +199,113 @@ describe('ID-03, accepting an invitation', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
 
     expect(await screen.findByText(/cannot be accepted any more/)).toBeInTheDocument();
+  });
+
+  // ACC-04: an account that is already a member used to read "cannot be accepted any more".
+  it('says "already a member" when the API answers 409 already_member', async () => {
+    const { client } = clientOver((call) =>
+      call.url.includes('/acceptances')
+        ? json(
+            {
+              error: {
+                code: 'conflict',
+                message: 'already a member',
+                correlationId: 'c',
+                details: [{ field: 'token', message: 'already_member' }],
+              },
+            },
+            409,
+          )
+        : json(PREVIEW),
+    );
+
+    render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
+    await screen.findByRole('button', { name: 'Accept invitation' });
+    await userEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
+
+    expect(await screen.findByText(/already a member here/)).toBeInTheDocument();
+    expect(screen.queryByText(/cannot be accepted any more/)).toBeNull();
+  });
+
+  // ACC-01: a brand-new invitee sets a name and password and joins in one step.
+  it('lets somebody with no account create one and join', async () => {
+    let joined: string | undefined;
+    const announced: string[] = [];
+    const stop = authBoundary.subscribe((notice) => announced.push(notice.event));
+    const { client, calls } = clientOver((call) =>
+      call.url.includes('/registrations')
+        ? json(
+            {
+              status: 'authenticated',
+              csrfToken: 'csrf-new',
+              expiresAt: '2026-10-19T00:00:00.000Z',
+              organizationId: 'org-1',
+              membershipId: 'm-1',
+              clientOrganizationId: null,
+              role: 'member',
+            },
+            201,
+          )
+        : json({ ...PREVIEW, hasAccount: false }),
+    );
+
+    const { container } = render(
+      withQuery(
+        <InvitationScreen
+          token={TOKEN}
+          client={client}
+          onAccepted={(organizationId) => {
+            joined = organizationId;
+          }}
+        />,
+      ),
+    );
+
+    await screen.findByRole('button', { name: 'Create account and join' });
+    expect(screen.queryByRole('button', { name: 'Accept invitation' })).toBeNull();
+    expect(screen.getByText('sara@northstar.studio')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText(/^Your name/), 'Sara Nabil');
+    await userEvent.type(screen.getByLabelText(/^Password/), 'violet-harbour-lantern-41');
+    await userEvent.click(screen.getByRole('button', { name: 'Create account and join' }));
+
+    await waitFor(() => expect(joined).toBe('org-1'));
+    stop();
+    expect(announced).toContain('signed-in');
+    const registration = calls.find((call) => call.url.includes('/registrations'));
+    expect(registration?.method).toBe('POST');
+    expect(registration?.body).toEqual({
+      token: TOKEN,
+      displayName: 'Sara Nabil',
+      password: 'violet-harbour-lantern-41',
+    });
+    expect(container.innerHTML).not.toContain(TOKEN);
+  });
+
+  it('tells a registering invitee to sign in when the address already has an account', async () => {
+    const { client } = clientOver((call) =>
+      call.url.includes('/registrations')
+        ? json(
+            {
+              error: {
+                code: 'conflict',
+                message: 'exists',
+                correlationId: 'c',
+                details: [{ field: 'email', message: 'account_exists' }],
+              },
+            },
+            409,
+          )
+        : json({ ...PREVIEW, hasAccount: false }),
+    );
+
+    render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
+    await screen.findByRole('button', { name: 'Create account and join' });
+    await userEvent.type(screen.getByLabelText(/^Your name/), 'Sara');
+    await userEvent.type(screen.getByLabelText(/^Password/), 'violet-harbour-lantern-41');
+    await userEvent.click(screen.getByRole('button', { name: 'Create account and join' }));
+
+    expect(await screen.findByText(/already uses this email address/)).toBeInTheDocument();
   });
 
   it('has no axe violations once loaded', async () => {

@@ -544,6 +544,19 @@ export interface FirstOwnerScope {
 }
 
 /**
+ * The two runners an invitation registration needs — a brand-new invitee setting a password —
+ * on ONE connection inside ONE transaction: the account (`users`, `user_passwords`) and the
+ * membership the invitation grants (a tenant runner for the invitation's organization). A
+ * failure part way leaves neither an account without the membership nor the reverse.
+ */
+export interface InvitationRegistrationScope {
+  /** Identity runner declared over `users` and `user_passwords`. */
+  readonly identity: IdentityQueryRunner;
+  /** A tenant runner on the same connection for the context the caller builds. */
+  tenant(context: TenantContext): TenantQueryRunner;
+}
+
+/**
  * Raised when the first-owner advisory lock could not be taken — another setup holds it past
  * the timeout, or the server returned NULL. No transaction was begun.
  */
@@ -772,6 +785,40 @@ export class TenantDatabase {
           // The lock dies with the session anyway; a failed release must not mask the result.
         }
       }
+      connection.release();
+    }
+  }
+
+  /**
+   * Create an invitee's account and accept their invitation, atomically.
+   *
+   * No advisory lock, unlike {@link firstOwnerTransaction}: the invitation's own
+   * `status = 'pending'` compare-and-set makes the token single-use, and `uq_users_email`
+   * refuses a second account for the address — two racing registrations end with exactly one
+   * account and one membership, and the loser's transaction rolls back whole.
+   */
+  async invitationRegistrationTransaction<T>(
+    options: { readonly correlationId: string },
+    work: (scope: InvitationRegistrationScope) => Promise<T>,
+  ): Promise<T> {
+    const connection = await this.pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      try {
+        const result = await work({
+          identity: makeIdentityRunner(connection, this.options, {
+            correlationId: options.correlationId,
+            tables: ['users', 'user_passwords'],
+          }),
+          tenant: (context) => makeRunner(connection, context, this.options),
+        });
+        await connection.commit();
+        return result;
+      } catch (error) {
+        await connection.rollback();
+        throw unwrapQueryError(error);
+      }
+    } finally {
       connection.release();
     }
   }

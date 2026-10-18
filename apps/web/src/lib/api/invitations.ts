@@ -101,6 +101,14 @@ export interface InvitationPreview {
   readonly clientOrganizationName: string | null;
   readonly invitedAt: string;
   readonly expiresAt: string;
+  /** The address the invitation went to — the reader's own. */
+  readonly inviteeEmail: string;
+  /**
+   * Whether an account already uses that address. `false` means the person has never had an
+   * account, so `ID-03` asks for a name and a password instead of an Accept button that would
+   * send them to a sign-in they cannot pass (ACC-01).
+   */
+  readonly hasAccount: boolean;
 }
 
 /** No slug: the invitation says which organization this is. */
@@ -133,6 +141,40 @@ export async function acceptInvitation(
     method: 'POST',
     path: '/v1/invitations/acceptances',
     body: { token },
+  });
+  return data;
+}
+
+export interface InvitationRegistration {
+  readonly status: 'authenticated';
+  readonly csrfToken: string;
+  readonly expiresAt: string;
+  readonly organizationId: string;
+  readonly membershipId: string;
+  readonly clientOrganizationId: string | null;
+  readonly role: string;
+}
+
+export interface InvitationRegistrationInput {
+  readonly displayName: string;
+  readonly password: string;
+}
+
+/**
+ * Create the account an invitation was sent to, set its first password, and join — one call,
+ * and the answer signs the person in (ACC-01). The token is the credential, so no session is
+ * required and a 401 here is an answer, not an expiry.
+ */
+export async function registerForInvitation(
+  client: ApiClient,
+  token: string,
+  input: InvitationRegistrationInput,
+): Promise<InvitationRegistration> {
+  const { data } = await client.request<InvitationRegistration>({
+    method: 'POST',
+    path: '/v1/invitations/registrations',
+    body: { token, displayName: input.displayName, password: input.password },
+    authentication: 'none',
   });
   return data;
 }

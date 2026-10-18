@@ -9,6 +9,7 @@ import {
   Post,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import {
@@ -21,7 +22,12 @@ import {
 } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { requireRequestState } from '../../common/http/request-state.js';
-import type { AuthenticatedSession } from '../identity/session.service.js';
+import type { AuthenticatedSession, SessionService } from '../identity/session.service.js';
+import type { RequestAdmission } from '../../common/http/rate-limiter.js';
+import {
+  INVITATION_REGISTRATION_ADMISSION,
+  INVITATION_REGISTRATION_SESSIONS,
+} from './invitation-registration.tokens.js';
 import { INVITATIONS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { InvitationStatus } from './invitations.repository.js';
@@ -32,6 +38,28 @@ import type {
   InvitationsService,
   IssuedInvitationView,
 } from './invitations.service.js';
+
+/** The registration body: the token, the new account's name and its first password. */
+interface RegisterBody {
+  readonly token?: unknown;
+  readonly displayName?: unknown;
+  readonly password?: unknown;
+}
+
+/** Wire body of a registration (contracts-check pairs it with apps/web/src/lib/api/invitations.ts). */
+export interface InvitationRegistrationView {
+  readonly status: 'authenticated';
+  readonly csrfToken: string;
+  readonly expiresAt: string;
+  readonly organizationId: string;
+  readonly membershipId: string;
+  readonly clientOrganizationId: string | null;
+  readonly role: string;
+}
+
+interface ReplyLike {
+  header(name: string, value: string | readonly string[]): unknown;
+}
 
 /**
  * TEN-003's HTTP surface — the tenant-scoped half.
@@ -69,6 +97,7 @@ interface AcceptBody {
  */
 interface RequestLike {
   readonly headers: Record<string, string | string[] | undefined>;
+  readonly ip?: string;
 }
 
 const STATUSES: readonly InvitationStatus[] = ['pending', 'accepted', 'expired', 'revoked'];
@@ -223,7 +252,11 @@ export class InvitationsController {
  */
 @Controller('v1/invitations')
 export class InvitationAcceptanceController {
-  constructor(@Inject(INVITATIONS_SERVICE) private readonly invitations: InvitationsService) {}
+  constructor(
+    @Inject(INVITATIONS_SERVICE) private readonly invitations: InvitationsService,
+    @Inject(INVITATION_REGISTRATION_SESSIONS) private readonly sessions: SessionService,
+    @Inject(INVITATION_REGISTRATION_ADMISSION) private readonly admit: RequestAdmission,
+  ) {}
 
   /**
    * What `ID-03` shows before anybody accepts.
@@ -273,6 +306,64 @@ export class InvitationAcceptanceController {
       session.userId,
       requireRequestState(request).correlationId,
     );
+  }
+
+  /**
+   * ACC-01: a brand-new invitee sets their name and password and joins in one step.
+   *
+   * `@Public()` and `@NoTenant()` like the preview: the person has no account yet, so there is
+   * no session to require — the token, which was mailed to the address the account is created
+   * for, is the credential. Rate-limited per address before anything else, because the route
+   * hashes a password. On success the new account is signed in exactly as
+   * `FirstOwnerController` signs in the first owner: the session starts after the creating
+   * transaction has committed.
+   */
+  @Post('registrations')
+  @Public()
+  @NoTenant()
+  @HttpCode(201)
+  async register(
+    @Req() request: RequestLike,
+    @Body() body: RegisterBody,
+    @Res({ passthrough: true }) reply: ReplyLike,
+  ): Promise<InvitationRegistrationView> {
+    const state = requireRequestState(request);
+    if (!this.admit(request.ip ?? 'unknown')) {
+      throw new ApiError(
+        429,
+        'rate_limited',
+        'Too many attempts. Wait a few minutes and try again.',
+      );
+    }
+    const token = typeof body?.token === 'string' ? body.token : undefined;
+    if (!token) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'token', message: 'must be a string' },
+      ]);
+    }
+
+    const registered = await this.invitations.register(
+      token,
+      { displayName: body.displayName, password: body.password },
+      state.correlationId,
+    );
+
+    const userAgent = request.headers['user-agent'];
+    const established = await this.sessions.start({
+      userId: registered.userId,
+      userAgent: typeof userAgent === 'string' ? userAgent : null,
+      correlationId: state.correlationId,
+    });
+    reply.header('set-cookie', established.cookies);
+    return {
+      status: 'authenticated',
+      csrfToken: established.csrfToken,
+      expiresAt: established.expiresAt.toISOString(),
+      organizationId: registered.organizationId,
+      membershipId: registered.membershipId,
+      clientOrganizationId: registered.clientOrganizationId,
+      role: registered.role,
+    };
   }
 }
 

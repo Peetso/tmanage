@@ -31,7 +31,7 @@ describe('composeInvitationEmail', () => {
       'Review invitation: https://app.tmanage.example/invitations/tok123',
     );
     // §1: deadline with timezone.
-    expect(message.text).toContain('expires 2026-09-13 (UTC)');
+    expect(message.text).toContain('expires on 13 September 2026 (UTC)');
     // §1: why this recipient, and a route for the unexpected case.
     expect(message.text).toContain('because Omar Farouk (omar@northstar.example) invited');
   });
@@ -46,7 +46,7 @@ describe('composeInvitationEmail', () => {
     expect(message.text).toContain('Your role is producer.');
     expect(message.text).toContain('You will not see the team’s internal workspace.');
     expect(message.text).toContain('Review access: https://app.tmanage.example/invitations/tok123');
-    expect(message.text).toContain('expires 2026-09-13 (UTC)');
+    expect(message.text).toContain('expires on 13 September 2026 (UTC)');
   });
 
   it('flattens header-bound interpolations to one line', () => {
@@ -72,5 +72,53 @@ describe('composeInvitationEmail', () => {
 
     expect(occurrences).toBe(1);
     expect(message.subject).not.toContain('tok123');
+  });
+
+  // ACC-05: the walkthrough's invitee read "invited as member" — an internal code.
+  it('names the role in words, never the internal code', () => {
+    const internal = composeInvitationEmail(facts({ role: 'member' }));
+    expect(internal.text).toContain('invited as Team member');
+    expect(internal.html).toContain('Team member');
+
+    const client = composeInvitationEmail(
+      facts({ role: 'client_viewer', clientOrganizationName: 'BrightOps' }),
+    );
+    expect(client.text).toContain('Your role is Client viewer.');
+    expect(client.text).not.toContain('client_viewer');
+  });
+
+  // ACC-07: the copy says "reply to the inviter", so a reply has to reach the inviter.
+  it('routes replies to the inviter', () => {
+    expect(composeInvitationEmail(facts()).replyTo).toBe('omar@northstar.example');
+  });
+
+  it('renders one button whose href is exactly the link printed beneath it', () => {
+    const html = composeInvitationEmail(facts()).html ?? '';
+    const hrefs = [...html.matchAll(/href="([^"]*)"/gu)].map((match) => match[1]);
+
+    expect(hrefs).toEqual([
+      'https://app.tmanage.example/invitations/tok123',
+      'https://app.tmanage.example/invitations/tok123',
+    ]);
+    expect(html).toContain('>https://app.tmanage.example/invitations/tok123</a>');
+    expect(html).toContain('Review invitation');
+    expect(html).toContain('13 September 2026 (UTC)');
+  });
+
+  it('escapes every interpolated name in the HTML part', () => {
+    const html =
+      composeInvitationEmail(facts({ organizationName: '<img src=x onerror=alert(1)>' })).html ??
+      '';
+    expect(html).not.toContain('<img');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
+  it('writes Arabic, right to left, for an Arabic organization', () => {
+    const message = composeInvitationEmail(facts({ locale: 'ar', role: 'member' }));
+
+    expect(message.html).toContain('dir="rtl"');
+    expect(message.html).toContain('lang="ar"');
+    expect(message.text).toContain('عضو في الفريق');
+    expect(message.subject).toContain('دعاك');
   });
 });

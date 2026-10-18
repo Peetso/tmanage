@@ -9,5 +9,12 @@
   "displayPreferences.dateFormat": "Date format",
   "displayPreferences.save": "Save preferences",
   "displayPreferences.saving": "Saving…",
-  "displayPreferences.sectionOther": "Other preferences"
+  "displayPreferences.sectionOther": "Other preferences",
+  "invitation.refusal.unusable": "This invitation cannot be accepted any more: it was already used, withdrawn, or it expired. Ask whoever invited you for a new link.",
+  "invitation.refusal.alreadyMember": "The account you are signed in with is already a member here. If this invitation is for someone else, sign out and open the link again.",
+  "invitation.refusal.signIn": "Sign in first, then accept. You will come back to this invitation.",
+  "invitation.refusal.accountExists": "An account already uses this email address. Sign in with it, then open the link again.",
+  "invitation.refusal.rateLimited": "Too many attempts. Wait a few minutes and try again.",
+  "invitation.refusal.generic": "Something went wrong. Try again.",
+  "invitation.refusal.network": "The server did not answer. Check your connection and try again."
 }

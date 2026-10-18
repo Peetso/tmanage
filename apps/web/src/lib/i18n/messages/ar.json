@@ -9,5 +9,12 @@
   "displayPreferences.dateFormat": "تنسيق التاريخ",
   "displayPreferences.save": "حفظ التفضيلات",
   "displayPreferences.saving": "جارٍ الحفظ…",
-  "displayPreferences.sectionOther": "تفضيلات أخرى"
+  "displayPreferences.sectionOther": "تفضيلات أخرى",
+  "invitation.refusal.unusable": "لم يعد من الممكن قبول هذه الدعوة: فقد استُخدمت من قبل أو سُحبت أو انتهت صلاحيتها. اطلب رابطًا جديدًا ممن دعاك.",
+  "invitation.refusal.alreadyMember": "الحساب الذي سجّلت الدخول به عضو هنا بالفعل. إن كانت هذه الدعوة لشخص آخر فسجّل الخروج ثم افتح الرابط مرة أخرى.",
+  "invitation.refusal.signIn": "سجّل الدخول أولًا ثم اقبل الدعوة. ستعود إلى هذه الدعوة بعد ذلك.",
+  "invitation.refusal.accountExists": "هناك حساب يستخدم عنوان البريد هذا بالفعل. سجّل الدخول به ثم افتح الرابط مرة أخرى.",
+  "invitation.refusal.rateLimited": "محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.",
+  "invitation.refusal.generic": "حدث خطأ ما. حاول مرة أخرى.",
+  "invitation.refusal.network": "لم يستجب الخادم. تحقّق من اتصالك ثم حاول مرة أخرى."
 }

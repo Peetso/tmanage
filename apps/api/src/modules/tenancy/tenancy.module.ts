@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  API_CONFIG,
   AUDIT_SERVICE,
   INVITATION_MAILER,
   INVITATIONS_REPOSITORY,
@@ -21,6 +22,14 @@ import { ClientMembershipsRepository } from '../clients/client-memberships.repos
 import { InvitationsController, InvitationAcceptanceController } from './invitations.controller.js';
 import { InvitationsRepository } from './invitations.repository.js';
 import { InvitationsService } from './invitations.service.js';
+import {
+  INVITATION_REGISTRATION_ADMISSION,
+  INVITATION_REGISTRATION_SESSIONS,
+} from './invitation-registration.tokens.js';
+import { SessionService } from '../identity/session.service.js';
+import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import { CONTACT_MAX_PER_WINDOW, CONTACT_WINDOW_MS } from '../public-site/contact.module.js';
 import { MembersController } from './members.controller.js';
 import { MembershipsRepository } from './memberships.repository.js';
 import { OffboardingController } from './offboarding.controller.js';
@@ -127,9 +136,30 @@ export class TenancyModule {
         ),
     };
 
+    // ACC-01's registration route signs the new invitee in, exactly as first-owner setup does:
+    // a SessionService of its own (it holds no state; every session lives in the database) and
+    // the contact form's per-address window, because the route is public and hashes a password.
+    const registrationSessions: Provider = {
+      provide: INVITATION_REGISTRATION_SESSIONS,
+      inject: [TENANT_DATABASE, API_CONFIG],
+      useFactory: (database: TenantDatabase, config: ApiConfig) =>
+        new SessionService(database, config),
+    };
+    const registrationAdmission: Provider = {
+      provide: INVITATION_REGISTRATION_ADMISSION,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig) =>
+        createFixedWindowLimiter({
+          windowMs: config.contactWindowMs ?? CONTACT_WINDOW_MS,
+          max: config.contactMaxPerWindow ?? CONTACT_MAX_PER_WINDOW,
+        }),
+    };
+
     return {
       module: TenancyModule,
       providers: [
+        registrationSessions,
+        registrationAdmission,
         resolver,
         principals,
         directory,

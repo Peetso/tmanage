@@ -236,6 +236,23 @@ describe('SmtpMailer', () => {
     expect(server.data).toContain('\r\n..starts with a dot');
   });
 
+  it('sends the HTML alternative and the Reply-To when a producer supplies them', async () => {
+    server = await startServer();
+
+    await mailerFor(server.port).send({
+      to: 'nadia@brightops.example',
+      subject: 'x',
+      text: 'plain body',
+      html: '<p>html body</p>',
+      replyTo: 'omar@northstar.example',
+    });
+
+    expect(server.data).toContain('Reply-To: omar@northstar.example');
+    expect(server.data).toContain('multipart/alternative');
+    expect(server.data).toContain('plain body');
+    expect(server.data).toContain('<p>html body</p>');
+  });
+
   it('upgrades via STARTTLS and authenticates only inside the TLS session', async () => {
     server = await startServer({ starttls: true });
 

@@ -26,6 +26,18 @@ export interface MailMessage {
    * under the visible one — the phishing shape a credential-bearing mail must not have.
    */
   readonly text: string;
+  /**
+   * An optional HTML alternative of the same message. `text` stays the authoritative body —
+   * every client that cannot or will not render HTML shows it — and a producer that adds
+   * `html` must keep every link's `href` identical to the URL it prints as text, so the visible
+   * link and the clicked one cannot differ (the phishing shape this port refuses to enable).
+   */
+  readonly html?: string;
+  /**
+   * Where a reply goes. The `From` address is the platform's no-reply mailbox; a message whose
+   * copy says "reply to the inviter" has to route the reply there or it says something untrue.
+   */
+  readonly replyTo?: string;
 }
 
 /** What became of one message: accepted by a server, or printed by the console driver. */

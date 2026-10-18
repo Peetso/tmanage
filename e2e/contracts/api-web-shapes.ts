@@ -126,6 +126,7 @@ import type { OnboardingTourView as ApiOnboardingTourView } from '../../apps/api
 import type { UserPreferencesView as ApiUserPreferencesView } from '../../apps/api/src/modules/preferences/preferences.controller.js';
 import type { HomeWidgetPrefsView as ApiHomeWidgetPrefsView } from '../../apps/api/src/modules/home/widget-prefs.controller.js';
 import type { InvitationPreviewView as ApiInvitationPreviewView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
+import type { InvitationRegistrationView as ApiInvitationRegistrationView } from '../../apps/api/src/modules/tenancy/invitations.controller.js';
 import type { InvitationView as ApiInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps/api/src/modules/tenancy/invitations.service.js';
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
@@ -563,6 +564,7 @@ import type {
 import type {
   AcceptedInvitation as WebAcceptedInvitation,
   InvitationPreview as WebInvitationPreview,
+  InvitationRegistration as WebInvitationRegistration,
   InvitationSummary as WebInvitationSummary,
   IssuedInvitation as WebIssuedInvitation,
 } from '../../apps/web/src/lib/api/invitations';
@@ -2489,6 +2491,9 @@ type _issuedInvitation = Assert<Exact<ApiIssuedInvitationView, WebIssuedInvitati
 
 /** `POST /v1/invitations/previews` — ID-03's pre-acceptance preview. */
 type _invitationPreview = Assert<Exact<ApiInvitationPreviewView, WebInvitationPreview>>;
+type _invitationRegistration = Assert<
+  Exact<ApiInvitationRegistrationView, WebInvitationRegistration>
+>;
 
 /** `POST /v1/invitations/acceptances` — the membership an acceptance creates. */
 type _acceptedInvitation = Assert<Exact<ApiAcceptedInvitationView, WebAcceptedInvitation>>;
