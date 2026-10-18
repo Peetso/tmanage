@@ -48,6 +48,9 @@ const config: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@tmanage/ui'],
   poweredByHeader: false,
+  // The dev-only "N" route indicator sat on top of the public pages' content and showed up in
+  // every design-review screenshot. Build and runtime errors still open the dev overlay.
+  devIndicators: false,
 
   async rewrites() {
     return [...publicConfig.rewrites];

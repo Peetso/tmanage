@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Wordmark } from '../brand/Wordmark';
 import { WebIcon, type WebIconName } from './WebIcon';
 
 /**
@@ -12,7 +11,7 @@ import { WebIcon, type WebIconName } from './WebIcon';
 
 const cx = (...parts: (string | false | null | undefined)[]) => parts.filter(Boolean).join(' ');
 
-/** The brand lock-up: the ink tile carrying the lime TManage mark, then the name. */
+/** The brand lock-up as drawn in Web/Nav and Web/Footer: the lime 10 px dot, then the name. */
 export function BrandLockup({
   href = '/',
   tone = 'paper',
@@ -22,9 +21,7 @@ export function BrandLockup({
 }) {
   return (
     <Link href={href} className={cx('tm-web-brand', tone === 'ink' && 'tm-web-brand--ink')}>
-      <span className="tm-web-brand__tile" aria-hidden="true">
-        <Wordmark variant="icon" label="" />
-      </span>
+      <span className="tm-web-brand__dot" aria-hidden="true" />
       <span className="tm-web-brand__name">TManage</span>
     </Link>
   );
