@@ -199,7 +199,7 @@ export class ProvisioningService {
    */
   async provisionFounderWithin(
     runnerFor: (context: TenantContext) => TenantQueryRunner,
-    input: ProvisionOrganizationInput & { readonly origin?: 'first_owner_setup' },
+    input: ProvisionOrganizationInput & { readonly origin?: 'first_owner_setup' | 'public_signup' },
   ): Promise<ProvisionedOrganization> {
     const context = this.contextFor({
       organizationId: uuidv7(),
@@ -215,7 +215,7 @@ export class ProvisioningService {
   private async provisionSteps(
     tx: TenantQueryRunner,
     context: TenantContext,
-    input: ProvisionOrganizationInput & { readonly origin?: 'first_owner_setup' },
+    input: ProvisionOrganizationInput & { readonly origin?: 'first_owner_setup' | 'public_signup' },
   ): Promise<ProvisionedOrganization> {
     const organization = await this.organizations.create(tx, context, {
       id: context.organizationId,

@@ -12,6 +12,7 @@ import {
   WorkloadScene,
 } from './scenes';
 import './solutions-inhouse.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Solutions · In-house teams — `/solutions/in-house`, built to the approved design
@@ -137,7 +138,7 @@ export function SolutionsInhousePage() {
               stakeholders can actually read.
             </p>
             <div className="tm-inh-hero__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">
@@ -299,7 +300,7 @@ export function SolutionsInhousePage() {
                 Start free with your team. Invite stakeholders when the first request comes in.
               </p>
               <div className="tm-web-cta__actions">
-                <ButtonLink href="/sign-in" tone="lime">
+                <ButtonLink href={SIGN_UP_HREF} tone="lime">
                   Start free
                 </ButtonLink>
                 <ButtonLink href="/contact" tone="outline-ink">

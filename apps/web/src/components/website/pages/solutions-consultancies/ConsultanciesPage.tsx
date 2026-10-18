@@ -11,6 +11,7 @@ import {
   SteeringHealthScene,
 } from './scenes';
 import './consultancies.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Solutions · Consultancies (SITE-SPEC "PAGE: Solutions · Consultancies", Figma shot
@@ -128,7 +129,7 @@ export function ConsultanciesPage() {
               Engagements, findings, decisions and client sign-off in one auditable story.
             </p>
             <div className="tm-consult-hero__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">

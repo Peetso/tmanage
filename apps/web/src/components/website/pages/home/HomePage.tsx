@@ -28,6 +28,7 @@ import {
   PortalScene,
 } from './HomeScenes';
 import './home.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * WEB-01 Home (`/`). Every word comes from SITE-SPEC.md "PAGE: Home"; every part is a shared
@@ -51,7 +52,7 @@ function Hero() {
             across five tools.
           </p>
           <div className="tm-home-hero__actions">
-            <ButtonLink href="/sign-in" tone="lime">
+            <ButtonLink href={SIGN_UP_HREF} tone="lime">
               Start free
             </ButtonLink>
             <ButtonLink href="/contact" tone="outline">
@@ -574,7 +575,7 @@ function HomeCta() {
               Start free with your team. Invite your client when the first deliverable is ready.
             </p>
             <div className="tm-web-cta__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline-ink">

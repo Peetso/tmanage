@@ -21,6 +21,7 @@ import {
   RetainerPlanScene,
 } from './scenes';
 import './solutions-agencies.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Solutions · Agencies & studios (WEB-08, SITE-SPEC "PAGE: Solutions · Agencies & studios").
@@ -187,7 +188,7 @@ export function SolutionsAgenciesPage() {
               id="ag-hero-title"
             />
             <div className="tm-web-ag-hero__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">
@@ -326,7 +327,7 @@ export function SolutionsAgenciesPage() {
                   </span>
                 ))}
               </p>
-              <ArrowLink href="/sign-in" underline={false}>
+              <ArrowLink href={SIGN_UP_HREF} underline={false}>
                 Use this template
               </ArrowLink>
             </li>
@@ -379,7 +380,7 @@ export function SolutionsAgenciesPage() {
                 Start free with your team. Invite your client when the first deliverable is ready.
               </p>
               <div className="tm-web-cta__actions tm-web-ag-cta__actions">
-                <ButtonLink href="/sign-in" tone="lime">
+                <ButtonLink href={SIGN_UP_HREF} tone="lime">
                   Start free
                 </ButtonLink>
                 <ButtonLink href="/contact" tone="outline-ink">

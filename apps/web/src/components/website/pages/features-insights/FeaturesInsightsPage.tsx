@@ -15,6 +15,7 @@ import {
   WorkloadScene,
 } from './scenes';
 import './features-insights.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Features · Insights & automations (WEB-06, SITE-SPEC "PAGE: Features · Insights &
@@ -130,7 +131,7 @@ export function FeaturesInsightsPage() {
               id="fi-hero-title"
             />
             <div className="tm-web-fi-hero__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">
@@ -235,7 +236,7 @@ export function FeaturesInsightsPage() {
                 </li>
               ))}
             </ul>
-            <ButtonLink href="/sign-in" tone="lime">
+            <ButtonLink href={SIGN_UP_HREF} tone="lime">
               Try a template
             </ButtonLink>
           </div>

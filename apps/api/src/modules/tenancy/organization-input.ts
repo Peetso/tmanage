@@ -57,6 +57,9 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   'setup',
   'signin',
   'signup',
+  // The web app serves /sign-in and /sign-up as static routes beside [orgSlug].
+  'sign-in',
+  'sign-up',
   'static',
   'status',
   'support',

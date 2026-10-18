@@ -263,7 +263,10 @@ describe('ID-03, accepting an invitation', () => {
 
     await screen.findByRole('button', { name: 'Create account and join' });
     expect(screen.queryByRole('button', { name: 'Accept invitation' })).toBeNull();
-    expect(screen.getByText('sara@northstar.studio')).toBeInTheDocument();
+    // The invited address is filled in and locked — not typed, not editable.
+    const invitedEmail = screen.getByLabelText(/^Email/);
+    expect(invitedEmail).toHaveValue('sara@northstar.studio');
+    expect(invitedEmail).toHaveAttribute('readonly');
 
     await userEvent.type(screen.getByLabelText(/^Your name/), 'Sara Nabil');
     await userEvent.type(screen.getByLabelText(/^Password/), 'violet-harbour-lantern-41');

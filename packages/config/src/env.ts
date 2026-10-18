@@ -453,6 +453,16 @@ export const envSchema = z
       .pipe(secret('SETUP_TOKEN').optional())
       .optional(),
     /**
+     * Public self-service sign-up (/sign-up). ON when unset — Peter opened it for testing on
+     * 2026-10-18. `off` (or false / 0 / no) removes the API routes (404) and the web links.
+     */
+    PUBLIC_SIGNUP: z
+      .string()
+      .optional()
+      .transform(
+        (value) => !['off', 'false', '0', 'no'].includes((value ?? '').trim().toLowerCase()),
+      ),
+    /**
      * D08. The sign-in abuse control's budgets, one shared window, one number per key:
      * `RATE_LIMIT_AUTH_MAX_REQUESTS` bounds source+account (one address grinding one
      * account), `RATE_LIMIT_AUTH_MAX_PER_SOURCE` bounds the address across every account it

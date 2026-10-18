@@ -22,6 +22,7 @@ import {
   MessageToWorkScene,
 } from './scenes';
 import './features-communication.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Features · Chat & calendar (SITE-SPEC "PAGE: Features · Chat & calendar", WEB-04).
@@ -113,7 +114,7 @@ export function FeaturesCommunicationPage() {
             lede="Channels, threads and meetings that produce tasks, decisions and owners — not more scrolling."
           >
             <div className="tm-wc-hero__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">

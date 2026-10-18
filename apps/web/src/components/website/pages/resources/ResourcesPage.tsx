@@ -26,6 +26,7 @@ import {
   type ResourceTab,
 } from './resources-data';
 import './resources.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * WEB-15 Resources (`/resources`). No Figma frame yet: designed in code from SITE-SPEC in the
@@ -158,7 +159,7 @@ export function ResourcesPage() {
       <CtaBand
         title="Bring the next client project into one story."
         lede="Start free with your team. Invite your client when the first deliverable is ready."
-        primary={{ label: 'Start free', href: '/sign-in' }}
+        primary={{ label: 'Start free', href: SIGN_UP_HREF }}
         secondary={{ label: 'Book a demo', href: '/contact' }}
         note="No credit card · Client users are always free"
         visual={<TemplateProjectScene />}

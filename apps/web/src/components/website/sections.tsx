@@ -6,6 +6,7 @@ import { Avatar } from '@tmanage/ui';
 import { WebIcon, type WebIconName } from './WebIcon';
 import { ArrowLink, ButtonLink, Eyebrow, IconOrb, PlayCapsule, cx } from './primitives';
 import { DeliveryRiskScene } from './ProductScenes';
+import { SIGN_UP_HREF } from '../../lib/public-signup';
 
 /* ── Web/Section — the 1248 column and section rhythm ─────────────────────────── */
 
@@ -418,7 +419,7 @@ export interface CtaBandProps {
 export function CtaBand({
   title = 'Your next client project, one story.',
   lede = 'Start free with your team. Invite your client when the first deliverable is ready.',
-  primary = { label: 'Start free', href: '/sign-in' },
+  primary = { label: 'Start free', href: SIGN_UP_HREF },
   secondary = { label: 'Watch the 4-minute story', href: '/#work-story' },
   note = 'No credit card · Client users are always free',
   visual,

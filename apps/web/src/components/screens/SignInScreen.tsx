@@ -12,6 +12,8 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useHydrated } from '../../lib/use-hydrated';
+import { isPublicSignupOffered } from '../../lib/public-signup';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/identity.css';
 
 export interface SignInScreenProps {
@@ -31,6 +33,8 @@ export interface SignInScreenProps {
    * until TEN-001 provisions one.
    */
   developmentSignInEnabled?: boolean;
+  /** Whether "Create an account" is shown. Defaults to the `PUBLIC_SIGNUP` build flag. */
+  signUpOffered?: boolean;
   /** Injected in tests. Defaults to the application's boundary. */
   boundary?: AuthBoundary;
 }
@@ -72,6 +76,7 @@ export function SignInScreen({
   client,
   onSignedIn,
   developmentSignInEnabled = process.env.NODE_ENV !== 'production',
+  signUpOffered = isPublicSignupOffered(),
   boundary = authBoundary,
 }: SignInScreenProps) {
   const api = client ?? browserApiClient();
@@ -83,6 +88,7 @@ export function SignInScreen({
    * disabled, and the first render after hydration enables them.
    */
   const hydrated = useHydrated();
+  const t = useT();
 
   /**
    * A new principal is a boundary (review finding D01). Announced before the caller
@@ -266,6 +272,12 @@ export function SignInScreen({
           </div>
         </fieldset>
       </form>
+
+      {signUpOffered ? (
+        <p className="tm-id-lede">
+          {t('signIn.newHere')} <Link href="/sign-up">{t('signIn.createAccount')}</Link>
+        </p>
+      ) : null}
 
       <InlineAlert tone="neutral">
         Client reviewers usually arrive from a portal link and do not need a password.

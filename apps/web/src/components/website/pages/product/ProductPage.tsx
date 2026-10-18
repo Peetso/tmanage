@@ -21,6 +21,7 @@ import {
   WorkListScene,
 } from './ProductPageScenes';
 import './product.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * WEB-02 · Product overview (`/product`). Copy is SITE-SPEC.md "PAGE: Product overview"; the
@@ -125,7 +126,7 @@ function ProductCtaBand() {
               Start free with your team. Invite your client when the first deliverable is ready.
             </p>
             <div className="tm-web-cta__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline-ink">
@@ -155,7 +156,7 @@ export function ProductPage() {
           lede="TManage is one system with a dense team workspace, a quiet focus space, a simple client portal and a control center for the people who run it."
         >
           <div className="tm-pp-hero__actions">
-            <ButtonLink href="/sign-in" tone="lime">
+            <ButtonLink href={SIGN_UP_HREF} tone="lime">
               Start free
             </ButtonLink>
             <ButtonLink href="/contact" tone="outline">

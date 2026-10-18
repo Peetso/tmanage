@@ -47,6 +47,11 @@ export interface ApiConfig extends SessionServiceOptions {
    * Optional so the suites' hand-built `ApiConfig` literals keep compiling.
    */
   readonly setupToken?: string | null;
+  /**
+   * `PUBLIC_SIGNUP`. True registers the public sign-up routes; false (or absent, as in the
+   * suites' hand-built literals) leaves them unregistered, so they 404.
+   */
+  readonly publicSignup?: boolean;
   /** ID-002. The lockout window, counted from `authentication_events` because there is no Redis. */
   readonly maxFailuresInWindow: number;
   readonly failureWindowSeconds: number;
@@ -125,6 +130,8 @@ export interface ApiConfigSource {
   readonly RATE_LIMIT_CONTACT_WINDOW_SECONDS?: number;
   /** First-owner setup secret; absent or empty = setup routes off. `| undefined` for EOPT. */
   readonly SETUP_TOKEN?: string | undefined;
+  /** Public self-service sign-up; `packages/config` defaults it to true. */
+  readonly PUBLIC_SIGNUP?: boolean;
   readonly SESSION_COOKIE_NAME: string;
   readonly SESSION_SECRET: string;
   readonly SESSION_TTL_SECONDS: number;
@@ -194,6 +201,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       ? {}
       : { contactWindowMs: env.RATE_LIMIT_CONTACT_WINDOW_SECONDS * 1_000 }),
     setupToken: env.SETUP_TOKEN && env.SETUP_TOKEN.length > 0 ? env.SETUP_TOKEN : null,
+    publicSignup: env.PUBLIC_SIGNUP === true,
     maxFailuresInWindow: env.AUTH_MAX_FAILURES_IN_WINDOW,
     failureWindowSeconds: env.AUTH_FAILURE_WINDOW_SECONDS,
     totpIssuer: env.AUTH_TOTP_ISSUER,

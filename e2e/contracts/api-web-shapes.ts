@@ -109,6 +109,10 @@ import type {
   FirstOwnerSetupView as ApiFirstOwnerSetupView,
 } from '../../apps/api/src/modules/setup/first-owner.service.js';
 import type {
+  PublicSignupAvailabilityView as ApiPublicSignupAvailabilityView,
+  PublicSignupView as ApiPublicSignupView,
+} from '../../apps/api/src/modules/signup/public-signup.service.js';
+import type {
   ImportCommitRowView as ApiImportCommitRowView,
   ImportCommitView as ApiImportCommitView,
 } from '../../apps/api/src/modules/import/import.service.js';
@@ -644,6 +648,10 @@ import type {
   FirstOwnerAvailabilityView as WebFirstOwnerAvailabilityView,
   FirstOwnerSetupView as WebFirstOwnerSetupView,
 } from '../../apps/web/src/lib/api/setup';
+import type {
+  PublicSignupAvailabilityView as WebPublicSignupAvailabilityView,
+  PublicSignupView as WebPublicSignupView,
+} from '../../apps/web/src/lib/api/sign-up';
 import type { Command as WebCommand } from '../../apps/web/src/lib/api/commands';
 import type { CopilotAnswerView as WebCopilotAnswerView } from '../../apps/web/src/lib/api/copilot';
 import type {
@@ -2693,6 +2701,11 @@ type _firstOwnerAvailability = Assert<
   Exact<ApiFirstOwnerAvailabilityView, WebFirstOwnerAvailabilityView>
 >;
 type _firstOwnerSetup = Assert<Exact<ApiFirstOwnerSetupView, WebFirstOwnerSetupView>>;
+/** `GET/POST /v1/public/sign-up` — public sign-up (registered only while `PUBLIC_SIGNUP` is on). */
+type _publicSignupAvailability = Assert<
+  Exact<ApiPublicSignupAvailabilityView, WebPublicSignupAvailabilityView>
+>;
+type _publicSignup = Assert<Exact<ApiPublicSignupView, WebPublicSignupView>>;
 
 /** x255 - calendar focus blocks (personal protected time). Paired Exact. */
 type _focusBlock = Assert<Exact<ApiFocusBlockView, WebFocusBlockView>>;

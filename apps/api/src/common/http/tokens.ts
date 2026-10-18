@@ -273,6 +273,8 @@ export const MAILER = Symbol.for('tmanage.Mailer');
 export const INVITATION_MAILER = Symbol.for('tmanage.InvitationMailer');
 /** ACC-02: the password-reset email's sender, beside the invitation's. */
 export const PASSWORD_RESET_MAILER = Symbol.for('tmanage.PasswordResetMailer');
+/** Public sign-up's welcome email (`common/email/welcome-email.ts`). */
+export const WELCOME_MAILER = Symbol.for('tmanage.WelcomeMailer');
 export const OBJECT_STORE = Symbol.for('tmanage.ObjectStore');
 /**
  * FILE-001b. The half of the filesystem driver the public PUT route talks to. Provided by

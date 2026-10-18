@@ -22,6 +22,7 @@ import {
   PublicationPreviewScene,
 } from './scenes';
 import './features-knowledge.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Features · Docs, decisions & approvals (`/features/knowledge`) — SITE-SPEC "PAGE: Features ·
@@ -178,7 +179,7 @@ export function FeaturesKnowledgePage() {
               lede="Docs, a decision register and governed deliverables — so you can always answer who agreed to what, and when."
             />
             <div className="tm-fk-hero__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">

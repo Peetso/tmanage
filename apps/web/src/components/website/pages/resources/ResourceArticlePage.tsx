@@ -7,6 +7,7 @@ import { CtaBand, SectionHeader, WebSection } from '../../sections';
 import { ResourceCard } from './ResourceCard';
 import { ALL_RESOURCES, CATEGORY_ICON, CATEGORY_LABEL, type Resource } from './resources-data';
 import './resources.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * WEB-15 article page (`/resources/[slug]`) for every card on the Resources index. Same visual
@@ -92,7 +93,7 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
       <CtaBand
         title="Bring the next client project into one story."
         lede="Start free with your team. Invite your client when the first deliverable is ready."
-        primary={{ label: 'Start free', href: '/sign-in' }}
+        primary={{ label: 'Start free', href: SIGN_UP_HREF }}
         secondary={{ label: 'Book a demo', href: '/contact' }}
         note="No credit card · Client users are always free"
         visual={null}

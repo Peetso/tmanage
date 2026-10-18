@@ -27,6 +27,7 @@ import {
   type PhaseTone,
 } from './scenes';
 import './features-work.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Features · Work, requests & projects (`/features/work`, Figma 03-features-work, SITE-SPEC
@@ -225,7 +226,7 @@ function TemplateCard({ tpl }: { tpl: TemplateData }) {
           >
             {open ? 'Close preview' : 'Preview'}
           </Button>
-          <ButtonLink href="/sign-in" tone="ink" size="default">
+          <ButtonLink href={SIGN_UP_HREF} tone="ink" size="default">
             Use template
           </ButtonLink>
         </span>
@@ -250,7 +251,7 @@ export function FeaturesWorkPage() {
               lede="Requests, tasks, milestones and projects in one model — viewed as a list, a board or a timeline without losing a thing."
             />
             <div className="tm-fw-hero__actions">
-              <ButtonLink href="/sign-in" tone="lime">
+              <ButtonLink href={SIGN_UP_HREF} tone="lime">
                 Start free
               </ButtonLink>
               <ButtonLink href={DEMO_HREF} tone="outline">

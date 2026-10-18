@@ -227,9 +227,24 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
   return (
     <form className="tm-stack" noValidate onSubmit={(event) => void submit(event)}>
       <p className="tm-id-inviter__meta">
-        New to TManage? Choose your name and a password to join. You will sign in with{' '}
-        <strong dir="ltr">{invitation.inviteeEmail}</strong>.
+        New to TManage? Choose your name and a password to join.
       </p>
+      {/*
+        The invited address, filled in and locked: the API creates the account for the
+        invitation's own email and ignores anything else, so an editable field would only
+        mislead. `readOnly` (not `disabled`) keeps it focusable and read by screen readers.
+      */}
+      <Field
+        label="Email"
+        type="email"
+        name="email"
+        autoComplete="username"
+        dir="ltr"
+        value={invitation.inviteeEmail}
+        readOnly
+        aria-readonly="true"
+        hint="From your invitation — this is the address you will sign in with."
+      />
       <Field
         label="Your name"
         name="displayName"

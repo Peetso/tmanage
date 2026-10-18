@@ -152,6 +152,7 @@ import { TrustContentModule } from './modules/public-site/trust-content.module.j
 import { PublicChangelogModule } from './modules/public-site/changelog.module.js';
 import { ContactModule } from './modules/public-site/contact.module.js';
 import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
+import { publicSignupModules } from './modules/signup/public-signup.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
 import { ConnectionHealthModule } from './modules/automations/connection-health.controller.js';
@@ -881,6 +882,9 @@ export class AppModule {
         // organization exists. Depends only on the global `TENANT_DATABASE` / `AUDIT_SERVICE` /
         // `API_CONFIG`, so it couples to no feature module.
         ...(options.config.setupToken ? [FirstOwnerModule.register()] : []),
+        // Public self-service sign-up (`GET/POST /v1/public/sign-up`). Registered only while
+        // `PUBLIC_SIGNUP` is on (the default); off means the routes do not exist and 404.
+        ...publicSignupModules(options.config),
         // AUTO-01 / module 17 (x162). Org-scoped automation workflow templates (define/list), behind
         // `org.manage`. Depends only on the global tenant database — an org-admin definition with no
         // project to resolve — so its position here is by subject, not by need. Execution/runs are x163.

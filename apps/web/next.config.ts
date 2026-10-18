@@ -51,6 +51,10 @@ const config: NextConfig = {
   // The dev-only "N" route indicator sat on top of the public pages' content and showed up in
   // every design-review screenshot. Build and runtime errors still open the dev overlay.
   devIndicators: false,
+  // `PUBLIC_SIGNUP` (the API's switch, default on) inlined for the website's links at build time:
+  // `off` turns every "Start free" back into Sign in and hides "Create an account". The API's
+  // routes follow the same variable at runtime, so a changed value needs a rebuild for the links.
+  env: { NEXT_PUBLIC_SIGNUP: process.env['PUBLIC_SIGNUP'] ?? 'on' },
 
   // The short legal addresses an OAuth consent screen or a reader types (`/privacy`, `/terms`)
   // land on the real pages. Permanent (308), so crawlers and Google's brand review follow them.

@@ -1,3 +1,4 @@
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 /**
  * Pricing page copy (SITE-SPEC "PAGE: Pricing", as drawn in the approved 11-pricing design).
  * Prices are not set before paid beta, so every plan shows "$ —" and the launch-price note.
@@ -22,7 +23,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'free',
     name: 'Free',
     positioning: 'For a small team trying TManage on real client work.',
-    cta: { label: 'Start free', href: '/sign-in' },
+    cta: { label: 'Start free', href: SIGN_UP_HREF },
     features: [
       'Up to 3 internal seats',
       'Unlimited clients',
@@ -34,7 +35,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'starter',
     name: 'Starter',
     positioning: 'For small teams moving their projects off spreadsheets.',
-    cta: { label: 'Choose Starter', href: '/sign-in' },
+    cta: { label: 'Choose Starter', href: SIGN_UP_HREF },
     features: [
       'Everything in Free',
       'Unlimited projects',
@@ -46,7 +47,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'studio',
     name: 'Studio',
     positioning: 'For agencies running many clients and projects at once.',
-    cta: { label: 'Choose Studio', href: '/sign-in' },
+    cta: { label: 'Choose Studio', href: SIGN_UP_HREF },
     features: ['Everything in Starter', 'Docs and decisions', 'Workload insights', 'Automations'],
     featured: true,
   },
@@ -54,7 +55,7 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
     id: 'business',
     name: 'Business',
     positioning: 'For firms that need control, roles and reporting across teams.',
-    cta: { label: 'Choose Business', href: '/sign-in' },
+    cta: { label: 'Choose Business', href: SIGN_UP_HREF },
     features: ['Everything in Studio', 'Roles and permissions', 'Audit log', 'Priority support'],
   },
   {

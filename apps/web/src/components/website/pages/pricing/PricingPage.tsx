@@ -13,6 +13,7 @@ import {
   type PricingPlan,
 } from './pricing-data';
 import './pricing.css';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /* ── Hero with the Monthly / Yearly toggle ────────────────────────────────────── */
 
@@ -338,7 +339,7 @@ export function PricingPage() {
                 Start free with your team. Invite your client when the first deliverable is ready.
               </p>
               <div className="tm-web-cta__actions">
-                <ButtonLink href="/sign-in" tone="lime" size="default">
+                <ButtonLink href={SIGN_UP_HREF} tone="lime" size="default">
                   Start free
                 </ButtonLink>
                 <ButtonLink href="/contact" tone="outline-ink" size="default">
