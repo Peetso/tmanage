@@ -8,3 +8,5 @@ export const PUBLIC_SIGNUP_SESSIONS = Symbol.for('tmanage.PublicSignupSessions')
 export const PUBLIC_SIGNUP_ADMISSION = Symbol.for('tmanage.PublicSignupAdmission');
 /** Per email address — a rotating-IP script still meets this one. */
 export const PUBLIC_SIGNUP_EMAIL_ADMISSION = Symbol.for('tmanage.PublicSignupEmailAdmission');
+/** Open or closed right now: Platform admin's stored switch, backed by `PUBLIC_SIGNUP`. */
+export const PUBLIC_SIGNUP_SWITCH = Symbol.for('tmanage.PublicSignupSwitch');

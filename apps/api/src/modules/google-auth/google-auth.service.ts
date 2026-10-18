@@ -5,6 +5,7 @@ import { CHALLENGE_TTL_SECONDS, signChallengeToken } from '../identity/challenge
 import type { SignInContext } from '../identity/authentication.service.js';
 import { uuidv7 } from '@tmanage/domain';
 import type { PublicSignupService } from '../signup/public-signup.service.js';
+import type { PublicSignupSwitch } from '../platform-admin/platform-settings.js';
 import {
   SignupAccountsRepository,
   SignupEmailTakenError,
@@ -53,6 +54,8 @@ export interface GoogleAuthServiceDeps {
   readonly invitations: InvitationsPort;
   /** Null while `PUBLIC_SIGNUP` is off. */
   readonly signup: PublicSignupService | null;
+  /** Platform admin's sign-up switch (0206). Absent = open whenever `signup` is present. */
+  readonly signupSwitch?: PublicSignupSwitch;
   readonly sessionSecret: string;
   readonly identities?: UserIdentitiesRepository;
   readonly accounts?: SignupAccountsRepository;
@@ -76,6 +79,12 @@ export class GoogleAuthService {
     return this.deps.signup !== null;
   }
 
+  /** Open right now: a sign-up service exists and Platform admin's switch (if any) says open. */
+  async isSignupOpen(correlationId: string): Promise<boolean> {
+    if (this.deps.signup === null) return false;
+    return this.deps.signupSwitch ? this.deps.signupSwitch.isOpen(correlationId) : true;
+  }
+
   async complete(
     flow: GoogleFlow,
     claims: GoogleClaims,
@@ -91,7 +100,9 @@ export class GoogleAuthService {
       await this.record(context, null, 'failed', 'no_such_user');
       return { kind: 'refused', reason: 'no_account' };
     }
-    if (this.deps.signup === null) return { kind: 'refused', reason: 'signup_closed' };
+    if (this.deps.signup === null || !(await this.isSignupOpen(context.correlationId))) {
+      return { kind: 'refused', reason: 'signup_closed' };
+    }
 
     const displayName = claims.name !== '' ? claims.name : (claims.email.split('@')[0] ?? 'Owner');
     const organizationName =

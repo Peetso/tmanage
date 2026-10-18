@@ -153,6 +153,7 @@ import { PublicChangelogModule } from './modules/public-site/changelog.module.js
 import { ContactModule } from './modules/public-site/contact.module.js';
 import { FirstOwnerModule } from './modules/setup/first-owner.module.js';
 import { publicSignupModules } from './modules/signup/public-signup.module.js';
+import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module.js';
 import { googleAuthModules } from './modules/google-auth/google-auth.module.js';
 import { AutomationsModule } from './modules/automations/automations.module.js';
 import { IntegrationDirectoryModule } from './modules/automations/directory.controller.js';
@@ -886,6 +887,12 @@ export class AppModule {
         // Public self-service sign-up (`GET/POST /v1/public/sign-up`). Registered only while
         // `PUBLIC_SIGNUP` is on (the default); off means the routes do not exist and 404.
         ...publicSignupModules(options.config),
+        // Platform admin (`/v1/platform/*`, migration 0206): the TManage operator's metadata view of
+        // every company, with audited suspend / sign-out / reset / sign-up-switch actions. Registered
+        // ONLY when `PLATFORM_ADMIN_EMAILS` names somebody, so unset means the routes do not exist.
+        ...((options.config.platformAdminEmails?.length ?? 0) > 0
+          ? [PlatformAdminModule.register()]
+          : []),
         // "Continue with Google" (`/v1/auth/google/*`). Registered only when GOOGLE_CLIENT_ID and
         // GOOGLE_CLIENT_SECRET are both set; otherwise the routes 404 and the web hides the button.
         ...googleAuthModules(options.config),

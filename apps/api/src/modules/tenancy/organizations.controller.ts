@@ -156,6 +156,7 @@ export class OrganizationsController {
         audience: row.audience,
         role: row.role,
         clientOrganizationName: row.clientOrganizationName,
+        suspended: row.suspended,
       })),
     };
   }

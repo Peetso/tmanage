@@ -18,6 +18,7 @@ import { CredentialsRepository } from '../identity/credentials.repository.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import { SessionService } from '../identity/session.service.js';
 import { CONTACT_MAX_PER_WINDOW, CONTACT_WINDOW_MS } from '../public-site/contact.module.js';
+import { createPublicSignupSwitch } from '../platform-admin/platform-settings.js';
 import { PublicSignupService } from '../signup/public-signup.service.js';
 import { InvitationsRepository } from '../tenancy/invitations.repository.js';
 import { InvitationsService } from '../tenancy/invitations.service.js';
@@ -85,13 +86,18 @@ export class GoogleAuthModule {
             invitationMail,
           ),
           signup:
-            config.publicSignup === true
+            config.publicSignup === true || (config.platformAdminEmails?.length ?? 0) > 0
               ? new PublicSignupService(
                   database,
                   new ProvisioningService(database, audit),
                   welcome ?? null,
                 )
               : null,
+          // Platform admin's switch (0206) decides at request time; `PUBLIC_SIGNUP` backs it.
+          signupSwitch: createPublicSignupSwitch(database, {
+            environmentDefault: config.publicSignup === true,
+            databaseBacked: (config.platformAdminEmails?.length ?? 0) > 0,
+          }),
           sessionSecret: config.sessionSecret,
         }),
     };

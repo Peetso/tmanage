@@ -1143,6 +1143,13 @@ GRANT INSERT, UPDATE ON `tmanage`.`password_reset_tokens` TO 'tmanage_app'@'%';
 -- UPDATE (`last_used_at` on each sign-in). No DELETE: unlinking is not built, and a person's
 -- removal cascades from `users`. The worker holds nothing here.
 GRANT INSERT, UPDATE ON `tmanage`.`user_identities`      TO 'tmanage_app'@'%';
+-- 0206 platform admin (the TManage operator, /platform). Step-ups: INSERT only — a confirmation
+-- expires, it is never amended. The platform audit log: INSERT only, append-only like
+-- `audit_events`. Settings: INSERT and UPDATE (the one switch is an upsert). No DELETE anywhere,
+-- and the worker holds nothing here.
+GRANT INSERT ON `tmanage`.`platform_admin_step_ups`     TO 'tmanage_app'@'%';
+GRANT INSERT ON `tmanage`.`platform_admin_audit_events` TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`platform_settings`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 

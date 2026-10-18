@@ -1059,6 +1059,13 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // "Continue with Google" (migration 0205). A linked sign-in identity belongs to a person and is
   // read on the unauthenticated callback before any tenant exists — global like the credentials.
   'user_identities',
+  // Platform admin (migration 0206). The TManage operator's own step-ups, the platform audit log
+  // and the operator's switches describe the service, not a tenant, so they carry no
+  // `organization_id` and are reached on the identity path. Registered here — NOT in
+  // TENANT_TABLES — on purpose: a platform row belongs to no organization.
+  'platform_admin_step_ups',
+  'platform_admin_audit_events',
+  'platform_settings',
   // Public & trust site (x159, migration 0060). The status-page incidents are GLOBAL: a status
   // page is read by anyone before any organization is named and describes the service as a whole,
   // so `incidents` carries no `organization_id` (0060 explains). Registered here — NOT in

@@ -180,6 +180,8 @@ export const organizations = mysqlTable(
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
     archivedAt: datetime('archived_at', { mode: 'date', fsp: 3 }),
+    /** 0206. Set by the platform operator; a suspended company's members are refused. */
+    suspendedAt: datetime('suspended_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [uniqueIndex('uq_organizations_slug').on(table.slug)],
 );
@@ -5778,6 +5780,59 @@ export const userIdentities = mysqlTable(
 );
 
 /**
+ * 0206. Platform admin (the TManage operator). Global tables — they describe the operator and
+ * the service, not a tenant — registered in `NON_TENANT_TABLES`. A step-up is a fresh password
+ * (+ two-step code) confirmation bound to one session for 15 minutes.
+ */
+export const platformAdminStepUps = mysqlTable(
+  'platform_admin_step_ups',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    sessionId: char('session_id', { length: 36 }).notNull(),
+    mfaVerified: boolean('mfa_verified').notNull().default(false),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index('ix_platform_admin_step_ups_session').on(table.userId, table.sessionId, table.expiresAt),
+  ],
+);
+
+/** 0206. Every platform action with its typed reason. Append-only by grant. */
+export const platformAdminAuditEvents = mysqlTable(
+  'platform_admin_audit_events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    actorUserId: char('actor_user_id', { length: 36 }).notNull(),
+    actorEmail: varchar('actor_email', { length: 254 }).notNull(),
+    action: varchar('action', { length: 64 }).notNull(),
+    targetType: varchar('target_type', { length: 32 }).notNull(),
+    targetId: char('target_id', { length: 36 }),
+    targetLabel: varchar('target_label', { length: 254 }),
+    reason: varchar('reason', { length: 500 }).notNull(),
+    correlationId: char('correlation_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index('ix_platform_admin_audit_events_time').on(table.createdAt),
+    index('ix_platform_admin_audit_events_target').on(
+      table.targetType,
+      table.targetId,
+      table.createdAt,
+    ),
+  ],
+);
+
+/** 0206. Operator switches; today `public_signup` = `open` | `closed`. */
+export const platformSettings = mysqlTable('platform_settings', {
+  settingKey: varchar('setting_key', { length: 64 }).primaryKey(),
+  settingValue: varchar('setting_value', { length: 255 }).notNull(),
+  updatedByUserId: char('updated_by_user_id', { length: 36 }),
+  updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+});
+
+/**
  * Second factors. A table rather than a column because the plural is the real case — a
  * phone, a tablet, and later a passkey.
  */
@@ -8197,6 +8252,9 @@ export const TABLES = {
   user_passwords: userPasswords,
   password_reset_tokens: passwordResetTokens,
   user_identities: userIdentities,
+  platform_admin_step_ups: platformAdminStepUps,
+  platform_admin_audit_events: platformAdminAuditEvents,
+  platform_settings: platformSettings,
   user_mfa_factors: userMfaFactors,
   user_recovery_codes: userRecoveryCodes,
   authentication_events: authenticationEvents,
@@ -8502,6 +8560,9 @@ export type ChangelogEntryRow = typeof changelogEntries.$inferSelect;
 export type MarketingLeadRow = typeof marketingLeads.$inferSelect;
 export type NewMarketingLeadRow = typeof marketingLeads.$inferInsert;
 export type MaintenanceWindowRow = typeof maintenanceWindows.$inferSelect;
+export type PlatformAdminStepUpRow = typeof platformAdminStepUps.$inferSelect;
+export type PlatformAdminAuditEventRow = typeof platformAdminAuditEvents.$inferSelect;
+export type PlatformSettingRow = typeof platformSettings.$inferSelect;
 export type InsightSavedViewRow = typeof insightSavedViews.$inferSelect;
 export type InsightSnapshotRow = typeof insightSnapshots.$inferSelect;
 export type InsightSnapshotKind = (typeof INSIGHT_SNAPSHOT_KINDS)[number];

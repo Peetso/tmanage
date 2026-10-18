@@ -316,6 +316,10 @@ export async function truncateAll(admin: Pool): Promise<void> {
       'password_reset_tokens',
       // 0205. Linked Google identities name a user.
       'user_identities',
+      // 0206. Platform admin step-ups name a user; the audit log and settings are global.
+      'platform_admin_step_ups',
+      'platform_admin_audit_events',
+      'platform_settings',
       'idempotency_records',
       // USAGE-001 slice 2. Before `outbox_events`: a ledger row names the event that produced
       // it (and `usage_counters`, cleared below).

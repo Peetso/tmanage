@@ -1,9 +1,10 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req, Res } from '@nestjs/common';
-import { ApiError } from '../../common/http/errors.js';
+import { Body, Controller, Get, HttpCode, Inject, Optional, Post, Req, Res } from '@nestjs/common';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { Public } from '../../common/http/decorators.js';
 import type { RequestAdmission } from '../../common/http/rate-limiter.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import type { SessionService } from '../identity/session.service.js';
+import type { PublicSignupSwitch } from '../platform-admin/platform-settings.js';
 import {
   ACCOUNT_EXISTS_SIGNUP_MESSAGE,
   normaliseSignupEmail,
@@ -18,6 +19,7 @@ import {
   PUBLIC_SIGNUP_EMAIL_ADMISSION,
   PUBLIC_SIGNUP_SERVICE,
   PUBLIC_SIGNUP_SESSIONS,
+  PUBLIC_SIGNUP_SWITCH,
 } from './public-signup.tokens.js';
 
 interface RequestLike {
@@ -45,11 +47,17 @@ export class PublicSignupController {
     @Inject(PUBLIC_SIGNUP_SESSIONS) private readonly sessions: SessionService,
     @Inject(PUBLIC_SIGNUP_ADMISSION) private readonly admitSource: RequestAdmission,
     @Inject(PUBLIC_SIGNUP_EMAIL_ADMISSION) private readonly admitEmail: RequestAdmission,
+    // Platform admin's switch (0206). Absent (a hand-built controller) means open — the module
+    // is only registered while sign-up can be open at all.
+    @Optional()
+    @Inject(PUBLIC_SIGNUP_SWITCH)
+    private readonly signupSwitch?: PublicSignupSwitch,
   ) {}
 
   @Get()
   @Public()
-  availability(): PublicSignupAvailabilityView {
+  async availability(@Req() request: RequestLike): Promise<PublicSignupAvailabilityView> {
+    await this.requireOpen(request);
     return { available: true };
   }
 
@@ -62,6 +70,7 @@ export class PublicSignupController {
     @Res({ passthrough: true }) reply: ReplyLike,
   ): Promise<PublicSignupView> {
     const state = requireRequestState(request);
+    await this.requireOpen(request);
     if (!this.admitSource(request.ip ?? 'unknown')) {
       throw new ApiError(429, 'rate_limited', RATE_LIMITED);
     }
@@ -114,5 +123,14 @@ export class PublicSignupController {
       expiresAt: established.expiresAt.toISOString(),
       organizationSlug: result.slug,
     };
+  }
+
+  /** Closed is the same 404 the unregistered routes give, so the two states look alike. */
+  private async requireOpen(request: RequestLike): Promise<void> {
+    if (this.signupSwitch === undefined) return;
+    const open = await this.signupSwitch.isOpen(requireRequestState(request).correlationId);
+    if (!open) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'public_signup_closed');
+    }
   }
 }

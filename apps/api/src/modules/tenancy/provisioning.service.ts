@@ -147,6 +147,8 @@ export interface OrganizationSummaryView {
   readonly audience: 'internal' | 'client';
   readonly role: string;
   readonly clientOrganizationName: string | null;
+  /** 0206. True when the platform operator suspended it; its members see the suspended page. */
+  readonly suspended?: boolean;
 }
 
 export { OrganizationSlugTakenError };

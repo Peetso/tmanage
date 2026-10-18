@@ -69,6 +69,8 @@ export interface OrganizationMembershipSummary {
   readonly role: string;
   /** The client organization's own name, for a portal row. Null for an internal membership. */
   readonly clientOrganizationName: string | null;
+  /** 0206. The platform operator suspended this organization; acting in it is refused. */
+  readonly suspended: boolean;
 }
 
 export class OrganizationDirectoryRepository {
@@ -107,6 +109,7 @@ export class OrganizationDirectoryRepository {
             slug: organizations.slug,
             name: organizations.name,
             role: memberships.role,
+            suspendedAt: organizations.suspendedAt,
           })
           .from(memberships)
           .innerJoin(organizations, eq(organizations.id, memberships.organizationId))
@@ -129,6 +132,7 @@ export class OrganizationDirectoryRepository {
             name: organizations.name,
             role: clientMemberships.role,
             clientOrganizationName: clientOrganizations.name,
+            suspendedAt: organizations.suspendedAt,
           })
           .from(clientMemberships)
           .innerJoin(organizations, eq(organizations.id, clientMemberships.organizationId))
@@ -165,6 +169,7 @@ export class OrganizationDirectoryRepository {
         audience: 'internal' as const,
         role: row.role,
         clientOrganizationName: null,
+        suspended: row.suspendedAt !== null,
       })),
       ...client.map((row) => ({
         organizationId: row.organizationId,
@@ -173,6 +178,7 @@ export class OrganizationDirectoryRepository {
         audience: 'client' as const,
         role: row.role,
         clientOrganizationName: row.clientOrganizationName,
+        suspended: row.suspendedAt !== null,
       })),
     ].sort((a, b) => a.name.localeCompare(b.name));
   }

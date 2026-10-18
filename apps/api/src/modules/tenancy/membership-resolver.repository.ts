@@ -88,7 +88,18 @@ export type MembershipResolutionFailure =
   | 'no_active_membership'
   | 'role_not_recognised'
   | 'role_not_valid_for_principal_kind'
-  | 'principal_kind_ambiguous';
+  | 'principal_kind_ambiguous'
+  /**
+   * 0206. A real member of a company the platform operator has suspended. Unlike the codes
+   * above this one IS shown to the caller (as {@link SUSPENDED_MESSAGE}): it is raised only
+   * after the membership row has proved the caller belongs, so it discloses nothing to an
+   * outsider — an outsider still gets `no_active_membership`.
+   */
+  | 'organization_suspended';
+
+/** What a member of a suspended company is told. The data is kept; support can reopen it. */
+export const SUSPENDED_MESSAGE =
+  'This workspace is suspended. Contact TManage support to have it reopened.';
 
 /**
  * One message for every failure, and the reason it must stay that way.
@@ -160,6 +171,8 @@ interface Candidate {
   readonly hasOrgWideScope: boolean;
   /** A Workspace Admin's one-workspace scope, or null for org-wide and project-scoped members. */
   readonly workspaceScopeId: string | null;
+  /** 0206. Set when the platform operator suspended the company; the member is refused. */
+  readonly suspendedAt: Date | null;
 }
 
 export class MembershipResolver {
@@ -185,6 +198,10 @@ export class MembershipResolver {
 
     const candidate = internal ?? client;
     if (!candidate) throw new MembershipNotResolvedError('no_active_membership');
+    // After the membership is proved, so only a real member learns the company is suspended.
+    if (candidate.suspendedAt !== null) {
+      throw new MembershipNotResolvedError('organization_suspended');
+    }
 
     const kind = internal ? 'internal' : 'client';
     const role = this.validateRole(candidate.role, kind);
@@ -253,6 +270,7 @@ export class MembershipResolver {
         membershipPolicyVersion: memberships.policyVersion,
         hasOrgWideScope: memberships.hasOrgWideScope,
         workspaceScopeId: memberships.workspaceScopeId,
+        suspendedAt: organizations.suspendedAt,
       })
       .from(organizations)
       .innerJoin(memberships, eq(memberships.organizationId, organizations.id))
@@ -287,6 +305,7 @@ export class MembershipResolver {
         role: clientMemberships.role,
         membershipUpdatedAt: clientMemberships.updatedAt,
         clientOrganizationId: clientMemberships.clientOrganizationId,
+        suspendedAt: organizations.suspendedAt,
       })
       .from(organizations)
       .innerJoin(clientMemberships, eq(clientMemberships.organizationId, organizations.id))

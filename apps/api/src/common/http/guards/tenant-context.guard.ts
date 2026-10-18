@@ -5,7 +5,10 @@ import { ApiError, MESSAGES } from '../errors.js';
 import { SKIPS_TENANT, IS_PUBLIC } from '../decorators.js';
 import { requireRequestState } from '../request-state.js';
 import { MEMBERSHIP_RESOLVER, PRINCIPAL_REPOSITORY, TENANT_DATABASE } from '../tokens.js';
-import { MembershipNotResolvedError } from '../../../modules/tenancy/membership-resolver.repository.js';
+import {
+  MembershipNotResolvedError,
+  SUSPENDED_MESSAGE,
+} from '../../../modules/tenancy/membership-resolver.repository.js';
 import type { MembershipResolver } from '../../../modules/tenancy/membership-resolver.repository.js';
 import type { PrincipalRepository } from '../../../modules/tenancy/principal.repository.js';
 import type { TenantDatabase } from '../../database/tenant-context.js';
@@ -93,6 +96,11 @@ export class TenantContextGuard implements CanActivate {
       });
     } catch (error) {
       if (error instanceof MembershipNotResolvedError) {
+        // 0206. A proved member of a suspended company is told so (403) instead of the 404 —
+        // the resolver raises this only after the membership row matched, so no outsider sees it.
+        if (error.code === 'organization_suspended') {
+          throw new ApiError(403, 'forbidden', SUSPENDED_MESSAGE, undefined, error.code);
+        }
         throw new ApiError(404, 'not_found', MESSAGES.organizationNotFound, undefined, error.code);
       }
       throw error;

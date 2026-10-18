@@ -113,6 +113,16 @@ import type {
   PublicSignupView as ApiPublicSignupView,
 } from '../../apps/api/src/modules/signup/public-signup.service.js';
 import type {
+  PlatformMeView as ApiPlatformMeView,
+  PlatformOverviewView as ApiPlatformOverviewView,
+  PlatformCompanyView as ApiPlatformCompanyView,
+  PlatformCompanyAuditView as ApiPlatformCompanyAuditView,
+  PlatformCompanyDetailView as ApiPlatformCompanyDetailView,
+  PlatformPersonView as ApiPlatformPersonView,
+  PlatformSettingsView as ApiPlatformSettingsView,
+  PlatformAuditEventView as ApiPlatformAuditEventView,
+} from '../../apps/api/src/modules/platform-admin/platform-admin.service.js';
+import type {
   GoogleAvailabilityView as ApiGoogleAvailabilityView,
   GooglePendingMfaView as ApiGooglePendingMfaView,
   GoogleStartView as ApiGoogleStartView,
@@ -657,6 +667,16 @@ import type {
   PublicSignupAvailabilityView as WebPublicSignupAvailabilityView,
   PublicSignupView as WebPublicSignupView,
 } from '../../apps/web/src/lib/api/sign-up';
+import type {
+  PlatformMeView as WebPlatformMeView,
+  PlatformOverviewView as WebPlatformOverviewView,
+  PlatformCompanyView as WebPlatformCompanyView,
+  PlatformCompanyAuditView as WebPlatformCompanyAuditView,
+  PlatformCompanyDetailView as WebPlatformCompanyDetailView,
+  PlatformPersonView as WebPlatformPersonView,
+  PlatformSettingsView as WebPlatformSettingsView,
+  PlatformAuditEventView as WebPlatformAuditEventView,
+} from '../../apps/web/src/lib/api/platform-admin';
 import type {
   GoogleAvailabilityView as WebGoogleAvailabilityView,
   GooglePendingMfaView as WebGooglePendingMfaView,
@@ -2850,3 +2870,17 @@ type _createdPersonalAccessToken = Assert<
 >;
 type _portfolioMilestone = Assert<Exact<ApiPortfolioMilestoneView, WebPortfolioMilestone>>;
 type _portfolioCapacity = Assert<Exact<ApiPortfolioCapacityView, WebPortfolioCapacity>>;
+
+// Platform admin (`/v1/platform/*`, 0206): the operator's views, paired one for one.
+type _platformMeView = Assert<Exact<ApiPlatformMeView, WebPlatformMeView>>;
+type _platformOverviewView = Assert<Exact<ApiPlatformOverviewView, WebPlatformOverviewView>>;
+type _platformCompanyView = Assert<Exact<ApiPlatformCompanyView, WebPlatformCompanyView>>;
+type _platformCompanyAuditView = Assert<
+  Exact<ApiPlatformCompanyAuditView, WebPlatformCompanyAuditView>
+>;
+type _platformCompanyDetailView = Assert<
+  Exact<ApiPlatformCompanyDetailView, WebPlatformCompanyDetailView>
+>;
+type _platformPersonView = Assert<Exact<ApiPlatformPersonView, WebPlatformPersonView>>;
+type _platformSettingsView = Assert<Exact<ApiPlatformSettingsView, WebPlatformSettingsView>>;
+type _platformAuditEventView = Assert<Exact<ApiPlatformAuditEventView, WebPlatformAuditEventView>>;

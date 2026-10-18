@@ -1,9 +1,12 @@
+import { useContext } from 'react';
 import type { ReactNode } from 'react';
 import Link from 'next/link';
+import { QueryClientContext } from '@tanstack/react-query';
 import { Badge, LiveAnnouncer, SkipLink, StatusDot } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { CLIENT_NAVIGATION } from './navigation';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 
 export interface ClientPortalShellProps {
   /**
@@ -70,7 +73,8 @@ export function ClientPortalShell({
     passedClientName,
     passedProviderName,
   );
-  return (
+  const queryClient = useContext(QueryClientContext);
+  const shell = (
     <LiveAnnouncer>
       <div className="tm-portal" data-preview={preview ? 'true' : undefined}>
         <SkipLink targetId="tm-main" />
@@ -141,5 +145,11 @@ export function ClientPortalShell({
         </main>
       </div>
     </LiveAnnouncer>
+  );
+  // A suspended company's client portal shows the same "workspace suspended" page.
+  return queryClient ? (
+    <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+  ) : (
+    shell
   );
 }

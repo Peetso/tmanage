@@ -14,6 +14,8 @@ export interface OrganizationSummary {
   readonly audience: 'internal' | 'client';
   readonly role: string;
   readonly clientOrganizationName: string | null;
+  /** True when the platform operator suspended it; its members see the suspended page. */
+  readonly suspended?: boolean;
 }
 
 /**

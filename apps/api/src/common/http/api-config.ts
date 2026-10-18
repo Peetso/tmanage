@@ -7,6 +7,7 @@ import {
 } from '@tmanage/config';
 import type { SeedKeyring } from '@tmanage/config';
 import { API_CONFIG } from './tokens.js';
+import { parsePlatformAdminEmails } from '../../modules/platform-admin/platform-admin.access.js';
 import type { SessionServiceOptions } from '../../modules/identity/session.service.js';
 
 /**
@@ -52,6 +53,11 @@ export interface ApiConfig extends SessionServiceOptions {
    * suites' hand-built literals) leaves them unregistered, so they 404.
    */
   readonly publicSignup?: boolean;
+  /**
+   * `PLATFORM_ADMIN_EMAILS`, parsed: the lower-cased verified emails that may open Platform admin.
+   * Empty or absent = the platform routes are not registered (404).
+   */
+  readonly platformAdminEmails?: readonly string[];
   /**
    * `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`. Null or absent = "Continue with Google" routes
    * are not registered. Never log the secret.
@@ -139,6 +145,8 @@ export interface ApiConfigSource {
   readonly SETUP_TOKEN?: string | undefined;
   /** Public self-service sign-up; `packages/config` defaults it to true. */
   readonly PUBLIC_SIGNUP?: boolean;
+  /** Platform admin operator emails, comma separated. `| undefined` for EOPT. */
+  readonly PLATFORM_ADMIN_EMAILS?: string | undefined;
   /** `| undefined` for EOPT, like `SETUP_TOKEN`. */
   readonly GOOGLE_CLIENT_ID?: string | undefined;
   readonly GOOGLE_CLIENT_SECRET?: string | undefined;
@@ -213,6 +221,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
       : { contactWindowMs: env.RATE_LIMIT_CONTACT_WINDOW_SECONDS * 1_000 }),
     setupToken: env.SETUP_TOKEN && env.SETUP_TOKEN.length > 0 ? env.SETUP_TOKEN : null,
     publicSignup: env.PUBLIC_SIGNUP === true,
+    platformAdminEmails: parsePlatformAdminEmails(env.PLATFORM_ADMIN_EMAILS),
     googleOAuth:
       env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
         ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }

@@ -49,6 +49,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   'legal',
   'login',
   'mail',
+  // The web app serves Platform admin (the TManage operator) at /platform.
+  'platform',
   'portal',
   'privacy',
   'security',

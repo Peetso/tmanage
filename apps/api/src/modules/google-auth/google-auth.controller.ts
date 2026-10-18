@@ -119,18 +119,19 @@ export class GoogleAuthController {
 
   @Get()
   @Public()
-  availability(): GoogleAvailabilityView {
-    return { available: true, signUp: this.service.signupOpen };
+  async availability(@Req() request: RequestLike): Promise<GoogleAvailabilityView> {
+    const correlationId = requireRequestState(request).correlationId;
+    return { available: true, signUp: await this.service.isSignupOpen(correlationId) };
   }
 
   @Post('start')
   @Public()
   @HttpCode(200)
-  start(
+  async start(
     @Body() body: StartBody,
     @Req() request: RequestLike,
     @Res({ passthrough: true }) reply: ReplyLike,
-  ): GoogleStartView {
+  ): Promise<GoogleStartView> {
     if (!this.admit(request.ip ?? 'unknown')) {
       throw new ApiError(
         429,
@@ -144,7 +145,10 @@ export class GoogleAuthController {
         { field: 'intent', message: 'must be sign-in, sign-up or invitation' },
       ]);
     }
-    if (intent === 'sign-up' && !this.service.signupOpen) {
+    if (
+      intent === 'sign-up' &&
+      !(await this.service.isSignupOpen(requireRequestState(request).correlationId))
+    ) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     const invitationToken =

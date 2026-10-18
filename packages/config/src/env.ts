@@ -473,6 +473,15 @@ export const envSchema = z
       .transform((value) =>
         value === undefined || value.trim() === '' ? undefined : value.trim(),
       ),
+    /**
+     * Platform admin (/platform): the comma list of verified emails that may operate the whole
+     * TManage service. Compared case-insensitively. Unset or empty = the feature is off (404).
+     * No organization role ever reaches it.
+     */
+    PLATFORM_ADMIN_EMAILS: z
+      .string()
+      .optional()
+      .transform((value) => (value === undefined || value.trim() === '' ? undefined : value)),
     PUBLIC_SIGNUP: z
       .string()
       .optional()

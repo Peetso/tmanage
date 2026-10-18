@@ -14,6 +14,8 @@ import { InboxNotificationBridge } from '../pwa/InboxNotificationBridge';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations } from '../../lib/api/organizations';
 import { useOrganizationName } from '../../lib/use-organization-names';
+import { PlatformAdminLink } from '../platform/PlatformAdminLink';
+import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 
 export interface AppShellProps {
   /**
@@ -123,6 +125,8 @@ function RailFoot({
           current={activeNavigationId === CONTROL_CENTER_NAVIGATION.id}
         />
       ) : null}
+      {/* Only for the TManage operator (PLATFORM_ADMIN_EMAILS); nothing for anyone else. */}
+      {queryClient ? <PlatformAdminLink /> : null}
       {accountInitials ? (
         <Link
           href={`/${organizationSlug}/preferences`}
@@ -172,7 +176,8 @@ export function AppShell({
   // The page hands in the design's sample name until a per-organization read exists; the
   // session's own organization list says what this organization is really called.
   const displayedOrganizationName = useOrganizationName(organizationSlug, organizationName);
-  return (
+  const queryClient = useContext(QueryClientContext);
+  const shell = (
     <LiveAnnouncer>
       <div className="tm-app">
         <SkipLink targetId="tm-main" />
@@ -277,6 +282,12 @@ export function AppShell({
         />
       </div>
     </LiveAnnouncer>
+  );
+  // A company the platform operator suspended shows its members one page instead of the app.
+  return queryClient ? (
+    <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+  ) : (
+    shell
   );
 }
 
