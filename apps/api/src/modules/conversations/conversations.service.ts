@@ -1,6 +1,7 @@
 import {
   InadmissibleRichTextError,
   authorize,
+  extractMentionedUserIds,
   richTextToPlainText,
   sanitizeRichText,
 } from '@tmanage/domain';
@@ -55,9 +56,12 @@ import type { OutboxEventsRepository } from '../platform/outbox-events.repositor
  * entitles you to it.
  *
  * It is not sufficient on its own. `conversation_memberships` exists because `13-ENGINEERING`
- * §5 names it and because a project can hold more than one channel; a person on the project is
- * not thereby in every room on it. So this service applies a second, **narrowing** check: the
- * acting principal must be a member of the conversation, or hold organization-wide scope.
+ * §5 names it and because a project can hold more than one channel. Since CQ-12 (COL-01) the
+ * project team is put in a channel when it is made, and a person put on the project later joins
+ * its open channels then (`ProjectMembershipsService.add`), so a project channel is the team's
+ * room by default. The membership row is still what is checked: this service applies a second,
+ * **narrowing** check — the acting principal must be a member of the conversation, or hold
+ * organization-wide scope.
  *
  * The order matters and is deliberate. `authorize()` runs first and is authoritative — no
  * amount of conversation membership admits a client principal or a suspended member, because
@@ -361,7 +365,7 @@ export class ConversationsService {
   /**
    * Create a channel on a project, and put its creator in it.
    *
-   * One transaction for three writes: the channel, its first membership, and the audit row.
+   * One transaction for the channel, its memberships (creator and project team), and the audit row.
    * A channel whose creator is not a member of it would be a room nobody is in, and a second
    * request to fix that could fail — so it is not a second request.
    */
@@ -397,6 +401,20 @@ export class ConversationsService {
       }
 
       await this.conversations.addMember(tx, context, created.id, context.userId);
+
+      // CQ-12 (COL-01): a project channel is the room the project team talks in, so everyone
+      // on the project is in it from the start — not only its creator. Each still passes
+      // `authorize()` on every read; a membership here can only narrow, never widen (§4).
+      const team = await this.projectMemberships.listUserIdsByProject(
+        tx,
+        context,
+        created.projectId,
+      );
+      for (const userId of team) {
+        if (userId !== context.userId) {
+          await this.conversations.addMember(tx, context, created.id, userId);
+        }
+      }
 
       await this.audit?.record(tx, context, {
         action: 'conversation.created',
@@ -622,6 +640,12 @@ export class ConversationsService {
             parentMessageId: appended.parentMessageId,
             // RT-001: the channel's own order, so a subscriber can detect a gap.
             sequenceNo: Number(appended.sequenceNo),
+            // CQ-12 (COL-05): who the body mentions, as ids. The author is never told about
+            // their own mention; the consumer re-checks each person's access at delivery.
+            mentionedUserIds: extractMentionedUserIds(content.body).filter(
+              (id) => id !== context.userId,
+            ),
+            authorUserId: context.userId,
           },
         });
 

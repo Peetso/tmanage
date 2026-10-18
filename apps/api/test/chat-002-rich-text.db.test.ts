@@ -598,6 +598,8 @@ describe('who may read the history', () => {
     const channel = await createChannel(managerSession);
     const message = await postOrThrow(managerSession, channel, { body: 'before' });
     await editMessage(managerSession, channel, message.id, { body: 'after' });
+    // CQ-12: the project team starts in a new channel, so the designer is taken out first.
+    await send('DELETE', `/conversations/${channel}/members/${designer().id}`, managerSession);
 
     const designerSession = await signIn(designer().id);
     const history = await revisionsOf(designerSession, channel, message.id);

@@ -11,6 +11,7 @@ import type {
 } from './meeting-attendees.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import type { MeetingRow } from '../../common/database/schema.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
  * The application service for CAL-01 / MTG-01 attendees + RSVP (x126) — the object-level decision
@@ -92,6 +93,8 @@ export class MeetingAttendeesService {
      * 500 (the same pre-resolution `MeetingsService` does for a project id).
      */
     private readonly memberships: MembershipsRepository = new MembershipsRepository(),
+    /** CQ-12 (COL-05): the invite notification. Optional for suites. */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   /**
@@ -173,7 +176,12 @@ export class MeetingAttendeesService {
     principal: Principal,
     command: InviteAttendeeCommand,
   ): Promise<MeetingAttendeeView> {
-    await this.resolveMeetingFor(context, principal, command.meetingId, 'work.create');
+    const meeting = await this.resolveMeetingFor(
+      context,
+      principal,
+      command.meetingId,
+      'work.create',
+    );
 
     const membership = await this.database.read(context, (runner) =>
       this.memberships.findByUserId(runner, context, command.userId),
@@ -201,13 +209,28 @@ export class MeetingAttendeesService {
       );
     }
 
-    const row = await this.database.transaction(context, (tx) =>
-      this.attendees.invite(tx, context, {
+    const row = await this.database.transaction(context, async (tx) => {
+      const invited = await this.attendees.invite(tx, context, {
         meetingId: command.meetingId,
         membershipId: membership.id,
         rsvp: 'invited',
-      }),
-    );
+      });
+      // CQ-12 (COL-05): the invitee is told in the inbox and by email. Inviting yourself is not
+      // news to anyone.
+      if (command.userId !== context.userId) {
+        await this.outbox?.append(tx, context, {
+          type: 'meeting.attendee_invited.v1',
+          aggregateId: meeting.id,
+          payload: {
+            meetingId: meeting.id,
+            projectId: meeting.projectId,
+            attendeeUserId: command.userId,
+            invitedByUserId: context.userId,
+          },
+        });
+      }
+      return invited;
+    });
 
     return toView(row);
   }

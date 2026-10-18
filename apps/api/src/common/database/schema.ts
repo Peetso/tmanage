@@ -5375,7 +5375,14 @@ export const notificationPreferences = mysqlTable(
  * outside this set is a validation error in the route and a write error at the engine, never stored.
  * A new family is a deliberate schema + ENUM change, not a stray string.
  */
-export const NOTIFICATION_KINDS = ['client_request', 'work_item', 'message', 'file'] as const;
+export const NOTIFICATION_KINDS = [
+  'client_request',
+  'work_item',
+  'message',
+  'file',
+  // CQ-12 (0207): "Mentions" — being @mentioned in a channel or a document comment.
+  'mention',
+] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 /**

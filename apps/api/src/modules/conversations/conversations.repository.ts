@@ -265,6 +265,29 @@ export class ConversationsRepository {
   }
 
   /**
+   * CQ-12 (COL-01): the ids of a project's open channels, so a person put on the project can be
+   * put in each of them. Tenant-scoped; archived channels are left alone.
+   */
+  async listOpenIdsByProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.organizationId, context.organizationId),
+          eq(conversations.projectId, projectId),
+          isNull(conversations.archivedAt),
+        ),
+      )
+      .orderBy(asc(conversations.id));
+    return rows.map((row) => row.id);
+  }
+
+  /**
    * Fetch one conversation by id, within the acting tenant.
    *
    * There is deliberately no `findById(id)` without a context, for the reason ADR-0001 exists:

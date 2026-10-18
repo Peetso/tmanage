@@ -4,6 +4,7 @@ import { WorkflowRunController } from './run.controller.js';
 import { WorkflowRunService } from './run.service.js';
 import type { WorkflowTemplatesRepository } from './templates.repository.js';
 import type { WorkflowRunsRepository } from './run.repository.js';
+import type { NotificationsRepository } from '../inbox/notifications.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkflowRunRow, WorkflowTemplateRow } from '../../common/database/schema.js';
 
@@ -53,6 +54,16 @@ function template(overrides: Partial<WorkflowTemplateRow> = {}): WorkflowTemplat
 
 function controllerWith(templates: readonly WorkflowTemplateRow[]) {
   const runStore: WorkflowRunRow[] = [];
+  const notices: { recipientUserId: string; objectType: string; objectId: string }[] = [];
+  const notifications = {
+    insertForRecipient: async (
+      _runner: unknown,
+      _ctx: TenantContext,
+      input: { recipientUserId: string; objectType: string; objectId: string },
+    ) => {
+      notices.push(input);
+    },
+  } as unknown as NotificationsRepository;
   let seq = 0;
 
   const database = {
@@ -90,8 +101,9 @@ function controllerWith(templates: readonly WorkflowTemplateRow[]) {
     templatesRepository,
     runsRepository,
     new WorkflowRunService(),
+    notifications,
   );
-  return { controller, runStore };
+  return { controller, runStore, notices };
 }
 
 describe('WorkflowRunController', () => {
@@ -104,6 +116,31 @@ describe('WorkflowRunController', () => {
     expect(view).not.toHaveProperty('organizationId');
     expect(runStore).toHaveLength(1);
     expect(runStore[0]?.status).toBe('succeeded');
+  });
+
+  it('CQ-12 AUT-02: "notify owner" really notifies — the runner gets a test notice', async () => {
+    const { controller, notices } = controllerWith([template()]);
+    const view = await controller.run(context, principal('owner'), 'workflow-template-01');
+
+    expect(view.detail).toMatchObject({ effect: 'Sent you a test notification in your inbox.' });
+    expect(notices).toEqual(
+      [
+        {
+          recipientUserId: USER,
+          objectType: 'workflow_template',
+          objectId: 'workflow-template-01',
+        },
+      ].map((notice) => expect.objectContaining(notice)),
+    );
+  });
+
+  it('CQ-12 AUT-02: an action with no executor is recorded as not run, never as done', async () => {
+    const { controller, notices } = controllerWith([template({ actionKind: 'post_message' })]);
+    const view = await controller.run(context, principal('owner'), 'workflow-template-01');
+
+    expect(view.status).toBe('failed');
+    expect(view.detail).toMatchObject({ outcome: 'not_run', reason: 'action_not_available_yet' });
+    expect(notices).toHaveLength(0);
   });
 
   it('records a failed run for an external action rather than any egress', async () => {

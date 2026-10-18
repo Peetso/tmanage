@@ -139,6 +139,44 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'file_asset',
     catalog: '§4 file lifecycle — FILE-003 retention deletion; usage reconciliation',
   },
+  /** CQ-12 (AUT-01): "work item created" — the automation trigger `work_item_created`. */
+  'work_item.created.v1': {
+    aggregateType: 'work_item',
+    catalog: '§4 work_item.created.v1 — automations, search',
+  },
+  /**
+   * CQ-12 (APR-03): a work item was made "client action needed". The client people who can act
+   * on it are emailed; the portal already lists it as waiting on them.
+   */
+  'work_item.client_action_requested.v1': {
+    aggregateType: 'work_item',
+    catalog: '§4 work_item audience → client_action_required — client email',
+  },
+  /** CQ-12 (COL-05): a comment was added to a document — author and mentioned people are told. */
+  'document.comment_created.v1': {
+    aggregateType: 'document',
+    catalog: '§4 comment created — notification, mentions',
+  },
+  /** CQ-12 (AUT-01): a document was published to the client — the trigger `document_published`. */
+  'document.published.v1': {
+    aggregateType: 'document',
+    catalog: '§4 document published — automations',
+  },
+  /** CQ-12 (AUT-01): a meeting was scheduled — the trigger `meeting_scheduled`. */
+  'meeting.scheduled.v1': {
+    aggregateType: 'meeting',
+    catalog: '§4 meeting scheduled — automations',
+  },
+  /** CQ-12 (COL-05): somebody was invited to a meeting — the invitee is told. */
+  'meeting.attendee_invited.v1': {
+    aggregateType: 'meeting',
+    catalog: '§4 meeting invite — notification, email',
+  },
+  /** CQ-12 (COL-05): somebody was put on a project — they are told. */
+  'project.member_added.v1': {
+    aggregateType: 'project',
+    catalog: '§4 project membership granted — notification, email',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -196,6 +234,13 @@ export interface MessageCreatedV1 {
   readonly projectId: string;
   readonly parentMessageId: string | null;
   readonly sequenceNo?: number;
+  /**
+   * CQ-12 (COL-05), additive optional: the user ids the body mentions with the `@<userId>` token
+   * ({@link extractMentionedUserIds}). Ids are references, not content — the body stays on the row.
+   */
+  readonly mentionedUserIds?: readonly string[];
+  /** CQ-12, additive optional: who wrote it — the "who mentioned you" of the notice. */
+  readonly authorUserId?: string;
 }
 
 /**
@@ -329,6 +374,55 @@ export interface FilePurgedV1 {
   readonly deltaBytes: number;
 }
 
+/** CQ-12: ids and the creation state; the title stays on the row. */
+export interface WorkItemCreatedV1 {
+  readonly workItemId: string;
+  readonly projectId: string;
+  readonly state: string;
+}
+
+/** CQ-12 (APR-03): the item that now waits on the client. */
+export interface WorkItemClientActionRequestedV1 {
+  readonly workItemId: string;
+  readonly projectId: string;
+}
+
+/** CQ-12 (COL-05): ids only — the comment text stays on the row. */
+export interface DocumentCommentCreatedV1 {
+  readonly documentId: string;
+  readonly commentId: string;
+  readonly projectId: string;
+  readonly authorUserId: string;
+  readonly mentionedUserIds: readonly string[];
+}
+
+/** CQ-12 (AUT-01). */
+export interface DocumentPublishedV1 {
+  readonly documentId: string;
+  readonly projectId: string;
+}
+
+/** CQ-12 (AUT-01). */
+export interface MeetingScheduledV1 {
+  readonly meetingId: string;
+  readonly projectId: string;
+}
+
+/** CQ-12 (COL-05). */
+export interface MeetingAttendeeInvitedV1 {
+  readonly meetingId: string;
+  readonly projectId: string;
+  readonly attendeeUserId: string;
+  readonly invitedByUserId: string;
+}
+
+/** CQ-12 (COL-05). */
+export interface ProjectMemberAddedV1 {
+  readonly projectId: string;
+  readonly userId: string;
+  readonly addedByUserId: string;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -345,4 +439,31 @@ export interface OutboxEventPayloads {
   readonly 'file.rejected.v1': FileRejectedV1;
   readonly 'file.ready.v1': FileReadyV1;
   readonly 'file.purged.v1': FilePurgedV1;
+  readonly 'work_item.created.v1': WorkItemCreatedV1;
+  readonly 'work_item.client_action_requested.v1': WorkItemClientActionRequestedV1;
+  readonly 'document.comment_created.v1': DocumentCommentCreatedV1;
+  readonly 'document.published.v1': DocumentPublishedV1;
+  readonly 'meeting.scheduled.v1': MeetingScheduledV1;
+  readonly 'meeting.attendee_invited.v1': MeetingAttendeeInvitedV1;
+  readonly 'project.member_added.v1': ProjectMemberAddedV1;
+}
+
+/**
+ * CQ-12 (COL-05). The people a text mentions: every `@<userId>` token, the form the mentions
+ * inbox (`my-mentions`) already searches for. Distinct, in order of first appearance, capped so a
+ * pasted wall of ids cannot fan out without bound. A name typed after `@` is not a mention — only
+ * an id names a person unambiguously.
+ */
+export const MAX_MENTIONS_PER_TEXT = 50;
+
+const MENTION_TOKEN = /@([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/gi;
+
+export function extractMentionedUserIds(text: string): readonly string[] {
+  const ids: string[] = [];
+  for (const match of text.matchAll(MENTION_TOKEN)) {
+    const id = (match[1] ?? '').toLowerCase();
+    if (id !== '' && !ids.includes(id)) ids.push(id);
+    if (ids.length >= MAX_MENTIONS_PER_TEXT) break;
+  }
+  return ids;
 }

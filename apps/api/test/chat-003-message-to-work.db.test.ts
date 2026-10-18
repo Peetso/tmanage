@@ -424,7 +424,9 @@ describe('what cannot be converted', () => {
     const channel = await createChannel(managerSession);
     const message = await postMessage(managerSession, channel);
 
-    // The designer is on the project but not in this channel.
+    // The designer is on the project but not in this channel. (CQ-12: the project team starts
+    // in a new channel, so she is taken out first.)
+    await send('DELETE', `/conversations/${channel}/members/${designer().id}`, managerSession);
     const designerSession = await signIn(designer().id);
     const response = await convert(designerSession, channel, message.id);
     expect(response.statusCode).toBe(404);

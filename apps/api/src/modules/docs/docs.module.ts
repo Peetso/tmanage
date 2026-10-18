@@ -5,10 +5,14 @@ import {
   DOCUMENTS_SERVICE,
   DOCUMENT_COMMENTS_SERVICE,
   DOC_REVIEWS_SERVICE,
+  OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { DocumentsRepository } from './documents.repository.js';
+import { DocumentCommentsRepository } from './document-comments.repository.js';
+import { DocumentSharingRepository } from './document-sharing.repository.js';
 import { DocumentsService } from './documents.service.js';
 import { DocumentsController } from './documents.controller.js';
 import { DocumentExportController } from './document-export.controller.js';
@@ -63,8 +67,15 @@ export class DocsModule {
     };
     const commentsService: Provider = {
       provide: DOCUMENT_COMMENTS_SERVICE,
-      inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) => new DocumentCommentsService(database),
+      inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (database: TenantDatabase, outbox: OutboxEventsRepository) =>
+        new DocumentCommentsService(
+          database,
+          new DocumentsRepository(),
+          new DocumentCommentsRepository(),
+          new DocumentSharingRepository(),
+          outbox,
+        ),
     };
     // DOC links + backlinks (x296): its own service resolves each document tenant-scoped through a
     // `DocumentsRepository` (the Known-trap order) and reads/writes through its `DocLinksRepository`,
@@ -95,8 +106,14 @@ export class DocsModule {
     // repositories, so only the tenant database is injected.
     const sharingService: Provider = {
       provide: DOCUMENT_SHARING_SERVICE,
-      inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) => new DocumentSharingService(database),
+      inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (database: TenantDatabase, outbox: OutboxEventsRepository) =>
+        new DocumentSharingService(
+          database,
+          new DocumentsRepository(),
+          new DocumentSharingRepository(),
+          outbox,
+        ),
     };
 
     return {

@@ -33,12 +33,16 @@ const KIND_LABELS: Readonly<Record<NotificationKind, { label: string; hint: stri
     hint: 'When a work item you follow changes or becomes blocked.',
   },
   message: {
-    label: 'Messages',
-    hint: 'When a new message is posted in a channel you are in.',
+    label: 'Comments',
+    hint: 'When someone comments on a document you wrote.',
   },
   file: {
     label: 'Files',
     hint: 'When a file is ready, rejected, or removed.',
+  },
+  mention: {
+    label: 'Mentions',
+    hint: 'When someone mentions you in a channel or a document comment.',
   },
 };
 

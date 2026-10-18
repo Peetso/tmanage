@@ -405,7 +405,7 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
     );
   }
 
-  const kind = item.objectType === 'work_item' ? 'Work item' : 'Client request';
+  const kind = KIND_OF[item.objectType];
   const href = hrefOf(organizationSlug, item);
   return (
     <section className="tm-inbox-detail" aria-labelledby="tm-inbox-detail-title">
@@ -472,7 +472,7 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
 
           <div className="tm-inbox-detail__actions">
             <Link href={href} className="tm-button tm-button--ink">
-              {item.objectType === 'work_item' ? 'Open work item' : 'Open request'}
+              {`Open ${OPEN_NOUN[item.objectType]}`}
             </Link>
             {item.unreadCount > 0 ? (
               <Button tone="outline" {...markRead}>
@@ -539,12 +539,40 @@ const WHY: Record<string, string> = {
   'work_item.blocked.v1': 'Blocked',
   'client_request.submitted.v1': 'Client submitted a request',
   'client_request.transitioned.v1': 'Request answered',
+  'message.mentioned.v1': 'You were mentioned',
+  'document.mentioned.v1': 'You were mentioned in a comment',
+  'document.comment_created.v1': 'New comment',
+  'meeting.attendee_invited.v1': 'You were invited',
+  'project.member_added.v1': 'You were added',
+  'automation.notified.v1': 'An automation told you',
+  'automation.test_run.v1': 'Test run',
+};
+
+/** What each kind of bundle is called on screen. */
+const KIND_OF: Record<InboxBundle['objectType'], string> = {
+  work_item: 'Work item',
+  client_request: 'Client request',
+  conversation: 'Channel',
+  document: 'Document',
+  meeting: 'Meeting',
+  project: 'Project',
+  workflow_template: 'Automation',
+};
+
+/** The noun after "Open" on the detail's button. */
+const OPEN_NOUN: Record<InboxBundle['objectType'], string> = {
+  work_item: 'work item',
+  client_request: 'request',
+  conversation: 'channel',
+  document: 'document',
+  meeting: 'meeting',
+  project: 'project',
+  workflow_template: 'automation',
 };
 
 function describeWhy(bundle: InboxBundle): string {
   const words = bundle.types.map((type) => WHY[type] ?? type);
-  const kind = bundle.objectType === 'work_item' ? 'Work item' : 'Client request';
-  return `${kind} · ${words.join(', ')}`;
+  return `${KIND_OF[bundle.objectType]} · ${words.join(', ')}`;
 }
 
 /**
@@ -612,9 +640,22 @@ function formatBytes(bytes: number): string {
 }
 
 function hrefOf(organizationSlug: string, bundle: InboxBundle): string {
-  return bundle.objectType === 'work_item'
-    ? `/${organizationSlug}/work/${bundle.objectId}`
-    : `/${organizationSlug}/work/requests/${bundle.objectId}`;
+  switch (bundle.objectType) {
+    case 'work_item':
+      return `/${organizationSlug}/work/${bundle.objectId}`;
+    case 'client_request':
+      return `/${organizationSlug}/work/requests/${bundle.objectId}`;
+    case 'conversation':
+      return `/${organizationSlug}/chat/${bundle.objectId}`;
+    case 'document':
+      return `/${organizationSlug}/docs/${bundle.objectId}`;
+    case 'meeting':
+      return `/${organizationSlug}/calendar/meetings/${bundle.objectId}`;
+    case 'project':
+      return `/${organizationSlug}/projects/${bundle.objectId}`;
+    case 'workflow_template':
+      return `/${organizationSlug}/automations/templates/${bundle.objectId}`;
+  }
 }
 
 /**
@@ -639,8 +680,18 @@ function labelOf(bundle: InboxBundle): string {
   if (bundle.objectType === 'client_request' && isClientRequestState(bundle.state)) {
     return triageStateLabel(bundle.state);
   }
-  return bundle.state;
+  return STATE_WORDS[bundle.state] ?? bundle.state;
 }
+
+/** The state words the collaboration bundles carry, said plainly. */
+const STATE_WORDS: Record<string, string> = {
+  active: 'Open',
+  archived: 'Archived',
+  document: 'Document',
+  meeting: 'Meeting',
+  live: 'Live',
+  off: 'Off',
+};
 
 function isWorkItemState(value: string): value is WorkItemState {
   return (WORK_ITEM_STATES as readonly string[]).includes(value);
@@ -700,10 +751,15 @@ function shortAgo(value: string, now: Date): string {
   return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(at);
 }
 
-/** The rail's own glyph for what the bundle is about: work, client, or storage. */
+/** The rail's own glyph for what the bundle is about: work, client, storage, or (CQ-12) the rest. */
 function glyphOf(item: InboxItem): string {
   if (item.objectType === 'work_item') return '▤';
   if (item.objectType === 'client_request') return '◎';
+  if (item.objectType === 'conversation') return '#';
+  if (item.objectType === 'document') return '¶';
+  if (item.objectType === 'meeting') return '◷';
+  if (item.objectType === 'project') return '▦';
+  if (item.objectType === 'workflow_template') return '⟳';
   return '◔';
 }
 
@@ -729,6 +785,27 @@ function reasonOf(bundle: InboxBundle): string {
   }
   if (bundle.types.includes('client_request.transitioned.v1')) {
     reasons.push('A request you follow was answered.');
+  }
+  if (
+    bundle.types.includes('message.mentioned.v1') ||
+    bundle.types.includes('document.mentioned.v1')
+  ) {
+    reasons.push('Someone mentioned you.');
+  }
+  if (bundle.types.includes('document.comment_created.v1')) {
+    reasons.push('Someone commented on a document you wrote.');
+  }
+  if (bundle.types.includes('meeting.attendee_invited.v1')) {
+    reasons.push('You were invited to this meeting.');
+  }
+  if (bundle.types.includes('project.member_added.v1')) {
+    reasons.push('You were added to this project.');
+  }
+  if (bundle.types.includes('automation.notified.v1')) {
+    reasons.push('An automation rule notifies the owner of this.');
+  }
+  if (bundle.types.includes('automation.test_run.v1')) {
+    reasons.push('You ran this automation rule to test it.');
   }
   if (reasons.length === 0) reasons.push('You are part of the work it is about.');
   return reasons.join(' ');

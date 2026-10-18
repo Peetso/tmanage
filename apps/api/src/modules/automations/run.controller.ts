@@ -1,4 +1,4 @@
-import { Controller, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import { Controller, HttpCode, Inject, Optional, Param, Post } from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
@@ -14,6 +14,10 @@ import type { WorkflowRunDetail, WorkflowRunRow } from '../../common/database/sc
 import type { WorkflowTemplatesRepository } from './templates.repository.js';
 import type { WorkflowRunsRepository } from './run.repository.js';
 import type { WorkflowRunService } from './run.service.js';
+import { NotificationsRepository } from '../inbox/notifications.repository.js';
+
+/** CQ-12 (AUT-02): the inbox type of a manual run's test notice. */
+export const AUTOMATION_TEST_RUN_TYPE = 'automation.test_run.v1';
 
 /**
  * Automations & integrations (module 17, x163). One endpoint: run a workflow template and record the
@@ -39,8 +43,9 @@ import type { WorkflowRunService } from './run.service.js';
  *
  * ## Execution is in-app only
  *
- * The action itself is executed by {@link WorkflowRunService}, which runs only in-app action kinds and
- * has no network egress; an external kind (`send_email_digest`) records a `failed` run rather than
+ * The outcome is decided by {@link WorkflowRunService}, which runs only in-app action kinds and
+ * has no network egress (`notify_owner` here writes the runner a test notice in the same transaction
+ * as the run — CQ-12); an external kind (`send_email_digest`) records a `failed` run rather than
  * attempting delivery. External delivery is x166 / Needs-Peter.
  */
 
@@ -75,6 +80,9 @@ export class WorkflowRunController {
     @Inject(WORKFLOW_TEMPLATES_REPOSITORY) private readonly templates: WorkflowTemplatesRepository,
     @Inject(WORKFLOW_RUNS_REPOSITORY) private readonly runs: WorkflowRunsRepository,
     @Inject(WORKFLOW_RUN_SERVICE) private readonly runService: WorkflowRunService,
+    @Optional()
+    @Inject(NotificationsRepository)
+    private readonly notifications: NotificationsRepository = new NotificationsRepository(),
   ) {}
 
   /**
@@ -120,13 +128,25 @@ export class WorkflowRunController {
 
     const outcome = this.runService.execute(template.id, template.actionKind, template.triggerKind);
 
-    const row = await this.database.transaction(context, (tx) =>
-      this.runs.record(tx, context, {
+    const row = await this.database.transaction(context, async (tx) => {
+      const recorded = await this.runs.record(tx, context, {
         templateId: template.id,
         status: outcome.status,
         detail: outcome.detail,
-      }),
-    );
+      });
+      // CQ-12 (AUT-02): the effect the run reports is real. A manual run has no triggering
+      // object, so its notice goes to the person who ran it, about the rule itself.
+      if (outcome.notifiesRunner) {
+        await this.notifications.insertForRecipient(tx, context, {
+          recipientUserId: context.userId,
+          type: AUTOMATION_TEST_RUN_TYPE,
+          objectType: 'workflow_template',
+          objectId: template.id,
+          dedupeKey: `automation.test_run:${recorded.id}`,
+        });
+      }
+      return recorded;
+    });
     return toView(row);
   }
 

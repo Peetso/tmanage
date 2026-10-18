@@ -19,6 +19,9 @@ const LABELS: Record<string, string> = {
 const REASONS: Record<string, string> = {
   external_action_not_supported_in_app:
     'This action reaches outside TManage, and outside actions are not switched on yet.',
+  action_not_available_yet: 'This action is not available yet, so nothing was done.',
+  no_owner_to_notify: 'Nobody who owns this could be notified, so nothing was sent.',
+  trigger_object_gone: 'What started the rule no longer exists, so nothing was done.',
 };
 
 const OUTCOMES: Record<string, string> = {

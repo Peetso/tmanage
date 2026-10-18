@@ -21,6 +21,11 @@ import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { WorkItemsService } from '../work/work-items.service.js';
 import { InboxController } from './inbox.controller.js';
 import { InboxService } from './inbox.service.js';
+import { createInboxObjectResolvers } from './inbox-object-resolvers.js';
+import { ConversationsService } from '../conversations/conversations.service.js';
+import { DocumentsService } from '../docs/documents.service.js';
+import { MeetingsService } from '../calendar/meetings.service.js';
+import { ProjectsService } from '../projects/projects.service.js';
 import { NotificationsRepository } from './notifications.repository.js';
 import { InboxSourceMutesController } from './source-mutes.controller.js';
 import { InboxSourceMutesRepository } from './source-mutes.repository.js';
@@ -114,6 +119,15 @@ export class InboxModule {
           // USAGE-001 slice 4b: the effective storage quota the reservation guard uses, so the
           // inbox can render "Storage at 85 % — 8.5 GB of 10 GB" for an owner/admin.
           { quotaBytes: config.storageOrgBytesLimit },
+          // CQ-12: mentions, comments, invites, project adds and rule test runs, each resolved
+          // through the object's own authorized read. Read-only use: no outbox or audit needed.
+          createInboxObjectResolvers({
+            database,
+            conversations: new ConversationsService(database),
+            documents: new DocumentsService(database),
+            meetings: new MeetingsService(database),
+            projects: new ProjectsService(database),
+          }),
         ),
     };
 

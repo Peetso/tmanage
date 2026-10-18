@@ -180,7 +180,7 @@ afterAll(async () => {
 });
 
 describe('creating a channel', () => {
-  it('creates it on the project, and puts its creator in it', async () => {
+  it('creates it on the project, and puts its creator and the project team in it', async () => {
     const session = await signIn(manager().id);
     const channel = await createChannel(session);
 
@@ -190,10 +190,15 @@ describe('creating a channel', () => {
     expect(channel.version).toBe(1);
     expect(channel.archivedAt).toBeNull();
 
+    // CQ-12 (COL-01): the project's channel is the project team's room — Lina, on the project,
+    // is in it from the start, not only its creator.
     const members = await send('GET', `/conversations/${channel.id}/members`, session);
-    expect(members.json<{ members: { userId: string }[] }>().members).toEqual([
-      { userId: manager().id, joinedAt: expect.any(String) },
-    ]);
+    expect(members.json<{ members: { userId: string }[] }>().members).toEqual(
+      expect.arrayContaining([
+        { userId: manager().id, joinedAt: expect.any(String) },
+        { userId: designer().id, joinedAt: expect.any(String) },
+      ]),
+    );
   });
 
   it('echoes no tenant identifier', async () => {
@@ -461,12 +466,14 @@ describe('who can reach a channel', () => {
   });
 
   /**
-   * The narrowing gate. Lina is on the project — `authorize()` says yes — and is not in the
-   * channel, so the service says no. A project can hold more than one room.
+   * The narrowing gate. Lina is on the project — `authorize()` says yes — and, once taken out of
+   * the channel, is not in it, so the service says no. A project can hold more than one room.
+   * (Since CQ-12 the team starts in a new channel, so she is removed first.)
    */
   it('refuses a project member who is not in the channel', async () => {
     const managerSession = await signIn(manager().id);
     const channel = await createChannel(managerSession);
+    await send('DELETE', `/conversations/${channel.id}/members/${designer().id}`, managerSession);
 
     const designerSession = await signIn(designer().id);
     const read = await send('GET', `/conversations/${channel.id}`, designerSession);

@@ -11,6 +11,7 @@ import type {
 } from './meeting-notes.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { MeetingNoteRow, MeetingRow } from '../../common/database/schema.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
  * The application service for CAL-01 / MTG-01 (x90) — the object-level decision the route guard
@@ -115,6 +116,8 @@ export class MeetingsService {
      * relation-checked here first, and the note store then reads or appends against it.
      */
     private readonly notes: MeetingNotesRepository = new MeetingNotesRepository(),
+    /** CQ-12 (AUT-01): the `meeting_scheduled` automation trigger. Optional for suites. */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   /**
@@ -196,9 +199,18 @@ export class MeetingsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
     }
 
-    const row = await this.database.transaction(context, (tx) =>
-      this.meetings.create(tx, context, { ...input, createdByUserId: context.userId }),
-    );
+    const row = await this.database.transaction(context, async (tx) => {
+      const created = await this.meetings.create(tx, context, {
+        ...input,
+        createdByUserId: context.userId,
+      });
+      await this.outbox?.append(tx, context, {
+        type: 'meeting.scheduled.v1',
+        aggregateId: created.id,
+        payload: { meetingId: created.id, projectId: created.projectId },
+      });
+      return created;
+    });
 
     return toView(row);
   }

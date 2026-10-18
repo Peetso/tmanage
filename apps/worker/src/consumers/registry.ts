@@ -16,6 +16,17 @@ import {
 } from './client-request-mail.js';
 import { QUIET_HOURS_MAIL_RESUME_TYPE } from '../common/database/notifications-store.js';
 import { createCredentialChangeMail } from './credential-change-mail.js';
+import {
+  createCollaborationMailResume,
+  createCollaborationNotices,
+  planClientActionNotices,
+  planCommentNotices,
+  planMeetingInviteNotices,
+  planMentionNotices,
+  planProjectAddedNotices,
+} from './collaboration-notices.js';
+import { automationRunsConsumer } from './automation-runs.js';
+import type { CollaborationMailer } from '../notifications/collaboration-mailer.js';
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
 import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
 import type { UsageThresholdMailer } from '../notifications/usage-threshold-mailer.js';
@@ -72,6 +83,11 @@ export interface WorkerConsumerDependencies {
   readonly credentialChangeMailer?: CredentialChangeMailer | undefined;
   /** Absent, or present-but-disabled, means the usage-threshold mail half is not registered. */
   readonly usageThresholdMailer?: UsageThresholdMailer | undefined;
+  /**
+   * CQ-12. Absent or disabled, the collaboration notices still write their inbox rows and only
+   * the email half (and the email-only client-action notice) is skipped.
+   */
+  readonly collaborationMailer?: CollaborationMailer | undefined;
 }
 
 export function createWorkerOutboxHandlers(
@@ -89,22 +105,55 @@ export function createWorkerOutboxHandlers(
   // defer onto it (client-request and usage). Each resume handler no-ops on a row that is not its
   // originalType, so composing them with `both` is safe: the row is decoded by each and acted on
   // by exactly one. Registered only when at least one deferring producer is wired.
+  const collaborationMailer = dependencies.collaborationMailer;
+  const collaborationMails =
+    collaborationMailer !== undefined && collaborationMailer.enabled ? collaborationMailer : null;
+
   const resumeHandlers: OutboxHandler[] = [];
   if (mails !== null) resumeHandlers.push(createQuietHoursMailResume(mails));
   if (usageMails !== null) resumeHandlers.push(createUsageThresholdMailResume(usageMails));
+  if (collaborationMails !== null) {
+    resumeHandlers.push(createCollaborationMailResume(collaborationMails));
+  }
   const resumeHandler = resumeHandlers.reduce<OutboxHandler | null>(
     (acc, handler) => (acc === null ? handler : both(acc, handler)),
     null,
   );
 
+  const submitted =
+    mails === null
+      ? clientRequestSubmittedConsumer
+      : both(clientRequestSubmittedConsumer, createClientRequestSubmittedMail(mails));
+
   return {
-    'work_item.updated.v1': workItemLifecycleConsumer,
+    // CQ-12 (AUT-01): every trigger event also runs the organization's enabled rules for it,
+    // after the event's own consumers, in the same savepoint.
+    'work_item.updated.v1': both(workItemLifecycleConsumer, automationRunsConsumer),
+    'work_item.created.v1': automationRunsConsumer,
+    'meeting.scheduled.v1': automationRunsConsumer,
+    'document.published.v1': automationRunsConsumer,
     // NOTIF-001 — see `client-request-notifications.ts` for who is told what, and why.
     // The mail half is `client-request-mail.ts`; it sends after the batch commits.
-    'client_request.submitted.v1':
-      mails === null
-        ? clientRequestSubmittedConsumer
-        : both(clientRequestSubmittedConsumer, createClientRequestSubmittedMail(mails)),
+    'client_request.submitted.v1': both(submitted, automationRunsConsumer),
+    // CQ-12 (COL-05, APR-03) — see `collaboration-notices.ts`. `message.created.v1` is composed
+    // with the realtime fan-out in `main.ts` when the socket server runs.
+    'message.created.v1': createCollaborationNotices(planMentionNotices, collaborationMails),
+    'document.comment_created.v1': createCollaborationNotices(
+      planCommentNotices,
+      collaborationMails,
+    ),
+    'meeting.attendee_invited.v1': createCollaborationNotices(
+      planMeetingInviteNotices,
+      collaborationMails,
+    ),
+    'project.member_added.v1': createCollaborationNotices(
+      planProjectAddedNotices,
+      collaborationMails,
+    ),
+    'work_item.client_action_requested.v1': createCollaborationNotices(
+      planClientActionNotices,
+      collaborationMails,
+    ),
     'client_request.transitioned.v1':
       mails === null
         ? clientRequestTransitionedConsumer

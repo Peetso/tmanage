@@ -20,11 +20,26 @@ import type { WorkflowRunDetail } from '../../common/database/schema.js';
  * this slice — the executor records a `failed` run whose detail names the reason, rather than
  * attempting delivery. External delivery is x166 / Needs-Peter. This keeps the security boundary
  * explicit: the only egress a run can have is none.
+ *
+ * ## Manual runs here, triggered runs in the worker (CQ-12, AUT-01)
+ *
+ * This service decides "Run it now". A rule firing on its trigger — a request submitted, a work
+ * item created or moved, a meeting scheduled, a document published — is run by the relay
+ * (`apps/worker/src/consumers/automation-runs.ts`), which notifies the owner of the triggering
+ * object and records the same `workflow_runs` row with the same outcome vocabulary.
  */
 
-/** The in-app action kinds a run may execute in this slice. Anything else records a failed run. */
+/** The in-app action kinds a template may name. Anything else records a failed run. */
 export const IN_APP_ACTION_KINDS = ['notify_owner', 'create_work_item', 'post_message'] as const;
 export type InAppActionKind = (typeof IN_APP_ACTION_KINDS)[number];
+
+/**
+ * CQ-12 (AUT-02): the in-app kinds that have a real effect today. `notify_owner` writes an inbox
+ * notification. `create_work_item` and `post_message` have no executor yet, so a run of one is
+ * recorded as **not run** — before CQ-12 it reported an effect ("Posted an in-app message…")
+ * that never happened, which is worse than saying nothing was done.
+ */
+export const EXECUTABLE_ACTION_KINDS: readonly InAppActionKind[] = ['notify_owner'];
 
 /** The closed set of run outcomes, mirrored by the `workflow_runs.status` allowlist. */
 export type WorkflowRunStatus = 'succeeded' | 'failed';
@@ -32,6 +47,12 @@ export type WorkflowRunStatus = 'succeeded' | 'failed';
 export interface WorkflowRunOutcome {
   readonly status: WorkflowRunStatus;
   readonly detail: WorkflowRunDetail;
+  /**
+   * Whether the caller must carry out the effect — today only `notify_owner`, whose manual run
+   * notifies the person who clicked "Run it now" (the controller writes that row, in the same
+   * transaction as the run).
+   */
+  readonly notifiesRunner: boolean;
 }
 
 function isInAppActionKind(kind: string): kind is InAppActionKind {
@@ -41,17 +62,19 @@ function isInAppActionKind(kind: string): kind is InAppActionKind {
 @Injectable()
 export class WorkflowRunService {
   /**
-   * Execute a template's action deterministically and return the run outcome. Pure: no I/O, no
-   * randomness, no clock — the timestamps are the database's, assigned when the row is written.
+   * Decide a manual run's outcome. Pure: no I/O, no randomness, no clock — the timestamps are the
+   * database's, assigned when the row is written.
    *
-   * An in-app action kind produces a `succeeded` outcome whose detail records the effect the run
-   * carried out inside the app. An external or unknown kind produces a `failed` outcome whose detail
-   * names why it was not run — the run is still recorded, so the refusal is auditable.
+   * A manual run has no triggering object, so there is no "owner" of anything to tell: the test
+   * notification goes to the person who ran it, and the detail says so. A kind with no executor,
+   * and an external kind, produce a `failed` outcome naming why nothing was done — the run is
+   * still recorded, so the refusal is auditable.
    */
   execute(templateId: string, actionKind: string, triggerKind: string): WorkflowRunOutcome {
     if (!isInAppActionKind(actionKind)) {
       return {
         status: 'failed',
+        notifiesRunner: false,
         detail: {
           templateId,
           triggerKind,
@@ -62,27 +85,30 @@ export class WorkflowRunService {
       };
     }
 
+    if (!EXECUTABLE_ACTION_KINDS.includes(actionKind)) {
+      return {
+        status: 'failed',
+        notifiesRunner: false,
+        detail: {
+          templateId,
+          triggerKind,
+          actionKind,
+          outcome: 'not_run',
+          reason: 'action_not_available_yet',
+        },
+      };
+    }
+
     return {
       status: 'succeeded',
+      notifiesRunner: true,
       detail: {
         templateId,
         triggerKind,
         actionKind,
         outcome: 'executed',
-        effect: describeEffect(actionKind),
+        effect: 'Sent you a test notification in your inbox.',
       },
     };
-  }
-}
-
-/** A stable, human-readable line describing what an in-app action carried out. Deterministic. */
-function describeEffect(kind: InAppActionKind): string {
-  switch (kind) {
-    case 'notify_owner':
-      return 'Notified the work owner in-app.';
-    case 'create_work_item':
-      return 'Recorded a follow-up work item request in-app.';
-    case 'post_message':
-      return 'Posted an in-app message to the project channel.';
   }
 }

@@ -3,6 +3,7 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   AUDIT_SERVICE,
   MEMBERSHIPS_REPOSITORY,
+  OUTBOX_EVENTS_REPOSITORY,
   PROJECTS_REPOSITORY,
   PROJECTS_SERVICE,
   PROJECT_MEMBERSHIPS_REPOSITORY,
@@ -18,6 +19,7 @@ import { ProjectMembershipsRepository } from './project-memberships.repository.j
 import { ProjectMembershipsService } from './project-memberships.service.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 @Module({})
 export class ProjectsModule {
@@ -49,12 +51,18 @@ export class ProjectsModule {
     // service is also wired for the audit path exercised by the database suite.
     const membershipsService: Provider = {
       provide: PROJECT_MEMBERSHIPS_SERVICE,
-      inject: [TENANT_DATABASE, AUDIT_SERVICE, PROJECT_MEMBERSHIPS_REPOSITORY],
+      inject: [
+        TENANT_DATABASE,
+        AUDIT_SERVICE,
+        PROJECT_MEMBERSHIPS_REPOSITORY,
+        OUTBOX_EVENTS_REPOSITORY,
+      ],
       useFactory: (
         database: TenantDatabase,
         audit: AuditService,
         memberships: ProjectMembershipsRepository,
-      ) => new ProjectMembershipsService(database, audit, memberships),
+        outbox: OutboxEventsRepository,
+      ) => new ProjectMembershipsService(database, audit, memberships, outbox),
     };
 
     return {

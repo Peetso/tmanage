@@ -416,6 +416,13 @@ export class WorkItemsService {
         },
       });
 
+      // CQ-12 (AUT-01): the `work_item_created` automation trigger. Ids and the state only.
+      await this.outbox?.append(tx, context, {
+        type: 'work_item.created.v1',
+        aggregateId: created.id,
+        payload: { workItemId: created.id, projectId: created.projectId, state: created.state },
+      });
+
       return created;
     });
 
@@ -468,6 +475,19 @@ export class WorkItemsService {
               audience_after: updated.audience,
               widened: widening,
             },
+          });
+        }
+
+        // CQ-12 (APR-03): "client action needed" is a request to the client; the worker emails
+        // the client people who can act on it. Only on the move into that audience.
+        if (
+          input.audience === 'client_action_required' &&
+          before.audience !== 'client_action_required'
+        ) {
+          await this.outbox?.append(tx, context, {
+            type: 'work_item.client_action_requested.v1',
+            aggregateId: updated.id,
+            payload: { workItemId: updated.id, projectId: updated.projectId },
           });
         }
 

@@ -2,6 +2,8 @@ import type { InternalRole } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ProjectMembershipRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { ConversationsRepository } from '../conversations/conversations.repository.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import {
   ProjectMembershipNotFoundError,
   ProjectMembershipsRepository,
@@ -46,12 +48,34 @@ export class ProjectMembershipsService {
     private readonly database: TenantDatabase,
     private readonly audit: AuditService,
     private readonly memberships: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
+    /** CQ-12: optional so a suite can construct the service without the outbox. */
+    private readonly outbox?: OutboxEventsRepository,
+    private readonly conversations: ConversationsRepository = new ConversationsRepository(),
   ) {}
 
-  /** Put someone on a project, and record that it happened. */
+  /**
+   * Put someone on a project, and record that it happened.
+   *
+   * CQ-12: in the same transaction the person joins the project's open channels (COL-01 — the
+   * team's rooms are theirs too) and a `project.member_added.v1` event is written so the worker
+   * tells them (COL-05). Adding yourself tells nobody.
+   */
   async add(context: TenantContext, input: AddProjectMemberInput): Promise<ProjectMembershipRow> {
     return this.database.transaction(context, async (tx) => {
       const row = await this.memberships.add(tx, context, input);
+
+      const channels = await this.conversations.listOpenIdsByProject(tx, context, row.projectId);
+      for (const conversationId of channels) {
+        await this.conversations.addMember(tx, context, conversationId, row.userId);
+      }
+
+      if (row.userId !== context.userId) {
+        await this.outbox?.append(tx, context, {
+          type: 'project.member_added.v1',
+          aggregateId: row.projectId,
+          payload: { projectId: row.projectId, userId: row.userId, addedByUserId: context.userId },
+        });
+      }
 
       await this.audit.record(tx, context, {
         action: 'project_membership.granted',

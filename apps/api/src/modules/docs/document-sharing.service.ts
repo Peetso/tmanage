@@ -6,6 +6,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { DocumentsRepository } from './documents.repository.js';
 import { DocumentSharingRepository, isMissingColumn } from './document-sharing.repository.js';
 import type { AudienceRow, DocumentAudience } from './document-sharing.repository.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
  * Docs sharing (UI rebuild, DOC-01 hub / DOC-02 top bar).
@@ -63,6 +64,8 @@ export class DocumentSharingService {
     private readonly database: TenantDatabase,
     private readonly documents: DocumentsRepository = new DocumentsRepository(),
     private readonly sharing: DocumentSharingRepository = new DocumentSharingRepository(),
+    /** CQ-12 (AUT-01): the `document_published` automation trigger. Optional for suites. */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   private allowed(
@@ -172,9 +175,16 @@ export class DocumentSharingService {
         'document_publish_denied',
       );
     }
-    await this.database.transaction(context, (tx) =>
-      this.sharing.setAudience(tx, context, documentId, audience),
-    );
+    await this.database.transaction(context, async (tx) => {
+      await this.sharing.setAudience(tx, context, documentId, audience);
+      if (audience === 'client' && document.audience !== 'client') {
+        await this.outbox?.append(tx, context, {
+          type: 'document.published.v1',
+          aggregateId: documentId,
+          payload: { documentId, projectId: document.projectId },
+        });
+      }
+    });
     return this.view(context, principal, document);
   }
 

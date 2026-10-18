@@ -14,6 +14,12 @@ import {
   STORAGE_BYTES_METRIC,
   UsageCountersRepository,
 } from '../files/usage-counters.repository.js';
+import { isCollaborationObjectType } from './inbox-object-resolvers.js';
+import type {
+  CollaborationObjectType,
+  InboxObjectResolvers,
+  ResolvedInboxObject,
+} from './inbox-object-resolvers.js';
 
 /**
  * INBOX-001, first half — the read surface over NOTIF-001's rows, as **bundles**.
@@ -79,13 +85,15 @@ export function isInboxMode(value: string): value is InboxMode {
 export interface InboxBundleView {
   /** `objectType:objectId`. What "mark read" takes. */
   readonly bundleId: string;
-  readonly objectType: 'work_item' | 'client_request';
+  /** CQ-12 added the collaboration objects (channel, document, meeting, project, rule). */
+  readonly objectType: InboxObjectType;
   readonly objectId: string;
   /** The object's title, read through the authorized path at the time of this request. */
   readonly title: string;
   /** The object's current state, from the same read. */
   readonly state: string;
-  readonly projectId: string;
+  /** `null` only for an object that belongs to no project (a rule's test run). */
+  readonly projectId: string | null;
   readonly count: number;
   readonly unreadCount: number;
   /** The event types in this bundle, newest first, each once. */
@@ -124,12 +132,19 @@ export interface InboxUsageNoticeView {
   readonly latestAt: string;
 }
 
+/** The objects an inbox bundle can be about. */
+export type InboxObjectType = 'work_item' | 'client_request' | CollaborationObjectType;
+
+function isBundleObjectType(value: string): value is InboxObjectType {
+  return value === 'work_item' || value === 'client_request' || isCollaborationObjectType(value);
+}
+
 /** A page carries object bundles and — for owners/admins — the organization's usage notice. */
 export type InboxItemView = InboxBundleView | InboxUsageNoticeView;
 
 /** Narrow a page item to an object bundle (work item or client request). */
 export function isInboxBundleView(item: InboxItemView): item is InboxBundleView {
-  return item.objectType === 'work_item' || item.objectType === 'client_request';
+  return item.objectType !== 'organization_usage';
 }
 
 export interface InboxPageView {
@@ -142,13 +157,6 @@ export interface ListInboxOptions {
   readonly mode?: InboxMode;
   readonly before?: string;
   readonly limit?: number;
-}
-
-/** What the inbox keeps of an object it resolved: the three fields a bundle shows. */
-interface ResolvedObject {
-  readonly title: string;
-  readonly state: string;
-  readonly projectId: string;
 }
 
 const BLOCKED_TYPE = 'work_item.blocked.v1';
@@ -175,6 +183,8 @@ export class InboxService {
     private readonly requests: ClientRequestsService,
     private readonly notifications: NotificationsRepository = new NotificationsRepository(),
     private readonly usage?: InboxUsageConfig,
+    /** CQ-12: readers for the collaboration objects. Absent, those bundles are dropped. */
+    private readonly collaboration: InboxObjectResolvers = {},
   ) {
     this.usageCounters = usage?.counters ?? new UsageCountersRepository();
   }
@@ -292,6 +302,18 @@ export class InboxService {
       else if (first.objectType === 'client_request') requestIds.push(first.objectId);
     }
     const objects = await this.resolveMany(context, principal, workItemIds, requestIds);
+    // CQ-12: the collaboration objects, each through its own authorized read.
+    for (const [bundleId, group] of byObject) {
+      const first = group[0];
+      if (!first || !isCollaborationObjectType(first.objectType)) continue;
+      const resolved = await this.resolveCollaboration(
+        context,
+        principal,
+        first.objectType,
+        first.objectId,
+      );
+      if (resolved) objects.set(bundleId, resolved);
+    }
 
     // USAGE-001 slice 4b: if any group is the organization's usage notice, resolve its live
     // counters once (there is one usage counter per organization). Skipped entirely when the
@@ -330,7 +352,7 @@ export class InboxService {
         continue;
       }
 
-      if (objectType !== 'work_item' && objectType !== 'client_request') {
+      if (!isBundleObjectType(objectType)) {
         // A type this surface cannot resolve — a producer this half does not know. Skipped
         // rather than rendered as an id, and not an error: the row is real and someone else's
         // reader may know it.
@@ -370,8 +392,8 @@ export class InboxService {
     principal: Principal,
     workItemIds: readonly string[],
     requestIds: readonly string[],
-  ): Promise<ReadonlyMap<string, ResolvedObject>> {
-    const objects = new Map<string, ResolvedObject>();
+  ): Promise<Map<string, ResolvedInboxObject>> {
+    const objects = new Map<string, ResolvedInboxObject>();
     if (workItemIds.length > 0) {
       const views = await this.workItems.getMany(context, principal, workItemIds);
       for (const [id, view] of views) {
@@ -393,6 +415,17 @@ export class InboxService {
       }
     }
     return objects;
+  }
+
+  /** CQ-12: one collaboration object through its own authorized read; `null` when not visible. */
+  private async resolveCollaboration(
+    context: TenantContext,
+    principal: Principal,
+    objectType: CollaborationObjectType,
+    objectId: string,
+  ): Promise<ResolvedInboxObject | null> {
+    const reader = this.collaboration[objectType];
+    return reader ? reader(context, principal, objectId) : null;
   }
 
   /**
@@ -425,9 +458,12 @@ export class InboxService {
   private async resolve(
     context: TenantContext,
     principal: Principal,
-    objectType: 'work_item' | 'client_request',
+    objectType: InboxObjectType,
     objectId: string,
-  ): Promise<ResolvedObject | null> {
+  ): Promise<ResolvedInboxObject | null> {
+    if (isCollaborationObjectType(objectType)) {
+      return this.resolveCollaboration(context, principal, objectType, objectId);
+    }
     try {
       if (objectType === 'work_item') {
         const view = await this.workItems.get(context, principal, objectId);
@@ -443,18 +479,14 @@ export class InboxService {
 }
 
 function parseBundleId(bundleId: string): {
-  readonly objectType: 'work_item' | 'client_request' | 'organization_usage';
+  readonly objectType: InboxObjectType | 'organization_usage';
   readonly objectId: string;
 } | null {
   const separator = bundleId.indexOf(':');
   if (separator <= 0) return null;
   const objectType = bundleId.slice(0, separator);
   const objectId = bundleId.slice(separator + 1);
-  if (
-    objectType !== 'work_item' &&
-    objectType !== 'client_request' &&
-    objectType !== 'organization_usage'
-  ) {
+  if (!isBundleObjectType(objectType) && objectType !== 'organization_usage') {
     return null;
   }
   if (objectId === '') return null;

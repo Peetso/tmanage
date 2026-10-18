@@ -23,10 +23,15 @@ import {
   writeHeartbeat,
 } from './outbox/health.js';
 import type { OutboxHealthThresholds } from './outbox/health.js';
-import { createWorkerNoticeHandlers, createWorkerOutboxHandlers } from './consumers/registry.js';
+import {
+  both,
+  createWorkerNoticeHandlers,
+  createWorkerOutboxHandlers,
+} from './consumers/registry.js';
 import { ClientRequestMailer } from './notifications/client-request-mailer.js';
 import { CredentialChangeMailer } from './notifications/credential-change-mailer.js';
 import { UsageThresholdMailer } from './notifications/usage-threshold-mailer.js';
+import { CollaborationMailer } from './notifications/collaboration-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
 import { createMessageFanOut } from './realtime/fan-out.js';
 import { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
@@ -301,6 +306,8 @@ async function main(): Promise<void> {
     // USAGE-001 slice 4c — the storage-threshold mail. No link, so no WEB_PUBLIC_URL: the usage
     // screen it would point at is a later slice and does not exist yet.
     usageThresholdMailer: new UsageThresholdMailer(transport),
+    // CQ-12 — mentions, comments, meeting invites, project adds and client-action emails.
+    collaborationMailer: new CollaborationMailer(transport, env.WEB_PUBLIC_URL),
   });
   // x31: the notice queue's own registry. Empty when no transport is wired, which drains and
   // stamps rather than growing a tail — see `createWorkerNoticeHandlers`.
@@ -377,9 +384,17 @@ async function main(): Promise<void> {
       : undefined;
   if (realtime) console.warn(`[worker] realtime socket listening on :${realtime.port}`);
 
-  const loopHandlers = realtime
-    ? { ...handlers, 'message.created.v1': createMessageFanOut(realtime.hub) }
-    : handlers;
+  // CQ-12: the mention notices and the fan-out both answer `message.created.v1`, so the two
+  // are composed rather than the fan-out replacing the registry's handler.
+  const mentions = handlers['message.created.v1'];
+  const fanOut = realtime ? createMessageFanOut(realtime.hub) : undefined;
+  const loopHandlers =
+    fanOut === undefined
+      ? handlers
+      : {
+          ...handlers,
+          'message.created.v1': mentions === undefined ? fanOut : both(mentions, fanOut),
+        };
 
   // x31. Two loops, one process, one `AbortSignal`: the notice queue drains beside the outbox
   // rather than behind it, so a backlog of events cannot delay a security receipt and a notice

@@ -139,3 +139,39 @@ describe('InboxService.markBundleRead organization_usage', () => {
     ).rejects.toMatchObject({ status: 404, code: 'not_found' });
   });
 });
+
+describe('CQ-12 collaboration bundles', () => {
+  function mention(objectId: string): NotificationRow {
+    return {
+      id: `ntf-${objectId}`,
+      type: 'message.mentioned.v1',
+      objectType: 'conversation',
+      objectId,
+      readAt: null,
+      createdAt: new Date('2026-10-19T08:00:00.000Z'),
+    } as unknown as NotificationRow;
+  }
+
+  it('shows a mention through the channel’s own read and drops one the reader cannot open', async () => {
+    const service = new InboxService(
+      database,
+      {} as unknown as WorkItemsService,
+      {} as unknown as ClientRequestsService,
+      notificationsReturning([mention('conv-open'), mention('conv-hidden')]),
+      undefined,
+      {
+        conversation: async (_context, _principal, id) =>
+          id === 'conv-open' ? { title: 'design', state: 'active', projectId: 'proj-1' } : null,
+      },
+    );
+    const page = await service.list(CONTEXT, MEMBER, {});
+    expect(page.items).toEqual([
+      expect.objectContaining({
+        bundleId: 'conversation:conv-open',
+        objectType: 'conversation',
+        title: 'design',
+        types: ['message.mentioned.v1'],
+      }),
+    ]);
+  });
+});

@@ -274,6 +274,13 @@ const TYPE_LABELS: Record<string, string> = {
   'client_request.submitted.v1': 'A client submitted a request',
   'client_request.transitioned.v1': 'A request you follow changed',
   'usage.threshold_reached.v1': 'Your organization is nearing its storage limit',
+  'message.mentioned.v1': 'Someone mentioned you in a channel',
+  'document.mentioned.v1': 'Someone mentioned you in a document comment',
+  'document.comment_created.v1': 'Someone commented on your document',
+  'meeting.attendee_invited.v1': 'You were invited to a meeting',
+  'project.member_added.v1': 'You were added to a project',
+  'automation.notified.v1': 'An automation rule notified you',
+  'automation.test_run.v1': 'You test-ran an automation rule',
 };
 
 function describeType(type: string): string {

@@ -1472,6 +1472,19 @@ GRANT SELECT ON `tmanage`.`project_clients`          TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`conversations`            TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`conversation_memberships` TO 'tmanage_worker'@'%';
 
+-- CQ-12: the collaboration notices and the automation runner (`collaboration-store.ts`). The
+-- recipient's mail toggle, quiet hours and per-kind opt-out (`notification_preferences`,
+-- `notification_kind_prefs` — the quiet-hours read already needed the first); the title an
+-- email names (`documents`, `meetings`); the enabled rules for a trigger (`workflow_templates`)
+-- and the run history the runner appends to (`workflow_runs`, read where it writes). No message
+-- or comment body is read: the notices name who and where, never what was said.
+GRANT SELECT ON `tmanage`.`notification_preferences` TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`notification_kind_prefs`  TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`documents`                TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`meetings`                 TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`workflow_templates`       TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`workflow_runs`            TO 'tmanage_worker'@'%';
+
 -- Read where it writes. MariaDB reads to write: an `UPDATE … WHERE` needs SELECT on the
 -- columns it filters by, and the notification insert's `ON DUPLICATE KEY UPDATE id = id`
 -- — the dedupe that absorbs an at-least-once replay — reads the row it collided with. A
@@ -1506,6 +1519,9 @@ GRANT UPDATE         ON `tmanage`.`client_requests`     TO 'tmanage_worker'@'%';
 -- NOTIF-001's consumer writes the records. INSERT only: marking read is a person's act
 -- through the API, never the relay's, and DELETE is withheld everywhere above.
 GRANT INSERT         ON `tmanage`.`notifications`       TO 'tmanage_worker'@'%';
+-- CQ-12 (AUT-01): a rule that fires appends its run. INSERT only, the API's own posture: a run
+-- is history and is never changed or removed.
+GRANT INSERT         ON `tmanage`.`workflow_runs`       TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration user

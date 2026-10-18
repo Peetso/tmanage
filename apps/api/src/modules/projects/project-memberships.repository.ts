@@ -91,6 +91,28 @@ const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 200;
 
 export class ProjectMembershipsRepository {
+  /**
+   * CQ-12 (COL-01): every user on a project, unpaged. A project team is small; the channel a new
+   * room is made for is joined by all of them at once.
+   */
+  async listUserIdsByProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ userId: projectMemberships.userId })
+      .from(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.organizationId, context.organizationId),
+          eq(projectMemberships.projectId, projectId),
+        ),
+      )
+      .orderBy(asc(projectMemberships.id));
+    return rows.map((row) => row.userId);
+  }
+
   /** Everyone on one project, within the acting tenant. */
   async listByProject(
     runner: TenantQueryRunner,

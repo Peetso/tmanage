@@ -7,9 +7,11 @@ import {
   MEETING_SERIES_SERVICE,
   MEETINGS_REPOSITORY,
   MEETINGS_SERVICE,
+  OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { MeetingsRepository } from './meetings.repository.js';
 import { MeetingNotesRepository } from './meeting-notes.repository.js';
 import { MeetingsService } from './meetings.service.js';
@@ -47,13 +49,18 @@ export class CalendarModule {
     };
     const service: Provider = {
       provide: MEETINGS_SERVICE,
-      inject: [TENANT_DATABASE, MEETINGS_REPOSITORY],
-      useFactory: (database: TenantDatabase, meetings: MeetingsRepository) =>
+      inject: [TENANT_DATABASE, MEETINGS_REPOSITORY, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (
+        database: TenantDatabase,
+        meetings: MeetingsRepository,
+        outbox: OutboxEventsRepository,
+      ) =>
         new MeetingsService(
           database,
           meetings,
           new ProjectsRepository(),
           new MeetingNotesRepository(),
+          outbox,
         ),
     };
 
@@ -68,13 +75,18 @@ export class CalendarModule {
     };
     const attendeesService: Provider = {
       provide: MEETING_ATTENDEES_SERVICE,
-      inject: [TENANT_DATABASE, MEETING_ATTENDEES_REPOSITORY],
-      useFactory: (database: TenantDatabase, attendees: MeetingAttendeesRepository) =>
+      inject: [TENANT_DATABASE, MEETING_ATTENDEES_REPOSITORY, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (
+        database: TenantDatabase,
+        attendees: MeetingAttendeesRepository,
+        outbox: OutboxEventsRepository,
+      ) =>
         new MeetingAttendeesService(
           database,
           attendees,
           new MeetingsRepository(),
           new MembershipsRepository(),
+          outbox,
         ),
     };
 

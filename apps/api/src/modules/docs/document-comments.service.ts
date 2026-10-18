@@ -1,4 +1,4 @@
-import { authorize } from '@tmanage/domain';
+import { authorize, extractMentionedUserIds } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -7,6 +7,7 @@ import { DocumentCommentsRepository } from './document-comments.repository.js';
 import { DocumentSharingRepository } from './document-sharing.repository.js';
 import type { ListDocumentCommentsOptions } from './document-comments.repository.js';
 import type { DocumentCommentRow, DocumentRow } from '../../common/database/schema.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
  * The application service for document comments — Docs "collaboration later" (x132). It follows the
@@ -68,6 +69,8 @@ export class DocumentCommentsService {
       DocumentSharingRepository,
       'people'
     > = new DocumentSharingRepository(),
+    /** CQ-12 (COL-05): optional so a suite can construct the service without the outbox. */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   /** Membership id -> display name, anchored on this tenant's memberships. */
@@ -156,14 +159,28 @@ export class DocumentCommentsService {
     documentId: string,
     body: string,
   ): Promise<DocumentCommentView> {
-    await this.requireActionable(context, principal, documentId, 'work.create');
-    const row = await this.database.transaction(context, (tx) =>
-      this.comments.append(tx, context, {
+    const document = await this.requireActionable(context, principal, documentId, 'work.create');
+    const row = await this.database.transaction(context, async (tx) => {
+      const appended = await this.comments.append(tx, context, {
         documentId,
         body,
         authorMembershipId: context.membershipId,
-      }),
-    );
+      });
+      // CQ-12 (COL-05): the document's author and the people the comment mentions are told by
+      // the worker, which re-checks each one's access at delivery. Ids only — never the text.
+      await this.outbox?.append(tx, context, {
+        type: 'document.comment_created.v1',
+        aggregateId: documentId,
+        payload: {
+          documentId,
+          commentId: appended.id,
+          projectId: document.projectId,
+          authorUserId: context.userId,
+          mentionedUserIds: extractMentionedUserIds(body).filter((id) => id !== context.userId),
+        },
+      });
+      return appended;
+    });
     return toView(row, await this.authorNames(context, [row.authorMembershipId]));
   }
 

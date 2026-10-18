@@ -7,12 +7,12 @@ import type { ApiClient } from './client';
  * Behind `work.read` on the API and taking no membership id: a setting is always the acting member's
  * own. The GET lists every notification kind with the member's choice, unset kinds defaulted to
  * enabled; the PUT sets one kind and returns the whole set, so the screen re-renders every toggle
- * from one response. This slice stores the intent; honouring a disabled kind at delivery time is the
- * deferred half.
+ * from one response. Since CQ-12 the relay honours a disabled kind at delivery for the notices it
+ * writes (mentions, comments).
  */
 
 /** The person-facing notification families a member can opt out of. Must match the API's enum. */
-export type NotificationKind = 'client_request' | 'work_item' | 'message' | 'file';
+export type NotificationKind = 'client_request' | 'work_item' | 'message' | 'file' | 'mention';
 
 /**
  * The caller's per-kind settings, every kind present. Each item is inlined rather than a second

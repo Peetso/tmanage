@@ -1,4 +1,5 @@
 import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { notifications } from '../../common/database/schema.js';
 import type { NotificationRow } from '../../common/database/schema.js';
@@ -54,6 +55,37 @@ export const DEFAULT_NOTIFICATION_PAGE = 100;
 export const MAX_NOTIFICATION_PAGE = 200;
 
 export class NotificationsRepository {
+  /**
+   * CQ-12 (AUT-02): write one notification from the API — a manual automation run's test
+   * notice to the person who ran it. Idempotent on `uq_notifications_dedupe`, like the relay's
+   * insert; the organization comes from the context, never from input.
+   */
+  async insertForRecipient(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: {
+      readonly recipientUserId: string;
+      readonly type: string;
+      readonly objectType: string;
+      readonly objectId: string;
+      readonly dedupeKey: string;
+    },
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .insert(notifications)
+      .values({
+        id: uuidv7(),
+        organizationId: context.organizationId,
+        recipientUserId: input.recipientUserId,
+        type: input.type,
+        objectType: input.objectType,
+        objectId: input.objectId,
+        dedupeKey: input.dedupeKey,
+        createdAt: sql`current_timestamp(3)`,
+      })
+      .onDuplicateKeyUpdate({ set: { id: sql`id` } });
+  }
+
   async listForRecipient(
     runner: TenantQueryRunner,
     context: TenantContext,
