@@ -726,12 +726,19 @@ body {
   inline-size: 100%;
 }
 
+/*
+ * The rail at full strength. HOME-01 draws the resting glyph and label in `--ink-650`, which on
+ * the `--paper-350` rail read washed out on screen (owner review 2026-10-18), so both take
+ * `--ink-800`, the body ink. The glyph is a step larger and drawn bold (the symbol faces carry no
+ * bold, so the browser emboldens the outline: thicker strokes at the same whole-pixel size), and
+ * the active orb stays the filled ink disc with the paper glyph.
+ */
 .tm-rail__item {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--s1);
-  color: var(--ink-650);
+  color: var(--ink-800);
   text-decoration: none;
   border-radius: var(--r-micro);
 }
@@ -750,7 +757,8 @@ body {
   border: var(--b-quiet) solid var(--line-300);
   background: var(--paper-0);
   font-family: var(--font-glyph);
-  font-size: var(--t-body-md);
+  font-size: var(--t-body-lg);
+  font-weight: 700;
   line-height: 1;
   transition:
     background-color var(--t-micro) var(--ease),
@@ -758,7 +766,7 @@ body {
 }
 
 .tm-rail__item:hover .tm-rail__orb {
-  border-color: var(--ink-650);
+  border-color: var(--ink-950);
 }
 
 .tm-rail__item[aria-current='page'] .tm-rail__orb {
@@ -1995,7 +2003,7 @@ body {
     gap: 2px;
     inline-size: 100%;
     min-inline-size: 0;
-    color: var(--ink-650);
+    color: var(--ink-800);
     text-decoration: none;
     border-radius: var(--r-compact);
   }
@@ -2013,7 +2021,8 @@ body {
     border-radius: var(--r-capsule);
     background: var(--paper-150);
     font-family: var(--font-glyph);
-    font-size: var(--t-ui-md);
+    font-size: var(--t-body-lg);
+    font-weight: 700;
   }
 
   .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__orb {
