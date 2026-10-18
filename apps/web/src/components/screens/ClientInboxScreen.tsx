@@ -18,6 +18,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { requestStatusLabel } from '../../lib/client-request-presentation';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { Segmented, Tag } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface ClientInboxScreenProps {
   organizationSlug: string;
@@ -55,10 +56,15 @@ export interface ClientInboxScreenProps {
  */
 export function ClientInboxScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
 }: ClientInboxScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<PortalInboxMode>('all');

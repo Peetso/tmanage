@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { ControlCenterSections } from '../admin/ControlCenterShell';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/automations.css';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -64,6 +65,9 @@ export function WebhookDeliveryScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
+      contextRail={
+        <ControlCenterSections organizationSlug={organizationSlug} section="automations" />
+      }
       eyebrow="Control center · Webhooks · Deliveries"
       title="Webhook deliveries"
       {...(rows.length > 0 ? { titleMeta: `${rows.length} shown · ${failures} failed` } : {})}

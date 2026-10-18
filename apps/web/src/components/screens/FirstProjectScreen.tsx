@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
+import { AppShell } from '../shell/AppShell';
 import { OnboardingScreenStyles } from './CreateOrganizationScreen';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createProject, listWorkspaces } from '../../lib/api/projects';
@@ -17,6 +18,14 @@ export interface FirstProjectScreenProps {
   client?: ApiClient;
   /** Called with the new project's id once it exists. */
   onCreated?: (projectId: string) => void;
+  /**
+   * `onboarding` (default) is ON-03 inside the onboarding frame. `new` is the same form for
+   * every project after the first, reached from "New project": it sits in the app shell so the
+   * rail stays, and is titled for a project rather than a first project.
+   */
+  mode?: 'onboarding' | 'new';
+  /** The organization's display name for the app shell's eyebrow (`new` mode only). */
+  organizationName?: string;
 }
 
 /**
@@ -58,6 +67,8 @@ export function FirstProjectScreen({
   organizationSlug,
   client,
   onCreated,
+  mode = 'onboarding',
+  organizationName = '',
 }: FirstProjectScreenProps) {
   const api = client ?? browserApiClient();
 
@@ -124,8 +135,8 @@ export function FirstProjectScreen({
     }
   }
 
-  return (
-    <OnboardingShell current="ON-03" signedInAs={signedInAs} title="Create your first project">
+  const body = (
+    <>
       <OnboardingScreenStyles />
       <style href="tm-onboarding-project" precedence="default">
         {PROJECT_CSS}
@@ -152,7 +163,9 @@ export function FirstProjectScreen({
           explains itself.
         */}
         <fieldset className="tm-fieldset tm-ob-sheet" disabled={workspaces.isPending}>
-          <legend className="tm-visually-hidden">Your first project</legend>
+          <legend className="tm-visually-hidden">
+            {mode === 'new' ? 'New project' : 'Your first project'}
+          </legend>
           <Field
             label="Project name"
             name="projectName"
@@ -207,11 +220,15 @@ export function FirstProjectScreen({
               <span className="tm-field__label">Project owner</span>
               <div className="tm-ob-project__owner">
                 <span className="tm-ob-avatar" aria-hidden="true">
-                  {initialsOf(signedInAs)}
+                  {initialsOf(signedInAs || 'You')}
                 </span>
-                <span className="tm-ob-project__owner-name">{signedInAs}</span>
+                <span className="tm-ob-project__owner-name">{signedInAs || 'You'}</span>
               </div>
-              <span className="tm-field__hint">You, until your team has joined.</span>
+              <span className="tm-field__hint">
+                {mode === 'new'
+                  ? 'You, as the person creating it.'
+                  : 'You, until your team has joined.'}
+              </span>
             </div>
 
             <Field
@@ -291,6 +308,27 @@ export function FirstProjectScreen({
           </div>
         </fieldset>
       </form>
+    </>
+  );
+
+  if (mode === 'new') {
+    return (
+      <AppShell
+        organizationSlug={organizationSlug}
+        organizationName={organizationName}
+        activeNavigationId="work"
+        eyebrow="Projects"
+        title="New project"
+        description="Name it and, if you have one, give it a target date. You can add milestones, people and a client next."
+      >
+        {body}
+      </AppShell>
+    );
+  }
+
+  return (
+    <OnboardingShell current="ON-03" signedInAs={signedInAs} title="Create your first project">
+      {body}
     </OnboardingShell>
   );
 }

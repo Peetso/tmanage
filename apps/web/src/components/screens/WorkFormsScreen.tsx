@@ -18,6 +18,7 @@ import { listProjects } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/work-planning.css';
+import { useOrganizationName } from '../../lib/use-organization-names';
 
 export interface WorkFormsScreenProps {
   organizationSlug: string;
@@ -53,9 +54,10 @@ const EMPTY_FIELD: DraftField = { label: '', type: 'text', required: false };
  */
 export function WorkFormsScreen({
   organizationSlug,
-  organizationName,
+  organizationName: passedOrganizationName,
   client,
 }: WorkFormsScreenProps) {
+  const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 

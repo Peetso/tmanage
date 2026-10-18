@@ -10,6 +10,7 @@ import type { PortalFile } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { shortDay } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface PortalFilesScreenProps {
   organizationSlug: string;
@@ -42,10 +43,15 @@ export interface PortalFilesScreenProps {
  */
 export function PortalFilesScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
 }: PortalFilesScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
   const [search, setSearch] = useState('');
 

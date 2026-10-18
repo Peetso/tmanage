@@ -93,13 +93,19 @@ function SectionItem({
   );
 }
 
-/** The ADM-01 section map. Exported so a screen can compose it with its own rail content. */
+/**
+ * The ADM-01 section map. Exported so a screen outside `ControlCenterShell` can draw it too;
+ * `children` (a screen's own rail group, such as ADM-03's role list) sits under the groups and
+ * above the Organization / Billing foot.
+ */
 export function ControlCenterSections({
   organizationSlug,
   section,
+  children,
 }: {
   organizationSlug: string;
   section: ControlCenterSection;
+  children?: ReactNode;
 }) {
   return (
     <div className="tm-cc-sections">
@@ -118,6 +124,7 @@ export function ControlCenterSections({
           </ul>
         </div>
       ))}
+      {children}
       <ul className="tm-cc-sections__group tm-cc-sections__group--foot">
         {FOOT.map((item) => (
           <SectionItem
@@ -145,8 +152,9 @@ export interface ControlCenterShellProps {
   description?: ReactNode;
   actions?: ReactNode;
   /**
-   * The left column. `sections` draws ADM-01's section map; a node replaces it (ADM-03's role
-   * list); omitted, the canvas runs full width as ADM-08 … ADM-14 draw it.
+   * The left column. ADM-01's section map is always drawn, so the Control Center keeps its own
+   * navigation on every sub-page (it used to be drawn only on Overview and Roles, and clicking any
+   * other item dropped it). A node (ADM-03's role list) is drawn inside it, under the groups.
    */
   rail?: 'sections' | ReactNode;
   children: ReactNode;
@@ -169,12 +177,11 @@ export function ControlCenterShell({
   rail,
   children,
 }: ControlCenterShellProps) {
-  const contextRail =
-    rail === 'sections' ? (
-      <ControlCenterSections organizationSlug={organizationSlug} section={section} />
-    ) : (
-      rail
-    );
+  const contextRail = (
+    <ControlCenterSections organizationSlug={organizationSlug} section={section}>
+      {rail === 'sections' ? null : rail}
+    </ControlCenterSections>
+  );
   return (
     <AppShell
       organizationSlug={organizationSlug}
@@ -185,7 +192,7 @@ export function ControlCenterShell({
       {...(titleMeta ? { titleMeta } : {})}
       {...(description ? { description } : {})}
       {...(actions ? { actions } : {})}
-      {...(contextRail ? { contextRail } : {})}
+      contextRail={contextRail}
     >
       {children}
     </AppShell>

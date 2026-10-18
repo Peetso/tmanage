@@ -253,9 +253,11 @@ describe('ON-01 create organization', () => {
         {
           error: {
             code: 'conflict',
-            message: 'That workspace address is already in use',
+            message: 'That web link is already taken',
             correlationId: 'c1',
-            details: [{ field: 'slug', message: 'Choose a different workspace address.' }],
+            details: [
+              { field: 'slug', message: 'That web link is taken. Choose a different one.' },
+            ],
           },
         },
         409,
@@ -265,7 +267,9 @@ describe('ON-01 create organization', () => {
     render(<CreateOrganizationScreen signedInAs="omar@northstar.studio" client={client} />);
     await fillAndSubmit(user);
 
-    expect(await screen.findByText(/Choose a different workspace address/)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/That web link is taken. Choose a different one/),
+    ).toBeInTheDocument();
     // Not a banner.
     expect(screen.queryByText('Could not create the organization')).toBeNull();
   });
@@ -279,7 +283,9 @@ describe('ON-01 create organization', () => {
             code: 'conflict',
             message: 'taken',
             correlationId: 'c1',
-            details: [{ field: 'slug', message: 'Choose a different workspace address.' }],
+            details: [
+              { field: 'slug', message: 'That web link is taken. Choose a different one.' },
+            ],
           },
         },
         409,
@@ -288,10 +294,10 @@ describe('ON-01 create organization', () => {
 
     render(<CreateOrganizationScreen signedInAs="omar@northstar.studio" client={client} />);
     await fillAndSubmit(user);
-    await screen.findByText(/Choose a different workspace address/);
+    await screen.findByText(/That web link is taken. Choose a different one/);
 
-    await user.type(screen.getByLabelText(/Workspace address/), '-two');
-    expect(screen.queryByText(/Choose a different workspace address/)).toBeNull();
+    await user.type(screen.getByLabelText(/Workspace web link/), '-two');
+    expect(screen.queryByText(/That web link is taken. Choose a different one/)).toBeNull();
   });
 
   it('shows a banner for a refusal with no field', async () => {
@@ -321,13 +327,13 @@ describe('ON-01 create organization', () => {
 
     render(<CreateOrganizationScreen signedInAs="omar@northstar.studio" client={client} />);
     await user.type(screen.getByLabelText(/Organization name/), 'Lumen');
-    const slugField = screen.getByLabelText(/Workspace address/);
+    const slugField = screen.getByLabelText(/Workspace web link/);
     await user.clear(slugField);
     await user.type(slugField, 'Not Valid');
     await user.click(screen.getByRole('button', { name: 'Create organization' }));
 
     expect(calls).toHaveLength(0);
-    expect(screen.getByText(/Fix the workspace address first/)).toBeInTheDocument();
+    expect(screen.getByText(/Fix the workspace web link first/)).toBeInTheDocument();
   });
 
   it('refuses an empty name without sending anything', async () => {
@@ -352,7 +358,7 @@ describe('ON-01 create organization', () => {
 
     render(<CreateOrganizationScreen signedInAs="omar@northstar.studio" client={client} />);
     await user.type(screen.getByLabelText(/Organization name/), 'Lumen Works');
-    const shown = (screen.getByLabelText(/Workspace address/) as HTMLInputElement).value;
+    const shown = (screen.getByLabelText(/Workspace web link/) as HTMLInputElement).value;
     await user.click(screen.getByRole('button', { name: 'Create organization' }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
@@ -429,7 +435,7 @@ describe('ON-02 address check, working week and template', () => {
     await user.type(screen.getByLabelText(/Organization name/), 'Lumen Works');
 
     expect(await screen.findByText('available')).toBeInTheDocument();
-    expect(screen.getByText('.tmanage.app')).toBeInTheDocument();
+    expect(screen.getByText(`${window.location.host}/`)).toBeInTheDocument();
     const checks = calls.filter((call) => call.url.includes('address-availability'));
     // Debounced: one check for the paused-on address, not one per keystroke.
     expect(checks.map((call) => call.url)).toEqual([
@@ -444,15 +450,15 @@ describe('ON-02 address check, working week and template', () => {
         slug: 'lumen-works',
         available: false,
         reason: 'taken',
-        message: 'That workspace address is already in use.',
+        message: 'That web link is already taken.',
       }),
     );
     render(<CreateOrganizationScreen signedInAs="omar@northstar.studio" client={client} />);
     await user.type(screen.getByLabelText(/Organization name/), 'Lumen Works');
-    expect(await screen.findByText(/already in use/)).toBeInTheDocument();
+    expect(await screen.findByText(/already taken/)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Create organization' }));
-    expect(screen.getByText(/Fix the workspace address first/)).toBeInTheDocument();
+    expect(screen.getByText(/Fix the workspace web link first/)).toBeInTheDocument();
     expect(calls.some((call) => call.method === 'POST')).toBe(false);
   });
 

@@ -13,6 +13,7 @@ import { CommandPalette, OPEN_COMMAND_PALETTE_EVENT } from '../screens/CommandPa
 import { InboxNotificationBridge } from '../pwa/InboxNotificationBridge';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations } from '../../lib/api/organizations';
+import { useOrganizationName } from '../../lib/use-organization-names';
 
 export interface AppShellProps {
   /**
@@ -168,6 +169,9 @@ export function AppShell({
   lens,
   accountInitials,
 }: AppShellProps) {
+  // The page hands in the design's sample name until a per-organization read exists; the
+  // session's own organization list says what this organization is really called.
+  const displayedOrganizationName = useOrganizationName(organizationSlug, organizationName);
   return (
     <LiveAnnouncer>
       <div className="tm-app">
@@ -225,7 +229,7 @@ export function AppShell({
             >
               <div className="tm-canvas-header__titles">
                 <p className="tm-canvas-header__context">
-                  <span className="tm-canvas-header__org">{organizationName}</span>
+                  <span className="tm-canvas-header__org">{displayedOrganizationName}</span>
                   {eyebrow ? (
                     <>
                       <span aria-hidden="true"> · </span>

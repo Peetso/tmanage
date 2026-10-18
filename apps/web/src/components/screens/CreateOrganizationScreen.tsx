@@ -12,6 +12,8 @@ import {
   describeSlugProblems,
   slugProblems,
   slugify,
+  WORKSPACE_LINK_LABEL,
+  workspaceLinkHint,
 } from '../../lib/slug';
 import { useHydrated } from '../../lib/use-hydrated';
 
@@ -41,9 +43,6 @@ const LOCALES = [
   { value: 'en', label: 'English', short: 'LTR' },
   { value: 'ar', label: 'العربية', short: 'RTL' },
 ] as const;
-
-/** The public suffix every workspace address is shown with (ON-02). */
-export const ADDRESS_SUFFIX = '.tmanage.app';
 
 /** How long typing must pause before the address is checked. */
 export const AVAILABILITY_DEBOUNCE_MS = 400;
@@ -124,7 +123,7 @@ export interface CreateOrganizationScreenProps {
  * organization, its first workspace and the founding owner membership together, or creates
  * nothing — a failure halfway would leave an organization nobody can administer.
  *
- * The workspace address is derived from the name as it is typed, and stops being derived the
+ * The workspace web link is derived from the name as it is typed, and stops being derived the
  * moment the person edits it. Continuing to overwrite an edited field is the behaviour that
  * makes slug fields infuriating.
  *
@@ -165,6 +164,9 @@ export function CreateOrganizationScreen({
     { timer: ReturnType<typeof setTimeout>; abort: AbortController } | undefined
   >(undefined);
   const addressId = useId();
+  // The host the organization will be opened at. Read only after hydration, so the server render
+  // and the first client render agree.
+  const linkHost = hydrated ? window.location.host : '';
 
   const [creating, setCreating] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -200,7 +202,7 @@ export function CreateOrganizationScreen({
             setAvailability({
               state: 'unavailable',
               slug: slugToCheck,
-              message: answer.message ?? 'Choose a different workspace address.',
+              message: answer.message ?? 'That web link is taken. Choose a different one.',
             });
           } else {
             setAvailability({ state: 'idle' });
@@ -231,7 +233,7 @@ export function CreateOrganizationScreen({
       return;
     }
     if (localSlugError !== undefined || effectiveSlug === '' || takenError !== undefined) {
-      setFailure('Fix the workspace address first.');
+      setFailure('Fix the workspace web link first.');
       return;
     }
     // Submitting answers the question the pending check was going to ask.
@@ -340,10 +342,15 @@ export function CreateOrganizationScreen({
 
               <div className="tm-field tm-ob-mono-field">
                 <label className="tm-field__label" htmlFor={addressId}>
-                  Workspace address
+                  {WORKSPACE_LINK_LABEL}
                 </label>
                 <div className="tm-ob-address" data-invalid={slugError ? 'true' : undefined}>
                   <span className="tm-ob-address__value">
+                    {linkHost === '' ? null : (
+                      <span className="tm-ob-address__prefix" aria-hidden="true">
+                        {linkHost}/
+                      </span>
+                    )}
                     <input
                       id={addressId}
                       name="slug"
@@ -365,9 +372,6 @@ export function CreateOrganizationScreen({
                       aria-invalid={slugError ? true : undefined}
                       aria-describedby={`${addressId}-status ${addressId}-hint`}
                     />
-                    <span className="tm-ob-address__suffix" aria-hidden="true">
-                      {ADDRESS_SUFFIX}
-                    </span>
                   </span>
                   <span
                     className="tm-ob-address__status"
@@ -390,7 +394,7 @@ export function CreateOrganizationScreen({
                 </div>
                 {slugError === undefined ? (
                   <span className="tm-field__hint" id={`${addressId}-hint`}>
-                    Lowercase letters, numbers and hyphens.
+                    {workspaceLinkHint(linkHost, effectiveSlug)}
                   </span>
                 ) : (
                   <span className="tm-field__error" id={`${addressId}-hint`}>
@@ -584,8 +588,9 @@ const ONBOARDING_SCREEN_CSS = `
   flex-shrink: 0; min-inline-size: 1ch; max-inline-size: 100%; padding: 0; border: 0; outline: none;
   background: transparent; color: var(--ink-950); font: inherit; font-weight: 500;
 }
-.tm-ob-address__suffix {
-  min-inline-size: 0; overflow: hidden; color: var(--ink-500); white-space: nowrap; text-overflow: ellipsis;
+.tm-ob-address__prefix {
+  flex-shrink: 1; min-inline-size: 0; overflow: hidden; color: var(--ink-500); white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .tm-ob-address__status {
   display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; color: var(--ink-650);

@@ -344,7 +344,7 @@ describe('ON-01 Create organization', () => {
     render(<CreateOrganizationScreen signedInAs={SIGNED_IN_AS} />);
 
     await user.type(screen.getByLabelText(/Organization name/), 'Northstar Studio');
-    expect(screen.getByLabelText(/Workspace address/)).toHaveValue('northstar-studio');
+    expect(screen.getByLabelText(/Workspace web link/)).toHaveValue('northstar-studio');
   });
 
   it('stops deriving once the address has been edited by hand', async () => {
@@ -352,7 +352,7 @@ describe('ON-01 Create organization', () => {
     render(<CreateOrganizationScreen signedInAs={SIGNED_IN_AS} />);
 
     const name = screen.getByLabelText(/Organization name/);
-    const slug = screen.getByLabelText(/Workspace address/);
+    const slug = screen.getByLabelText(/Workspace web link/);
 
     await user.type(name, 'Northstar');
     await user.clear(slug);
@@ -365,14 +365,14 @@ describe('ON-01 Create organization', () => {
   it('reports an address the server could not accept', async () => {
     const user = userEvent.setup();
     render(<CreateOrganizationScreen signedInAs={SIGNED_IN_AS} />);
-    const slug = screen.getByLabelText(/Workspace address/);
+    const slug = screen.getByLabelText(/Workspace web link/);
     await user.type(slug, 'Not Valid');
-    expect(screen.getByText(/Use lowercase letters, numbers and hyphens only/)).toBeInTheDocument();
+    expect(screen.getByText(/Use lowercase letters, numbers and dashes only/)).toBeInTheDocument();
   });
 
   it('claims no availability before the live check has answered', () => {
     render(<CreateOrganizationScreen signedInAs={SIGNED_IN_AS} />);
-    expect(screen.getByText('.tmanage.app')).toBeInTheDocument();
+    expect(screen.getByText(`${window.location.host}/`)).toBeInTheDocument();
     // No green tick until `address-availability` says so (organization-flow.test.tsx).
     expect(screen.queryByText(/^available$/i)).toBeNull();
   });

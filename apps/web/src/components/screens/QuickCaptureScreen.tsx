@@ -1,13 +1,19 @@
 'use client';
 
 import { useId, useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import Link from 'next/link';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { NewProjectLink, useCanCreateProjects } from '../projects/NewProjectLink';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
-import { addWorkComment, createWorkItem } from '../../lib/api/work-items';
+import { addWorkComment, attachWorkItemFile, createWorkItem } from '../../lib/api/work-items';
 import type { CreateWorkItemInput, WorkItemSummary } from '../../lib/api/work-items';
+import { assignItemLabel, defineWorkLabel, listWorkLabels } from '../../lib/api/work-labels';
+import { uploadProjectFile } from '../../lib/api/uploads';
+import type { UploadAttachmentOptions } from '../../lib/api/uploads';
+import { CaptureAttachmentPicker, CaptureLabelPicker } from './CaptureExtras';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/home.css';
@@ -28,8 +34,16 @@ import '../../styles/screens/home.css';
  * shared text and the shared URL seed the note.
  *
  * The destination is a project the caller can write to. Nothing returns a single "default inbox
- * project", so the destination is an explicit pick from the caller's projects — the first project
- * is selected so the common case (capture into the obvious place) is one keystroke, not a decision.
+ * project", so the destination is an explicit, required pick from the caller's projects. It opens
+ * on the project the caller came from (`?project=` — the work list hands over its chosen project),
+ * and otherwise on the first project, so the common case is one keystroke, not a decision.
+ *
+ * **Labels and attachments** (Peter, 2026-10-18: "no attachment feature or tag it in project").
+ * The organization's work labels (x233) toggle as capsules, and a new one can be defined in place;
+ * files go through the existing upload pipeline (`uploads.ts`) into the chosen project and are
+ * attached to the new item (x205). Both are written *after* the item exists — there is nothing to
+ * hang them off before — and each failure is named afterwards rather than undoing the item: the
+ * work was filed, and the person can add the missing label or file from the item.
  */
 
 /** The prefilled form values a share-target payload (or an empty open) produces. */
@@ -81,17 +95,31 @@ export interface QuickCaptureScreenProps {
   readonly organizationName: string;
   /** Prefill from the share-target payload (`?title=`/`?text=`/`?url=`). */
   readonly draft?: CaptureDraft;
+  /** The project to open on (`?project=`), when it is one of the caller's projects. */
+  readonly initialProjectId?: string;
   readonly client?: ApiClient;
+  /** Test seam for the upload's part PUTs and idempotency keys. */
+  readonly uploadOptions?: UploadAttachmentOptions;
+}
+
+/** What one capture filed, and what could not be added to it afterwards. */
+interface CaptureResult {
+  readonly item: WorkItemSummary;
+  readonly failures: readonly string[];
 }
 
 export function QuickCaptureScreen({
   organizationSlug,
   organizationName,
   draft,
+  initialProjectId,
   client,
+  uploadOptions,
 }: QuickCaptureScreenProps) {
   const api = client ?? browserApiClient();
+  const queryClient = useQueryClient();
   const headingId = useId();
+  const canCreateProjects = useCanCreateProjects(organizationSlug, client);
 
   const projects = useQuery({
     queryKey: ['capture-projects', organizationSlug],
@@ -100,34 +128,96 @@ export function QuickCaptureScreen({
 
   const [title, setTitle] = useState(draft?.title ?? '');
   const [note, setNote] = useState(draft?.note ?? '');
-  const [projectId, setProjectId] = useState('');
-  const [formError, setFormError] = useState<string | null>(null);
-  const [captured, setCaptured] = useState<string | null>(null);
+  const labelsKey = ['capture-labels', organizationSlug];
+  const labels = useQuery({
+    queryKey: labelsKey,
+    queryFn: () => listWorkLabels(api, organizationSlug),
+  });
 
-  // The first project is the default destination once the list arrives, unless the caller has
-  // already chosen one. A capture into the obvious place is then a title and Enter.
+  const [projectId, setProjectId] = useState('');
+  const [selectedLabels, setSelectedLabels] = useState<ReadonlySet<string>>(new Set());
+  const [files, setFiles] = useState<readonly File[]>([]);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [captured, setCaptured] = useState<CaptureResult | null>(null);
+
+  // The project the caller came from, else the first project, once the list arrives — unless the
+  // caller has already chosen one. A capture into the obvious place is then a title and Enter.
   const available = projects.data ?? [];
-  const effectiveProjectId = projectId !== '' ? projectId : (available[0]?.id ?? '');
+  const preferred = available.some((project) => project.id === initialProjectId)
+    ? (initialProjectId ?? '')
+    : (available[0]?.id ?? '');
+  const effectiveProjectId = projectId !== '' ? projectId : preferred;
+
+  const toggleLabel = (labelId: string): void => {
+    setSelectedLabels((current) => {
+      const next = new Set(current);
+      if (next.has(labelId)) next.delete(labelId);
+      else next.add(labelId);
+      return next;
+    });
+  };
+
+  const createLabel = useMutation({
+    mutationFn: (name: string) => defineWorkLabel(api, organizationSlug, { name, color: 'gray' }),
+    onSuccess: async (label) => {
+      setSelectedLabels((current) => new Set(current).add(label.id));
+      await queryClient.invalidateQueries({ queryKey: labelsKey });
+    },
+  });
 
   const capture = useMutation({
-    mutationFn: async (): Promise<WorkItemSummary> => {
+    mutationFn: async (): Promise<CaptureResult> => {
+      setProgress('Filing…');
       const item = await createWorkItem(
         api,
         organizationSlug,
         buildCapturePayload({ projectId: effectiveProjectId, title }),
       );
+      const failures: string[] = [];
       const body = note.trim();
       if (body !== '') {
-        await addWorkComment(api, organizationSlug, item.id, { body });
+        await addWorkComment(api, organizationSlug, item.id, { body }).catch(() => {
+          failures.push('The note was not added.');
+        });
       }
-      return item;
+      for (const labelId of selectedLabels) {
+        await assignItemLabel(api, organizationSlug, item.id, labelId).catch(() => {
+          const name = labels.data?.find((label) => label.id === labelId)?.name ?? 'A label';
+          failures.push(`The label “${name}” was not added.`);
+        });
+      }
+      for (const [index, file] of files.entries()) {
+        setProgress(`Uploading ${index + 1} of ${files.length}…`);
+        try {
+          const fileAssetId = await uploadProjectFile(
+            api,
+            organizationSlug,
+            { projectId: item.projectId, file },
+            uploadOptions,
+          );
+          await attachWorkItemFile(api, organizationSlug, item.id, { fileAssetId });
+        } catch (error) {
+          failures.push(
+            error instanceof ApiRequestError
+              ? `“${file.name}” was not attached: ${error.message}`
+              : error instanceof Error
+                ? error.message
+                : `“${file.name}” was not attached.`,
+          );
+        }
+      }
+      return { item, failures };
     },
-    onSuccess: (item) => {
-      setCaptured(item.title);
+    onSuccess: (result) => {
+      setCaptured(result);
       setTitle('');
       setNote('');
+      setSelectedLabels(new Set());
+      setFiles([]);
       setFormError(null);
     },
+    onSettled: () => setProgress(null),
   });
 
   const submit = (): void => {
@@ -136,7 +226,7 @@ export function QuickCaptureScreen({
       return;
     }
     if (effectiveProjectId === '') {
-      setFormError('Choose a destination project.');
+      setFormError('Choose the project this work belongs to.');
       return;
     }
     setFormError(null);
@@ -192,25 +282,26 @@ export function QuickCaptureScreen({
               </span>
             </div>
 
-            <Field
-              className="tm-capture__note"
-              label="Note"
-              hint="Optional. Filed as the first comment on the new item."
-              value={note}
-              maxLength={2000}
-              onChange={(event) => setNote(event.target.value)}
-            />
-
             {available.length === 0 ? (
-              <InlineAlert tone="neutral" title="No project to capture into">
-                You are not a member of a project that accepts new work yet. Create or join one,
-                then capture here.
-              </InlineAlert>
+              <div className="tm-capture__no-project">
+                <InlineAlert tone="neutral" title="No project to capture into">
+                  {canCreateProjects
+                    ? 'Work lives in a project. Create your first one, then capture here.'
+                    : 'You are not a member of a project that accepts new work yet. Ask an owner or admin to add you to one, then capture here.'}
+                </InlineAlert>
+                <NewProjectLink
+                  organizationSlug={organizationSlug}
+                  label="Create a project"
+                  size="default"
+                  {...(client ? { client } : {})}
+                />
+              </div>
             ) : (
               <Select
                 className="tm-capture__note"
-                label="Destination"
-                hint="The project the captured item is filed in."
+                label="Project"
+                required
+                hint="The project this work is filed in. Only projects you can add work to are listed."
                 value={effectiveProjectId}
                 onChange={(event) => setProjectId(event.target.value)}
               >
@@ -221,6 +312,34 @@ export function QuickCaptureScreen({
                 ))}
               </Select>
             )}
+
+            <CaptureLabelPicker
+              labels={labels.data ?? []}
+              selected={selectedLabels}
+              onToggle={toggleLabel}
+              onCreate={(name) => createLabel.mutate(name)}
+              creating={createLabel.isPending}
+              createError={createLabel.isError ? errorMessage(createLabel.error) : null}
+              disabled={capture.isPending}
+            />
+
+            <CaptureAttachmentPicker
+              files={files}
+              onAdd={(picked) => setFiles((current) => [...current, ...picked])}
+              onRemove={(index) =>
+                setFiles((current) => current.filter((_, position) => position !== index))
+              }
+              disabled={capture.isPending}
+            />
+
+            <Field
+              className="tm-capture__note"
+              label="Note"
+              hint="Optional. Filed as the first comment on the new item."
+              value={note}
+              maxLength={2000}
+              onChange={(event) => setNote(event.target.value)}
+            />
 
             {formError ? (
               <InlineAlert tone="danger" title="Check the capture">
@@ -236,7 +355,17 @@ export function QuickCaptureScreen({
 
             {captured ? (
               <InlineAlert tone="success" title="Captured">
-                “{captured}” was filed. Capture another, or carry on.
+                “{captured.item.title}” was filed.{' '}
+                <Link href={`/${organizationSlug}/work/${encodeURIComponent(captured.item.id)}`}>
+                  Open it
+                </Link>
+                , capture another, or carry on.
+              </InlineAlert>
+            ) : null}
+
+            {captured && captured.failures.length > 0 ? (
+              <InlineAlert tone="warning" title="Some extras were not added">
+                {captured.failures.join(' ')} Open the item to add them again.
               </InlineAlert>
             ) : null}
 
@@ -247,7 +376,7 @@ export function QuickCaptureScreen({
                 size="feature"
                 disabled={capture.isPending || available.length === 0}
               >
-                {capture.isPending ? 'Filing…' : 'Capture'}
+                {capture.isPending ? (progress ?? 'Filing…') : 'Capture'}
               </Button>
             </div>
           </div>

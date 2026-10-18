@@ -10,6 +10,7 @@ import type { ClientMilestone, PortalProject } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { longDay, shortDay, Tag } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface PortalUpdatesScreenProps {
   organizationSlug: string;
@@ -33,10 +34,15 @@ export interface PortalUpdatesScreenProps {
  */
 export function PortalUpdatesScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
 }: PortalUpdatesScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
 
   const projects = useQuery({

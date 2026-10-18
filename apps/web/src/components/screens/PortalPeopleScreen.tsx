@@ -10,6 +10,7 @@ import type { PortalPerson } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { Avatar, humanize, Tag } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface PortalPeopleScreenProps {
   organizationSlug: string;
@@ -32,10 +33,15 @@ export interface PortalPeopleScreenProps {
  */
 export function PortalPeopleScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
 }: PortalPeopleScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
 
   const projects = useQuery({

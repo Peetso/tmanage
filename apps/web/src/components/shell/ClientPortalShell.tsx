@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { Badge, LiveAnnouncer, SkipLink, StatusDot } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { CLIENT_NAVIGATION } from './navigation';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface ClientPortalShellProps {
   /**
@@ -53,8 +54,8 @@ export interface ClientPortalShellProps {
  */
 export function ClientPortalShell({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   projectName,
   activeNavigationId,
   title,
@@ -64,6 +65,11 @@ export function ClientPortalShell({
   children,
   preview = false,
 }: ClientPortalShellProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   return (
     <LiveAnnouncer>
       <div className="tm-portal" data-preview={preview ? 'true' : undefined}>

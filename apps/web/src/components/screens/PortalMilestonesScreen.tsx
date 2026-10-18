@@ -10,6 +10,7 @@ import type { ClientMilestone, ClientRisk, MilestoneStatus } from '../../lib/api
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { longDay, shortDay, Tag } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface PortalMilestonesScreenProps {
   organizationSlug: string;
@@ -30,10 +31,15 @@ export interface PortalMilestonesScreenProps {
  */
 export function PortalMilestonesScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
 }: PortalMilestonesScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
 
   const projects = useQuery({

@@ -5,6 +5,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { NewProjectLink } from '../projects/NewProjectLink';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getPortfolioCapacity, listProjectPortfolio } from '../../lib/api/project-portfolio';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -82,6 +83,9 @@ export function ProjectPortfolioScreen({
           : 'Portfolio'
       }
       title={hasRows ? headline(atRisk.length) : 'Portfolio'}
+      actions={
+        <NewProjectLink organizationSlug={organizationSlug} {...(client ? { client } : {})} />
+      }
       {...(hasRows
         ? {
             headerAside: (

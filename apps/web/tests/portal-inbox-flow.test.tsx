@@ -86,8 +86,8 @@ function bundle(overrides: Record<string, unknown> = {}) {
 
 const NAMES = {
   organizationSlug: 'northstar',
-  clientName: 'Atlas Hospitality',
-  providerName: 'Northstar Studio',
+  clientName: 'Atlas Hotels',
+  providerName: 'Harbour Studio',
 } as const;
 
 function isInbox(call: Call): boolean {
@@ -256,7 +256,7 @@ describe('the client inbox', () => {
     // unknown type says nothing, because the screen never prints an identifier.
     await waitFor(() => expect(screen.getByText('3 updates, 1 unread')).toBeInTheDocument());
     expect(screen.getByText(/Latest /).textContent).toBe(before);
-    expect(screen.getByText(/Northstar Studio answered/)).toBeInTheDocument();
+    expect(screen.getByText(/Harbour Studio answered/)).toBeInTheDocument();
     expect(screen.queryByText(/mystery/)).not.toBeInTheDocument();
     expect(
       screen.getAllByRole('link', { name: 'Arabic booking FAQ on the rooms page' }),

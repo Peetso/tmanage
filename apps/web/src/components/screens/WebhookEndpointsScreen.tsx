@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { ControlCenterSections } from '../admin/ControlCenterShell';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/automations.css';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -85,6 +86,9 @@ export function WebhookEndpointsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
+      contextRail={
+        <ControlCenterSections organizationSlug={organizationSlug} section="automations" />
+      }
       eyebrow="Control center · Integrations · Webhooks"
       title="Webhooks"
       {...(rows.length > 0

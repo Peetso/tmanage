@@ -3,7 +3,6 @@
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { FirstProjectScreen } from '../../../../components/screens/FirstProjectScreen';
-import { FIXTURE_SIGNED_IN_AS } from '../../../../lib/fixtures';
 
 /**
  * **ON-03 Create first project.**
@@ -12,7 +11,8 @@ import { FIXTURE_SIGNED_IN_AS } from '../../../../lib/fixtures';
  * the claim the API's `TenantContextGuard` resolves against a membership row. A slug the
  * caller has no membership in produces the same refusal as one that does not exist.
  *
- * The identity line is still a fixture: no endpoint returns the signed-in person's profile.
+ * The identity line is left empty (the owner reads "You"): no endpoint returns the signed-in
+ * person's profile yet, and a sample address would mislead.
  */
 export default function FirstProjectPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
@@ -20,7 +20,7 @@ export default function FirstProjectPage({ params }: { params: Promise<{ orgSlug
 
   return (
     <FirstProjectScreen
-      signedInAs={FIXTURE_SIGNED_IN_AS}
+      signedInAs=""
       organizationSlug={orgSlug}
       onCreated={() => router.push(`/${orgSlug}/onboarding/team`)}
     />

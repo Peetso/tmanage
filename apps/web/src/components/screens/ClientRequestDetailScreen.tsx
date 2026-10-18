@@ -17,6 +17,7 @@ import {
   requestStatusMeaning,
 } from '../../lib/client-request-presentation';
 import { Tag } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface ClientRequestDetailScreenProps {
   organizationSlug: string;
@@ -63,10 +64,15 @@ export interface ClientRequestDetailScreenProps {
 export function ClientRequestDetailScreen({
   organizationSlug,
   requestId,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
 }: ClientRequestDetailScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 

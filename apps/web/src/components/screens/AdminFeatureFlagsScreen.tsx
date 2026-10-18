@@ -16,6 +16,7 @@ import type {
 } from '../../lib/api/admin-feature-flags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useOrganizationName } from '../../lib/use-organization-names';
 
 export interface AdminFeatureFlagsScreenProps {
   organizationSlug: string;
@@ -47,9 +48,10 @@ const FLAG_LABELS: Record<OptionalModuleFlag, string> = {
  */
 export function AdminFeatureFlagsScreen({
   organizationSlug,
-  organizationName,
+  organizationName: passedOrganizationName,
   client,
 }: AdminFeatureFlagsScreenProps) {
+  const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['admin-feature-flags', organizationSlug];

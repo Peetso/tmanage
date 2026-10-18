@@ -93,8 +93,8 @@ function request(overrides: Record<string, unknown> = {}) {
 
 const NAMES = {
   organizationSlug: 'northstar',
-  clientName: 'Atlas Hospitality',
-  providerName: 'Northstar Studio',
+  clientName: 'Atlas Hotels',
+  providerName: 'Harbour Studio',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -233,7 +233,7 @@ describe('CL-09 the new request form', () => {
     const named = await screen.findAllByText('Atlas Website Relaunch');
     expect(named.length).toBeGreaterThan(0);
     expect(
-      screen.getByText(/The only project Northstar Studio has shared with you/),
+      screen.getByText(/The only project Harbour Studio has shared with you/),
     ).toBeInTheDocument();
   });
 
@@ -314,7 +314,7 @@ describe('CL-10 the request detail', () => {
     // renders in the runner's locale and a test pinned to one wording would be testing Node.
     expect(await screen.findByText('You asked for')).toBeInTheDocument();
     expect(screen.getByText(/^Asked for \S/)).toBeInTheDocument();
-    expect(screen.getByText('Northstar Studio agreed')).toBeInTheDocument();
+    expect(screen.getByText('Harbour Studio agreed')).toBeInTheDocument();
     expect(screen.getByText(/^Agreed for \S/)).toBeInTheDocument();
   });
 

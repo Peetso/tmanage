@@ -15,6 +15,7 @@ import type { PortalDeliverable, PortalDeliverableFile, PortalProject } from '..
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { Segmented, shortDay, Tag } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface ClientPortalDeliverablesScreenProps {
   organizationSlug: string;
@@ -41,10 +42,15 @@ type Filter = 'all' | 'open' | 'final';
 
 export function ClientPortalDeliverablesScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
 }: ClientPortalDeliverablesScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
   const [filter, setFilter] = useState<Filter>('all');
 

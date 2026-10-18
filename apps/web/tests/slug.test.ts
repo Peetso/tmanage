@@ -87,6 +87,6 @@ describe('describeSlugProblems', () => {
   it('joins one sentence per problem', () => {
     const sentence = describeSlugProblems(['invalid-characters', 'edge-hyphen']);
     expect(sentence).toContain('lowercase letters');
-    expect(sentence).toContain('hyphen');
+    expect(sentence).toContain('dash');
   });
 });

@@ -9,6 +9,7 @@ import { listClientMessages, postClientMessage } from '../../lib/api/portal';
 import type { ClientMessage } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface PortalClientMessagesScreenProps {
   organizationSlug: string;
@@ -28,10 +29,15 @@ export interface PortalClientMessagesScreenProps {
  */
 export function PortalClientMessagesScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
 }: PortalClientMessagesScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 

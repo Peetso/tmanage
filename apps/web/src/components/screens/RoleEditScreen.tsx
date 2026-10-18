@@ -108,39 +108,38 @@ export function RoleEditScreen({
   const renamed = current !== undefined && name.trim() !== current.name;
   const changeCount = granted.length + removed.length + (renamed ? 1 : 0);
 
+  // Drawn by ControlCenterShell inside the section map, under its groups.
   const rail = (
-    <div className="tm-cc-sections">
-      <div>
-        <p className="tm-cc-sections__label" id="tm-role-edit-list">
-          Roles
-        </p>
-        {rows.length > 0 ? (
-          <ul className="tm-cc-sections__group" aria-labelledby="tm-role-edit-list">
-            {rows.map((role) => (
-              <li key={role.id}>
-                <button
-                  type="button"
-                  className="tm-cc-sections__item"
-                  aria-pressed={role.id === selectedId}
-                  onClick={() => {
-                    setSaved(false);
-                    setCloned(false);
-                    setSelectedId(role.id);
-                  }}
-                >
-                  {role.name}
-                </button>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <Link
-          href={`/${organizationSlug}/admin/roles`}
-          className="tm-cc-sections__item tm-cc-sections__new"
-        >
-          New role
-        </Link>
-      </div>
+    <div>
+      <p className="tm-cc-sections__label" id="tm-role-edit-list">
+        Roles
+      </p>
+      {rows.length > 0 ? (
+        <ul className="tm-cc-sections__group" aria-labelledby="tm-role-edit-list">
+          {rows.map((role) => (
+            <li key={role.id}>
+              <button
+                type="button"
+                className="tm-cc-sections__item"
+                aria-pressed={role.id === selectedId}
+                onClick={() => {
+                  setSaved(false);
+                  setCloned(false);
+                  setSelectedId(role.id);
+                }}
+              >
+                {role.name}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <Link
+        href={`/${organizationSlug}/admin/roles`}
+        className="tm-cc-sections__item tm-cc-sections__new"
+      >
+        New role
+      </Link>
     </div>
   );
 

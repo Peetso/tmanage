@@ -3,7 +3,6 @@
 import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { OperatingTemplateScreen } from '../../../../components/screens/OperatingTemplateScreen';
-import { FIXTURE_SIGNED_IN_AS } from '../../../../lib/fixtures';
 
 /**
  * **ON-02 Choose operating template.**
@@ -21,7 +20,7 @@ export default function OperatingTemplatePage({
   const router = useRouter();
   return (
     <OperatingTemplateScreen
-      signedInAs={FIXTURE_SIGNED_IN_AS}
+      signedInAs=""
       organizationSlug={orgSlug}
       onContinue={() => router.push(`/${orgSlug}/onboarding/project`)}
     />

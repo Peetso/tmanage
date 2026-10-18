@@ -7,6 +7,7 @@ import { WORK_ITEM_STATES } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useCanCreateProjects } from '../projects/NewProjectLink';
 import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
@@ -93,6 +94,7 @@ export function WorkListScreen({
   now = new Date(),
 }: WorkListScreenProps) {
   const api = client ?? browserApiClient();
+  const canCreateProjects = useCanCreateProjects(organizationSlug, client);
   const queries = useQueryClient();
 
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
@@ -283,7 +285,10 @@ export function WorkListScreen({
             <Link href={`/${organizationSlug}/work/calendar`}>Calendar</Link>
             <Link href={`/${organizationSlug}/work/workload`}>Workload</Link>
           </nav>
-          <Link href={`/${organizationSlug}/capture`} className="tm-wk-new">
+          <Link
+            href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
+            className="tm-wk-new"
+          >
             <span className="tm-wk-new__orb" aria-hidden="true">
               +
             </span>
@@ -334,6 +339,13 @@ export function WorkListScreen({
                   </button>
                 </li>
               ))}
+              {canCreateProjects ? (
+                <li>
+                  <Link className="tm-wk-rail__item" href={`/${organizationSlug}/projects/new`}>
+                    <span className="tm-wk-rail__text">+ New project</span>
+                  </Link>
+                </li>
+              ) : null}
             </ul>
           </div>
 

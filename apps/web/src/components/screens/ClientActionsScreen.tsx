@@ -12,6 +12,7 @@ import { isWaitingOnClient } from '../../lib/client-request-presentation';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { isPast, longDay, Segmented, shortDay, Tag } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface ClientActionsScreenProps {
   organizationSlug: string;
@@ -46,11 +47,16 @@ type View = 'needs' | 'studio' | 'done';
  */
 export function ClientActionsScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
   now = new Date(),
 }: ClientActionsScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
   const [view, setView] = useState<View>('needs');
 

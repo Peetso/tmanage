@@ -15,6 +15,8 @@ import {
   describeSlugProblems,
   slugProblems,
   slugify,
+  WORKSPACE_LINK_LABEL,
+  workspaceLinkHint,
 } from '../../lib/slug';
 import { useHydrated } from '../../lib/use-hydrated';
 import '../../styles/screens/identity.css';
@@ -164,7 +166,7 @@ export function FirstOwnerSetupScreen({
       return;
     }
     if (localSlugError !== undefined || effectiveSlug === '') {
-      setFailure('Fix the workspace address first.');
+      setFailure('Fix the workspace web link first.');
       return;
     }
 
@@ -335,7 +337,7 @@ export function FirstOwnerSetupScreen({
               {...errorProp(fieldErrors.organizationName)}
             />
             <Field
-              label="Workspace address"
+              label={WORKSPACE_LINK_LABEL}
               name="slug"
               maxLength={MAX_SLUG_LENGTH}
               value={effectiveSlug}
@@ -346,7 +348,7 @@ export function FirstOwnerSetupScreen({
               }}
               dir="ltr"
               spellCheck={false}
-              hint="Lowercase letters, numbers and hyphens. It appears in every link to this organization."
+              hint={workspaceLinkHint(hydrated ? window.location.host : '', effectiveSlug)}
               {...errorProp(slugError)}
             />
 

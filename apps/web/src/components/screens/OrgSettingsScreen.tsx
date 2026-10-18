@@ -9,6 +9,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { readOrgSettings, setOrgSetting } from '../../lib/api/org-settings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useOrganizationName } from '../../lib/use-organization-names';
 
 export interface OrgSettingsScreenProps {
   organizationSlug: string;
@@ -55,9 +56,10 @@ const LABELS: Readonly<Record<string, { label: string; hint: string }>> = {
  */
 export function OrgSettingsScreen({
   organizationSlug,
-  organizationName,
+  organizationName: passedOrganizationName,
   client,
 }: OrgSettingsScreenProps) {
+  const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 

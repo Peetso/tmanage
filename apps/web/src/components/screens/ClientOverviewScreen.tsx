@@ -27,6 +27,7 @@ import { isWaitingOnClient, requestStatusLabel } from '../../lib/client-request-
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { Avatar, daysUntil, humanize, isPast, longDay, shortDay } from './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface ClientOverviewScreenProps {
   organizationSlug: string;
@@ -60,11 +61,16 @@ export interface ClientOverviewScreenProps {
  */
 export function ClientOverviewScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
   now = new Date(),
 }: ClientOverviewScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
 
   const projects = useQuery({

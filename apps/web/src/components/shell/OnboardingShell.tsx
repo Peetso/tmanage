@@ -60,7 +60,10 @@ export function OnboardingShell({
 
         <header className="tm-onboarding__header">
           <Wordmark />
-          <p className="tm-onboarding__identity tm-mono">Signed in as {signedInAs}</p>
+          {/* Empty until an endpoint returns the signed-in person's own address; never a sample one. */}
+          {signedInAs ? (
+            <p className="tm-onboarding__identity tm-mono">Signed in as {signedInAs}</p>
+          ) : null}
         </header>
 
         <div className="tm-onboarding__body">

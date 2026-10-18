@@ -2,11 +2,6 @@
 
 import { use } from 'react';
 import { InviteTeamScreen } from '../../../../components/screens/InviteTeamScreen';
-import {
-  FIXTURE_EXISTING_MEMBERS,
-  FIXTURE_ORGANIZATION_DOMAIN,
-  FIXTURE_SIGNED_IN_AS,
-} from '../../../../lib/fixtures';
 
 /**
  * **ON-04 Invite internal team.**
@@ -15,21 +10,20 @@ import {
  * slug is used rather than merely awaited: the screen posts to
  * `/v1/organizations/:slug/invitations`.
  *
- * Two fixtures remain, and both are the same gap `ON-03`'s owner field records. There is no
- * endpoint that lists the people in an organization, so the duplicate check runs against an
- * invented list, and none that returns the organization's own mail domain, so the
- * outside-domain check compares against an invented one. Both checks are advisory in the
- * browser and neither decides anything: the API refuses a duplicate on its own, with a 409.
+ * No endpoint lists the people in an organization or returns its own mail domain, so the
+ * browser-side duplicate and outside-domain checks have nothing to compare against and stay
+ * off (they used the design's sample company before, which warned real owners about their own
+ * colleagues). Neither decides anything: the API refuses a duplicate on its own, with a 409.
  */
 export default function InviteTeamPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
 
   return (
     <InviteTeamScreen
-      signedInAs={FIXTURE_SIGNED_IN_AS}
+      signedInAs=""
       organizationSlug={orgSlug}
-      organizationDomain={FIXTURE_ORGANIZATION_DOMAIN}
-      existingMembers={FIXTURE_EXISTING_MEMBERS}
+      organizationDomain=""
+      existingMembers={[]}
     />
   );
 }

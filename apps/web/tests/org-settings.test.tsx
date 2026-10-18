@@ -50,7 +50,7 @@ describe('OrgSettingsScreen — Administration settings (x153)', () => {
       withQuery(
         <OrgSettingsScreen
           organizationSlug="northstar-studio"
-          organizationName="Northstar Studio"
+          organizationName="Harbour Studio"
           client={settingsClient()}
         />,
       ),

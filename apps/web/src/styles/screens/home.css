@@ -739,6 +739,14 @@
   font-weight: 500;
 }
 
+/* No project yet: the explanation, then the way out of it. */
+.tm-capture__no-project {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
 .tm-capture__chips {
   display: flex;
   flex-wrap: wrap;

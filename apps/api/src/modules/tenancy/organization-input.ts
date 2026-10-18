@@ -156,14 +156,14 @@ export function validateOrganizationInput(
  * "available" for an address the create route would then refuse.
  */
 export function slugProblem(slug: string): string | undefined {
-  if (slug === '') return 'A workspace address is required.';
+  if (slug === '') return 'Enter a web link for your workspace.';
   if (slug.length > MAX_SLUG_LENGTH) {
-    return `Keep the workspace address to ${MAX_SLUG_LENGTH} characters.`;
+    return `Keep the web link to ${MAX_SLUG_LENGTH} characters.`;
   }
   if (!SLUG_PATTERN.test(slug)) {
-    return 'Use lowercase letters, numbers and single hyphens between them.';
+    return 'Use lowercase letters, numbers and single dashes between them.';
   }
-  if (RESERVED_SLUGS.has(slug)) return 'That workspace address is reserved.';
+  if (RESERVED_SLUGS.has(slug)) return 'That web link is reserved. Choose a different one.';
   return undefined;
 }
 

@@ -1,7 +1,7 @@
 /**
- * The workspace address a new organization gets.
+ * The workspace web link (slug) a new organization gets.
  *
- * `ON-01` shows it as `northstar` `.tmanage.app`, derived from the organization name while
+ * `ON-01` shows it as `<host>/northstar`, derived from the organization name while
  * the person types. The derivation is here, not in the screen, because it has to agree with
  * what the server will accept: `organizations.slug` is the tenant identifier that
  * `MembershipResolver` resolves and that appears in every URL.
@@ -66,11 +66,25 @@ export function slugProblems(slug: string): readonly SlugProblem[] {
 export function describeSlugProblems(problems: readonly SlugProblem[]): string | undefined {
   if (problems.length === 0) return undefined;
   const sentences: string[] = [];
-  if (problems.includes('empty')) sentences.push('Enter a workspace address.');
+  if (problems.includes('empty')) sentences.push('Enter a web link for your workspace.');
   if (problems.includes('invalid-characters'))
-    sentences.push('Use lowercase letters, numbers and hyphens only.');
-  if (problems.includes('edge-hyphen')) sentences.push('It cannot start or end with a hyphen.');
+    sentences.push('Use lowercase letters, numbers and dashes only.');
+  if (problems.includes('edge-hyphen')) sentences.push('It cannot start or end with a dash.');
   if (problems.includes('too-long'))
     sentences.push(`Keep it to ${MAX_SLUG_LENGTH} characters or fewer.`);
   return sentences.join(' ');
+}
+
+/**
+ * What the slug field is called on screen. "Workspace address" was read as a street address, and
+ * the old `.tmanage.app` suffix was not where the app is served: an organization lives at
+ * `<this site>/<slug>` (the `[orgSlug]` route). So the field is a web link, shown with the real host.
+ */
+export const WORKSPACE_LINK_LABEL = 'Workspace web link';
+
+/** The helper under the web-link field. `host` is empty until the page has hydrated. */
+export function workspaceLinkHint(host: string, slug: string): string {
+  const rules = 'Lowercase letters, numbers and dashes only.';
+  if (host === '') return rules;
+  return `Your team opens TManage at ${host}/${slug === '' ? 'your-link' : slug}. ${rules}`;
 }

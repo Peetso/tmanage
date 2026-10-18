@@ -88,8 +88,8 @@ function renderOverview(items: readonly unknown[], projects: readonly unknown[] 
     withQuery(
       <ClientOverviewScreen
         organizationSlug="northstar"
-        clientName="Atlas Hospitality"
-        providerName="Northstar Studio"
+        clientName="Atlas Hotels"
+        providerName="Harbour Studio"
         client={portal(items, projects)}
         now={NOW}
       />,
@@ -102,8 +102,8 @@ function renderActions(items: readonly unknown[]) {
     withQuery(
       <ClientActionsScreen
         organizationSlug="northstar"
-        clientName="Atlas Hospitality"
-        providerName="Northstar Studio"
+        clientName="Atlas Hotels"
+        providerName="Harbour Studio"
         client={portal(items)}
         now={NOW}
       />,
@@ -180,7 +180,7 @@ describe('CL-01 the client overview', () => {
     renderOverview([item()]);
 
     await screen.findByText(/Nothing needs you right now/);
-    expect(screen.getAllByText(/Atlas Hospitality/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Atlas Hotels/).length).toBeGreaterThan(0);
   });
 
   it('has no axe violations', async () => {

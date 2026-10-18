@@ -113,7 +113,7 @@ export class OrganizationsController {
           slug,
           available: false,
           reason: 'taken',
-          message: 'That workspace address is already in use.',
+          message: 'That web link is already taken.',
         }
       : { slug, available: true, reason: null, message: null };
   }
@@ -205,8 +205,8 @@ export class OrganizationsController {
         // authenticated and because the fact is public anyway — anyone can visit the URL. It
         // is also necessary: a person cannot choose a different address without being told
         // that this one is gone.
-        throw new ApiError(409, 'conflict', 'That workspace address is already in use', [
-          { field: 'slug', message: 'Choose a different workspace address.' },
+        throw new ApiError(409, 'conflict', 'That web link is already taken', [
+          { field: 'slug', message: 'That web link is taken. Choose a different one.' },
         ]);
       }
       throw error;

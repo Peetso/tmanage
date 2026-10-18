@@ -208,7 +208,9 @@ export function InviteTeamScreen({
                   }}
                   dir="ltr"
                   autoComplete="off"
-                  placeholder={`name@${organizationDomain}`}
+                  placeholder={
+                    organizationDomain ? `name@${organizationDomain}` : 'name@company.com'
+                  }
                   aria-invalid={draftError === undefined ? undefined : true}
                   aria-describedby={draftError === undefined ? undefined : 'tm-invite-email-error'}
                 />

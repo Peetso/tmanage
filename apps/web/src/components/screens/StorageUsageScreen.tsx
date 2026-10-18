@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { ControlCenterSections } from '../admin/ControlCenterShell';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchOrganizationUsage } from '../../lib/api/usage';
@@ -72,6 +73,7 @@ export function StorageUsageScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
+      contextRail={<ControlCenterSections organizationSlug={organizationSlug} section="billing" />}
       eyebrow="Control center · Billing"
       title="Plan and usage"
       actions={

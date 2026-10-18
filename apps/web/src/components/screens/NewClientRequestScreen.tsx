@@ -12,6 +12,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { formatDay } from '../../lib/client-request-presentation';
 import './PortalParts';
+import { usePortalNames } from '../../lib/use-organization-names';
 
 export interface NewClientRequestScreenProps {
   organizationSlug: string;
@@ -67,11 +68,16 @@ export interface NewClientRequestScreenProps {
  */
 export function NewClientRequestScreen({
   organizationSlug,
-  clientName,
-  providerName,
+  clientName: passedClientName,
+  providerName: passedProviderName,
   client,
   onSubmitted,
 }: NewClientRequestScreenProps) {
+  const { clientName, providerName } = usePortalNames(
+    organizationSlug,
+    passedClientName,
+    passedProviderName,
+  );
   const api = client ?? browserApiClient();
 
   const [title, setTitle] = useState('');

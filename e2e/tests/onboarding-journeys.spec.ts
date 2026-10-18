@@ -75,7 +75,7 @@ test.describe.serial('the onboarding journeys', () => {
     // the proof the founder's owner membership resolved on the very next request.
     await founder.page.goto('/onboarding/organization');
     await founder.page.getByLabel('Organization name').fill(ORG_NAME);
-    await expect(founder.page.getByLabel('Workspace address')).toHaveValue(ORG_SLUG);
+    await expect(founder.page.getByLabel('Workspace web link')).toHaveValue(ORG_SLUG);
     await founder.page.getByRole('button', { name: 'Create organization' }).click();
     await founder.page.waitForURL(`**/${ORG_SLUG}/onboarding/template`);
 
