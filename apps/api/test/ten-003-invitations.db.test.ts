@@ -678,3 +678,93 @@ describe('revoking, re-issuing and expiring', () => {
     expect(response.body).not.toContain(world.northstar.organizationId);
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 2026-10-18 walkthrough findings, against a real MariaDB.
+
+describe('ACC-04 — accepting as an account that is already a member', () => {
+  it('answers 409 "already a member" instead of a 500, and leaves the invitation pending', async () => {
+    const session = await signIn(owner().id);
+    const { invitation, token } = await issue(session);
+
+    // The owner opens the link in their own browser and presses Accept.
+    const response = await accept(session, token);
+
+    expect(response.statusCode).toBe(409);
+    expect(response.json<{ error: { details: unknown[] } }>().error.details).toEqual([
+      { field: 'token', message: 'already_member' },
+    ]);
+    const rows = await observe('select status from invitations where id = ?', [invitation.id]);
+    expect(rows[0]!['status']).toBe('pending');
+  });
+});
+
+describe('ACC-01 — a brand-new invitee creates an account from the invitation', () => {
+  const register = (payload: Record<string, unknown>) =>
+    app.inject({
+      method: 'POST',
+      url: '/v1/invitations/registrations',
+      headers: { 'content-type': 'application/json' },
+      payload,
+    }) as unknown as Promise<InjectedResponse>;
+
+  it('previews hasAccount=false, then registers, joins and signs in — with the invited address', async () => {
+    const { token } = await issue(await signIn(owner().id));
+
+    const preview = (await app.inject({
+      method: 'POST',
+      url: '/v1/invitations/previews',
+      headers: { 'content-type': 'application/json' },
+      payload: { token },
+    })) as unknown as InjectedResponse;
+    expect(preview.json()).toMatchObject({
+      inviteeEmail: 'nadia.fahmy@example.test',
+      hasAccount: false,
+    });
+
+    const response = await register({
+      token,
+      displayName: 'Nadia Fahmy',
+      password: 'violet-harbour-lantern-41',
+      email: 'someone.else@example.test',
+    });
+    expect(response.statusCode).toBe(201);
+    expect(setCookies(response).length).toBeGreaterThan(0);
+
+    const users = await observe('select id, email from users where email = ?', [
+      'nadia.fahmy@example.test',
+    ]);
+    expect(users).toHaveLength(1);
+    expect(
+      await observe('select id from users where email = ?', ['someone.else@example.test']),
+    ).toHaveLength(0);
+    const members = await observe(
+      'select status from memberships where organization_id = ? and user_id = ?',
+      [world.northstar.organizationId, users[0]!['id']],
+    );
+    expect(members[0]!['status']).toBe('active');
+    expect(guardEvents.filter((event) => event.allowedReason === undefined)).toHaveLength(0);
+
+    // Single use: the same link cannot make a second account.
+    expect(
+      (await register({ token, displayName: 'x', password: 'violet-harbour-lantern-41' }))
+        .statusCode,
+    ).toBe(404);
+  });
+
+  it('refuses to touch an address that already has an account (409)', async () => {
+    const { token } = await issue(await signIn(owner().id), { email: outsider().email });
+
+    const response = await register({
+      token,
+      displayName: 'Takeover',
+      password: 'violet-harbour-lantern-41',
+    });
+    expect(response.statusCode).toBe(409);
+    const memberships = await observe(
+      'select id from memberships where organization_id = ? and user_id = ?',
+      [world.northstar.organizationId, outsider().id],
+    );
+    expect(memberships).toHaveLength(0);
+  });
+});

@@ -8174,6 +8174,7 @@ export const TABLES = {
   file_versions: fileVersions,
   upload_sessions: uploadSessions,
   user_passwords: userPasswords,
+  password_reset_tokens: passwordResetTokens,
   user_mfa_factors: userMfaFactors,
   user_recovery_codes: userRecoveryCodes,
   authentication_events: authenticationEvents,
