@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Module, Param, Post } from '@nestjs/common';
+import { Controller, Get, HttpCode, Inject, Module, Param, Post } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
@@ -67,7 +67,7 @@ export class AdminSessionsController {
   // The controller touches no database directly (ADR-0001 layer 4): it authorizes and delegates
   // every read and write to `AdminSessionsService`, which owns the two-runner bridge. Nest
   // resolves the service from the provider built in the module below; tests inject a fake.
-  constructor(private readonly sessions: AdminSessionsService) {}
+  constructor(@Inject(AdminSessionsService) private readonly sessions: AdminSessionsService) {}
 
   /**
    * The live sessions of every active member of the organization (200). Read tenant-scoped

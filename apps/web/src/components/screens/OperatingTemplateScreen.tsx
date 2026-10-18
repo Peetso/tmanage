@@ -1,23 +1,22 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DELIVERABLE_STATES, WORK_ITEM_STATES } from '@tmanage/domain';
-import { Button } from '@tmanage/ui';
+import { Button, InlineAlert } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { OnboardingScreenStyles } from './CreateOrganizationScreen';
 import { useHydrated } from '../../lib/use-hydrated';
+import { browserApiClient } from '../../lib/api/browser-client';
+import type { ApiClient } from '../../lib/api/client';
+import { ApiRequestError } from '../../lib/api/errors';
+import { readOrgSettings, setOrgSetting } from '../../lib/api/org-settings';
 
 /**
- * The four templates `22-SCREEN-BY-SCREEN` §3 names for ON-02: "Agency delivery, Software
- * studio, Consulting engagement, Blank later."
- *
- * The export's onboarding artboard names the same four differently — "Delivery with client
- * review", "Intake and commitment", "Internal delivery", "Start from empty" — and describes
- * them by what they enforce rather than by who uses them. The specification's names are used
- * because tickets and the traceability matrix cite them; the export's *description* is used,
- * because "6 states · internal review required · client approval binds a version" is what a
- * person actually needs to choose between them. That split follows `40-DESIGN-SYSTEM` §1:
- * the export governs composition, the specification governs behaviour and identifiers.
+ * The four templates of ON-03, named as the approved design names them — "Delivery with client
+ * review", "Intake and commitment", "Internal delivery", "Start from empty" — which describe a
+ * template by what it enforces rather than by who uses it. (`22-SCREEN-BY-SCREEN` §3 calls the
+ * same four "Agency delivery, Software studio, Consulting engagement, Blank later".) The values
+ * are the API's `org_settings.operating_template` values.
  *
  * ## Why the state lists come from `@tmanage/domain`
  *
@@ -28,9 +27,9 @@ import { useHydrated } from '../../lib/use-hydrated';
  */
 const TEMPLATES = [
   {
-    value: 'agency-delivery',
-    name: 'Agency delivery',
-    summary: 'Client work that is reviewed internally, then published for client approval.',
+    value: 'delivery-client-review',
+    name: 'Delivery with client review',
+    summary: 'Internal review required · client approval binds a version',
     /** `true` when the template runs the deliverable machine as well as the work machine. */
     clientReview: true,
     rules: [
@@ -41,19 +40,9 @@ const TEMPLATES = [
     ],
   },
   {
-    value: 'software-studio',
-    name: 'Software studio',
-    summary: 'Continuous delivery against milestones, with internal review but no client gate.',
-    clientReview: false,
-    rules: [
-      'Work cannot reach done before internal review passes.',
-      'Milestones advance on evidence rather than on a date passing.',
-    ],
-  },
-  {
-    value: 'consulting-engagement',
-    name: 'Consulting engagement',
-    summary: 'Requests from the same client, committed per cycle rather than per project.',
+    value: 'intake-commitment',
+    name: 'Intake and commitment',
+    summary: 'Triage step · commitment per cycle',
     clientReview: true,
     rules: [
       'A request is triaged before it becomes committed work.',
@@ -61,9 +50,19 @@ const TEMPLATES = [
     ],
   },
   {
-    value: 'blank',
-    name: 'Blank later',
-    summary: 'Define your own states in the Control Center once you have run a project.',
+    value: 'internal-delivery',
+    name: 'Internal delivery',
+    summary: 'No publication step',
+    clientReview: false,
+    rules: [
+      'Work cannot reach done before internal review passes.',
+      'Milestones advance on evidence rather than on a date passing.',
+    ],
+  },
+  {
+    value: 'empty',
+    name: 'Start from empty',
+    summary: 'Define your own states later in Control Center',
     clientReview: false,
     rules: ['Nothing is enforced until you define it.'],
   },
@@ -71,6 +70,10 @@ const TEMPLATES = [
 
 export interface OperatingTemplateScreenProps {
   signedInAs: string;
+  /** The organization the template is saved to. */
+  organizationSlug: string;
+  /** Injected in tests. Defaults to the browser client. */
+  client?: ApiClient;
   /** Moves on to the next step of the sequence. */
   onContinue?: () => void;
 }
@@ -90,17 +93,63 @@ export interface OperatingTemplateScreenProps {
  * workflow preview in a white sheet beside them — the states as a row of capsules joined by
  * arrows, the rules as a numbered list on ink discs.
  *
- * The choice is not stored: templates are part of `TEN-001`'s unbuilt provisioning, and every
- * project runs the machines previewed here whichever card is chosen. "Use this template"
- * therefore only moves the sequence on.
+ * The choice is stored as the organization's `operating_template` setting. The card starts on
+ * the template created with the organization (from ON-01's work type); "Use this template"
+ * saves the chosen one, then moves the sequence on.
  */
-export function OperatingTemplateScreen({ signedInAs, onContinue }: OperatingTemplateScreenProps) {
+export function OperatingTemplateScreen({
+  signedInAs,
+  organizationSlug,
+  client,
+  onContinue,
+}: OperatingTemplateScreenProps) {
+  const api = client ?? browserApiClient();
   // The template radios are controlled inputs in the server HTML with no query behind them, so a
   // choice made on a cold page would be re-applied to the default by hydration. The picker is
   // disabled until React is live: `false` in the server render, `true` on the first client render.
   const hydrated = useHydrated();
 
   const [chosen, setChosen] = useState<string>(TEMPLATES[0].value);
+  const touched = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
+
+  // Start on the template already saved. A failed read leaves the default chosen: saving still
+  // works, and the save is what reports a refusal.
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const view = await readOrgSettings(api, organizationSlug);
+        const saved = view.settings.find((entry) => entry.key === 'operating_template')?.value;
+        if (live && !touched.current && TEMPLATES.some((option) => option.value === saved)) {
+          setChosen(saved as string);
+        }
+      } catch {
+        // Keep the default; the save reports any refusal.
+      }
+    })();
+    return () => {
+      live = false;
+    };
+    // Read once per organization; `api` is a fresh client per render when none is injected.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [organizationSlug]);
+
+  async function saveTemplate() {
+    setFailure(undefined);
+    setSaving(true);
+    try {
+      await setOrgSetting(api, organizationSlug, 'operating_template', chosen);
+      onContinue?.();
+    } catch (error) {
+      setFailure(
+        error instanceof ApiRequestError ? error.message : 'The template could not be saved.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
   const template = TEMPLATES.find((candidate) => candidate.value === chosen) ?? TEMPLATES[0];
 
   return (
@@ -120,14 +169,17 @@ export function OperatingTemplateScreen({ signedInAs, onContinue }: OperatingTem
             <label
               key={option.value}
               className="tm-ob-tcard"
-              data-blank={option.value === 'blank' ? 'true' : undefined}
+              data-blank={option.value === 'empty' ? 'true' : undefined}
             >
               <input
                 type="radio"
                 name="template"
                 value={option.value}
                 checked={chosen === option.value}
-                onChange={() => setChosen(option.value)}
+                onChange={() => {
+                  touched.current = true;
+                  setChosen(option.value);
+                }}
               />
               <span className="tm-ob-tcard__name">{option.name}</span>
               <span className="tm-ob-tcard__detail">{option.summary}</span>
@@ -204,8 +256,21 @@ export function OperatingTemplateScreen({ signedInAs, onContinue }: OperatingTem
             ))}
           </ol>
 
+          {failure ? (
+            <InlineAlert tone="danger" title="Could not save the template" live>
+              {failure}
+            </InlineAlert>
+          ) : null}
+
           <div className="tm-ob-actions">
-            <Button tone="ink" size="feature" disabled={!hydrated} onClick={onContinue}>
+            <Button
+              tone="ink"
+              size="feature"
+              disabled={!hydrated}
+              loading={saving}
+              loadingLabel="Saving"
+              onClick={() => void saveTemplate()}
+            >
               Use this template
             </Button>
           </div>

@@ -65,6 +65,39 @@ export interface MessageRevisionSummary {
  */
 export const MAX_MESSAGE_PAGE = 200;
 
+/** One avatar in a channel row — the viewer and internal members first, clients last. */
+export interface ChannelMemberPreview {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly isClient: boolean;
+}
+
+/** A channel browser row (CH-01): the conversation plus who is in it and when it last moved. */
+export interface ChannelDirectoryEntry extends ConversationSummary {
+  /** The newest message, or the creation time for a channel nobody has written in yet. */
+  readonly lastActivityAt: string;
+  readonly memberCount: number;
+  /** Members with a live client membership; above zero means the channel is client shared. */
+  readonly clientMemberCount: number;
+  /** Whether the viewer is a member — "joined" and the "My channels" filter. */
+  readonly joined: boolean;
+  readonly memberPreview: readonly ChannelMemberPreview[];
+}
+
+/**
+ * Every channel the caller may reach, archived included, newest activity first. The browser
+ * filters (all / mine / client shared / archived) are views of this one answer.
+ */
+export async function listChannelDirectory(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<readonly ChannelDirectoryEntry[]> {
+  const { data } = await client.request<{ channels: readonly ChannelDirectoryEntry[] }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/conversations/directory`,
+  });
+  return data.channels;
+}
+
 export async function listConversations(
   client: ApiClient,
   organizationSlug: string,

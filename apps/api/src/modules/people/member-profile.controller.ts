@@ -71,7 +71,7 @@ interface MemberProfileBody {
 export class MemberProfileController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly profiles: MemberProfileRepository,
+    @Inject(MemberProfileRepository) private readonly profiles: MemberProfileRepository,
   ) {}
 
   /**

@@ -393,30 +393,45 @@ export function automationSchedulesClient(): ApiClient {
 
 /* ------------------------------------------------------------------ People directory */
 
-const PEOPLE: readonly PersonSummary[] = [
-  { userId: 'u-ava', displayName: 'Ava Romero', role: 'owner', status: 'active', projectCount: 4 },
-  {
-    userId: 'u-liam',
-    displayName: 'Liam Osei',
-    role: 'manager',
-    status: 'active',
-    projectCount: 2,
-  },
-  {
-    userId: 'u-noa',
-    displayName: 'Noa Feldman',
-    role: 'member',
-    status: 'active',
-    projectCount: 1,
-  },
-  {
-    userId: 'u-sana',
-    displayName: 'Sana Qureshi',
-    role: 'member',
-    status: 'active',
-    projectCount: 0,
-  },
-];
+const PERSON_DEFAULTS = {
+  teams: [],
+  openCommitments: 0,
+  overdueCommitments: 0,
+  declared: null,
+} as const;
+
+const PEOPLE: readonly PersonSummary[] = (
+  [
+    {
+      userId: 'u-ava',
+      displayName: 'Ava Romero',
+      role: 'owner',
+      status: 'active',
+      projectCount: 4,
+    },
+    {
+      userId: 'u-liam',
+      displayName: 'Liam Osei',
+      role: 'manager',
+      status: 'active',
+      projectCount: 2,
+    },
+    {
+      userId: 'u-noa',
+      displayName: 'Noa Feldman',
+      role: 'member',
+      status: 'active',
+      projectCount: 1,
+    },
+    {
+      userId: 'u-sana',
+      displayName: 'Sana Qureshi',
+      role: 'member',
+      status: 'active',
+      projectCount: 0,
+    },
+  ] as const
+).map((person) => ({ ...person, membershipId: `m-${person.userId}`, ...PERSON_DEFAULTS }));
 
 /** The organization roster the directory lists; the search starts empty, so all rows show. */
 export function peopleClient(): ApiClient {

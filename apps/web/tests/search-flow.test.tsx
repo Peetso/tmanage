@@ -48,14 +48,40 @@ function withQuery(children: ReactNode) {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
+const AT = '2026-10-13T16:20:00.000Z';
 const RESULTS = [
-  { kind: 'work_item', id: 'w1', title: 'Alpha task', projectId: 'p1', snippet: null },
-  { kind: 'document', id: 'd1', title: 'Alpha brief', projectId: 'p1', snippet: null },
-  { kind: 'meeting', id: 'm1', title: 'Alpha sync', projectId: 'p1', snippet: null },
+  {
+    kind: 'work_item',
+    id: 'w1',
+    title: 'Alpha task',
+    projectId: 'p1',
+    snippet: null,
+    audience: 'client_visible',
+    updatedAt: AT,
+  },
+  {
+    kind: 'document',
+    id: 'd1',
+    title: 'Alpha brief',
+    projectId: 'p1',
+    snippet: null,
+    audience: 'internal',
+    updatedAt: AT,
+  },
+  {
+    kind: 'meeting',
+    id: 'm1',
+    title: 'Alpha sync',
+    projectId: 'p1',
+    snippet: null,
+    audience: 'internal',
+    updatedAt: AT,
+  },
 ];
 
-function screenOver(results: unknown, initialQuery?: string) {
+function screenOver(results: unknown, initialQuery?: string, urls: string[] = []) {
   const client = clientOver((call) => {
+    urls.push(call.url);
     if (call.url.includes('/search')) return json({ results });
     return json({}, 404);
   });
@@ -116,5 +142,31 @@ describe('SearchScreen', () => {
       expect(screen.getByRole('list', { name: /search results/i })).toBeInTheDocument(),
     );
     expect(screen.getByRole('link', { name: 'Alpha task' })).toBeInTheDocument();
+  });
+
+  it('re-runs the search with the AUDIENCE and TIME facets as server filters', async () => {
+    const user = userEvent.setup();
+    const urls: string[] = [];
+    render(screenOver(RESULTS, 'alpha', urls));
+    await screen.findByRole('list', { name: /search results/i });
+    expect(screen.getAllByTestId('search-hit-audience')[0]).toHaveTextContent('client visible');
+    // Every audience ticked and all time: neither filter is sent.
+    expect(urls.at(-1)).not.toMatch(/audience=|since=/);
+
+    await user.click(screen.getByRole('checkbox', { name: /internal only/i }));
+    await user.click(screen.getByRole('button', { name: '7 days' }));
+    await waitFor(() =>
+      expect(urls.at(-1)).toContain('audience=client_visible%2Cclient_action_required'),
+    );
+    expect(urls.at(-1)).toContain('since=7d');
+
+    // No audience ticked: nothing is fetched and the screen says why.
+    const before = urls.length;
+    await user.click(screen.getByRole('checkbox', { name: /client visible/i }));
+    await user.click(screen.getByRole('checkbox', { name: /client action required/i }));
+    expect(await screen.findByText(/no audience selected/i)).toBeInTheDocument();
+    expect(urls.filter((url) => url.includes('/search')).length).toBe(
+      urls.slice(0, before).filter((url) => url.includes('/search')).length + 1,
+    );
   });
 });

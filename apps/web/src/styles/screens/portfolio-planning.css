@@ -1,0 +1,443 @@
+/*
+ * POR-02 (portfolio timeline) and POR-03 (portfolio capacity) from
+ * `TManage Screens - Projects Portfolio Objectives.dc.html`. Sizes without a token (the 190px name
+ * column, the 14px bars, the 24px met dot, the 88/58px capacity columns) are the frames' own numbers.
+ */
+
+.tm-por-plan {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 3fr);
+  gap: 28px;
+  margin-block-start: var(--s5);
+}
+
+.tm-por-plan__panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  min-inline-size: 0;
+}
+
+.tm-por-plan__head {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.tm-por-plan__eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-por-plan__title {
+  margin: 0;
+  font-size: 26px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink-950);
+}
+
+/* ── POR-02 · timeline ─────────────────────────────────────────────────────────── */
+
+.tm-por-tl__range {
+  margin: 0 0 0 auto;
+  padding-block-end: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+.tm-por-tl {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-block-size: 380px;
+  overflow: hidden;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-por-tl__grid {
+  display: grid;
+  grid-template-columns: 190px repeat(4, minmax(0, 1fr));
+  align-items: center;
+}
+
+.tm-por-tl__months {
+  block-size: 32px;
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 32px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-por-tl__month {
+  padding-inline-start: 10px;
+  border-inline-start: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-por-tl__name {
+  overflow: hidden;
+  padding-inline: var(--s4);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-por-tl__rows {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-por-tl__row {
+  block-size: 52px;
+  border-block-end: var(--b-quiet) solid var(--paper-150);
+}
+
+.tm-por-tl__row:last-child {
+  border-block-end: 0;
+}
+
+.tm-por-tl__row .tm-por-tl__name {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-por-tl__track {
+  position: relative;
+  grid-column: 2 / -1;
+  block-size: 52px;
+}
+
+.tm-por-tl__bar {
+  position: absolute;
+  inset-block-start: 19px;
+  block-size: 14px;
+  box-sizing: border-box;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-por-tl__track[data-variant='slipped'] .tm-por-tl__bar {
+  border: 1.5px solid var(--danger-600);
+  background: var(--paper-0);
+}
+
+.tm-por-tl__track[data-variant='future'] .tm-por-tl__bar {
+  border: var(--b-quiet) dashed var(--line-300);
+  background: var(--paper-50);
+}
+
+.tm-por-tl__met {
+  position: absolute;
+  inset-block-start: 14px;
+  inline-size: 24px;
+  block-size: 24px;
+  box-sizing: border-box;
+  border: 2px solid var(--ink-950);
+  border-radius: var(--r-capsule);
+  margin-inline-start: -12px;
+  background: var(--lime-500);
+}
+
+.tm-por-tl__chip {
+  position: absolute;
+  inset-block-start: 16px;
+  display: flex;
+  align-items: center;
+  block-size: 20px;
+  box-sizing: border-box;
+  padding-inline: 10px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  font-size: 10px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.tm-por-tl__chip-label {
+  overflow: hidden;
+  max-inline-size: 132px;
+  margin-inline-end: 0.35em;
+  text-overflow: ellipsis;
+}
+
+.tm-por-tl__track[data-variant='client'] .tm-por-tl__chip {
+  border: 1.5px solid var(--ink-950);
+  background: var(--paper-0);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-por-tl__track[data-variant='slipped'] .tm-por-tl__chip {
+  border: 1.5px solid var(--danger-600);
+  background: var(--paper-0);
+  font-weight: 600;
+  color: var(--danger-600);
+}
+
+.tm-por-tl__track[data-variant='future'] .tm-por-tl__chip {
+  border-style: dashed;
+  background: var(--paper-0);
+  color: var(--ink-500);
+}
+
+.tm-por-tl__empty {
+  margin: 0;
+  padding: var(--s5) var(--s4);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-por-tl__foot {
+  margin: auto 0 0;
+  padding: 12px var(--s4);
+  border-block-start: var(--b-quiet) solid var(--paper-150);
+  background: var(--paper-50);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 15px;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+/* ── POR-03 · capacity ─────────────────────────────────────────────────────────── */
+
+.tm-por-cap,
+.tm-por-unstaffed {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-por-cap__label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-por-cap__empty {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-por-cap__list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-por-cap__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tm-por-cap__name {
+  flex: 0 0 88px;
+  overflow: hidden;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-800);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-por-cap__track {
+  flex: 1;
+  block-size: 14px;
+  overflow: hidden;
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+}
+
+.tm-por-cap__fill {
+  display: block;
+  block-size: 14px;
+  background: var(--ink-950);
+}
+
+/* Over capacity: the whole track is an amber outline — the overflow is the message. */
+.tm-por-cap__row[data-over='true'] .tm-por-cap__fill {
+  box-sizing: border-box;
+  border: 1.5px solid var(--warning-600);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+}
+
+.tm-por-cap__value {
+  flex: 0 0 58px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  text-align: end;
+  color: var(--ink-950);
+}
+
+.tm-por-cap__row[data-over='true'] .tm-por-cap__value {
+  color: var(--warning-600);
+}
+
+.tm-por-unstaffed {
+  flex: 1;
+  gap: 12px;
+}
+
+.tm-por-unstaffed[data-alert='true'] {
+  border: 1.5px solid var(--warning-600);
+}
+
+.tm-por-unstaffed__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: 21px;
+  font-weight: 600;
+  color: var(--ink-800);
+}
+
+.tm-por-unstaffed__mark {
+  display: grid;
+  place-items: center;
+  inline-size: 22px;
+  block-size: 22px;
+  box-sizing: border-box;
+  border: 2px solid var(--warning-600);
+  border-radius: var(--r-capsule);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--warning-600);
+}
+
+.tm-por-unstaffed__list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-por-unstaffed__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--paper-50);
+}
+
+.tm-por-unstaffed__link {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+.tm-por-unstaffed__link:hover {
+  text-decoration: underline;
+}
+
+.tm-por-unstaffed__link:focus-visible {
+  outline: none;
+  border-radius: var(--r-micro);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-por-unstaffed__meta {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  text-transform: uppercase;
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+
+.tm-por-unstaffed__note {
+  margin: auto 0 0;
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--ink-650);
+}
+
+/* Dates read left to right inside a right-to-left page ("26 Oct", never "Oct 26"). */
+.tm-por-tl__chip,
+.tm-por-tl__range,
+.tm-por-unstaffed__meta {
+  unicode-bidi: plaintext;
+}
+
+/* Dark: paper-50 and paper-0 are one value, so the inset rows step down to paper-250. */
+[data-theme='dark'] .tm-por-unstaffed__item {
+  background: var(--paper-250);
+}
+
+/* ── Responsive ────────────────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+  .tm-por-plan {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 639px) {
+  .tm-por-tl__grid {
+    grid-template-columns: 104px repeat(4, minmax(0, 1fr));
+  }
+
+  .tm-por-tl__name {
+    padding-inline: var(--s3);
+  }
+
+  .tm-por-tl__chip {
+    padding-inline: 6px;
+    font-size: 9px;
+  }
+
+  .tm-por-plan__title {
+    font-size: 22px;
+    line-height: 28px;
+  }
+}

@@ -20,6 +20,18 @@ export interface PersonSummary {
   readonly status: string;
   /** How many of this organization's projects the person is a member of. */
   readonly projectCount: number;
+  /** The profile route's id (PEO-02). Optional only while an older API is still deployed. */
+  readonly membershipId: string;
+  /** PEO-01 columns. An older API omits them; the screen then shows no team, nothing declared. */
+  readonly teams: readonly { readonly id: string; readonly name: string }[];
+  readonly openCommitments: number;
+  readonly overdueCommitments: number;
+  /** The first window the person declared in the next two weeks, or null for none. */
+  readonly declared: {
+    readonly kind: string;
+    readonly startDate: string;
+    readonly endDate: string;
+  } | null;
 }
 
 export interface ListPeopleQuery {

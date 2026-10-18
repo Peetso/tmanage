@@ -7,7 +7,17 @@ import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
-import { createConversation, listConversations } from '../../lib/api/conversations';
+import { createConversation, listChannelDirectory } from '../../lib/api/conversations';
+import type { ChannelDirectoryEntry } from '../../lib/api/conversations';
+import { listConversationUnread } from '../../lib/api/conversation-read-state';
+import {
+  CHANNEL_FILTERS,
+  countByFilter,
+  formatLastActivity,
+  initialsOf,
+  matchesFilter,
+  type ChannelFilter,
+} from '../chat/channel-browser';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/chat.css';
@@ -21,25 +31,21 @@ export interface ChatScreenProps {
 /**
  * **TM-06's front door: the channel list**, painted as the handoff's CH-01 channel browser.
  *
- * `22-SCREEN-BY-SCREEN` §4 describes the channel screen itself; this list is how a person
- * reaches one. Every conversation in this system is a **project channel** — CHAT-001 built no
- * other kind — so the list groups by project and the create form asks for a project first.
+ * One read — `GET …/conversations/directory` — answers every chip: every channel the viewer may
+ * reach (archived included), with its members, how many of them are clients and its last
+ * activity, newest first. "My channels" is the viewer's own memberships, "Client shared" is a
+ * channel with a client member in it, and the audience column says the same thing in words.
  *
- * TM-07 (direct and group messages) has no API at all: `conversations.project_id` is not
- * nullable and no ticket has changed that, so the browser lists project channels only and draws
- * no empty "Direct" section. A conversation has no audience column either, so every row says
- * "Internal" — the only audience the data can hold.
- *
- * Archived channels are listed on request rather than hidden forever: archival keeps the
- * name taken and the transcript readable, and a list that could never show them again would
- * make the archive a hole rather than a state.
+ * Every conversation is a **project channel** (CHAT-001), so the row names its project beside
+ * the channel name — channel names are unique per project only, and two `#general` rows would
+ * otherwise be indistinguishable. CH-01's private "Request access" and open "Join" rows have no
+ * data behind them yet: the API lists only channels the viewer can already open.
  */
 export function ChatScreen({ organizationSlug, organizationName, client }: ChatScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
-  const [projectId, setProjectId] = useState<string>('');
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const [filter, setFilter] = useState<ChannelFilter>('all');
   const [newName, setNewName] = useState('');
   const [newProjectId, setNewProjectId] = useState('');
   const [search, setSearch] = useState('');
@@ -49,13 +55,15 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
     queryFn: () => listProjects(api, organizationSlug),
   });
 
-  const conversations = useQuery({
-    queryKey: ['conversations', organizationSlug, projectId, includeArchived],
-    queryFn: () =>
-      listConversations(api, organizationSlug, {
-        ...(projectId === '' ? {} : { projectId }),
-        ...(includeArchived ? { includeArchived: true } : {}),
-      }),
+  const directory = useQuery({
+    queryKey: ['conversations', organizationSlug, 'directory'],
+    queryFn: () => listChannelDirectory(api, organizationSlug),
+  });
+
+  // The unread pill is a nicety: a failed read leaves the rows as they are.
+  const unread = useQuery({
+    queryKey: ['conversations', organizationSlug, 'unread'],
+    queryFn: () => listConversationUnread(api, organizationSlug),
   });
 
   const create = useMutation({
@@ -73,26 +81,35 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
     return names;
   }, [projects.data]);
 
+  const unreadById = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of unread.data ?? []) counts.set(entry.conversationId, entry.unreadCount);
+    return counts;
+  }, [unread.data]);
+
   function submitCreate(event: FormEvent) {
     event.preventDefault();
     if (newProjectId === '' || newName.trim() === '') return;
     create.mutate();
   }
 
-  const allRows = conversations.data ?? [];
+  const allRows = directory.data ?? [];
+  const counts = countByFilter(allRows);
+  const inFilter = allRows.filter((entry) => matchesFilter(entry, filter));
   // The search narrows what the API already answered; it asks the server nothing new.
   const needle = search.trim().replace(/^#/u, '').toLowerCase();
   const rows =
     needle === ''
-      ? allRows
-      : allRows.filter((conversation) => conversation.name.toLowerCase().includes(needle));
+      ? inFilter
+      : inFilter.filter((conversation) => conversation.name.toLowerCase().includes(needle));
+  const now = Date.now();
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
-      eyebrow="Chat"
+      eyebrow="Chat · Browse"
       title="Channels"
       actions={
         <>
@@ -120,52 +137,27 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
       }
     >
       <div className="tm-chat-browse tm-stack">
-        {/*
-          Inert until the projects query has answered. Both controls are controlled inputs
-          rendered in the server HTML, so without this a filter chosen before React hydrated
-          would be re-applied from state — `''` and `false` — and silently undone. `isError`
-          means `isPending === false`, so a failed project list still leaves the filters usable.
-        */}
-        <fieldset className="tm-chat-browse__filters" disabled={projects.isPending}>
-          <legend className="tm-visually-hidden">Filters</legend>
-          <label htmlFor="tm-chat-project" className="tm-visually-hidden">
-            Project
-          </label>
-          <select
-            id="tm-chat-project"
-            className={`tm-chat-select${projectId === '' ? '' : ' tm-chat-select--quiet'}`}
-            value={projectId}
-            onChange={(event) => setProjectId(event.target.value)}
-          >
-            <option value="">
-              {conversations.data && projectId === ''
-                ? `All projects · ${allRows.length}`
-                : 'All projects'}
-            </option>
-            {(projects.data ?? []).map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
+        <div className="tm-chat-browse__filters" role="group" aria-label="Filter channels">
+          {CHANNEL_FILTERS.map(({ id, label }) => (
+            <button
+              key={id}
+              type="button"
+              className={`tm-chat-filter${id === 'client' ? ' tm-chat-filter--client' : ''}`}
+              aria-pressed={filter === id}
+              onClick={() => setFilter(id)}
+            >
+              {label}
+              {directory.data ? ` · ${counts[id]}` : ''}
+            </button>
+          ))}
+          <span className="tm-chat-browse__sort">Sort · Most active</span>
+        </div>
 
-          <label className="tm-chat-toggle">
-            <input
-              type="checkbox"
-              checked={includeArchived}
-              onChange={() => setIncludeArchived((current) => !current)}
-            />
-            <span>Show archived channels</span>
-          </label>
-
-          <span className="tm-chat-browse__sort">Sort · Newest first</span>
-        </fieldset>
-
-        {conversations.isError ? (
+        {directory.isError ? (
           <InlineAlert tone="danger" title="Could not load the channels" live>
-            {conversations.error instanceof ApiRequestError
-              ? conversations.error.message
-              : conversations.error instanceof NetworkError
+            {directory.error instanceof ApiRequestError
+              ? directory.error.message
+              : directory.error instanceof NetworkError
                 ? 'The API did not answer. Is it running?'
                 : 'Something went wrong. Try again.'}
           </InlineAlert>
@@ -177,19 +169,19 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
           </h2>
           <div className="tm-chat-table__head" aria-hidden="true">
             <span className="tm-chat-eyebrow">Channel</span>
-            <span className="tm-chat-eyebrow">Project</span>
+            <span className="tm-chat-eyebrow">Members</span>
             <span className="tm-chat-eyebrow">Audience</span>
-            <span className="tm-chat-eyebrow">Created</span>
+            <span className="tm-chat-eyebrow">Last activity</span>
           </div>
 
-          {conversations.isPending ? (
+          {directory.isPending ? (
             <LoadingRegion label="Loading the channels.">
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
-          {!conversations.isPending && !conversations.isError && allRows.length === 0 ? (
+          {!directory.isPending && !directory.isError && allRows.length === 0 ? (
             <p className="tm-chat-table__empty">
               <strong>No channels yet.</strong> Create one below. A channel belongs to a project, so
               pick the project the conversation is about.
@@ -197,47 +189,25 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
           ) : null}
 
           {allRows.length > 0 && rows.length === 0 ? (
-            <p className="tm-chat-table__empty">No channel name contains “{search.trim()}”.</p>
+            <p className="tm-chat-table__empty">
+              {needle === ''
+                ? 'No channel in this view.'
+                : `No channel name contains “${search.trim()}”.`}
+            </p>
           ) : null}
 
           {rows.length > 0 ? (
             <ul className="tm-chat-table__list">
-              {rows.map((conversation) => {
-                const archived = conversation.archivedAt !== null;
-                return (
-                  <li
-                    key={conversation.id}
-                    className="tm-chat-table__row"
-                    {...(archived ? { 'data-archived': 'true' } : {})}
-                  >
-                    <span className="tm-chat-table__name">
-                      <Link href={`/${organizationSlug}/chat/${conversation.id}`}>
-                        #{conversation.name}
-                      </Link>
-                    </span>
-                    <span className="tm-chat-table__project">
-                      {projectNames.get(conversation.projectId) ?? 'Another project'}
-                    </span>
-                    <span className="tm-chat-table__audience">
-                      <span className="tm-chat-audience tm-chat-audience--compact">
-                        <span className="tm-chat-audience__orb" aria-hidden="true">
-                          ■
-                        </span>
-                        Internal
-                      </span>
-                    </span>
-                    <span className="tm-chat-table__state">
-                      {archived ? (
-                        <span className="tm-chat-tag">Archived</span>
-                      ) : (
-                        <time className="tm-chat-mono" dateTime={conversation.createdAt}>
-                          {formatDay(conversation.createdAt)}
-                        </time>
-                      )}
-                    </span>
-                  </li>
-                );
-              })}
+              {rows.map((conversation) => (
+                <ChannelRow
+                  key={conversation.id}
+                  organizationSlug={organizationSlug}
+                  entry={conversation}
+                  projectName={projectNames.get(conversation.projectId) ?? null}
+                  unreadCount={unreadById.get(conversation.id) ?? 0}
+                  now={now}
+                />
+              ))}
             </ul>
           ) : null}
         </section>
@@ -313,8 +283,83 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
   );
 }
 
-function formatDay(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(parsed);
+interface ChannelRowProps {
+  organizationSlug: string;
+  entry: ChannelDirectoryEntry;
+  projectName: string | null;
+  unreadCount: number;
+  now: number;
+}
+
+/** One CH-01 row: name and tags, member avatars, audience, last activity. */
+function ChannelRow({ organizationSlug, entry, projectName, unreadCount, now }: ChannelRowProps) {
+  const archived = entry.archivedAt !== null;
+  const internalCount = entry.memberCount - entry.clientMemberCount;
+  const clientShared = entry.clientMemberCount > 0;
+
+  return (
+    <li className="tm-chat-table__row" {...(archived ? { 'data-archived': 'true' } : {})}>
+      <span className="tm-chat-table__name">
+        <Link href={`/${organizationSlug}/chat/${entry.id}`}>#{entry.name}</Link>
+        {entry.joined && !archived ? <span className="tm-chat-joined">joined</span> : null}
+        {unreadCount > 0 && !archived ? (
+          <span
+            className="tm-chat-unread"
+            role="img"
+            aria-label={`${unreadCount} unread ${unreadCount === 1 ? 'message' : 'messages'}`}
+          >
+            {unreadCount > 99 ? '99+' : unreadCount}
+          </span>
+        ) : null}
+        {projectName ? <span className="tm-chat-table__project">{projectName}</span> : null}
+      </span>
+      <span className="tm-chat-table__members">
+        {entry.memberPreview.length > 0 && !archived ? (
+          <span className="tm-chat-avatars" aria-hidden="true">
+            {entry.memberPreview.map((member) => (
+              <span
+                key={member.userId}
+                className={`tm-chat-avatar${member.isClient ? ' tm-chat-avatar--client' : ''}`}
+                title={member.displayName}
+              >
+                {initialsOf(member.displayName)}
+              </span>
+            ))}
+          </span>
+        ) : null}
+        <span
+          className="tm-chat-table__count"
+          role="img"
+          aria-label={
+            clientShared
+              ? `${internalCount} team and ${entry.clientMemberCount} client members`
+              : `${entry.memberCount} ${entry.memberCount === 1 ? 'member' : 'members'}`
+          }
+        >
+          {clientShared ? `${internalCount} + ${entry.clientMemberCount}` : entry.memberCount}
+        </span>
+      </span>
+      <span className="tm-chat-table__audience">
+        {archived ? (
+          <span className="tm-chat-tag">Archived</span>
+        ) : (
+          <span
+            className={`tm-chat-audience tm-chat-audience--compact${
+              clientShared ? ' tm-chat-audience--client' : ''
+            }`}
+          >
+            <span className="tm-chat-audience__orb" aria-hidden="true">
+              {clientShared ? '◎' : '■'}
+            </span>
+            {clientShared ? 'Client visible' : 'Internal'}
+          </span>
+        )}
+      </span>
+      <span className="tm-chat-table__state">
+        <time className="tm-chat-mono" dateTime={entry.lastActivityAt}>
+          {formatLastActivity(entry.lastActivityAt, now)}
+        </time>
+      </span>
+    </li>
+  );
 }

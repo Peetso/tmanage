@@ -52,7 +52,8 @@ import type {
 export class PersonCertificationsController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly service: PersonCertificationsService,
+    @Inject(PersonCertificationsService) private readonly service: PersonCertificationsService,
+    @Inject(PersonCertificationsRepository)
     private readonly repository: PersonCertificationsRepository,
   ) {}
 

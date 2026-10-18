@@ -13,7 +13,18 @@ import type { WorkCalendarDayRow } from '../../lib/api/work-views';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { isOverdue, stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import {
+  calendarGrid,
+  calendarRangeProblem,
+  calendarRangeTitle,
+  currentMonthRange,
+  initialCalendarRange,
+  isWholeMonth,
+  shiftCalendarMonth,
+} from '../../lib/work-calendar-range';
+import type { CalendarRange } from '../../lib/work-calendar-range';
 import '../../styles/screens/work-planning.css';
+import '../../styles/screens/work-calendar.css';
 
 export interface WorkCalendarScreenProps {
   organizationSlug: string;
@@ -21,6 +32,14 @@ export interface WorkCalendarScreenProps {
   /** Pre-select a project (deep link `?project=`). Defaults to the first project the caller sees. */
   initialProjectId?: string;
   client?: ApiClient;
+  /** A custom range from the URL (`?from=&to=`); both or neither. Defaults to this month. */
+  initialFrom?: string;
+  initialTo?: string;
+  /**
+   * Called with every valid range the caller moves to, or `null` when they return to this month,
+   * so the page can keep the range in the URL.
+   */
+  onRangeChange?: (range: CalendarRange | null) => void;
   /** Injected in tests so "today" and "overdue" are measured against a fixed moment. */
   now?: Date;
 }
@@ -33,8 +52,9 @@ const MAX_ITEMS_PER_DAY = 3;
  *
  * A calendar is per project and over a range; the API anchors each item on its due date, or its
  * start date when it has no due date. The range is the month on screen — the previous/next
- * controls move it — and the grid is a real table: weekday column headers, one cell per day,
- * each item a link to its work item whose accessible name carries its state.
+ * controls move it — or a custom From/To range (at most a year, kept in the URL by the page); an
+ * invalid range is explained and never sent. The grid is a real table: weekday column headers,
+ * one cell per day, each item a link to its work item whose accessible name carries its state.
  *
  * Item colours follow the artboard: ink for done, lime for what is in progress, an orange
  * outline for anything past due and not finished, a quiet paper chip for backlog.
@@ -44,15 +64,18 @@ export function WorkCalendarScreen({
   organizationName,
   initialProjectId,
   client,
+  initialFrom,
+  initialTo,
+  onRangeChange,
   now: nowProp,
 }: WorkCalendarScreenProps) {
   const api = client ?? browserApiClient();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
-  const [month, setMonth] = useState(() => ({
-    year: now.getUTCFullYear(),
-    month: now.getUTCMonth(),
-  }));
+  const [range, setRange] = useState<CalendarRange>(() =>
+    initialCalendarRange(initialFrom, initialTo, now),
+  );
+  const rangeProblem = calendarRangeProblem(range);
 
   const projects = useQuery({
     queryKey: ['projects', organizationSlug],
@@ -61,12 +84,12 @@ export function WorkCalendarScreen({
 
   // The calendar is per project: with none chosen, the first project the caller can see.
   const chosenProjectId = projectId !== '' ? projectId : (projects.data?.[0]?.id ?? '');
-  const range = useMemo(() => monthRange(month.year, month.month), [month]);
 
   const calendar = useQuery({
     queryKey: ['work-calendar', organizationSlug, chosenProjectId, range.from, range.to],
     queryFn: () => getWorkCalendar(api, organizationSlug, chosenProjectId, range),
-    enabled: chosenProjectId !== '',
+    // An invalid range is explained on screen and never sent: the API would only refuse it.
+    enabled: chosenProjectId !== '' && rangeProblem === null,
   });
 
   const itemsByDay = useMemo(() => {
@@ -75,22 +98,24 @@ export function WorkCalendarScreen({
     return map;
   }, [calendar.data]);
 
-  const weeks = useMemo(() => monthGrid(month.year, month.month), [month]);
+  const weeks = useMemo(() => calendarGrid(range), [range]);
   const todayKey = now.toISOString().slice(0, 10);
-  const title = new Date(Date.UTC(month.year, month.month, 1)).toLocaleDateString('en-GB', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
+  const title = calendarRangeTitle(range);
+  const thisMonth = currentMonthRange(now);
+  const onThisMonth = range.from === thisMonth.from && range.to === thisMonth.to;
   const noProjects = projects.isSuccess && projects.data.length === 0;
   const empty =
-    chosenProjectId !== '' && calendar.isSuccess && (calendar.data.days ?? []).length === 0;
+    chosenProjectId !== '' &&
+    rangeProblem === null &&
+    calendar.isSuccess &&
+    (calendar.data.days ?? []).length === 0;
 
-  const shift = (delta: number) =>
-    setMonth((current) => {
-      const next = new Date(Date.UTC(current.year, current.month + delta, 1));
-      return { year: next.getUTCFullYear(), month: next.getUTCMonth() };
-    });
+  // Every move goes through here, so the page can mirror a valid range into the URL.
+  const moveTo = (next: CalendarRange) => {
+    setRange(next);
+    if (calendarRangeProblem(next) !== null) return;
+    onRangeChange?.(next.from === thisMonth.from && next.to === thisMonth.to ? null : next);
+  };
 
   return (
     <AppShell
@@ -118,18 +143,48 @@ export function WorkCalendarScreen({
               </option>
             ))}
           </select>
+          <fieldset
+            className="wk-cal-range"
+            data-custom={isWholeMonth(range) ? undefined : 'true'}
+            aria-describedby={rangeProblem ? 'tm-calendar-range-problem' : undefined}
+          >
+            <legend className="tm-visually-hidden">Date range</legend>
+            <label className="wk-cal-range__field" htmlFor="tm-calendar-from">
+              <span className="wk-cal-range__label">From</span>
+              <input
+                id="tm-calendar-from"
+                type="date"
+                value={range.from}
+                max={range.to || undefined}
+                aria-invalid={rangeProblem?.includes('From') ? true : undefined}
+                onChange={(event) => moveTo({ from: event.target.value, to: range.to })}
+              />
+            </label>
+            <label className="wk-cal-range__field" htmlFor="tm-calendar-to">
+              <span className="wk-cal-range__label">To</span>
+              <input
+                id="tm-calendar-to"
+                type="date"
+                value={range.to}
+                min={range.from || undefined}
+                aria-invalid={rangeProblem && !rangeProblem.includes('From') ? true : undefined}
+                onChange={(event) => moveTo({ from: range.from, to: event.target.value })}
+              />
+            </label>
+          </fieldset>
           <button
             type="button"
             className="wp-cal__nav"
             aria-label="Previous month"
-            onClick={() => shift(-1)}
+            onClick={() => moveTo(shiftCalendarMonth(range, -1, now))}
           >
             <span aria-hidden="true">&#8249;</span>
           </button>
           <button
             type="button"
             className="wp-capsule"
-            onClick={() => setMonth({ year: now.getUTCFullYear(), month: now.getUTCMonth() })}
+            aria-pressed={onThisMonth}
+            onClick={() => moveTo(thisMonth)}
           >
             This month
           </button>
@@ -137,13 +192,21 @@ export function WorkCalendarScreen({
             type="button"
             className="wp-cal__nav"
             aria-label="Next month"
-            onClick={() => shift(1)}
+            onClick={() => moveTo(shiftCalendarMonth(range, 1, now))}
           >
             <span aria-hidden="true">&#8250;</span>
           </button>
         </div>
       }
     >
+      {rangeProblem !== null ? (
+        <div id="tm-calendar-range-problem">
+          <InlineAlert tone="warning" title="Check the date range" live>
+            {rangeProblem}
+          </InlineAlert>
+        </div>
+      ) : null}
+
       {projects.isError ? (
         <InlineAlert tone="danger" title="Could not load your projects" live>
           {describeError(projects.error)}
@@ -165,7 +228,7 @@ export function WorkCalendarScreen({
         </InlineAlert>
       ) : null}
 
-      {chosenProjectId !== '' && calendar.isPending ? (
+      {rangeProblem !== null ? null : chosenProjectId !== '' && calendar.isPending ? (
         <LoadingRegion label="Loading the calendar.">
           <Skeleton height="30px" />
           <Skeleton height="480px" />
@@ -195,7 +258,7 @@ export function WorkCalendarScreen({
                       <td
                         key={cell.key}
                         className={[
-                          cell.inMonth ? '' : 'wp-cal__outside',
+                          cell.inRange ? '' : 'wp-cal__outside',
                           isToday ? 'wp-cal__today' : '',
                         ]
                           .filter(Boolean)
@@ -244,8 +307,8 @@ export function WorkCalendarScreen({
         <div className="wp-empty">
           <h2 className="wp-empty__title">Nothing on this calendar yet</h2>
           <p className="wp-empty__body">
-            This project has no dated work you can see in {title}. Move to another month, or add
-            dates from the work item.
+            This project has no dated work you can see in {title}. Move to another month or range,
+            or add dates from the work item.
           </p>
         </div>
       ) : null}
@@ -264,51 +327,6 @@ function itemClass(
   }
   if (item.state === 'backlog' || item.state === 'archived') return 'wp-cal__item--quiet';
   return '';
-}
-
-/** The first and last day of a month, as the API's `YYYY-MM-DD` range. */
-function monthRange(year: number, month: number): { from: string; to: string } {
-  const first = new Date(Date.UTC(year, month, 1));
-  const last = new Date(Date.UTC(year, month + 1, 0));
-  return { from: first.toISOString().slice(0, 10), to: last.toISOString().slice(0, 10) };
-}
-
-interface GridCell {
-  readonly key: string;
-  readonly day: number;
-  readonly label: string;
-  readonly inMonth: boolean;
-}
-
-/** Whole weeks, Sunday first, covering the month — the artboard's grid. */
-function monthGrid(year: number, month: number): GridCell[][] {
-  const first = new Date(Date.UTC(year, month, 1));
-  const start = new Date(first);
-  start.setUTCDate(1 - first.getUTCDay());
-  const last = new Date(Date.UTC(year, month + 1, 0));
-  const end = new Date(last);
-  end.setUTCDate(last.getUTCDate() + (6 - last.getUTCDay()));
-
-  const weeks: GridCell[][] = [];
-  for (let cursor = new Date(start); cursor <= end;) {
-    const week: GridCell[] = [];
-    for (let index = 0; index < 7; index += 1) {
-      const inMonth = cursor.getUTCMonth() === month;
-      const day = cursor.getUTCDate();
-      week.push({
-        key: cursor.toISOString().slice(0, 10),
-        day,
-        label:
-          day === 1 && !inMonth
-            ? `1 ${cursor.toLocaleDateString('en-GB', { month: 'short', timeZone: 'UTC' })}`
-            : String(day),
-        inMonth,
-      });
-      cursor.setUTCDate(day + 1);
-    }
-    weeks.push(week);
-  }
-  return weeks;
 }
 
 function describeError(error: unknown): string {

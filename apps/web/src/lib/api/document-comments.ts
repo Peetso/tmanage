@@ -18,6 +18,8 @@ export interface DocumentCommentView {
   readonly id: string;
   readonly documentId: string;
   readonly authorMembershipId: string;
+  /** The author's display name; null when it could not be resolved. */
+  readonly authorName: string | null;
   readonly body: string;
   /** ISO-8601 instant. */
   readonly createdAt: string;

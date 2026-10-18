@@ -139,3 +139,85 @@ export async function restoreDocumentVersion(
   });
   return data;
 }
+
+/** Who a document is shown to: internal only, or published to the project's client people. */
+export type DocumentAudience = 'internal' | 'client';
+
+/** One row of the docs hub (Recent / Project knowledge / Favourites). Paired with the API's `RecentDocumentView`. */
+export interface RecentDocumentSummary {
+  readonly id: string;
+  readonly projectId: string;
+  readonly projectName: string;
+  readonly title: string;
+  readonly updatedAt: string;
+  readonly audience: DocumentAudience;
+  readonly clientAudienceCount: number;
+}
+
+export interface RecentDocumentsResult {
+  readonly documents: readonly RecentDocumentSummary[];
+  /** Documents in the scanned window that sit in projects the caller cannot read — a count only. */
+  readonly hiddenCount: number;
+}
+
+/** The hub's lists: `recent` (all projects), one project's knowledge, or the caller's favourites. */
+export type DocumentListScope =
+  | { readonly kind: 'recent' }
+  | { readonly kind: 'project'; readonly projectId: string }
+  | { readonly kind: 'favourites' };
+
+export async function listRecentDocuments(
+  client: ApiClient,
+  organizationSlug: string,
+  scope: DocumentListScope = { kind: 'recent' },
+): Promise<RecentDocumentsResult> {
+  const query =
+    scope.kind === 'project'
+      ? `?projectId=${encodeURIComponent(scope.projectId)}`
+      : scope.kind === 'favourites'
+        ? '?scope=favourites'
+        : '';
+  const { data } = await client.request<RecentDocumentsResult>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/recent-documents${query}`,
+  });
+  return data;
+}
+
+export interface DocumentPerson {
+  readonly userId: string;
+  readonly displayName: string;
+}
+
+/** A document's audience, client reach, collaborators and publish permission. */
+export interface DocumentSharing {
+  readonly audience: DocumentAudience;
+  readonly publishedAt: string | null;
+  readonly clientAudienceCount: number;
+  readonly collaborators: readonly DocumentPerson[];
+  readonly canPublish: boolean;
+}
+
+export async function getDocumentSharing(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+): Promise<DocumentSharing> {
+  const { data } = await client.request<DocumentSharing>({
+    path: `${base(organizationSlug, documentId)}/sharing`,
+  });
+  return data;
+}
+
+/** Publish to the client audience (`client`) or take it back to internal only (`internal`). */
+export async function setDocumentAudience(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+  audience: DocumentAudience,
+): Promise<DocumentSharing> {
+  const { data } = await client.request<DocumentSharing>({
+    method: 'POST',
+    path: `${base(organizationSlug, documentId)}/${audience === 'client' ? 'publish' : 'unpublish'}`,
+  });
+  return data;
+}

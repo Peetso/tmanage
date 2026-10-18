@@ -106,7 +106,12 @@ function serviceWith(documents: readonly DocumentRow[] = []): {
   } as unknown as DocumentCommentsRepository;
 
   return {
-    service: new DocumentCommentsService(database, docRepo, commentRepo),
+    service: new DocumentCommentsService(database, docRepo, commentRepo, {
+      people: async (_runner: unknown, _ctx: unknown, ids: { membershipIds?: readonly string[] }) =>
+        (ids.membershipIds ?? [])
+          .filter((id) => id === MEMBERSHIP)
+          .map((membershipId) => ({ membershipId, userId: USER, displayName: 'Maya Hassan' })),
+    } as never),
     commentStore,
   };
 }
@@ -119,6 +124,8 @@ describe('DocumentCommentsService', () => {
     const first = await service.add(context, caller, DOCUMENT, 'first comment');
     expect(first.documentId).toBe(DOCUMENT);
     expect(first.authorMembershipId).toBe(MEMBERSHIP);
+    // Authors are shown by name, resolved through this tenant's memberships.
+    expect(first.authorName).toBe('Maya Hassan');
     // The wire projection never echoes the tenant id.
     expect(JSON.stringify(first)).not.toContain(ORG);
 

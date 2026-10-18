@@ -179,6 +179,20 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
     const directory = {
       list: (_db: never, _context: TenantContext, options: { limit?: number }) =>
         Promise.resolve(rows.slice(0, options.limit ?? rows.length)),
+      rowDetails: () =>
+        Promise.resolve(
+          new Map([
+            [
+              'm-1',
+              {
+                teams: [{ id: 't-1', name: 'Design' }],
+                openCommitments: 6,
+                overdueCommitments: 1,
+                declared: { kind: 'vacation', startDate: '2026-10-22', endDate: '2026-10-23' },
+              },
+            ],
+          ]),
+        ),
     };
     const controller = new PeopleDirectoryController(
       database as never,
@@ -187,12 +201,34 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
 
     const full = await controller.list(context, undefined, '2');
     expect(full.people).toEqual([
-      { userId: 'u-1', displayName: 'Ada', role: 'member', status: 'active', projectCount: 2 },
-      { userId: 'u-2', displayName: 'Bo', role: 'guest', status: 'active', projectCount: 0 },
+      {
+        membershipId: 'm-1',
+        userId: 'u-1',
+        displayName: 'Ada',
+        role: 'member',
+        status: 'active',
+        projectCount: 2,
+        teams: [{ id: 't-1', name: 'Design' }],
+        openCommitments: 6,
+        overdueCommitments: 1,
+        declared: { kind: 'vacation', startDate: '2026-10-22', endDate: '2026-10-23' },
+      },
+      // No details row: no team, nothing owned, nothing declared � never invented.
+      {
+        membershipId: 'm-2',
+        userId: 'u-2',
+        displayName: 'Bo',
+        role: 'guest',
+        status: 'active',
+        projectCount: 0,
+        teams: [],
+        openCommitments: 0,
+        overdueCommitments: 0,
+        declared: null,
+      },
     ]);
-    // The membership id is the cursor and is not otherwise exposed.
+    // The membership id is the cursor and the profile link (PEO-02 routes on it).
     expect(full.nextAfter).toBe('m-2');
-    expect(JSON.stringify(full.people)).not.toContain('m-1');
 
     const short = await controller.list(context, undefined, '50');
     expect(short.nextAfter).toBeNull();
@@ -203,5 +239,44 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
     await expect(controller.list(contextFor(ORG), undefined, '0')).rejects.toMatchObject({
       status: 400,
     });
+  });
+});
+
+describe('PeopleDirectoryRepository.rowDetails', () => {
+  it('reads teams, open work and declared availability in tenant-bound statements', async () => {
+    const captured: Captured[] = [];
+    const { runner } = capturingRunner(captured, []);
+    const member = { membershipId: uuidv7(), userId: uuidv7() };
+    const details = await repository.rowDetails(runner, contextFor(ORG), [member], {
+      now: new Date(Date.UTC(2026, 9, 18)),
+      fromDate: '2026-10-18',
+      toDate: '2026-10-31',
+    });
+
+    expect(captured).toHaveLength(3);
+    for (const statement of captured) {
+      const analysis = analyzeStatement(statement.sql, statement.params, ORG);
+      expect(analysis.violations, analysis.violations.join('\n')).toEqual([]);
+      const crossTenant = analyzeStatement(statement.sql, statement.params, OTHER_ORG);
+      expect(crossTenant.violations.length).toBeGreaterThan(0);
+    }
+    expect(details.get(member.membershipId)).toEqual({
+      teams: [],
+      openCommitments: 0,
+      overdueCommitments: 0,
+      declared: null,
+    });
+  });
+
+  it('reads nothing for an empty page', async () => {
+    const captured: Captured[] = [];
+    const { runner } = capturingRunner(captured, []);
+    const details = await repository.rowDetails(runner, contextFor(ORG), [], {
+      now: new Date(),
+      fromDate: '2026-10-18',
+      toDate: '2026-10-31',
+    });
+    expect(details.size).toBe(0);
+    expect(captured).toHaveLength(0);
   });
 });

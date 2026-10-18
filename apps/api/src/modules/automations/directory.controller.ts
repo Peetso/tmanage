@@ -182,7 +182,8 @@ function validateConfig(raw: unknown): IntegrationConnectionConfig {
 export class IntegrationDirectoryController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly catalog: IntegrationCatalogService,
+    @Inject(IntegrationCatalogService) private readonly catalog: IntegrationCatalogService,
+    @Inject(IntegrationConnectionsRepository)
     private readonly connections: IntegrationConnectionsRepository,
   ) {}
 

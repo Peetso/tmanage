@@ -8,8 +8,9 @@ import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/docs.css';
 import { DocumentExportButton } from './DocumentExportButton';
 import { DocumentCommentsPanel } from './DocumentCommentsPanel';
+import { DocumentPublishBar } from '../docs/DocumentAudience';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { getDocument } from '../../lib/api/documents';
+import { getDocument, getDocumentSharing } from '../../lib/api/documents';
 import { listProjects } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
@@ -59,6 +60,15 @@ export function DocumentViewScreen({
     queryFn: async () => (await listProjects(api, organizationSlug)) ?? [],
   });
 
+  // The sheet's byline names the author and the collaborator count; the top bar's publish cluster
+  // reads the same query key, so this is one request.
+  const sharing = useQuery({
+    queryKey: ['document-sharing', organizationSlug, documentId],
+    queryFn: () => getDocumentSharing(api, organizationSlug, documentId),
+    enabled: document.isSuccess,
+  });
+  const people = sharing.data?.collaborators ?? [];
+
   // A 404 is the not-found state; every other refusal is an error. The API answers unknown,
   // cross-tenant and non-member ids all with 404, so this one branch covers the whole trap.
   const notFound = useMemo(
@@ -92,6 +102,11 @@ export function DocumentViewScreen({
           {data ? <span className="tm-dx-stamp">Saved {formatClock(data.updatedAt)}</span> : null}
           {data ? (
             <div className="tm-dx-topbar__end">
+              <DocumentPublishBar
+                organizationSlug={organizationSlug}
+                documentId={documentId}
+                client={api}
+              />
               <nav className="tm-segmented" aria-label="Document views">
                 <Link href={`/${organizationSlug}/docs/${documentId}`} aria-current="page">
                   Read
@@ -146,7 +161,13 @@ export function DocumentViewScreen({
                   {data.title}
                 </p>
                 <p className="tm-dx-sheet__meta">
-                  Created {formatInstant(data.createdAt)} · updated {formatInstant(data.updatedAt)}
+                  {people[0] ? `${people[0].displayName} · ` : ''}updated{' '}
+                  <time dateTime={data.updatedAt} title={formatInstant(data.updatedAt)}>
+                    {formatRelative(data.updatedAt)}
+                  </time>
+                  {people.length > 0
+                    ? ` · ${people.length} ${people.length === 1 ? 'collaborator' : 'collaborators'}`
+                    : ''}
                 </p>
               </header>
               <hr className="tm-dx-sheet__rule" />
@@ -182,6 +203,23 @@ function formatClock(iso: string): string {
     undefined,
     sameDay ? { hour: '2-digit', minute: '2-digit' } : { day: 'numeric', month: 'short' },
   ).format(at);
+}
+
+/** "26 minutes ago", "3 days ago" — the sheet byline's age. */
+function formatRelative(iso: string): string {
+  const at = new Date(iso).getTime();
+  if (Number.isNaN(at)) return iso;
+  const seconds = Math.round((at - Date.now()) / 1000);
+  const format = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const steps: readonly [Intl.RelativeTimeFormatUnit, number][] = [
+    ['day', 86_400],
+    ['hour', 3_600],
+    ['minute', 60],
+  ];
+  for (const [unit, size] of steps) {
+    if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
+  }
+  return format.format(0, 'minute');
 }
 
 /** Split a plain-text body into paragraphs on line breaks, dropping blank lines. */

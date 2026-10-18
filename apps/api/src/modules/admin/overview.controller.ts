@@ -56,7 +56,7 @@ export interface AdminOverviewView {
 export class AdminOverviewController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly overview: AdminOverviewRepository,
+    @Inject(AdminOverviewRepository) private readonly overview: AdminOverviewRepository,
   ) {}
 
   /**

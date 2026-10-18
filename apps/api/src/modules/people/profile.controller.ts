@@ -69,7 +69,7 @@ export interface PersonProfileView {
 export class PersonProfileController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly profile: PersonProfileRepository,
+    @Inject(PersonProfileRepository) private readonly profile: PersonProfileRepository,
   ) {}
 
   /**

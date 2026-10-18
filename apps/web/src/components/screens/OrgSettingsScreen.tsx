@@ -30,6 +30,11 @@ const LABELS: Readonly<Record<string, { label: string; hint: string }>> = {
     label: 'New projects client-visible by default',
     hint: 'Enter true or false. Off by default, so nothing is shared until you choose to.',
   },
+  working_week: { label: 'Working week', hint: 'mon-fri, sun-thu, sat-wed or mon-sat.' },
+  operating_template: {
+    label: 'Operating template',
+    hint: 'delivery-client-review, intake-commitment, internal-delivery or empty.',
+  },
 };
 
 /**

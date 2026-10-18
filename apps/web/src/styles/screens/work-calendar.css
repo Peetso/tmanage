@@ -1,0 +1,78 @@
+/*
+ * WK-05 Work calendar — the custom From/To range beside the month controls.
+ *
+ * The artboard draws only capsules in the header, so the range is one capsule holding two
+ * mono-labelled date fields, in the same 40px height, line and radius as `.wp-capsule`. It turns
+ * ink-outlined while a custom (not whole-month) range is on screen, the way a pressed capsule
+ * reads as "this is the active view".
+ */
+.wk-cal-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-block-size: 40px;
+  margin: 0;
+  padding: 0 6px 0 14px;
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  min-inline-size: 0;
+}
+
+.wk-cal-range[data-custom='true'] {
+  border-color: var(--ink-950);
+}
+
+.wk-cal-range:focus-within {
+  box-shadow: var(--focus-ring);
+}
+
+.wk-cal-range__field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wk-cal-range__field + .wk-cal-range__field {
+  padding-inline-start: 8px;
+  border-inline-start: 1px solid var(--line-300);
+}
+
+.wk-cal-range__label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.wk-cal-range input {
+  min-block-size: 32px;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink-800);
+  font: inherit;
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+}
+
+.wk-cal-range input:focus {
+  outline: none;
+}
+
+.wk-cal-range input[aria-invalid='true'] {
+  color: var(--danger-600);
+}
+
+@media (max-width: 600px) {
+  .wk-cal-range {
+    flex-wrap: wrap;
+    inline-size: 100%;
+    border-radius: var(--r-card);
+    padding: 4px 10px;
+  }
+}

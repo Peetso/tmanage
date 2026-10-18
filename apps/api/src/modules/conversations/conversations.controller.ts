@@ -25,6 +25,7 @@ import type {
   MessageRevisionView,
   MessageView,
 } from './conversations.service.js';
+import type { ChannelDirectoryEntry } from './channel-directory.js';
 
 /**
  * CHAT-001's HTTP surface.
@@ -152,6 +153,19 @@ export class ConversationsController {
         ...(includeArchived === 'true' ? { includeArchived: true } : {}),
       }),
     };
+  }
+
+  /**
+   * CH-01's channel browser: reachable channels (archived included) with members, client members
+   * and last activity, newest activity first. A static path, so it wins over `:conversationId`.
+   */
+  @Get('conversations/directory')
+  @RequireCapability('conversation.read')
+  async directory(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<{ readonly channels: readonly ChannelDirectoryEntry[] }> {
+    return { channels: await this.conversations.directory(context, principal) };
   }
 
   @Get('conversations/:conversationId')

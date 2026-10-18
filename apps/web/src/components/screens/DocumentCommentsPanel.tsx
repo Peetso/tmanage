@@ -8,6 +8,7 @@ import { addDocumentComment, listDocumentComments } from '../../lib/api/document
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { initialsOf } from '../docs/DocumentAudience';
 
 export interface DocumentCommentsPanelProps {
   organizationSlug: string;
@@ -31,10 +32,12 @@ export interface DocumentCommentsPanelProps {
  * note (the parent screen already renders the document's own not-found state), and every other
  * refusal as an error, so a transient outage is not misread as "no comments".
  *
- * ## People are shown by id
+ * ## People are shown by name
  *
- * No endpoint resolves a membership id to a display name here, so an author is shown by the
- * membership id — the honesty `DocumentEditorScreen`/`WorkWorkloadScreen` apply to the same gap.
+ * The API resolves each author's membership to a display name inside the tenant (`authorName`); an
+ * author it could not name (a membership since removed) reads "A former member", never an id.
+ *
+ * Comments are internal: DOC-02's footnote says so, because publishing shares the body only.
  */
 export function DocumentCommentsPanel({
   organizationSlug,
@@ -71,7 +74,7 @@ export function DocumentCommentsPanel({
     <section className="tm-dx-edge" aria-labelledby="tm-document-comments">
       <h2 id="tm-document-comments" className="tm-dx-edge__caption">
         Comments
-        {!comments.isPending && !comments.isError ? ` · ${rows.length}` : ''}
+        {!comments.isPending && !comments.isError ? ` · ${rows.length}` : ''} · Internal only
       </h2>
 
       {comments.isPending ? (
@@ -100,11 +103,17 @@ export function DocumentCommentsPanel({
               <li key={comment.id} className="tm-dx-comment">
                 <div className="tm-dx-comment__head">
                   <span className="tm-dx-comment__orb" aria-hidden="true">
-                    ◌
+                    {comment.authorName ? initialsOf(comment.authorName) : '◌'}
                   </span>
-                  <span className="tm-dx-comment__who">{comment.authorMembershipId}</span>
-                  <time className="tm-dx-comment__when" dateTime={comment.createdAt}>
-                    {formatInstant(comment.createdAt)}
+                  <span className="tm-dx-comment__who">
+                    {comment.authorName ?? 'A former member'}
+                  </span>
+                  <time
+                    className="tm-dx-comment__when"
+                    dateTime={comment.createdAt}
+                    title={formatInstant(comment.createdAt)}
+                  >
+                    {formatClock(comment.createdAt)}
                   </time>
                 </div>
                 <p className="tm-dx-comment__body">{comment.body}</p>
@@ -116,8 +125,15 @@ export function DocumentCommentsPanel({
         )
       ) : null}
 
+      <p className="tm-dx-edge__note tm-dx-edge__foot">
+        <span className="tm-dx-edge__note-orb" aria-hidden="true">
+          ◎
+        </span>
+        Comments are never part of the client projection. Publishing shares the document body only.
+      </p>
+
       <form
-        className="tm-dx-comment-form tm-dx-edge__foot"
+        className="tm-dx-comment-form"
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
@@ -157,6 +173,19 @@ export function DocumentCommentsPanel({
       </form>
     </section>
   );
+}
+
+/** DOC-02's "11:14": the time of day for today's comments, the date otherwise. */
+function formatClock(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  const sameDay = at.toDateString() === new Date().toDateString();
+  return new Intl.DateTimeFormat(
+    undefined,
+    sameDay
+      ? { hour: '2-digit', minute: '2-digit', hour12: false }
+      : { day: 'numeric', month: 'short' },
+  ).format(at);
 }
 
 function describeError(error: unknown): string {

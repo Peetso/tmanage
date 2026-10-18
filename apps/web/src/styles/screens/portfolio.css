@@ -69,7 +69,7 @@
 .tm-por__head,
 .tm-por-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px 110px 170px 120px;
+  grid-template-columns: minmax(0, 1fr) 300px 110px 110px 96px;
   align-items: center;
   gap: var(--s3);
   padding-inline: var(--s5);
@@ -162,17 +162,20 @@
 }
 
 .tm-por-row__why {
+  margin: 0;
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ink-650);
 }
 
 .tm-por-row[data-tone='danger'] .tm-por-row__why {
+  font-weight: 500;
   color: var(--danger-600);
 }
 
 .tm-por-row[data-tone='warning'] .tm-por-row__why {
+  font-weight: 500;
   color: var(--warning-600);
 }
 
@@ -196,14 +199,20 @@
 
 .tm-por-row__cell dd {
   margin: 0;
+  white-space: nowrap;
 }
 
-.tm-por-row__cell--muted {
+.tm-por-row__cell[data-tone='muted'] {
+  font-weight: 400;
   color: var(--ink-500);
 }
 
-.tm-por-row[data-tone='danger'] .tm-por-row__cell--objectives {
+.tm-por-row__cell[data-tone='danger'] {
   color: var(--danger-600);
+}
+
+.tm-por-row__cell[data-tone='warning'] {
+  color: var(--warning-600);
 }
 
 /* Archived: the whole row recedes, as "Harbour Rebrand 2025" does. */
@@ -550,7 +559,7 @@
 @media (max-width: 1180px) {
   .tm-por__head,
   .tm-por-row {
-    grid-template-columns: minmax(0, 1fr) 240px 90px 150px 110px;
+    grid-template-columns: minmax(0, 1fr) 240px 90px 90px 84px;
   }
 
   .tm-obj {
@@ -569,12 +578,11 @@
   }
 
   .tm-por-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-areas:
-      'name name'
-      'why why'
-      'work activity'
-      'objectives objectives';
+      'name name name'
+      'why why why'
+      'committed forecast wait';
     row-gap: var(--s1);
     padding-block: var(--s3);
   }
@@ -587,16 +595,17 @@
     grid-area: why;
   }
 
-  .tm-por-row__cell--work {
-    grid-area: work;
+  .tm-por-row__cell--committed {
+    grid-area: committed;
   }
 
-  .tm-por-row__cell--objectives {
-    grid-area: objectives;
+  .tm-por-row__cell--forecast {
+    grid-area: forecast;
   }
 
-  .tm-por-row__cell--activity {
-    grid-area: activity;
+  .tm-por-row__cell--wait {
+    grid-area: wait;
+    text-align: start;
   }
 
   /* Without the column header the figures need their names back. */

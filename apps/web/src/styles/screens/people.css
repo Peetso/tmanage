@@ -495,6 +495,72 @@
   flex: none;
 }
 
+/* PEO-01: OPEN COMMITMENTS (count + overdue capsule) and DECLARED (availability, never inferred). */
+.ppl-col-commit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  inline-size: 132px;
+  flex: none;
+}
+
+.ppl-col-declared {
+  inline-size: 112px;
+  flex: none;
+}
+
+.ppl-commit {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.ppl-declared-off {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.ppl-declared-off::before {
+  content: '';
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--r-capsule);
+  background: var(--warning-600);
+}
+
+.ppl-people__group {
+  margin: 0;
+  padding: 0;
+}
+
+/* A long name ellipsizes inside its column instead of running under the next one. */
+.ppl-person__who {
+  max-inline-size: 100%;
+}
+
+.ppl-person__who > span:last-child {
+  min-inline-size: 0;
+}
+
+.ppl-person__who .ppl-person__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ppl-person-card__actions {
+  display: flex;
+  gap: 10px;
+  margin-block-start: 14px;
+}
+
+.ppl-person-card__actions .tm-button {
+  flex: 1;
+  justify-content: center;
+}
+
 .ppl-group {
   margin: 0;
   padding: 9px 20px 5px;
@@ -1187,7 +1253,8 @@ button.ppl-member {
     inline-size: auto;
   }
 
-  .ppl-col-status {
+  .ppl-col-status,
+  .ppl-col-commit {
     display: none;
   }
 }
@@ -1253,6 +1320,15 @@ button.ppl-member {
 @media (max-width: 599px) {
   .ppl-col-projects,
   .ppl-col-when {
+    inline-size: auto;
+  }
+
+  /* PEO-01 on a phone: person and what they declared; the project count is on the profile. */
+  .ppl-main .ppl-col-projects {
+    display: none;
+  }
+
+  .ppl-main .ppl-col-declared {
     inline-size: auto;
   }
 

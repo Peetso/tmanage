@@ -132,7 +132,13 @@ const SCREENS: readonly { name: string; render: () => React.ReactElement }[] = [
   },
   {
     name: 'ON-02 Operating template',
-    render: () => <OperatingTemplateScreen signedInAs={SIGNED_IN_AS} />,
+    render: () => (
+      <OperatingTemplateScreen
+        signedInAs={SIGNED_IN_AS}
+        organizationSlug="northstar"
+        client={emptyDirectoryClient()}
+      />
+    ),
   },
   {
     name: 'ON-03 First project',
@@ -364,10 +370,10 @@ describe('ON-01 Create organization', () => {
     expect(screen.getByText(/Use lowercase letters, numbers and hyphens only/)).toBeInTheDocument();
   });
 
-  it('still claims no availability before it is submitted', () => {
+  it('claims no availability before the live check has answered', () => {
     render(<CreateOrganizationScreen signedInAs={SIGNED_IN_AS} />);
-    expect(screen.getByText(/decided when you create the organization/)).toBeInTheDocument();
-    // No green tick. The unique key decides, on submit.
+    expect(screen.getByText('.tmanage.app')).toBeInTheDocument();
+    // No green tick until `address-availability` says so (organization-flow.test.tsx).
     expect(screen.queryByText(/^available$/i)).toBeNull();
   });
 
@@ -384,13 +390,19 @@ describe('ON-01 Create organization', () => {
 });
 
 describe('ON-02 Operating template', () => {
-  it('offers the four templates the specification names', () => {
-    render(<OperatingTemplateScreen signedInAs={SIGNED_IN_AS} />);
+  it('offers the four templates the design names', () => {
+    render(
+      <OperatingTemplateScreen
+        signedInAs={SIGNED_IN_AS}
+        organizationSlug="northstar"
+        client={emptyDirectoryClient()}
+      />,
+    );
     for (const name of [
-      'Agency delivery',
-      'Software studio',
-      'Consulting engagement',
-      'Blank later',
+      'Delivery with client review',
+      'Intake and commitment',
+      'Internal delivery',
+      'Start from empty',
     ]) {
       expect(screen.getByRole('radio', { name: new RegExp(name) })).toBeInTheDocument();
     }
@@ -401,7 +413,13 @@ describe('ON-02 Operating template', () => {
    * system does not run. If a state is added to the machine, this assertion is what notices.
    */
   it('previews the real work-item states, in order', () => {
-    render(<OperatingTemplateScreen signedInAs={SIGNED_IN_AS} />);
+    render(
+      <OperatingTemplateScreen
+        signedInAs={SIGNED_IN_AS}
+        organizationSlug="northstar"
+        client={emptyDirectoryClient()}
+      />,
+    );
     const flow = screen.getByRole('list', { name: 'Work item states' });
     const rendered = within(flow)
       .getAllByRole('listitem')
@@ -419,16 +437,28 @@ describe('ON-02 Operating template', () => {
 
   it('previews the deliverable states only for a template with a client gate', async () => {
     const user = userEvent.setup();
-    render(<OperatingTemplateScreen signedInAs={SIGNED_IN_AS} />);
+    render(
+      <OperatingTemplateScreen
+        signedInAs={SIGNED_IN_AS}
+        organizationSlug="northstar"
+        client={emptyDirectoryClient()}
+      />,
+    );
 
     expect(screen.getByText(new RegExp(`${DELIVERABLE_STATES.length} states`))).toBeInTheDocument();
 
-    await user.click(screen.getByRole('radio', { name: /Software studio/ }));
-    expect(screen.getByText(/no publication step/)).toBeInTheDocument();
+    await user.click(screen.getByRole('radio', { name: /Internal delivery/ }));
+    expect(screen.getByText(/nothing is projected to a client portal/)).toBeInTheDocument();
   });
 
   it('says the template is a workflow rather than a theme', () => {
-    render(<OperatingTemplateScreen signedInAs={SIGNED_IN_AS} />);
+    render(
+      <OperatingTemplateScreen
+        signedInAs={SIGNED_IN_AS}
+        organizationSlug="northstar"
+        client={emptyDirectoryClient()}
+      />,
+    );
     expect(screen.getByText(/workflow, not a theme/)).toBeInTheDocument();
   });
 });

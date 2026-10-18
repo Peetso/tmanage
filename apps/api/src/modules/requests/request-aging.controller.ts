@@ -114,7 +114,7 @@ function bucketFor(ageDays: number): RequestAgingBucket {
 export class RequestAgingController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly aging: RequestAgingRepository,
+    @Inject(RequestAgingRepository) private readonly aging: RequestAgingRepository,
   ) {}
 
   /**

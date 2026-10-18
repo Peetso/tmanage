@@ -8,7 +8,7 @@ import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { search } from '../../lib/api/search';
-import type { SearchResultKind } from '../../lib/api/search';
+import type { SearchAudience, SearchResultKind, SearchTimeWindow } from '../../lib/api/search';
 import { getResolvedFeatureFlags } from '../../lib/api/admin-feature-flags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -37,6 +37,32 @@ const KIND_FACET: Readonly<Record<SearchResultKind, string>> = {
   meeting: 'Meetings',
 };
 
+/** The AUDIENCE facet rows (SR-02), each with the glyph the design pairs it with. */
+const AUDIENCE_ORDER: readonly SearchAudience[] = [
+  'internal',
+  'client_visible',
+  'client_action_required',
+];
+const AUDIENCE_FACET: Readonly<Record<SearchAudience, string>> = {
+  internal: '■ Internal only',
+  client_visible: '◎ Client visible',
+  client_action_required: '! Client action required',
+};
+/** The per-card audience pill text. */
+const AUDIENCE_PILL: Readonly<Record<SearchAudience, string>> = {
+  internal: '■ internal',
+  client_visible: '◎ client visible',
+  client_action_required: '! client action required',
+};
+
+/** The TIME facet capsules (SR-02). */
+const TIME_ORDER: readonly SearchTimeWindow[] = ['7d', '30d', 'all'];
+const TIME_FACET: Readonly<Record<SearchTimeWindow, string>> = {
+  '7d': '7 days',
+  '30d': '30 days',
+  all: 'All time',
+};
+
 /**
  * **SRCH-01 Global search (x111), ranked by SRCH ranking (x148)** — drawn as SR-02 Universal
  * search: the lime-ringed search capsule across the top, the TYPE facet column on the start side
@@ -53,7 +79,10 @@ const KIND_FACET: Readonly<Record<SearchResultKind, string>> = {
  * - **Only work items link to a detail page**, because only work items have one today.
  * - **Body/snippet matching is not here yet** — `snippet` is null until snippet extraction lands;
  *   the card draws the excerpt line only when there is one.
- * - The design's AUDIENCE and TIME facets are not drawn: the search endpoint takes neither filter.
+ * - **AUDIENCE and TIME facets are server filters.** Changing one re-runs the search with
+ *   `audience=` / `since=`, so the page is filled from the narrowed set rather than thinned on the
+ *   client. They only narrow: the server still relation-gates every hit. With every audience ticked
+ *   no `audience` is sent; with none ticked nothing is fetched (an empty audience set is no search).
  *
  * A query must be entered and submitted before anything is fetched: an empty search is not a
  * search, and the API rejects one.
@@ -68,12 +97,31 @@ export function SearchScreen({
   const [draft, setDraft] = useState<string>(initialQuery ?? '');
   const [query, setQuery] = useState<string>(initialQuery?.trim() ?? '');
   const [kind, setKind] = useState<'all' | SearchResultKind>('all');
+  const [audiences, setAudiences] = useState<readonly SearchAudience[]>(AUDIENCE_ORDER);
+  const [since, setSince] = useState<SearchTimeWindow>('all');
+
+  const selectedAudiences = AUDIENCE_ORDER.filter((value) => audiences.includes(value));
+  const audienceFilter =
+    selectedAudiences.length === AUDIENCE_ORDER.length ? undefined : selectedAudiences;
+  const noAudience = selectedAudiences.length === 0;
 
   const results = useQuery({
-    queryKey: ['search', organizationSlug, query],
-    queryFn: () => search(api, organizationSlug, { q: query }),
-    enabled: query !== '',
+    queryKey: ['search', organizationSlug, query, audienceFilter ?? 'any', since],
+    queryFn: () =>
+      search(api, organizationSlug, {
+        q: query,
+        ...(audienceFilter === undefined ? {} : { audiences: audienceFilter }),
+        since,
+      }),
+    enabled: query !== '' && !noAudience,
   });
+
+  function toggleAudience(value: SearchAudience) {
+    setAudiences((current) =>
+      current.includes(value) ? current.filter((entry) => entry !== value) : [...current, value],
+    );
+    setKind('all');
+  }
 
   // The copilot is an optional module: its "Ask" affordance appears only when the `copilot` feature
   // flag is resolved on for this org. While the flag read is pending or fails, the affordance stays
@@ -89,7 +137,7 @@ export function SearchScreen({
   const askQuery = (query !== '' ? query : draft).trim();
   const shown = kind === 'all' ? hits : hits.filter((hit) => hit.kind === kind);
   const org = encodeURIComponent(organizationSlug);
-  const settled = query !== '' && !results.isPending && !results.isError;
+  const settled = query !== '' && !noAudience && !results.isPending && !results.isError;
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -187,6 +235,44 @@ export function SearchScreen({
                 })}
               </div>
             </div>
+            <fieldset className="tm-sa-facet">
+              <legend className="tm-sa-eyebrow tm-sa-facet__legend">Audience</legend>
+              {AUDIENCE_ORDER.map((value) => (
+                <label key={value} className="tm-sa-check">
+                  <input
+                    type="checkbox"
+                    className="tm-sa-check__input"
+                    checked={audiences.includes(value)}
+                    onChange={() => toggleAudience(value)}
+                  />
+                  <span className="tm-sa-check__box" aria-hidden="true">
+                    ✓
+                  </span>
+                  {AUDIENCE_FACET[value]}
+                </label>
+              ))}
+            </fieldset>
+            <div className="tm-sa-facet" role="group" aria-labelledby="tm-search-time">
+              <p id="tm-search-time" className="tm-sa-eyebrow">
+                Time
+              </p>
+              <div className="tm-chip-row">
+                {TIME_ORDER.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className="tm-chip tm-sa-time"
+                    aria-pressed={since === value}
+                    onClick={() => {
+                      setSince(value);
+                      setKind('all');
+                    }}
+                  >
+                    {TIME_FACET[value]}
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="tm-sa-note">
               <p className="tm-sa-eyebrow">Hidden from you</p>
               <p className="tm-sa-note__body">
@@ -210,13 +296,20 @@ export function SearchScreen({
               </div>
             ) : null}
 
+            {query !== '' && noAudience ? (
+              <div className="tm-sa-empty" role="status">
+                <p className="tm-sa-empty__title">No audience selected</p>
+                <p className="tm-sa-empty__body">Tick at least one audience to see results.</p>
+              </div>
+            ) : null}
+
             {results.isError ? (
               <InlineAlert tone="danger" title="Could not run the search" live>
                 {describeError(results.error)}
               </InlineAlert>
             ) : null}
 
-            {query !== '' && results.isPending ? (
+            {query !== '' && !noAudience && results.isPending ? (
               <LoadingRegion label="Running the search.">
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
@@ -228,7 +321,9 @@ export function SearchScreen({
               <div className="tm-sa-empty" role="status">
                 <p className="tm-sa-empty__title">No matches</p>
                 <p className="tm-sa-empty__body">
-                  Nothing you can see matches “{query}”. Try a different word.
+                  Nothing you can see matches “{query}”
+                  {audienceFilter !== undefined || since !== 'all' ? ' with these filters' : ''}.
+                  Try a different word.
                 </p>
               </div>
             ) : null}
@@ -249,12 +344,20 @@ export function SearchScreen({
                       ) : (
                         <span className="tm-sa-hit__title">{hit.title}</span>
                       )}
+                      <span
+                        className={`tm-sa-audience tm-sa-audience--${hit.audience}`}
+                        data-testid="search-hit-audience"
+                      >
+                        {AUDIENCE_PILL[hit.audience]}
+                      </span>
                       <span className="tm-sa-hit__ref" aria-hidden="true">
                         {shortRef(hit.id)}
                       </span>
                     </div>
                     {hit.snippet ? <p className="tm-sa-hit__body">{hit.snippet}</p> : null}
-                    <p className="tm-sa-hit__meta">Project {shortRef(hit.projectId)}</p>
+                    <p className="tm-sa-hit__meta">
+                      Project {shortRef(hit.projectId)} · updated {shortDate(hit.updatedAt)}
+                    </p>
                   </li>
                 ))}
               </ul>
@@ -270,6 +373,13 @@ export function SearchScreen({
 export function shortRef(id: string): string {
   const hex = id.replace(/[^0-9a-f]/gi, '').toUpperCase();
   return hex.length >= 8 ? `${hex.slice(0, 4)}·${hex.slice(4, 8)}` : id.toUpperCase();
+}
+
+/** "13 Aug" — the design's short date on the card's meta line. */
+export function shortDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 function describeError(error: unknown): string {

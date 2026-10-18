@@ -1,6 +1,16 @@
-import { and, asc, eq, gt, inArray, like, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, isNull, like, lte, sql } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/mysql-core';
+import { WORK_ITEM_STATES } from '@tmanage/domain';
+import type { WorkItemState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { memberships, projectMemberships, users } from '../../common/database/schema.js';
+import {
+  memberAvailability,
+  memberships,
+  memberTeams,
+  projectMemberships,
+  users,
+  workItems,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -69,6 +79,23 @@ function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 
+/** Open work, as My Day and the profile count it: every state but `done` and `archived`. */
+const OPEN_WORK_STATES: readonly WorkItemState[] = WORK_ITEM_STATES.filter(
+  (state) => state !== 'done' && state !== 'archived',
+);
+
+/** PEO-01's extra columns for one member: teams, open commitments, declared availability. */
+export interface PersonDirectoryDetails {
+  readonly teams: readonly { readonly id: string; readonly name: string }[];
+  readonly openCommitments: number;
+  readonly overdueCommitments: number;
+  readonly declared: {
+    readonly kind: string;
+    readonly startDate: string;
+    readonly endDate: string;
+  } | null;
+}
+
 export class PeopleDirectoryRepository {
   /**
    * The organization's active members, by name, each with a project count.
@@ -131,5 +158,96 @@ export class PeopleDirectoryRepository {
       status: row.status,
       projectCount: Number(row.projectCount ?? 0),
     }));
+  }
+
+  /**
+   * PEO-01's per-row columns for one page of the directory, batched (three reads, never one per
+   * row): the teams each member is assigned to, the open work each owns (and how much of it is past
+   * due), and the first availability window the member has **declared** that touches
+   * `[fromDate, toDate]`. Every statement binds every tenant table to `context.organizationId`; an
+   * empty page reads nothing.
+   */
+  async rowDetails(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    members: readonly { readonly membershipId: string; readonly userId: string }[],
+    window: { readonly now: Date; readonly fromDate: string; readonly toDate: string },
+  ): Promise<ReadonlyMap<string, PersonDirectoryDetails>> {
+    const details = new Map<string, PersonDirectoryDetails>();
+    if (members.length === 0) return details;
+    const membershipIds = members.map((member) => member.membershipId);
+    const userIds = [...new Set(members.map((member) => member.userId))];
+    const org = context.organizationId;
+    const db = tenantDrizzle(runner);
+
+    // Sequential, not `Promise.all`: one connection is bound to this unit of work.
+    const teamDefinitions = alias(memberTeams, 'team_definitions');
+    const teamRows = await db
+      .select({
+        membershipId: memberTeams.membershipId,
+        teamId: teamDefinitions.id,
+        name: teamDefinitions.name,
+      })
+      .from(memberTeams)
+      .innerJoin(
+        teamDefinitions,
+        and(eq(teamDefinitions.organizationId, org), eq(teamDefinitions.id, memberTeams.teamId)),
+      )
+      .where(
+        and(eq(memberTeams.organizationId, org), inArray(memberTeams.membershipId, membershipIds)),
+      )
+      .orderBy(asc(teamDefinitions.name), asc(teamDefinitions.id));
+
+    const workRows = await db
+      .select({
+        ownerUserId: workItems.ownerUserId,
+        open: sql<number>`count(*)`,
+        overdue: sql<number>`sum(case when ${workItems.dueAt} < ${window.now} then 1 else 0 end)`,
+      })
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, org),
+          inArray(workItems.ownerUserId, userIds),
+          inArray(workItems.state, [...OPEN_WORK_STATES]),
+          isNull(workItems.deletedAt),
+        ),
+      )
+      .groupBy(workItems.ownerUserId);
+
+    const availabilityRows = await db
+      .select({
+        memberId: memberAvailability.memberId,
+        startDate: memberAvailability.startDate,
+        endDate: memberAvailability.endDate,
+        kind: memberAvailability.kind,
+      })
+      .from(memberAvailability)
+      .where(
+        and(
+          eq(memberAvailability.organizationId, org),
+          inArray(memberAvailability.memberId, membershipIds),
+          gte(memberAvailability.endDate, window.fromDate),
+          lte(memberAvailability.startDate, window.toDate),
+        ),
+      )
+      .orderBy(asc(memberAvailability.startDate), asc(memberAvailability.id));
+
+    const work = new Map(workRows.map((row) => [row.ownerUserId, row]));
+    for (const member of members) {
+      const owned = work.get(member.userId);
+      const declared = availabilityRows.find((row) => row.memberId === member.membershipId);
+      details.set(member.membershipId, {
+        teams: teamRows
+          .filter((row) => row.membershipId === member.membershipId)
+          .map((row) => ({ id: row.teamId, name: row.name ?? '' })),
+        openCommitments: Number(owned?.open ?? 0),
+        overdueCommitments: Number(owned?.overdue ?? 0),
+        declared: declared
+          ? { kind: declared.kind, startDate: declared.startDate, endDate: declared.endDate }
+          : null,
+      });
+    }
+    return details;
   }
 }

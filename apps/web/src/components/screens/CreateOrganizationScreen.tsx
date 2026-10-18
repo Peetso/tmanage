@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { createOrganization } from '../../lib/api/organizations';
+import { checkAddressAvailability, createOrganization } from '../../lib/api/organizations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import {
@@ -42,6 +42,39 @@ const LOCALES = [
   { value: 'ar', label: 'العربية', short: 'RTL' },
 ] as const;
 
+/** The public suffix every workspace address is shown with (ON-02). */
+export const ADDRESS_SUFFIX = '.tmanage.app';
+
+/** How long typing must pause before the address is checked. */
+export const AVAILABILITY_DEBOUNCE_MS = 400;
+
+/** ON-02's working weeks — the API's `org_settings.working_week` values. */
+const WORKING_WEEKS = [
+  { value: 'mon-fri', label: 'Mon – Fri' },
+  { value: 'sun-thu', label: 'Sun – Thu' },
+  { value: 'sat-wed', label: 'Sat – Wed' },
+  { value: 'mon-sat', label: 'Mon – Sat' },
+] as const;
+
+/** Zones whose weekend is Friday–Saturday, so the default week starts on Sunday. */
+const SUNDAY_WEEK_ZONES = new Set([
+  'Africa/Cairo',
+  'Asia/Amman',
+  'Asia/Baghdad',
+  'Asia/Bahrain',
+  'Asia/Jerusalem',
+  'Asia/Kuwait',
+  'Asia/Muscat',
+  'Asia/Qatar',
+  'Asia/Riyadh',
+]);
+
+type Availability =
+  | { readonly state: 'idle' }
+  | { readonly state: 'checking'; readonly slug: string }
+  | { readonly state: 'available'; readonly slug: string }
+  | { readonly state: 'unavailable'; readonly slug: string; readonly message: string };
+
 /** ON-01's "work type", which decides the vocabulary and the default workflow. */
 const WORK_TYPES = [
   {
@@ -51,6 +84,7 @@ const WORK_TYPES = [
       'Design, build or campaign work delivered to external clients who review and approve versions.',
     vocabulary: 'Deliverable · Milestone · Approval · Portal',
     workflow: 'delivery with client review',
+    template: 'delivery-client-review',
   },
   {
     value: 'retainer',
@@ -59,6 +93,7 @@ const WORK_TYPES = [
       'Continuous requests from the same clients, with commitments made per cycle rather than per project.',
     vocabulary: 'Request · Cycle · Commitment · Portal',
     workflow: 'intake and commitment',
+    template: 'intake-commitment',
   },
   {
     value: 'internal',
@@ -67,6 +102,7 @@ const WORK_TYPES = [
       'No external clients yet. Everything stays internal, and the portal can be switched on later.',
     vocabulary: 'Work · Milestone · Decision',
     workflow: 'internal delivery',
+    template: 'internal-delivery',
   },
 ] as const;
 
@@ -92,11 +128,13 @@ export interface CreateOrganizationScreenProps {
  * moment the person edits it. Continuing to overwrite an edited field is the behaviour that
  * makes slug fields infuriating.
  *
- * Availability is still **not** claimed before submitting. The export draws a green
- * "available" tick and there is no endpoint that checks one; a tick that checked nothing is
- * worse than no tick. What there is instead is a real answer on submit — the unique key
- * decides, and a 409 comes back naming the field. That is the honest version of the same
- * affordance: it costs one attempt and it cannot be wrong.
+ * Availability is checked live: once typing pauses, `GET /v1/organizations/address-availability`
+ * answers with the create route's own rules, and the field shows "available" or why not. The
+ * tick is still a forecast — someone can take the address between the check and the submit —
+ * so the unique key keeps the final say, and a 409 still lands beside the field.
+ *
+ * The working week and the starting template (from the work type) are created with the
+ * organization, in the same transaction, as `org_settings` rows.
  *
  * The slug is sent exactly as it appears in the field. The server refuses capitals rather
  * than folding them, so the address a person is shown here is the address they get.
@@ -119,6 +157,14 @@ export function CreateOrganizationScreen({
   const [timezone, setTimezone] = useState(() => guessTimezone());
   const [locale, setLocale] = useState<string>(LOCALES[0].value);
   const [workType, setWorkType] = useState<string>(WORK_TYPES[0].value);
+  const [workingWeek, setWorkingWeek] = useState<string>(() =>
+    SUNDAY_WEEK_ZONES.has(guessTimezone()) ? 'sun-thu' : 'mon-fri',
+  );
+  const [availability, setAvailability] = useState<Availability>({ state: 'idle' });
+  const pendingCheck = useRef<
+    { timer: ReturnType<typeof setTimeout>; abort: AbortController } | undefined
+  >(undefined);
+  const addressId = useId();
 
   const [creating, setCreating] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -127,7 +173,53 @@ export function CreateOrganizationScreen({
   const effectiveSlug = slugEdited ? slug : slugify(name);
   const localSlugError =
     name === '' && !slugEdited ? undefined : describeSlugProblems(slugProblems(effectiveSlug));
-  const slugError = localSlugError ?? serverSlugError;
+  const takenError =
+    availability.state === 'unavailable' && availability.slug === effectiveSlug
+      ? availability.message
+      : undefined;
+  const slugError = localSlugError ?? serverSlugError ?? takenError;
+  const checkable = localSlugError === undefined && effectiveSlug !== '';
+
+  // The live check: debounced, one request in flight, and an answer for an address the field no
+  // longer shows is dropped rather than painted on the new one.
+  useEffect(() => {
+    if (!checkable) {
+      setAvailability({ state: 'idle' });
+      return undefined;
+    }
+    const abort = new AbortController();
+    const slugToCheck = effectiveSlug;
+    const timer = setTimeout(() => {
+      setAvailability({ state: 'checking', slug: slugToCheck });
+      checkAddressAvailability(api, slugToCheck, abort.signal).then(
+        (answer) => {
+          if (abort.signal.aborted) return;
+          if (answer.available === true) {
+            setAvailability({ state: 'available', slug: slugToCheck });
+          } else if (answer.reason === 'taken' || answer.reason === 'invalid') {
+            setAvailability({
+              state: 'unavailable',
+              slug: slugToCheck,
+              message: answer.message ?? 'Choose a different workspace address.',
+            });
+          } else {
+            setAvailability({ state: 'idle' });
+          }
+        },
+        // A failed check says nothing about the address; the submit still decides.
+        () => {
+          if (!abort.signal.aborted) setAvailability({ state: 'idle' });
+        },
+      );
+    }, AVAILABILITY_DEBOUNCE_MS);
+    pendingCheck.current = { timer, abort };
+    return () => {
+      clearTimeout(timer);
+      abort.abort();
+    };
+    // `api` is a fresh client per render when none is injected; the address is what matters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveSlug, checkable]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -138,9 +230,14 @@ export function CreateOrganizationScreen({
       setFailure('Enter an organization name.');
       return;
     }
-    if (localSlugError !== undefined || effectiveSlug === '') {
+    if (localSlugError !== undefined || effectiveSlug === '' || takenError !== undefined) {
       setFailure('Fix the workspace address first.');
       return;
+    }
+    // Submitting answers the question the pending check was going to ask.
+    if (pendingCheck.current) {
+      clearTimeout(pendingCheck.current.timer);
+      pendingCheck.current.abort.abort();
     }
 
     setCreating(true);
@@ -150,6 +247,10 @@ export function CreateOrganizationScreen({
         slug: effectiveSlug,
         timezone,
         defaultLocale: locale,
+        workingWeek,
+        operatingTemplate:
+          WORK_TYPES.find((option) => option.value === workType)?.template ??
+          WORK_TYPES[0].template,
       });
       onCreated?.(created.slug);
     } catch (error) {
@@ -171,7 +272,6 @@ export function CreateOrganizationScreen({
     }
   }
 
-  const addressLabel = effectiveSlug === '' ? '—' : effectiveSlug;
   const trimmedName = name.trim();
 
   return (
@@ -238,24 +338,69 @@ export function CreateOrganizationScreen({
                 required
               />
 
-              <Field
-                label="Workspace address"
-                name="slug"
-                className="tm-ob-mono-field"
-                value={effectiveSlug}
-                onChange={(event) => {
-                  setSlugEdited(true);
-                  setSlug(event.target.value);
-                  // The server said *this* address was taken. Editing it makes that answer
-                  // stale, and leaving it on screen would mark a different address as
-                  // unavailable on no evidence.
-                  setServerSlugError(undefined);
-                }}
-                dir="ltr"
-                spellCheck={false}
-                hint="Lowercase letters, numbers and hyphens."
-                {...(slugError === undefined ? {} : { error: slugError })}
-              />
+              <div className="tm-field tm-ob-mono-field">
+                <label className="tm-field__label" htmlFor={addressId}>
+                  Workspace address
+                </label>
+                <div className="tm-ob-address" data-invalid={slugError ? 'true' : undefined}>
+                  <span className="tm-ob-address__value">
+                    <input
+                      id={addressId}
+                      name="slug"
+                      className="tm-ob-address__input"
+                      value={effectiveSlug}
+                      // Mono: one `ch` per character, so the suffix sits right after the text.
+                      style={{ inlineSize: `${Math.max(effectiveSlug.length, 1) + 0.1}ch` }}
+                      onChange={(event) => {
+                        setSlugEdited(true);
+                        setSlug(event.target.value);
+                        // The server said *this* address was taken. Editing it makes that answer
+                        // stale, and leaving it on screen would mark a different address as
+                        // unavailable on no evidence.
+                        setServerSlugError(undefined);
+                      }}
+                      dir="ltr"
+                      spellCheck={false}
+                      autoCapitalize="none"
+                      aria-invalid={slugError ? true : undefined}
+                      aria-describedby={`${addressId}-status ${addressId}-hint`}
+                    />
+                    <span className="tm-ob-address__suffix" aria-hidden="true">
+                      {ADDRESS_SUFFIX}
+                    </span>
+                  </span>
+                  <span
+                    className="tm-ob-address__status"
+                    id={`${addressId}-status`}
+                    role="status"
+                    data-state={slugError ? 'error' : availability.state}
+                  >
+                    {slugError === undefined && availability.state === 'available' ? (
+                      <>
+                        <span className="tm-ob-address__tick" aria-hidden="true">
+                          ✓
+                        </span>
+                        available
+                      </>
+                    ) : null}
+                    {slugError === undefined && availability.state === 'checking'
+                      ? 'checking…'
+                      : null}
+                  </span>
+                </div>
+                {slugError === undefined ? (
+                  <span className="tm-field__hint" id={`${addressId}-hint`}>
+                    Lowercase letters, numbers and hyphens.
+                  </span>
+                ) : (
+                  <span className="tm-field__error" id={`${addressId}-hint`}>
+                    <span className="tm-inline-alert__glyph" aria-hidden="true">
+                      !
+                    </span>
+                    {slugError}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="tm-ob-grid-2">
@@ -277,26 +422,44 @@ export function CreateOrganizationScreen({
                 </select>
               </div>
 
-              <fieldset className="tm-fieldset tm-field">
-                <legend className="tm-field__label tm-ob-legend">
-                  Interface language and direction
-                </legend>
-                <div className="tm-ob-pills">
-                  {LOCALES.map((option) => (
-                    <label key={option.value} className="tm-ob-pill" lang={option.value}>
-                      <input
-                        type="radio"
-                        name="locale"
-                        value={option.value}
-                        checked={locale === option.value}
-                        onChange={() => setLocale(option.value)}
-                      />
-                      {option.label} · {option.short}
-                    </label>
+              <div className="tm-field">
+                <label className="tm-field__label" htmlFor="tm-working-week">
+                  Working week
+                </label>
+                <select
+                  id="tm-working-week"
+                  className="tm-field__control"
+                  value={workingWeek}
+                  onChange={(event) => setWorkingWeek(event.target.value)}
+                >
+                  {WORKING_WEEKS.map((week) => (
+                    <option key={week.value} value={week.value}>
+                      {week.label}
+                    </option>
                   ))}
-                </div>
-              </fieldset>
+                </select>
+              </div>
             </div>
+
+            <fieldset className="tm-fieldset tm-field">
+              <legend className="tm-field__label tm-ob-legend">
+                Interface language and direction
+              </legend>
+              <div className="tm-ob-pills">
+                {LOCALES.map((option) => (
+                  <label key={option.value} className="tm-ob-pill" lang={option.value}>
+                    <input
+                      type="radio"
+                      name="locale"
+                      value={option.value}
+                      checked={locale === option.value}
+                      onChange={() => setLocale(option.value)}
+                    />
+                    {option.label} · {option.short}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
 
             <div className="tm-ob-note">
               <span className="tm-ob-glyph" aria-hidden="true">
@@ -304,9 +467,7 @@ export function CreateOrganizationScreen({
               </span>
               <p>
                 Dates and deadlines are stored with a timezone. When a client is in another zone,
-                both are shown on the deadline. Your workspace address will be{' '}
-                <strong className="tm-ob-mono">{addressLabel}</strong>; whether it is free is
-                decided when you create the organization.
+                both are shown on the deadline.
               </p>
             </div>
 
@@ -406,6 +567,35 @@ const ONBOARDING_SCREEN_CSS = `
   outline: none; border: var(--b-expressive) solid var(--ink-950); box-shadow: 0 0 0 3px var(--lime-500);
 }
 .tm-ob-mono-field .tm-field__control { font-family: var(--font-mono); }
+.tm-ob-address {
+  display: flex; align-items: center; gap: 12px; min-block-size: 50px; padding-inline: 16px;
+  border: var(--b-quiet) solid var(--line-300); border-radius: var(--r-control);
+  background: var(--paper-50); cursor: text;
+}
+.tm-ob-address:focus-within {
+  border: var(--b-expressive) solid var(--ink-950); box-shadow: 0 0 0 3px var(--lime-500);
+}
+.tm-ob-address[data-invalid] { border-color: var(--danger-600); }
+.tm-ob-address__value {
+  display: flex; align-items: baseline; flex: 1; min-inline-size: 0; overflow: hidden;
+  font-family: var(--font-mono); font-size: var(--t-body-md); line-height: 24px;
+}
+.tm-ob-address__input {
+  flex-shrink: 0; min-inline-size: 1ch; max-inline-size: 100%; padding: 0; border: 0; outline: none;
+  background: transparent; color: var(--ink-950); font: inherit; font-weight: 500;
+}
+.tm-ob-address__suffix {
+  min-inline-size: 0; overflow: hidden; color: var(--ink-500); white-space: nowrap; text-overflow: ellipsis;
+}
+.tm-ob-address__status {
+  display: inline-flex; flex-shrink: 0; align-items: center; gap: 6px; color: var(--ink-650);
+  font-size: 11px; line-height: 16px; font-weight: 500;
+}
+.tm-ob-address__status:empty { display: none; }
+.tm-ob-address__tick {
+  display: grid; place-items: center; inline-size: 18px; block-size: 18px; border-radius: var(--r-capsule);
+  background: var(--success-600); color: var(--paper-0); font: 600 10px/1 var(--font-mono);
+}
 .tm-ob-legend { padding: 0; margin-block-end: 6px; }
 .tm-ob-rule { block-size: 1px; margin: 0; border: 0; background: var(--paper-150); }
 .tm-ob-pills { display: flex; flex-wrap: wrap; gap: 8px; }

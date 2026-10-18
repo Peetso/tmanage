@@ -338,6 +338,10 @@ export const documents = mysqlTable(
     projectId: char('project_id', { length: 36 }).notNull(),
     title: varchar('title', { length: 300 }).notNull(),
     body: text('body').notNull(),
+    /** Docs audience (0203): internal-only, or published to the project's client people. */
+    audience: mysqlEnum('audience', ['internal', 'client']).notNull().default('internal'),
+    publishedAt: datetime('published_at', { mode: 'date', fsp: 3 }),
+    publishedByUserId: char('published_by_user_id', { length: 36 }),
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -345,6 +349,7 @@ export const documents = mysqlTable(
   (table) => [
     uniqueIndex('uq_documents_org_id').on(table.organizationId, table.id),
     index('ix_documents_org_project').on(table.organizationId, table.projectId, table.id),
+    index('ix_documents_org_updated').on(table.organizationId, table.updatedAt, table.id),
   ],
 );
 

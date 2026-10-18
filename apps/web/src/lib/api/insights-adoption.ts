@@ -12,16 +12,41 @@ import type { ApiClient } from './client';
  * tenant-scoped in SQL and re-checked on the server, so this never returns another tenant's numbers.
  */
 
+/** The data gaps the adoption view lists, in display order (mirrors the API's `ADOPTION_GAP_IDS`). */
+export type AdoptionGapId =
+  'chat_work_untriaged' | 'client_files_internal' | 'requests_uncommitted';
+
+/** One data gap: how many records carry it, across how many projects, and the project when only one. */
+export interface InsightsAdoptionGapView {
+  readonly id: AdoptionGapId;
+  readonly count: number;
+  readonly projectCount: number;
+  readonly projectName: string | null;
+}
+
 /**
- * The adoption roll-up. `activeMembers` is the studio's current active memberships; `membersWithWork`
- * is the distinct people who created any work in the window; `meetingsHeld` is the meetings held in
- * it; `windowDays` echoes the clamped window the counts were computed over.
+ * The adoption and system-quality roll-up. `activeMembers`, `membersWithWork` and `meetingsHeld`
+ * are the org-level usage facts; `committedDate` counts work created in the window (and the one
+ * before) that carries a committed date; `channels` counts live channels and those no work was ever
+ * created from; `unhashedDeliverables` counts deliverables sent for approval whose hash does not
+ * match the stored version; `decisionsRecorded` counts decisions logged and approvals decided;
+ * `gaps` lists the record gaps. `windowDays` echoes the window the counts were computed over.
  */
 export interface InsightsAdoptionView {
   readonly windowDays: number;
   readonly activeMembers: number;
   readonly membersWithWork: number;
   readonly meetingsHeld: number;
+  readonly committedDate: {
+    readonly dated: number;
+    readonly total: number;
+    readonly previousDated: number;
+    readonly previousTotal: number;
+  };
+  readonly channels: { readonly total: number; readonly withoutWork: number };
+  readonly unhashedDeliverables: { readonly current: number; readonly previous: number };
+  readonly decisionsRecorded: { readonly decisionLog: number; readonly approvals: number };
+  readonly gaps: readonly InsightsAdoptionGapView[];
   readonly computedAt: string;
 }
 

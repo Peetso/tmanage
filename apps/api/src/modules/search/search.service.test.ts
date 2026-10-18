@@ -5,7 +5,7 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import { SearchService } from './search.service.js';
-import { SearchController } from './search.controller.js';
+import { SearchController, parseAudiences, parseTimeWindow } from './search.controller.js';
 import type {
   SearchIndexHitRow,
   SearchIndexRepository,
@@ -55,9 +55,12 @@ const context = { organizationId: ORG, userId: USER } as unknown as TenantContex
  * "ordered by relevance then updated_at". It applies only the optional projectId filter and bound,
  * never a re-sort and never the tenant scope (so a cross-tenant row reaches the relation gate).
  */
+const NOW = new Date('2026-10-18T12:00:00.000Z');
+
 function serviceWith(
   ranked: readonly SearchIndexHitRow[] = [],
   knownProjects: readonly string[] = [PROJECT],
+  seen: SearchRankedOptions[] = [],
 ): SearchService {
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -68,10 +71,14 @@ function serviceWith(
       _r: unknown,
       _c: unknown,
       options: SearchRankedOptions,
-    ): Promise<readonly SearchIndexHitRow[]> =>
-      ranked
+    ): Promise<readonly SearchIndexHitRow[]> => {
+      seen.push(options);
+      return ranked
         .filter((row) => options.projectId === undefined || row.projectId === options.projectId)
-        .slice(0, options.limit),
+        .filter((row) => !options.audiences || options.audiences.includes(row.audience))
+        .filter((row) => !options.updatedSince || row.updatedAt >= options.updatedSince)
+        .slice(0, options.limit);
+    },
   } as unknown as SearchIndexRepository;
 
   const projects = {
@@ -79,14 +86,20 @@ function serviceWith(
       knownProjects.includes(projectId) ? { id: projectId, organizationId: ORG } : null,
   } as unknown as ProjectsRepository;
 
-  return new SearchService(database, repository, projects);
+  return new SearchService(database, repository, projects, () => NOW);
 }
 
 function hit(
   overrides: Partial<SearchIndexHitRow> &
     Pick<SearchIndexHitRow, 'targetId' | 'title' | 'targetKind'>,
 ): SearchIndexHitRow {
-  return { organizationId: ORG, projectId: PROJECT, audience: 'internal', ...overrides };
+  return {
+    organizationId: ORG,
+    projectId: PROJECT,
+    audience: 'internal',
+    updatedAt: NOW,
+    ...overrides,
+  };
 }
 
 describe('SearchService (ranked)', () => {
@@ -182,6 +195,58 @@ describe('SearchService (ranked)', () => {
     expect(
       await big.search(context, member([PROJECT], true), { q: 'task', limit: 5 }),
     ).toHaveLength(5);
+  });
+});
+
+describe('SearchService facets (SR-02 audience and time)', () => {
+  it('passes the audience subset and the 7-day window start to the ranked read', async () => {
+    const seen: SearchRankedOptions[] = [];
+    await serviceWith([], [PROJECT], seen).search(context, member([PROJECT], true), {
+      q: 'x',
+      audiences: ['client_visible'],
+      since: '7d',
+    });
+    expect(seen[0]?.audiences).toEqual(['client_visible']);
+    expect(seen[0]?.updatedSince?.toISOString()).toBe('2026-10-11T12:00:00.000Z');
+  });
+
+  it('applies no time bound for all time', async () => {
+    const seen: SearchRankedOptions[] = [];
+    await serviceWith([], [PROJECT], seen).search(context, member([PROJECT], true), {
+      q: 'x',
+      since: 'all',
+    });
+    expect(seen[0]?.updatedSince).toBeUndefined();
+  });
+
+  it('still drops a denied hit inside a matching facet (facets never widen access)', async () => {
+    const service = serviceWith([
+      hit({ targetKind: 'work_item', targetId: 'w1', title: 'Theirs', projectId: OTHER_PROJECT }),
+      hit({ targetKind: 'work_item', targetId: 'w2', title: 'Mine', audience: 'client_visible' }),
+    ]);
+    const results = await service.search(context, member([PROJECT]), {
+      q: 'x',
+      audiences: ['internal', 'client_visible'],
+      since: '30d',
+    });
+    expect(results.map((r) => [r.id, r.audience])).toEqual([['w2', 'client_visible']]);
+  });
+});
+
+describe('SearchController facet parsing', () => {
+  it('accepts an audience subset, collapsing duplicates, and rejects unknown values', () => {
+    expect(parseAudiences('internal, client_visible,internal')).toEqual([
+      'internal',
+      'client_visible',
+    ]);
+    expect(parseAudiences(undefined)).toBeUndefined();
+    expect(() => parseAudiences('internal,everyone')).toThrow(ApiError);
+    expect(() => parseAudiences('')).toThrow(ApiError);
+  });
+
+  it('accepts 7d, 30d and all as the time window and rejects anything else', () => {
+    expect(parseTimeWindow('30d')).toBe('30d');
+    expect(() => parseTimeWindow('90d')).toThrow(ApiError);
   });
 });
 

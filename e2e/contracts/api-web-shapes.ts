@@ -60,6 +60,7 @@ import type {
   ThreadView as ApiThreadView,
 } from '../../apps/api/src/modules/conversations/thread-replies.service.js';
 import type { CreatedOrganizationView as ApiCreatedOrganizationView } from '../../apps/api/src/modules/tenancy/provisioning.service.js';
+import type { AddressAvailabilityView as ApiAddressAvailabilityView } from '../../apps/api/src/modules/tenancy/organizations.controller.js';
 import type { DocumentView as ApiDocumentView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocumentVersionView as ApiDocumentVersionView } from '../../apps/api/src/modules/docs/documents.service.js';
 import type { DocRevisionView as ApiDocRevisionView } from '../../apps/api/src/modules/docs/revisions.service.js';
@@ -588,6 +589,7 @@ import type {
   OffboardedMember as WebOffboardedMember,
 } from '../../apps/web/src/lib/api/offboarding';
 import type {
+  AddressAvailability as WebAddressAvailability,
   CreatedOrganization as WebCreatedOrganization,
   OrganizationSummary as WebOrganizationSummary,
 } from '../../apps/web/src/lib/api/organizations';
@@ -800,6 +802,34 @@ import type {
   ProjectRetroNoteSummary as WebProjectRetroNoteSummary,
   ProjectRetroBoard as WebProjectRetroBoard,
 } from '../../apps/web/src/lib/api/project-retro-notes';
+import type {
+  DocumentPersonView as ApiDocumentPersonView,
+  DocumentSharingView as ApiDocumentSharingView,
+  RecentDocumentView as ApiRecentDocumentView,
+  RecentDocumentsView as ApiRecentDocumentsView,
+} from '../../apps/api/src/modules/docs/document-sharing.service.js';
+import type {
+  DocumentPerson as WebDocumentPerson,
+  DocumentSharing as WebDocumentSharing,
+  RecentDocumentSummary as WebRecentDocumentSummary,
+  RecentDocumentsResult as WebRecentDocumentsResult,
+} from '../../apps/web/src/lib/api/documents';
+import type { InsightsAdoptionGapView as ApiInsightsAdoptionGapView } from '../../apps/api/src/modules/insights/adoption.controller.js';
+import type { InsightsAdoptionGapView as WebInsightsAdoptionGapView } from '../../apps/web/src/lib/api/insights-adoption';
+import type {
+  CreatedPersonalAccessTokenView as ApiCreatedPersonalAccessTokenView,
+  PersonalAccessTokenView as ApiPersonalAccessTokenView,
+} from '../../apps/api/src/modules/personal-access-tokens/personal-access-tokens.service.js';
+import type {
+  CreatedPersonalAccessTokenView as WebCreatedPersonalAccessTokenView,
+  PersonalAccessTokenView as WebPersonalAccessTokenView,
+} from '../../apps/web/src/lib/api/personal-access-tokens';
+import type { PortfolioCapacityView as ApiPortfolioCapacityView } from '../../apps/api/src/modules/projects/portfolio-capacity.service.js';
+import type { PortfolioMilestoneView as ApiPortfolioMilestoneView } from '../../apps/api/src/modules/projects/portfolio.service.js';
+import type {
+  PortfolioCapacity as WebPortfolioCapacity,
+  PortfolioMilestone as WebPortfolioMilestone,
+} from '../../apps/web/src/lib/api/project-portfolio';
 
 // ── The assertions themselves ───────────────────────────────────────────────
 
@@ -2768,3 +2798,18 @@ type _projectDependency = Assert<Exact<ApiProjectDependencyView, WebProjectDepen
 // PROJ retro notes (x311): one note and the grouped board.
 type _projectRetroNote = Assert<Exact<ApiProjectRetroNoteView, WebProjectRetroNoteSummary>>;
 type _projectRetroBoard = Assert<Exact<ApiProjectRetroBoardView, WebProjectRetroBoard>>;
+/** `GET /v1/organizations/address-availability` — ON-02's live "available" tick. */
+type _addressAvailability = Assert<Exact<ApiAddressAvailabilityView, WebAddressAvailability>>;
+// Design-gaps pass (2026-10-18): docs audience, adoption gaps, portfolio
+// timeline + capacity, and the MCP personal access tokens.
+type _documentPerson = Assert<Exact<ApiDocumentPersonView, WebDocumentPerson>>;
+type _documentSharing = Assert<Exact<ApiDocumentSharingView, WebDocumentSharing>>;
+type _recentDocument = Assert<Exact<ApiRecentDocumentView, WebRecentDocumentSummary>>;
+type _recentDocuments = Assert<Exact<ApiRecentDocumentsView, WebRecentDocumentsResult>>;
+type _adoptionGap = Assert<Exact<ApiInsightsAdoptionGapView, WebInsightsAdoptionGapView>>;
+type _personalAccessToken = Assert<Exact<ApiPersonalAccessTokenView, WebPersonalAccessTokenView>>;
+type _createdPersonalAccessToken = Assert<
+  Exact<ApiCreatedPersonalAccessTokenView, WebCreatedPersonalAccessTokenView>
+>;
+type _portfolioMilestone = Assert<Exact<ApiPortfolioMilestoneView, WebPortfolioMilestone>>;
+type _portfolioCapacity = Assert<Exact<ApiPortfolioCapacityView, WebPortfolioCapacity>>;

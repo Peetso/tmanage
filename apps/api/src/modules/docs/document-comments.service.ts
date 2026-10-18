@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { DocumentsRepository } from './documents.repository.js';
 import { DocumentCommentsRepository } from './document-comments.repository.js';
+import { DocumentSharingRepository } from './document-sharing.repository.js';
 import type { ListDocumentCommentsOptions } from './document-comments.repository.js';
 import type { DocumentCommentRow, DocumentRow } from '../../common/database/schema.js';
 
@@ -33,6 +34,8 @@ export interface DocumentCommentView {
   readonly id: string;
   readonly documentId: string;
   readonly authorMembershipId: string;
+  /** The author's display name, resolved through this tenant's memberships; null if unresolvable. */
+  readonly authorName: string | null;
   readonly body: string;
   readonly createdAt: string;
 }
@@ -42,11 +45,12 @@ export interface DocumentCommentView {
  * fields means a column added to `document_comments` in a future migration is invisible to every
  * caller until someone decides otherwise. `organization_id` is never echoed into a response body.
  */
-function toView(row: DocumentCommentRow): DocumentCommentView {
+function toView(row: DocumentCommentRow, names: ReadonlyMap<string, string>): DocumentCommentView {
   return {
     id: row.id,
     documentId: row.documentId,
     authorMembershipId: row.authorMembershipId,
+    authorName: names.get(row.authorMembershipId) ?? null,
     body: row.body,
     createdAt: row.createdAt.toISOString(),
   };
@@ -60,7 +64,22 @@ export class DocumentCommentsService {
     private readonly database: TenantDatabase,
     private readonly documents: DocumentsRepository = new DocumentsRepository(),
     private readonly comments: DocumentCommentsRepository = new DocumentCommentsRepository(),
+    private readonly people: Pick<
+      DocumentSharingRepository,
+      'people'
+    > = new DocumentSharingRepository(),
   ) {}
+
+  /** Membership id -> display name, anchored on this tenant's memberships. */
+  private async authorNames(
+    context: TenantContext,
+    membershipIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const rows = await this.database.read(context, (runner) =>
+      this.people.people(runner, context, { membershipIds }),
+    );
+    return new Map(rows.map((row) => [row.membershipId, row.displayName]));
+  }
 
   /**
    * Resolve a document the principal may act on, tenant-scoped **before** the relation check.
@@ -117,7 +136,11 @@ export class DocumentCommentsService {
     const rows = await this.database.read(context, (runner) =>
       this.comments.list(runner, context, documentId, options),
     );
-    return rows.map(toView);
+    const names = await this.authorNames(
+      context,
+      rows.map((row) => row.authorMembershipId),
+    );
+    return rows.map((row) => toView(row, names));
   }
 
   /**
@@ -141,7 +164,7 @@ export class DocumentCommentsService {
         authorMembershipId: context.membershipId,
       }),
     );
-    return toView(row);
+    return toView(row, await this.authorNames(context, [row.authorMembershipId]));
   }
 
   /** The maximum comment body length the controller validates against before calling {@link add}. */

@@ -2,6 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Param, Post, Put, Query } from
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
+import { parseCalendarRange } from './calendar-range.js';
 import { WORK_VIEWS_SERVICE } from '../../common/http/tokens.js';
 import type { SavedViewConfig } from '../../common/database/schema.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
@@ -13,26 +14,6 @@ import type {
   WorkTimelineView,
   WorkViewsService,
 } from './work-views.service.js';
-
-/** A calendar range is bounded by `YYYY-MM-DD` date-only strings; the day is the calendar bucket. */
-const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Validate a `YYYY-MM-DD` query value, adding a field error rather than throwing on a bad one. */
-function parseDay(
-  field: string,
-  raw: unknown,
-  details: { field: string; message: string }[],
-): string | undefined {
-  if (
-    typeof raw !== 'string' ||
-    !DATE_ONLY.test(raw) ||
-    Number.isNaN(Date.parse(`${raw}T00:00:00Z`))
-  ) {
-    details.push({ field, message: 'must be a YYYY-MM-DD date' });
-    return undefined;
-  }
-  return raw;
-}
 
 /**
  * The Work views HTTP surface — WK-04 timeline (x94) and WK-08 saved views (x107).
@@ -95,20 +76,9 @@ export class WorkViewsController {
     @Query('from') from?: string,
     @Query('to') to?: string,
   ): Promise<WorkCalendarView> {
-    const details: { field: string; message: string }[] = [];
-    const parsedFrom = parseDay('from', from, details);
-    const parsedTo = parseDay('to', to, details);
-    if (parsedFrom && parsedTo && parsedFrom > parsedTo) {
-      details.push({ field: 'to', message: 'must be on or after from' });
-    }
-    if (details.length > 0 || !parsedFrom || !parsedTo) {
-      throw new ApiError(400, 'validation_failed', 'The date range is invalid', details);
-    }
+    const range = parseCalendarRange(from, to);
 
-    return this.workViews.projectCalendar(context, principal, projectId, {
-      from: parsedFrom,
-      to: parsedTo,
-    });
+    return this.workViews.projectCalendar(context, principal, projectId, range);
   }
   /** The caller's own saved views plus the views shared inside their studio, deterministically. */
   @Get('saved')

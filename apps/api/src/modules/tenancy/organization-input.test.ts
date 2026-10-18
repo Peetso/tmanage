@@ -32,4 +32,25 @@ describe('validateOrganizationInput', () => {
     expect(apiError.code).toBe('validation_failed');
     expect(apiError.details?.some((detail) => detail.field === 'slug')).toBe(true);
   });
+
+  it('carries a valid working week and template, and names an invalid one', () => {
+    expect(
+      validateOrganizationInput({
+        name: 'Acme',
+        slug: 'acme',
+        workingWeek: 'sun-thu',
+        operatingTemplate: 'intake-commitment',
+      }),
+    ).toMatchObject({ workingWeek: 'sun-thu', operatingTemplate: 'intake-commitment' });
+
+    const caught = (() => {
+      try {
+        validateOrganizationInput({ name: 'Acme', slug: 'acme', workingWeek: 'every-day' });
+      } catch (error) {
+        return error as ApiError;
+      }
+      return undefined;
+    })();
+    expect(caught?.details?.map((detail) => detail.field)).toEqual(['workingWeek']);
+  });
 });

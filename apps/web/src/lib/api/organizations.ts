@@ -37,6 +37,10 @@ export interface CreateOrganizationInput {
   readonly slug: string;
   readonly timezone: string;
   readonly defaultLocale: string;
+  /** `mon-fri`, `sun-thu`, `sat-wed` or `mon-sat`. Stored as the organization's working week. */
+  readonly workingWeek?: string;
+  /** The starting operating template, from the work type chosen on ON-01. */
+  readonly operatingTemplate?: string;
 }
 
 export interface CreatedOrganization {
@@ -55,6 +59,26 @@ export async function createOrganization(
     method: 'POST',
     path: '/v1/organizations',
     body: input,
+  });
+  return data;
+}
+
+/** `GET /v1/organizations/address-availability` — ON-02's live "available" tick. */
+export interface AddressAvailability {
+  readonly slug: string;
+  readonly available: boolean;
+  readonly reason: 'invalid' | 'taken' | null;
+  readonly message: string | null;
+}
+
+export async function checkAddressAvailability(
+  client: ApiClient,
+  slug: string,
+  signal?: AbortSignal,
+): Promise<AddressAvailability> {
+  const { data } = await client.request<AddressAvailability>({
+    path: `/v1/organizations/address-availability?slug=${encodeURIComponent(slug)}`,
+    ...(signal === undefined ? {} : { signal }),
   });
   return data;
 }

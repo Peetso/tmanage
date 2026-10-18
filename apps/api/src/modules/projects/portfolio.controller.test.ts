@@ -3,9 +3,18 @@ import type { Principal } from '@tmanage/domain';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import { ProjectPortfolioController } from './portfolio.controller.js';
 import { ProjectPortfolioService } from './portfolio.service.js';
+import {
+  ProjectPortfolioCapacityService,
+  findConstraint,
+  foldDisciplines,
+  parseWeek,
+} from './portfolio-capacity.service.js';
+import type { PortfolioCapacityRepository } from './portfolio-capacity.repository.js';
 import type { ProjectsRepository } from './projects.repository.js';
 import type {
+  PortfolioMilestoneRow,
   ProjectObjectiveCountRow,
+  ProjectPortfolioPlanningRepository,
   ProjectPortfolioRepository,
   ProjectWorkSummaryRow,
 } from './portfolio.repository.js';
@@ -73,11 +82,22 @@ function project(id: string, organizationId: string, over: Partial<ProjectRow> =
   } as ProjectRow;
 }
 
+function member(
+  membershipId: string,
+  userId: string,
+  weeklyHours: number,
+  department: string | null,
+  effectiveFrom = '2026-01-01',
+) {
+  return { membershipId, userId, weeklyHours, effectiveFrom, department };
+}
+
 function build(
   projectSeed: readonly ProjectRow[],
   workSeed: readonly ProjectWorkSummaryRow[] = [],
   objectiveSeed: readonly ProjectObjectiveCountRow[] = [],
-): { controller: ProjectPortfolioController; askedFor: string[][] } {
+  milestoneSeed: readonly PortfolioMilestoneRow[] = [],
+): { controller: ProjectPortfolioController; askedFor: string[][]; unstaffedFor: string[][] } {
   const askedFor: string[][] = [];
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -103,8 +123,47 @@ function build(
       objectiveSeed.filter((row) => ids.includes(row.projectId)),
   } as unknown as ProjectPortfolioRepository;
 
-  const service = new ProjectPortfolioService(database, projects, portfolio);
-  return { controller: new ProjectPortfolioController(service), askedFor };
+  const planning = {
+    milestones: async (_runner: unknown, _ctx: TenantContext, ids: readonly string[]) =>
+      milestoneSeed.filter((row) => ids.includes(row.projectId)),
+    clients: async (_runner: unknown, _ctx: TenantContext, ids: readonly string[]) =>
+      ids.includes(PROJECT_A) ? [{ projectId: PROJECT_A, clientName: 'Atlas Hospitality' }] : [],
+    clientWaits: async (_runner: unknown, _ctx: TenantContext, ids: readonly string[]) =>
+      ids.includes(PROJECT_A)
+        ? [{ projectId: PROJECT_A, waitingSince: new Date(Date.UTC(2026, 2, 3)) }]
+        : [],
+    people: async (_runner: unknown, _ctx: TenantContext, ids: readonly string[]) =>
+      ids.includes(USER) ? [{ userId: USER, displayName: 'Omar Adel' }] : [],
+  } as unknown as ProjectPortfolioPlanningRepository;
+
+  const unstaffedFor: string[][] = [];
+  const capacityRepository = {
+    members: async () => [member('m1', 'u1', 40, 'Design'), member('m2', 'u2', 40, 'Design')],
+    allocations: async () => [
+      { membershipId: 'm1', percent: 100 },
+      { membershipId: 'm1', percent: 20 },
+      { membershipId: 'm2', percent: 100 },
+    ],
+    unstaffed: async (_runner: unknown, _ctx: TenantContext, ids: readonly string[]) => {
+      unstaffedFor.push([...ids]);
+      return { total: 0, items: [] };
+    },
+    weekWork: async () => [],
+  } as unknown as PortfolioCapacityRepository;
+
+  const service = new ProjectPortfolioService(database, projects, portfolio, planning);
+  const capacity = new ProjectPortfolioCapacityService(
+    database,
+    projects,
+    capacityRepository,
+    planning,
+    () => new Date(Date.UTC(2026, 7, 19)),
+  );
+  return {
+    controller: new ProjectPortfolioController(service, capacity),
+    askedFor,
+    unstaffedFor,
+  };
 }
 
 describe('ProjectPortfolioController roll-up', () => {
@@ -168,7 +227,132 @@ describe('ProjectPortfolioController roll-up', () => {
   });
 });
 
+describe('POR-01 commitment columns', () => {
+  it('folds commitment, forecast, client, owner and client wait into each row', async () => {
+    const { controller } = build(
+      [
+        project(PROJECT_A, ORG, { forecastAt: '2026-09-04' }),
+        project(PROJECT_B, ORG, { committedAt: '2026-11-03', ownerUserId: null }),
+      ],
+      [],
+      [],
+      [
+        {
+          projectId: PROJECT_A,
+          title: 'Sign-off',
+          dueOn: '2026-08-10',
+          status: 'met',
+          published: true,
+        },
+        {
+          projectId: PROJECT_A,
+          title: 'Launch',
+          dueOn: '2026-08-26',
+          status: 'planned',
+          published: true,
+        },
+      ],
+    );
+    const { projects } = await controller.list(context, owner);
+    const [a, b] = projects;
+    // No recorded commitment: the earliest still-planned dated milestone is the commitment.
+    expect(a).toMatchObject({
+      committedOn: '2026-08-26',
+      forecastOn: '2026-09-04',
+      clientName: 'Atlas Hospitality',
+      ownerName: 'Omar Adel',
+      clientWaitSince: new Date(Date.UTC(2026, 2, 3)).toISOString(),
+      startedOn: '2026-01-01',
+    });
+    expect(a!.milestones.map((m) => m.title)).toEqual(['Sign-off', 'Launch']);
+    // A recorded commitment wins; no owner, client or pending approval reads as null.
+    expect(b).toMatchObject({
+      committedOn: '2026-11-03',
+      forecastOn: null,
+      clientName: null,
+      ownerName: null,
+      clientWaitSince: null,
+    });
+  });
+});
+
+describe('POR-03 capacity', () => {
+  it('loads each discipline as allocated hours over capacity and names the constraint', () => {
+    const members = [
+      member('m1', 'u1', 40, 'Design'),
+      member('m2', 'u2', 20, null),
+      // Capacity not yet in effect this week: not counted.
+      member('m3', 'u3', 40, 'Design', '2026-09-01'),
+    ];
+    const loads = foldDisciplines(
+      members,
+      [
+        { membershipId: 'm1', percent: 80 },
+        { membershipId: 'm1', percent: 38 },
+        { membershipId: 'm2', percent: 50 },
+      ],
+      '2026-08-23',
+    );
+    expect(loads).toEqual([
+      {
+        discipline: 'Design',
+        members: 1,
+        capacityHours: 40,
+        allocatedHours: 47.2,
+        loadPercent: 118,
+      },
+      { discipline: null, members: 1, capacityHours: 20, allocatedHours: 10, loadPercent: 50 },
+    ]);
+    const constraint = findConstraint(
+      loads,
+      members,
+      [
+        { ownerUserId: 'u1', projectId: PROJECT_A, audience: 'internal' },
+        { ownerUserId: 'u1', projectId: PROJECT_B, audience: 'internal' },
+        { ownerUserId: 'u1', projectId: PROJECT_B, audience: 'client_visible' },
+      ],
+      new Set([PROJECT_A]),
+    );
+    // Only internal-audience work in a project with no client counts as a movable date.
+    expect(constraint).toEqual({
+      discipline: 'Design',
+      loadPercent: 118,
+      internalDatesThisWeek: 1,
+    });
+  });
+
+  it('reads the week from its Monday and refuses a malformed week', async () => {
+    const { controller } = build([project(PROJECT_A, ORG)]);
+    const view = await controller.capacity(context, owner, '2026-08-20');
+    expect(view.weekStart).toBe('2026-08-17');
+    expect(view.constraint).toMatchObject({ discipline: 'Design', loadPercent: 110 });
+    expect(parseWeek(undefined, new Date(Date.UTC(2026, 7, 19)))).toBe('2026-08-17');
+    expect(() => parseWeek('2026-02-30', new Date())).toThrow(/week must be a date/);
+  });
+
+  it('lists unstaffed work only from visible projects and refuses a client principal', async () => {
+    const { controller, unstaffedFor } = build([project(PROJECT_A, ORG), project(PROJECT_B, ORG)]);
+    await controller.capacity(context, managerOnA);
+    expect(unstaffedFor[0]).toEqual([PROJECT_A]);
+
+    const client: Principal = {
+      ...principal('client_member', [PROJECT_A]),
+      kind: 'client',
+      clientOrganizationId: 'client-org-0000-0000-000000000001',
+    };
+    await expect(controller.capacity(context, client)).rejects.toMatchObject({ status: 403 });
+  });
+});
+
 describe('the route ceiling the CapabilityGuard enforces', () => {
+  it('requires work.read to read portfolio capacity', () => {
+    const cap = Reflect.getMetadata(
+      REQUIRED_CAPABILITY,
+      ProjectPortfolioController.prototype.capacity as object,
+    );
+    expect(cap).toBe('work.read');
+  });
+
   it('requires work.read to list the portfolio', () => {
     const cap = Reflect.getMetadata(
       REQUIRED_CAPABILITY,

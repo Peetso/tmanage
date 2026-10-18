@@ -211,6 +211,32 @@
   gap: var(--s4);
 }
 
+/* INS-06: the callout that fills the side column, its lead copy and its bottom action row. */
+.tm-ins-split__side > .tm-ins-card--fill {
+  flex: 1;
+}
+
+.tm-ins-card__body--lead {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.tm-ins-callout__actions {
+  display: flex;
+  gap: var(--s3);
+  margin-block-start: auto;
+  padding-block-start: var(--s4);
+}
+
+.tm-ins-callout__actions .tm-button {
+  min-block-size: 40px;
+  font-size: 13px;
+}
+
+.tm-ins-callout__primary {
+  flex: 1;
+}
+
 .tm-ins-section-head {
   display: flex;
   align-items: center;

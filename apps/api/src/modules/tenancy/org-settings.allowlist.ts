@@ -23,9 +23,33 @@ export const ORG_SETTING_KEYS = [
   'default_timezone',
   'require_reauth_minutes',
   'client_visible_project_default',
+  'working_week',
+  'operating_template',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
+
+/**
+ * The working weeks ON-02 offers, first day to last day. A closed list rather than a free day mask:
+ * every week the product schedules against has to be one the capacity and calendar code can read.
+ */
+export const WORKING_WEEKS = ['mon-fri', 'sun-thu', 'sat-wed', 'mon-sat'] as const;
+
+/** The operating templates ON-03 offers. `empty` is "Start from empty": nothing enforced yet. */
+export const OPERATING_TEMPLATES = [
+  'delivery-client-review',
+  'intake-commitment',
+  'internal-delivery',
+  'empty',
+] as const;
+
+/** A validator for a key whose value must be one of a closed list. */
+function oneOf(values: readonly string[], message: string): OrgSettingSpec['validate'] {
+  return (raw) => {
+    const value = raw.trim().toLowerCase();
+    return values.includes(value) ? { ok: true, value } : { ok: false, message };
+  };
+}
 
 /** A validator's verdict: the canonical string to store, or a message naming what was wrong. */
 export type OrgSettingValidation =
@@ -93,6 +117,17 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
       }
       return { ok: true, value };
     },
+  },
+  // The days the organization works (ON-02 "Working week"). Defaults to Monday–Friday.
+  working_week: {
+    default: 'mon-fri',
+    validate: oneOf(WORKING_WEEKS, 'Choose one of the offered working weeks.'),
+  },
+  // The workflow template chosen in onboarding (ON-03). Defaults to delivery with client review,
+  // the machine every project runs today.
+  operating_template: {
+    default: 'delivery-client-review',
+    validate: oneOf(OPERATING_TEMPLATES, 'Choose one of the offered templates.'),
   },
 });
 

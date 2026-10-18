@@ -67,6 +67,41 @@ describe('PeopleDirectoryScreen', () => {
     await expectNoAxeViolations(container);
   });
 
+  it('groups by team with open commitments and what each person declared', async () => {
+    mount({
+      body: {
+        people: [
+          {
+            ...PEOPLE.people[0],
+            membershipId: 'm-1',
+            teams: [{ id: 't-d', name: 'Design' }],
+            openCommitments: 6,
+            overdueCommitments: 2,
+            declared: { kind: 'vacation', startDate: '2099-01-01', endDate: '2099-01-02' },
+          },
+          {
+            ...PEOPLE.people[1],
+            membershipId: 'm-2',
+            teams: [],
+            openCommitments: 0,
+            declared: null,
+          },
+        ],
+        nextAfter: null,
+      },
+    });
+
+    const design = await screen.findByRole('list', { name: /design · 1/i });
+    expect(within(design).getByText('Priya Raman')).toBeTruthy();
+    expect(within(design).getByText('2 overdue')).toBeTruthy();
+    expect(within(design).getByText('Off Thu–Fri')).toBeTruthy();
+    const noTeam = screen.getByRole('list', { name: /no team · 1/i });
+    expect(within(noTeam).getByText('Full week')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Open profile' }).getAttribute('href')).toBe(
+      '/northstar/people/m-1',
+    );
+  });
+
   it('surfaces a work.read refusal rather than rendering blank', async () => {
     mount({
       body: { error: { code: 'forbidden', message: 'You need work.read.', correlationId: 'c' } },

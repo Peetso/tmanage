@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, HttpCode, Module, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Module,
+  Param,
+  Post,
+  Put,
+} from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
@@ -64,7 +75,7 @@ interface CreateTeamBody {
 
 @Controller('v1/organizations/:orgSlug/people/teams')
 export class PeopleTeamsController {
-  constructor(private readonly service: PeopleTeamsService) {}
+  constructor(@Inject(PeopleTeamsService) private readonly service: PeopleTeamsService) {}
 
   @Get()
   @RequireCapability('work.read')

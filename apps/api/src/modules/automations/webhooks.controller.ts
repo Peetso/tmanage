@@ -122,7 +122,7 @@ interface PatchWebhookBody {
 export class WebhooksController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly webhooks: WebhooksRepository,
+    @Inject(WebhooksRepository) private readonly webhooks: WebhooksRepository,
   ) {}
 
   /** List the organization's webhook endpoints, newest first. Secrets are never returned. */

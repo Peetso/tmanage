@@ -1,14 +1,27 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Req } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Optional,
+  Post,
+  Query,
+  Req,
+} from '@nestjs/common';
 import { ApiError } from '../../common/http/errors.js';
 import { CurrentSession, NoTenant } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import {
   ORGANIZATION_DIRECTORY_REPOSITORY,
   PROVISIONING_SERVICE,
+  TENANT_DATABASE,
 } from '../../common/http/tokens.js';
+import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { AddressAvailabilityRepository } from './address-availability.repository.js';
 import type { AuthenticatedSession } from '../identity/session.service.js';
 import type { OrganizationDirectoryRepository } from './organization-directory.repository.js';
-import { validateOrganizationInput } from './organization-input.js';
+import { slugProblem, validateOrganizationInput } from './organization-input.js';
 import { OrganizationSlugTakenError } from './organizations.repository.js';
 import type {
   CreatedOrganizationView,
@@ -45,6 +58,21 @@ interface CreateOrganizationBody {
   readonly slug?: unknown;
   readonly timezone?: unknown;
   readonly defaultLocale?: unknown;
+  readonly workingWeek?: unknown;
+  readonly operatingTemplate?: unknown;
+}
+
+/**
+ * The wire body of `GET /v1/organizations/address-availability` — ON-02's live tick.
+ *
+ * `reason` says why an address is not available: `invalid` (malformed or reserved, with the
+ * validator's own sentence in `message`) or `taken`. Both `null` when it is available.
+ */
+export interface AddressAvailabilityView {
+  readonly slug: string;
+  readonly available: boolean;
+  readonly reason: 'invalid' | 'taken' | null;
+  readonly message: string | null;
 }
 
 @Controller('v1/organizations')
@@ -53,7 +81,42 @@ export class OrganizationsController {
     @Inject(PROVISIONING_SERVICE) private readonly provisioning: ProvisioningService,
     @Inject(ORGANIZATION_DIRECTORY_REPOSITORY)
     private readonly directory: OrganizationDirectoryRepository,
-  ) {}
+    @Inject(TENANT_DATABASE) database: TenantDatabase,
+    @Optional() availability?: AddressAvailabilityRepository,
+  ) {
+    this.availability = availability ?? new AddressAvailabilityRepository(database);
+  }
+
+  private readonly availability: AddressAvailabilityRepository;
+
+  /**
+   * ON-02. Whether a workspace address can be used, asked while the person types (debounced in
+   * the browser). Session only, like creating: the answer is the same 409 the create route gives,
+   * one request earlier. The address is checked against the create route's own rules first, so
+   * "available" is never shown for an address the create would refuse.
+   */
+  @Get('address-availability')
+  @NoTenant()
+  async addressAvailability(
+    @Query('slug') rawSlug: unknown,
+    @Req() request: RequestLike,
+  ): Promise<AddressAvailabilityView> {
+    const state = requireRequestState(request);
+    const slug = typeof rawSlug === 'string' ? rawSlug.trim() : '';
+    const problem = slugProblem(slug);
+    if (problem !== undefined) {
+      return { slug, available: false, reason: 'invalid', message: problem };
+    }
+    const taken = await this.availability.isTaken({ slug, correlationId: state.correlationId });
+    return taken
+      ? {
+          slug,
+          available: false,
+          reason: 'taken',
+          message: 'That workspace address is already in use.',
+        }
+      : { slug, available: true, reason: null, message: null };
+  }
 
   /**
    * `ID-04`. The organizations this session may act in.
@@ -121,6 +184,10 @@ export class OrganizationsController {
         name: input.name,
         defaultLocale: input.defaultLocale,
         timezone: input.timezone,
+        ...(input.workingWeek === undefined ? {} : { workingWeek: input.workingWeek }),
+        ...(input.operatingTemplate === undefined
+          ? {}
+          : { operatingTemplate: input.operatingTemplate }),
         correlationId: state.correlationId,
       });
 

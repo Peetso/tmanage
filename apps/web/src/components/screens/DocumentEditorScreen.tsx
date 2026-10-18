@@ -9,6 +9,7 @@ import '../../styles/screens/docs.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getDocument,
+  getDocumentSharing,
   getDocumentVersion,
   listDocumentVersions,
   restoreDocumentVersion,
@@ -41,8 +42,9 @@ export interface DocumentEditorScreenProps {
  *   body in one transaction; the editor shows the newest version at the top after each save.
  * - **Restore is forward-append.** Restoring version *n* writes a new version equal to it — history
  *   is never mutated, so the trail only ever grows.
- * - **People are shown by id.** No endpoint resolves an arbitrary member's id to a display name
- *   here, so "saved by" is the id — the honesty `WorkWorkloadScreen` applies to the same gap.
+ * - **People are shown by name.** "Saved by" resolves the editor's user id through the document's
+ *   collaborators (`documents/:id/sharing`, names anchored on this tenant's memberships); an id the
+ *   API could not name falls back to "A former member".
  * - **Compare is a read of one snapshot**, not a three-way diff: rendering a diff is deferred
  *   (NEXT-SCOPES-9). The pane shows the selected version's body beside the editor.
  */
@@ -64,6 +66,15 @@ export function DocumentEditorScreen({
     queryKey: ['document-versions', organizationSlug, documentId],
     queryFn: () => listDocumentVersions(api, organizationSlug, documentId),
   });
+
+  // Collaborators carry the display names "Saved by" shows (same key as the read screen's top bar).
+  const sharing = useQuery({
+    queryKey: ['document-sharing', organizationSlug, documentId],
+    queryFn: () => getDocumentSharing(api, organizationSlug, documentId),
+  });
+  const nameOf = (userId: string): string =>
+    sharing.data?.collaborators?.find((person) => person.userId === userId)?.displayName ??
+    (sharing.isPending ? '…' : 'A former member');
 
   // `null` means "not yet edited" — the textarea then shows the document's current body. Once the
   // person types, the draft is what they typed; a restore clears it back to `null` so the restored
@@ -289,7 +300,7 @@ export function DocumentEditorScreen({
                       <th scope="row" role="rowheader" className="tm-dx-versions__no">
                         {version.versionNo}
                       </th>
-                      <td className="tm-dx-versions__who">{version.editedByUserId}</td>
+                      <td className="tm-dx-versions__who">{nameOf(version.editedByUserId)}</td>
                       <td className="tm-dx-versions__when">{formatWhen(version.createdAt)}</td>
                       <td className="tm-dx-versions__act">
                         <div>

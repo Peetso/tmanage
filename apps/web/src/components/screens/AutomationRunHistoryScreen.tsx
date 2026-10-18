@@ -15,6 +15,7 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
+import { describeRunDetail } from './run-detail-view';
 
 export interface AutomationRunHistoryScreenProps {
   organizationSlug: string;
@@ -313,7 +314,14 @@ export function AutomationRunHistoryScreen({
                   </li>
                   <li>
                     <p className="tm-aut-steps__title">What it recorded</p>
-                    <pre className="tm-aut-code">{JSON.stringify(detail.data.detail, null, 2)}</pre>
+                    <dl className="tm-aut-kv">
+                      {describeRunDetail(detail.data.detail).map((line) => (
+                        <div key={line.label} className="tm-aut-kv__row">
+                          <dt>{line.label}</dt>
+                          <dd>{line.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
                   </li>
                 </ol>
                 <p className="tm-aut-card__foot">

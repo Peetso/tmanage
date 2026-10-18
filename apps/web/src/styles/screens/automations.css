@@ -309,6 +309,7 @@
 
 .tm-aut-rowtitle {
   display: block;
+  margin: 0;
   color: var(--ink-950);
   font-size: var(--t-ui-md);
   line-height: 20px;
@@ -752,6 +753,35 @@ a.tm-aut-rowtitle:hover {
   line-height: 18px;
 }
 
+/* AUT-04 "What it recorded": label / value lines instead of raw JSON. */
+.tm-aut-kv {
+  display: grid;
+  gap: 6px;
+  margin: var(--s2) 0 0;
+}
+
+.tm-aut-kv__row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: var(--s3);
+}
+
+.tm-aut-kv dt {
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 18px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tm-aut-kv dd {
+  margin: 0;
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  line-height: 18px;
+}
+
 .tm-aut-code {
   margin: 0;
   padding: var(--s3) var(--s4);
@@ -1067,6 +1097,24 @@ a.tm-aut-rowtitle:hover {
   display: flex;
   justify-content: space-between;
   gap: var(--s2);
+}
+
+/* INT-01 connect form: the optional non-secret setting as a name/value pair on one row. */
+.tm-aut-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s3);
+}
+
+.tm-aut-pair > legend {
+  grid-column: 1 / -1;
+  margin-block-end: var(--s2);
+}
+
+@media (max-width: 640px) {
+  .tm-aut-pair {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* INT-02 "What it may do": hairline-divided rows inside a white card. */

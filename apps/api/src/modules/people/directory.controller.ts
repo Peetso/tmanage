@@ -33,11 +33,30 @@ import { PeopleDirectoryRepository } from './directory.repository.js';
  */
 
 export interface PersonDirectoryView {
+  readonly membershipId: string;
   readonly userId: string;
   readonly displayName: string;
   readonly role: string;
   readonly status: string;
   readonly projectCount: number;
+  /** PEO-01 grouping: the teams the member is assigned to, by name. */
+  readonly teams: readonly { readonly id: string; readonly name: string }[];
+  /** Open work the member owns, and how much of it is past due. */
+  readonly openCommitments: number;
+  readonly overdueCommitments: number;
+  /** The first window the member declared in the next two weeks (no note), or none declared. */
+  readonly declared: {
+    readonly kind: string;
+    readonly startDate: string;
+    readonly endDate: string;
+  } | null;
+}
+
+/** PEO-04's horizon: availability is read two weeks ahead, today included. */
+const DECLARED_HORIZON_DAYS = 14;
+
+function isoDate(value: Date): string {
+  return value.toISOString().slice(0, 10);
 }
 
 const MAX_LIMIT = 200;
@@ -88,25 +107,40 @@ export class PeopleDirectoryController {
     const effectiveLimit = Math.min(parsedLimit ?? DEFAULT_LIMIT, MAX_LIMIT);
     const search = (q ?? '').trim().slice(0, MAX_SEARCH_LENGTH);
 
-    const rows = await this.database.read(context, (db) =>
-      this.directory.list(db, context, {
+    const now = new Date();
+    const window = {
+      now,
+      fromDate: isoDate(now),
+      toDate: isoDate(new Date(now.getTime() + (DECLARED_HORIZON_DAYS - 1) * 86_400_000)),
+    };
+    const { rows, details } = await this.database.read(context, async (db) => {
+      const page = await this.directory.list(db, context, {
         ...(after ? { after } : {}),
         ...(search === '' ? {} : { q: search }),
         limit: effectiveLimit,
-      }),
-    );
+      });
+      return { rows: page, details: await this.directory.rowDetails(db, context, page, window) };
+    });
 
     const full = rows.length === effectiveLimit;
     const last = rows[rows.length - 1];
 
     return {
-      people: rows.map((row) => ({
-        userId: row.userId,
-        displayName: row.displayName,
-        role: row.role,
-        status: row.status,
-        projectCount: row.projectCount,
-      })),
+      people: rows.map((row) => {
+        const extra = details.get(row.membershipId);
+        return {
+          membershipId: row.membershipId,
+          userId: row.userId,
+          displayName: row.displayName,
+          role: row.role,
+          status: row.status,
+          projectCount: row.projectCount,
+          teams: extra?.teams ?? [],
+          openCommitments: extra?.openCommitments ?? 0,
+          overdueCommitments: extra?.overdueCommitments ?? 0,
+          declared: extra?.declared ?? null,
+        };
+      }),
       nextAfter: full && last ? last.membershipId : null,
     };
   }

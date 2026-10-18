@@ -7,6 +7,17 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { InsightsAdoptionRepository } from './adoption.repository.js';
+import type {
+  AdoptionApprovalHashRow,
+  AdoptionChannelRow,
+  AdoptionDatedWorkRow,
+  AdoptionGapRow,
+  AdoptionMeetingRow,
+  AdoptionMemberRow,
+  AdoptionProjectNameRow,
+  AdoptionVersionHashRow,
+  AdoptionWorkOwnerRow,
+} from './adoption.repository.js';
 
 /**
  * INS-06's HTTP surface — the org-wide adoption read (audit: "Insights Partial; INS-06 deferred").
@@ -37,21 +48,136 @@ import { InsightsAdoptionRepository } from './adoption.repository.js';
 const DEFAULT_WINDOW_DAYS = 30;
 const MAX_WINDOW_DAYS = 90;
 
+/** The data gaps the adoption view lists, in display order. */
+export const ADOPTION_GAP_IDS = [
+  'chat_work_untriaged',
+  'client_files_internal',
+  'requests_uncommitted',
+] as const;
+export type AdoptionGapId = (typeof ADOPTION_GAP_IDS)[number];
+
 /**
- * INS-06's read shape — the org-wide adoption roll-up.
+ * One data gap: how many records carry it, across how many projects, and — when they all sit in
+ * one project — that project's name, so the row can say "Atlas Relaunch" rather than "1 project".
+ */
+export interface InsightsAdoptionGapView {
+  readonly id: AdoptionGapId;
+  readonly count: number;
+  readonly projectCount: number;
+  readonly projectName: string | null;
+}
+
+/**
+ * INS-06's read shape — the org-wide adoption and system-quality roll-up.
  *
  * `activeMembers` is the studio's current active memberships; `membersWithWork` is the distinct
- * people who created any work in the window; `meetingsHeld` is the meetings held in it. `windowDays`
- * echoes the clamped window the counts were computed over, so a consumer never has to guess it.
- * Computed, never stored: no column, no write, no schedule. Paired in
- * `e2e/contracts/api-web-shapes.ts` with the web shape the adoption screen consumes (CONTRACT-001).
+ * people who created any work in the window; `meetingsHeld` is the meetings held in it.
+ * `committedDate` counts work items created in the window (and the window before) that carry a
+ * committed date; `channels` counts live channels and those no work item was ever created from;
+ * `unhashedDeliverables` counts deliverables sent for approval whose hash does not match the stored
+ * version (current and previous window); `decisionsRecorded` counts decisions logged and approvals
+ * decided in the window; `gaps` lists the record gaps. `windowDays` echoes the validated window.
+ * Computed, never stored. Paired in `e2e/contracts/api-web-shapes.ts` with the web shape.
  */
 export interface InsightsAdoptionView {
   readonly windowDays: number;
   readonly activeMembers: number;
   readonly membersWithWork: number;
   readonly meetingsHeld: number;
+  readonly committedDate: {
+    readonly dated: number;
+    readonly total: number;
+    readonly previousDated: number;
+    readonly previousTotal: number;
+  };
+  readonly channels: { readonly total: number; readonly withoutWork: number };
+  readonly unhashedDeliverables: { readonly current: number; readonly previous: number };
+  readonly decisionsRecorded: { readonly decisionLog: number; readonly approvals: number };
+  readonly gaps: readonly InsightsAdoptionGapView[];
   readonly computedAt: string;
+}
+
+/** Everything the repository read for one roll-up, before the tenant filter and the counting. */
+export interface AdoptionReads {
+  readonly members: readonly AdoptionMemberRow[];
+  readonly owners: readonly AdoptionWorkOwnerRow[];
+  readonly meetings: readonly AdoptionMeetingRow[];
+  readonly datedWork: readonly AdoptionDatedWorkRow[];
+  readonly channels: readonly AdoptionChannelRow[];
+  readonly channelsWithWork: readonly AdoptionChannelRow[];
+  readonly approvalHashes: readonly AdoptionApprovalHashRow[];
+  readonly versionHashes: readonly AdoptionVersionHashRow[];
+  readonly decisionsLogged: readonly AdoptionGapRow[];
+  readonly approvalsDecided: readonly AdoptionGapRow[];
+  readonly gaps: Readonly<Record<AdoptionGapId, readonly AdoptionGapRow[]>>;
+  readonly projectNames: readonly AdoptionProjectNameRow[];
+}
+
+/**
+ * Turn the raw reads into the view. Pure: every row is re-filtered to `org` first (Known-trap:
+ * scope before the count), then counted. Exported for the unit proof.
+ */
+export function rollUpAdoption(
+  org: string,
+  windowDays: number,
+  reads: AdoptionReads,
+  computedAt: Date,
+): InsightsAdoptionView {
+  const own = <T extends { readonly organizationId: string }>(rows: readonly T[]): T[] =>
+    rows.filter((row) => row.organizationId === org);
+
+  const dated = own(reads.datedWork);
+  const current = dated.filter((row) => row.inWindow);
+  const previous = dated.filter((row) => !row.inWindow);
+
+  const liveChannels = new Set(own(reads.channels).map((row) => row.conversationId));
+  const fed = new Set(own(reads.channelsWithWork).map((row) => row.conversationId));
+  const withoutWork = [...liveChannels].filter((id) => !fed.has(id)).length;
+
+  const storedHash = new Map(
+    own(reads.versionHashes).map((row) => [row.versionId, row.contentHash]),
+  );
+  const unhashed = (inWindow: boolean): number =>
+    distinctCount(
+      own(reads.approvalHashes)
+        .filter((row) => row.inWindow === inWindow)
+        .filter((row) => storedHash.get(row.deliverableVersionId) !== row.contentHash)
+        .map((row) => row.deliverableId),
+    );
+
+  const names = new Map(own(reads.projectNames).map((row) => [row.projectId, row.name]));
+  const gaps = ADOPTION_GAP_IDS.map((id): InsightsAdoptionGapView => {
+    const rows = own(reads.gaps[id]);
+    const projectIds = [...new Set(rows.map((row) => row.projectId))];
+    const only = projectIds.length === 1 ? projectIds[0] : undefined;
+    return {
+      id,
+      count: rows.length,
+      projectCount: projectIds.length,
+      projectName: only === undefined ? null : (names.get(only) ?? null),
+    };
+  });
+
+  return {
+    windowDays,
+    activeMembers: distinctCount(own(reads.members).map((row) => row.userId)),
+    membersWithWork: distinctCount(own(reads.owners).map((row) => row.ownerUserId)),
+    meetingsHeld: own(reads.meetings).length,
+    committedDate: {
+      dated: current.filter((row) => row.dated).length,
+      total: current.length,
+      previousDated: previous.filter((row) => row.dated).length,
+      previousTotal: previous.length,
+    },
+    channels: { total: liveChannels.size, withoutWork },
+    unhashedDeliverables: { current: unhashed(true), previous: unhashed(false) },
+    decisionsRecorded: {
+      decisionLog: own(reads.decisionsLogged).length,
+      approvals: own(reads.approvalsDecided).length,
+    },
+    gaps,
+    computedAt: computedAt.toISOString(),
+  };
 }
 
 /**
@@ -81,7 +207,9 @@ function distinctCount(ids: readonly (string | null)[]): number {
 export class InsightsAdoptionController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly adoption: InsightsAdoptionRepository,
+    // An explicit token: `emitDecoratorMetadata` is off (ADR-0003), so an un-annotated class
+    // parameter is injected as `undefined` — the cause of the live 500 on this route.
+    @Inject(InsightsAdoptionRepository) private readonly adoption: InsightsAdoptionRepository,
   ) {}
 
   /**
@@ -113,32 +241,47 @@ export class InsightsAdoptionController {
     }
 
     const now = new Date();
-    const rolled = await this.database.read(context, async (runner) => {
+    const reads = await this.database.read(context, async (runner): Promise<AdoptionReads> => {
       // Sequential, not `Promise.all`: one connection is bound to this unit of work and mysql2 does
       // not multiplex a connection across concurrent queries.
-      const members = await this.adoption.listActiveMembers(runner, context);
-      const owners = await this.adoption.listRecentWorkOwners(runner, context, windowDays);
-      const meetings = await this.adoption.listMeetingsHeld(runner, context, windowDays);
-      return { members, owners, meetings };
+      const repo = this.adoption;
+      const members = await repo.listActiveMembers(runner, context);
+      const owners = await repo.listRecentWorkOwners(runner, context, windowDays);
+      const meetings = await repo.listMeetingsHeld(runner, context, windowDays);
+      const datedWork = await repo.listDatedWork(runner, context, windowDays);
+      const channels = await repo.listChannels(runner, context);
+      const channelsWithWork = await repo.listChannelsWithWork(runner, context);
+      const approvalHashes = await repo.listApprovalHashes(runner, context, windowDays);
+      const versionIds = [...new Set(approvalHashes.map((row) => row.deliverableVersionId))];
+      const versionHashes = await repo.listVersionHashes(runner, context, versionIds);
+      const decisionsLogged = await repo.listDecisionsLogged(runner, context, windowDays);
+      const approvalsDecided = await repo.listApprovalsDecided(runner, context, windowDays);
+      const gaps = {
+        chat_work_untriaged: await repo.listUntriagedChatWork(runner, context),
+        client_files_internal: await repo.listClientFilesMarkedInternal(runner, context),
+        requests_uncommitted: await repo.listRequestsAwaitingCommitment(runner, context),
+      };
+      const gapProjects = [
+        ...new Set(Object.values(gaps).flatMap((rows) => rows.map((row) => row.projectId))),
+      ];
+      const projectNames = await repo.listProjectNames(runner, context, gapProjects);
+      return {
+        members,
+        owners,
+        meetings,
+        datedWork,
+        channels,
+        channelsWithWork,
+        approvalHashes,
+        versionHashes,
+        decisionsLogged,
+        approvalsDecided,
+        gaps,
+        projectNames,
+      };
     });
 
-    const org = context.organizationId;
-    // Belt-and-braces tenant filter before counting (Known-trap: scope before the count).
-    const activeMembers = distinctCount(
-      rolled.members.filter((row) => row.organizationId === org).map((row) => row.userId),
-    );
-    const membersWithWork = distinctCount(
-      rolled.owners.filter((row) => row.organizationId === org).map((row) => row.ownerUserId),
-    );
-    const meetingsHeld = rolled.meetings.filter((row) => row.organizationId === org).length;
-
-    return {
-      windowDays,
-      activeMembers,
-      membersWithWork,
-      meetingsHeld,
-      computedAt: now.toISOString(),
-    };
+    return rollUpAdoption(context.organizationId, windowDays, reads, now);
   }
 
   /**

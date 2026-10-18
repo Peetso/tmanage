@@ -56,8 +56,9 @@ export interface ConnectionHealthView {
 export class ConnectionHealthController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
+    @Inject(IntegrationConnectionsRepository)
     private readonly connections: IntegrationConnectionsRepository,
-    private readonly health: ConnectionHealthService,
+    @Inject(ConnectionHealthService) private readonly health: ConnectionHealthService,
   ) {}
 
   /**

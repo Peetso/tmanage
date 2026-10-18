@@ -1,6 +1,20 @@
-import { and, eq, gte, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, lte, notInArray, sql } from 'drizzle-orm';
+import type { AnyMySqlColumn } from 'drizzle-orm/mysql-core';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { meetings, memberships, workItems } from '../../common/database/schema.js';
+import {
+  approvals,
+  clientRequests,
+  conversations,
+  decisions,
+  deliverableVersions,
+  fileAssets,
+  meetings,
+  memberships,
+  messages,
+  messageWorkLinks,
+  projects,
+  workItems,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -46,6 +60,66 @@ export interface AdoptionWorkOwnerRow {
 export interface AdoptionMeetingRow {
   readonly organizationId: string;
   readonly meetingId: string;
+}
+
+/** One work item created in the last two windows: whether it is in the current one, and whether it carries a date. */
+export interface AdoptionDatedWorkRow {
+  readonly organizationId: string;
+  readonly inWindow: boolean;
+  readonly dated: boolean;
+}
+
+/** One channel (conversation) — live, or one that has had work created from it. */
+export interface AdoptionChannelRow {
+  readonly organizationId: string;
+  readonly conversationId: string;
+}
+
+/** One approval requested in the last two windows, with the hash it was sent with. */
+export interface AdoptionApprovalHashRow {
+  readonly organizationId: string;
+  readonly deliverableId: string;
+  readonly deliverableVersionId: string;
+  readonly contentHash: string;
+  readonly inWindow: boolean;
+}
+
+/** One deliverable version's stored hash. */
+export interface AdoptionVersionHashRow {
+  readonly organizationId: string;
+  readonly versionId: string;
+  readonly contentHash: string;
+}
+
+/** A row that names the project it belongs to — the shape every data-gap read returns. */
+export interface AdoptionGapRow {
+  readonly organizationId: string;
+  readonly projectId: string;
+}
+
+/** A project's display name, for a gap that sits in a single project. */
+export interface AdoptionProjectNameRow {
+  readonly organizationId: string;
+  readonly projectId: string;
+  readonly name: string;
+}
+
+/** Request states that are finished — a request in one of these needs no committed answer. */
+const CLOSED_REQUEST_STATES = ['declined', 'delivered', 'withdrawn'] as const;
+
+/** A 0/1 SQL flag as a boolean (the driver hands positional values back as text or numbers). */
+function sqlFlag(value: unknown): boolean {
+  return Number(value) === 1;
+}
+
+/** `created_at` within the current window — the SQL flag the two-window reads select. */
+function inWindowFlag(column: AnyMySqlColumn, windowDays: number) {
+  return sql<boolean>`(${column} >= date_sub(now(3), interval ${windowDays} day))`.mapWith(sqlFlag);
+}
+
+/** `created_at` within the current or the preceding window of the same length. */
+function inTwoWindows(column: AnyMySqlColumn, windowDays: number) {
+  return gte(column, sql`date_sub(now(3), interval ${windowDays * 2} day)`);
 }
 
 export class InsightsAdoptionRepository {
@@ -113,6 +187,247 @@ export class InsightsAdoptionRepository {
           eq(meetings.organizationId, context.organizationId),
           gte(meetings.startsAt, sql`date_sub(now(3), interval ${windowDays} day)`),
           lte(meetings.startsAt, sql`now(3)`),
+        ),
+      );
+  }
+
+  /**
+   * Work items created in the current window and the one before it, each flagged with which window
+   * it is in and whether it carries a committed date (`due_at`). The controller turns this into
+   * "N% of work items carry a committed date, was M%".
+   */
+  async listDatedWork(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    windowDays: number,
+  ): Promise<readonly AdoptionDatedWorkRow[]> {
+    return tenantDrizzle(runner)
+      .select({
+        organizationId: workItems.organizationId,
+        inWindow: inWindowFlag(workItems.createdAt, windowDays),
+        dated: sql<boolean>`(${workItems.dueAt} is not null)`.mapWith(sqlFlag),
+      })
+      .from(workItems)
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          isNull(workItems.deletedAt),
+          inTwoWindows(workItems.createdAt, windowDays),
+        ),
+      );
+  }
+
+  /** The organization's live channels (conversations not archived). */
+  async listChannels(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly AdoptionChannelRow[]> {
+    return tenantDrizzle(runner)
+      .select({ organizationId: conversations.organizationId, conversationId: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.organizationId, context.organizationId),
+          isNull(conversations.archivedAt),
+        ),
+      );
+  }
+
+  /**
+   * The channels that have ever had a work item created from one of their messages — distinct
+   * conversation ids over `message_work_links` joined to `messages`, both tenant-scoped.
+   */
+  async listChannelsWithWork(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly AdoptionChannelRow[]> {
+    return tenantDrizzle(runner)
+      .selectDistinct({
+        organizationId: messages.organizationId,
+        conversationId: messages.conversationId,
+      })
+      .from(messageWorkLinks)
+      .innerJoin(messages, eq(messages.id, messageWorkLinks.messageId))
+      .where(
+        and(
+          eq(messageWorkLinks.organizationId, context.organizationId),
+          eq(messages.organizationId, context.organizationId),
+        ),
+      );
+  }
+
+  /** Approvals requested in the current window and the one before, with the hash each was sent with. */
+  async listApprovalHashes(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    windowDays: number,
+  ): Promise<readonly AdoptionApprovalHashRow[]> {
+    return tenantDrizzle(runner)
+      .select({
+        organizationId: approvals.organizationId,
+        deliverableId: approvals.deliverableId,
+        deliverableVersionId: approvals.deliverableVersionId,
+        contentHash: approvals.contentHash,
+        inWindow: inWindowFlag(approvals.createdAt, windowDays),
+      })
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.organizationId, context.organizationId),
+          inTwoWindows(approvals.createdAt, windowDays),
+        ),
+      );
+  }
+
+  /** The stored hashes of the given deliverable versions. An empty list reads nothing. */
+  async listVersionHashes(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    versionIds: readonly string[],
+  ): Promise<readonly AdoptionVersionHashRow[]> {
+    if (versionIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({
+        organizationId: deliverableVersions.organizationId,
+        versionId: deliverableVersions.id,
+        contentHash: deliverableVersions.contentHash,
+      })
+      .from(deliverableVersions)
+      .where(
+        and(
+          eq(deliverableVersions.organizationId, context.organizationId),
+          inArray(deliverableVersions.id, [...versionIds]),
+        ),
+      );
+  }
+
+  /** Decisions logged in the window — one row each, counted by the controller. */
+  async listDecisionsLogged(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    windowDays: number,
+  ): Promise<readonly AdoptionGapRow[]> {
+    return tenantDrizzle(runner)
+      .select({ organizationId: decisions.organizationId, projectId: decisions.projectId })
+      .from(decisions)
+      .where(
+        and(
+          eq(decisions.organizationId, context.organizationId),
+          gte(decisions.decidedAt, sql`date_sub(now(3), interval ${windowDays} day)`),
+        ),
+      );
+  }
+
+  /** Approvals decided in the window — one row each, counted by the controller. */
+  async listApprovalsDecided(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    windowDays: number,
+  ): Promise<readonly AdoptionGapRow[]> {
+    return tenantDrizzle(runner)
+      .select({ organizationId: approvals.organizationId, projectId: approvals.projectId })
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.organizationId, context.organizationId),
+          isNotNull(approvals.decidedAt),
+          gte(approvals.decidedAt, sql`date_sub(now(3), interval ${windowDays} day)`),
+        ),
+      );
+  }
+
+  /**
+   * Data gap — work created from a chat message that nobody triaged: no owner and no committed
+   * date, so it is absent from every forecast. Live (not deleted, not completed) items only; one
+   * row per item even when several messages link to it.
+   */
+  async listUntriagedChatWork(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly AdoptionGapRow[]> {
+    return tenantDrizzle(runner)
+      .selectDistinct({
+        organizationId: workItems.organizationId,
+        projectId: workItems.projectId,
+        workItemId: workItems.id,
+      })
+      .from(workItems)
+      .innerJoin(messageWorkLinks, eq(messageWorkLinks.workItemId, workItems.id))
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          eq(messageWorkLinks.organizationId, context.organizationId),
+          isNull(workItems.deletedAt),
+          isNull(workItems.completedAt),
+          isNull(workItems.ownerUserId),
+          isNull(workItems.dueAt),
+        ),
+      );
+  }
+
+  /**
+   * Data gap — files tied to a client organization (shared towards the portal) whose audience is
+   * still the default `internal`, so nobody can tell from the record whether the client may see it.
+   */
+  async listClientFilesMarkedInternal(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly AdoptionGapRow[]> {
+    return tenantDrizzle(runner)
+      .select({ organizationId: fileAssets.organizationId, projectId: fileAssets.projectId })
+      .from(fileAssets)
+      .where(
+        and(
+          eq(fileAssets.organizationId, context.organizationId),
+          isNotNull(fileAssets.clientOrganizationId),
+          eq(fileAssets.audience, 'internal'),
+          isNull(fileAssets.purgedAt),
+        ),
+      );
+  }
+
+  /**
+   * Data gap — open client requests that carry a desired date but no committed answer
+   * (`commitment` unset). Finished requests (declined, delivered, withdrawn) are excluded.
+   */
+  async listRequestsAwaitingCommitment(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<readonly AdoptionGapRow[]> {
+    return tenantDrizzle(runner)
+      .select({
+        organizationId: clientRequests.organizationId,
+        projectId: clientRequests.projectId,
+      })
+      .from(clientRequests)
+      .where(
+        and(
+          eq(clientRequests.organizationId, context.organizationId),
+          isNotNull(clientRequests.desiredAt),
+          isNull(clientRequests.commitment),
+          notInArray(clientRequests.state, [...CLOSED_REQUEST_STATES]),
+        ),
+      );
+  }
+
+  /** The names of the given projects — used to label a gap that sits in a single project. */
+  async listProjectNames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly AdoptionProjectNameRow[]> {
+    if (projectIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({
+        organizationId: projects.organizationId,
+        projectId: projects.id,
+        name: projects.name,
+      })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.organizationId, context.organizationId),
+          inArray(projects.id, [...projectIds]),
         ),
       );
   }

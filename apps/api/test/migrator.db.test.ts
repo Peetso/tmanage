@@ -581,12 +581,15 @@ describe('0030: documents is a tenant-scoped, project-owned, forward-only table'
     const byName = new Map(columns.map((row) => [String(row['col']), row]));
     expect([...byName.keys()].sort()).toEqual(
       [
+        'audience',
         'body',
         'created_at',
         'created_by_user_id',
         'id',
         'organization_id',
         'project_id',
+        'published_at',
+        'published_by_user_id',
         'title',
         'updated_at',
       ].sort(),

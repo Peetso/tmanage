@@ -2,7 +2,11 @@ import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from './projects.repository.js';
-import { ProjectPortfolioRepository } from './portfolio.repository.js';
+import {
+  ProjectPortfolioPlanningRepository,
+  ProjectPortfolioRepository,
+} from './portfolio.repository.js';
+import type { PortfolioMilestoneRow } from './portfolio.repository.js';
 import type { ProjectRow } from '../../common/database/schema.js';
 
 /**
@@ -52,6 +56,37 @@ export interface ProjectPortfolioView {
    * yet. The later of the project's own `updated_at` and its newest work item's `updated_at`.
    */
   readonly latestActivityAt: string | null;
+  /**
+   * POR-01's COMMITTED column: the project's recorded commitment date, else the earliest dated
+   * milestone still `planned` (a milestone is a dated promise). `'YYYY-MM-DD'` or `null`.
+   */
+  readonly committedOn: string | null;
+  /** POR-01's FORECAST column: the project's recorded forecast date, or `null` when none is set. */
+  readonly forecastOn: string | null;
+  /** The client organization the project is shared with, or `null` for an internal project. */
+  readonly clientName: string | null;
+  /** The project owner's display name, or `null` when the project has no owner. */
+  readonly ownerName: string | null;
+  /**
+   * POR-01's CLIENT WAIT: when the project's oldest still-pending approval was requested (ISO
+   * instant), or `null` when nothing is waiting on a reviewer.
+   */
+  readonly clientWaitSince: string | null;
+  /** The project's creation day `'YYYY-MM-DD'` — where its POR-02 timeline bar starts. */
+  readonly startedOn: string;
+  /** When the project was archived (ISO instant), or `null`. */
+  readonly archivedAt: string | null;
+  /** The project's milestones in due order, for the POR-02 timeline. */
+  readonly milestones: readonly PortfolioMilestoneView[];
+}
+
+/** One milestone on the POR-02 timeline. */
+export interface PortfolioMilestoneView {
+  readonly title: string;
+  readonly dueOn: string | null;
+  readonly status: 'planned' | 'met' | 'missed';
+  /** Published to the client portal — a client-facing date. */
+  readonly published: boolean;
 }
 
 const DEFAULT_LIMIT = 50;
@@ -66,6 +101,7 @@ export class ProjectPortfolioService {
     private readonly database: TenantDatabase,
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     private readonly portfolio: ProjectPortfolioRepository = new ProjectPortfolioRepository(),
+    private readonly planning: ProjectPortfolioPlanningRepository = new ProjectPortfolioPlanningRepository(),
   ) {}
 
   /**
@@ -84,17 +120,35 @@ export class ProjectPortfolioService {
     const limit = Math.min(Math.max(options.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
 
     const rows = await this.database.read(context, (runner) =>
-      this.projects.list(runner, context, { limit }),
+      this.projects.list(runner, context, { limit, includeArchived: true }),
     );
 
-    const visible = rows.filter((row) => this.mayRead(principal, row));
+    const visible = rows.filter((row) => mayReadProject(principal, row));
     const projectIds = visible.map((row) => row.id);
 
-    const [workSummaries, objectiveCounts] = await this.database.read(context, async (runner) => {
-      const work = await this.portfolio.workSummaries(runner, context, projectIds);
-      const objectives = await this.portfolio.objectiveCounts(runner, context, projectIds);
-      return [work, objectives] as const;
-    });
+    const ownerIds = [
+      ...new Set(visible.flatMap((row) => (row.ownerUserId ? [row.ownerUserId] : []))),
+    ];
+    const [workSummaries, objectiveCounts, milestones, clients, waits, people] =
+      await this.database.read(context, async (runner) => {
+        const work = await this.portfolio.workSummaries(runner, context, projectIds);
+        const objectives = await this.portfolio.objectiveCounts(runner, context, projectIds);
+        const dated = await this.planning.milestones(runner, context, projectIds);
+        const clientRows = await this.planning.clients(runner, context, projectIds);
+        const waitRows = await this.planning.clientWaits(runner, context, projectIds);
+        const personRows = await this.planning.people(runner, context, ownerIds);
+        return [work, objectives, dated, clientRows, waitRows, personRows] as const;
+      });
+
+    const milestonesByProject = new Map<string, PortfolioMilestoneRow[]>();
+    for (const row of milestones) {
+      const list = milestonesByProject.get(row.projectId) ?? [];
+      list.push(row);
+      milestonesByProject.set(row.projectId, list);
+    }
+    const clientByProject = new Map(clients.map((row) => [row.projectId, row.clientName]));
+    const waitByProject = new Map(waits.map((row) => [row.projectId, row.waitingSince]));
+    const nameByUser = new Map(people.map((row) => [row.userId, row.displayName]));
 
     const workByProject = new Map(workSummaries.map((row) => [row.projectId, row]));
     const objectivesByProject = new Map<string, { open: number; met: number; missed: number }>();
@@ -118,23 +172,43 @@ export class ProjectPortfolioService {
           missed: objectives.missed,
         },
         latestActivityAt: latestActivity(project, work?.latestActivityAt ?? null),
+        committedOn: project.committedAt ?? firstPlannedDate(milestonesByProject.get(project.id)),
+        forecastOn: project.forecastAt ?? null,
+        clientName: clientByProject.get(project.id) ?? null,
+        ownerName: project.ownerUserId ? (nameByUser.get(project.ownerUserId) ?? null) : null,
+        clientWaitSince: waitByProject.get(project.id)?.toISOString() ?? null,
+        startedOn: project.createdAt.toISOString().slice(0, 10),
+        archivedAt: project.archivedAt?.toISOString() ?? null,
+        milestones: (milestonesByProject.get(project.id) ?? []).map((row) => ({
+          title: row.title,
+          dueOn: row.dueOn,
+          status: row.status,
+          published: row.published,
+        })),
       };
     });
   }
+}
 
-  /** The relation gate: `work.read` against the project row, exactly as `ProjectsService.list`. */
-  private mayRead(principal: Principal, row: ProjectRow): boolean {
-    return authorize({
-      principal,
-      capability: 'work.read',
-      resource: {
-        organizationId: row.organizationId,
-        projectId: row.id,
-        audience: 'internal',
-        lifecycle: row.archivedAt ? 'archived' : 'active',
-      },
-    }).allowed;
-  }
+/** The relation gate: `work.read` against the project row, exactly as `ProjectsService.list`. */
+export function mayReadProject(principal: Principal, row: ProjectRow): boolean {
+  return authorize({
+    principal,
+    capability: 'work.read',
+    resource: {
+      organizationId: row.organizationId,
+      projectId: row.id,
+      audience: 'internal',
+      lifecycle: row.archivedAt ? 'archived' : 'active',
+    },
+  }).allowed;
+}
+
+/** The earliest dated milestone still `planned` — rows arrive in due order, undated last. */
+export function firstPlannedDate(
+  rows: readonly PortfolioMilestoneRow[] | undefined,
+): string | null {
+  return rows?.find((row) => row.status === 'planned' && row.dueOn !== null)?.dueOn ?? null;
 }
 
 /**

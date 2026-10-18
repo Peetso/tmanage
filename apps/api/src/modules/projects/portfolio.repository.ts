@@ -1,6 +1,16 @@
-import { and, count, eq, inArray, isNull, max, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, isNull, max, min, sql } from 'drizzle-orm';
+import { PENDING_APPROVAL_STATES } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { projectObjectives, workItems } from '../../common/database/schema.js';
+import {
+  approvals,
+  clientOrganizations,
+  memberships,
+  projectClients,
+  projectMilestones,
+  projectObjectives,
+  users,
+  workItems,
+} from '../../common/database/schema.js';
 import type { ProjectObjectiveStatus } from './project-objectives.repository.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -35,6 +45,35 @@ export interface ProjectObjectiveCountRow {
   readonly projectId: string;
   readonly status: ProjectObjectiveStatus;
   readonly count: number;
+}
+
+/** One milestone of a visible project, for the commitment and the timeline (POR-01 / POR-02). */
+export interface PortfolioMilestoneRow {
+  readonly projectId: string;
+  readonly title: string;
+  /** `'YYYY-MM-DD'`, or `null` for an undated milestone. */
+  readonly dueOn: string | null;
+  readonly status: 'planned' | 'met' | 'missed';
+  /** Published to the client portal — a client-facing date. */
+  readonly published: boolean;
+}
+
+/** The client organization a project is shared with (the first by name when several). */
+export interface PortfolioClientRow {
+  readonly projectId: string;
+  readonly clientName: string;
+}
+
+/** The oldest approval still waiting on a reviewer, per project. */
+export interface PortfolioClientWaitRow {
+  readonly projectId: string;
+  readonly waitingSince: Date;
+}
+
+/** A member's display name, resolved through a membership of the acting tenant. */
+export interface PortfolioPersonRow {
+  readonly userId: string;
+  readonly displayName: string;
 }
 
 /** States that mean a work item is no longer open. Mirrors `workItemStateMachine`'s terminal set. */
@@ -114,6 +153,114 @@ export class ProjectPortfolioRepository {
       status: row.status as ProjectObjectiveStatus,
       count: Number(row.count),
     }));
+  }
+}
+
+/**
+ * POR-01 / POR-02 aggregates. Each takes the same visible-project allowlist as the two above and
+ * short-circuits on an empty list; every join carries the `organization_id` equality, so the guard
+ * sees the tenant predicate reach every tenant table in the statement.
+ */
+export class ProjectPortfolioPlanningRepository {
+  /** Every milestone of the given projects, in due order (undated last). */
+  async milestones(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly PortfolioMilestoneRow[]> {
+    if (projectIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({
+        projectId: projectMilestones.projectId,
+        title: projectMilestones.title,
+        dueOn: projectMilestones.dueOn,
+        status: projectMilestones.status,
+        published: projectMilestones.published,
+      })
+      .from(projectMilestones)
+      .where(
+        and(
+          eq(projectMilestones.organizationId, context.organizationId),
+          inArray(projectMilestones.projectId, [...projectIds]),
+        ),
+      )
+      .orderBy(
+        sql`${projectMilestones.dueOn} is null`,
+        asc(projectMilestones.dueOn),
+        asc(projectMilestones.id),
+      );
+    return rows.map((row) => ({ ...row, published: Boolean(row.published) }));
+  }
+
+  /** The client organization each project is shared with; the first by name wins. */
+  async clients(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly PortfolioClientRow[]> {
+    if (projectIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({ projectId: projectClients.projectId, clientName: clientOrganizations.name })
+      .from(projectClients)
+      .innerJoin(
+        clientOrganizations,
+        and(
+          eq(clientOrganizations.organizationId, projectClients.organizationId),
+          eq(clientOrganizations.id, projectClients.clientOrganizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(projectClients.organizationId, context.organizationId),
+          inArray(projectClients.projectId, [...projectIds]),
+        ),
+      )
+      .orderBy(asc(projectClients.projectId), asc(clientOrganizations.name));
+    const first = new Map<string, string>();
+    for (const row of rows) if (!first.has(row.projectId)) first.set(row.projectId, row.clientName);
+    return [...first].map(([projectId, clientName]) => ({ projectId, clientName }));
+  }
+
+  /** Per project, when its oldest still-pending approval was requested. */
+  async clientWaits(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly PortfolioClientWaitRow[]> {
+    if (projectIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({ projectId: approvals.projectId, waitingSince: min(approvals.createdAt) })
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.organizationId, context.organizationId),
+          inArray(approvals.projectId, [...projectIds]),
+          inArray(approvals.state, [...PENDING_APPROVAL_STATES]),
+        ),
+      )
+      .groupBy(approvals.projectId);
+    return rows.flatMap((row) =>
+      row.waitingSince ? [{ projectId: row.projectId, waitingSince: row.waitingSince }] : [],
+    );
+  }
+
+  /** Display names for the given users — only users who are members of the acting tenant. */
+  async people(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userIds: readonly string[],
+  ): Promise<readonly PortfolioPersonRow[]> {
+    if (userIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({ userId: users.id, displayName: users.displayName })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          inArray(memberships.userId, [...userIds]),
+        ),
+      );
   }
 }
 

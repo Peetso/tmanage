@@ -84,8 +84,21 @@ function documentView(overrides: Record<string, unknown> = {}) {
 }
 
 function routeHubResponses(call: Call): Response {
-  if (call.url.includes('/documents?projectId=')) {
-    return json({ documents: [documentView({ id: 'document-1', title: 'Kickoff brief' })] });
+  if (call.url.includes('/recent-documents')) {
+    return json({
+      documents: [
+        {
+          id: 'document-1',
+          projectId: PROJECT,
+          projectName: 'Rebrand',
+          title: 'Kickoff brief',
+          updatedAt: NOW,
+          audience: 'client',
+          clientAudienceCount: 2,
+        },
+      ],
+      hiddenCount: 1,
+    });
   }
   if (call.url.includes('/projects')) {
     return json({ projects: [project] });
@@ -97,6 +110,18 @@ function routeHubResponses(call: Call): Response {
 }
 
 describe('DocsHubScreen', () => {
+  it('opens on Recent with audience and the unreadable count, never a hidden title', async () => {
+    const { client } = clientOver(routeHubResponses);
+    render(
+      withQuery(<DocsHubScreen organizationSlug="acme" organizationName="Acme" client={client} />),
+    );
+
+    expect(await screen.findByRole('link', { name: 'Kickoff brief' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Recent' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText('Client · 2')).toBeTruthy();
+    expect(screen.getByText('1 document in a space you cannot read')).toBeTruthy();
+  });
+
   it('lists a chosen project’s documents, scoped by projectId, and links each to its read screen', async () => {
     const { client, calls } = clientOver(routeHubResponses);
     const { container } = render(
@@ -114,15 +139,28 @@ describe('DocsHubScreen', () => {
     expect(link).toHaveAttribute('href', '/acme/docs/document-1');
 
     // The list read carried the project id to the API — the scoping is the server's.
-    expect(calls.some((c) => c.url.includes(`/documents?projectId=${PROJECT}`))).toBe(true);
+    expect(calls.some((c) => c.url.includes(`/recent-documents?projectId=${PROJECT}`))).toBe(true);
 
     await expectNoAxeViolations(container);
   });
 });
 
 describe('DocumentViewScreen', () => {
-  it('renders a document’s title, body and metadata', async () => {
-    const { client } = clientOver(() => json(documentView()));
+  it('renders a document’s title, body, author byline and collaborator faces', async () => {
+    const { client } = clientOver((call) =>
+      call.url.endsWith('/sharing')
+        ? json({
+            audience: 'internal',
+            publishedAt: null,
+            clientAudienceCount: 2,
+            collaborators: [
+              { userId: 'user-1', displayName: 'Maya Hassan' },
+              { userId: 'user-2', displayName: 'Omar Adel' },
+            ],
+            canPublish: false,
+          })
+        : json(documentView()),
+    );
     const { container } = render(
       withQuery(
         <DocumentViewScreen
@@ -137,6 +175,12 @@ describe('DocumentViewScreen', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Kickoff brief' })).toBeTruthy();
     expect(screen.getByText('The plan for the quarter.')).toBeTruthy();
     expect(screen.getByText('Second paragraph.')).toBeTruthy();
+    expect(
+      await screen.findByRole('list', { name: /collaborators: maya hassan, omar adel/i }),
+    ).toBeTruthy();
+    expect(screen.getByText(/2 after publication/)).toBeTruthy();
+    // A caller the API says may not publish gets no Publish button.
+    expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
 
     await expectNoAxeViolations(container);
   });

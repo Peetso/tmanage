@@ -4,7 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { SearchIndexRepository } from './search-index.repository.js';
-import type { SearchIndexHitRow } from './search-index.repository.js';
+import type { SearchAudience, SearchIndexHitRow } from './search-index.repository.js';
 
 /**
  * SRCH-01 (x111), ranked by SRCH ranking (x148). The application service for global search — one
@@ -50,7 +50,20 @@ export interface SearchResultView {
    * the moment it lands, without a shape change.
    */
   readonly snippet: string | null;
+  /** The hit's audience — the card's "internal" / "client visible" pill (SR-02). */
+  readonly audience: SearchAudience;
+  /** ISO-8601 instant of the source row's last change. */
+  readonly updatedAt: string;
 }
+
+/** SR-02 TIME facet windows. `all` (or omitted) applies no time bound. */
+export type SearchTimeWindow = '7d' | '30d' | 'all';
+
+const WINDOW_DAYS: Readonly<Record<Exclude<SearchTimeWindow, 'all'>, number>> = {
+  '7d': 7,
+  '30d': 30,
+};
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export interface SearchOptions {
   /** The query. The controller has already rejected an empty one and bounded its length. */
@@ -58,6 +71,19 @@ export interface SearchOptions {
   /** Optional project filter; resolved tenant-scoped before the search (Known-trap). */
   readonly projectId?: string;
   readonly limit?: number;
+  /**
+   * SR-02 AUDIENCE facet: only hits whose audience is listed. A pure narrowing filter — it never
+   * widens what `authorize()` lets through; every surviving hit is still relation-checked.
+   */
+  readonly audiences?: readonly SearchAudience[];
+  /** SR-02 TIME facet: only hits changed within the window. */
+  readonly since?: SearchTimeWindow;
+}
+
+/** The lower bound on `updated_at` a time window implies, or undefined for all time. */
+export function windowStart(since: SearchTimeWindow | undefined, now: Date): Date | undefined {
+  if (since === undefined || since === 'all') return undefined;
+  return new Date(now.getTime() - WINDOW_DAYS[since] * DAY_MS);
 }
 
 const DEFAULT_LIMIT = 20;
@@ -80,6 +106,8 @@ export class SearchService {
      * answer is 404.
      */
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
+    /** The clock the TIME facet measures its window from; injectable for tests. */
+    private readonly now: () => Date = () => new Date(),
   ) {}
 
   /**
@@ -96,11 +124,14 @@ export class SearchService {
   ): Promise<readonly SearchResultView[]> {
     const limit = effectiveSearchLimit(options.limit);
     const projectId = options.projectId;
+    const updatedSince = windowStart(options.since, this.now());
 
     const rankedOptions = {
       query: options.q,
       limit,
       ...(projectId === undefined ? {} : { projectId }),
+      ...(options.audiences === undefined ? {} : { audiences: options.audiences }),
+      ...(updatedSince === undefined ? {} : { updatedSince }),
     };
 
     const hits = await this.database.read(context, async (runner) => {
@@ -148,5 +179,7 @@ function toView(hit: SearchIndexHitRow): SearchResultView {
     title: hit.title,
     projectId: hit.projectId,
     snippet: null,
+    audience: hit.audience,
+    updatedAt: hit.updatedAt.toISOString(),
   };
 }

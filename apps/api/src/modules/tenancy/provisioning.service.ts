@@ -8,6 +8,7 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { MembershipsRepository } from './memberships.repository.js';
 import { OrganizationsRepository, OrganizationSlugTakenError } from './organizations.repository.js';
+import { OrgSettingsRepository } from './org-settings.repository.js';
 import { WorkspacesRepository } from './workspaces.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 
@@ -95,6 +96,10 @@ export interface ProvisionOrganizationInput {
   readonly name: string;
   readonly defaultLocale: string;
   readonly timezone: string;
+  /** ON-02's working week, stored as `org_settings.working_week` in the same transaction. */
+  readonly workingWeek?: string;
+  /** ON-01's starting template, stored as `org_settings.operating_template`. */
+  readonly operatingTemplate?: string;
   readonly correlationId: string;
 }
 
@@ -153,6 +158,7 @@ export class ProvisioningService {
     private readonly organizations: OrganizationsRepository = new OrganizationsRepository(),
     private readonly workspaces: WorkspacesRepository = new WorkspacesRepository(),
     private readonly memberships: MembershipsRepository = new MembershipsRepository(),
+    private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
   ) {}
 
   /**
@@ -228,6 +234,18 @@ export class ProvisioningService {
       userId: input.userId,
       role: FOUNDER_ROLE,
     });
+
+    // The onboarding choices join the same transaction: an organization created without the
+    // working week the person picked would silently schedule against Monday–Friday.
+    const initialSettings = [
+      ['working_week', input.workingWeek],
+      ['operating_template', input.operatingTemplate],
+    ] as const;
+    for (const [key, value] of initialSettings) {
+      if (value !== undefined) {
+        await this.settings.upsert(tx, context, { key, value, updatedBy: input.userId });
+      }
+    }
 
     // Same transaction, same reason AUD-001 gives: the record must not outlive a change
     // that rolled back, and the change must not outlive a missing record.

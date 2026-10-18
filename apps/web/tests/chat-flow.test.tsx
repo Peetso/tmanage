@@ -210,12 +210,39 @@ function renderChannel(client: ApiClient) {
   );
 }
 
+/** A CH-01 directory row: the conversation plus members and activity. */
+function directoryEntry(overrides: Record<string, unknown> = {}) {
+  return {
+    ...CONVERSATION,
+    lastActivityAt: '2026-08-26T00:00:00.000Z',
+    memberCount: 1,
+    clientMemberCount: 0,
+    joined: false,
+    memberPreview: [{ userId: 'user-1111', displayName: 'Omar Aziz', isClient: false }],
+    ...overrides,
+  };
+}
+
 describe('the channel list', () => {
-  it('lists channels with their project and links into them', async () => {
+  it('lists channels with their project, members and audience, and links into them', async () => {
     const { client } = clientOver((call) => {
-      if (call.url.includes('/conversations')) return json({ conversations: [CONVERSATION] });
+      if (call.url.includes('/conversations/directory')) {
+        return json({
+          channels: [
+            directoryEntry({
+              memberCount: 3,
+              clientMemberCount: 1,
+              joined: true,
+              memberPreview: [
+                { userId: 'user-1111', displayName: 'Omar Aziz', isClient: false },
+                { userId: 'user-2222', displayName: 'Yuki Kato', isClient: true },
+              ],
+            }),
+          ],
+        });
+      }
       if (call.url.includes('/projects')) return json({ projects: [PROJECT] });
-      return json({}, 404);
+      return json({ conversations: [] });
     });
 
     render(
@@ -230,23 +257,70 @@ describe('the channel list', () => {
 
     const link = await screen.findByRole('link', { name: '#atlas-relaunch' });
     expect(link).toHaveAttribute('href', '/northstar/chat/conv-1');
-    // The project name appears beside the channel row (it is also an option in two selects).
     const row = link.closest('li') as HTMLElement;
-    expect(within(row).getByText('Atlas Website Relaunch')).toBeInTheDocument();
+    expect(await within(row).findByText('Atlas Website Relaunch')).toBeInTheDocument();
+    expect(within(row).getByText('joined')).toBeInTheDocument();
+    expect(within(row).getByText('YK')).toBeInTheDocument();
+    expect(within(row).getByText('2 + 1')).toBeInTheDocument();
+    expect(within(row).getByText('Client visible')).toBeInTheDocument();
+  });
+
+  it('filters by my channels, client shared and archived, with counts', async () => {
+    const user = userEvent.setup();
+    const { client } = clientOver((call) => {
+      if (call.url.includes('/conversations/directory')) {
+        return json({
+          channels: [
+            directoryEntry({ id: 'c-mine', name: 'mine', joined: true }),
+            directoryEntry({ id: 'c-client', name: 'shared', clientMemberCount: 1 }),
+            directoryEntry({ id: 'c-old', name: 'old', archivedAt: '2026-08-27T00:00:00.000Z' }),
+          ],
+        });
+      }
+      if (call.url.includes('/projects')) return json({ projects: [PROJECT] });
+      return json({ conversations: [] });
+    });
+
+    render(
+      withQuery(
+        <ChatScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          client={client}
+        />,
+      ),
+    );
+
+    await screen.findByRole('link', { name: '#mine' });
+    expect(screen.queryByRole('link', { name: '#old' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'My channels · 1' }));
+    expect(screen.getAllByRole('link').map((l) => l.textContent)).toContain('#mine');
+    expect(screen.queryByRole('link', { name: '#shared' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Client shared · 1' }));
+    expect(screen.getByRole('link', { name: '#shared' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '#mine' })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Archived · 1' }));
+    expect(screen.getByRole('link', { name: '#old' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'All · 2' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   /**
-   * The x38 defect (CL-09) on TM-08. Every control on this screen is a controlled input in the
-   * server-rendered HTML — the two project selects, the archived checkbox, the channel name —
-   * and none of them carried the readiness condition. A filter chosen or a name typed before
-   * React hydrated was held by the DOM alone and undone by hydration, with nothing said. They
-   * now sit behind `disabled={projects.isPending}`, filters and form alike.
+   * The x38 defect (CL-09) on TM-08. The channel form's controls are controlled inputs in the
+   * server-rendered HTML; a name typed before React hydrated was held by the DOM alone and
+   * undone by hydration, with nothing said. They sit behind `disabled={projects.isPending}`.
    */
-  it('takes no filter and no channel name until the projects have arrived', async () => {
+  it('takes no channel name until the projects have arrived', async () => {
     const user = userEvent.setup();
     const held = heldAnswer();
     const { client } = clientOver((call) => {
       if (call.url.includes('/projects')) return held.after(() => json({ projects: [PROJECT] }));
+      if (call.url.includes('/conversations/directory')) return json({ channels: [] });
       return json({ conversations: [] });
     });
 
@@ -263,14 +337,7 @@ describe('the channel list', () => {
     const name = within(
       screen.getByRole('heading', { name: 'New channel' }).closest('section') as HTMLElement,
     ).getByLabelText('Channel name');
-    await expectInertUntilAnswered(
-      [
-        name,
-        screen.getByLabelText('Show archived channels'),
-        ...screen.getAllByLabelText('Project'),
-      ],
-      held.answer,
-    );
+    await expectInertUntilAnswered([name, screen.getByLabelText('Project')], held.answer);
 
     await user.type(name, 'general');
     expect(name).toHaveValue('general');
@@ -281,6 +348,7 @@ describe('the channel list', () => {
       if (call.url.includes('/conversations') && call.method === 'POST') {
         return json({ ...CONVERSATION, id: 'conv-2', name: 'general' }, 201);
       }
+      if (call.url.includes('/conversations/directory')) return json({ channels: [] });
       if (call.url.includes('/conversations')) return json({ conversations: [] });
       if (call.url.includes('/projects')) return json({ projects: [PROJECT] });
       return json({}, 404);
@@ -297,8 +365,7 @@ describe('the channel list', () => {
     );
 
     const heading = await screen.findByRole('heading', { name: 'New channel' });
-    // Two "Project" selects exist — the filter's and the form's. Scope to the form's section,
-    // and wait for the projects query to fill its options before choosing one.
+    // Scope to the form's section, and wait for the projects query to fill its options.
     const section = heading.closest('section') as HTMLElement;
     await within(section).findByRole('option', { name: 'Atlas Website Relaunch' });
     await userEvent.selectOptions(within(section).getByLabelText('Project'), 'proj-1');

@@ -14,6 +14,13 @@ import {
 } from '../../lib/api/integration-directory';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import {
+  appState,
+  describeApp,
+  describeAppLine,
+  directoryTitle,
+  relativeAgo,
+} from './integration-directory-view';
 
 export interface IntegrationDirectoryScreenProps {
   organizationSlug: string;
@@ -61,10 +68,6 @@ export function IntegrationDirectoryScreen({
   const activeApp = rows.find((app) => app.id === activeAppId) ?? null;
   const connectedApps = rows.filter((app) => app.connections.length > 0);
   const availableApps = rows.filter((app) => app.connections.length === 0);
-  const pendingCount = rows.reduce(
-    (sum, app) => sum + app.connections.filter((c) => c.status === 'pending').length,
-    0,
-  );
 
   const connect = useMutation({
     mutationFn: (app: IntegrationAppView) => {
@@ -89,13 +92,7 @@ export function IntegrationDirectoryScreen({
   const canConnect = activeApp !== null && label.trim() !== '' && !connect.isPending;
   const loaded = !apps.isPending && !apps.isError;
 
-  const title = !loaded
-    ? 'Integrations'
-    : connectedApps.length === 0
-      ? 'Nothing connected yet'
-      : `${capitalize(numberWord(connectedApps.length))} connected${
-          pendingCount > 0 ? `, ${numberWord(pendingCount)} pending` : ''
-        }`;
+  const title = loaded ? directoryTitle(rows) : 'Integrations';
 
   return (
     <AppShell
@@ -106,9 +103,14 @@ export function IntegrationDirectoryScreen({
       title={title}
       description="TManage stays the record. Integrations bring information in or copy it out; they never become the place a decision lives."
       actions={
-        <a href="#tm-connect" className="tm-aut-btn tm-aut-btn--ink">
-          Connect a tool
-        </a>
+        <>
+          <Link href={`/${organizationSlug}/admin/audit`} className="tm-aut-btn">
+            Audit access
+          </Link>
+          <a href="#tm-connect" className="tm-aut-btn tm-aut-btn--ink">
+            Connect a tool
+          </a>
+        </>
       }
     >
       <div className="tm-aut">
@@ -155,7 +157,7 @@ export function IntegrationDirectoryScreen({
             </h2>
             <ul className="tm-aut-tools" aria-label="Connected apps">
               {connectedApps.map((app) => {
-                const live = app.connections.some((c) => c.status === 'connected');
+                const live = appState(app) === 'live';
                 return (
                   <li key={app.id} className="tm-aut-tool">
                     <div className="tm-aut-tool__head">
@@ -169,12 +171,15 @@ export function IntegrationDirectoryScreen({
                       </span>
                     </div>
                     <h3 className="tm-aut-tool__name">{app.name}</h3>
-                    <p className="tm-aut-tool__body">{describeCapabilities(app)}</p>
+                    <p className="tm-aut-tool__body">{describeApp(app)}</p>
                     <ul className="tm-aut-tool__foot" aria-label={`${app.name} connections`}>
                       {app.connections.map((connection) => (
                         <li key={connection.id} className="tm-aut-tool__conn">
                           <span className="tm-aut-mono">{connection.label}</span>
-                          <span className="tm-aut-mono">{connection.status}</span>
+                          <span className="tm-aut-mono">
+                            <span className="tm-visually-hidden">{connection.status}, added </span>
+                            {relativeAgo(connection.createdAt)}
+                          </span>
                         </li>
                       ))}
                     </ul>
@@ -206,7 +211,7 @@ export function IntegrationDirectoryScreen({
                     <div className="tm-aut-list__main">
                       <h3 className="tm-aut-rowtitle">{app.name}</h3>
                       <span className="tm-aut-rowsub">
-                        {app.category} · {describeCapabilities(app)}
+                        {describeAppLine(app)}
                         {app.connections.length > 0
                           ? ` · ${app.connections.length} connection${app.connections.length === 1 ? '' : 's'}`
                           : ''}
@@ -252,15 +257,16 @@ export function IntegrationDirectoryScreen({
             className="tm-aut-card tm-card--ink"
             aria-labelledby="tm-connect-heading"
           >
-            <p className="tm-aut-eyebrow">Connect a tool</p>
+            <p className="tm-aut-eyebrow">The rule for every integration</p>
             <h2 id="tm-connect-heading" className="tm-aut-card__title">
-              Connect an app
+              If it leaves TManage, a person chose to send it
             </h2>
             <ul className="tm-aut-facts">
               <li>Secrets are never stored here: only a label and non-secret settings.</li>
               <li>
                 Live credential exchange is set up separately, after the connection is recorded.
               </li>
+              <li>Every connection records who added it.</li>
             </ul>
 
             {connected ? (
@@ -307,7 +313,7 @@ export function IntegrationDirectoryScreen({
                   required
                 />
 
-                <fieldset className="tm-stack tm-fieldset">
+                <fieldset className="tm-aut-pair tm-fieldset">
                   <legend className="tm-field__label">Optional setting (non-secret)</legend>
                   <Field
                     label="Setting name"
@@ -353,31 +359,6 @@ export function IntegrationDirectoryScreen({
 
 type DirectoryFilter = 'all' | 'connected' | 'available';
 
-const NUMBER_WORDS = [
-  'zero',
-  'one',
-  'two',
-  'three',
-  'four',
-  'five',
-  'six',
-  'seven',
-  'eight',
-  'nine',
-  'ten',
-  'eleven',
-  'twelve',
-];
-
-/** INT-01 writes small counts as words ("Four connected, one broken"). */
-function numberWord(count: number): string {
-  return NUMBER_WORDS[count] ?? String(count);
-}
-
-function capitalize(text: string): string {
-  return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
 /** The square glyph on each tool card, from the app's category (INT-01's ▦ ✉ ⇪ ◫). */
 function glyphFor(category: string): string {
   const key = category.toLowerCase();
@@ -390,12 +371,6 @@ function glyphFor(category: string): string {
   if (key.includes('account') || key.includes('financ') || key.includes('billing')) return '◈';
   if (key.includes('dev') || key.includes('code')) return '‹›';
   return '◇';
-}
-
-function describeCapabilities(app: IntegrationAppView): string {
-  return app.capabilities.length === 0
-    ? app.category
-    : app.capabilities.map((capability) => capability.replace(/[_.]/g, ' ')).join(', ');
 }
 
 function describeError(error: unknown): string {

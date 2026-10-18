@@ -4,7 +4,8 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import { SEARCH_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import type { SearchResultView, SearchService } from './search.service.js';
+import type { SearchResultView, SearchService, SearchTimeWindow } from './search.service.js';
+import type { SearchAudience } from './search-index.repository.js';
 import { SavedSearchesRepository } from './saved-searches.repository.js';
 import { RECENT_LIMIT } from './saved-searches.service.js';
 
@@ -20,6 +21,43 @@ import { RECENT_LIMIT } from './saved-searches.service.js';
 
 /** `work_items.title`, `documents.title` and `meetings.title` are each `VARCHAR(300)`. */
 const MAX_QUERY_LENGTH = 300;
+
+const AUDIENCES: readonly SearchAudience[] = [
+  'internal',
+  'client_visible',
+  'client_action_required',
+];
+const TIME_WINDOWS: readonly SearchTimeWindow[] = ['7d', '30d', 'all'];
+
+/**
+ * SR-02 AUDIENCE facet: a comma-separated subset of the three audiences (`audience=internal,
+ * client_visible`). Unknown values are a 400, never silently dropped; duplicates collapse.
+ */
+export function parseAudiences(raw: string | undefined): readonly SearchAudience[] | undefined {
+  if (raw === undefined) return undefined;
+  const values = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value !== '');
+  const invalid = values.filter((value) => !AUDIENCES.includes(value as SearchAudience));
+  if (values.length === 0 || invalid.length > 0) {
+    throw new ApiError(400, 'validation_failed', 'audience is invalid', [
+      { field: 'audience', message: `must be a comma-separated subset of ${AUDIENCES.join(', ')}` },
+    ]);
+  }
+  return [...new Set(values as SearchAudience[])];
+}
+
+/** SR-02 TIME facet: `7d`, `30d` or `all`. */
+export function parseTimeWindow(raw: string | undefined): SearchTimeWindow | undefined {
+  if (raw === undefined) return undefined;
+  if (!TIME_WINDOWS.includes(raw as SearchTimeWindow)) {
+    throw new ApiError(400, 'validation_failed', 'since is invalid', [
+      { field: 'since', message: `must be one of ${TIME_WINDOWS.join(', ')}` },
+    ]);
+  }
+  return raw as SearchTimeWindow;
+}
 
 @Controller('v1/organizations/:orgSlug/search')
 export class SearchController {
@@ -43,6 +81,8 @@ export class SearchController {
     @Query('q') q?: string,
     @Query('projectId') projectId?: string,
     @Query('limit') limit?: string,
+    @Query('audience') audience?: string,
+    @Query('since') since?: string,
   ): Promise<{ readonly results: readonly SearchResultView[] }> {
     const query = typeof q === 'string' ? q.trim() : '';
     if (query === '') {
@@ -69,8 +109,13 @@ export class SearchController {
       ]);
     }
 
+    const audiences = parseAudiences(audience);
+    const window = parseTimeWindow(since);
+
     const results = await this.search.search(context, principal, {
       q: query,
+      ...(audiences === undefined ? {} : { audiences }),
+      ...(window === undefined ? {} : { since: window }),
       ...(projectId === undefined ? {} : { projectId }),
       ...(parsedLimit === undefined ? {} : { limit: parsedLimit }),
     });

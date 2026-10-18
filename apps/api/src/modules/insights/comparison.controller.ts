@@ -1,4 +1,4 @@
-import { Controller, Get, Module, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Module, Query } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
@@ -38,7 +38,11 @@ import type { PeriodComparisonView } from './comparison.service.js';
  */
 @Controller('v1/organizations/:orgSlug/insights')
 export class InsightComparisonController {
-  constructor(private readonly comparison: InsightComparisonService) {}
+  // An explicit token: `emitDecoratorMetadata` is off (ADR-0003), so an un-annotated class
+  // parameter would be injected as `undefined` and every read would 500.
+  constructor(
+    @Inject(InsightComparisonService) private readonly comparison: InsightComparisonService,
+  ) {}
 
   /**
    * Compare one metric across two windows. Tenant-scoped by `orgSlug`; authorized once at org level

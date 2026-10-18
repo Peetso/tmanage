@@ -116,7 +116,13 @@ export class PersonProfileRepository {
         role: projectMemberships.role,
       })
       .from(projectMemberships)
-      .innerJoin(projects, eq(projects.id, projectMemberships.projectId))
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.organizationId, context.organizationId),
+          eq(projects.id, projectMemberships.projectId),
+        ),
+      )
       .where(
         and(
           eq(projectMemberships.organizationId, context.organizationId),

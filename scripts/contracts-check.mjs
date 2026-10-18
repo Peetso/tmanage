@@ -127,6 +127,17 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
+  // Design-gaps pass (2026-10-18): the CH-01 channel browser. The API side is the pure projection in
+  // apps/api/src/modules/conversations/channel-directory.ts (same names, not a …View in a *.service.ts),
+  // so the checker cannot pair it; the shapes are built field-for-field from that file.
+  [
+    'ChannelMemberPreview',
+    'paired by hand with apps/api/src/modules/conversations/channel-directory.ts ChannelMemberPreview (not a *.service.ts …View).',
+  ],
+  [
+    'ChannelDirectoryEntry',
+    'paired by hand with apps/api/src/modules/conversations/channel-directory.ts ChannelDirectoryEntry (not a *.service.ts …View).',
+  ],
   // class-4 — union alias of AuthenticatedResponse | MfaRequiredResponse; the arms pair
   // individually (class-1-lift), so the union itself is never a single projection to Assert.
   [

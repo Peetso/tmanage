@@ -35,9 +35,10 @@ const INVITING_ROLES = new Set(['owner', 'org_admin', 'admin']);
  * bordered table, and a context column (the selected person, the teams, and what the directory
  * never lists).
  *
- * Only what the API returns is drawn. The frame also shows teams per row, open commitments and
- * declared availability; the people read does not carry those, so those columns are not invented —
- * the role filter and the role's own authority (from `lib/roles`) stand where the API has data.
+ * The roster is grouped by team (the first team a person is assigned to; nobody is listed twice)
+ * with a "No team" group last, and each row carries the open work the person owns (with how much is
+ * past due) and what they have **declared** for the next two weeks — never inferred: no window
+ * declared reads "Full week". The role's own authority comes from `lib/roles`.
  *
  * The search is the server's: the list is one page, so typing a name asks the API to narrow the
  * roster rather than filtering whatever page the browser happens to hold.
@@ -85,6 +86,7 @@ export function PeopleDirectoryScreen({
     roleFilter === null ? roster : roster.filter((person) => person.role === roleFilter);
   const selected = shown.find((person) => person.userId === selectedId) ?? shown[0];
   const teamList = Array.isArray(teams.data?.teams) ? teams.data.teams : [];
+  const groups = groupByTeam(shown);
 
   return (
     <AppShell
@@ -92,9 +94,7 @@ export function PeopleDirectoryScreen({
       organizationName={organizationName}
       activeNavigationId="people"
       eyebrow={
-        people.isSuccess
-          ? `People · Directory · ${roster.length} ${roster.length === 1 ? 'person' : 'people'}`
-          : 'People · Directory'
+        people.isSuccess ? `People · Directory · ${roster.length} internal` : 'People · Directory'
       }
       title="Who owns what, and who to ask"
       actions={
@@ -143,7 +143,8 @@ export function PeopleDirectoryScreen({
             </button>
           ))}
           <div className="ppl-filters__end">
-            <span className="ppl-mono">Sorted by name</span>
+            <span className="ppl-mono">Grouped by team</span>
+            <span className="ppl-static-chip">Sort: name</span>
           </div>
         </div>
 
@@ -156,7 +157,8 @@ export function PeopleDirectoryScreen({
               <span className="ppl-col-person">Person</span>
               <span className="ppl-col-role">Role and authority</span>
               <span className="ppl-col-projects">On projects</span>
-              <span className="ppl-col-status">Status</span>
+              <span className="ppl-col-commit">Open commitments</span>
+              <span className="ppl-col-declared">Declared</span>
             </div>
 
             {people.isPending ? (
@@ -179,10 +181,6 @@ export function PeopleDirectoryScreen({
 
             {people.isSuccess ? (
               <>
-                <p className="ppl-mono ppl-group">
-                  {roleFilter === null ? 'Everyone' : describeInternalRole(roleFilter).label} ·{' '}
-                  {shown.length}
-                </p>
                 {shown.length === 0 ? (
                   <div className="ppl-loading">
                     <InlineAlert tone="neutral">
@@ -193,13 +191,22 @@ export function PeopleDirectoryScreen({
                   </div>
                 ) : null}
                 <ul className="ppl-people" aria-label="People in this organization">
-                  {shown.map((person) => (
-                    <PersonRow
-                      key={person.userId}
-                      person={person}
-                      selected={person.userId === selected?.userId}
-                      onSelect={() => setSelectedId(person.userId)}
-                    />
+                  {groups.map((group) => (
+                    <li key={group.key} className="ppl-people__group">
+                      <p className="ppl-mono ppl-group" id={`ppl-group-${group.key}`}>
+                        {group.label} · {group.people.length}
+                      </p>
+                      <ul className="ppl-people" aria-labelledby={`ppl-group-${group.key}`}>
+                        {group.people.map((person) => (
+                          <PersonRow
+                            key={person.userId}
+                            person={person}
+                            selected={person.userId === selected?.userId}
+                            onSelect={() => setSelectedId(person.userId)}
+                          />
+                        ))}
+                      </ul>
+                    </li>
                   ))}
                 </ul>
               </>
@@ -215,7 +222,9 @@ export function PeopleDirectoryScreen({
           </section>
 
           <div className="ppl-aside">
-            {selected ? <SelectedPerson person={selected} /> : null}
+            {selected ? (
+              <SelectedPerson person={selected} organizationSlug={organizationSlug} />
+            ) : null}
 
             <section className="ppl-card ppl-card--tight" aria-labelledby="tm-people-teams">
               <h2 id="tm-people-teams" className="ppl-mono">
@@ -253,8 +262,9 @@ export function PeopleDirectoryScreen({
                 What this directory does not list
               </h2>
               <p className="ppl-note ppl-note--ink">
-                No output counts, no activity status, no last-seen. Roles and the projects someone
-                is on are the only things shown, and both are set on record, not inferred.
+                No output counts, no activity status, no last-seen. Commitments and declared
+                availability are the only load signals, and both are set by the person who owns
+                them.
               </p>
             </section>
           </div>
@@ -274,6 +284,8 @@ function PersonRow({
   onSelect: () => void;
 }) {
   const role = describeInternalRole(person.role);
+  const overdue = person.overdueCommitments ?? 0;
+  const declared = describeDeclared(person.declared ?? null, new Date());
   return (
     <li className="ppl-person" data-selected={selected}>
       <span className="ppl-col-person">
@@ -305,19 +317,38 @@ function PersonRow({
           {person.projectCount === 1 ? '1 project' : `${person.projectCount} projects`}
         </span>
       </span>
-      <span className="ppl-col-status">
-        <span
-          className={person.status === 'active' ? 'ppl-status' : 'ppl-status ppl-status--quiet'}
-        >
-          {person.status === 'active' ? 'Active' : person.status}
+      <span className="ppl-col-commit">
+        <span className="ppl-commit">
+          <span className="tm-visually-hidden">Open commitments: </span>
+          {person.openCommitments ?? '—'}
         </span>
+        {overdue > 0 ? <span className="ppl-pill ppl-pill--warning">{overdue} overdue</span> : null}
+      </span>
+      <span className="ppl-col-declared ppl-cell-strong">
+        <span className="tm-visually-hidden">Declared: </span>
+        {person.declared === undefined ? (
+          '—'
+        ) : declared === null ? (
+          'Full week'
+        ) : (
+          <span className="ppl-declared-off" title={declared.title}>
+            {declared.label}
+          </span>
+        )}
       </span>
     </li>
   );
 }
 
-function SelectedPerson({ person }: { person: PersonSummary }) {
+function SelectedPerson({
+  person,
+  organizationSlug,
+}: {
+  person: PersonSummary;
+  organizationSlug: string;
+}) {
   const role = describeInternalRole(person.role);
+  const team = person.teams?.[0]?.name;
   return (
     <section
       className="ppl-card ppl-card--tight ppl-card--selected"
@@ -330,8 +361,9 @@ function SelectedPerson({ person }: { person: PersonSummary }) {
         <div>
           <p className="ppl-person-card__name">{person.displayName}</p>
           <p className="ppl-person-card__role">
-            {role.label} · on {person.projectCount}{' '}
-            {person.projectCount === 1 ? 'project' : 'projects'}
+            {role.label} ·{' '}
+            {team ??
+              `on ${person.projectCount} ${person.projectCount === 1 ? 'project' : 'projects'}`}
           </p>
         </div>
       </div>
@@ -339,6 +371,88 @@ function SelectedPerson({ person }: { person: PersonSummary }) {
       <p className="ppl-mono">What this role may decide</p>
       {role.grants[0] ? <p className="ppl-lime-block">{role.grants[0]}</p> : null}
       <p className="ppl-note ppl-note--body">{role.withholds}</p>
+      {person.membershipId ? (
+        <div className="ppl-person-card__actions">
+          <Link
+            href={`/${organizationSlug}/people/${encodeURIComponent(person.membershipId)}`}
+            className="tm-button tm-button--ink"
+          >
+            Open profile
+          </Link>
+        </div>
+      ) : null}
     </section>
   );
+}
+
+interface TeamGroup {
+  readonly key: string;
+  readonly label: string;
+  readonly people: readonly PersonSummary[];
+}
+
+/**
+ * PEO-01's grouping: each person under the first team they are assigned to (the API lists teams by
+ * name), groups by team name, and everyone without a team in a last "No team" group. A person is
+ * listed once, so the counts add up to the roster.
+ */
+export function groupByTeam(people: readonly PersonSummary[]): readonly TeamGroup[] {
+  const byTeam = new Map<string, { label: string; people: PersonSummary[] }>();
+  const unassigned: PersonSummary[] = [];
+  for (const person of people) {
+    const team = person.teams?.[0];
+    if (!team) {
+      unassigned.push(person);
+      continue;
+    }
+    const group = byTeam.get(team.id) ?? { label: team.name, people: [] };
+    group.people.push(person);
+    byTeam.set(team.id, group);
+  }
+  const groups: TeamGroup[] = [...byTeam.entries()]
+    .sort(([, a], [, b]) => a.label.localeCompare(b.label))
+    .map(([key, group]) => ({ key, label: group.label, people: group.people }));
+  if (unassigned.length > 0) {
+    groups.push({ key: 'no-team', label: 'No team', people: unassigned });
+  }
+  return groups;
+}
+
+const DAY_MS = 86_400_000;
+
+function shortDate(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+function weekday(isoDate: string): string {
+  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-GB', {
+    weekday: 'short',
+    timeZone: 'UTC',
+  });
+}
+
+/**
+ * The DECLARED cell: what the person declared, in the design's short form — "Off Thu–Fri" for a
+ * window ahead, "Off until Fri" for one already running, "Off Thu" for a single day. `null` means
+ * nothing declared, which the caller shows as "Full week". The title keeps the full dates and kind.
+ */
+export function describeDeclared(
+  declared: PersonSummary['declared'] | null,
+  now: Date,
+): { label: string; title: string } | null {
+  if (!declared) return null;
+  const today = now.toISOString().slice(0, 10);
+  const { startDate, endDate, kind } = declared;
+  const title = `${kind} · ${startDate} to ${endDate}`;
+  const span = (Date.parse(endDate) - Date.parse(startDate)) / DAY_MS;
+  if (span >= 7) return { label: `Off until ${shortDate(endDate)}`, title };
+  if (startDate <= today) {
+    return { label: endDate === today ? 'Off today' : `Off until ${weekday(endDate)}`, title };
+  }
+  if (startDate === endDate) return { label: `Off ${weekday(startDate)}`, title };
+  return { label: `Off ${weekday(startDate)}–${weekday(endDate)}`, title };
 }

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { searchIndex } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
@@ -39,8 +39,13 @@ export interface SearchIndexHitRow {
    * audience (a `client_visible` item is readable where an `internal` one is not), exactly as the
    * direct read does. Documents are `internal` by construction.
    */
-  readonly audience: 'internal' | 'client_visible' | 'client_action_required';
+  readonly audience: SearchAudience;
+  /** The source row's last change, for the TIME facet and the card's date line. */
+  readonly updatedAt: Date;
 }
+
+/** The three audiences a source row can carry (the AUDIENCE facet's values). */
+export type SearchAudience = 'internal' | 'client_visible' | 'client_action_required';
 
 export interface SearchRankedOptions {
   /** The query, passed as a bound parameter to `MATCH … AGAINST` (natural-language mode). */
@@ -49,6 +54,13 @@ export interface SearchRankedOptions {
   readonly projectId?: string;
   /** The bound on rows returned; the service bounds again defensively. */
   readonly limit: number;
+  /**
+   * AUDIENCE facet (SR-02): keep only rows whose audience is one of these. Applied in SQL before
+   * the bound so a narrowed search still fills its page. Omitted = every audience.
+   */
+  readonly audiences?: readonly SearchAudience[];
+  /** TIME facet (SR-02): keep only rows changed at or after this instant. Omitted = all time. */
+  readonly updatedSince?: Date;
 }
 
 /** One row to (re)index — a projection of a source row into the index's shape. */
@@ -82,6 +94,10 @@ export class SearchIndexRepository {
 
     const predicates = [eq(searchIndex.organizationId, context.organizationId), relevance];
     if (options.projectId) predicates.push(eq(searchIndex.projectId, options.projectId));
+    if (options.audiences && options.audiences.length > 0) {
+      predicates.push(inArray(searchIndex.audience, [...options.audiences]));
+    }
+    if (options.updatedSince) predicates.push(gte(searchIndex.updatedAt, options.updatedSince));
 
     const rows = await db
       .select({
@@ -91,6 +107,7 @@ export class SearchIndexRepository {
         targetId: searchIndex.targetId,
         title: searchIndex.title,
         audience: searchIndex.audience,
+        updatedAt: searchIndex.updatedAt,
       })
       .from(searchIndex)
       .where(and(...predicates))
@@ -104,6 +121,7 @@ export class SearchIndexRepository {
       targetId: row.targetId,
       title: row.title,
       audience: row.audience,
+      updatedAt: row.updatedAt,
     }));
   }
 

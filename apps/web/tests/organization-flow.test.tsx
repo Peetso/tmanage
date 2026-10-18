@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { CreateOrganizationScreen } from '../src/components/screens/CreateOrganizationScreen';
+import { OperatingTemplateScreen } from '../src/components/screens/OperatingTemplateScreen';
 import { OrganizationSelectorScreen } from '../src/components/screens/OrganizationSelectorScreen';
 import { ApiClient } from '../src/lib/api/client';
 import { expectNoAxeViolations } from './axe';
@@ -411,5 +412,90 @@ describe('the two screens together', () => {
     const { container } = render(withQuery(<OrganizationSelectorScreen client={listing.client} />));
     const link = await within(container).findByRole('link', { name: /Lumen Works/ });
     expect(link).toHaveAttribute('href', `/${created[0]}/home`);
+  });
+});
+
+describe('ON-02 address check, working week and template', () => {
+  const CREATED = { id: 'org-9', slug: 'lumen-works', name: 'L', workspaceId: 'w', role: 'owner' };
+
+  it('checks the address once typing pauses and says it is available', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = clientOver((call) =>
+      call.url.includes('address-availability')
+        ? json({ slug: 'lumen-works', available: true, reason: null, message: null })
+        : json(CREATED, 201),
+    );
+    render(<CreateOrganizationScreen signedInAs="omar@northstar.studio" client={client} />);
+    await user.type(screen.getByLabelText(/Organization name/), 'Lumen Works');
+
+    expect(await screen.findByText('available')).toBeInTheDocument();
+    expect(screen.getByText('.tmanage.app')).toBeInTheDocument();
+    const checks = calls.filter((call) => call.url.includes('address-availability'));
+    // Debounced: one check for the paused-on address, not one per keystroke.
+    expect(checks.map((call) => call.url)).toEqual([
+      'https://api.example.test/v1/organizations/address-availability?slug=lumen-works',
+    ]);
+  });
+
+  it('puts a taken address beside the field and refuses to submit it', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = clientOver(() =>
+      json({
+        slug: 'lumen-works',
+        available: false,
+        reason: 'taken',
+        message: 'That workspace address is already in use.',
+      }),
+    );
+    render(<CreateOrganizationScreen signedInAs="omar@northstar.studio" client={client} />);
+    await user.type(screen.getByLabelText(/Organization name/), 'Lumen Works');
+    expect(await screen.findByText(/already in use/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+    expect(screen.getByText(/Fix the workspace address first/)).toBeInTheDocument();
+    expect(calls.some((call) => call.method === 'POST')).toBe(false);
+  });
+
+  it('sends the working week and the template the work type implies', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = clientOver(() => json(CREATED, 201));
+    render(<CreateOrganizationScreen signedInAs="omar@northstar.studio" client={client} />);
+    await user.click(screen.getByRole('radio', { name: /Retainer and support work/ }));
+    await user.selectOptions(screen.getByLabelText('Working week'), 'sun-thu');
+    await user.type(screen.getByLabelText(/Organization name/), 'Lumen Works');
+    await user.click(screen.getByRole('button', { name: 'Create organization' }));
+
+    await waitFor(() => expect(calls.some((call) => call.method === 'POST')).toBe(true));
+    const body = calls.find((call) => call.method === 'POST')?.body as Record<string, unknown>;
+    expect(body['workingWeek']).toBe('sun-thu');
+    expect(body['operatingTemplate']).toBe('intake-commitment');
+  });
+
+  it('starts on the saved template and saves the chosen one before moving on', async () => {
+    const user = userEvent.setup();
+    const onContinue = vi.fn();
+    const { client, calls } = clientOver(() =>
+      json({ settings: [{ key: 'operating_template', value: 'internal-delivery' }] }),
+    );
+    render(
+      <OperatingTemplateScreen
+        signedInAs="omar@northstar.studio"
+        organizationSlug="lumen-works"
+        client={client}
+        onContinue={onContinue}
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByRole('radio', { name: /Internal delivery/ })).toBeChecked(),
+    );
+    await user.click(screen.getByRole('radio', { name: /Intake and commitment/ }));
+    await user.click(screen.getByRole('button', { name: 'Use this template' }));
+
+    await waitFor(() => expect(onContinue).toHaveBeenCalledTimes(1));
+    const put = calls.find((call) => call.method === 'PUT');
+    expect(put?.url).toBe(
+      'https://api.example.test/v1/organizations/lumen-works/settings/operating_template',
+    );
+    expect(put?.body).toEqual({ value: 'intake-commitment' });
   });
 });

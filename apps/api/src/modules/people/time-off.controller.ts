@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  Inject,
   Module,
   Param,
   Post,
@@ -94,7 +95,7 @@ function mayActOrg(principal: Principal, context: TenantContext, capability: Cap
 
 @Controller('v1/organizations/:orgSlug/people/:userId/time-off')
 export class PersonTimeOffController {
-  constructor(private readonly service: PersonTimeOffService) {}
+  constructor(@Inject(PersonTimeOffService) private readonly service: PersonTimeOffService) {}
 
   /**
    * List a person's time-off entries, optionally within an inclusive `?from&to` overlap window.

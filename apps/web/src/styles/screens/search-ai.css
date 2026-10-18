@@ -339,6 +339,84 @@ a.tm-sa-hit__title:hover {
   color: var(--ink-650);
 }
 
+/* SR-02 AUDIENCE facet: 18px rounded check boxes, ink when ticked with a lime tick. */
+.tm-sa-facet__legend {
+  padding: 0;
+  margin-block-end: 10px;
+}
+
+.tm-sa-check {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-800);
+  cursor: pointer;
+}
+
+.tm-sa-check__input {
+  position: absolute;
+  inline-size: 18px;
+  block-size: 18px;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tm-sa-check__box {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 18px;
+  block-size: 18px;
+  border: 1.5px solid var(--line-300);
+  border-radius: 5px;
+  font-size: 11px;
+  line-height: 1;
+  color: transparent;
+}
+
+.tm-sa-check__input:checked + .tm-sa-check__box {
+  border-color: var(--ink-950);
+  background: var(--ink-950);
+  color: var(--lime-500);
+}
+
+.tm-sa-check__input:focus-visible + .tm-sa-check__box {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+/* SR-02 TIME facet: the selected window carries the 1.5px ink ring, not a fill. */
+.tm-sa-facets .tm-sa-time[aria-pressed='true'] {
+  border: 1.5px solid var(--ink-950);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+/* SR-02 card audience pill. */
+.tm-sa-audience {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border: var(--b-quiet) solid var(--ink-800);
+  border-radius: var(--r-capsule);
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.tm-sa-audience--client_visible,
+.tm-sa-audience--client_action_required {
+  border-color: var(--client-500);
+  color: var(--client-500);
+}
+
 /* ── SR-04 Saved search ────────────────────────────────────────────────────── */
 
 .tm-sa-saved {

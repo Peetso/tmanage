@@ -107,7 +107,9 @@ describe('AutomationRunHistoryScreen', () => {
     fireEvent.click(screen.getByRole('button', { name: /View details/ }));
 
     await waitFor(() => expect(screen.getByText('Run detail')).toBeInTheDocument());
-    await waitFor(() => expect(screen.getByText(/"outcome": "ran"/)).toBeInTheDocument());
+    // The stored detail reads as plain lines (AUT-04), never as raw JSON.
+    await waitFor(() => expect(screen.getByText('Ran')).toBeInTheDocument());
+    expect(screen.queryByText(/"outcome":/)).toBeNull();
     await expectNoAxeViolations(container);
   });
 });

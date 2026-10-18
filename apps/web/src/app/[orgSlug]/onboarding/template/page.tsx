@@ -8,9 +8,9 @@ import { FIXTURE_SIGNED_IN_AS } from '../../../../lib/fixtures';
 /**
  * **ON-02 Choose operating template.**
  *
- * Under `[orgSlug]` for the same reason `ON-03` is, even though nothing it collects is saved
- * yet: the template is a property of an organization, so the URL should say which one from
- * the start rather than being moved later. "Use this template" moves on to the first project.
+ * Under `[orgSlug]` because the template is a property of an organization: "Use this template"
+ * saves it as that organization's `operating_template` setting, then moves on to the first
+ * project.
  */
 export default function OperatingTemplatePage({
   params,
@@ -22,6 +22,7 @@ export default function OperatingTemplatePage({
   return (
     <OperatingTemplateScreen
       signedInAs={FIXTURE_SIGNED_IN_AS}
+      organizationSlug={orgSlug}
       onContinue={() => router.push(`/${orgSlug}/onboarding/project`)}
     />
   );

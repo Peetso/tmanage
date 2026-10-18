@@ -35,6 +35,9 @@ import type {
   MessageRow,
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { ChannelDirectoryRepository } from './channel-directory.repository.js';
+import { buildChannelDirectory } from './channel-directory.js';
+import type { ChannelDirectoryEntry } from './channel-directory.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 
 /**
@@ -153,6 +156,9 @@ function toMemberView(row: ConversationMembershipRow): ConversationMemberView {
 
 /** `work_items.title` is VARCHAR(300). */
 const MAX_WORK_TITLE_LENGTH = 300;
+
+/** The repository's largest page: the browser reads one page and sorts it by activity. */
+const CHANNEL_DIRECTORY_LIMIT = 200;
 
 /**
  * The default title for converted work: the message's first line, which is what a person
@@ -294,6 +300,8 @@ export class ConversationsService {
      * without one and assert nothing was written. The running application always wires it.
      */
     private readonly outbox?: OutboxEventsRepository,
+    /** CH-01's channel browser: last activity, members and client members per channel. */
+    private readonly channelDirectory: ChannelDirectoryRepository = new ChannelDirectoryRepository(),
   ) {}
 
   // ── Conversations ──────────────────────────────────────────────────────────
@@ -314,6 +322,31 @@ export class ConversationsService {
       if (await this.mayReach(context, principal, row, 'conversation.read')) visible.push(row);
     }
     return visible.map(toConversationView);
+  }
+
+  /**
+   * The channel browser (CH-01): every channel the caller may reach, archived included, ordered
+   * by last activity. Visibility is exactly {@link list}'s — the facts are read only for the ids
+   * that survived its per-row check, so a member name never leaks from a channel the caller
+   * cannot open.
+   */
+  async directory(
+    context: TenantContext,
+    principal: Principal,
+  ): Promise<readonly ChannelDirectoryEntry[]> {
+    const visible = await this.list(context, principal, {
+      includeArchived: true,
+      limit: CHANNEL_DIRECTORY_LIMIT,
+    });
+    const facts = await this.database.read(context, (runner) =>
+      this.channelDirectory.facts(
+        runner,
+        context,
+        visible.map((conversation) => conversation.id),
+        new Date(),
+      ),
+    );
+    return buildChannelDirectory(visible, facts, principal.userId);
   }
 
   async get(

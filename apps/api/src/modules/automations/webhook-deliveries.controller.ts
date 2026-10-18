@@ -70,7 +70,7 @@ function toView(row: WebhookDeliveryRow): WebhookDeliveryView {
 export class WebhookDeliveriesController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
-    private readonly deliveries: WebhookDeliveriesRepository,
+    @Inject(WebhookDeliveriesRepository) private readonly deliveries: WebhookDeliveriesRepository,
   ) {}
 
   /**

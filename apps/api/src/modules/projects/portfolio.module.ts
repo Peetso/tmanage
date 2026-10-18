@@ -10,6 +10,7 @@ import { ProjectsRepository } from './projects.repository.js';
 import { ProjectPortfolioRepository } from './portfolio.repository.js';
 import { ProjectPortfolioService } from './portfolio.service.js';
 import { ProjectPortfolioController } from './portfolio.controller.js';
+import { ProjectPortfolioCapacityService } from './portfolio-capacity.service.js';
 
 /**
  * PROJ / module 8 (x137). The project-portfolio module — the read-only roll-up across the caller's
@@ -34,9 +35,15 @@ export class ProjectPortfolioModule {
         new ProjectPortfolioService(database, new ProjectsRepository(), portfolio),
     };
 
+    const capacity: Provider = {
+      provide: ProjectPortfolioCapacityService,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new ProjectPortfolioCapacityService(database),
+    };
+
     return {
       module: ProjectPortfolioModule,
-      providers: [repository, service],
+      providers: [repository, service, capacity],
       exports: [service],
       controllers: [ProjectPortfolioController],
     };

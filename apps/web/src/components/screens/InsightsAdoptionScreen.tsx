@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -14,7 +15,11 @@ import {
 } from './InsightsKit';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchOrgAdoption } from '../../lib/api/insights-adoption';
-import type { InsightsAdoptionView } from '../../lib/api/insights-adoption';
+import type {
+  AdoptionGapId,
+  InsightsAdoptionGapView,
+  InsightsAdoptionView,
+} from '../../lib/api/insights-adoption';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -28,9 +33,9 @@ export interface InsightsAdoptionScreenProps {
 /**
  * **Adoption** — INS-06, the org-wide adoption read turned into a proven screen. It reads
  * `GET /v1/organizations/:orgSlug/insights/adoption` (gated on the server by `work.read`) and
- * renders the three org-level facts as an accessible read-only table: how many people hold an active
- * membership, how many of them created work in the window, and how many meetings the studio held in
- * it.
+ * renders the INS-06 frame: three system-quality figures (committed dates, channels feeding no work,
+ * deliverables sent without a matching version hash), the data-gap table, and where decisions get
+ * recorded.
  *
  * The decisions are the sibling insights screens':
  * 1. **Authorization is the API's.** A caller without `work.read` gets the ordinary 403, which
@@ -38,7 +43,7 @@ export interface InsightsAdoptionScreenProps {
  *    capability of its own and never renders blank on a refusal.
  * 2. **No invented numbers.** The counts are the API's; the window they were computed over is shown
  *    plainly rather than assumed.
- * 3. **No charts dependency.** A semantic table with a caption and row scope carries the data; a11y
+ * 3. **No charts dependency.** A semantic table with a caption and row scope carries the gaps; a11y
  *    is checked against the mounted document, not asserted.
  */
 export function InsightsAdoptionScreen({
@@ -50,7 +55,7 @@ export function InsightsAdoptionScreen({
 
   const adoption = useQuery({
     queryKey: ['insights-adoption', organizationSlug],
-    queryFn: () => fetchOrgAdoption(api, organizationSlug),
+    queryFn: () => fetchOrgAdoption(api, organizationSlug, { days: WINDOW_DAYS }),
   });
 
   return (
@@ -60,10 +65,23 @@ export function InsightsAdoptionScreen({
       activeNavigationId="insights"
       eyebrow={
         adoption.data
-          ? `Insights · Adoption and system quality · Last ${adoption.data.windowDays} days`
-          : 'Insights · Adoption and system quality'
+          ? `Insights · Adoption and system quality · Workspace admin · ${windowLabel(
+              adoption.data.computedAt,
+              adoption.data.windowDays,
+            )}`
+          : 'Insights · Adoption and system quality · Workspace admin'
       }
       title="Can we trust what this shows"
+      actions={
+        <>
+          <Link className="tm-button tm-button--outline" href={`/${organizationSlug}/settings`}>
+            Workspace
+          </Link>
+          <a className="tm-button tm-button--ink" href="#tm-adoption-gaps">
+            Fix data gaps
+          </a>
+        </>
+      }
     >
       <div className="tm-ins">
         <InsightsTabs organizationSlug={organizationSlug} current="adoption" />
@@ -81,113 +99,161 @@ export function InsightsAdoptionScreen({
           </InlineAlert>
         ) : null}
 
-        {adoption.isSuccess ? <AdoptionReport adoption={adoption.data} /> : null}
+        {adoption.isSuccess ? (
+          <AdoptionReport adoption={adoption.data} organizationSlug={organizationSlug} />
+        ) : null}
       </div>
     </AppShell>
   );
 }
 
-/** The metrics in the order they are shown, keyed to the fields the API returns. */
-const METRICS: readonly { id: keyof AdoptionCounts; label: string; short: string }[] = [
-  { id: 'activeMembers', label: 'Active members', short: 'Active members' },
-  { id: 'membersWithWork', label: 'Members who created work', short: 'Created work' },
-  { id: 'meetingsHeld', label: 'Meetings held', short: 'Meetings held' },
-];
+/** The window the screen asks for — the frame's "last 14 days". */
+const WINDOW_DAYS = 14;
 
-type AdoptionCounts = Pick<
-  InsightsAdoptionView,
-  'activeMembers' | 'membersWithWork' | 'meetingsHeld'
->;
+/** Each data gap's row copy: what is missing, and what it breaks. */
+const GAP_COPY: Readonly<Record<AdoptionGapId, { title: string; breaks: string }>> = {
+  chat_work_untriaged: {
+    title: 'Work created from chat without triage',
+    breaks: 'no owner, no date — absent from every forecast',
+  },
+  client_files_internal: {
+    title: 'Files shared with a client still marked internal',
+    breaks: 'nobody can tell internal from client visible',
+  },
+  requests_uncommitted: {
+    title: 'Requests with a desired date and no committed answer',
+    breaks: 'the client is waiting on a yes we never said',
+  },
+};
 
-function AdoptionReport({ adoption }: { adoption: InsightsAdoptionView }) {
-  const share =
-    adoption.activeMembers === 0
-      ? undefined
-      : Math.round((adoption.membersWithWork / adoption.activeMembers) * 100);
+function percent(part: number, whole: number): number | undefined {
+  return whole === 0 ? undefined : Math.round((part / whole) * 100);
+}
+
+function where(gap: InsightsAdoptionGapView): string {
+  if (gap.projectCount === 0) return '—';
+  if (gap.projectCount === 1) return gap.projectName ?? '1 project';
+  return `${gap.projectCount} projects`;
+}
+
+function AdoptionReport({
+  adoption,
+  organizationSlug,
+}: {
+  adoption: InsightsAdoptionView;
+  organizationSlug: string;
+}) {
+  const { committedDate, channels, unhashedDeliverables, decisionsRecorded } = adoption;
+  const dated = percent(committedDate.dated, committedDate.total);
+  const datedBefore = percent(committedDate.previousDated, committedDate.previousTotal);
+  const hashDelta = unhashedDeliverables.previous - unhashedDeliverables.current;
+  const totalGaps = adoption.gaps.reduce((sum, gap) => sum + gap.count, 0);
 
   return (
     <>
       <InsightsMetrics label="Adoption headline figures">
         <InsightsMetric
-          value={share === undefined ? '—' : `${share}%`}
-          badge={`${adoption.membersWithWork} of ${adoption.activeMembers}`}
-          badgeTone={share !== undefined && share < 50 ? 'warning' : 'quiet'}
-          label="of active members created work"
+          value={dated === undefined ? '—' : `${dated}%`}
+          {...(datedBefore === undefined ? {} : { badge: `was ${datedBefore}%` })}
+          badgeTone={
+            dated !== undefined && datedBefore !== undefined && dated < datedBefore
+              ? 'warning'
+              : 'quiet'
+          }
+          label="of work items carry a committed date"
           note="the rest cannot appear in any forecast"
         />
         <InsightsMetric
-          value={adoption.activeMembers}
-          label="members active"
-          note={`over the last ${adoption.windowDays} days`}
+          value={channels.withoutWork}
+          badge={`of ${channels.total}`}
+          label="channels with no work item ever created from them"
+          note="decisions there are not being captured"
         />
         <InsightsMetric
-          value={adoption.meetingsHeld}
-          label="meetings held"
-          note="each one a place a decision can be recorded"
+          value={unhashedDeliverables.current}
+          {...(hashDelta === 0
+            ? {}
+            : { badge: hashDelta > 0 ? `down ${hashDelta}` : `up ${-hashDelta}` })}
+          badgeTone={hashDelta > 0 ? 'lime' : 'warning'}
+          label="deliverables sent without a version hash"
+          note="approval cannot be tied to a file"
         />
       </InsightsMetrics>
 
       <InsightsSplit
         main={
-          <InsightsCard variant="table" labelledBy="tm-adoption-heading">
-            <div className="tm-ins-card__lead">
-              <InsightsCardHead
-                id="tm-adoption-heading"
-                title="Adoption"
-                units={`Last ${adoption.windowDays} days`}
-              />
-            </div>
-            <table className="tm-ins-table">
+          <InsightsCard variant="table" id="tm-adoption-gaps" label="Data gaps">
+            <table className="tm-ins-table tm-ins-table--gaps">
               <caption className="tm-visually-hidden">
-                Organization adoption over the last {adoption.windowDays} days
+                Data gaps that make the record unreliable
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Metric</th>
+                  <th scope="col">Data gap · What it breaks</th>
+                  <th scope="col">Where</th>
                   <th scope="col" className="tm-ins-table__num">
-                    Count
+                    Items
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {METRICS.map(({ id, label }) => (
-                  <tr key={id} data-tone={adoption[id] === 0 ? 'warning' : 'quiet'}>
-                    <th scope="row">{label}</th>
-                    <td className="tm-ins-table__num">{adoption[id]}</td>
+                {adoption.gaps.map((gap) => (
+                  <tr key={gap.id} data-tone={gap.count > 0 ? 'warning' : 'quiet'}>
+                    <th scope="row">
+                      {GAP_COPY[gap.id].title}
+                      <span className="tm-ins-table__sub">{GAP_COPY[gap.id].breaks}</span>
+                    </th>
+                    <td>{where(gap)}</td>
+                    <td className="tm-ins-table__num">{gap.count}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            <p className="tm-ins-card__foot">
-              Activity is counted over the last {adoption.windowDays} days. Computed{' '}
-              {formatMoment(adoption.computedAt)}.
-            </p>
           </InsightsCard>
         }
         side={
           <>
-            <InsightsCard labelledBy="tm-adoption-bars">
+            <InsightsCard labelledBy="tm-adoption-decisions">
               <InsightsCardHead
-                id="tm-adoption-bars"
-                title="Where the record is fed"
+                id="tm-adoption-decisions"
+                title="Where decisions get recorded"
                 units={`Last ${adoption.windowDays} days`}
               />
               <InsightsBars
-                label="Adoption counts"
-                bars={METRICS.map(({ id, short }) => ({
-                  key: id,
-                  label: short,
-                  value: adoption[id],
-                  ...(id === 'membersWithWork' ? { tone: 'lime' as const, emphasis: true } : {}),
-                }))}
+                label="Decisions by where they were recorded"
+                bars={[
+                  { key: 'log', label: 'Decision log', value: decisionsRecorded.decisionLog },
+                  { key: 'approval', label: 'Approval', value: decisionsRecorded.approvals },
+                ]}
               />
-            </InsightsCard>
-            <InsightsCard variant="callout">
-              <p className="tm-ins-eyebrow">Adoption, measured honestly</p>
               <p className="tm-ins-card__body">
+                {decisionsRecorded.decisionLog}{' '}
+                {decisionsRecorded.decisionLog === 1 ? 'decision was' : 'decisions were'} logged and{' '}
+                {decisionsRecorded.approvals}{' '}
+                {decisionsRecorded.approvals === 1 ? 'approval' : 'approvals'} decided in the last{' '}
+                {adoption.windowDays} days.
+              </p>
+            </InsightsCard>
+            <InsightsCard variant="callout" className="tm-ins-card--fill">
+              <p className="tm-ins-eyebrow">Adoption, measured honestly</p>
+              <p className="tm-ins-card__body tm-ins-card__body--lead">
                 Adoption here means whether the record is complete enough to be relied on. It is not
                 a login count and it is not attributed to individuals.
               </p>
+              <div className="tm-ins-callout__actions">
+                <a
+                  className="tm-button tm-button--ink tm-ins-callout__primary"
+                  href="#tm-adoption-gaps"
+                >
+                  Open the {totalGaps} {totalGaps === 1 ? 'gap' : 'gaps'}
+                </a>
+                <Link
+                  className="tm-button tm-button--outline"
+                  href={`/${organizationSlug}/policies`}
+                >
+                  Policy
+                </Link>
+              </div>
             </InsightsCard>
           </>
         }
@@ -196,19 +262,21 @@ function AdoptionReport({ adoption }: { adoption: InsightsAdoptionView }) {
   );
 }
 
+/** "5–18 October" — the window ending at `computedAt`, as the frame's eyebrow shows it. */
+export function windowLabel(computedAt: string, windowDays: number): string {
+  const end = new Date(computedAt);
+  if (Number.isNaN(end.getTime())) return `Last ${windowDays} days`;
+  const start = new Date(end.getTime() - (windowDays - 1) * 86_400_000);
+  const day = new Intl.DateTimeFormat('en-GB', { day: 'numeric' });
+  const dayMonth = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'long' });
+  return start.getMonth() === end.getMonth()
+    ? `${day.format(start)}–${dayMonth.format(end)}`
+    : `${dayMonth.format(start)} – ${dayMonth.format(end)}`;
+}
+
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
 function describe(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
   return 'Something went wrong. Try again.';
-}
-
-/**
- * Format an ISO timestamp for display, following the browser's locale for the reason
- * `SessionsScreen` gives. An unparseable value is shown verbatim rather than as `Invalid Date`.
- */
-function formatMoment(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
 }

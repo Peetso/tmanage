@@ -56,6 +56,7 @@ function comment(id: string, body: string) {
     id,
     documentId: DOCUMENT_ID,
     authorMembershipId: MEMBERSHIP,
+    authorName: 'Lina Samir',
     body,
     createdAt: '2026-09-20T10:00:00.000Z',
   };
@@ -85,6 +86,10 @@ describe('DocumentCommentsPanel', () => {
     expect(items).toHaveLength(2);
     expect(items[0]!).toHaveTextContent('first comment');
     expect(items[1]!).toHaveTextContent('second comment');
+    // Authors by name and initials, never by membership id.
+    expect(items[0]!).toHaveTextContent('Lina Samir');
+    expect(items[0]!).toHaveTextContent('LS');
+    expect(list).not.toHaveTextContent(MEMBERSHIP);
 
     await expectNoAxeViolations(container);
   });

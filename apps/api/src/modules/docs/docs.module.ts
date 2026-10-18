@@ -28,6 +28,12 @@ import {
 } from './doc-read-state.controller.js';
 import { DocReviewsService } from './reviews.service.js';
 import { DocReviewsController } from './reviews.controller.js';
+import { DocumentSharingService } from './document-sharing.service.js';
+import {
+  DOCUMENT_SHARING_SERVICE,
+  DocumentSharingController,
+  RecentDocumentsController,
+} from './document-sharing.controller.js';
 
 /**
  * DOC-01 (x91). The docs module's first vertical slice: document read/write.
@@ -85,6 +91,14 @@ export class DocsModule {
       useFactory: (database: TenantDatabase) => new DocReviewsService(database),
     };
 
+    // Docs sharing (UI rebuild): Recent, audience/collaborators and publish. Default-constructed
+    // repositories, so only the tenant database is injected.
+    const sharingService: Provider = {
+      provide: DOCUMENT_SHARING_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new DocumentSharingService(database),
+    };
+
     return {
       module: DocsModule,
       providers: [
@@ -94,6 +108,7 @@ export class DocsModule {
         docLinksService,
         readStateService,
         reviewsService,
+        sharingService,
       ],
       exports: [service, commentsService, reviewsService],
       // DOC export (x131): a second controller on the same `documents` base path, serving the
@@ -111,6 +126,8 @@ export class DocsModule {
         DocumentReadStateController,
         MyDocReadStateController,
         DocReviewsController,
+        RecentDocumentsController,
+        DocumentSharingController,
       ],
     };
   }
