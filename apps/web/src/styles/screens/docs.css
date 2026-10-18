@@ -651,7 +651,9 @@
 }
 
 .tm-dx-link-capsule:hover {
-  background: var(--paper-50);
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
 }
 
 /* {{variable}} chips (DOC-04 "{{project}}"). */
@@ -685,6 +687,16 @@
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
+}
+
+.tm-dx-new:hover {
+  background: var(--tm-hover-ink);
+  color: var(--paper-50);
+}
+
+.tm-dx-new:hover .tm-dx-new__orb {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-dx-new__orb {

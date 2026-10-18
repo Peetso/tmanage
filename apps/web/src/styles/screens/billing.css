@@ -286,9 +286,21 @@
   white-space: nowrap;
 }
 
+.tm-bil-capsule:hover {
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
+}
+
 .tm-bil-capsule--ink {
   border-color: var(--ink-950);
   background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.tm-bil-capsule--ink:hover {
+  background: var(--tm-hover-ink);
+  border-color: var(--tm-hover-ink);
   color: var(--paper-50);
 }
 
@@ -613,6 +625,11 @@
   line-height: 1;
   color: var(--ink-800);
   cursor: pointer;
+}
+
+.tm-bil-stepper__button:hover:not(:disabled) {
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
 }
 
 .tm-bil-stepper__button:disabled {

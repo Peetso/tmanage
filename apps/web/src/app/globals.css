@@ -99,7 +99,10 @@ body {
 /*
  * Links in running text, as the handoff draws them: quiet ink with a `--line-300` rule beneath
  * that turns lime on hover. `:where()` keeps the specificity at zero, so every class that styles
- * an anchor (`.tm-button`, rail items, chips) wins without having to undo this.
+ * an anchor (`.tm-button`, rail items, chips) wins without having to undo this. The `:hover` sits
+ * INSIDE the `:where()`: written `:where(a):hover` it carried (0,1,0), tied with `.tm-button--ink`,
+ * and won by coming later, so every link drawn as a button turned its label ink on hover and the
+ * words disappeared into the capsule ("New work", "Open audit log", every lime CTA in dark).
  */
 :where(a) {
   color: var(--ink-650);
@@ -109,7 +112,7 @@ body {
   text-underline-offset: 0.3em;
 }
 
-:where(a):hover {
+:where(a:hover) {
   color: var(--ink-950);
   text-decoration-color: var(--lime-600);
 }
@@ -1424,6 +1427,12 @@ body {
   text-decoration: underline;
   text-decoration-style: dotted;
   text-underline-offset: 0.2em;
+}
+
+.tm-table__sort:hover {
+  color: var(--ink-950);
+  text-decoration-style: solid;
+  text-decoration-color: var(--lime-600);
 }
 
 /*

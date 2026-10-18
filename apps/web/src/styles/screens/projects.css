@@ -31,6 +31,12 @@
   text-decoration: none;
 }
 
+.tm-prj-tabs__back:hover {
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
+}
+
 .tm-prj-tabs__back-orb {
   display: grid;
   place-items: center;

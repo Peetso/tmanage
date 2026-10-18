@@ -125,6 +125,17 @@
   font-size: var(--t-ui-sm);
 }
 
+/* Same hover as the shared ink button with an orb: the capsule steps, the disc turns lime. */
+.tm-wk-new:hover {
+  background: var(--tm-ink-absolute-hover);
+  color: var(--tm-paper-absolute);
+}
+
+.tm-wk-new:hover .tm-wk-new__orb {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
 [data-theme='dark'] .tm-wk-new {
   background: var(--lime-500);
   color: var(--tm-on-lime);
@@ -132,6 +143,16 @@
 
 [data-theme='dark'] .tm-wk-new__orb {
   background: var(--tm-ink-absolute);
+}
+
+[data-theme='dark'] .tm-wk-new:hover {
+  background: var(--tm-hover-lime);
+  color: var(--tm-on-lime);
+}
+
+[data-theme='dark'] .tm-wk-new:hover .tm-wk-new__orb {
+  background: var(--tm-ink-absolute);
+  color: var(--lime-500);
 }
 
 /* ── Filter capsules ──────────────────────────────────────────────────────────── */
@@ -685,6 +706,12 @@
   font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
+}
+
+a.tm-wk-chip:hover {
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
 }
 
 .tm-wk-chip[data-tone='client'] {

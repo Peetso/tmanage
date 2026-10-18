@@ -53,6 +53,22 @@
   --tm-scrim: rgb(9 10 9 / 0.45);
   --tm-overlay-shadow: 0 24px 64px rgb(9 10 9 / 0.4);
   --tm-lime-plane-dark: #29351d;
+
+  /*
+   * Hover, one value per kind of control, so every button in the product answers the pointer
+   * the same way. The design names the light values (an ink capsule steps to `--ink-800`, a
+   * paper control to `--paper-50` with an `--ink-500` edge, lime to `--lime-600`), but in dark
+   * the export gives `--ink-800` and `--paper-50` the same values as `--ink-950` and `--paper-0`,
+   * so the same rules painted no change at all. The dark block below re-binds them one step
+   * toward the ground instead: the light ink capsule dims to `--ink-650`, a dark surface lifts
+   * to `--paper-250` (the export's "surface 2"). `--tm-ink-absolute-hover` is the hover of a
+   * surface that stays dark in both themes, the light `--ink-800`, held fixed like its partner.
+   */
+  --tm-hover-ink: var(--ink-800);
+  --tm-hover-surface: var(--paper-50);
+  --tm-hover-edge: var(--ink-500);
+  --tm-hover-lime: var(--lime-600);
+  --tm-ink-absolute-hover: #232521;
 }
 
 /*
@@ -66,6 +82,10 @@
  */
 [data-theme='dark'] {
   --tm-on-tone: var(--ink-800);
+  --tm-hover-ink: var(--ink-650);
+  --tm-hover-surface: var(--paper-250);
+  --tm-hover-edge: var(--ink-500);
+  --tm-hover-lime: var(--lime-600);
 }
 
 /* ── Buttons ──────────────────────────────────────────────────────────────────── */
@@ -109,6 +129,9 @@
   font-family: var(--font-mono);
   font-size: var(--t-ui-md);
   line-height: 1;
+  transition:
+    background-color var(--t-micro) var(--ease),
+    color var(--t-micro) var(--ease);
 }
 
 .tm-button--compact {
@@ -139,7 +162,17 @@
 }
 
 .tm-button--ink:hover:not(:disabled):not([aria-disabled='true']) {
-  background: var(--ink-800);
+  background: var(--tm-hover-ink);
+}
+
+/*
+ * The orb is `--ink-800`, which is also the capsule's hover fill, so on hover the "+" disc
+ * dissolved into the capsule and the button looked broken. The disc takes the design's lime
+ * hover detail instead (39-DESIGN-BIBLE §10: "lime hover/progress detail"), ink glyph on lime.
+ */
+.tm-button--ink:hover:not(:disabled):not([aria-disabled='true']) .tm-button__orb {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-button--lime {
@@ -149,7 +182,7 @@
 
 .tm-button--lime:hover:not(:disabled):not([aria-disabled='true']),
 .tm-button--lime:active:not(:disabled):not([aria-disabled='true']) {
-  background: var(--lime-600);
+  background: var(--tm-hover-lime);
 }
 
 /*
@@ -170,7 +203,7 @@
 }
 
 .tm-button--outline:hover:not(:disabled):not([aria-disabled='true']) {
-  background: var(--paper-50);
+  background: var(--tm-hover-surface);
 }
 
 /*
@@ -186,8 +219,8 @@
 }
 
 .tm-button[aria-pressed='true']:hover:not(:disabled):not([aria-disabled='true']) {
-  background: var(--ink-800);
-  border-color: var(--ink-800);
+  background: var(--tm-hover-ink);
+  border-color: var(--tm-hover-ink);
 }
 
 .tm-button--text {
@@ -308,6 +341,25 @@
   border-width: var(--b-quiet);
   color: var(--ink-650);
   font-family: var(--font-mono);
+}
+
+.tm-orb-button:hover:not(:disabled) {
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+}
+
+.tm-orb-button--ink:hover:not(:disabled) {
+  background: var(--tm-hover-ink);
+  border-color: transparent;
+}
+
+.tm-orb-button--lime:hover:not(:disabled) {
+  background: var(--tm-hover-lime);
+  border-color: transparent;
+}
+
+.tm-orb-button--outline:hover:not(:disabled) {
+  color: var(--ink-950);
 }
 
 .tm-orb-button:disabled {
@@ -1272,6 +1324,16 @@
 button.tm-chip,
 a.tm-chip {
   cursor: pointer;
+  transition:
+    background-color var(--t-micro) var(--ease),
+    border-color var(--t-micro) var(--ease);
+}
+
+/* A chip that does something answers the pointer like the outline button: surface plus edge. */
+:is(button, a).tm-chip:hover:not(:disabled) {
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
 }
 
 .tm-chip[aria-pressed='true'],
@@ -1280,6 +1342,17 @@ a.tm-chip {
 .tm-chip--active {
   border-color: var(--ink-950);
   background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+:is(button, a).tm-chip:is(
+    [aria-pressed='true'],
+    [aria-current='page'],
+    [aria-selected='true'],
+    .tm-chip--active
+  ):hover:not(:disabled) {
+  border-color: var(--tm-hover-ink);
+  background: var(--tm-hover-ink);
   color: var(--paper-50);
 }
 
@@ -1315,6 +1388,11 @@ a.tm-chip {
   font: inherit;
   font-size: var(--t-caption);
   cursor: pointer;
+}
+
+.tm-chip__remove:hover {
+  background: var(--paper-250);
+  color: var(--ink-950);
 }
 
 /* The segmented switch ("List · Board · Timeline", "Today · Blocked · Client waiting"). */

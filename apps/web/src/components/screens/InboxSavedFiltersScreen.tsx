@@ -157,7 +157,7 @@ export function InboxSavedFiltersScreen({
               </button>
               <button
                 type="button"
-                className="tm-button"
+                className="tm-button tm-button--outline"
                 onClick={() => setDialogOpen(false)}
                 disabled={create.isPending}
               >

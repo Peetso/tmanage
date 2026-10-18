@@ -108,7 +108,7 @@
 
 .tm-pt-btn:hover {
   color: var(--ink-950);
-  background: var(--paper-150);
+  background: var(--tm-hover-surface);
 }
 
 .tm-pt-btn--ink {
@@ -118,7 +118,8 @@
 }
 
 .tm-pt-btn--ink:hover {
-  background: var(--ink-800);
+  border-color: var(--tm-hover-ink);
+  background: var(--tm-hover-ink);
   color: var(--paper-50);
 }
 
@@ -129,7 +130,7 @@
 }
 
 .tm-pt-btn--lime:hover {
-  background: var(--lime-600);
+  background: var(--tm-hover-lime);
   color: var(--tm-on-lime);
 }
 
@@ -160,7 +161,8 @@
 }
 
 .tm-pt-btn--orb:hover {
-  background: var(--tm-ink-absolute);
+  border-color: var(--tm-ink-absolute-hover);
+  background: var(--tm-ink-absolute-hover);
   color: var(--tm-paper-absolute);
 }
 

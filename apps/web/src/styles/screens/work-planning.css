@@ -79,6 +79,12 @@
   cursor: pointer;
 }
 
+.wp-capsule:hover {
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
+}
+
 .wp-capsule:focus-visible,
 .wp-select:focus-visible,
 .wp-cal__nav:focus-visible {
@@ -89,6 +95,12 @@
 .wp-capsule[aria-pressed='true'] {
   border-color: var(--ink-950);
   background: var(--ink-950);
+  color: var(--paper-50);
+}
+
+.wp-capsule[aria-pressed='true']:hover {
+  background: var(--tm-hover-ink);
+  border-color: var(--tm-hover-ink);
   color: var(--paper-50);
 }
 

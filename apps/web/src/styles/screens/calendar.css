@@ -87,6 +87,12 @@
   cursor: pointer;
 }
 
+.tm-cal-btn:hover:not(:disabled) {
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
+}
+
 .tm-cal-btn:disabled {
   cursor: not-allowed;
   opacity: 0.5;
@@ -98,9 +104,20 @@
   color: var(--paper-50);
 }
 
+.tm-cal-btn--ink:hover:not(:disabled) {
+  background: var(--tm-hover-ink);
+  border-color: var(--tm-hover-ink);
+  color: var(--paper-50);
+}
+
 .tm-cal-btn--danger {
   border-color: var(--danger-600);
   color: var(--danger-600);
+}
+
+.tm-cal-btn--danger:hover:not(:disabled) {
+  border-color: var(--danger-600);
+  color: var(--tm-on-tone);
 }
 
 /* The 13/18 full-width primary at the foot of a detail card ("Open the companion"). */

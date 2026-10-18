@@ -68,7 +68,7 @@ export function SearchSuggestList({
             type="button"
             role="option"
             aria-selected={false}
-            className="tm-button tm-button--ghost"
+            className="tm-button tm-button--text"
             onClick={() => onSelect(suggestion)}
           >
             {suggestion}

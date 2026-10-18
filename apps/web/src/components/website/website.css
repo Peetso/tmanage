@@ -364,6 +364,12 @@ a.tm-web-orb--outline:hover {
   box-shadow: inset 0 calc(var(--b-expressive) * -1) 0 transparent;
 }
 
+/* Hover draws the rule the current page draws, in the quiet edge instead of lime. */
+.tm-web-nav__trigger:hover,
+.tm-web-nav__link:hover {
+  box-shadow: inset 0 calc(var(--b-expressive) * -1) 0 var(--tm-hover-edge);
+}
+
 .tm-web-nav__chevron {
   transition: transform var(--t-micro) var(--ease);
 }
@@ -410,9 +416,18 @@ a.tm-web-orb--outline:hover {
   cursor: pointer;
 }
 
+.tm-web-nav__menu-orb:hover {
+  background: var(--tm-ink-absolute-hover);
+}
+
 .tm-web-nav--ink .tm-web-nav__menu-orb {
   background: var(--web-on-ink);
   color: var(--web-ink);
+}
+
+.tm-web-nav--ink .tm-web-nav__menu-orb:hover {
+  background: var(--web-on-ink);
+  box-shadow: 0 0 0 var(--b-expressive) var(--lime-500);
 }
 
 .tm-web-nav__menu-orb--close {
@@ -541,6 +556,12 @@ a.tm-web-orb--outline:hover {
   list-style: none;
   cursor: pointer;
   text-decoration: none;
+}
+
+.tm-web-accordion__summary:hover {
+  text-decoration: underline;
+  text-decoration-color: var(--lime-600);
+  text-underline-offset: 0.3em;
 }
 
 .tm-web-accordion__summary::-webkit-details-marker {

@@ -183,8 +183,14 @@
   font-size: 15px;
 }
 
+/* The dot is the capsule's hover colour, so on hover it takes the lime detail instead of vanishing. */
 .tm-pub-orb:hover {
-  background: #232521;
+  background: var(--tm-ink-absolute-hover);
+}
+
+.tm-pub-orb:hover .tm-pub-orb__dot {
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
 }
 
 .tm-pub-btn {
@@ -207,7 +213,7 @@
 }
 
 .tm-pub-btn:hover {
-  background: var(--paper-0);
+  background: var(--tm-hover-surface);
 }
 
 .tm-pub-btn--sm {
@@ -222,6 +228,11 @@
   color: var(--ink-800);
 }
 
+.tm-pub-btn--quiet:hover {
+  border-color: var(--tm-hover-edge);
+  color: var(--ink-950);
+}
+
 .tm-pub-btn--ink,
 .tm-pub-btn[aria-pressed='true'] {
   border-color: var(--pub-ink);
@@ -231,7 +242,8 @@
 
 .tm-pub-btn--ink:hover,
 .tm-pub-btn[aria-pressed='true']:hover {
-  background: #232521;
+  border-color: var(--tm-ink-absolute-hover);
+  background: var(--tm-ink-absolute-hover);
 }
 
 .tm-pub-btn--lime {
@@ -239,6 +251,12 @@
   background: var(--lime-500);
   color: var(--pub-on-lime);
   font-weight: 600;
+}
+
+/* Without this the generic paper hover above repainted the lime CTA white (black-on-black in dark). */
+.tm-pub-btn--lime:hover {
+  border-color: var(--tm-hover-lime);
+  background: var(--tm-hover-lime);
 }
 
 .tm-pub-btn--on-ink {
