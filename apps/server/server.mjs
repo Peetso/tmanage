@@ -10,13 +10,18 @@
 //     so the API receives the request DIRECTLY — there is exactly one proxy hop in front of it,
 //     Hostinger's, which is what `TRUSTED_PROXY_ADDRESSES` names;
 //   * `/healthz` is answered here, as a dependency-light liveness probe;
-//   * everything else is reverse-proxied, on loopback, to a Next.js production server
-//     (`next start`) this process launches as a child.
+//   * everything else is reverse-proxied to a Next.js production server (`next start`) this
+//     process launches as a child, over a private Unix socket file (web-transport.mjs: Hostinger
+//     refuses loopback TCP between the app's own processes).
+//
+// The public port is bound FIRST, before migrations, Nest or the web child: LiteSpeed restarts an
+// app that has not called listen() within ~3 s. Until everything is ready every request — /healthz
+// included — answers 503 {"status":"starting"} with Retry-After.
 //
 // Why a child `next start` rather than Next's programmatic request handler: Next 16 builds with
 // Turbopack, and a Turbopack production build served through the programmatic custom server does
 // not wire preview-mode props into SSR (pages 500). `next start` is the server that build is made
-// for. Running it on loopback and proxying to it keeps the whole app on one public port and one
+// for. Running it privately and proxying to it keeps the whole app on one public port and one
 // startup file, while the API still gets the raw request.
 //
 // Because the browser reaches the page and `/v1` through the ONE origin Hostinger terminates TLS
@@ -36,7 +41,7 @@ import { createConnection } from 'node:net';
 import { request as httpRequest, createServer as createHttpServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { loadEnv } from '@tmanage/config';
 import { createPartAdmission } from '@tmanage/storage';
@@ -52,8 +57,18 @@ import {
   serializeForLog,
 } from '@tmanage/api/hostinger';
 
-import { isApiPath, webSecurityHeaders } from './boot-guards.mjs';
+import { webSecurityHeaders } from './boot-guards.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
+import {
+  cleanupWebTransport,
+  createPublicHandler,
+  describeWebTransport,
+  prepareWebTransport,
+  resolveWebTransport,
+  webChildEnv,
+  webConnectTarget,
+  webTarget,
+} from './web-transport.mjs';
 
 const require = createRequire(import.meta.url);
 const ROOT = dirname(fileURLToPath(import.meta.url));
@@ -114,39 +129,51 @@ async function createApi(env) {
   return { app, fastify };
 }
 
-function waitForPort(port, timeoutMs) {
+function waitForWeb(transport, timeoutMs) {
   const deadline = Date.now() + timeoutMs;
   return new Promise((done, fail) => {
     const attempt = () => {
-      const socket = createConnection(port, '127.0.0.1');
+      const socket = createConnection(webConnectTarget(transport));
       socket.once('connect', () => {
         socket.destroy();
         done();
       });
       socket.once('error', () => {
         socket.destroy();
-        if (Date.now() > deadline) fail(new Error(`web server never opened :${port}`));
-        else setTimeout(attempt, 400);
+        if (Date.now() > deadline) {
+          fail(new Error(`web server never opened ${describeWebTransport(transport)}`));
+        } else setTimeout(attempt, 400);
       });
     };
     attempt();
   });
 }
 
-/** Launch `next start` on a loopback port and resolve once it is accepting connections. */
-async function startWeb(webPort) {
+/** The web child once spawned, so a failed boot or any exit stops it too. */
+let webChildRef;
+
+/**
+ * Launch `next start` and resolve once it accepts connections on the private transport.
+ *
+ * On a socket (or named-pipe) transport the child is preloaded with web-socket-preload.mjs, which
+ * redirects its listen() on the nominal port to the socket file; `-p` only names that port.
+ */
+async function startWeb(transport, nominalPort) {
   const nextBin = require.resolve('next/dist/bin/next');
+  const preload =
+    transport.kind === 'tcp'
+      ? []
+      : ['--import', pathToFileURL(resolve(ROOT, 'web-socket-preload.mjs')).href];
   const child = spawn(
     process.execPath,
-    [nextBin, 'start', '-p', String(webPort), '-H', '127.0.0.1'],
+    [...preload, nextBin, 'start', '-p', String(nominalPort), '-H', '127.0.0.1'],
     {
       cwd: WEB_DIR,
       env: {
-        ...process.env,
-        // PORT is overridden so the child binds its loopback port, not the public one this
-        // process owns; HOSTNAME keeps it off the public interface.
-        PORT: String(webPort),
-        HOSTNAME: '127.0.0.1',
+        // PORT is overridden so the child never binds the public port this process owns,
+        // HOSTNAME keeps it off the public interface, and LiteSpeed's LSNODE_* variables are
+        // dropped (web-transport.mjs).
+        ...webChildEnv(process.env, transport, nominalPort),
         // next.config.ts re-runs its public-config validation when `next start` loads it, so the
         // same values the build inlined must be present. The /v1 rewrite they imply is never used
         // (this process answers /v1 before the web child sees it), so the proxy target is a
@@ -154,23 +181,24 @@ async function startWeb(webPort) {
         NEXT_PUBLIC_API_BASE_URL: process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'same-origin',
         NEXT_PUBLIC_SESSION_COOKIE_NAME:
           process.env['NEXT_PUBLIC_SESSION_COOKIE_NAME'] ?? 'tmanage_session',
-        API_PROXY_TARGET: process.env['API_PROXY_TARGET'] ?? `http://127.0.0.1:${webPort}`,
+        API_PROXY_TARGET: process.env['API_PROXY_TARGET'] ?? `http://127.0.0.1:${nominalPort}`,
       },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
   );
+  webChildRef = child;
   child.on('exit', (code) => {
     log(`next start exited (${code}) — shutting down`);
     process.exit(code ?? 1);
   });
-  await waitForPort(webPort, 180_000);
+  await waitForWeb(transport, 180_000);
   return child;
 }
 
-/** Reverse-proxy one request to the loopback web server, streaming both ways. */
-function proxyToWeb(req, res, webPort) {
+/** Reverse-proxy one request to the private web server, streaming both ways. */
+function proxyToWeb(req, res, transport) {
   const upstream = httpRequest(
-    { host: '127.0.0.1', port: webPort, method: req.method, path: req.url, headers: req.headers },
+    { ...webTarget(transport), method: req.method, path: req.url, headers: req.headers },
     (up) => {
       // HSTS on every page response, and a report-only CSP on HTML (security review §3).
       res.writeHead(up.statusCode ?? 502, { ...up.headers, ...webSecurityHeaders(up.headers) });
@@ -266,8 +294,64 @@ async function startInProcessWorker(env) {
 
 async function main() {
   const port = Number(process.env['PORT'] ?? 3000);
-  // A loopback port for the web child. Overridable; defaults just above the public port.
-  const webPort = Number(process.env['WEB_INTERNAL_PORT'] ?? port + 1);
+
+  // The private transport to the web child: a 0700 directory and 0600 socket under the app dir
+  // (a named pipe on Windows; TMANAGE_WEB_TRANSPORT=tcp for loopback TCP in local development).
+  const transport = prepareWebTransport(
+    resolveWebTransport({
+      env: process.env,
+      platform: process.platform,
+      root: ROOT,
+      publicPort: port,
+    }),
+  );
+  // However this process ends (process.exit included), remove the socket and stop the child.
+  process.on('exit', () => {
+    cleanupWebTransport(transport);
+    try {
+      webChildRef?.kill('SIGTERM');
+    } catch {
+      // already gone
+    }
+  });
+
+  // Listen FIRST: LiteSpeed restarts an app that has not opened its port within ~3 s. Every
+  // request — /healthz included — answers 503 "starting" until `state.ready` is set below.
+  const state = { ready: undefined };
+  const server = createHttpServer(
+    createPublicHandler(state, (req, res) => proxyToWeb(req, res, transport)),
+  );
+  await new Promise((done, fail) => {
+    server.once('error', fail);
+    server.listen(port, '0.0.0.0', () => {
+      server.off('error', fail);
+      done();
+    });
+  });
+  log(`listening on :${port} (starting; web child on ${describeWebTransport(transport)})`);
+
+  // Shutdown works at any point of the boot: whatever has started is stopped.
+  let app;
+  let stopWorker;
+  const shutdown = (signal) => {
+    log(`${signal} — shutting down`);
+    server.close();
+    try {
+      webChildRef?.kill('SIGTERM');
+    } catch {
+      // already gone
+    }
+    void (async () => {
+      try {
+        await stopWorker?.();
+        await app?.close();
+      } finally {
+        process.exit(0);
+      }
+    })();
+  };
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   // Hostinger's own database variables (DATABASE_URL, or DB_*), its one database user, and its
   // 127.0.0.1-only grant — resolved before validation. The values hold the password: only the
@@ -279,51 +363,21 @@ async function main() {
   const env = loadEnv();
   await runMigrations(env);
 
-  const { app, fastify } = await createApi(env);
-  const webChild = await startWeb(webPort);
+  const api = await createApi(env);
+  app = api.app;
+  // The port the child is told to use: real on TCP, nominal (never bound) on a socket.
+  const nominalPort = transport.kind === 'tcp' ? transport.port : port + 1;
+  await startWeb(transport, nominalPort);
 
-  const server = createHttpServer((req, res) => {
-    if ((req.url ?? '').split('?')[0] === '/healthz') {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end('{"status":"ok"}');
-      return;
-    }
-    if (isApiPath(req.url)) {
-      fastify.routing(req, res);
-      return;
-    }
-    proxyToWeb(req, res, webPort);
-  });
+  if (process.env['WORKER_INPROCESS'] === '1') stopWorker = await startInProcessWorker(env);
 
-  const stopWorker =
-    process.env['WORKER_INPROCESS'] === '1' ? await startInProcessWorker(env) : undefined;
-
-  await new Promise((done) => server.listen(port, '0.0.0.0', done));
-  log(`listening on :${port} (web proxied from :${webPort}, /v1 API in-process)`);
-
-  const shutdown = (signal) => {
-    log(`${signal} — shutting down`);
-    server.close();
-    try {
-      webChild.kill('SIGTERM');
-    } catch {
-      // already gone
-    }
-    void (async () => {
-      try {
-        await stopWorker?.();
-        await app.close();
-      } finally {
-        process.exit(0);
-      }
-    })();
-  };
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  state.ready = { fastify: api.fastify };
+  log(`ready on :${port} (web via ${describeWebTransport(transport)}, /v1 API in-process)`);
 }
 
 main().catch((error) => {
   const detail = error instanceof MigrationError ? error.message : serializeForLog(error);
   process.stderr.write(`[server] failed to start\n${detail}\n`);
+  // The exit handler removes the socket and stops a web child that had already started.
   process.exit(1);
 });

@@ -31,6 +31,8 @@ export function isApiPath(url) {
     path.startsWith('/v1/') ||
     // The public site's contact form and maintenance banner live outside /v1
     // (`POST /public/site/contact`, `GET /public/site/maintenance`).
+    // First-owner setup (`GET`/`POST /public/setup`), registered only while SETUP_TOKEN is set.
+    path === '/public/setup' ||
     path === '/public/site' ||
     path.startsWith('/public/site/')
   );

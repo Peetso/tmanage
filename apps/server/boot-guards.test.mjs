@@ -38,6 +38,14 @@ test('the API answers /v1 and the public site routes; the rest is the web app', 
   }
 });
 
+test('first-owner setup at /public/setup goes to the API, and only that exact path', () => {
+  assert.equal(isApiPath('/public/setup'), true);
+  assert.equal(isApiPath('/public/setup?token=x'), true);
+  for (const path of ['/public/setup/', '/public/setupx', '/public/setup/extra', '/setup']) {
+    assert.equal(isApiPath(path), false, path);
+  }
+});
+
 test('HSTS on every web response, the report-only CSP on HTML only', () => {
   const html = webSecurityHeaders({ 'content-type': 'text/html; charset=utf-8' });
   assert.equal(html['strict-transport-security'], HSTS_VALUE);

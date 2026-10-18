@@ -18,6 +18,7 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -28,6 +29,76 @@ const REPO = resolve(HERE, '../..');
 const OUT = join(HERE, 'out');
 const STAGE = join(OUT, 'stage');
 const ZIP = join(OUT, 'tmanage-hostinger.zip');
+
+/** Value (non-`import type`) relative imports of a TS module: `from './x'` → `./x`. */
+function relativeValueImports(source) {
+  return [
+    ...source.matchAll(/^(?:import|export)\s+(?!type\b)[^;]*?\bfrom\s+'(\.{1,2}\/[^']+)';/gm),
+  ].map((match) => match[1]);
+}
+
+/** Point every extensionless relative specifier in emitted JS at its shipped `.mjs` file. */
+function withMjsSpecifiers(js) {
+  return js.replace(
+    /(\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)'(\.{1,2}\/[^']+?)'/g,
+    (whole, lead, spec) => (/\.[cm]?js$/.test(spec) ? whole : `${lead}'${spec}.mjs'`),
+  );
+}
+
+/**
+ * Convert the web app's `next.config.ts` (and every local module it imports, transitively) to
+ * plain ES modules: `next.config.mjs` plus `<module>.mjs` files at the same relative paths.
+ *
+ * `next start` loads a `.ts` config through Next's native SWC binary, and Hostinger's shared-
+ * hosting Linux is too old for it (GLIBC_2.29 missing — the 2026-10-17 live deploy could not
+ * start until the config was shipped pre-converted by hand). A `.mjs` config is loaded by plain
+ * Node, so the bundle never needs SWC at runtime. The conversion is a type-strip
+ * (`ts.transpileModule`), so the shipped config is the repository's config, not a copy of it.
+ *
+ * @param {object} options
+ * @param {typeof import('typescript')} options.ts  the TypeScript compiler module
+ * @param {string} options.webDir  the source directory holding next.config.ts
+ * @param {string} options.outDir  where to write next.config.mjs and the converted modules
+ * @returns {string[]} the written files, relative to outDir, forward-slashed
+ */
+export function convertNextConfig({ ts, webDir, outDir }) {
+  const compilerOptions = {
+    module: ts.ModuleKind.ESNext,
+    target: ts.ScriptTarget.ES2022,
+    verbatimModuleSyntax: false,
+  };
+  const written = [];
+  const queue = ['next.config.ts'];
+  const seen = new Set(queue);
+  while (queue.length > 0) {
+    const rel = queue.shift();
+    const source = readFileSync(join(webDir, rel), 'utf8');
+    for (const spec of relativeValueImports(source)) {
+      const target = join(dirname(rel), `${spec}.ts`).replaceAll('\\', '/');
+      if (!existsSync(join(webDir, target))) {
+        throw new Error(`${rel} imports ${spec}, which is not a .ts module beside it`);
+      }
+      if (!seen.has(target)) {
+        seen.add(target);
+        queue.push(target);
+      }
+    }
+    const { outputText, diagnostics } = ts.transpileModule(source, {
+      compilerOptions,
+      fileName: rel,
+      reportDiagnostics: true,
+    });
+    if (diagnostics && diagnostics.length > 0) {
+      const text = diagnostics.map((d) => ts.flattenDiagnosticMessageText(d.messageText, '\n'));
+      throw new Error(`cannot convert ${rel}: ${text.join('; ')}`);
+    }
+    const outRel = rel.replace(/\.ts$/, '.mjs');
+    mkdirSync(dirname(join(outDir, outRel)), { recursive: true });
+    writeFileSync(join(outDir, outRel), withMjsSpecifiers(outputText));
+    written.push(outRel);
+  }
+  return written;
+}
 
 /**
  * The exact version of `name` as it is actually installed for the workspace package in `fromDir`.
@@ -127,7 +198,15 @@ function assemble() {
 
   // The entry.
   cpSync(join(REPO, 'apps/server/server.mjs'), join(STAGE, 'server.mjs'));
-  for (const file of ['database-env.mjs', 'boot-guards.mjs', 'production-env.mjs']) {
+  // web-transport.mjs and web-socket-preload.mjs carry the listen-first boot and the private
+  // socket to the web child (Hostinger refuses loopback TCP between the app's own processes).
+  for (const file of [
+    'database-env.mjs',
+    'boot-guards.mjs',
+    'production-env.mjs',
+    'web-transport.mjs',
+    'web-socket-preload.mjs',
+  ]) {
     cpSync(join(REPO, 'apps/server', file), join(STAGE, file));
   }
 
@@ -162,34 +241,15 @@ function assemble() {
   );
   cpSync(join(REPO, 'apps/web/package.json'), join(web, 'package.json'));
 
-  // `next start` loads next.config.ts at startup; it imports ./src/lib/public-config, which Next
-  // compiles the config against but does NOT transpile — so ship that one module precompiled to
-  // JS beside a src/lib it can `require`. (The config re-runs its NEXT_PUBLIC_* validation at
-  // startup, so server.mjs sets those variables for the web child.)
-  // Every ./src/lib module the config imports ships this way, read from the config itself, so a
-  // new import (static-headers.ts arrived with the perf slice) cannot silently break `next start`.
-  cpSync(join(REPO, 'apps/web/next.config.ts'), join(web, 'next.config.ts'));
-  mkdirSync(join(web, 'src/lib'), { recursive: true });
-  const configModules = [
-    ...readFileSync(join(REPO, 'apps/web/next.config.ts'), 'utf8').matchAll(
-      /^import\s+(?!type\b)[^;]*?from\s+'\.\/src\/lib\/([\w-]+)';/gm,
-    ),
-  ].map((match) => join(REPO, 'apps/web/src/lib', `${match[1]}.ts`));
-  if (configModules.length === 0) throw new Error('next.config.ts imports no ./src/lib module');
-  run('pnpm', [
-    'exec',
-    'tsc',
-    ...configModules,
-    '--outDir',
-    join(web, 'src/lib'),
-    '--target',
-    'es2022',
-    '--module',
-    'esnext',
-    '--moduleResolution',
-    'bundler',
-    '--skipLibCheck',
-  ]);
+  // `next start` would load a next.config.ts through Next's native SWC, which Hostinger's glibc
+  // is too old to run — so the bundle ships the config pre-converted to next.config.mjs (plain
+  // Node loads it) together with every local module it imports, also as .mjs, and NO .ts config.
+  // The modules are discovered from the config's own imports, so a new one cannot silently break
+  // `next start`. (The config re-runs its NEXT_PUBLIC_* validation at startup, so server.mjs sets
+  // those variables for the web child.)
+  const ts = createRequire(join(REPO, 'apps/web/package.json'))('typescript');
+  const converted = convertNextConfig({ ts, webDir: join(REPO, 'apps/web'), outDir: web });
+  process.stdout.write(`\nnext.config converted for the bundle: ${converted.join(', ')}\n`);
 
   // The migrations the one process applies on start. The three-user grant script
   // (scripts/db/users.sql) is NOT shipped: Hostinger gives one database user, so it is inert
@@ -288,10 +348,18 @@ function zip() {
   }
 }
 
-mkdirSync(OUT, { recursive: true });
-buildArtifacts();
-assemble();
-zip();
+// Build only when run as a script; importing this module (the unit test) only loads the helpers.
+// (Paths compared case-insensitively on Windows, where `node c:\...` and `C:\...` are one file.)
+const samePath = (a, b) =>
+  process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
+if (process.argv[1] && samePath(resolve(process.argv[1]), fileURLToPath(import.meta.url))) {
+  mkdirSync(OUT, { recursive: true });
+  buildArtifacts();
+  assemble();
+  zip();
 
-const sizeMb = (readFileSync(ZIP).length / (1024 * 1024)).toFixed(1);
-process.stdout.write(`\nBundle ready: ${ZIP}\n  size: ${sizeMb} MB\n  startup file: server.mjs\n`);
+  const sizeMb = (readFileSync(ZIP).length / (1024 * 1024)).toFixed(1);
+  process.stdout.write(
+    `\nBundle ready: ${ZIP}\n  size: ${sizeMb} MB\n  startup file: server.mjs\n`,
+  );
+}

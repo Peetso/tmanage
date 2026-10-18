@@ -284,11 +284,35 @@ async function main() {
       process.stdout.write(`\n----- server output -----\n${stderr}\n-------------------------\n`);
       throw e;
     });
-    await waitFor(
-      () => /listening on :/.test(stderr),
-      60_000,
-      'server did not report listening',
-    ).catch(() => {});
+    // Listen first (LiteSpeed restarts an app that has not opened its port within ~3 s): the
+    // port opens before migrations, Nest and `next start`, and every path answers 503 "starting".
+    const dumpServer = (e) => {
+      process.stdout.write(`\n----- server output -----\n${stderr}\n-------------------------\n`);
+      throw e;
+    };
+    const early = await hit('/healthz').catch(dumpServer);
+    const earlyBody = await early.text();
+    check(
+      'listen-first: 503 "starting" before ready',
+      early.status === 503 &&
+        /"status":"starting"/.test(earlyBody) &&
+        early.headers.get('retry-after') !== null,
+      `status ${early.status}`,
+    );
+    await waitFor(() => /ready on :/.test(stderr), 180_000, 'server did not become ready').catch(
+      (e) => {
+        process.stdout.write(`\n----- server output -----\n${stderr}\n-------------------------\n`);
+        throw e;
+      },
+    );
+    // The web child is reached over a private socket file (a named pipe on Windows), never
+    // loopback TCP, which Hostinger refuses between the app's own processes.
+    const via = firstMatch(stderr, /ready on :\d+ \(web via [^,]+/);
+    check(
+      'web child on a private socket, not loopback TCP',
+      /web via (\\\\\.\\pipe\\tmanage-web-|\/.*\/web\.sock)/.test(via),
+      via,
+    );
 
     // 8. The second migration run — the bundle's own on-start — must be a no-op.
     check(
@@ -321,6 +345,14 @@ async function main() {
     const health = await hit('/healthz');
     const healthBody = await health.text();
     check('GET /healthz ok', health.status === 200 && /"status":"ok"/.test(healthBody));
+    // First-owner setup is an API route: the API answers it (JSON; 404 here, as SETUP_TOKEN is
+    // unset), never the web app's HTML.
+    const setup = await hit('/public/setup');
+    check(
+      'GET /public/setup routed to the API',
+      /application\/json/.test(setup.headers.get('content-type') ?? ''),
+      `status ${setup.status}, ${setup.headers.get('content-type')}`,
+    );
 
     // Security review fixes, end to end in the bundle.
     const dev = await hit('/v1/dev/sessions', {
