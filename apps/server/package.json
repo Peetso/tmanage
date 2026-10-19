@@ -7,7 +7,7 @@
   "main": "server.mjs",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test database-env.test.mjs boot-guards.test.mjs web-transport.test.mjs"
+    "test": "node --test database-env.test.mjs boot-guards.test.mjs web-transport.test.mjs web-restart.test.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.102.4",

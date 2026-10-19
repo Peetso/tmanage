@@ -59,6 +59,7 @@ import {
 
 import { webSecurityHeaders } from './boot-guards.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
+import { WEB_HEALTHY_MS, webRestartDelayMs } from './web-restart.mjs';
 import {
   cleanupWebTransport,
   createPublicHandler,
@@ -151,20 +152,24 @@ function waitForWeb(transport, timeoutMs) {
 
 /** The web child once spawned, so a failed boot or any exit stops it too. */
 let webChildRef;
+/** Set once we are tearing down on purpose, so the child we kill is not respawned. */
+let webSupervisionStopped = false;
+/** Consecutive-crash count; cleared once a child has stayed up past WEB_HEALTHY_MS. */
+let webRestartCount = 0;
 
-/**
- * Launch `next start` and resolve once it accepts connections on the private transport.
- *
- * On a socket (or named-pipe) transport the child is preloaded with web-socket-preload.mjs, which
- * redirects its listen() on the nominal port to the socket file; `-p` only names that port.
- */
-async function startWeb(transport, nominalPort) {
+/** Stop supervising the web child — a deliberate kill must not look like a crash. */
+function stopWebSupervision() {
+  webSupervisionStopped = true;
+}
+
+/** Spawn one `next start` child on the private transport (no supervision of its own). */
+function spawnWebChild(transport, nominalPort) {
   const nextBin = require.resolve('next/dist/bin/next');
   const preload =
     transport.kind === 'tcp'
       ? []
       : ['--import', pathToFileURL(resolve(ROOT, 'web-socket-preload.mjs')).href];
-  const child = spawn(
+  return spawn(
     process.execPath,
     [...preload, nextBin, 'start', '-p', String(nominalPort), '-H', '127.0.0.1'],
     {
@@ -186,13 +191,51 @@ async function startWeb(transport, nominalPort) {
       stdio: ['ignore', 'inherit', 'inherit'],
     },
   );
-  webChildRef = child;
-  child.on('exit', (code) => {
-    log(`next start exited (${code}) — shutting down`);
-    process.exit(code ?? 1);
-  });
+}
+
+/**
+ * Launch `next start` under supervision and resolve once it accepts connections on the private
+ * transport.
+ *
+ * On a socket (or named-pipe) transport the child is preloaded with web-socket-preload.mjs, which
+ * redirects its listen() on the nominal port to the socket file; `-p` only names that port.
+ *
+ * OPS-01: an unexpected exit no longer takes the whole app down. The public port and the
+ * in-process API keep serving while the child is respawned after a capped exponential backoff
+ * (web-restart.mjs); a child that stays up past WEB_HEALTHY_MS clears the backoff. A deliberate
+ * shutdown calls stopWebSupervision() before killing the child, so that kill is not mistaken for a
+ * crash and never triggers a respawn.
+ */
+async function startWeb(transport, nominalPort) {
+  const supervise = (child) => {
+    // Clear the backoff once THIS child has stayed up long enough. Guarded by identity rather
+    // than a cancelled timer: if the child has already exited and been replaced, webChildRef
+    // points at a newer child and this stale timer is a no-op.
+    const healthyTimer = setTimeout(() => {
+      if (webChildRef === child && !webSupervisionStopped) webRestartCount = 0;
+    }, WEB_HEALTHY_MS);
+    healthyTimer.unref();
+    child.once('exit', (code, signal) => {
+      if (webSupervisionStopped) return;
+      const delay = webRestartDelayMs(webRestartCount);
+      webRestartCount += 1;
+      log(
+        `next start exited (code ${code ?? 'null'}, signal ${signal ?? 'none'}) — ` +
+          `restarting web child in ${delay}ms (attempt ${webRestartCount})`,
+      );
+      const timer = setTimeout(() => {
+        if (webSupervisionStopped) return;
+        webChildRef = spawnWebChild(transport, nominalPort);
+        supervise(webChildRef);
+      }, delay);
+      timer.unref();
+    });
+  };
+
+  webChildRef = spawnWebChild(transport, nominalPort);
+  supervise(webChildRef);
   await waitForWeb(transport, 180_000);
-  return child;
+  return webChildRef;
 }
 
 /** Reverse-proxy one request to the private web server, streaming both ways. */
@@ -307,6 +350,7 @@ async function main() {
   );
   // However this process ends (process.exit included), remove the socket and stop the child.
   process.on('exit', () => {
+    stopWebSupervision();
     cleanupWebTransport(transport);
     try {
       webChildRef?.kill('SIGTERM');
@@ -335,6 +379,7 @@ async function main() {
   let stopWorker;
   const shutdown = (signal) => {
     log(`${signal} — shutting down`);
+    stopWebSupervision();
     server.close();
     try {
       webChildRef?.kill('SIGTERM');
