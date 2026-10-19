@@ -27,14 +27,27 @@ const KIND_LABEL: Readonly<Record<SearchResultKind, string>> = {
   work_item: 'Work item',
   document: 'Document',
   meeting: 'Meeting',
+  message: 'Message',
+  decision: 'Decision',
+  project: 'Project',
 };
 
 /** The TYPE facet capsules (SR-02), in the order the design lists them. */
-const KIND_ORDER: readonly SearchResultKind[] = ['work_item', 'document', 'meeting'];
+const KIND_ORDER: readonly SearchResultKind[] = [
+  'work_item',
+  'document',
+  'meeting',
+  'message',
+  'decision',
+  'project',
+];
 const KIND_FACET: Readonly<Record<SearchResultKind, string>> = {
   work_item: 'Work',
   document: 'Docs',
   meeting: 'Meetings',
+  message: 'Messages',
+  decision: 'Decisions',
+  project: 'Projects',
 };
 
 /** The AUDIENCE facet rows (SR-02), each with the glyph the design pairs it with. */
@@ -167,7 +180,7 @@ export function SearchScreen({
             type="search"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Search work, documents and meetings you can see"
+            placeholder="Search work, docs, meetings, decisions, projects and messages you can see"
           />
           <div className="tm-sa-searchbar__actions">
             {settled ? (
@@ -293,7 +306,8 @@ export function SearchScreen({
               <div className="tm-sa-empty">
                 <p className="tm-sa-empty__title">Search this organization</p>
                 <p className="tm-sa-empty__body">
-                  Enter a word or two above to find work items, documents and meetings you can see.
+                  Enter a word or two above to find work, docs, meetings, decisions, projects and
+                  messages you can see.
                 </p>
               </div>
             ) : null}
@@ -339,6 +353,20 @@ export function SearchScreen({
                       {hit.kind === 'work_item' ? (
                         <Link
                           href={`/${organizationSlug}/work/${hit.id}`}
+                          className="tm-sa-hit__title"
+                        >
+                          {hit.title}
+                        </Link>
+                      ) : hit.kind === 'project' ? (
+                        <Link
+                          href={`/${organizationSlug}/projects/${hit.id}`}
+                          className="tm-sa-hit__title"
+                        >
+                          {hit.title}
+                        </Link>
+                      ) : hit.kind === 'document' ? (
+                        <Link
+                          href={`/${organizationSlug}/docs/${hit.id}`}
                           className="tm-sa-hit__title"
                         >
                           {hit.title}

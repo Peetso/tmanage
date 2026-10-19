@@ -20,6 +20,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
+import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import {
   audienceLabel,
   formatDay,
@@ -162,6 +163,14 @@ export function WorkItemDetailScreen({
   const item = useQuery({
     queryKey: ['work-item', organizationSlug, workItemId],
     queryFn: () => getWorkItem(api, organizationSlug, workItemId),
+  });
+
+  useRecordRecentItem({
+    organizationSlug,
+    objectType: 'work',
+    objectId: workItemId,
+    enabled: item.isSuccess,
+    client,
   });
 
   return (

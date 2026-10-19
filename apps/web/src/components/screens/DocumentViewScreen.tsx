@@ -14,6 +14,7 @@ import { getDocument, getDocumentSharing } from '../../lib/api/documents';
 import { listProjects } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
+import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface DocumentViewScreenProps {
@@ -51,6 +52,14 @@ export function DocumentViewScreen({
   const document = useQuery({
     queryKey: ['document', organizationSlug, documentId],
     queryFn: () => getDocument(api, organizationSlug, documentId),
+  });
+
+  useRecordRecentItem({
+    organizationSlug,
+    objectType: 'document',
+    objectId: documentId,
+    enabled: document.isSuccess,
+    client,
   });
 
   // The sheet's eyebrow names the document's project. The project list is the one the hub and the

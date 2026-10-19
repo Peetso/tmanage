@@ -39,6 +39,7 @@ import {
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { useHydrated } from '../../lib/use-hydrated';
+import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface ProjectOverviewScreenProps {
@@ -88,6 +89,14 @@ export function ProjectOverviewScreen({
   const project = useQuery({
     queryKey: ['project', organizationSlug, projectId],
     queryFn: () => getProject(api, organizationSlug, projectId),
+  });
+
+  useRecordRecentItem({
+    organizationSlug,
+    objectType: 'project',
+    objectId: projectId,
+    enabled: project.isSuccess,
+    client,
   });
 
   const workItems = useQuery({

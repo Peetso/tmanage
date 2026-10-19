@@ -11,7 +11,8 @@ import type { ApiClient } from './client';
  */
 
 /** The kinds a hit can be. Kept in lockstep with the API's `SearchResultKind`. */
-export type SearchResultKind = 'work_item' | 'document' | 'meeting';
+export type SearchResultKind =
+  'work_item' | 'document' | 'meeting' | 'message' | 'decision' | 'project';
 
 /** SR-02 AUDIENCE facet values — the API's `SearchAudience`. */
 export type SearchAudience = 'internal' | 'client_visible' | 'client_action_required';

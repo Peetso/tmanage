@@ -33,6 +33,9 @@ const KIND_LABEL: Readonly<Record<SearchResultKind, string>> = {
   work_item: 'Work item',
   document: 'Document',
   meeting: 'Meeting',
+  message: 'Message',
+  decision: 'Decision',
+  project: 'Project',
 };
 
 const DATE = new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' });

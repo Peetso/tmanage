@@ -1,19 +1,12 @@
-import { uuidv7 } from '@tmanage/domain';
-import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
-import { SearchIndexRepository } from './search-index.repository.js';
 import type { SearchIndexEntry } from './search-index.repository.js';
 
 /**
- * SRCH ranking (x148). The indexing helper that keeps `search_index` in step with its source rows.
+ * SRCH (COL-04). Pure projections of a source row into a flat, searchable shape.
  *
- * The two `*Entry` builders are the whole of the source-shape knowledge — pure functions that
- * project a work item or a document into the index's row shape. They are separated from the writes
- * so the projection is testable without a database (the acceptance proofs), and so the deferred
- * incremental-reindex job (NS-13) that wires these onto every source write can reuse them.
- *
- * Population this slice is the 0054 migration's backfill; keeping the index live on write is the
- * deferred job's work, which calls `indexWorkItem` / `indexDocument` / `remove` inside the same unit
- * of work as the source write. The helper is provided now so that wiring is a call, not a rebuild.
+ * Global search now reads the live source tables directly (`SearchIndexRepository.searchRanked`),
+ * so nothing calls these at runtime today. They are kept — and unit-tested — as the single place
+ * the source-shape knowledge lives, so a future incremental-reindex job can reuse them rather than
+ * re-derive the projection.
  */
 
 /** Project a work item into an index entry. Work items have no body, so the title is the body. */
@@ -52,27 +45,4 @@ export function documentEntry(row: {
     audience: 'internal',
     updatedAt: row.updatedAt,
   };
-}
-
-export class SearchIndexer {
-  constructor(private readonly repository: SearchIndexRepository = new SearchIndexRepository()) {}
-
-  /** Index (or refresh) one entry, minting a fresh id for a new row. */
-  async index(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    entry: SearchIndexEntry,
-  ): Promise<void> {
-    await this.repository.upsert(runner, context, entry, uuidv7());
-  }
-
-  /** Remove a source row's index row (source deleted). */
-  async remove(
-    runner: TenantQueryRunner,
-    context: TenantContext,
-    targetKind: SearchIndexEntry['targetKind'],
-    targetId: string,
-  ): Promise<void> {
-    await this.repository.deleteForTarget(runner, context, targetKind, targetId);
-  }
 }

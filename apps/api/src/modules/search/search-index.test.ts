@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { documentEntry, workItemEntry } from './search-index.indexer.js';
+import { likePattern } from './search-index.repository.js';
 
 /**
  * SRCH ranking (x148) indexer proofs, database-free. The FULLTEXT ranking, the upsert and the
@@ -46,5 +47,19 @@ describe('search index projections', () => {
       audience: 'internal',
       updatedAt,
     });
+  });
+});
+
+describe('likePattern (COL-04 live-source scan)', () => {
+  it('wraps the query in wildcards so it matches as a substring', () => {
+    expect(likePattern('relaunch')).toBe('%relaunch%');
+  });
+
+  it('escapes LIKE metacharacters so a query is matched literally, not as a wildcard', () => {
+    // A literal %, _ or \ in the query must match itself, never act as a wildcard — otherwise
+    // "50%" would match everything and a search could be turned into a table scan.
+    expect(likePattern('50%')).toBe('%50\\%%');
+    expect(likePattern('a_b')).toBe('%a\\_b%');
+    expect(likePattern('c\\d')).toBe('%c\\\\d%');
   });
 });

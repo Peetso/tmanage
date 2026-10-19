@@ -31,12 +31,13 @@ import type { SearchAudience, SearchIndexHitRow } from './search-index.repositor
  * `limit` defaults to 20 and is capped at 50 (the x93/x98 bounded-list precedent); the repository
  * bounds the read and the service bounds the filtered set again.
  *
- * Work items and documents are indexed this slice; meetings, body/snippet excerpts and an AI answer
- * are deferred (NS-13). `SearchResultKind` keeps `'meeting'` so the contract does not reshape when
- * meetings are indexed.
+ * All six source kinds are searched live from their source tables (COL-04): work items, documents,
+ * meetings, decisions, projects and channel messages. Body/snippet excerpts and an AI answer are
+ * still deferred — `snippet` stays part of the contract so it can be filled without a reshape.
  */
 
-export type SearchResultKind = 'work_item' | 'document' | 'meeting';
+export type SearchResultKind =
+  'work_item' | 'document' | 'meeting' | 'message' | 'decision' | 'project';
 
 /** What a caller is allowed to see of one hit. `organizationId` is deliberately absent. */
 export interface SearchResultView {
