@@ -16,6 +16,7 @@ import { listOrganizations } from '../../lib/api/organizations';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { PlatformAdminLink } from '../platform/PlatformAdminLink';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
+import { MembershipGoneGate } from './MembershipGoneGate';
 
 export interface AppShellProps {
   /**
@@ -283,9 +284,12 @@ export function AppShell({
       </div>
     </LiveAnnouncer>
   );
-  // A company the platform operator suspended shows its members one page instead of the app.
+  // A removed member sees one no-access page instead of the sample-company header and raw errors
+  // (ACC-14); a company the platform operator suspended shows its members one page instead of the app.
   return queryClient ? (
-    <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+    <MembershipGoneGate organizationSlug={organizationSlug}>
+      <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+    </MembershipGoneGate>
   ) : (
     shell
   );

@@ -47,21 +47,22 @@ function useOrganizationSummary(organizationSlug: string): {
   };
 }
 
-function resolve(
-  real: string | null | undefined,
-  passed: string,
-  fixture: string,
-  pending: boolean,
-): string {
+function resolve(real: string | null | undefined, passed: string, fixture: string): string {
   if (real) return real;
-  if (pending && passed === fixture) return '';
+  // Never fall back to the design's sample company (ACC-14). A caller hands the shell
+  // `FIXTURE_ORGANIZATION_NAME` until a per-organization read exists, and the real name comes from
+  // the session's organization list. While that list is still being read the header shows nothing
+  // rather than "Northstar Studio"; a removed member never reaches here, because `MembershipGoneGate`
+  // shows them the no-access page instead of the shell. A name a caller passed that is not a fixture
+  // is shown as given.
+  if (passed === fixture) return '';
   return passed;
 }
 
 /** The organization's own name for the internal shell and screens that print it. */
 export function useOrganizationName(organizationSlug: string, passedName: string): string {
-  const { summary, pending } = useOrganizationSummary(organizationSlug);
-  return resolve(summary?.name, passedName, FIXTURE_ORGANIZATION_NAME, pending);
+  const { summary } = useOrganizationSummary(organizationSlug);
+  return resolve(summary?.name, passedName, FIXTURE_ORGANIZATION_NAME);
 }
 
 /**
@@ -75,12 +76,11 @@ export function usePortalNames(
   passedClientName: string,
   passedProviderName: string,
 ): { readonly clientName: string; readonly providerName: string } {
-  const { summary, pending } = useOrganizationSummary(organizationSlug);
+  const { summary } = useOrganizationSummary(organizationSlug);
   const clientName = resolve(
     summary?.clientOrganizationName,
     passedClientName,
     FIXTURE_CLIENT_NAME,
-    pending,
   );
   return {
     // An internal person previewing the portal: their row has no client name to show.
@@ -88,7 +88,7 @@ export function usePortalNames(
       summary && !summary.clientOrganizationName && passedClientName === FIXTURE_CLIENT_NAME
         ? 'Your client'
         : clientName,
-    providerName: resolve(summary?.name, passedProviderName, FIXTURE_ORGANIZATION_NAME, pending),
+    providerName: resolve(summary?.name, passedProviderName, FIXTURE_ORGANIZATION_NAME),
   };
 }
 
