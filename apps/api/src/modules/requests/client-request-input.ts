@@ -35,12 +35,36 @@ export const MAX_SCOPE_SUMMARY_LENGTH = 4_000;
  * classification, and `isSafeAuditMetadata` admits `[A-Za-z0-9._:-]` only — a category with a
  * space in it would make every submission a 500 at the write boundary.
  *
- * So the shape is constrained and the vocabulary is not. A picker emitting `bug_report` or
- * `new-page` works; a client typing a sentence into the field is refused with a 400 that says
- * what a category looks like. The missing enumeration is recorded in
- * `docs/implementation-status.md` as a gap rather than filled in by guesswork.
+ * So the shape is constrained and the vocabulary is not — and REQ-05 moves the constraint off
+ * the client. The field used to refuse anything that was not already a slug, so a client who
+ * typed "New page" or "Bug report" into a free-text box got a 400 that read as the product
+ * being broken. Now the client may type whatever they like and {@link slugifyCategory} folds it
+ * to the audit-safe shape: "New page" becomes `new-page`, "Bug report!" becomes `bug-report`. A
+ * picker emitting `bug_report` or `new-page` still round-trips unchanged. Text that slugifies to
+ * nothing (only punctuation) is treated as no category rather than refused, because an empty
+ * classification is the honest reading of a field the client did not really fill in.
  */
-const CATEGORY_PATTERN = /^[a-z][a-z0-9]*(?:[_-][a-z0-9]+)*$/;
+
+/**
+ * Fold a client's free-text category to the audit-safe slug `client_request.submitted` records.
+ *
+ * Lowercased, every run of non-alphanumeric characters collapsed to a single hyphen, and the
+ * leading and trailing hyphens trimmed — so the result matches `isSafeAuditMetadata`'s
+ * `[A-Za-z0-9._:-]` and can never carry the space that would 500 the audit write. Capped at
+ * {@link MAX_CATEGORY_LENGTH} to fit `VARCHAR(64)`, with any hyphen the cut left dangling
+ * removed. Returns `undefined` when nothing survives, which the caller stores as no category.
+ */
+export function slugifyCategory(raw: string): string | undefined {
+  const slug = raw
+    .toLowerCase()
+    // Underscores are kept — a picker emitting `bug_report` round-trips unchanged — and every
+    // other run of non-alphanumerics folds to a single hyphen.
+    .replace(/[^a-z0-9_]+/gu, '-')
+    .replace(/^[-_]+|[-_]+$/gu, '')
+    .slice(0, MAX_CATEGORY_LENGTH)
+    .replace(/[-_]+$/gu, '');
+  return slug === '' ? undefined : slug;
+}
 
 export interface ValidationDetail {
   field: string;
@@ -158,16 +182,15 @@ export function parseSubmitBody(
     });
   }
 
+  // REQ-05: the client types whatever reads naturally and the slug is derived here. A
+  // non-string value is the only thing left to refuse — there is no text to fold — and a string
+  // that is all punctuation folds to nothing, which is stored as no category rather than a 400.
   let category: string | undefined;
-  if (body?.category !== undefined) {
-    const raw = typeof body.category === 'string' ? body.category.trim().toLowerCase() : '';
-    if (raw.length > MAX_CATEGORY_LENGTH || !CATEGORY_PATTERN.test(raw)) {
-      details.push({
-        field: 'category',
-        message: 'must be a short lowercase label such as new-page or bug_report',
-      });
+  if (body?.category !== undefined && body.category !== null) {
+    if (typeof body.category !== 'string') {
+      details.push({ field: 'category', message: 'must be text' });
     } else {
-      category = raw;
+      category = slugifyCategory(body.category);
     }
   }
 

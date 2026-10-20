@@ -6,10 +6,13 @@ import type { ClientRequestMailFacts } from '../common/database/mail-store.js';
  *
  * ## Only the client, only about their own request
  *
- * §3 names twelve templates. This file renders three: *Client request received*,
- * *Clarification required* and *Request accepted*. All three are addressed to the person who
- * submitted the request, about the request they submitted, and every fact in them is either
- * that person's own words or something the product already publishes to them by contract.
+ * §3 names twelve templates. This file renders five: *Client request received*,
+ * *Clarification required*, *Request accepted*, *Request declined* and *Request deferred*. All
+ * five are addressed to the person who submitted the request, about the request they submitted,
+ * and every fact in them is either that person's own words or something the product already
+ * publishes to them by contract. REQ-03 added the last two: a decline or a deferral is an
+ * outcome the client is owed, and the manager's `client_visible_reason` — written to be read by
+ * exactly this person — is the fact each carries.
  *
  * The reason the internal fan-out is not here is §1's own sentence: "Every email includes …
  * preference/support route", and separately "use project/deliverable title only when tenant
@@ -74,6 +77,28 @@ function oneLine(value: string): string {
   return value.replaceAll(/\s+/gu, ' ').trim();
 }
 
+/** `client_requests.title` is `VARCHAR(300)`; a subject line that long is cut by the reader's mail client. */
+const MAX_SUBJECT_TITLE = 120;
+
+/**
+ * A title fit for a subject line — REQ-16 and REQ-09.
+ *
+ * A request title can be three hundred characters, and a mail client that puts the whole of one
+ * in a subject cuts it wherever the column runs out, mid-word, with no sign it did. So a long
+ * title is shortened here, at a word boundary, and closed with a single ellipsis character
+ * (`…`, never two dots — the "plans.." REQ-09 found) so the reader can see it was shortened.
+ * A title already short enough is returned flattened and unchanged, which is every real title and
+ * every title the template tests assert.
+ */
+function subjectTitle(value: string): string {
+  const flat = oneLine(value);
+  if (flat.length <= MAX_SUBJECT_TITLE) return flat;
+  const cut = flat.slice(0, MAX_SUBJECT_TITLE);
+  const lastSpace = cut.lastIndexOf(' ');
+  const trimmed = (lastSpace > 0 ? cut.slice(0, lastSpace) : cut).replace(/[\s.,;:!?-]+$/u, '');
+  return `${trimmed}…`;
+}
+
 /**
  * §1's "why recipient" and "preference/support route" in one sentence, and the honest one:
  * the recipient submitted the request, and the route for anything unexpected is the studio
@@ -91,15 +116,16 @@ function whyAndSupport(organization: string): string {
 export function composeClientRequestReceivedEmail(facts: ClientRequestEmailFacts): MailMessage {
   const organization = oneLine(facts.organizationName);
   const project = oneLine(facts.projectName);
-  const title = oneLine(facts.title);
+  const title = subjectTitle(facts.title);
 
   // §3's sentence is written around a requested date. With none given there is no wish to
   // caveat, so the caveat goes rather than becoming a sentence about nothing — and CL-09's
-  // rule that the date is a wish is still said, in the one place it can be said.
+  // rule that the date is a wish is still said, in the one place it can be said. REQ-16: no
+  // "yet", which read as a promise the studio had not made.
   const desired =
     facts.desiredAt === null
       ? `You did not ask for a particular date.`
-      : `${facts.desiredAt} is a requested date, not a confirmed commitment yet.`;
+      : `${facts.desiredAt} is a requested date, not a confirmed commitment.`;
 
   return {
     to: facts.recipientEmail,
@@ -116,7 +142,7 @@ export function composeClientRequestReceivedEmail(facts: ClientRequestEmailFacts
 /** `Your input is needed for {{requestTitle}}` — §3, on the move to `needs_clarification`. */
 export function composeClarificationRequiredEmail(facts: ClientRequestEmailFacts): MailMessage {
   const organization = oneLine(facts.organizationName);
-  const title = oneLine(facts.title);
+  const title = subjectTitle(facts.title);
 
   return {
     to: facts.recipientEmail,
@@ -124,8 +150,9 @@ export function composeClarificationRequiredEmail(facts: ClientRequestEmailFacts
     text: [
       `The ${organization} team needs an answer to a question before it can confirm scope ` +
         `and timing. The question is on your request in the portal.`,
-      // See the module doc: the portal shows the question and cannot yet take the answer.
-      `You cannot reply inside the portal yet — send your answer to ${organization} the way ` +
+      // See the module doc: the portal shows the question and does not take the answer. REQ-16:
+      // no "yet", which promised an in-portal reply the product has not committed to building.
+      `You cannot reply inside the portal — send your answer to ${organization} the way ` +
         `you normally reach them.`,
       `View request: ${facts.link}`,
       whyAndSupport(organization),
@@ -136,7 +163,7 @@ export function composeClarificationRequiredEmail(facts: ClientRequestEmailFacts
 /** `Request accepted: {{requestTitle}}` — §3, on the move to `accepted`. */
 export function composeRequestAcceptedEmail(facts: ClientRequestEmailFacts): MailMessage {
   const organization = oneLine(facts.organizationName);
-  const title = oneLine(facts.title);
+  const title = subjectTitle(facts.title);
 
   // The summary is REQ-002's client-safe field. It is written to be read by this person, but
   // it is nullable on the column, and an email is not the place to render the word "null".
@@ -145,9 +172,11 @@ export function composeRequestAcceptedEmail(facts: ClientRequestEmailFacts): Mai
       ? `${organization} accepted your request.`
       : `Committed outcome: ${oneLine(facts.clientSafeScopeSummary)}.`;
 
+  // REQ-16: no "yet". An unscheduled acceptance has committed to the work and not to a date,
+  // which is a settled state, not a date that is on its way.
   const date =
     facts.committedAt === null
-      ? `No date is committed yet. ${organization} accepted the work without committing to a date.`
+      ? `No date is committed. ${organization} accepted the work without committing to a date.`
       : `Current committed date: ${facts.committedAt}.`;
 
   return {
@@ -156,5 +185,52 @@ export function composeRequestAcceptedEmail(facts: ClientRequestEmailFacts): Mai
     text: [`${outcome} ${date}`, `View request: ${facts.link}`, whyAndSupport(organization)].join(
       '\n\n',
     ),
+  };
+}
+
+/**
+ * `Request declined: {{requestTitle}}` — REQ-03, on the move to `declined`.
+ *
+ * The outcome the client is owed, with the manager's `client_visible_reason` when there is one.
+ * The reason is a client-safe field written to be read by this person; it is nullable, so a
+ * decline with none recorded says plainly that the request was declined rather than rendering
+ * the word "null". The CTA is "View request", the one page a client role can open.
+ */
+export function composeRequestDeclinedEmail(facts: ClientRequestEmailFacts): MailMessage {
+  const organization = oneLine(facts.organizationName);
+  const title = subjectTitle(facts.title);
+
+  const outcome =
+    facts.clientVisibleReason === null
+      ? `${organization} has declined this request.`
+      : `${organization} has declined this request. Reason: ${oneLine(facts.clientVisibleReason)}`;
+
+  return {
+    to: facts.recipientEmail,
+    subject: `Request declined: ${title}`,
+    text: [outcome, `View request: ${facts.link}`, whyAndSupport(organization)].join('\n\n'),
+  };
+}
+
+/**
+ * `Request deferred: {{requestTitle}}` — REQ-03, on the move to `deferred`.
+ *
+ * As the decline, with the deferral's own verb: the request is not refused, it is parked, and
+ * the manager's client-safe reason says why when one was written. Same nullable-reason guard,
+ * same portal CTA.
+ */
+export function composeRequestDeferredEmail(facts: ClientRequestEmailFacts): MailMessage {
+  const organization = oneLine(facts.organizationName);
+  const title = subjectTitle(facts.title);
+
+  const outcome =
+    facts.clientVisibleReason === null
+      ? `${organization} has deferred this request.`
+      : `${organization} has deferred this request. Reason: ${oneLine(facts.clientVisibleReason)}`;
+
+  return {
+    to: facts.recipientEmail,
+    subject: `Request deferred: ${title}`,
+    text: [outcome, `View request: ${facts.link}`, whyAndSupport(organization)].join('\n\n'),
   };
 }

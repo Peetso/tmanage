@@ -4,6 +4,8 @@ import {
   composeClarificationRequiredEmail,
   composeClientRequestReceivedEmail,
   composeRequestAcceptedEmail,
+  composeRequestDeclinedEmail,
+  composeRequestDeferredEmail,
 } from './client-request-email.js';
 
 /**
@@ -20,18 +22,20 @@ import {
  *   where a throw could not un-publish the event it belongs to (see the dispatcher's module
  *   doc), so absorbing the error and reporting it is the only honest shape.
  *
- * ## Which transitions are mailed, and why the list is short
+ * ## Which transitions are mailed
  *
- * `client_request.transitioned.v1` fires for every legal move in `23-ERD` §6.
- * `35-NOTIFICATION-AND-EMAIL-COPY` §3 writes copy for exactly two of the destinations —
- * `needs_clarification` and `accepted` — and this class mails those two and no others. A
- * `deferred` or `declined` request still notifies in-app with the manager's client-visible
- * reason on the screen; there is no template for it, and writing one here would be inventing
- * product copy in a mail producer. `withdrawn` is the client's own act and is not even
- * notified, per NOTIF-001.
+ * `client_request.transitioned.v1` fires for every legal move in `23-ERD` §6. This class mails
+ * the four destinations the client is owed an answer about: `needs_clarification`, `accepted`,
+ * `declined` and `deferred`. REQ-03 added the last two — a client who hears nothing when their
+ * request is turned down or parked reads the silence as the request being lost — and each
+ * carries the manager's client-safe `client_visible_reason`. `planned` and `delivered` are
+ * studio-internal lifecycle steps the client already tracks through the accepted request;
+ * `triage` reads as `submitted` and is not an answer; `withdrawn` is the client's own act and is
+ * not even notified, per NOTIF-001.
  */
 
-export type ClientRequestMailKind = 'received' | 'clarification' | 'accepted';
+export type ClientRequestMailKind =
+  'received' | 'clarification' | 'accepted' | 'declined' | 'deferred';
 
 /** What became of one message. `'none'` means no transport was configured to try. */
 export type ClientRequestMailDelivery = 'sent' | 'none' | 'failed';
@@ -43,6 +47,8 @@ export type ClientRequestMailDelivery = 'sent' | 'none' | 'failed';
 const KIND_BY_STATUS: Readonly<Record<string, ClientRequestMailKind>> = {
   needs_clarification: 'clarification',
   accepted: 'accepted',
+  declined: 'declined',
+  deferred: 'deferred',
 };
 
 /**
@@ -62,6 +68,8 @@ const COMPOSERS = {
   received: composeClientRequestReceivedEmail,
   clarification: composeClarificationRequiredEmail,
   accepted: composeRequestAcceptedEmail,
+  declined: composeRequestDeclinedEmail,
+  deferred: composeRequestDeferredEmail,
 } as const;
 
 export class ClientRequestMailer {

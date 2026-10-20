@@ -12,6 +12,7 @@ import { logUnrecognisedRowState } from '../../common/observability/logger.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { WorkCommentsRepository } from '../work/work-comments.repository.js';
 import { ClientOrganizationsRepository } from '../clients/client-organizations.repository.js';
 import {
   ClientRequestNotFoundError,
@@ -342,6 +343,14 @@ export class ClientRequestsService {
      * without one and assert nothing was written. The running application always wires it.
      */
     private readonly outbox?: OutboxEventsRepository,
+    /**
+     * WRK-11. Used for one thing: when an acceptance creates a fresh work item, the client's
+     * own words and a reference back to the request are written into that item's internal
+     * comment thread, so the manager who picks the task up can see what was asked and get back
+     * to the request it came from. The thread is internal-only (see `work_item_comments`), so
+     * nothing here is ever projected to a client.
+     */
+    private readonly workComments: WorkCommentsRepository = new WorkCommentsRepository(),
   ) {}
 
   // ── The studio's side ──────────────────────────────────────────────────────
@@ -662,6 +671,19 @@ export class ClientRequestsService {
                 // The one fact this creation path has that the ordinary one does not.
                 from_client_request: true,
               },
+            });
+
+            // WRK-11: the client asked for this, so the task underneath carries what they said
+            // and a way back to the request. `work_items` has no description column, and its
+            // internal comment thread is where a work item's prose lives — append-only,
+            // never projected to a client — so the client's own words and the request id go
+            // there as the item's first comment, authored by the accepting manager.
+            await this.workComments.create(tx, context, {
+              workItemId: workItem.id,
+              authorMembershipId: principal.membershipId,
+              body:
+                `Created from client request "${before.title}" (request ${before.id}).\n\n` +
+                `What the client asked for:\n${before.description}`,
             });
           }
 

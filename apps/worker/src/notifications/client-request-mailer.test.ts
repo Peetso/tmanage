@@ -15,6 +15,7 @@ const FACTS: ClientRequestMailFacts = {
   commitment: null,
   hasClarificationQuestion: false,
   clientSafeScopeSummary: null,
+  clientVisibleReason: null,
 };
 
 class RecordingMailer implements Mailer {
@@ -32,14 +33,18 @@ class ThrowingMailer implements Mailer {
 }
 
 describe('mailKindForStatus', () => {
-  it('maps the two destination states §3 writes copy for', () => {
+  it('maps the destination states the client is owed an answer about', () => {
     expect(mailKindForStatus('needs_clarification')).toBe('clarification');
     expect(mailKindForStatus('accepted')).toBe('accepted');
+    // REQ-03: a decline and a deferral are outcomes the client is emailed about.
+    expect(mailKindForStatus('declined')).toBe('declined');
+    expect(mailKindForStatus('deferred')).toBe('deferred');
   });
 
-  it('mails nothing for every other legal destination', () => {
-    // `23-ERD` §6's other destinations. Each notifies in-app; none has an §3 template.
-    for (const status of ['triage', 'deferred', 'declined', 'planned', 'delivered', 'withdrawn']) {
+  it('mails nothing for a destination that is not an answer', () => {
+    // `23-ERD` §6's remaining destinations. Each is a studio-internal step or the client's own
+    // act; none is an answer with an §3 template.
+    for (const status of ['triage', 'planned', 'delivered', 'withdrawn']) {
       expect(mailKindForStatus(status), status).toBeNull();
     }
   });

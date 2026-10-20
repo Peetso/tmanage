@@ -3,6 +3,8 @@ import {
   composeClarificationRequiredEmail,
   composeClientRequestReceivedEmail,
   composeRequestAcceptedEmail,
+  composeRequestDeclinedEmail,
+  composeRequestDeferredEmail,
 } from './client-request-email.js';
 import type { ClientRequestEmailFacts } from './client-request-email.js';
 
@@ -24,6 +26,7 @@ const BASE: ClientRequestEmailFacts = {
   commitment: null,
   hasClarificationQuestion: false,
   clientSafeScopeSummary: null,
+  clientVisibleReason: null,
   link: 'https://app.example/northwind/portal/requests/req-1',
 };
 
@@ -75,7 +78,9 @@ describe('composeClarificationRequiredEmail', () => {
 
   it('does not promise an in-portal reply the portal cannot accept', () => {
     const message = composeClarificationRequiredEmail(facts({ hasClarificationQuestion: true }));
-    expect(message.text).toContain('You cannot reply inside the portal yet');
+    expect(message.text).toContain('You cannot reply inside the portal');
+    // REQ-16: no "yet", which promised a reply surface the portal has not committed to.
+    expect(message.text).not.toContain('portal yet');
     expect(message.text).toContain('View request: https://app.example/northwind/portal/requests/');
     expect(message.text).not.toContain('Answer questions:');
   });
@@ -106,7 +111,8 @@ describe('composeRequestAcceptedEmail', () => {
     const message = composeRequestAcceptedEmail(
       facts({ commitment: 'unscheduled', committedAt: null, clientSafeScopeSummary: 'Scoped.' }),
     );
-    expect(message.text).toContain('No date is committed yet.');
+    expect(message.text).toContain('No date is committed.');
+    expect(message.text).not.toContain('committed yet');
     expect(message.text).not.toContain('Current committed date');
   });
 
@@ -116,6 +122,63 @@ describe('composeRequestAcceptedEmail', () => {
     );
     expect(message.text).toContain('Northwind Studio accepted your request.');
     expect(message.text).not.toContain('null');
+  });
+});
+
+describe('composeRequestDeclinedEmail and composeRequestDeferredEmail', () => {
+  it('declines with §3’s subject and carries the manager’s client-safe reason', () => {
+    const message = composeRequestDeclinedEmail(
+      facts({ clientVisibleReason: 'This sits outside the current statement of work.' }),
+    );
+    expect(message.subject).toBe('Request declined: New landing page');
+    expect(message.text).toContain('Northwind Studio has declined this request.');
+    expect(message.text).toContain('Reason: This sits outside the current statement of work.');
+  });
+
+  it('defers with §3’s subject and carries the reason', () => {
+    const message = composeRequestDeferredEmail(
+      facts({ clientVisibleReason: 'Parked until the next quarter.' }),
+    );
+    expect(message.subject).toBe('Request deferred: New landing page');
+    expect(message.text).toContain('Northwind Studio has deferred this request.');
+    expect(message.text).toContain('Reason: Parked until the next quarter.');
+  });
+
+  it('states the outcome plainly when no client-safe reason was written, never "null"', () => {
+    for (const message of [
+      composeRequestDeclinedEmail(facts({ clientVisibleReason: null })),
+      composeRequestDeferredEmail(facts({ clientVisibleReason: null })),
+    ]) {
+      expect(message.text).toContain('this request.');
+      expect(message.text).not.toContain('Reason:');
+      expect(message.text).not.toContain('null');
+    }
+  });
+
+  it('cannot grow a header out of a reason a manager typed', () => {
+    const injected = composeRequestDeclinedEmail(
+      facts({ clientVisibleReason: 'No.\r\nBcc: attacker@example.com' }),
+    );
+    expect(injected.subject.includes('\r')).toBe(false);
+    expect(injected.text).not.toMatch(/\r\n/u);
+  });
+});
+
+describe('subjectTitle', () => {
+  it('leaves a short title whole and never cuts a long one mid-word', () => {
+    const short = composeClientRequestReceivedEmail(BASE);
+    expect(short.subject).toBe('Request received: New landing page');
+
+    const long =
+      'Redesign the entire marketing site including pricing careers and blog plans '.repeat(3);
+    const message = composeClientRequestReceivedEmail(facts({ title: long }));
+    const rendered = message.subject.replace('Request received: ', '');
+    // Closed with a single ellipsis character — never the two-dot "plans.." REQ-09 found.
+    expect(rendered.endsWith('…')).toBe(true);
+    expect(rendered).not.toContain('..');
+    expect(rendered.length).toBeLessThan(long.length);
+    // No dangling space or punctuation immediately before the ellipsis.
+    expect(rendered.at(-2)).not.toBe(' ');
   });
 });
 

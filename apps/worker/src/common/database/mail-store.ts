@@ -29,10 +29,12 @@ import type { WorkerTransaction } from './worker-database.js';
  *   row and the portal shows it; the email says only that one is waiting.
  * - `organizationName` and `organizationSlug` are the tenant the client already signs in to.
  *
- * The internal columns of `client_requests` — `urgency_reason`, `description`,
- * `client_visible_reason` — are deliberately absent. Two of them are the client's own words
- * and would be safe; leaving them out keeps the projection's rule ("what the templates need,
- * and nothing a future template might reach for") legible.
+ * The internal columns `urgency_reason` and `description` are deliberately absent — they are
+ * the client's own words, safe to render but reached for by no template, so leaving them out
+ * keeps the projection's rule ("what the templates need, and nothing a future template might
+ * reach for") legible. `client_visible_reason` used to be absent for the same reason; REQ-03's
+ * decline and deferral templates need it, so it is here now — a client-safe field, written by
+ * the manager to be read by exactly this recipient.
  */
 export interface ClientRequestMailFacts {
   readonly recipientEmail: string;
@@ -49,6 +51,8 @@ export interface ClientRequestMailFacts {
   /** Whether a question is waiting — never the question itself. */
   readonly hasClarificationQuestion: boolean;
   readonly clientSafeScopeSummary: string | null;
+  /** The manager's client-safe reason for a decline or deferral — REQ-03. Null when none was written. */
+  readonly clientVisibleReason: string | null;
 }
 
 /**
@@ -94,6 +98,7 @@ export async function findClientRequestMailFacts(
     readonly commitment: string | null;
     readonly has_clarification_question: number;
     readonly client_safe_scope_summary: string | null;
+    readonly client_visible_reason: string | null;
   }
   const rows = await tx.query<readonly Row[]>(
     `SELECT u.email                                AS recipient_email,
@@ -106,7 +111,8 @@ export async function findClientRequestMailFacts(
             r.committed_at,
             r.commitment,
             (r.clarification_question IS NOT NULL) AS has_clarification_question,
-            r.client_safe_scope_summary
+            r.client_safe_scope_summary,
+            r.client_visible_reason
        FROM client_requests r
        JOIN users u          ON u.id = r.submitted_by_user_id
        JOIN organizations o  ON o.id = r.organization_id
@@ -129,5 +135,6 @@ export async function findClientRequestMailFacts(
     commitment: row.commitment,
     hasClarificationQuestion: Boolean(row.has_clarification_question),
     clientSafeScopeSummary: row.client_safe_scope_summary,
+    clientVisibleReason: row.client_visible_reason,
   };
 }

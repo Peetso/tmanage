@@ -40,8 +40,9 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * 3. **`24-EVENT-CATALOG` §6 holds for mail too.** A client membership suspended between the
  *    event and its delivery produces no message. An email has no display time at which access
  *    can be re-checked, so this is the only check there will ever be.
- * 4. **Only the three templates §3 writes are sent.** `deferred` and `declined` notify in-app
- *    and mail nobody, and `withdrawn` does neither.
+ * 4. **The outcomes the client is owed are mailed.** `needs_clarification`, `accepted`,
+ *    `declined` and `deferred` each send one message (REQ-03 added the last two, with the
+ *    manager's client-safe reason); `withdrawn` mails nobody and does not notify either.
  * 5. **The mail half never costs the notification half.** With no transport wired the
  *    notifications are identical, and a transport that throws leaves every notification row
  *    and every `published_at` exactly where a successful send leaves them.
@@ -326,7 +327,7 @@ describe('the two transitions §3 writes copy for, and the ones it does not', ()
     expect(accepted[0]?.to).toBe(world.atlas.admin.email);
   });
 
-  it('mails nothing for a deferral, a decline, or a withdrawal', async () => {
+  it('mails the deferral and the decline with the reason, and nothing for a withdrawal', async () => {
     const deferred = await submitRequest('Add a second reporting dashboard');
     const declined = await submitRequest('Rebuild the mobile app from scratch');
     const withdrawn = await submitRequest('Change the invoice footer');
@@ -344,12 +345,26 @@ describe('the two transitions §3 writes copy for, and the ones it does not', ()
     await requests.withdraw(clientCtx, clientAdmin, withdrawn, 1);
     await drain();
 
-    expect(transport.sent).toEqual([]);
-    // But the two that carry a client-visible reason still reached the client in-app — the
-    // canonical channel is unaffected by there being no §3 template to mail.
+    // REQ-03: a deferral and a decline are outcomes the client is owed, so each is mailed with
+    // the manager's client-safe reason.
+    const deferralMail = transport.sent.find((message) =>
+      message.subject.startsWith('Request deferred:'),
+    );
+    const declineMail = transport.sent.find((message) =>
+      message.subject.startsWith('Request declined:'),
+    );
+    expect(deferralMail?.text).toContain('Reason: Parked until the next quarter.');
+    expect(deferralMail?.to).toBe(world.atlas.admin.email);
+    expect(declineMail?.text).toContain('Reason: Outside the current agreement.');
+    expect(declineMail?.to).toBe(world.atlas.admin.email);
+    // The withdrawal is the client's own act: no email, and NOTIF-001 tells them nothing in-app.
+    expect(
+      transport.sent.some((message) => message.subject.includes('Change the invoice footer')),
+    ).toBe(false);
+
+    // The canonical in-app channel carries all three the way it always did.
     expect(await clientNotificationCount(deferred)).toBeGreaterThan(0);
     expect(await clientNotificationCount(declined)).toBeGreaterThan(0);
-    // The withdrawal is the client's own act, and NOTIF-001 tells them nothing about it.
     expect(await clientNotificationCount(withdrawn)).toBe(0);
   });
 });

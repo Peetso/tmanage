@@ -11,7 +11,10 @@ import {
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import type { OutboxEffects, OutboxHandler } from '../outbox/dispatcher.js';
 import { mailKindForStatus } from '../notifications/client-request-mailer.js';
-import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
+import type {
+  ClientRequestMailer,
+  ClientRequestMailKind,
+} from '../notifications/client-request-mailer.js';
 
 /**
  * The mail consumers — the second producer on the `Mailer` port, and the first one that is
@@ -89,7 +92,7 @@ async function stageClientMail(input: {
   readonly tx: WorkerTransaction;
   readonly effects: OutboxEffects;
   readonly mailer: ClientRequestMailer;
-  readonly kind: 'received' | 'clarification' | 'accepted';
+  readonly kind: ClientRequestMailKind;
   readonly requestId: string;
   readonly projectId: string;
   readonly clientOrganizationId: string;
@@ -152,8 +155,9 @@ export function createClientRequestSubmittedMail(mailer: ClientRequestMailer): O
 }
 
 /**
- * `Clarification required` and `Request accepted` — the two destination states §3 writes copy
- * for. Every other legal transition is notified in-app and mailed to nobody.
+ * `Clarification required`, `Request accepted`, `Request declined` and `Request deferred` — the
+ * destination states the client is owed an answer about (REQ-03). The mailer's `KIND_BY_STATUS`
+ * decides which; a transition to any other state is notified in-app and mailed to nobody.
  */
 export function createClientRequestTransitionedMail(mailer: ClientRequestMailer): OutboxHandler {
   return async (event, tx, effects) => {
@@ -198,7 +202,7 @@ export function createQuietHoursMailResume(mailer: ClientRequestMailer): OutboxH
     if (envelope === null) return; // Not a well-formed resume row; nothing to send.
     const { originalType, originalPayload } = envelope;
 
-    let kind: 'received' | 'clarification' | 'accepted' | null;
+    let kind: ClientRequestMailKind | null;
     if (originalType === 'client_request.submitted.v1') {
       kind = 'received';
     } else if (originalType === 'client_request.transitioned.v1') {

@@ -779,20 +779,21 @@ describe('the audit trail records the decision and never the prose', () => {
     expect(JSON.stringify(last)).not.toContain('statement of work');
   });
 
-  it('refuses a category that is a sentence, because it would reach the audit trail', async () => {
+  it('slugifies a free-text category rather than refusing it (REQ-05)', async () => {
     const client = await signIn(world.atlas.reviewer.id);
     const response = await send('POST', '/portal/requests', client, {
       projectId: world.northstar.projectId,
       title: 'Add a careers page',
       description: 'We need a careers page.',
-      category: 'a whole sentence about what kind of request this is',
+      category: 'A whole sentence about what kind of request this is',
     });
 
-    // A 400 naming the field, rather than a 500 at the audit write boundary — which is what
-    // WORK-001's first suite run produced from the same shape of mistake.
-    expect(response.statusCode).toBe(400);
-    const details = response.json<{ error: { details: { field: string }[] } }>().error.details;
-    expect(details.map((d) => d.field)).toEqual(['category']);
+    // The client types what reads naturally; the audit trail still only ever sees an audit-safe
+    // slug. The sentence is folded to one rather than 400'd at the write boundary — which is what
+    // the field used to do, and what read on screen as the product being broken.
+    expect(response.statusCode).toBe(201);
+    const view = response.json<ClientRequestClient>();
+    expect(view.category).toBe('a-whole-sentence-about-what-kind-of-request-this-is');
   });
 });
 
