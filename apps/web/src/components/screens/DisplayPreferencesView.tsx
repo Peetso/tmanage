@@ -24,6 +24,7 @@ import type {
 } from '../../lib/api/display-preferences';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { activeLocale } from '../../lib/i18n/locale-store';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/preferences.css';
 
@@ -90,7 +91,11 @@ export function DisplayPreferencesView({
   const [dateFormat, setDateFormat] = useState<DisplayDateFormat>(DEFAULTS.dateFormat);
   const [saved, setSaved] = useState(false);
 
-  // When the server's settings load (or change), seed the form from them.
+  // When the server's settings load (or change), seed the form from them — and publish the saved
+  // locale to the active-locale store so the shell's `dir`/`lang` and every `Intl` formatter match
+  // the account the moment this screen is opened, not only after a save (ACT-03). The store is the
+  // one value `LocaleDirectionProvider` and the formatters read; it persists to `localStorage`, so
+  // the direction also survives a reload instead of snapping back to left-to-right.
   useEffect(() => {
     if (!preferences.data) return;
     setTheme(preferences.data.theme);
@@ -98,6 +103,7 @@ export function DisplayPreferencesView({
     setLocale(preferences.data.locale);
     setTimezone(preferences.data.timezone);
     setDateFormat(preferences.data.dateFormat);
+    activeLocale.set(preferences.data.locale);
   }, [preferences.data]);
 
   const save = useMutation({
@@ -111,6 +117,10 @@ export function DisplayPreferencesView({
       }),
     onSuccess: (result) => {
       queries.setQueryData(['display-preferences', organizationSlug], result);
+      // Apply the saved language to the whole app at once (ACT-03): the store flips the document's
+      // direction and re-binds the formatters, so Arabic reads right-to-left immediately without a
+      // reload rather than only taking effect on the marketing site.
+      activeLocale.set(result.locale);
       setSaved(true);
     },
   });

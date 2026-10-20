@@ -53,6 +53,10 @@
   letter-spacing: 0.02em;
   text-transform: uppercase;
   color: var(--ink-650);
+  /* These mono tokens are dates, names and counts — left-to-right runs. Isolate them so their
+     punctuation and digits keep their own order and sit at the logical start inside the Arabic
+     portal rather than being pushed to the wrong side (ACT-08). */
+  unicode-bidi: isolate;
 }
 
 .tm-pt-mono--raw {

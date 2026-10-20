@@ -857,7 +857,12 @@ a.tm-wk-chip:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 0 0 var(--s4) 24px;
+  /* Logical, not `padding: 0 0 var(--s4) 24px` (ACT-05): the dot and the connecting line sit at
+     `inset-inline-start`, so the text's clearance has to be on the same side. Physical padding
+     kept the gap on the left in Arabic while the timeline flipped to the right, and the dates ran
+     under it. */
+  padding-block: 0 var(--s4);
+  padding-inline: 24px 0;
 }
 
 .tm-wk-story > li::before {
@@ -896,6 +901,10 @@ a.tm-wk-chip:hover {
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-650);
+  /* A left-to-right run (the date, the "·" separator) inside right-to-left text keeps its own
+     internal order and stays on the line's logical start instead of having its punctuation and
+     digits thrown to the wrong side (ACT-08). */
+  unicode-bidi: isolate;
 }
 
 .tm-wk-story__what {
@@ -1019,6 +1028,17 @@ a.tm-wk-chip:hover {
 
 .tm-wk-table .tm-wk-cell--fresh {
   text-align: end;
+  /* The "updated" column is a date/relative-time run; isolate it so its digits do not reorder
+     against right-to-left rows (ACT-08). */
+  unicode-bidi: isolate;
+}
+
+/* Mirror the directional glyphs the work item draws as text — the "back" chevron on the breadcrumb
+   chip and the focus capsule's forward triangle — so they point the reading way in Arabic (ACT-10).
+   The rail itself is already mirrored by the grid (see globals.css). */
+[dir='rtl'] .tm-wk-chip__orb,
+[dir='rtl'] .tm-focus-capsule__orb {
+  transform: scaleX(-1);
 }
 
 .tm-wk-rail__text {

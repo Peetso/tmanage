@@ -1,6 +1,8 @@
 import type { WorkItemState } from '@tmanage/domain';
 import type { CapsuleState } from '@tmanage/ui';
 import type { WorkItemAudience } from './api/work-items';
+import { formatDateTime, formatDay as formatLocalizedDay } from './i18n/format';
+import { activeLocale } from './i18n/locale-store';
 
 /**
  * How a work item's state and audience are *said*, in one place.
@@ -77,9 +79,12 @@ export function formatInstant(value: string | null): string {
   if (value === null) return 'No date';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
-    parsed,
-  );
+  // One localized format, in the member's saved language — not `undefined`, which formats in
+  // whatever locale the browser happens to be in and leaves Arabic readers with Latin digits that
+  // scramble against the right-to-left text (WRK-13). The shared `format.ts` wrapper is the single
+  // implementation every screen shares; it reads the active locale from the store here so a plain
+  // call site stays a plain call site.
+  return formatDateTime(value, { locale: activeLocale.get() });
 }
 
 /**
@@ -93,12 +98,15 @@ export function formatInstant(value: string | null): string {
 export function formatDay(value: string | null): string {
   if (value === null) return 'No date';
   const bare = value.length === 10;
-  const parsed = new Date(bare ? `${value}T00:00:00.000Z` : value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    ...(bare ? { timeZone: 'UTC' } : {}),
-  }).format(parsed);
+  const iso = bare ? `${value}T00:00:00.000Z` : value;
+  if (Number.isNaN(new Date(iso).getTime())) return value;
+  // Same shared, member-locale formatter as {@link formatInstant} (WRK-13). A bare calendar date
+  // is still pinned to UTC so no reader's zone moves it onto the wrong day; a full instant keeps
+  // the reader's own zone, which is the existing, deliberate behaviour.
+  const locale = activeLocale.get();
+  return bare
+    ? formatLocalizedDay(iso, { locale, timeZone: 'UTC' })
+    : formatLocalizedDay(iso, { locale });
 }
 
 /**
