@@ -21,6 +21,8 @@ import type {
 } from '../../lib/api/approval-cycle';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightsApprovalCycleScreenProps {
   organizationSlug: string;
@@ -51,6 +53,7 @@ export function InsightsApprovalCycleScreen({
   client,
 }: InsightsApprovalCycleScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const cycle = useQuery({
     queryKey: ['insights-approval-cycle', organizationSlug, projectId],
@@ -64,10 +67,14 @@ export function InsightsApprovalCycleScreen({
       activeNavigationId="insights"
       eyebrow={
         cycle.data
-          ? `Insights · Approval flow · ${cycle.data.approvalCount} ${cycle.data.approvalCount === 1 ? 'request' : 'requests'}`
-          : 'Insights · Approval flow'
+          ? `${t('InsightsApprovalCycleScreen.eyebrow')} · ${cycle.data.approvalCount} ${
+              cycle.data.approvalCount === 1
+                ? t('InsightsApprovalCycleScreen.request')
+                : t('InsightsApprovalCycleScreen.requests')
+            }`
+          : t('InsightsApprovalCycleScreen.eyebrow')
       }
-      title="What happens after we ask"
+      title={t('InsightsApprovalCycleScreen.title')}
     >
       <div className="tm-ins">
         <InsightsTabs
@@ -77,14 +84,17 @@ export function InsightsApprovalCycleScreen({
         />
 
         {cycle.isPending ? (
-          <LoadingRegion label="Loading approval cycle." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('InsightsApprovalCycleScreen.loading')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {cycle.isError ? (
-          <InlineAlert tone="danger" title="Could not load the approval cycle" live>
+          <InlineAlert tone="danger" title={t('InsightsApprovalCycleScreen.loadErrorTitle')} live>
             {describe(cycle.error)}
           </InlineAlert>
         ) : null}
@@ -96,14 +106,22 @@ export function InsightsApprovalCycleScreen({
 }
 
 /** The outcomes in the order they are shown — the same order the API rolls them up in. */
-const OUTCOMES: readonly { id: ApprovalCycleOutcome; label: string; tone: InsightsBar['tone'] }[] =
-  [
-    { id: 'approved', label: 'Approved', tone: 'success' },
-    { id: 'changes_requested', label: 'Changes requested', tone: 'warning' },
-    { id: 'invalidated', label: 'Invalidated', tone: 'danger' },
-  ];
+const OUTCOMES: readonly {
+  id: ApprovalCycleOutcome;
+  labelKey: MessageKey;
+  tone: InsightsBar['tone'];
+}[] = [
+  { id: 'approved', labelKey: 'InsightsApprovalCycleScreen.outcomeApproved', tone: 'success' },
+  {
+    id: 'changes_requested',
+    labelKey: 'InsightsApprovalCycleScreen.outcomeChangesRequested',
+    tone: 'warning',
+  },
+  { id: 'invalidated', labelKey: 'InsightsApprovalCycleScreen.outcomeInvalidated', tone: 'danger' },
+];
 
 function ApprovalCyclePanel({ cycle }: { cycle: ApprovalCycle }) {
+  const t = useT();
   const { approved, changes_requested: changes, invalidated } = cycle.metrics;
   const decided = approved.decidedCount + changes.decidedCount;
   const decidedMs = approved.totalDurationMs + changes.totalDurationMs;
@@ -116,40 +134,51 @@ function ApprovalCyclePanel({ cycle }: { cycle: ApprovalCycle }) {
           <InsightsCard labelledBy="tm-approval-funnel-heading">
             <InsightsCardHead
               id="tm-approval-funnel-heading"
-              title="Requested, decided, invalidated"
-              units={`${cycle.approvalCount} requests · mean time to decide`}
+              title={t('InsightsApprovalCycleScreen.funnelTitle')}
+              units={`${cycle.approvalCount} ${t('InsightsApprovalCycleScreen.requestsUnit')} · ${t('InsightsApprovalCycleScreen.meanTimeToDecideUnit')}`}
             />
             <ol className="tm-ins-funnel">
               <li className="tm-ins-funnel__step" style={{ flex: 1.3 }}>
-                <span className="tm-ins-funnel__pill">{cycle.approvalCount} requested</span>
+                <span className="tm-ins-funnel__pill">
+                  {cycle.approvalCount} {t('InsightsApprovalCycleScreen.requestedWord')}
+                </span>
                 <span className="tm-ins-funnel__meta">–</span>
               </li>
               <li className="tm-ins-funnel__step" data-tone="lime" style={{ flex: 1.1 }}>
-                <span className="tm-ins-funnel__pill">{decided} decided</span>
-                <span className="tm-ins-funnel__meta">{mean} mean</span>
+                <span className="tm-ins-funnel__pill">
+                  {decided} {t('InsightsApprovalCycleScreen.decidedWord')}
+                </span>
+                <span className="tm-ins-funnel__meta">
+                  {mean} {t('InsightsApprovalCycleScreen.meanWord')}
+                </span>
               </li>
               <li className="tm-ins-funnel__step" data-tone="quiet" style={{ flex: 1 }}>
-                <span className="tm-ins-funnel__pill">{invalidated.count} invalidated</span>
-                <span className="tm-ins-funnel__meta">new version</span>
+                <span className="tm-ins-funnel__pill">
+                  {invalidated.count} {t('InsightsApprovalCycleScreen.invalidatedWord')}
+                </span>
+                <span className="tm-ins-funnel__meta">
+                  {t('InsightsApprovalCycleScreen.newVersion')}
+                </span>
               </li>
             </ol>
             <p className="tm-ins-card__body">
               {cycle.approvalCount === 0
-                ? 'No approvals have reached a decision in this project yet.'
-                : `${decided} of ${cycle.approvalCount} approval requests reached a decision. The rest are still with the reviewer or were replaced by a new version.`}
+                ? t('InsightsApprovalCycleScreen.emptyBody')
+                : `${decided} ${t('InsightsApprovalCycleScreen.ofWord')} ${cycle.approvalCount} ${t('InsightsApprovalCycleScreen.bodyRest')}`}
             </p>
           </InsightsCard>
         </div>
         <div className="tm-ins-split__side">
           <InsightsCard labelledBy="tm-approval-outcomes-heading">
             <p id="tm-approval-outcomes-heading" className="tm-ins-eyebrow">
-              Outcomes of the {cycle.approvalCount} requested
+              {t('InsightsApprovalCycleScreen.outcomesOfThe')} {cycle.approvalCount}{' '}
+              {t('InsightsApprovalCycleScreen.requestedWord')}
             </p>
             <InsightsBars
-              label="Approvals by outcome"
-              bars={OUTCOMES.map(({ id, label, tone }) => ({
+              label={t('InsightsApprovalCycleScreen.approvalsByOutcome')}
+              bars={OUTCOMES.map(({ id, labelKey, tone }) => ({
                 key: id,
-                label,
+                label: t(labelKey),
                 value: cycle.metrics[id].count,
                 ...(tone ? { tone } : {}),
               }))}
@@ -159,7 +188,7 @@ function ApprovalCyclePanel({ cycle }: { cycle: ApprovalCycle }) {
                 {invalidated.count}
               </span>
               <span className="tm-ins-card__body">
-                approvals invalidated by a new version after review started
+                {t('InsightsApprovalCycleScreen.invalidatedByNewVersion')}
               </span>
             </div>
           </InsightsCard>
@@ -172,8 +201,8 @@ function ApprovalCyclePanel({ cycle }: { cycle: ApprovalCycle }) {
             <div className="tm-ins-card__lead">
               <InsightsCardHead
                 id="tm-approval-cycle-heading"
-                title="This project"
-                units="Approvals · decided · mean"
+                title={t('InsightsApprovalCycleScreen.thisProject')}
+                units={t('InsightsApprovalCycleScreen.tableUnits')}
               />
             </div>
             <table
@@ -182,40 +211,38 @@ function ApprovalCyclePanel({ cycle }: { cycle: ApprovalCycle }) {
             >
               <thead>
                 <tr>
-                  <th scope="col">Outcome</th>
+                  <th scope="col">{t('InsightsApprovalCycleScreen.colOutcome')}</th>
                   <th scope="col" className="tm-ins-table__num">
-                    Approvals
+                    {t('InsightsApprovalCycleScreen.colApprovals')}
                   </th>
                   <th scope="col" className="tm-ins-table__num">
-                    Decided
+                    {t('InsightsApprovalCycleScreen.colDecided')}
                   </th>
                   <th scope="col" className="tm-ins-table__num">
-                    Mean time to decide
+                    {t('InsightsApprovalCycleScreen.colMeanTime')}
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {OUTCOMES.map(({ id, label }) => (
-                  <OutcomeRow key={id} id={id} label={label} metric={cycle.metrics[id]} />
+                {OUTCOMES.map(({ id, labelKey }) => (
+                  <OutcomeRow key={id} id={id} labelKey={labelKey} metric={cycle.metrics[id]} />
                 ))}
               </tbody>
             </table>
-            <p className="tm-ins-card__foot">Computed {formatMoment(cycle.computedAt)}.</p>
+            <p className="tm-ins-card__foot">
+              {t('InsightsApprovalCycleScreen.computed')} {formatMoment(cycle.computedAt)}.
+            </p>
           </InsightsCard>
         }
         side={
           <>
             <InsightsCard variant="callout">
-              <p className="tm-ins-eyebrow">The pattern worth acting on</p>
-              <p className="tm-ins-callout__title">{pattern(cycle)}</p>
-              <p className="tm-ins-card__body">
-                A request sent to someone who cannot approve it waits without moving. Naming the
-                person with the authority shortens the wait more than a reminder does.
-              </p>
+              <p className="tm-ins-eyebrow">{t('InsightsApprovalCycleScreen.patternEyebrow')}</p>
+              <p className="tm-ins-callout__title">{pattern(cycle, t)}</p>
+              <p className="tm-ins-card__body">{t('InsightsApprovalCycleScreen.patternBody')}</p>
             </InsightsCard>
-            <InsightsNote eyebrow="What this is not">
-              Reviewer times describe the request path, not the person. Client response times are
-              never shown inside the client portal.
+            <InsightsNote eyebrow={t('InsightsApprovalCycleScreen.notEyebrow')}>
+              {t('InsightsApprovalCycleScreen.notBody')}
             </InsightsNote>
           </>
         }
@@ -225,27 +252,28 @@ function ApprovalCyclePanel({ cycle }: { cycle: ApprovalCycle }) {
 }
 
 /** The callout's sentence, read from the outcome counts. */
-function pattern(cycle: ApprovalCycle): string {
+function pattern(cycle: ApprovalCycle, t: (key: MessageKey) => string): string {
   const { approved, changes_requested: changes, invalidated } = cycle.metrics;
-  if (cycle.approvalCount === 0) return 'Nothing has been asked yet, so there is no pattern.';
+  if (cycle.approvalCount === 0) return t('InsightsApprovalCycleScreen.patternNone');
   if (invalidated.count > 0 && invalidated.count >= changes.count) {
-    return `${invalidated.count} of ${cycle.approvalCount} approvals were invalidated by a new version after review started.`;
+    return `${invalidated.count} ${t('InsightsApprovalCycleScreen.ofWord')} ${cycle.approvalCount} ${t('InsightsApprovalCycleScreen.patternInvalidatedRest')}`;
   }
   if (changes.count > approved.count) {
-    return 'More requests come back for changes than pass first time.';
+    return t('InsightsApprovalCycleScreen.patternChanges');
   }
-  return `${approved.count} of ${cycle.approvalCount} requests were approved; ${changes.count} came back for changes.`;
+  return `${approved.count} ${t('InsightsApprovalCycleScreen.ofWord')} ${cycle.approvalCount} ${t('InsightsApprovalCycleScreen.patternApprovedMid')} ${changes.count} ${t('InsightsApprovalCycleScreen.patternApprovedEnd')}`;
 }
 
 function OutcomeRow({
   id,
-  label,
+  labelKey,
   metric,
 }: {
   id: ApprovalCycleOutcome;
-  label: string;
+  labelKey: MessageKey;
   metric: ApprovalOutcomeMetric;
 }) {
+  const t = useT();
   const tone =
     metric.count === 0
       ? 'quiet'
@@ -256,7 +284,7 @@ function OutcomeRow({
           : 'warning';
   return (
     <tr data-tone={tone}>
-      <th scope="row">{label}</th>
+      <th scope="row">{t(labelKey)}</th>
       <td className="tm-ins-table__num">{metric.count}</td>
       <td className="tm-ins-table__num">{metric.decidedCount}</td>
       <td className="tm-ins-table__num">{formatMeanDuration(metric)}</td>

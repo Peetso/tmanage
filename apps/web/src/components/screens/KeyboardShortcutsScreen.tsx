@@ -14,6 +14,7 @@ import {
 import type { ResolvedShortcutView } from '../../lib/api/keyboard-shortcuts';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/preferences.css';
 
 export interface KeyboardShortcutsScreenProps {
@@ -66,6 +67,7 @@ export function KeyboardShortcutsScreen({
 }: KeyboardShortcutsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const shortcuts = useQuery({
     queryKey: ['keyboard-shortcuts', organizationSlug],
@@ -113,7 +115,9 @@ export function KeyboardShortcutsScreen({
     <li className="tm-prefs-key" key={shortcut.actionKey}>
       <span className="tm-prefs-key__title">
         {shortcut.title}
-        {shortcut.overridden ? <span className="tm-prefs-key__custom"> · custom</span> : null}
+        {shortcut.overridden ? (
+          <span className="tm-prefs-key__custom"> · {t('KeyboardShortcutsScreen.custom')}</span>
+        ) : null}
       </span>
       {capturing === shortcut.actionKey ? (
         <>
@@ -126,9 +130,9 @@ export function KeyboardShortcutsScreen({
             className="tm-prefs-kbd-input"
             type="text"
             readOnly
-            aria-label={`Press the new shortcut for ${shortcut.title}`}
+            aria-label={`${t('KeyboardShortcutsScreen.pressNewShortcut')} ${shortcut.title}`}
             value={draft}
-            placeholder="Press a key combination…"
+            placeholder={t('KeyboardShortcutsScreen.pressKeyCombination')}
             onKeyDown={(event) => {
               event.preventDefault();
               const chord = chordFromEvent(event);
@@ -142,7 +146,7 @@ export function KeyboardShortcutsScreen({
               disabled={!draftValid || rebind.isPending}
               onClick={() => rebind.mutate({ actionKey: shortcut.actionKey, chord: draft })}
             >
-              Save
+              {t('KeyboardShortcutsScreen.save')}
             </button>
             <button
               type="button"
@@ -152,7 +156,7 @@ export function KeyboardShortcutsScreen({
                 setDraft('');
               }}
             >
-              Cancel
+              {t('KeyboardShortcutsScreen.cancel')}
             </button>
           </span>
         </>
@@ -163,16 +167,16 @@ export function KeyboardShortcutsScreen({
               type="button"
               className="tm-prefs-capsule"
               disabled={reset.isPending}
-              aria-label={`Reset ${shortcut.title} to ${shortcut.defaultChord}`}
+              aria-label={`${t('KeyboardShortcutsScreen.reset')} ${shortcut.title} ${t('KeyboardShortcutsScreen.toWord')} ${shortcut.defaultChord}`}
               onClick={() => reset.mutate([shortcut.actionKey])}
             >
-              Reset
+              {t('KeyboardShortcutsScreen.reset')}
             </button>
           ) : null}
           <button
             type="button"
             className={shortcut.overridden ? 'tm-prefs-kbd tm-prefs-kbd--custom' : 'tm-prefs-kbd'}
-            aria-label={`Rebind ${shortcut.title}, now ${shortcut.chord}`}
+            aria-label={`${t('KeyboardShortcutsScreen.rebindVerb')} ${shortcut.title}${t('KeyboardShortcutsScreen.nowComma')} ${shortcut.chord}`}
             onClick={() => startCapture(shortcut.actionKey)}
           >
             <kbd>{showChord(shortcut.chord)}</kbd>
@@ -186,8 +190,8 @@ export function KeyboardShortcutsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Preferences · Keyboard"
-      title="Keyboard"
+      eyebrow={t('KeyboardShortcutsScreen.eyebrow')}
+      title={t('KeyboardShortcutsScreen.title')}
       actions={
         <button
           type="button"
@@ -195,34 +199,34 @@ export function KeyboardShortcutsScreen({
           disabled={overridden.length === 0 || reset.isPending}
           onClick={() => reset.mutate(overridden)}
         >
-          Reset to defaults
+          {t('KeyboardShortcutsScreen.resetToDefaults')}
         </button>
       }
     >
       {shortcuts.isPending ? (
-        <LoadingRegion label="Loading your keyboard shortcuts">
+        <LoadingRegion label={t('KeyboardShortcutsScreen.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : shortcuts.isError ? (
-        <InlineAlert tone="danger" title="We could not load your keyboard shortcuts">
+        <InlineAlert tone="danger" title={t('KeyboardShortcutsScreen.loadErrorTitle')}>
           {errorMessage(shortcuts.error)}
         </InlineAlert>
       ) : (
         <div className="tm-prefs tm-prefs--keyboard">
           <div className="tm-prefs__main">
             {rebind.isError ? (
-              <InlineAlert tone="danger" title="We could not save that shortcut">
+              <InlineAlert tone="danger" title={t('KeyboardShortcutsScreen.saveErrorTitle')}>
                 {errorMessage(rebind.error)}
               </InlineAlert>
             ) : null}
             {reset.isError ? (
-              <InlineAlert tone="danger" title="We could not reset that shortcut">
+              <InlineAlert tone="danger" title={t('KeyboardShortcutsScreen.resetErrorTitle')}>
                 {errorMessage(reset.error)}
               </InlineAlert>
             ) : null}
             {capturing && draft.length > 0 && !draftValid ? (
-              <InlineAlert tone="warning" title="That combination cannot be used">
-                Use zero or more modifiers (Ctrl, Alt, Shift, Meta) plus one key.
+              <InlineAlert tone="warning" title={t('KeyboardShortcutsScreen.invalidComboTitle')}>
+                {t('KeyboardShortcutsScreen.invalidComboBody')}
               </InlineAlert>
             ) : null}
 
@@ -232,7 +236,7 @@ export function KeyboardShortcutsScreen({
                 aria-labelledby="tm-keys-around"
               >
                 <h2 id="tm-keys-around" className="tm-prefs-eyebrow">
-                  Getting around
+                  {t('KeyboardShortcutsScreen.gettingAround')}
                 </h2>
                 <ul className="tm-prefs-keys">{around.map(renderRow)}</ul>
               </section>
@@ -241,7 +245,7 @@ export function KeyboardShortcutsScreen({
                 aria-labelledby="tm-keys-doing"
               >
                 <h2 id="tm-keys-doing" className="tm-prefs-eyebrow">
-                  Doing things
+                  {t('KeyboardShortcutsScreen.doingThings')}
                 </h2>
                 <ul className="tm-prefs-keys">{doing.map(renderRow)}</ul>
               </section>
@@ -254,10 +258,12 @@ export function KeyboardShortcutsScreen({
               aria-labelledby="tm-keys-command"
             >
               <h2 id="tm-keys-command" className="tm-prefs-eyebrow">
-                Command bar{search ? ` · ${showChord(search.chord)}` : ''}
+                {t('KeyboardShortcutsScreen.commandBar')}
+                {search ? ` · ${showChord(search.chord)}` : ''}
               </h2>
               <div className="tm-prefs-command" aria-hidden="true">
-                Type a command<span className="tm-prefs-command__caret">|</span>
+                {t('KeyboardShortcutsScreen.typeACommand')}
+                <span className="tm-prefs-command__caret">|</span>
               </div>
               <ul className="tm-prefs-command-list">
                 {doing.slice(0, 3).map((shortcut) => (
@@ -270,14 +276,11 @@ export function KeyboardShortcutsScreen({
                 ))}
               </ul>
               <p className="tm-prefs-card__note tm-prefs-card__foot">
-                Anything a client would see is never one keystroke away — those commands always ask
-                first.
+                {t('KeyboardShortcutsScreen.commandNote')}
               </p>
             </section>
             <div className="tm-prefs-card tm-prefs-card--paper">
-              <p className="tm-prefs-card__body">
-                Rebind any shortcut by clicking its key. Arabic layout keeps the same letters.
-              </p>
+              <p className="tm-prefs-card__body">{t('KeyboardShortcutsScreen.rebindNote')}</p>
             </div>
           </div>
         </div>

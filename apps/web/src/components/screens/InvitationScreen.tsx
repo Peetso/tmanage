@@ -100,14 +100,14 @@ export function InvitationScreen({
 
   if (preview.isPending) {
     return (
-      <IdentityShell screenId="ID-03" eyebrow="Invitation">
+      <IdentityShell screenId="ID-03" eyebrow={t('InvitationScreen.eyebrow')}>
         {/*
           A heading in every state, including this one. `22-SCREEN-BY-SCREEN` §1 gives every
           screen exactly one `<h1>`, and a document whose only heading appears once a request
           resolves has no heading for the moment a screen reader lands on it.
         */}
-        <h1 className="tm-identity__title">Your invitation</h1>
-        <LoadingRegion label="Loading this invitation.">
+        <h1 className="tm-identity__title">{t('InvitationScreen.yourInvitation')}</h1>
+        <LoadingRegion label={t('InvitationScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
@@ -117,12 +117,12 @@ export function InvitationScreen({
 
   if (preview.isError || !preview.data) {
     return (
-      <IdentityShell screenId="ID-03" eyebrow="Invitation">
-        <h1 className="tm-identity__title">Your invitation</h1>
-        <InlineAlert tone="danger" title="This link is not usable" live>
+      <IdentityShell screenId="ID-03" eyebrow={t('InvitationScreen.eyebrow')}>
+        <h1 className="tm-identity__title">{t('InvitationScreen.yourInvitation')}</h1>
+        <InlineAlert tone="danger" title={t('InvitationScreen.linkNotUsable')} live>
           {preview.error instanceof NetworkError
             ? t('invitation.refusal.network')
-            : 'It may have been used already, withdrawn, or expired. Ask whoever invited you for a new one — expired links are never extended.'}
+            : t('InvitationScreen.previewErrorFallback')}
         </InlineAlert>
       </IdentityShell>
     );
@@ -144,13 +144,13 @@ export function InvitationScreen({
             tone="ink"
             size="accessible"
             loading={accept.isPending}
-            loadingLabel="Accepting"
+            loadingLabel={t('InvitationScreen.accepting')}
             onClick={() => {
               setFailure(undefined);
               accept.mutate();
             }}
           >
-            Accept invitation
+            {t('InvitationScreen.acceptInvitation')}
           </Button>
         </div>
       )}
@@ -230,9 +230,7 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
 
   return (
     <form className="tm-stack" noValidate onSubmit={(event) => void submit(event)}>
-      <p className="tm-id-inviter__meta">
-        New to TManage? Choose your name and a password to join.
-      </p>
+      <p className="tm-id-inviter__meta">{t('InvitationScreen.newToTManage')}</p>
       {googleError ? (
         <InlineAlert tone="danger" live>
           {t(googleError)}
@@ -256,7 +254,7 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
         mislead. `readOnly` (not `disabled`) keeps it focusable and read by screen readers.
       */}
       <Field
-        label="Email"
+        label={t('InvitationScreen.emailLabel')}
         type="email"
         name="email"
         autoComplete="username"
@@ -264,10 +262,10 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
         value={invitation.inviteeEmail}
         readOnly
         aria-readonly="true"
-        hint="From your invitation — this is the address you will sign in with."
+        hint={t('InvitationScreen.emailHint')}
       />
       <Field
-        label="Your name"
+        label={t('InvitationScreen.yourName')}
         name="displayName"
         autoComplete="name"
         maxLength={MAX_NAME}
@@ -278,20 +276,20 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
         {...(fieldErrors.displayName ? { error: fieldErrors.displayName } : {})}
       />
       <Field
-        label="Password"
+        label={t('InvitationScreen.passwordLabel')}
         type="password"
         name="password"
         autoComplete="new-password"
         minLength={MIN_PASSWORD}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
-        hint={`At least ${MIN_PASSWORD} characters.`}
+        hint={`${t('InvitationScreen.atLeast')} ${MIN_PASSWORD} ${t('InvitationScreen.charactersSuffix')}`}
         required
         disabled={submitting}
         {...(fieldErrors.password ? { error: fieldErrors.password } : {})}
       />
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('InvitationScreen.didNotGoThrough')} live>
           {failure}
         </InlineAlert>
       ) : null}
@@ -301,13 +299,15 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
           tone="ink"
           size="accessible"
           loading={submitting}
-          loadingLabel="Creating your account"
+          loadingLabel={t('InvitationScreen.creatingAccount')}
         >
-          Create account and join
+          {t('InvitationScreen.createAndJoin')}
         </Button>
       </div>
       <p className="tm-id-inviter__meta">
-        Already have an account? <Link href="/sign-in">Sign in</Link>, then open this link again.
+        {t('InvitationScreen.alreadyHaveAccount')}{' '}
+        <Link href="/sign-in">{t('InvitationScreen.signIn')}</Link>
+        {t('InvitationScreen.thenOpenAgain')}
       </p>
     </form>
   );
@@ -320,15 +320,18 @@ interface DetailsProps {
 }
 
 function Details({ invitation, failure, children }: DetailsProps) {
+  const t = useT();
   const isClient = invitation.audience === 'client';
   const role = describeInternalRole(invitation.role);
 
   return (
-    <IdentityShell screenId="ID-03" eyebrow="Invitation">
+    <IdentityShell screenId="ID-03" eyebrow={t('InvitationScreen.eyebrow')}>
       <div className="tm-id-inviter">
         <Avatar name={invitation.inviterName} audience={invitation.audience} decorative />
         <div>
-          <p className="tm-id-inviter__name">{invitation.inviterName} invited you</p>
+          <p className="tm-id-inviter__name">
+            {invitation.inviterName} {t('InvitationScreen.invitedYou')}
+          </p>
           <p className="tm-id-inviter__meta">
             {invitation.inviterEmail} · {formatDay(invitation.invitedAt)}
           </p>
@@ -336,33 +339,35 @@ function Details({ invitation, failure, children }: DetailsProps) {
       </div>
 
       <h1 className="tm-identity__title">
-        Join <span>{invitation.organizationName}</span>
+        {t('InvitationScreen.join')} <span>{invitation.organizationName}</span>
         {isClient && invitation.clientOrganizationName
-          ? ` as part of ${invitation.clientOrganizationName}`
+          ? ` ${t('InvitationScreen.asPartOf')} ${invitation.clientOrganizationName}`
           : ''}
       </h1>
 
       {isClient ? (
-        <InlineAlert tone="client" title="This is client portal access">
-          You are being given access to {invitation.organizationName}&rsquo;s client portal. It is
-          not membership of the delivery team.
+        <InlineAlert tone="client" title={t('InvitationScreen.clientPortalTitle')}>
+          {t('InvitationScreen.clientPortalBefore')} {invitation.organizationName}
+          {t('InvitationScreen.clientPortalAfter')}
         </InlineAlert>
       ) : null}
 
       <div className="tm-id-panels">
         <section className="tm-id-panel tm-id-panel--row" aria-labelledby="tm-invitation-role">
           <h2 id="tm-invitation-role" className="tm-id-panel__label">
-            Role
+            {t('InvitationScreen.role')}
           </h2>
           <span className="tm-id-panel__value">{role.label}</span>
           <span className={isClient ? 'tm-id-capsule tm-id-capsule--client' : 'tm-id-capsule'}>
-            {isClient ? 'client portal' : 'internal team'}
+            {isClient
+              ? t('InvitationScreen.clientPortalCapsule')
+              : t('InvitationScreen.internalTeamCapsule')}
           </span>
         </section>
 
         <section className="tm-id-panel" aria-labelledby="tm-invitation-access">
           <h2 id="tm-invitation-access" className="tm-id-panel__label">
-            Exactly what you will see
+            {t('InvitationScreen.exactlyWhatYouSee')}
           </h2>
           <ul className="tm-id-grants">
             {role.grants.map((line) => (
@@ -374,7 +379,7 @@ function Details({ invitation, failure, children }: DetailsProps) {
       </div>
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('InvitationScreen.didNotGoThrough')} live>
           {failure}
         </InlineAlert>
       ) : null}
@@ -382,8 +387,9 @@ function Details({ invitation, failure, children }: DetailsProps) {
       {children}
 
       <InlineAlert className="tm-id-note--dashed" tone="warning">
-        This invitation expires on {formatDay(invitation.expiresAt)}. After that, ask{' '}
-        {invitation.inviterName} for a new one — expired links never grant access.
+        {t('InvitationScreen.expiresOn')} {formatDay(invitation.expiresAt)}.{' '}
+        {t('InvitationScreen.afterThatAsk')} {invitation.inviterName}{' '}
+        {t('InvitationScreen.forNewOne')}
       </InlineAlert>
     </IdentityShell>
   );

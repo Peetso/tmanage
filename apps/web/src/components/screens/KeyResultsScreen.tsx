@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { createKeyResult, listKeyResults, updateKeyResult } from '../../lib/api/key-results';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/portfolio.css';
 
 export interface KeyResultsScreenProps {
@@ -43,6 +44,7 @@ export function KeyResultsScreen({
 }: KeyResultsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [title, setTitle] = useState('');
   const [targetValue, setTargetValue] = useState('');
@@ -109,35 +111,38 @@ export function KeyResultsScreen({
   return (
     <section className="tm-card tm-kr" aria-labelledby={headingId}>
       <h3 id={headingId} className="tm-obj-eyebrow">
-        Key results · {objectiveName}
+        {t('KeyResultsScreen.keyResults')} · {objectiveName}
       </h3>
 
       {keyResults.isError ? (
-        <InlineAlert tone="danger" title="Could not load the key results" live>
+        <InlineAlert tone="danger" title={t('KeyResultsScreen.loadErrorTitle')} live>
           {describeError(keyResults.error)}
         </InlineAlert>
       ) : null}
 
       {keyResults.isPending ? (
-        <LoadingRegion label="Loading the objective's key results.">
+        <LoadingRegion label={t('KeyResultsScreen.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!keyResults.isPending && !keyResults.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No key results yet">
-          This objective has no key results. Add the first one below.
+        <InlineAlert tone="neutral" title={t('KeyResultsScreen.noKeyResultsTitle')}>
+          {t('KeyResultsScreen.noKeyResultsBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 && updateMutation.isError ? (
-        <InlineAlert tone="danger" title="Could not update the key result" live>
+        <InlineAlert tone="danger" title={t('KeyResultsScreen.updateErrorTitle')} live>
           {describeError(updateMutation.error)}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (
-        <ul className="tm-kr__list" aria-label={`Key results for ${objectiveName}`}>
+        <ul
+          className="tm-kr__list"
+          aria-label={`${t('KeyResultsScreen.keyResultsFor')} ${objectiveName}`}
+        >
           {rows.map((row) => {
             const draft = drafts[row.id];
             const draftValue = draft ?? String(row.currentValue);
@@ -156,7 +161,7 @@ export function KeyResultsScreen({
                   {row.progressPercent}%
                 </span>
                 <details className="tm-kr-row__edit">
-                  <summary>Update</summary>
+                  <summary>{t('KeyResultsScreen.update')}</summary>
                   <form
                     className="tm-kr-row__update"
                     onSubmit={(event) => {
@@ -168,7 +173,7 @@ export function KeyResultsScreen({
                     noValidate
                   >
                     <Field
-                      label={`Current value for ${row.title}`}
+                      label={`${t('KeyResultsScreen.currentValueFor')} ${row.title}`}
                       name={`current-${row.id}`}
                       type="number"
                       min={0}
@@ -183,10 +188,10 @@ export function KeyResultsScreen({
                       tone="outline"
                       size="accessible"
                       loading={rowPending}
-                      loadingLabel="Saving"
+                      loadingLabel={t('KeyResultsScreen.saving')}
                       disabled={rowPending}
                     >
-                      Save
+                      {t('KeyResultsScreen.save')}
                     </Button>
                   </form>
                 </details>
@@ -197,40 +202,40 @@ export function KeyResultsScreen({
       ) : null}
 
       <details className="tm-kr__add" open={rows.length === 0 ? true : undefined}>
-        <summary>Add a key result</summary>
+        <summary>{t('KeyResultsScreen.addKeyResultSummary')}</summary>
         <form className="tm-stack" onSubmit={onSubmit} noValidate>
           <fieldset className="tm-fieldset tm-stack" disabled={createMutation.isPending}>
             <Field
-              label="Title"
+              label={t('KeyResultsScreen.titleLabel')}
               name="title"
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              hint="What this key result measures, e.g. “Trial-to-paid conversion”."
+              hint={t('KeyResultsScreen.titleHint')}
               required
             />
             <Field
-              label="Target value"
+              label={t('KeyResultsScreen.targetValueLabel')}
               name="targetValue"
               type="number"
               min={0}
               inputMode="numeric"
               value={targetValue}
               onChange={(event) => setTargetValue(event.target.value)}
-              hint="The value the key result aims at. Progress is measured against it."
+              hint={t('KeyResultsScreen.targetValueHint')}
               required
             />
             <Field
-              label="Unit"
+              label={t('KeyResultsScreen.unitLabel')}
               name="unit"
               value={unit}
               onChange={(event) => setUnit(event.target.value)}
-              hint="How the target and current values are expressed, e.g. “%”, “customers”."
+              hint={t('KeyResultsScreen.unitHint')}
               required
             />
           </fieldset>
 
           {createMutation.isError ? (
-            <InlineAlert tone="danger" title="Could not add the key result" live>
+            <InlineAlert tone="danger" title={t('KeyResultsScreen.addErrorTitle')} live>
               {describeError(createMutation.error)}
             </InlineAlert>
           ) : null}
@@ -241,10 +246,10 @@ export function KeyResultsScreen({
               tone="ink"
               size="accessible"
               loading={createMutation.isPending}
-              loadingLabel="Adding"
+              loadingLabel={t('KeyResultsScreen.adding')}
               disabled={!canSubmit}
             >
-              Add key result
+              {t('KeyResultsScreen.addKeyResult')}
             </Button>
           </div>
         </form>

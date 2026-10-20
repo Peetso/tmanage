@@ -5,6 +5,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicMaintenance } from '../../lib/api/maintenance';
 import type { MaintenanceWindowView } from '../../lib/api/maintenance';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface MaintenanceBannerProps {
   /** Test seam: an explicit client instead of the process-wide browser client. */
@@ -16,11 +18,11 @@ export interface MaintenanceBannerProps {
   initialWindow?: MaintenanceWindowView | null;
 }
 
-/** The human word for each severity — every state that uses colour also carries a word (token law 3). */
-const SEVERITY_LABEL: Record<MaintenanceWindowView['severity'], string> = {
-  info: 'Notice',
-  degraded: 'Degraded service',
-  down: 'Maintenance',
+/** The message key for each severity — every state that uses colour also carries a word (token law 3). */
+const SEVERITY_LABEL: Record<MaintenanceWindowView['severity'], MessageKey> = {
+  info: 'MaintenanceBanner.severityInfo',
+  degraded: 'MaintenanceBanner.severityDegraded',
+  down: 'MaintenanceBanner.severityDown',
 };
 
 /** The per-session dismissal key, scoped to the window id so a new window shows again. */
@@ -60,6 +62,7 @@ function rememberDismissed(id: string): void {
  * force every screen test to provide a `QueryClient` it did not set up.
  */
 export function MaintenanceBanner({ client, initialWindow }: MaintenanceBannerProps) {
+  const t = useT();
   const [window_, setWindow] = useState<MaintenanceWindowView | null>(initialWindow ?? null);
   const [dismissed, setDismissed] = useState<boolean>(false);
 
@@ -86,13 +89,13 @@ export function MaintenanceBanner({ client, initialWindow }: MaintenanceBannerPr
 
   if (window_ === null || !window_.active || dismissed) return null;
 
-  const label = SEVERITY_LABEL[window_.severity];
+  const label = t(SEVERITY_LABEL[window_.severity]);
 
   return (
     <div
       className={`tm-maintenance-banner tm-maintenance-banner--${window_.severity}`}
       role="region"
-      aria-label="Platform status"
+      aria-label={t('MaintenanceBanner.platformStatus')}
     >
       <p className="tm-maintenance-banner__body" aria-live="polite">
         <span className="tm-maintenance-banner__label">{label}:</span>{' '}
@@ -106,7 +109,7 @@ export function MaintenanceBanner({ client, initialWindow }: MaintenanceBannerPr
           setDismissed(true);
         }}
       >
-        Dismiss
+        {t('MaintenanceBanner.dismiss')}
       </button>
     </div>
   );

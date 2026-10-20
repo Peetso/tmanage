@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import type { InsightsPortfolio, InsightsPortfolioProject } from '../../lib/api/insights-portfolio';
+import { useT } from '../../lib/i18n/use-t';
 
 /** How many projects the mobile "needs attention" list shows before it stops. */
 const TOP_PROJECTS = 3;
@@ -25,8 +28,9 @@ export function InsightsPortfolioMobileSummary({
   portfolio,
   organizationSlug,
 }: InsightsPortfolioMobileSummaryProps) {
+  const t = useT();
   if (portfolio.projectCount === 0) {
-    return <p className="tm-ins-card__body">No projects you can read have insights yet.</p>;
+    return <p className="tm-ins-card__body">{t('InsightsPortfolioMobileSummary.emptyInsights')}</p>;
   }
 
   const blocked = sum(portfolio.projects, (project) => project.deliveryFlow.counts.blocked);
@@ -41,16 +45,25 @@ export function InsightsPortfolioMobileSummary({
 
   return (
     <div className="tm-stack">
-      <dl className="tm-ins-mfigures" aria-label="Portfolio headline figures">
-        <Figure label="Projects" value={portfolio.projectCount} />
-        <Figure label="Blocked work items" value={blocked} />
-        <Figure label="Changes requested" value={changesRequested} />
+      <dl
+        className="tm-ins-mfigures"
+        aria-label={t('InsightsPortfolioMobileSummary.headlineFigures')}
+      >
+        <Figure
+          label={t('InsightsPortfolioMobileSummary.figureProjects')}
+          value={portfolio.projectCount}
+        />
+        <Figure label={t('InsightsPortfolioMobileSummary.figureBlocked')} value={blocked} />
+        <Figure
+          label={t('InsightsPortfolioMobileSummary.figureChanges')}
+          value={changesRequested}
+        />
       </dl>
 
       {needsAttention.length > 0 ? (
         <section className="tm-stack tm-stack--tight" aria-labelledby="tm-portfolio-attention">
           <h3 id="tm-portfolio-attention" className="tm-ins-eyebrow">
-            Needs attention
+            {t('InsightsPortfolioMobileSummary.needsAttention')}
           </h3>
           <ul className="tm-ins-mlist">
             {needsAttention.map((project) => (
@@ -63,7 +76,7 @@ export function InsightsPortfolioMobileSummary({
           </ul>
         </section>
       ) : (
-        <p className="tm-ins-card__body">Nothing is blocked across your projects.</p>
+        <p className="tm-ins-card__body">{t('InsightsPortfolioMobileSummary.nothingBlocked')}</p>
       )}
     </div>
   );
@@ -85,13 +98,14 @@ function AttentionRow({
   project: InsightsPortfolioProject;
   organizationSlug: string;
 }) {
+  const t = useT();
   return (
     <li>
       <Link href={`/${organizationSlug}/insights/projects/${project.projectId}`}>
         {project.name}
       </Link>
       <span className="tm-ins-badge" data-tone="danger">
-        {project.deliveryFlow.counts.blocked} blocked
+        {project.deliveryFlow.counts.blocked} {t('InsightsPortfolioMobileSummary.blocked')}
       </span>
     </li>
   );

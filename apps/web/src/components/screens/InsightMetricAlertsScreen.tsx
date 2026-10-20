@@ -14,6 +14,8 @@ import type {
 } from '../../lib/api/insights-metric-alerts';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightMetricAlertsScreenProps {
   organizationSlug: string;
@@ -23,17 +25,17 @@ export interface InsightMetricAlertsScreenProps {
 }
 
 /** The metrics an alert can watch, in the order the picker shows them. */
-const METRICS: readonly { id: MetricAlertMetric; label: string }[] = [
-  { id: 'open_items', label: 'Open items' },
-  { id: 'scheduled_items', label: 'Scheduled items' },
-  { id: 'active_projects', label: 'Active projects' },
-  { id: 'active_assignees', label: 'Active assignees' },
+const METRICS: readonly { id: MetricAlertMetric; labelKey: MessageKey }[] = [
+  { id: 'open_items', labelKey: 'InsightMetricAlertsScreen.metricOpenItems' },
+  { id: 'scheduled_items', labelKey: 'InsightMetricAlertsScreen.metricScheduledItems' },
+  { id: 'active_projects', labelKey: 'InsightMetricAlertsScreen.metricActiveProjects' },
+  { id: 'active_assignees', labelKey: 'InsightMetricAlertsScreen.metricActiveAssignees' },
 ];
 
 /** The comparators an alert can apply, in the order the picker shows them. */
-const COMPARATORS: readonly { id: MetricAlertComparator; label: string }[] = [
-  { id: 'gte', label: 'At or above (≥)' },
-  { id: 'lte', label: 'At or below (≤)' },
+const COMPARATORS: readonly { id: MetricAlertComparator; labelKey: MessageKey }[] = [
+  { id: 'gte', labelKey: 'InsightMetricAlertsScreen.comparatorGte' },
+  { id: 'lte', labelKey: 'InsightMetricAlertsScreen.comparatorLte' },
 ];
 
 /**
@@ -58,6 +60,7 @@ export function InsightMetricAlertsScreen({
 }: InsightMetricAlertsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const [metricKey, setMetricKey] = useState<MetricAlertMetric>('open_items');
   const [comparator, setComparator] = useState<MetricAlertComparator>('gte');
   const [threshold, setThreshold] = useState('10');
@@ -88,14 +91,14 @@ export function InsightMetricAlertsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights"
-      title="Metric alerts"
-      description="Set your own threshold alert per metric and see which are breached right now."
+      eyebrow={t('InsightMetricAlertsScreen.eyebrow')}
+      title={t('InsightMetricAlertsScreen.title')}
+      description={t('InsightMetricAlertsScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <section className="tm-panel tm-stack" aria-labelledby="tm-metric-alerts-heading">
           <h2 id="tm-metric-alerts-heading" className="tm-eyebrow">
-            Metric alerts
+            {t('InsightMetricAlertsScreen.heading')}
           </h2>
 
           <form
@@ -107,7 +110,7 @@ export function InsightMetricAlertsScreen({
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-alert-metric">
-                Metric
+                {t('InsightMetricAlertsScreen.metric')}
               </label>
               <select
                 id="tm-alert-metric"
@@ -115,16 +118,16 @@ export function InsightMetricAlertsScreen({
                 value={metricKey}
                 onChange={(event) => setMetricKey(event.target.value as MetricAlertMetric)}
               >
-                {METRICS.map(({ id, label }) => (
+                {METRICS.map(({ id, labelKey }) => (
                   <option key={id} value={id}>
-                    {label}
+                    {t(labelKey)}
                   </option>
                 ))}
               </select>
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-alert-comparator">
-                Comparator
+                {t('InsightMetricAlertsScreen.comparator')}
               </label>
               <select
                 id="tm-alert-comparator"
@@ -132,16 +135,16 @@ export function InsightMetricAlertsScreen({
                 value={comparator}
                 onChange={(event) => setComparator(event.target.value as MetricAlertComparator)}
               >
-                {COMPARATORS.map(({ id, label }) => (
+                {COMPARATORS.map(({ id, labelKey }) => (
                   <option key={id} value={id}>
-                    {label}
+                    {t(labelKey)}
                   </option>
                 ))}
               </select>
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-alert-threshold">
-                Threshold
+                {t('InsightMetricAlertsScreen.threshold')}
               </label>
               <input
                 id="tm-alert-threshold"
@@ -154,32 +157,39 @@ export function InsightMetricAlertsScreen({
                 onChange={(event) => setThreshold(event.target.value)}
               />
             </div>
-            <Button type="submit" loading={save.isPending} loadingLabel="Saving the alert">
-              Set alert
+            <Button
+              type="submit"
+              loading={save.isPending}
+              loadingLabel={t('InsightMetricAlertsScreen.savingAlert')}
+            >
+              {t('InsightMetricAlertsScreen.setAlert')}
             </Button>
           </form>
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="Could not set the alert" live>
+            <InlineAlert tone="danger" title={t('InsightMetricAlertsScreen.setErrorTitle')} live>
               {describe(save.error)}
             </InlineAlert>
           ) : null}
 
           {remove.isError ? (
-            <InlineAlert tone="danger" title="Could not delete the alert" live>
+            <InlineAlert tone="danger" title={t('InsightMetricAlertsScreen.deleteErrorTitle')} live>
               {describe(remove.error)}
             </InlineAlert>
           ) : null}
 
           {alerts.isPending ? (
-            <LoadingRegion label="Loading your metric alerts." className="tm-stack tm-stack--tight">
+            <LoadingRegion
+              label={t('InsightMetricAlertsScreen.loading')}
+              className="tm-stack tm-stack--tight"
+            >
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {alerts.isError ? (
-            <InlineAlert tone="danger" title="Could not load metric alerts" live>
+            <InlineAlert tone="danger" title={t('InsightMetricAlertsScreen.loadErrorTitle')} live>
               {describe(alerts.error)}
             </InlineAlert>
           ) : null}
@@ -206,40 +216,46 @@ function AlertsTable({
   onDelete: (metric: MetricAlertMetric) => void;
   busy: boolean;
 }) {
+  const t = useT();
   if (rows.length === 0) {
-    return <p className="tm-prose">No alerts yet. Set one above to start watching a metric.</p>;
+    return <p className="tm-prose">{t('InsightMetricAlertsScreen.empty')}</p>;
   }
 
   return (
     <table className="tm-table">
       <caption className="tm-visually-hidden">
-        Your metric alerts and whether each is breached
+        {t('InsightMetricAlertsScreen.tableCaption')}
       </caption>
       <thead>
         <tr>
-          <th scope="col">Metric</th>
-          <th scope="col">Condition</th>
-          <th scope="col">Current</th>
-          <th scope="col">Status</th>
+          <th scope="col">{t('InsightMetricAlertsScreen.colMetric')}</th>
+          <th scope="col">{t('InsightMetricAlertsScreen.colCondition')}</th>
+          <th scope="col">{t('InsightMetricAlertsScreen.colCurrent')}</th>
+          <th scope="col">{t('InsightMetricAlertsScreen.colStatus')}</th>
           <th scope="col">
-            <span className="tm-visually-hidden">Actions</span>
+            <span className="tm-visually-hidden">{t('InsightMetricAlertsScreen.colActions')}</span>
           </th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.metricKey}>
-            <th scope="row">{metricLabel(row.metricKey)}</th>
+            <th scope="row">{t(metricLabelKey(row.metricKey))}</th>
             <td>
-              {comparatorLabel(row.comparator)} <span className="tm-mono">{row.threshold}</span>
+              {t(comparatorLabelKey(row.comparator))}{' '}
+              <span className="tm-mono">{row.threshold}</span>
             </td>
             <td className="tm-mono">{row.currentValue === null ? '—' : row.currentValue}</td>
             <td>
-              <Badge mono>{row.breached ? 'Breached' : 'OK'}</Badge>
+              <Badge mono>
+                {row.breached
+                  ? t('InsightMetricAlertsScreen.breached')
+                  : t('InsightMetricAlertsScreen.ok')}
+              </Badge>
             </td>
             <td>
               <Button tone="text" onClick={() => onDelete(row.metricKey)} disabled={busy}>
-                Delete
+                {t('InsightMetricAlertsScreen.delete')}
               </Button>
             </td>
           </tr>
@@ -249,13 +265,13 @@ function AlertsTable({
   );
 }
 
-/** Turn an ISO metric key into its display label; falls back to the key. */
-function metricLabel(metric: MetricAlertMetric): string {
-  return METRICS.find((m) => m.id === metric)?.label ?? metric;
+/** Turn an ISO metric key into its label message key; falls back to the open-items label. */
+function metricLabelKey(metric: MetricAlertMetric): MessageKey {
+  return METRICS.find((m) => m.id === metric)?.labelKey ?? METRICS[0]!.labelKey;
 }
 
-function comparatorLabel(comparator: MetricAlertComparator): string {
-  return COMPARATORS.find((c) => c.id === comparator)?.label ?? comparator;
+function comparatorLabelKey(comparator: MetricAlertComparator): MessageKey {
+  return COMPARATORS.find((c) => c.id === comparator)?.labelKey ?? COMPARATORS[0]!.labelKey;
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */

@@ -18,6 +18,8 @@ import {
 } from '../../lib/invitations';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InviteTeamScreenProps {
   signedInAs: string;
@@ -83,6 +85,7 @@ export function InviteTeamScreen({
   client,
 }: InviteTeamScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   // The add-an-address form has no query behind it, so it gates on the hydration signal: the
   // draft email input ships disabled in the server HTML and becomes editable only once React is
@@ -107,7 +110,7 @@ export function InviteTeamScreen({
   function add() {
     const email = draftEmail.trim();
     if (!isPlausibleEmail(email)) {
-      setDraftError('That does not look like an email address.');
+      setDraftError(t('InviteTeamScreen.invalidEmail'));
       return;
     }
     setCandidates((current) => [...current, { email, role: draftRole }]);
@@ -144,8 +147,8 @@ export function InviteTeamScreen({
             error instanceof ApiRequestError
               ? error.message
               : error instanceof NetworkError
-                ? 'The API did not answer. Is it running?'
-                : 'Something went wrong.',
+                ? t('InviteTeamScreen.apiNoAnswer')
+                : t('InviteTeamScreen.somethingWentWrong'),
         });
       }
     }
@@ -163,15 +166,12 @@ export function InviteTeamScreen({
   }
 
   return (
-    <OnboardingShell current="ON-04" signedInAs={signedInAs} title="Invite your team">
+    <OnboardingShell current="ON-04" signedInAs={signedInAs} title={t('InviteTeamScreen.title')}>
       <OnboardingScreenStyles />
       <style href="tm-onboarding-team" precedence="default">
         {TEAM_CSS}
       </style>
-      <p className="tm-ob-lede">
-        Only the people who work on delivery. Clients are invited separately, as a client
-        organization with its own portal.
-      </p>
+      <p className="tm-ob-lede">{t('InviteTeamScreen.lede')}</p>
 
       <div className="tm-ob-team">
         <div className="tm-ob-sheet tm-ob-sheet--card tm-ob-team__list">
@@ -191,10 +191,10 @@ export function InviteTeamScreen({
             }}
           >
             <fieldset className="tm-fieldset tm-ob-team__add" disabled={!hydrated}>
-              <legend className="tm-visually-hidden">Add a person</legend>
+              <legend className="tm-visually-hidden">{t('InviteTeamScreen.addAPerson')}</legend>
               <div className="tm-ob-team__email">
                 <label className="tm-visually-hidden" htmlFor="tm-invite-email">
-                  Email address
+                  {t('InviteTeamScreen.emailAddress')}
                 </label>
                 <input
                   id="tm-invite-email"
@@ -217,7 +217,7 @@ export function InviteTeamScreen({
               </div>
               <div className="tm-ob-team__role">
                 <label className="tm-visually-hidden" htmlFor="tm-invite-role">
-                  Role
+                  {t('InviteTeamScreen.roleLabel')}
                 </label>
                 <select
                   id="tm-invite-role"
@@ -233,8 +233,8 @@ export function InviteTeamScreen({
                 </select>
               </div>
               <Button type="submit" tone="ink" size="feature">
-                <span aria-hidden="true">Add</span>
-                <span className="tm-visually-hidden">Add to the list</span>
+                <span aria-hidden="true">{t('InviteTeamScreen.add')}</span>
+                <span className="tm-visually-hidden">{t('InviteTeamScreen.addToList')}</span>
               </Button>
             </fieldset>
             {draftError === undefined ? null : (
@@ -250,14 +250,16 @@ export function InviteTeamScreen({
           <section className="tm-ob-team__people" aria-labelledby="tm-invite-list">
             <h2 id="tm-invite-list" className="tm-ob-eyebrow">
               {checked.length === 0
-                ? 'Nobody added yet'
-                : `${checked.length} ${checked.length === 1 ? 'person' : 'people'}`}
+                ? t('InviteTeamScreen.nobodyAdded')
+                : `${checked.length} ${
+                    checked.length === 1
+                      ? t('InviteTeamScreen.person')
+                      : t('InviteTeamScreen.people')
+                  }`}
             </h2>
 
             {checked.length === 0 ? (
-              <p className="tm-ob-team__empty">
-                Add an address above. You can also skip this and invite later.
-              </p>
+              <p className="tm-ob-team__empty">{t('InviteTeamScreen.emptyList')}</p>
             ) : (
               <ul className="tm-ob-team__rows">
                 {checked.map((invite, index) => {
@@ -287,7 +289,7 @@ export function InviteTeamScreen({
                         <span className="tm-ob-team__address">
                           {problem === undefined
                             ? invite.email
-                            : headlineFor(problem, invite.email)}
+                            : headlineFor(problem, invite.email, t)}
                         </span>
                         {invite.problems.map((each) => (
                           <span key={each} className="tm-ob-team__problem">
@@ -306,7 +308,9 @@ export function InviteTeamScreen({
                         }
                       >
                         <span aria-hidden="true">✕</span>
-                        <span className="tm-visually-hidden">Remove {invite.email}</span>
+                        <span className="tm-visually-hidden">
+                          {t('InviteTeamScreen.remove')} {invite.email}
+                        </span>
                       </button>
                     </li>
                   );
@@ -318,7 +322,7 @@ export function InviteTeamScreen({
           {results.length > 0 ? (
             <section className="tm-ob-team__results" aria-labelledby="tm-invite-results">
               <h2 id="tm-invite-results" className="tm-ob-eyebrow">
-                Links to send
+                {t('InviteTeamScreen.linksToSend')}
               </h2>
               <ul className="tm-ob-team__rows">
                 {results.map((result, index) => (
@@ -338,7 +342,9 @@ export function InviteTeamScreen({
                       </span>
                       <span className="tm-ob-team__address">{result.email}</span>
                       <span className="tm-ob-team__badge">
-                        {result.outcome === 'sent' ? 'Created' : 'Not created'}
+                        {result.outcome === 'sent'
+                          ? t('InviteTeamScreen.created')
+                          : t('InviteTeamScreen.notCreated')}
                       </span>
                     </div>
                     {result.link ? (
@@ -348,10 +354,10 @@ export function InviteTeamScreen({
                         </p>
                         <p className="tm-ob-team__problem">
                           {result.delivery === 'sent'
-                            ? `Also emailed to ${result.email}.`
+                            ? `${t('InviteTeamScreen.alsoEmailedTo')} ${result.email}.`
                             : result.delivery === 'failed'
-                              ? 'The email could not be sent — you have to send it yourself.'
-                              : 'Nothing emailed this link — you have to send it yourself.'}
+                              ? t('InviteTeamScreen.emailFailed')
+                              : t('InviteTeamScreen.emailNone')}
                         </p>
                       </>
                     ) : (
@@ -360,18 +366,14 @@ export function InviteTeamScreen({
                   </li>
                 ))}
               </ul>
-              <p className="tm-field__hint">
-                Each link works once and expires, and there is no way to see it again — the
-                invitation stores only a hash of it. Send it to the person it names and to nobody
-                else: anyone holding it can join this organization.
-              </p>
+              <p className="tm-field__hint">{t('InviteTeamScreen.linksHint')}</p>
             </section>
           ) : null}
         </div>
 
         <section className="tm-ob-team__night" aria-labelledby="tm-role-preview">
           <h2 id="tm-role-preview" className="tm-ob-eyebrow">
-            What a {role.label.toLowerCase()} will see
+            {t('InviteTeamScreen.whatA')} {role.label.toLowerCase()} {t('InviteTeamScreen.willSee')}
           </h2>
           <ul className="tm-ob-team__grants">
             {role.grants.map((grant) => (
@@ -380,26 +382,27 @@ export function InviteTeamScreen({
           </ul>
           <hr className="tm-ob-team__night-rule" />
           <p className="tm-ob-team__withholds">{role.withholds}</p>
-          <p className="tm-ob-team__note">
-            Each person gets a one-time link. If this deployment does not send email, the link is
-            shown here once, for you to send.
-          </p>
+          <p className="tm-ob-team__note">{t('InviteTeamScreen.note')}</p>
           <div className="tm-ob-actions">
             <Button
               tone="lime"
               size="feature"
               className="tm-ob-cta"
               loading={sending}
-              loadingLabel="Creating invitations"
+              loadingLabel={t('InviteTeamScreen.creatingInvitations')}
               disabled={sendable.length === 0}
               onClick={() => void send()}
             >
               {sendable.length === 0
-                ? 'Create invitations'
-                : `Create ${sendable.length} ${sendable.length === 1 ? 'invitation' : 'invitations'}`}
+                ? t('InviteTeamScreen.createInvitations')
+                : `${t('InviteTeamScreen.createPrefix')} ${sendable.length} ${
+                    sendable.length === 1
+                      ? t('InviteTeamScreen.invitation')
+                      : t('InviteTeamScreen.invitations')
+                  }`}
             </Button>
             <Link className="tm-ob-team__skip" href={`/${organizationSlug}/home`}>
-              Skip for now
+              {t('InviteTeamScreen.skipForNow')}
             </Link>
           </div>
         </section>
@@ -409,14 +412,18 @@ export function InviteTeamScreen({
 }
 
 /** The row's own headline when a check stopped it — the export's "… is already a member". */
-function headlineFor(problem: InviteProblem, email: string): string {
+function headlineFor(
+  problem: InviteProblem,
+  email: string,
+  t: (key: MessageKey) => string,
+): string {
   switch (problem) {
     case 'already-a-member':
-      return `${email} is already a member`;
+      return `${email} ${t('InviteTeamScreen.isAlreadyMember')}`;
     case 'outside-domain':
-      return `${email} is outside your domain`;
+      return `${email} ${t('InviteTeamScreen.isOutsideDomain')}`;
     case 'duplicate-in-list':
-      return `${email} is already in the list`;
+      return `${email} ${t('InviteTeamScreen.isAlreadyInList')}`;
     default:
       return email;
   }

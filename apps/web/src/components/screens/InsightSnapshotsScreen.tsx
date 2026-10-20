@@ -10,6 +10,8 @@ import { captureSnapshot, listSnapshots } from '../../lib/api/insights-snapshots
 import type { SnapshotKind, SnapshotView } from '../../lib/api/insights-snapshots';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightSnapshotsScreenProps {
   organizationSlug: string;
@@ -19,9 +21,9 @@ export interface InsightSnapshotsScreenProps {
 }
 
 /** The report kinds a snapshot can freeze, in the order the picker shows them. */
-const KINDS: readonly { id: SnapshotKind; label: string }[] = [
-  { id: 'portfolio', label: 'Portfolio' },
-  { id: 'workload', label: 'Workload' },
+const KINDS: readonly { id: SnapshotKind; labelKey: MessageKey }[] = [
+  { id: 'portfolio', labelKey: 'InsightSnapshotsScreen.kindPortfolio' },
+  { id: 'workload', labelKey: 'InsightSnapshotsScreen.kindWorkload' },
 ];
 
 /**
@@ -45,6 +47,7 @@ export function InsightSnapshotsScreen({
 }: InsightSnapshotsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const [kind, setKind] = useState<SnapshotKind>('portfolio');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -71,20 +74,20 @@ export function InsightSnapshotsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights"
-      title="Insight snapshots"
-      description="Capture a point-in-time metric snapshot and compare it against the latest over time."
+      eyebrow={t('InsightSnapshotsScreen.eyebrow')}
+      title={t('InsightSnapshotsScreen.title')}
+      description={t('InsightSnapshotsScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <section className="tm-panel tm-stack" aria-labelledby="tm-snapshots-heading">
           <h2 id="tm-snapshots-heading" className="tm-eyebrow">
-            Insight snapshots
+            {t('InsightSnapshotsScreen.heading')}
           </h2>
 
           <div className="tm-row">
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-snapshot-kind">
-                Report kind
+                {t('InsightSnapshotsScreen.reportKind')}
               </label>
               <select
                 id="tm-snapshot-kind"
@@ -95,9 +98,9 @@ export function InsightSnapshotsScreen({
                   setSelectedId(null);
                 }}
               >
-                {KINDS.map(({ id, label }) => (
+                {KINDS.map(({ id, labelKey }) => (
                   <option key={id} value={id}>
-                    {label}
+                    {t(labelKey)}
                   </option>
                 ))}
               </select>
@@ -106,27 +109,30 @@ export function InsightSnapshotsScreen({
               type="button"
               onClick={() => capture.mutate()}
               loading={capture.isPending}
-              loadingLabel="Capturing a snapshot"
+              loadingLabel={t('InsightSnapshotsScreen.capturingSnapshot')}
             >
-              Capture current metrics
+              {t('InsightSnapshotsScreen.captureCurrent')}
             </Button>
           </div>
 
           {capture.isError ? (
-            <InlineAlert tone="danger" title="Could not capture a snapshot" live>
+            <InlineAlert tone="danger" title={t('InsightSnapshotsScreen.captureErrorTitle')} live>
               {describe(capture.error)}
             </InlineAlert>
           ) : null}
 
           {history.isPending ? (
-            <LoadingRegion label="Loading snapshot history." className="tm-stack tm-stack--tight">
+            <LoadingRegion
+              label={t('InsightSnapshotsScreen.loading')}
+              className="tm-stack tm-stack--tight"
+            >
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {history.isError ? (
-            <InlineAlert tone="danger" title="Could not load the snapshot history" live>
+            <InlineAlert tone="danger" title={t('InsightSnapshotsScreen.loadErrorTitle')} live>
               {describe(history.error)}
             </InlineAlert>
           ) : null}
@@ -158,18 +164,19 @@ function SnapshotHistory({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const t = useT();
   if (snapshots.length === 0) {
-    return <p className="tm-prose">No snapshots captured yet for this report kind.</p>;
+    return <p className="tm-prose">{t('InsightSnapshotsScreen.empty')}</p>;
   }
 
   return (
     <table className="tm-table">
-      <caption className="tm-visually-hidden">Captured snapshots, newest first</caption>
+      <caption className="tm-visually-hidden">{t('InsightSnapshotsScreen.tableCaption')}</caption>
       <thead>
         <tr>
-          <th scope="col">Captured</th>
-          <th scope="col">State</th>
-          <th scope="col">Compare</th>
+          <th scope="col">{t('InsightSnapshotsScreen.colCaptured')}</th>
+          <th scope="col">{t('InsightSnapshotsScreen.colState')}</th>
+          <th scope="col">{t('InsightSnapshotsScreen.colCompare')}</th>
         </tr>
       </thead>
       <tbody>
@@ -178,7 +185,11 @@ function SnapshotHistory({
             <th scope="row" className="tm-mono">
               {formatMoment(snapshot.capturedAt)}
             </th>
-            <td>{snapshot.id === currentId ? 'Current (latest)' : 'Historical'}</td>
+            <td>
+              {snapshot.id === currentId
+                ? t('InsightSnapshotsScreen.currentLatest')
+                : t('InsightSnapshotsScreen.historical')}
+            </td>
             <td>
               {snapshot.id === currentId ? (
                 '—'
@@ -190,7 +201,7 @@ function SnapshotHistory({
                   onClick={() => onSelect(snapshot.id)}
                   aria-pressed={selectedId === snapshot.id}
                 >
-                  Compare to current
+                  {t('InsightSnapshotsScreen.compareToCurrent')}
                 </Button>
               )}
             </td>
@@ -202,13 +213,17 @@ function SnapshotHistory({
 }
 
 function SnapshotCompare({ current, selected }: { current: SnapshotView; selected: SnapshotView }) {
+  const t = useT();
   return (
     <div className="tm-stack tm-stack--tight" aria-live="polite">
-      <h3 className="tm-eyebrow">Comparison</h3>
+      <h3 className="tm-eyebrow">{t('InsightSnapshotsScreen.comparison')}</h3>
       <div className="tm-row">
-        <SnapshotPayload title={`Current — ${formatMoment(current.capturedAt)}`} view={current} />
         <SnapshotPayload
-          title={`Selected — ${formatMoment(selected.capturedAt)}`}
+          title={`${t('InsightSnapshotsScreen.currentPrefix')} — ${formatMoment(current.capturedAt)}`}
+          view={current}
+        />
+        <SnapshotPayload
+          title={`${t('InsightSnapshotsScreen.selectedPrefix')} — ${formatMoment(selected.capturedAt)}`}
           view={selected}
         />
       </div>

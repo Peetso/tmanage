@@ -14,6 +14,8 @@ import type {
 } from '../../lib/api/insights-targets';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightTargetsScreenProps {
   organizationSlug: string;
@@ -23,18 +25,18 @@ export interface InsightTargetsScreenProps {
 }
 
 /** The metrics a target can judge, in the order the picker shows them. */
-const METRICS: readonly { id: MetricTargetMetric; label: string }[] = [
-  { id: 'open_items', label: 'Open items' },
-  { id: 'scheduled_items', label: 'Scheduled items' },
-  { id: 'active_projects', label: 'Active projects' },
-  { id: 'active_assignees', label: 'Active assignees' },
+const METRICS: readonly { id: MetricTargetMetric; labelKey: MessageKey }[] = [
+  { id: 'open_items', labelKey: 'InsightTargetsScreen.metricOpenItems' },
+  { id: 'scheduled_items', labelKey: 'InsightTargetsScreen.metricScheduledItems' },
+  { id: 'active_projects', labelKey: 'InsightTargetsScreen.metricActiveProjects' },
+  { id: 'active_assignees', labelKey: 'InsightTargetsScreen.metricActiveAssignees' },
 ];
 
 /** The cadences a target can apply to, in the order the picker shows them. */
-const PERIODS: readonly { id: MetricTargetPeriod; label: string }[] = [
-  { id: 'weekly', label: 'Weekly' },
-  { id: 'monthly', label: 'Monthly' },
-  { id: 'quarterly', label: 'Quarterly' },
+const PERIODS: readonly { id: MetricTargetPeriod; labelKey: MessageKey }[] = [
+  { id: 'weekly', labelKey: 'InsightTargetsScreen.periodWeekly' },
+  { id: 'monthly', labelKey: 'InsightTargetsScreen.periodMonthly' },
+  { id: 'quarterly', labelKey: 'InsightTargetsScreen.periodQuarterly' },
 ];
 
 /**
@@ -58,6 +60,7 @@ export function InsightTargetsScreen({
 }: InsightTargetsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const [metric, setMetric] = useState<MetricTargetMetric>('open_items');
   const [period, setPeriod] = useState<MetricTargetPeriod>('weekly');
   const [value, setValue] = useState('10');
@@ -83,14 +86,14 @@ export function InsightTargetsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights"
-      title="Insight targets"
-      description="Set an org-wide goal per metric and measure the live figure against it."
+      eyebrow={t('InsightTargetsScreen.eyebrow')}
+      title={t('InsightTargetsScreen.title')}
+      description={t('InsightTargetsScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <section className="tm-panel tm-stack" aria-labelledby="tm-targets-heading">
           <h2 id="tm-targets-heading" className="tm-eyebrow">
-            Insight targets
+            {t('InsightTargetsScreen.heading')}
           </h2>
 
           <form
@@ -102,7 +105,7 @@ export function InsightTargetsScreen({
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-target-metric">
-                Metric
+                {t('InsightTargetsScreen.metric')}
               </label>
               <select
                 id="tm-target-metric"
@@ -110,16 +113,16 @@ export function InsightTargetsScreen({
                 value={metric}
                 onChange={(event) => setMetric(event.target.value as MetricTargetMetric)}
               >
-                {METRICS.map(({ id, label }) => (
+                {METRICS.map(({ id, labelKey }) => (
                   <option key={id} value={id}>
-                    {label}
+                    {t(labelKey)}
                   </option>
                 ))}
               </select>
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-target-value">
-                Target
+                {t('InsightTargetsScreen.target')}
               </label>
               <input
                 id="tm-target-value"
@@ -134,7 +137,7 @@ export function InsightTargetsScreen({
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-target-period">
-                Period
+                {t('InsightTargetsScreen.period')}
               </label>
               <select
                 id="tm-target-period"
@@ -142,33 +145,40 @@ export function InsightTargetsScreen({
                 value={period}
                 onChange={(event) => setPeriod(event.target.value as MetricTargetPeriod)}
               >
-                {PERIODS.map(({ id, label }) => (
+                {PERIODS.map(({ id, labelKey }) => (
                   <option key={id} value={id}>
-                    {label}
+                    {t(labelKey)}
                   </option>
                 ))}
               </select>
             </div>
-            <Button type="submit" loading={save.isPending} loadingLabel="Saving the target">
-              Set target
+            <Button
+              type="submit"
+              loading={save.isPending}
+              loadingLabel={t('InsightTargetsScreen.savingTarget')}
+            >
+              {t('InsightTargetsScreen.setTarget')}
             </Button>
           </form>
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="Could not set the target" live>
+            <InlineAlert tone="danger" title={t('InsightTargetsScreen.setErrorTitle')} live>
               {describe(save.error)}
             </InlineAlert>
           ) : null}
 
           {status.isPending ? (
-            <LoadingRegion label="Loading target status." className="tm-stack tm-stack--tight">
+            <LoadingRegion
+              label={t('InsightTargetsScreen.loading')}
+              className="tm-stack tm-stack--tight"
+            >
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {status.isError ? (
-            <InlineAlert tone="danger" title="Could not load target status" live>
+            <InlineAlert tone="danger" title={t('InsightTargetsScreen.loadErrorTitle')} live>
               {describe(status.error)}
             </InlineAlert>
           ) : null}
@@ -181,35 +191,38 @@ export function InsightTargetsScreen({
 }
 
 function TargetStatusTable({ rows }: { rows: readonly MetricTargetStatusView[] }) {
+  const t = useT();
   if (rows.length === 0) {
-    return (
-      <p className="tm-prose">No targets set yet. Set one above to start measuring against it.</p>
-    );
+    return <p className="tm-prose">{t('InsightTargetsScreen.empty')}</p>;
   }
 
   return (
     <table className="tm-table">
-      <caption className="tm-visually-hidden">Metric targets and their current attainment</caption>
+      <caption className="tm-visually-hidden">{t('InsightTargetsScreen.tableCaption')}</caption>
       <thead>
         <tr>
-          <th scope="col">Metric</th>
-          <th scope="col">Current</th>
-          <th scope="col">Target</th>
-          <th scope="col">Period</th>
-          <th scope="col">Attainment</th>
-          <th scope="col">Status</th>
+          <th scope="col">{t('InsightTargetsScreen.colMetric')}</th>
+          <th scope="col">{t('InsightTargetsScreen.colCurrent')}</th>
+          <th scope="col">{t('InsightTargetsScreen.colTarget')}</th>
+          <th scope="col">{t('InsightTargetsScreen.colPeriod')}</th>
+          <th scope="col">{t('InsightTargetsScreen.colAttainment')}</th>
+          <th scope="col">{t('InsightTargetsScreen.colStatus')}</th>
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.metric}>
-            <th scope="row">{metricLabel(row.metric)}</th>
+            <th scope="row">{t(metricLabelKey(row.metric))}</th>
             <td className="tm-mono">{row.currentValue}</td>
             <td className="tm-mono">{row.targetValue}</td>
-            <td>{periodLabel(row.period)}</td>
+            <td>{t(periodLabelKey(row.period))}</td>
             <td className="tm-mono">{formatAttainment(row.attainment)}</td>
             <td>
-              <Badge mono>{row.status === 'on_track' ? 'On track' : 'Behind'}</Badge>
+              <Badge mono>
+                {row.status === 'on_track'
+                  ? t('InsightTargetsScreen.onTrack')
+                  : t('InsightTargetsScreen.behind')}
+              </Badge>
             </td>
           </tr>
         ))}
@@ -218,13 +231,13 @@ function TargetStatusTable({ rows }: { rows: readonly MetricTargetStatusView[] }
   );
 }
 
-/** Turn an ISO metric key into its display label; falls back to the key. */
-function metricLabel(metric: MetricTargetMetric): string {
-  return METRICS.find((m) => m.id === metric)?.label ?? metric;
+/** Turn an ISO metric key into its label message key; falls back to the open-items label. */
+function metricLabelKey(metric: MetricTargetMetric): MessageKey {
+  return METRICS.find((m) => m.id === metric)?.labelKey ?? METRICS[0]!.labelKey;
 }
 
-function periodLabel(period: MetricTargetPeriod): string {
-  return PERIODS.find((p) => p.id === period)?.label ?? period;
+function periodLabelKey(period: MetricTargetPeriod): MessageKey {
+  return PERIODS.find((p) => p.id === period)?.labelKey ?? PERIODS[0]!.labelKey;
 }
 
 /** A null attainment (zero target) shows as an em dash, never a divide error. */

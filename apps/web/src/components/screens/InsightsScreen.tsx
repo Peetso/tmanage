@@ -26,6 +26,8 @@ import { fetchInsightsPortfolio } from '../../lib/api/insights-portfolio';
 import type { InsightsWorkloadView } from '../../lib/api/insights-workload';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightsScreenProps {
   organizationSlug: string;
@@ -62,6 +64,7 @@ export function InsightsScreen({
   client,
 }: InsightsScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const deliveryFlow = useQuery({
     queryKey: ['insights-delivery-flow', organizationSlug, projectId],
@@ -101,39 +104,43 @@ export function InsightsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights · Project health"
-      title="Which promises are still true"
+      eyebrow={t('InsightsScreen.eyebrow')}
+      title={t('InsightsScreen.title')}
     >
       <div className="tm-ins">
         <InsightsTabs organizationSlug={organizationSlug} current="health" projectId={projectId} />
 
         {flow || cycle ? (
-          <InsightsMetrics label="Project headline figures">
+          <InsightsMetrics label={t('InsightsScreen.metricsLabel')}>
             {flow ? (
               <InsightsMetric
                 value={flow.counts.blocked}
-                badge={`of ${flow.itemCount}`}
+                badge={`${t('InsightsScreen.ofWord')} ${flow.itemCount}`}
                 badgeTone={flow.counts.blocked > 0 ? 'danger' : 'quiet'}
-                label="work items blocked in this project"
-                note={flow.counts.blocked > 0 ? 'each one holds the plan' : 'nothing is blocked'}
+                label={t('InsightsScreen.metricBlockedLabel')}
+                note={
+                  flow.counts.blocked > 0
+                    ? t('InsightsScreen.eachHoldsPlan')
+                    : t('InsightsScreen.nothingBlocked')
+                }
               />
             ) : null}
             {cycle ? (
               <InsightsMetric
                 value={cycle.metrics.changes_requested.count}
-                badge={`of ${cycle.approvalCount}`}
+                badge={`${t('InsightsScreen.ofWord')} ${cycle.approvalCount}`}
                 badgeTone={cycle.metrics.changes_requested.count > 0 ? 'warning' : 'quiet'}
-                label="approvals sent back for changes"
-                note={`${cycle.metrics.invalidated.count} invalidated by a new version`}
+                label={t('InsightsScreen.metricChangesLabel')}
+                note={`${cycle.metrics.invalidated.count} ${t('InsightsScreen.invalidatedByNewVersion')}`}
               />
             ) : null}
             {flow ? (
               <InsightsMetric
                 value={open}
-                badge={`${flow.counts.done} done`}
+                badge={`${flow.counts.done} ${t('InsightsScreen.doneWord')}`}
                 badgeTone="lime"
-                label="work items still open"
-                note={`${flow.counts.internal_review} in internal review`}
+                label={t('InsightsScreen.metricOpenLabel')}
+                note={`${flow.counts.internal_review} ${t('InsightsScreen.inInternalReview')}`}
               />
             ) : null}
           </InsightsMetrics>
@@ -150,14 +157,17 @@ export function InsightsScreen({
                 <div className="tm-ins-card__lead tm-stack tm-stack--tight">
                   <InsightsCardHead
                     id="tm-delivery-flow-heading"
-                    title="Delivery flow"
-                    units="Pulse track · items by status"
+                    title={t('InsightsScreen.deliveryFlowTitle')}
+                    units={t('InsightsScreen.deliveryFlowUnits')}
                   />
                   {flow ? <PulseTrack flow={flow} /> : null}
                 </div>
 
                 {deliveryFlow.isPending ? (
-                  <LoadingRegion label="Loading delivery flow." className="tm-ins-card__lead">
+                  <LoadingRegion
+                    label={t('InsightsScreen.loadingDeliveryFlow')}
+                    className="tm-ins-card__lead"
+                  >
                     <Skeleton height="var(--row)" />
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
@@ -165,7 +175,11 @@ export function InsightsScreen({
 
                 {deliveryFlow.isError ? (
                   <div className="tm-ins-card__lead">
-                    <InlineAlert tone="danger" title="Could not load the delivery flow" live>
+                    <InlineAlert
+                      tone="danger"
+                      title={t('InsightsScreen.loadErrorDeliveryFlow')}
+                      live
+                    >
                       {describe(deliveryFlow.error)}
                     </InlineAlert>
                   </div>
@@ -178,13 +192,16 @@ export function InsightsScreen({
                 <div className="tm-ins-card__lead">
                   <InsightsCardHead
                     id="tm-approval-cycle-heading"
-                    title="Approval cycle"
-                    units="Requested → decided"
+                    title={t('InsightsScreen.approvalCycleTitle')}
+                    units={t('InsightsScreen.approvalCycleUnits')}
                   />
                 </div>
 
                 {approvalCycle.isPending ? (
-                  <LoadingRegion label="Loading approval cycle." className="tm-ins-card__lead">
+                  <LoadingRegion
+                    label={t('InsightsScreen.loadingApprovalCycle')}
+                    className="tm-ins-card__lead"
+                  >
                     <Skeleton height="var(--row)" />
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
@@ -192,7 +209,11 @@ export function InsightsScreen({
 
                 {approvalCycle.isError ? (
                   <div className="tm-ins-card__lead">
-                    <InlineAlert tone="danger" title="Could not load the approval cycle" live>
+                    <InlineAlert
+                      tone="danger"
+                      title={t('InsightsScreen.loadErrorApprovalCycle')}
+                      live
+                    >
                       {describe(approvalCycle.error)}
                     </InlineAlert>
                   </div>
@@ -205,13 +226,16 @@ export function InsightsScreen({
                 <div className="tm-ins-card__lead">
                   <InsightsCardHead
                     id="tm-workload-heading"
-                    title="Workload across projects"
-                    units="Open · scheduled · people"
+                    title={t('InsightsScreen.workloadTitle')}
+                    units={t('InsightsScreen.workloadUnits')}
                   />
                 </div>
 
                 {workload.isPending ? (
-                  <LoadingRegion label="Loading workload." className="tm-ins-card__lead">
+                  <LoadingRegion
+                    label={t('InsightsScreen.loadingWorkload')}
+                    className="tm-ins-card__lead"
+                  >
                     <Skeleton height="var(--row)" />
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
@@ -219,7 +243,7 @@ export function InsightsScreen({
 
                 {workload.isError ? (
                   <div className="tm-ins-card__lead">
-                    <InlineAlert tone="danger" title="Could not load the workload roll-up" live>
+                    <InlineAlert tone="danger" title={t('InsightsScreen.loadErrorWorkload')} live>
                       {describe(workload.error)}
                     </InlineAlert>
                   </div>
@@ -235,41 +259,34 @@ export function InsightsScreen({
             <>
               {flow ? (
                 <InsightsCard variant="callout">
-                  <p className="tm-ins-eyebrow">What would move this project</p>
-                  <p className="tm-ins-callout__title">{nextMove(flow)}</p>
-                  <p className="tm-ins-card__body">
-                    Everything downstream of a blocked item moves with it. Clearing the blocker
-                    moves the forecast; working faster around it does not.
-                  </p>
+                  <p className="tm-ins-eyebrow">{t('InsightsScreen.whatWouldMove')}</p>
+                  <p className="tm-ins-callout__title">{nextMove(flow, t)}</p>
+                  <p className="tm-ins-card__body">{t('InsightsScreen.whatWouldMoveBody')}</p>
                 </InsightsCard>
               ) : null}
               <InsightsCard>
-                <p className="tm-ins-eyebrow">How health is derived</p>
-                <p className="tm-ins-card__body">
-                  Health is the gap between the committed date and the current forecast, plus the
-                  decisions blocking it. Nothing is inferred from message volume, activity or hours
-                  logged.
-                </p>
+                <p className="tm-ins-eyebrow">{t('InsightsScreen.howHealthDerived')}</p>
+                <p className="tm-ins-card__body">{t('InsightsScreen.howHealthDerivedBody')}</p>
                 <ul className="tm-ins-legend">
                   <li>
                     <span className="tm-ins-pulse__seg" data-state="done" aria-hidden="true" />
-                    done
+                    {t('InsightsScreen.legendDone')}
                   </li>
                   <li>
                     <span className="tm-ins-pulse__seg" data-state="current" aria-hidden="true" />
-                    in progress or in review
+                    {t('InsightsScreen.legendCurrent')}
                   </li>
                   <li>
                     <span className="tm-ins-pulse__seg" aria-hidden="true" />
-                    still to do
+                    {t('InsightsScreen.legendTodo')}
                   </li>
                   <li>
                     <span className="tm-ins-pulse__seg" data-state="unknown" aria-hidden="true" />
-                    nothing to show yet
+                    {t('InsightsScreen.legendUnknown')}
                   </li>
                   <li>
                     <span className="tm-ins-pulse__edge" aria-hidden="true" />
-                    risk edge: blocked work
+                    {t('InsightsScreen.legendEdge')}
                   </li>
                 </ul>
               </InsightsCard>
@@ -291,13 +308,13 @@ const OPEN_STATES: readonly WorkItemState[] = [
 ];
 
 /** The callout's one sentence, read from the counts: blocked first, then review. */
-function nextMove(flow: DeliveryFlow): string {
+function nextMove(flow: DeliveryFlow, t: (key: MessageKey) => string): string {
   const { blocked, internal_review: review } = flow.counts;
   if (blocked > 0)
-    return `${blocked} blocked ${blocked === 1 ? 'item holds' : 'items hold'} the plan.`;
+    return `${blocked} ${t('InsightsScreen.blockedWord')} ${blocked === 1 ? t('InsightsScreen.itemHolds') : t('InsightsScreen.itemsHold')} ${t('InsightsScreen.thePlan')}`;
   if (review > 0)
-    return `${review} ${review === 1 ? 'item waits' : 'items wait'} on internal review.`;
-  return 'Nothing is blocked or waiting on review.';
+    return `${review} ${review === 1 ? t('InsightsScreen.itemWaits') : t('InsightsScreen.itemsWait')} ${t('InsightsScreen.onInternalReview')}`;
+  return t('InsightsScreen.nextMoveNone');
 }
 
 /**
@@ -332,92 +349,92 @@ function PulseTrack({ flow }: { flow: DeliveryFlow }) {
 }
 
 /** The workflow statuses in the order they are shown — the lifecycle order the state machine defines. */
-const STATUSES: readonly { id: WorkItemState; label: string }[] = [
-  { id: 'backlog', label: 'Backlog' },
-  { id: 'ready', label: 'Ready' },
-  { id: 'in_progress', label: 'In progress' },
-  { id: 'blocked', label: 'Blocked' },
-  { id: 'internal_review', label: 'Internal review' },
-  { id: 'done', label: 'Done' },
-  { id: 'archived', label: 'Archived' },
+const STATUSES: readonly { id: WorkItemState; labelKey: MessageKey }[] = [
+  { id: 'backlog', labelKey: 'InsightsScreen.statusBacklog' },
+  { id: 'ready', labelKey: 'InsightsScreen.statusReady' },
+  { id: 'in_progress', labelKey: 'InsightsScreen.statusInProgress' },
+  { id: 'blocked', labelKey: 'InsightsScreen.statusBlocked' },
+  { id: 'internal_review', labelKey: 'InsightsScreen.statusInternalReview' },
+  { id: 'done', labelKey: 'InsightsScreen.statusDone' },
+  { id: 'archived', labelKey: 'InsightsScreen.statusArchived' },
 ];
 
 function DeliveryFlowTable({ flow }: { flow: DeliveryFlow }) {
+  const t = useT();
   return (
     <>
       {flow.itemCount === 0 ? (
-        <p className="tm-ins-card__body tm-ins-card__lead">
-          No work items you can read in this project yet.
-        </p>
+        <p className="tm-ins-card__body tm-ins-card__lead">{t('InsightsScreen.deliveryEmpty')}</p>
       ) : null}
 
       <table className="tm-ins-table tm-ins-table--dense">
-        <caption className="tm-visually-hidden">Work items by workflow status</caption>
+        <caption className="tm-visually-hidden">{t('InsightsScreen.deliveryCaption')}</caption>
         <thead>
           <tr>
-            <th scope="col">Status</th>
+            <th scope="col">{t('InsightsScreen.colStatus')}</th>
             <th scope="col" className="tm-ins-table__num">
-              Items
+              {t('InsightsScreen.colItems')}
             </th>
           </tr>
         </thead>
         <tbody>
-          {STATUSES.map(({ id, label }) => (
+          {STATUSES.map(({ id, labelKey }) => (
             <tr key={id}>
-              <th scope="row">{label}</th>
+              <th scope="row">{t(labelKey)}</th>
               <td className="tm-ins-table__num">{flow.counts[id]}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr>
-            <th scope="row">Total</th>
+            <th scope="row">{t('InsightsScreen.total')}</th>
             <td className="tm-ins-table__num">{flow.itemCount}</td>
           </tr>
         </tfoot>
       </table>
 
-      <p className="tm-ins-card__foot">Computed {formatMoment(flow.computedAt)}.</p>
+      <p className="tm-ins-card__foot">
+        {t('InsightsScreen.computed')} {formatMoment(flow.computedAt)}.
+      </p>
     </>
   );
 }
 
 /** The outcomes in the order they are shown — the same order the API rolls them up in. */
-const OUTCOMES: readonly { id: ApprovalCycleOutcome; label: string }[] = [
-  { id: 'approved', label: 'Approved' },
-  { id: 'changes_requested', label: 'Changes requested' },
-  { id: 'invalidated', label: 'Invalidated' },
+const OUTCOMES: readonly { id: ApprovalCycleOutcome; labelKey: MessageKey }[] = [
+  { id: 'approved', labelKey: 'InsightsScreen.outcomeApproved' },
+  { id: 'changes_requested', labelKey: 'InsightsScreen.outcomeChangesRequested' },
+  { id: 'invalidated', labelKey: 'InsightsScreen.outcomeInvalidated' },
 ];
 
 function ApprovalCycleTable({ cycle }: { cycle: ApprovalCycle }) {
+  const t = useT();
   return (
     <>
       {cycle.approvalCount === 0 ? (
-        <p className="tm-ins-card__body tm-ins-card__lead">
-          No approvals have reached a decision in this project yet.
-        </p>
+        <p className="tm-ins-card__body tm-ins-card__lead">{t('InsightsScreen.approvalEmpty')}</p>
       ) : null}
 
       <table className="tm-ins-table tm-ins-table--dense">
-        <caption className="tm-visually-hidden">Approvals by terminal outcome</caption>
+        <caption className="tm-visually-hidden">{t('InsightsScreen.approvalCaption')}</caption>
         <thead>
           <tr>
-            <th scope="col">Outcome</th>
+            <th scope="col">{t('InsightsScreen.colOutcome')}</th>
             <th scope="col" className="tm-ins-table__num">
-              Approvals
+              {t('InsightsScreen.colApprovals')}
             </th>
             <th scope="col" className="tm-ins-table__num">
-              Decided
+              {t('InsightsScreen.colDecided')}
             </th>
             <th scope="col" className="tm-ins-table__num">
-              Mean time to decide
+              {t('InsightsScreen.colMeanTime')}
             </th>
           </tr>
         </thead>
         <tbody>
-          {OUTCOMES.map(({ id, label }) => (
+          {OUTCOMES.map(({ id, labelKey }) => (
             <tr key={id}>
-              <th scope="row">{label}</th>
+              <th scope="row">{t(labelKey)}</th>
               <td className="tm-ins-table__num">{cycle.metrics[id].count}</td>
               <td className="tm-ins-table__num">{cycle.metrics[id].decidedCount}</td>
               <td className="tm-ins-table__num">{formatMeanDuration(cycle.metrics[id])}</td>
@@ -426,7 +443,9 @@ function ApprovalCycleTable({ cycle }: { cycle: ApprovalCycle }) {
         </tbody>
       </table>
 
-      <p className="tm-ins-card__foot">Computed {formatMoment(cycle.computedAt)}.</p>
+      <p className="tm-ins-card__foot">
+        {t('InsightsScreen.computed')} {formatMoment(cycle.computedAt)}.
+      </p>
     </>
   );
 }
@@ -443,27 +462,26 @@ function WorkloadTable({
   workload: InsightsWorkloadView;
   names: ReadonlyMap<string, string>;
 }) {
+  const t = useT();
   return (
     <>
       {workload.totals.projectCount === 0 ? (
-        <p className="tm-ins-card__body tm-ins-card__lead">
-          No projects you can read have open work yet.
-        </p>
+        <p className="tm-ins-card__body tm-ins-card__lead">{t('InsightsScreen.workloadEmpty')}</p>
       ) : null}
 
       <table className="tm-ins-table tm-ins-table--dense">
-        <caption className="tm-visually-hidden">Open work by project</caption>
+        <caption className="tm-visually-hidden">{t('InsightsScreen.workloadCaption')}</caption>
         <thead>
           <tr>
-            <th scope="col">Project</th>
+            <th scope="col">{t('InsightsScreen.colProject')}</th>
             <th scope="col" className="tm-ins-table__num">
-              Open items
+              {t('InsightsScreen.colOpenItems')}
             </th>
             <th scope="col" className="tm-ins-table__num">
-              Scheduled
+              {t('InsightsScreen.colScheduled')}
             </th>
             <th scope="col" className="tm-ins-table__num">
-              People
+              {t('InsightsScreen.colPeople')}
             </th>
           </tr>
         </thead>
@@ -486,7 +504,9 @@ function WorkloadTable({
         </tbody>
         <tfoot>
           <tr>
-            <th scope="row">All projects ({workload.totals.projectCount})</th>
+            <th scope="row">
+              {t('InsightsScreen.allProjects')} ({workload.totals.projectCount})
+            </th>
             <td className="tm-ins-table__num">{workload.totals.openItemCount}</td>
             <td className="tm-ins-table__num">{workload.totals.scheduledItemCount}</td>
             <td className="tm-ins-table__num">{workload.totals.assigneeCount}</td>
@@ -494,7 +514,9 @@ function WorkloadTable({
         </tfoot>
       </table>
 
-      <p className="tm-ins-card__foot">Computed {formatMoment(workload.computedAt)}.</p>
+      <p className="tm-ins-card__foot">
+        {t('InsightsScreen.computed')} {formatMoment(workload.computedAt)}.
+      </p>
     </>
   );
 }

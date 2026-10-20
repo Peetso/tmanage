@@ -24,6 +24,8 @@ import type { InsightsPortfolio, InsightsPortfolioProject } from '../../lib/api/
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightsPortfolioScreenProps {
   organizationSlug: string;
@@ -58,6 +60,7 @@ export function InsightsPortfolioScreen({
 }: InsightsPortfolioScreenProps) {
   const api = client ?? browserApiClient();
   const isMobile = useIsMobile();
+  const t = useT();
 
   const portfolio = useQuery({
     queryKey: ['insights-portfolio', organizationSlug],
@@ -71,13 +74,16 @@ export function InsightsPortfolioScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights · Client delivery"
-      title="Where delivery is losing time"
+      eyebrow={t('InsightsPortfolioScreen.eyebrow')}
+      title={t('InsightsPortfolioScreen.title')}
       actions={
         <>
           {projectCount !== undefined ? (
             <span className="tm-ins-capsule">
-              {projectCount} {projectCount === 1 ? 'project' : 'projects'}
+              {projectCount}{' '}
+              {projectCount === 1
+                ? t('InsightsPortfolioScreen.nounProject')
+                : t('InsightsPortfolioScreen.nounProjects')}
             </span>
           ) : null}
           {headerActions}
@@ -94,7 +100,10 @@ export function InsightsPortfolioScreen({
         />
 
         {portfolio.isPending ? (
-          <LoadingRegion label="Loading portfolio." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('InsightsPortfolioScreen.loading')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="72px" />
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
@@ -102,7 +111,7 @@ export function InsightsPortfolioScreen({
         ) : null}
 
         {portfolio.isError ? (
-          <InlineAlert tone="danger" title="Could not load the portfolio" live>
+          <InlineAlert tone="danger" title={t('InsightsPortfolioScreen.loadErrorTitle')} live>
             {describe(portfolio.error)}
           </InlineAlert>
         ) : null}
@@ -133,10 +142,11 @@ function PortfolioReport({
   portfolio: InsightsPortfolio;
   organizationSlug: string;
 }) {
+  const t = useT();
   if (portfolio.projectCount === 0) {
     return (
       <InsightsCard>
-        <p className="tm-ins-card__body">No projects you can read have insights yet.</p>
+        <p className="tm-ins-card__body">{t('InsightsPortfolioScreen.empty')}</p>
       </InsightsCard>
     );
   }
@@ -164,37 +174,45 @@ function PortfolioReport({
 
   return (
     <>
-      <InsightsMetrics label="Portfolio headline figures">
+      <InsightsMetrics label={t('InsightsPortfolioScreen.metricsLabel')}>
         <InsightsMetric
           value={decided === 0 ? '—' : formatHours(decidedMs / decided)}
-          label="mean wait for an approval decision"
+          label={t('InsightsPortfolioScreen.metricMeanWaitLabel')}
           note={
             decided === 0
-              ? 'no approval has been decided yet'
-              : `${decided} ${decided === 1 ? 'approval' : 'approvals'} decided`
+              ? t('InsightsPortfolioScreen.noApprovalDecided')
+              : `${decided} ${
+                  decided === 1
+                    ? t('InsightsPortfolioScreen.approval')
+                    : t('InsightsPortfolioScreen.approvals')
+                } ${t('InsightsPortfolioScreen.decidedWord')}`
           }
         />
         <InsightsMetric
           value={blocked}
-          badge={`of ${items}`}
+          badge={`${t('InsightsPortfolioScreen.ofWord')} ${items}`}
           badgeTone={blocked > 0 ? 'danger' : 'quiet'}
-          label="work items blocked right now"
+          label={t('InsightsPortfolioScreen.metricBlockedLabel')}
           note={
             blocked > 0 && mostBlocked
-              ? `${mostBlocked.deliveryFlow.counts.blocked} in ${mostBlocked.name}`
-              : 'nothing is blocked'
+              ? `${mostBlocked.deliveryFlow.counts.blocked} ${t('InsightsPortfolioScreen.inWord')} ${mostBlocked.name}`
+              : t('InsightsPortfolioScreen.nothingBlocked')
           }
         />
         <InsightsMetric
           value={changes}
           {...(approvals > 0
             ? {
-                badge: `of ${approvals}`,
+                badge: `${t('InsightsPortfolioScreen.ofWord')} ${approvals}`,
                 badgeTone: (changes > 0 ? 'warning' : 'lime') as InsightsTone,
               }
             : {})}
-          label="approvals sent back for changes"
-          note={`across ${portfolio.projectCount} ${portfolio.projectCount === 1 ? 'project' : 'projects'}`}
+          label={t('InsightsPortfolioScreen.metricChangesLabel')}
+          note={`${t('InsightsPortfolioScreen.across')} ${portfolio.projectCount} ${
+            portfolio.projectCount === 1
+              ? t('InsightsPortfolioScreen.nounProject')
+              : t('InsightsPortfolioScreen.nounProjects')
+          }`}
         />
       </InsightsMetrics>
 
@@ -203,10 +221,10 @@ function PortfolioReport({
           <>
             <div className="tm-ins-section-head">
               <h2 id="tm-portfolio-heading" className="tm-ins-section-head__title">
-                Exceptions, not averages
+                {t('InsightsPortfolioScreen.exceptionsTitle')}
               </h2>
               <span className="tm-ins-section-head__aside">
-                every row opens the evidence that produced it
+                {t('InsightsPortfolioScreen.exceptionsAside')}
               </span>
             </div>
             <PortfolioTable portfolio={portfolio} organizationSlug={organizationSlug} />
@@ -217,14 +235,13 @@ function PortfolioReport({
             <InsightsCard labelledBy="tm-portfolio-stages">
               <InsightsCardHead
                 id="tm-portfolio-stages"
-                title="Where the work sits"
-                units="Items · all projects"
+                title={t('InsightsPortfolioScreen.whereWorkSits')}
+                units={t('InsightsPortfolioScreen.whereWorkSitsUnits')}
               />
               <StageBars projects={projects} />
             </InsightsCard>
-            <InsightsNote eyebrow="What this report will not do">
-              No per-person productivity score, no ranking of employees, no activity surveillance.
-              Capacity is reported at team level with commitments, not output counts.
+            <InsightsNote eyebrow={t('InsightsPortfolioScreen.noteEyebrow')}>
+              {t('InsightsPortfolioScreen.noteBody')}
             </InsightsNote>
           </>
         }
@@ -240,21 +257,24 @@ function PortfolioTable({
   portfolio: InsightsPortfolio;
   organizationSlug: string;
 }) {
+  const t = useT();
   return (
-    <InsightsCard variant="table" label="Portfolio">
+    <InsightsCard variant="table" label={t('InsightsPortfolioScreen.tableLabel')}>
       <table className="tm-ins-table">
-        <caption className="tm-visually-hidden">Projects by headline insight figures</caption>
+        <caption className="tm-visually-hidden">
+          {t('InsightsPortfolioScreen.tableCaption')}
+        </caption>
         <thead>
           <tr>
-            <th scope="col">Project</th>
+            <th scope="col">{t('InsightsPortfolioScreen.colProject')}</th>
             <th scope="col" className="tm-ins-table__num">
-              Work items
+              {t('InsightsPortfolioScreen.colWorkItems')}
             </th>
             <th scope="col" className="tm-ins-table__num">
-              Blocked
+              {t('InsightsPortfolioScreen.colBlocked')}
             </th>
             <th scope="col" className="tm-ins-table__num">
-              Changes requested
+              {t('InsightsPortfolioScreen.colChanges')}
             </th>
           </tr>
         </thead>
@@ -268,7 +288,9 @@ function PortfolioTable({
           ))}
         </tbody>
       </table>
-      <p className="tm-ins-card__foot">Computed {formatMoment(portfolio.computedAt)}.</p>
+      <p className="tm-ins-card__foot">
+        {t('InsightsPortfolioScreen.computed')} {formatMoment(portfolio.computedAt)}.
+      </p>
     </InsightsCard>
   );
 }
@@ -301,17 +323,18 @@ function PortfolioRow({
   );
 }
 
-const STAGES: readonly { id: WorkItemState; label: string }[] = [
-  { id: 'backlog', label: 'Backlog' },
-  { id: 'ready', label: 'Ready' },
-  { id: 'in_progress', label: 'In progress' },
-  { id: 'blocked', label: 'Blocked' },
-  { id: 'internal_review', label: 'Internal review' },
-  { id: 'done', label: 'Done' },
+const STAGES: readonly { id: WorkItemState; labelKey: MessageKey }[] = [
+  { id: 'backlog', labelKey: 'InsightsPortfolioScreen.stageBacklog' },
+  { id: 'ready', labelKey: 'InsightsPortfolioScreen.stageReady' },
+  { id: 'in_progress', labelKey: 'InsightsPortfolioScreen.stageInProgress' },
+  { id: 'blocked', labelKey: 'InsightsPortfolioScreen.stageBlocked' },
+  { id: 'internal_review', labelKey: 'InsightsPortfolioScreen.stageInternalReview' },
+  { id: 'done', labelKey: 'InsightsPortfolioScreen.stageDone' },
 ];
 
 /** INS-01's stage bars, summed across the roll-up. The open stage holding the most is lime. */
 function StageBars({ projects }: { projects: readonly InsightsPortfolioProject[] }) {
+  const t = useT();
   const totals = STAGES.map((stage) => ({
     ...stage,
     value: sum(projects, (p) => p.deliveryFlow.counts[stage.id]),
@@ -324,7 +347,7 @@ function StageBars({ projects }: { projects: readonly InsightsPortfolioProject[]
   const openTotal = sum(open, (stage) => stage.value);
   const bars: InsightsBar[] = totals.map((stage) => ({
     key: stage.id,
-    label: stage.label,
+    label: t(stage.labelKey),
     value: stage.value,
     tone: stage.id === heaviest?.id ? 'lime' : 'ink',
     emphasis: stage.id === heaviest?.id,
@@ -332,11 +355,11 @@ function StageBars({ projects }: { projects: readonly InsightsPortfolioProject[]
 
   return (
     <>
-      <InsightsBars bars={bars} label="Work items by stage across projects" />
+      <InsightsBars bars={bars} label={t('InsightsPortfolioScreen.stageBarsLabel')} />
       <p className="tm-ins-card__body">
         {heaviest
-          ? `${heaviest.label} holds the most open work: ${heaviest.value} of ${openTotal} open items.`
-          : 'No open work across your projects.'}
+          ? `${t(heaviest.labelKey)} ${t('InsightsPortfolioScreen.holdsMostOpen')} ${heaviest.value} ${t('InsightsPortfolioScreen.ofWord')} ${openTotal} ${t('InsightsPortfolioScreen.openItems')}`
+          : t('InsightsPortfolioScreen.noOpenWork')}
       </p>
     </>
   );

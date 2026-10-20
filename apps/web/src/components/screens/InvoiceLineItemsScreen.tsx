@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listInvoiceLines } from '../../lib/api/invoice-line-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface InvoiceLineItemsScreenProps {
@@ -39,6 +40,7 @@ export function InvoiceLineItemsScreen({
   client,
 }: InvoiceLineItemsScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const lines = useQuery({
     queryKey: ['billing-invoice-lines', organizationSlug, invoiceId],
@@ -52,13 +54,16 @@ export function InvoiceLineItemsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing · Invoices"
-      title="Invoice line items"
-      description="The line breakdown for this invoice, reconciled to its total."
+      eyebrow={t('InvoiceLineItemsScreen.eyebrow')}
+      title={t('InvoiceLineItemsScreen.title')}
+      description={t('InvoiceLineItemsScreen.description')}
     >
       <div className="tm-bil">
         {lines.isPending ? (
-          <LoadingRegion label="Loading line items." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('InvoiceLineItemsScreen.loading')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
@@ -66,7 +71,7 @@ export function InvoiceLineItemsScreen({
         ) : null}
 
         {lines.isError ? (
-          <InlineAlert tone="danger" title="Could not load line items" live>
+          <InlineAlert tone="danger" title={t('InvoiceLineItemsScreen.loadErrorTitle')} live>
             {describe(lines.error)}
           </InlineAlert>
         ) : null}
@@ -75,21 +80,23 @@ export function InvoiceLineItemsScreen({
           <section className="tm-panel tm-stack" aria-labelledby="tm-invoice-lines-heading">
             <div className="tm-row tm-row--wrap">
               <h2 id="tm-invoice-lines-heading" className="tm-eyebrow">
-                Line items
+                {t('InvoiceLineItemsScreen.heading')}
               </h2>
               <StatusDot tone={data.reconciled ? 'success' : 'warning'}>
-                {data.reconciled ? 'Reconciled' : 'Does not reconcile'}
+                {data.reconciled
+                  ? t('InvoiceLineItemsScreen.reconciled')
+                  : t('InvoiceLineItemsScreen.doesNotReconcile')}
               </StatusDot>
             </div>
 
             {data.lineItems.length > 0 ? (
-              <table className="tm-table" aria-label="Invoice line items">
+              <table className="tm-table" aria-label={t('InvoiceLineItemsScreen.tableLabel')}>
                 <thead>
                   <tr>
-                    <th scope="col">Description</th>
-                    <th scope="col">Qty</th>
-                    <th scope="col">Unit</th>
-                    <th scope="col">Amount</th>
+                    <th scope="col">{t('InvoiceLineItemsScreen.colDescription')}</th>
+                    <th scope="col">{t('InvoiceLineItemsScreen.colQty')}</th>
+                    <th scope="col">{t('InvoiceLineItemsScreen.colUnit')}</th>
+                    <th scope="col">{t('InvoiceLineItemsScreen.colAmount')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -107,13 +114,13 @@ export function InvoiceLineItemsScreen({
                 <tfoot>
                   <tr>
                     <th scope="row" colSpan={3}>
-                      Lines total
+                      {t('InvoiceLineItemsScreen.linesTotal')}
                     </th>
                     <td className="tm-mono">{formatMoney(data.lineTotalCents, data.currency)}</td>
                   </tr>
                   <tr>
                     <th scope="row" colSpan={3}>
-                      Invoice total
+                      {t('InvoiceLineItemsScreen.invoiceTotal')}
                     </th>
                     <td className="tm-mono">
                       {formatMoney(data.invoiceTotalCents, data.currency)}
@@ -122,7 +129,7 @@ export function InvoiceLineItemsScreen({
                 </tfoot>
               </table>
             ) : (
-              <InlineAlert tone="neutral">This invoice has no line-item breakdown.</InlineAlert>
+              <InlineAlert tone="neutral">{t('InvoiceLineItemsScreen.empty')}</InlineAlert>
             )}
           </section>
         ) : null}

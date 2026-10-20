@@ -14,6 +14,7 @@ import {
 } from '../../lib/api/integration-directory';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   appState,
   describeApp,
@@ -51,6 +52,7 @@ export function IntegrationDirectoryScreen({
 }: IntegrationDirectoryScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const apps = useQuery({
     queryKey: ['integration-apps', organizationSlug],
@@ -92,23 +94,23 @@ export function IntegrationDirectoryScreen({
   const canConnect = activeApp !== null && label.trim() !== '' && !connect.isPending;
   const loaded = !apps.isPending && !apps.isError;
 
-  const title = loaded ? directoryTitle(rows) : 'Integrations';
+  const title = loaded ? directoryTitle(rows) : t('IntegrationDirectoryScreen.titleFallback');
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Integrations"
+      eyebrow={t('IntegrationDirectoryScreen.eyebrow')}
       title={title}
-      description="TManage stays the record. Integrations bring information in or copy it out; they never become the place a decision lives."
+      description={t('IntegrationDirectoryScreen.description')}
       actions={
         <>
           <Link href={`/${organizationSlug}/admin/audit`} className="tm-aut-btn">
-            Audit access
+            {t('IntegrationDirectoryScreen.auditAccess')}
           </Link>
           <a href="#tm-connect" className="tm-aut-btn tm-aut-btn--ink">
-            Connect a tool
+            {t('IntegrationDirectoryScreen.connectATool')}
           </a>
         </>
       }
@@ -116,12 +118,18 @@ export function IntegrationDirectoryScreen({
       <div className="tm-aut">
         {loaded ? (
           <fieldset className="tm-aut-filters tm-aut-filters--end">
-            <legend className="tm-visually-hidden">Show</legend>
+            <legend className="tm-visually-hidden">{t('IntegrationDirectoryScreen.show')}</legend>
             {(
               [
-                ['all', `All · ${rows.length}`],
-                ['connected', `Connected · ${connectedApps.length}`],
-                ['available', `Available · ${availableApps.length}`],
+                ['all', `${t('IntegrationDirectoryScreen.filterAll')} · ${rows.length}`],
+                [
+                  'connected',
+                  `${t('IntegrationDirectoryScreen.filterConnected')} · ${connectedApps.length}`,
+                ],
+                [
+                  'available',
+                  `${t('IntegrationDirectoryScreen.filterAvailable')} · ${availableApps.length}`,
+                ],
               ] as const
             ).map(([value, text]) => (
               <button
@@ -138,13 +146,13 @@ export function IntegrationDirectoryScreen({
         ) : null}
 
         {apps.isError ? (
-          <InlineAlert tone="danger" title="Could not load the app directory" live>
+          <InlineAlert tone="danger" title={t('IntegrationDirectoryScreen.loadErrorTitle')} live>
             {describeError(apps.error)}
           </InlineAlert>
         ) : null}
 
         {apps.isPending ? (
-          <LoadingRegion label="Loading the app directory.">
+          <LoadingRegion label={t('IntegrationDirectoryScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -153,9 +161,9 @@ export function IntegrationDirectoryScreen({
         {loaded && filter !== 'available' && connectedApps.length > 0 ? (
           <section aria-labelledby="tm-apps-connected-heading" className="tm-aut-col">
             <h2 id="tm-apps-connected-heading" className="tm-visually-hidden">
-              Connected
+              {t('IntegrationDirectoryScreen.connected')}
             </h2>
-            <ul className="tm-aut-tools" aria-label="Connected apps">
+            <ul className="tm-aut-tools" aria-label={t('IntegrationDirectoryScreen.connectedApps')}>
               {connectedApps.map((app) => {
                 const live = appState(app) === 'live';
                 return (
@@ -167,17 +175,25 @@ export function IntegrationDirectoryScreen({
                       <span
                         className={`tm-aut-state ${live ? 'tm-aut-state--live' : 'tm-aut-state--warning'}`}
                       >
-                        {live ? 'Connected' : 'Pending'}
+                        {live
+                          ? t('IntegrationDirectoryScreen.stateConnected')
+                          : t('IntegrationDirectoryScreen.statePending')}
                       </span>
                     </div>
                     <h3 className="tm-aut-tool__name">{app.name}</h3>
                     <p className="tm-aut-tool__body">{describeApp(app)}</p>
-                    <ul className="tm-aut-tool__foot" aria-label={`${app.name} connections`}>
+                    <ul
+                      className="tm-aut-tool__foot"
+                      aria-label={`${app.name} ${t('IntegrationDirectoryScreen.connectionsSuffix')}`}
+                    >
                       {app.connections.map((connection) => (
                         <li key={connection.id} className="tm-aut-tool__conn">
                           <span className="tm-aut-mono">{connection.label}</span>
                           <span className="tm-aut-mono">
-                            <span className="tm-visually-hidden">{connection.status}, added </span>
+                            <span className="tm-visually-hidden">
+                              {connection.status}
+                              {t('IntegrationDirectoryScreen.commaAdded')}
+                            </span>
                             {relativeAgo(connection.createdAt)}
                           </span>
                         </li>
@@ -194,15 +210,20 @@ export function IntegrationDirectoryScreen({
           <section className="tm-aut-col" aria-labelledby="tm-apps-heading">
             <div className="tm-aut-section-head">
               <h2 id="tm-apps-heading" className="tm-aut-section-head__title">
-                {filter === 'connected' ? 'Connected' : 'Available'}
+                {filter === 'connected'
+                  ? t('IntegrationDirectoryScreen.connected')
+                  : t('IntegrationDirectoryScreen.available')}
               </h2>
               <span className="tm-aut-section-head__meta">
-                connecting one always shows what it may do first
+                {t('IntegrationDirectoryScreen.sectionMeta')}
               </span>
             </div>
 
             {!apps.isPending ? (
-              <ul className="tm-aut-list" aria-label="Apps in the directory">
+              <ul
+                className="tm-aut-list"
+                aria-label={t('IntegrationDirectoryScreen.appsInDirectory')}
+              >
                 {(filter === 'connected' ? connectedApps : availableApps).map((app) => (
                   <li key={app.id}>
                     <span className="tm-aut-glyph tm-aut-glyph--small" aria-hidden="true">
@@ -213,7 +234,11 @@ export function IntegrationDirectoryScreen({
                       <span className="tm-aut-rowsub">
                         {describeAppLine(app)}
                         {app.connections.length > 0
-                          ? ` · ${app.connections.length} connection${app.connections.length === 1 ? '' : 's'}`
+                          ? ` · ${app.connections.length} ${
+                              app.connections.length === 1
+                                ? t('IntegrationDirectoryScreen.connectionSingular')
+                                : t('IntegrationDirectoryScreen.connectionPlural')
+                            }`
                           : ''}
                       </span>
                     </div>
@@ -221,10 +246,10 @@ export function IntegrationDirectoryScreen({
                       <a
                         href="#tm-connect"
                         className="tm-aut-btn"
-                        aria-label={`Connect ${app.name}`}
+                        aria-label={`${t('IntegrationDirectoryScreen.connectVerb')} ${app.name}`}
                         onClick={() => setActiveAppId(app.id)}
                       >
-                        Connect
+                        {t('IntegrationDirectoryScreen.connect')}
                       </a>
                     </div>
                   </li>
@@ -234,9 +259,9 @@ export function IntegrationDirectoryScreen({
                     {'{ }'}
                   </span>
                   <div className="tm-aut-list__main">
-                    <h3 className="tm-aut-rowtitle">Webhooks</h3>
+                    <h3 className="tm-aut-rowtitle">{t('IntegrationDirectoryScreen.webhooks')}</h3>
                     <span className="tm-aut-rowsub">
-                      send automation events to an https endpoint you own
+                      {t('IntegrationDirectoryScreen.webhooksSub')}
                     </span>
                   </div>
                   <div className="tm-aut-list__end">
@@ -244,7 +269,7 @@ export function IntegrationDirectoryScreen({
                       href={`/${organizationSlug}/admin/automations/webhooks`}
                       className="tm-aut-btn"
                     >
-                      Manage
+                      {t('IntegrationDirectoryScreen.manage')}
                     </Link>
                   </div>
                 </li>
@@ -253,9 +278,11 @@ export function IntegrationDirectoryScreen({
                     ✦
                   </span>
                   <div className="tm-aut-list__main">
-                    <h3 className="tm-aut-rowtitle">AI assistant</h3>
+                    <h3 className="tm-aut-rowtitle">
+                      {t('IntegrationDirectoryScreen.aiAssistant')}
+                    </h3>
                     <span className="tm-aut-rowsub">
-                      connect Claude, ChatGPT or another MCP assistant to your work
+                      {t('IntegrationDirectoryScreen.aiAssistantSub')}
                     </span>
                   </div>
                   <div className="tm-aut-list__end">
@@ -263,7 +290,7 @@ export function IntegrationDirectoryScreen({
                       href={`/${organizationSlug}/settings/ai-assistant`}
                       className="tm-aut-btn"
                     >
-                      Set up
+                      {t('IntegrationDirectoryScreen.setUp')}
                     </Link>
                   </div>
                 </li>
@@ -276,22 +303,23 @@ export function IntegrationDirectoryScreen({
             className="tm-aut-card tm-card--ink"
             aria-labelledby="tm-connect-heading"
           >
-            <p className="tm-aut-eyebrow">The rule for every integration</p>
+            <p className="tm-aut-eyebrow">{t('IntegrationDirectoryScreen.ruleEyebrow')}</p>
             <h2 id="tm-connect-heading" className="tm-aut-card__title">
-              If it leaves TManage, a person chose to send it
+              {t('IntegrationDirectoryScreen.ruleTitle')}
             </h2>
             <ul className="tm-aut-facts">
-              <li>Secrets are never stored here: only a label and non-secret settings.</li>
-              <li>
-                Live credential exchange is set up separately, after the connection is recorded.
-              </li>
-              <li>Every connection records who added it.</li>
+              <li>{t('IntegrationDirectoryScreen.fact1')}</li>
+              <li>{t('IntegrationDirectoryScreen.fact2')}</li>
+              <li>{t('IntegrationDirectoryScreen.fact3')}</li>
             </ul>
 
             {connected ? (
-              <InlineAlert tone="success" title="Connection recorded" live>
-                &ldquo;{connected.label}&rdquo; was connected. Live credential exchange is set up
-                separately.
+              <InlineAlert
+                tone="success"
+                title={t('IntegrationDirectoryScreen.connectionRecorded')}
+                live
+              >
+                &ldquo;{connected.label}&rdquo; {t('IntegrationDirectoryScreen.wasConnected')}
               </InlineAlert>
             ) : null}
 
@@ -306,7 +334,7 @@ export function IntegrationDirectoryScreen({
               >
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-app-select">
-                    App
+                    {t('IntegrationDirectoryScreen.appLabel')}
                   </label>
                   <select
                     id="tm-app-select"
@@ -314,7 +342,7 @@ export function IntegrationDirectoryScreen({
                     value={activeAppId}
                     onChange={(event) => setActiveAppId(event.target.value)}
                   >
-                    <option value="">Choose an app…</option>
+                    <option value="">{t('IntegrationDirectoryScreen.chooseAnApp')}</option>
                     {rows.map((app) => (
                       <option key={app.id} value={app.id}>
                         {app.name}
@@ -324,25 +352,27 @@ export function IntegrationDirectoryScreen({
                 </div>
 
                 <Field
-                  label="Connection label"
+                  label={t('IntegrationDirectoryScreen.connectionLabel')}
                   name="label"
                   value={label}
                   onChange={(event) => setLabel(event.target.value)}
-                  hint="A short handle, such as Ops workspace."
+                  hint={t('IntegrationDirectoryScreen.connectionLabelHint')}
                   required
                 />
 
                 <fieldset className="tm-aut-pair tm-fieldset">
-                  <legend className="tm-field__label">Optional setting (non-secret)</legend>
+                  <legend className="tm-field__label">
+                    {t('IntegrationDirectoryScreen.optionalSetting')}
+                  </legend>
                   <Field
-                    label="Setting name"
+                    label={t('IntegrationDirectoryScreen.settingName')}
                     name="setting-key"
                     value={settingKey}
                     onChange={(event) => setSettingKey(event.target.value)}
-                    hint="For example, channel or repo. Never a token or password."
+                    hint={t('IntegrationDirectoryScreen.settingNameHint')}
                   />
                   <Field
-                    label="Setting value"
+                    label={t('IntegrationDirectoryScreen.settingValue')}
                     name="setting-value"
                     value={settingValue}
                     onChange={(event) => setSettingValue(event.target.value)}
@@ -350,7 +380,11 @@ export function IntegrationDirectoryScreen({
                 </fieldset>
 
                 {connect.isError ? (
-                  <InlineAlert tone="danger" title="Could not connect the app" live>
+                  <InlineAlert
+                    tone="danger"
+                    title={t('IntegrationDirectoryScreen.connectErrorTitle')}
+                    live
+                  >
                     {describeError(connect.error)}
                   </InlineAlert>
                 ) : null}
@@ -361,10 +395,10 @@ export function IntegrationDirectoryScreen({
                     tone="lime"
                     size="accessible"
                     loading={connect.isPending}
-                    loadingLabel="Connecting"
+                    loadingLabel={t('IntegrationDirectoryScreen.connecting')}
                     disabled={!canConnect}
                   >
-                    Connect app
+                    {t('IntegrationDirectoryScreen.connectApp')}
                   </Button>
                 </div>
               </form>

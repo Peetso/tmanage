@@ -15,6 +15,8 @@ import { fetchWorkloadForecast } from '../../lib/api/workload-forecast';
 import type { WorkloadForecastView, WorkloadForecastWeek } from '../../lib/api/workload-forecast';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightsForecastScreenProps {
   organizationSlug: string;
@@ -42,6 +44,7 @@ export function InsightsForecastScreen({
   client,
 }: InsightsForecastScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const forecast = useQuery({
     queryKey: ['insights-workload-forecast', organizationSlug],
@@ -55,23 +58,30 @@ export function InsightsForecastScreen({
       activeNavigationId="insights"
       eyebrow={
         forecast.data
-          ? `Insights · Workload · ${forecast.data.totals.weeks} weeks · ${forecast.data.totals.memberCount} ${forecast.data.totals.memberCount === 1 ? 'member' : 'members'}`
-          : 'Insights · Workload'
+          ? `${t('InsightsForecastScreen.eyebrow')} · ${forecast.data.totals.weeks} ${t('InsightsForecastScreen.nounWeeks')} · ${forecast.data.totals.memberCount} ${
+              forecast.data.totals.memberCount === 1
+                ? t('InsightsForecastScreen.nounMember')
+                : t('InsightsForecastScreen.nounMembers')
+            }`
+          : t('InsightsForecastScreen.eyebrow')
       }
-      title="What we have promised for the coming weeks"
+      title={t('InsightsForecastScreen.title')}
     >
       <div className="tm-ins">
         <InsightsTabs organizationSlug={organizationSlug} current="workload" />
 
         {forecast.isPending ? (
-          <LoadingRegion label="Loading workload forecast." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('InsightsForecastScreen.loading')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {forecast.isError ? (
-          <InlineAlert tone="danger" title="Could not load the workload forecast" live>
+          <InlineAlert tone="danger" title={t('InsightsForecastScreen.loadErrorTitle')} live>
             {describe(forecast.error)}
           </InlineAlert>
         ) : null}
@@ -83,6 +93,7 @@ export function InsightsForecastScreen({
 }
 
 function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
+  const t = useT();
   const { totals } = forecast;
   // With no one carrying open work the capacity basis is zero, which would otherwise flag every week
   // as "over" and alarm the reader for no reason (BIL-05). When that is the case we stop drawing the
@@ -95,8 +106,8 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
       <InsightsCard labelledBy="tm-forecast-capacity-heading">
         <InsightsCardHead
           id="tm-forecast-capacity-heading"
-          title="Committed work against capacity"
-          units="Team level · committed items, not hours logged"
+          title={t('InsightsForecastScreen.capacityHeadTitle')}
+          units={t('InsightsForecastScreen.capacityHeadUnits')}
         />
         <ul className="tm-ins-capacity" aria-hidden="true">
           {forecast.weeks.map((week) => (
@@ -106,15 +117,21 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
         <p className="tm-ins-card__body">
           {capacityKnown ? (
             <>
-              A slot is one committed work item with a date. Capacity is a constant{' '}
-              {perMemberCapacity(totals)} {perMemberCapacity(totals) === 1 ? 'item' : 'items'} per
-              member per week across {count(totals.memberCount, 'member')} carrying open work.
+              {t('InsightsForecastScreen.slotIntro')} {perMemberCapacity(totals)}{' '}
+              {perMemberCapacity(totals) === 1
+                ? t('InsightsForecastScreen.nounItem')
+                : t('InsightsForecastScreen.nounItems')}{' '}
+              {t('InsightsForecastScreen.perMemberPerWeekAcross')}{' '}
+              {count(
+                totals.memberCount,
+                t,
+                'InsightsForecastScreen.nounMember',
+                'InsightsForecastScreen.nounMembers',
+              )}{' '}
+              {t('InsightsForecastScreen.carryingOpenWork')}
             </>
           ) : (
-            <>
-              A slot is one committed work item with a date. No weekly capacity is set yet, so we
-              show committed work only and do not call any week over capacity.
-            </>
+            <>{t('InsightsForecastScreen.noCapacityBody')}</>
           )}
         </p>
       </InsightsCard>
@@ -125,13 +142,13 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
             <div className="tm-ins-card__lead">
               <InsightsCardHead
                 id="tm-forecast-heading"
-                title="Across projects"
-                units="Week · committed · capacity"
+                title={t('InsightsForecastScreen.acrossProjects')}
+                units={t('InsightsForecastScreen.acrossProjectsUnits')}
               />
             </div>
             {totals.committedItemCount === 0 ? (
               <p className="tm-ins-card__body tm-ins-card__lead">
-                No committed, dated work in the forecast window yet.
+                {t('InsightsForecastScreen.noCommittedWork')}
               </p>
             ) : null}
             <table
@@ -139,19 +156,19 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
               aria-labelledby="tm-forecast-heading"
             >
               <caption className="tm-visually-hidden">
-                Committed work by upcoming week against capacity
+                {t('InsightsForecastScreen.tableCaption')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Week</th>
-                  <th scope="col">Starting</th>
+                  <th scope="col">{t('InsightsForecastScreen.colWeek')}</th>
+                  <th scope="col">{t('InsightsForecastScreen.colStarting')}</th>
                   <th scope="col" className="tm-ins-table__num">
-                    Committed
+                    {t('InsightsForecastScreen.colCommitted')}
                   </th>
                   <th scope="col" className="tm-ins-table__num">
-                    Capacity
+                    {t('InsightsForecastScreen.colCapacity')}
                   </th>
-                  <th scope="col">Status</th>
+                  <th scope="col">{t('InsightsForecastScreen.colStatus')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -160,7 +177,9 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
                 ))}
               </tbody>
             </table>
-            <p className="tm-ins-card__foot">Computed {formatMoment(forecast.computedAt)}.</p>
+            <p className="tm-ins-card__foot">
+              {t('InsightsForecastScreen.computed')} {formatMoment(forecast.computedAt)}.
+            </p>
           </InsightsCard>
         }
         side={
@@ -168,43 +187,76 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
             <InsightsCard variant="callout">
               {capacityKnown ? (
                 <>
-                  <p className="tm-ins-eyebrow">The one thing to fix first</p>
+                  <p className="tm-ins-eyebrow">{t('InsightsForecastScreen.fixFirstEyebrow')}</p>
                   <p className="tm-ins-callout__title">
                     {firstOver
-                      ? `Week ${firstOver.weekIndex} carries ${count(
+                      ? `${t('InsightsForecastScreen.weekWord')} ${firstOver.weekIndex} ${t('InsightsForecastScreen.carries')} ${count(
                           firstOver.committedItemCount,
-                          'committed item',
-                        )} against ~${count(firstOver.capacity, 'slot')}.`
-                      : 'Every week in the window is within capacity.'}
+                          t,
+                          'InsightsForecastScreen.nounCommittedItem',
+                          'InsightsForecastScreen.nounCommittedItems',
+                        )} ${t('InsightsForecastScreen.against')} ~${count(
+                          firstOver.capacity,
+                          t,
+                          'InsightsForecastScreen.nounSlot',
+                          'InsightsForecastScreen.nounSlots',
+                        )}.`
+                      : t('InsightsForecastScreen.everyWeekWithin')}
                   </p>
                   <p className="tm-ins-card__body">
                     {totals.overCapacityWeekCount > 0
-                      ? `${totals.overCapacityWeekCount} of ${count(
+                      ? `${totals.overCapacityWeekCount} ${t('InsightsForecastScreen.ofWord')} ${count(
                           totals.weeks,
-                          'week',
-                        )} are over. Moving one date now is a conversation; moving it on the day is a missed commitment.`
-                      : `${count(totals.committedItemCount, 'committed item')} across ${count(
+                          t,
+                          'InsightsForecastScreen.nounWeek',
+                          'InsightsForecastScreen.nounWeeks',
+                        )} ${t('InsightsForecastScreen.areOverRest')}`
+                      : `${count(
+                          totals.committedItemCount,
+                          t,
+                          'InsightsForecastScreen.nounCommittedItem',
+                          'InsightsForecastScreen.nounCommittedItems',
+                        )} ${t('InsightsForecastScreen.across')} ${count(
                           totals.weeks,
-                          'week',
-                        )}, against ${count(totals.capacity, 'slot')}.`}
+                          t,
+                          'InsightsForecastScreen.nounWeek',
+                          'InsightsForecastScreen.nounWeeks',
+                        )}, ${t('InsightsForecastScreen.against')} ${count(
+                          totals.capacity,
+                          t,
+                          'InsightsForecastScreen.nounSlot',
+                          'InsightsForecastScreen.nounSlots',
+                        )}.`}
                   </p>
                 </>
               ) : (
                 <>
-                  <p className="tm-ins-eyebrow">Set a weekly capacity</p>
+                  <p className="tm-ins-eyebrow">{t('InsightsForecastScreen.setWeeklyCapacity')}</p>
                   <p className="tm-ins-callout__title">
-                    We cannot say which weeks are overloaded until a weekly capacity is set.
+                    {t('InsightsForecastScreen.cannotSayOverloaded')}
                   </p>
                   <p className="tm-ins-card__body">
-                    For now this shows {count(totals.committedItemCount, 'committed item')} across{' '}
-                    {count(totals.weeks, 'week')}, with no week called over capacity.
+                    {t('InsightsForecastScreen.forNowShows')}{' '}
+                    {count(
+                      totals.committedItemCount,
+                      t,
+                      'InsightsForecastScreen.nounCommittedItem',
+                      'InsightsForecastScreen.nounCommittedItems',
+                    )}{' '}
+                    {t('InsightsForecastScreen.across')}{' '}
+                    {count(
+                      totals.weeks,
+                      t,
+                      'InsightsForecastScreen.nounWeek',
+                      'InsightsForecastScreen.nounWeeks',
+                    )}
+                    , {t('InsightsForecastScreen.withNoWeekOver')}
                   </p>
                 </>
               )}
             </InsightsCard>
-            <InsightsNote eyebrow="Not a productivity view">
-              No hours tracked, no output counted, no person ranked. Capacity is what the team
-              promised against what it declared it could take.
+            <InsightsNote eyebrow={t('InsightsForecastScreen.noteEyebrow')}>
+              {t('InsightsForecastScreen.noteBody')}
             </InsightsNote>
           </>
         }
@@ -225,6 +277,7 @@ function CapacityRow({
   week: WorkloadForecastWeek;
   capacityKnown: boolean;
 }) {
+  const t = useT();
   const over = capacityKnown && week.overCapacity;
   const width =
     week.capacity === 0
@@ -233,26 +286,46 @@ function CapacityRow({
   return (
     <li className="tm-ins-capacity__row" data-over={over || undefined}>
       <span className="tm-ins-capacity__name">
-        Week {week.weekIndex}
-        <span className="tm-ins-capacity__sub">starting {formatDay(week.startsAt)}</span>
+        {t('InsightsForecastScreen.weekWord')} {week.weekIndex}
+        <span className="tm-ins-capacity__sub">
+          {t('InsightsForecastScreen.startingPrefix')} {formatDay(week.startsAt)}
+        </span>
       </span>
       <span className="tm-ins-capacity__track">
         <span className="tm-ins-capacity__fill" style={{ inlineSize: `${width}%` }} />
       </span>
       <span className="tm-ins-capacity__value">
         {capacityKnown
-          ? `${count(week.committedItemCount, 'item')} of ~${count(week.capacity, 'slot')}${over ? ' · over' : ''}`
-          : count(week.committedItemCount, 'item')}
+          ? `${count(
+              week.committedItemCount,
+              t,
+              'InsightsForecastScreen.nounItem',
+              'InsightsForecastScreen.nounItems',
+            )} ${t('InsightsForecastScreen.ofWord')} ~${count(
+              week.capacity,
+              t,
+              'InsightsForecastScreen.nounSlot',
+              'InsightsForecastScreen.nounSlots',
+            )}${over ? ` · ${t('InsightsForecastScreen.over')}` : ''}`
+          : count(
+              week.committedItemCount,
+              t,
+              'InsightsForecastScreen.nounItem',
+              'InsightsForecastScreen.nounItems',
+            )}
       </span>
     </li>
   );
 }
 
 function WeekRow({ week, capacityKnown }: { week: WorkloadForecastWeek; capacityKnown: boolean }) {
+  const t = useT();
   const over = capacityKnown && week.overCapacity;
   return (
     <tr data-tone={over ? 'danger' : 'quiet'}>
-      <th scope="row">Week {week.weekIndex}</th>
+      <th scope="row">
+        {t('InsightsForecastScreen.weekWord')} {week.weekIndex}
+      </th>
       <td>{formatDay(week.startsAt)}</td>
       <td className="tm-ins-table__num" {...(over ? { 'data-tone': 'danger' } : {})}>
         {week.committedItemCount}
@@ -260,16 +333,25 @@ function WeekRow({ week, capacityKnown }: { week: WorkloadForecastWeek; capacity
       <td className="tm-ins-table__num">{capacityKnown ? week.capacity : '—'}</td>
       <td>
         <span className="tm-ins-badge" data-tone={over ? 'danger' : 'quiet'}>
-          {!capacityKnown ? 'No capacity set' : over ? 'Over capacity' : 'Within capacity'}
+          {!capacityKnown
+            ? t('InsightsForecastScreen.noCapacitySet')
+            : over
+              ? t('InsightsForecastScreen.overCapacity')
+              : t('InsightsForecastScreen.withinCapacity')}
         </span>
       </td>
     </tr>
   );
 }
 
-/** "1 item" / "2 items" — a count then its noun, pluralised with a trailing "s". */
-function count(n: number, noun: string): string {
-  return `${n} ${noun}${n === 1 ? '' : 's'}`;
+/** "1 item" / "2 items" — a count then its noun, from singular/plural message keys. */
+function count(
+  n: number,
+  t: (key: MessageKey) => string,
+  singularKey: MessageKey,
+  pluralKey: MessageKey,
+): string {
+  return `${n} ${t(n === 1 ? singularKey : pluralKey)}`;
 }
 
 /** The per-member weekly capacity, recovered from the totals so the copy never hard-codes the constant. */

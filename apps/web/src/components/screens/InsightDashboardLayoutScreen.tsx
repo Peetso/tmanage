@@ -18,6 +18,8 @@ import type {
 } from '../../lib/api/insight-dashboard-layout';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightDashboardLayoutScreenProps {
   organizationSlug: string;
@@ -25,16 +27,16 @@ export interface InsightDashboardLayoutScreenProps {
   client?: ApiClient;
 }
 
-/** Human labels for the fixed insight metric tiles, keyed by the id the API validates against. */
-const METRIC_LABELS: Record<InsightMetricKey, string> = {
-  portfolio: 'Portfolio roll-up',
-  deliveryFlow: 'Delivery flow',
-  approvalCycle: 'Approval cycle',
-  workload: 'Workload',
-  workloadForecast: 'Workload forecast',
-  adoption: 'Adoption',
-  snapshots: 'Snapshots',
-  savedViews: 'Saved views',
+/** Message keys for the fixed insight metric tiles, keyed by the id the API validates against. */
+const METRIC_LABELS: Record<InsightMetricKey, MessageKey> = {
+  portfolio: 'InsightDashboardLayoutScreen.metricPortfolio',
+  deliveryFlow: 'InsightDashboardLayoutScreen.metricDeliveryFlow',
+  approvalCycle: 'InsightDashboardLayoutScreen.metricApprovalCycle',
+  workload: 'InsightDashboardLayoutScreen.metricWorkload',
+  workloadForecast: 'InsightDashboardLayoutScreen.metricWorkloadForecast',
+  adoption: 'InsightDashboardLayoutScreen.metricAdoption',
+  snapshots: 'InsightDashboardLayoutScreen.metricSnapshots',
+  savedViews: 'InsightDashboardLayoutScreen.metricSavedViews',
 };
 
 /**
@@ -73,6 +75,7 @@ export function InsightDashboardLayoutScreen({
 }: InsightDashboardLayoutScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const layout = useQuery({
     queryKey: ['insight-dashboard-layout', organizationSlug],
@@ -117,17 +120,17 @@ export function InsightDashboardLayoutScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Insights"
-      title="Customise insights dashboard"
-      description="Reorder or hide the metric tiles on your insights dashboard — saved to your account."
+      eyebrow={t('InsightDashboardLayoutScreen.eyebrow')}
+      title={t('InsightDashboardLayoutScreen.title')}
+      description={t('InsightDashboardLayoutScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         {layout.isPending ? (
-          <LoadingRegion label="Loading your dashboard layout">
+          <LoadingRegion label={t('InsightDashboardLayoutScreen.loading')}>
             <Skeleton />
           </LoadingRegion>
         ) : layout.isError ? (
-          <InlineAlert tone="danger" title="We could not load your dashboard layout">
+          <InlineAlert tone="danger" title={t('InsightDashboardLayoutScreen.loadErrorTitle')}>
             {errorMessage(layout.error)}
           </InlineAlert>
         ) : (
@@ -141,30 +144,30 @@ export function InsightDashboardLayoutScreen({
             }}
           >
             <h2 id="tm-insight-layout-heading" className="tm-eyebrow">
-              Metric tiles
+              {t('InsightDashboardLayoutScreen.metricTiles')}
             </h2>
 
-            <ul className="tm-stack" aria-label="Insight metric tiles">
+            <ul className="tm-stack" aria-label={t('InsightDashboardLayoutScreen.tilesListLabel')}>
               {tiles.map((tile, index) => (
                 <li className="tm-field tm-field--inline" key={tile.key}>
-                  <span className="tm-field__label">{METRIC_LABELS[tile.key]}</span>
+                  <span className="tm-field__label">{t(METRIC_LABELS[tile.key])}</span>
                   <Button
                     type="button"
                     tone="outline"
                     disabled={index === 0}
-                    aria-label={`Move ${METRIC_LABELS[tile.key]} up`}
+                    aria-label={`${t('InsightDashboardLayoutScreen.move')} ${t(METRIC_LABELS[tile.key])} ${t('InsightDashboardLayoutScreen.directionUp')}`}
                     onClick={() => move(index, -1)}
                   >
-                    Up
+                    {t('InsightDashboardLayoutScreen.up')}
                   </Button>
                   <Button
                     type="button"
                     tone="outline"
                     disabled={index === tiles.length - 1}
-                    aria-label={`Move ${METRIC_LABELS[tile.key]} down`}
+                    aria-label={`${t('InsightDashboardLayoutScreen.move')} ${t(METRIC_LABELS[tile.key])} ${t('InsightDashboardLayoutScreen.directionDown')}`}
                     onClick={() => move(index, 1)}
                   >
-                    Down
+                    {t('InsightDashboardLayoutScreen.down')}
                   </Button>
                   <input
                     id={`tm-insight-tile-visible-${tile.key}`}
@@ -177,27 +180,29 @@ export function InsightDashboardLayoutScreen({
                     className="tm-field__label"
                     htmlFor={`tm-insight-tile-visible-${tile.key}`}
                   >
-                    Show
+                    {t('InsightDashboardLayoutScreen.show')}
                   </label>
                 </li>
               ))}
             </ul>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="We could not save your dashboard layout">
+              <InlineAlert tone="danger" title={t('InsightDashboardLayoutScreen.saveErrorTitle')}>
                 {errorMessage(save.error)}
               </InlineAlert>
             ) : null}
 
             {saved && !save.isPending && !save.isError ? (
-              <InlineAlert tone="success" title="Saved">
-                Your insights dashboard layout has been saved.
+              <InlineAlert tone="success" title={t('InsightDashboardLayoutScreen.savedTitle')}>
+                {t('InsightDashboardLayoutScreen.savedBody')}
               </InlineAlert>
             ) : null}
 
             <div>
               <Button type="submit" disabled={save.isPending}>
-                {save.isPending ? 'Saving…' : 'Save layout'}
+                {save.isPending
+                  ? t('InsightDashboardLayoutScreen.saving')
+                  : t('InsightDashboardLayoutScreen.saveLayout')}
               </Button>
             </div>
           </form>

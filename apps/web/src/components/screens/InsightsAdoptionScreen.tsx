@@ -22,6 +22,8 @@ import type {
 } from '../../lib/api/insights-adoption';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightsAdoptionScreenProps {
   organizationSlug: string;
@@ -52,6 +54,7 @@ export function InsightsAdoptionScreen({
   client,
 }: InsightsAdoptionScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const adoption = useQuery({
     queryKey: ['insights-adoption', organizationSlug],
@@ -65,20 +68,20 @@ export function InsightsAdoptionScreen({
       activeNavigationId="insights"
       eyebrow={
         adoption.data
-          ? `Insights · Adoption and system quality · Workspace admin · ${windowLabel(
+          ? `${t('InsightsAdoptionScreen.eyebrow')} · ${windowLabel(
               adoption.data.computedAt,
               adoption.data.windowDays,
             )}`
-          : 'Insights · Adoption and system quality · Workspace admin'
+          : t('InsightsAdoptionScreen.eyebrow')
       }
-      title="Can we trust what this shows"
+      title={t('InsightsAdoptionScreen.title')}
       actions={
         <>
           <Link className="tm-button tm-button--outline" href={`/${organizationSlug}/settings`}>
-            Workspace
+            {t('InsightsAdoptionScreen.workspace')}
           </Link>
           <a className="tm-button tm-button--ink" href="#tm-adoption-gaps">
-            Fix data gaps
+            {t('InsightsAdoptionScreen.fixDataGaps')}
           </a>
         </>
       }
@@ -87,14 +90,17 @@ export function InsightsAdoptionScreen({
         <InsightsTabs organizationSlug={organizationSlug} current="adoption" />
 
         {adoption.isPending ? (
-          <LoadingRegion label="Loading adoption metrics." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('InsightsAdoptionScreen.loading')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {adoption.isError ? (
-          <InlineAlert tone="danger" title="Could not load the adoption metrics" live>
+          <InlineAlert tone="danger" title={t('InsightsAdoptionScreen.loadErrorTitle')} live>
             {describe(adoption.error)}
           </InlineAlert>
         ) : null}
@@ -110,19 +116,19 @@ export function InsightsAdoptionScreen({
 /** The window the screen asks for — the frame's "last 14 days". */
 const WINDOW_DAYS = 14;
 
-/** Each data gap's row copy: what is missing, and what it breaks. */
-const GAP_COPY: Readonly<Record<AdoptionGapId, { title: string; breaks: string }>> = {
+/** Each data gap's row copy keys: what is missing, and what it breaks. */
+const GAP_COPY: Readonly<Record<AdoptionGapId, { titleKey: MessageKey; breaksKey: MessageKey }>> = {
   chat_work_untriaged: {
-    title: 'Work created from chat without triage',
-    breaks: 'no owner, no date — absent from every forecast',
+    titleKey: 'InsightsAdoptionScreen.gapChatWorkTitle',
+    breaksKey: 'InsightsAdoptionScreen.gapChatWorkBreaks',
   },
   client_files_internal: {
-    title: 'Files shared with a client still marked internal',
-    breaks: 'nobody can tell internal from client visible',
+    titleKey: 'InsightsAdoptionScreen.gapClientFilesTitle',
+    breaksKey: 'InsightsAdoptionScreen.gapClientFilesBreaks',
   },
   requests_uncommitted: {
-    title: 'Requests with a desired date and no committed answer',
-    breaks: 'the client is waiting on a yes we never said',
+    titleKey: 'InsightsAdoptionScreen.gapRequestsTitle',
+    breaksKey: 'InsightsAdoptionScreen.gapRequestsBreaks',
   },
 };
 
@@ -130,10 +136,10 @@ function percent(part: number, whole: number): number | undefined {
   return whole === 0 ? undefined : Math.round((part / whole) * 100);
 }
 
-function where(gap: InsightsAdoptionGapView): string {
+function where(gap: InsightsAdoptionGapView, t: (key: MessageKey) => string): string {
   if (gap.projectCount === 0) return '—';
-  if (gap.projectCount === 1) return gap.projectName ?? '1 project';
-  return `${gap.projectCount} projects`;
+  if (gap.projectCount === 1) return gap.projectName ?? t('InsightsAdoptionScreen.oneProject');
+  return `${gap.projectCount} ${t('InsightsAdoptionScreen.projectsSuffix')}`;
 }
 
 function AdoptionReport({
@@ -143,6 +149,7 @@ function AdoptionReport({
   adoption: InsightsAdoptionView;
   organizationSlug: string;
 }) {
+  const t = useT();
   const { committedDate, channels, unhashedDeliverables, decisionsRecorded } = adoption;
   const dated = percent(committedDate.dated, committedDate.total);
   const datedBefore = percent(committedDate.previousDated, committedDate.previousTotal);
@@ -151,48 +158,59 @@ function AdoptionReport({
 
   return (
     <>
-      <InsightsMetrics label="Adoption headline figures">
+      <InsightsMetrics label={t('InsightsAdoptionScreen.metricsLabel')}>
         <InsightsMetric
           value={dated === undefined ? '—' : `${dated}%`}
-          {...(datedBefore === undefined ? {} : { badge: `was ${datedBefore}%` })}
+          {...(datedBefore === undefined
+            ? {}
+            : { badge: `${t('InsightsAdoptionScreen.was')} ${datedBefore}%` })}
           badgeTone={
             dated !== undefined && datedBefore !== undefined && dated < datedBefore
               ? 'warning'
               : 'quiet'
           }
-          label="of work items carry a committed date"
-          note="the rest cannot appear in any forecast"
+          label={t('InsightsAdoptionScreen.metricDatedLabel')}
+          note={t('InsightsAdoptionScreen.metricDatedNote')}
         />
         <InsightsMetric
           value={channels.withoutWork}
-          badge={`of ${channels.total}`}
-          label="channels with no work item ever created from them"
-          note="decisions there are not being captured"
+          badge={`${t('InsightsAdoptionScreen.ofCount')} ${channels.total}`}
+          label={t('InsightsAdoptionScreen.metricChannelsLabel')}
+          note={t('InsightsAdoptionScreen.metricChannelsNote')}
         />
         <InsightsMetric
           value={unhashedDeliverables.current}
           {...(hashDelta === 0
             ? {}
-            : { badge: hashDelta > 0 ? `down ${hashDelta}` : `up ${-hashDelta}` })}
+            : {
+                badge:
+                  hashDelta > 0
+                    ? `${t('InsightsAdoptionScreen.down')} ${hashDelta}`
+                    : `${t('InsightsAdoptionScreen.up')} ${-hashDelta}`,
+              })}
           badgeTone={hashDelta > 0 ? 'lime' : 'warning'}
-          label="deliverables sent without a tracked version"
-          note="approval cannot be tied to a specific file"
+          label={t('InsightsAdoptionScreen.metricDeliverablesLabel')}
+          note={t('InsightsAdoptionScreen.metricDeliverablesNote')}
         />
       </InsightsMetrics>
 
       <InsightsSplit
         main={
-          <InsightsCard variant="table" id="tm-adoption-gaps" label="Data gaps">
+          <InsightsCard
+            variant="table"
+            id="tm-adoption-gaps"
+            label={t('InsightsAdoptionScreen.dataGaps')}
+          >
             <table className="tm-ins-table tm-ins-table--gaps">
               <caption className="tm-visually-hidden">
-                Data gaps that make the record unreliable
+                {t('InsightsAdoptionScreen.gapsCaption')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Data gap · What it breaks</th>
-                  <th scope="col">Where</th>
+                  <th scope="col">{t('InsightsAdoptionScreen.colGap')}</th>
+                  <th scope="col">{t('InsightsAdoptionScreen.colWhere')}</th>
                   <th scope="col" className="tm-ins-table__num">
-                    Items
+                    {t('InsightsAdoptionScreen.colItems')}
                   </th>
                 </tr>
               </thead>
@@ -200,10 +218,10 @@ function AdoptionReport({
                 {adoption.gaps.map((gap) => (
                   <tr key={gap.id} data-tone={gap.count > 0 ? 'warning' : 'quiet'}>
                     <th scope="row">
-                      {GAP_COPY[gap.id].title}
-                      <span className="tm-ins-table__sub">{GAP_COPY[gap.id].breaks}</span>
+                      {t(GAP_COPY[gap.id].titleKey)}
+                      <span className="tm-ins-table__sub">{t(GAP_COPY[gap.id].breaksKey)}</span>
                     </th>
-                    <td>{where(gap)}</td>
+                    <td>{where(gap, t)}</td>
                     <td className="tm-ins-table__num">{gap.count}</td>
                   </tr>
                 ))}
@@ -216,29 +234,41 @@ function AdoptionReport({
             <InsightsCard labelledBy="tm-adoption-decisions">
               <InsightsCardHead
                 id="tm-adoption-decisions"
-                title="Where decisions get recorded"
-                units={`Last ${adoption.windowDays} days`}
+                title={t('InsightsAdoptionScreen.decisionsTitle')}
+                units={`${t('InsightsAdoptionScreen.lastPrefix')} ${adoption.windowDays} ${t('InsightsAdoptionScreen.daysWord')}`}
               />
               <InsightsBars
-                label="Decisions by where they were recorded"
+                label={t('InsightsAdoptionScreen.barsLabel')}
                 bars={[
-                  { key: 'log', label: 'Decision log', value: decisionsRecorded.decisionLog },
-                  { key: 'approval', label: 'Approval', value: decisionsRecorded.approvals },
+                  {
+                    key: 'log',
+                    label: t('InsightsAdoptionScreen.barDecisionLog'),
+                    value: decisionsRecorded.decisionLog,
+                  },
+                  {
+                    key: 'approval',
+                    label: t('InsightsAdoptionScreen.barApproval'),
+                    value: decisionsRecorded.approvals,
+                  },
                 ]}
               />
               <p className="tm-ins-card__body">
                 {decisionsRecorded.decisionLog}{' '}
-                {decisionsRecorded.decisionLog === 1 ? 'decision was' : 'decisions were'} logged and{' '}
-                {decisionsRecorded.approvals}{' '}
-                {decisionsRecorded.approvals === 1 ? 'approval' : 'approvals'} decided in the last{' '}
-                {adoption.windowDays} days.
+                {decisionsRecorded.decisionLog === 1
+                  ? t('InsightsAdoptionScreen.decisionWas')
+                  : t('InsightsAdoptionScreen.decisionsWere')}{' '}
+                {t('InsightsAdoptionScreen.loggedAnd')} {decisionsRecorded.approvals}{' '}
+                {decisionsRecorded.approvals === 1
+                  ? t('InsightsAdoptionScreen.approval')
+                  : t('InsightsAdoptionScreen.approvals')}{' '}
+                {t('InsightsAdoptionScreen.decidedInLast')} {adoption.windowDays}{' '}
+                {t('InsightsAdoptionScreen.daysPeriod')}
               </p>
             </InsightsCard>
             <InsightsCard variant="callout" className="tm-ins-card--fill">
-              <p className="tm-ins-eyebrow">Adoption, measured honestly</p>
+              <p className="tm-ins-eyebrow">{t('InsightsAdoptionScreen.calloutEyebrow')}</p>
               <p className="tm-ins-card__body tm-ins-card__body--lead">
-                Adoption here means whether the record is complete enough to be relied on. It is not
-                a login count and it is not attributed to individuals.
+                {t('InsightsAdoptionScreen.calloutBody')}
               </p>
               <div className="tm-ins-callout__actions">
                 {totalGaps > 0 ? (
@@ -246,16 +276,21 @@ function AdoptionReport({
                     className="tm-button tm-button--ink tm-ins-callout__primary"
                     href="#tm-adoption-gaps"
                   >
-                    Open the {totalGaps} {totalGaps === 1 ? 'gap' : 'gaps'}
+                    {t('InsightsAdoptionScreen.openThe')} {totalGaps}{' '}
+                    {totalGaps === 1
+                      ? t('InsightsAdoptionScreen.gap')
+                      : t('InsightsAdoptionScreen.gaps')}
                   </a>
                 ) : (
-                  <span className="tm-ins-callout__primary tm-muted">No data gaps right now.</span>
+                  <span className="tm-ins-callout__primary tm-muted">
+                    {t('InsightsAdoptionScreen.noGaps')}
+                  </span>
                 )}
                 <Link
                   className="tm-button tm-button--outline"
                   href={`/${organizationSlug}/policies`}
                 >
-                  Policy
+                  {t('InsightsAdoptionScreen.policy')}
                 </Link>
               </div>
             </InsightsCard>

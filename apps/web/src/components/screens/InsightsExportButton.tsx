@@ -1,6 +1,7 @@
 'use client';
 
 import { apiBaseUrl } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface InsightsExportButtonProps {
   organizationSlug: string;
@@ -22,12 +23,13 @@ export interface InsightsExportButtonProps {
  * row, and a caller without the capability gets the ordinary 403 the server returns.
  */
 export function InsightsExportButton({ organizationSlug, baseUrl }: InsightsExportButtonProps) {
+  const t = useT();
   const origin = baseUrl ?? apiBaseUrl();
   const href = `${origin}/v1/organizations/${encodeURIComponent(organizationSlug)}/insights/workload/export.csv`;
 
   return (
     <a className="tm-button tm-button--ink" href={href} download="workload.csv">
-      Export workload (CSV)
+      {t('InsightsExportButton.exportWorkload')}
     </a>
   );
 }

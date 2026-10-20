@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/admin-ip-allowlist';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface IpAllowlistViewProps {
   organizationSlug: string;
@@ -40,6 +41,7 @@ export function IpAllowlistView({
 }: IpAllowlistViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const entries = useQuery({
     queryKey: ['admin-ip-allowlist', organizationSlug],
@@ -81,17 +83,21 @@ export function IpAllowlistView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="ip-allowlist"
-      crumbs={['Security', 'IP ranges']}
-      title="Where the studio works from"
+      crumbs={[t('IpAllowlistView.crumbSecurity'), t('IpAllowlistView.crumbIpRanges')]}
+      title={t('IpAllowlistView.title')}
       {...(entries.isSuccess
-        ? { titleMeta: `${rows.length} ${rows.length === 1 ? 'range' : 'ranges'}` }
+        ? {
+            titleMeta: `${rows.length} ${
+              rows.length === 1 ? t('IpAllowlistView.rangeWord') : t('IpAllowlistView.rangesWord')
+            }`,
+          }
         : {})}
     >
       <div className="tm-cc-split tm-cc-split--even">
         <div className="tm-cc-column">
           <section className="tm-cc-card" aria-labelledby="tm-allowlist-add-heading">
             <h2 id="tm-allowlist-add-heading" className="tm-cc-card__title">
-              Add a range
+              {t('IpAllowlistView.addARange')}
             </h2>
             <form
               className="tm-stack"
@@ -102,23 +108,23 @@ export function IpAllowlistView({
               }}
             >
               <Field
-                label="IP address or CIDR range"
+                label={t('IpAllowlistView.cidrLabel')}
                 name="cidr"
                 value={cidr}
                 onChange={(event) => setCidr(event.target.value)}
-                hint="An IPv4/IPv6 address or CIDR block, e.g. 203.0.113.0/24."
+                hint={t('IpAllowlistView.cidrHint')}
                 required
               />
               <Field
-                label="Label"
+                label={t('IpAllowlistView.labelLabel')}
                 name="label"
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
-                hint="Optional — e.g. Head office VPN."
+                hint={t('IpAllowlistView.labelHint')}
               />
 
               {add.isError ? (
-                <InlineAlert tone="danger" title="Could not add the range" live>
+                <InlineAlert tone="danger" title={t('IpAllowlistView.addErrorTitle')} live>
                   {describeError(add.error)}
                 </InlineAlert>
               ) : null}
@@ -129,10 +135,10 @@ export function IpAllowlistView({
                   tone="ink"
                   size="accessible"
                   loading={add.isPending}
-                  loadingLabel="Adding"
+                  loadingLabel={t('IpAllowlistView.adding')}
                   disabled={!canAdd}
                 >
-                  Add range
+                  {t('IpAllowlistView.addRange')}
                 </Button>
               </div>
             </form>
@@ -142,14 +148,13 @@ export function IpAllowlistView({
             className="tm-cc-card tm-cc-card--attention"
             aria-labelledby="tm-allowlist-advisory"
           >
-            <p className="tm-cc-eyebrow tm-cc-eyebrow--warning">Advisory list</p>
-            <h2 id="tm-allowlist-advisory" className="tm-cc-card__title">
-              For reference only
-            </h2>
-            <p className="tm-cc-card__body">
-              These ranges are recorded for your reference. Sign-in is not restricted by network, so
-              a range here does not block anyone on its own.
+            <p className="tm-cc-eyebrow tm-cc-eyebrow--warning">
+              {t('IpAllowlistView.advisoryList')}
             </p>
+            <h2 id="tm-allowlist-advisory" className="tm-cc-card__title">
+              {t('IpAllowlistView.forReferenceOnly')}
+            </h2>
+            <p className="tm-cc-card__body">{t('IpAllowlistView.advisoryBody')}</p>
           </section>
         </div>
 
@@ -158,25 +163,25 @@ export function IpAllowlistView({
           aria-labelledby="tm-allowlist-list-heading"
         >
           <h2 id="tm-allowlist-list-heading" className="tm-visually-hidden">
-            Ranges {entries.isSuccess ? `(${rows.length})` : ''}
+            {t('IpAllowlistView.ranges')} {entries.isSuccess ? `(${rows.length})` : ''}
           </h2>
 
           {entries.isError || remove.isError || entries.isPending || rows.length === 0 ? (
             <div className="tm-cc-card__inset tm-stack">
               {entries.isError ? (
-                <InlineAlert tone="danger" title="Could not load the allowlist" live>
+                <InlineAlert tone="danger" title={t('IpAllowlistView.loadErrorTitle')} live>
                   {describeError(entries.error)}
                 </InlineAlert>
               ) : null}
 
               {remove.isError ? (
-                <InlineAlert tone="danger" title="Could not remove the range" live>
+                <InlineAlert tone="danger" title={t('IpAllowlistView.removeErrorTitle')} live>
                   {describeError(remove.error)}
                 </InlineAlert>
               ) : null}
 
               {entries.isPending ? (
-                <LoadingRegion label="Loading the allowlist.">
+                <LoadingRegion label={t('IpAllowlistView.loading')}>
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
@@ -184,12 +189,9 @@ export function IpAllowlistView({
 
               {entries.isSuccess && rows.length === 0 ? (
                 <>
-                  <p className="tm-cc-eyebrow">Ranges · 0</p>
-                  <p className="tm-cc-card__title">No ranges yet</p>
-                  <p className="tm-cc-card__body">
-                    Add a range to record a network your organization trusts. Until then the studio
-                    works from anywhere.
-                  </p>
+                  <p className="tm-cc-eyebrow">{t('IpAllowlistView.ranges')} · 0</p>
+                  <p className="tm-cc-card__title">{t('IpAllowlistView.noRangesYet')}</p>
+                  <p className="tm-cc-card__body">{t('IpAllowlistView.emptyBody')}</p>
                 </>
               ) : null}
             </div>
@@ -197,15 +199,15 @@ export function IpAllowlistView({
 
           {rows.length > 0 ? (
             <table className="tm-table tm-cc-table">
-              <caption className="tm-visually-hidden">
-                The organization&rsquo;s advisory IP allowlist.
-              </caption>
+              <caption className="tm-visually-hidden">{t('IpAllowlistView.caption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Ranges · {rows.length}</th>
-                  <th scope="col">Label</th>
                   <th scope="col">
-                    <span className="tm-visually-hidden">Actions</span>
+                    {t('IpAllowlistView.ranges')} · {rows.length}
+                  </th>
+                  <th scope="col">{t('IpAllowlistView.labelLabel')}</th>
+                  <th scope="col">
+                    <span className="tm-visually-hidden">{t('IpAllowlistView.actions')}</span>
                   </th>
                 </tr>
               </thead>
@@ -222,10 +224,10 @@ export function IpAllowlistView({
                         tone="outline"
                         size="compact"
                         loading={remove.isPending && remove.variables?.id === entry.id}
-                        loadingLabel="Removing"
+                        loadingLabel={t('IpAllowlistView.removing')}
                         onClick={() => remove.mutate(entry)}
                       >
-                        Remove
+                        {t('IpAllowlistView.remove')}
                       </Button>
                     </td>
                   </tr>

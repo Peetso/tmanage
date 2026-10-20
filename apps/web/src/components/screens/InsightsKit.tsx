@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import '../../styles/screens/insights.css';
+import { useT } from '../../lib/i18n/use-t';
 
 /**
  * The shared visual pieces of the INS-01 … INS-06 frames (`TManage Screens - Insights and
@@ -29,23 +30,28 @@ export function InsightsTabs({
   current?: InsightsTabId;
   projectId?: string;
 }) {
+  const t = useT();
   const base = `/${organizationSlug}/insights`;
   const project = projectId ? `${base}/projects/${encodeURIComponent(projectId)}` : base;
   const tabs: readonly { id: InsightsTabId; label: string; href: string }[] = [
-    { id: 'overview', label: 'Overview', href: base },
-    { id: 'health', label: 'Project health', href: project },
-    { id: 'flow', label: 'Delivery flow', href: projectId ? `${project}#tm-delivery-flow` : base },
+    { id: 'overview', label: t('InsightsKit.tabOverview'), href: base },
+    { id: 'health', label: t('InsightsKit.tabProjectHealth'), href: project },
+    {
+      id: 'flow',
+      label: t('InsightsKit.tabDeliveryFlow'),
+      href: projectId ? `${project}#tm-delivery-flow` : base,
+    },
     {
       id: 'approvals',
-      label: 'Approval flow',
+      label: t('InsightsKit.tabApprovalFlow'),
       href: projectId ? `${project}/approval-cycle` : base,
     },
-    { id: 'workload', label: 'Workload', href: `${base}/forecast` },
-    { id: 'adoption', label: 'Adoption', href: `${base}/adoption` },
+    { id: 'workload', label: t('InsightsKit.tabWorkload'), href: `${base}/forecast` },
+    { id: 'adoption', label: t('InsightsKit.tabAdoption'), href: `${base}/adoption` },
   ];
 
   return (
-    <nav className="tm-ins-tabs" aria-label="Insights sections">
+    <nav className="tm-ins-tabs" aria-label={t('InsightsKit.sectionsNav')}>
       {tabs.map((tab) => {
         const active = tab.id === current;
         return (
