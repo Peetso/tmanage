@@ -14,6 +14,8 @@ import {
 import type { InsightMetricKey } from '../../lib/api/metric-favorites';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface MetricFavoritesViewProps {
   organizationSlug: string;
@@ -21,16 +23,16 @@ export interface MetricFavoritesViewProps {
   client?: ApiClient;
 }
 
-/** The human label for each known metric id — the closed vocabulary the API validates against. */
-const METRIC_LABELS: Readonly<Record<InsightMetricKey, string>> = {
-  'portfolio.projectCount': 'Projects in portfolio',
-  'portfolio.openItemCount': 'Open work items (portfolio)',
-  'deliveryFlow.itemCount': 'Delivery-flow items',
-  'approvalCycle.approvalCount': 'Approvals in cycle',
-  'workload.assigneeCount': 'People with workload',
-  'workload.openItemCount': 'Open work items (workload)',
-  'workload.scheduledItemCount': 'Scheduled work items',
-  'adoption.activeMembers': 'Active members',
+/** The message key for each known metric id — the closed vocabulary the API validates against. */
+const METRIC_LABEL_KEYS: Readonly<Record<InsightMetricKey, MessageKey>> = {
+  'portfolio.projectCount': 'MetricFavoritesView.metricPortfolioProjectCount',
+  'portfolio.openItemCount': 'MetricFavoritesView.metricPortfolioOpenItemCount',
+  'deliveryFlow.itemCount': 'MetricFavoritesView.metricDeliveryFlowItemCount',
+  'approvalCycle.approvalCount': 'MetricFavoritesView.metricApprovalCycleApprovalCount',
+  'workload.assigneeCount': 'MetricFavoritesView.metricWorkloadAssigneeCount',
+  'workload.openItemCount': 'MetricFavoritesView.metricWorkloadOpenItemCount',
+  'workload.scheduledItemCount': 'MetricFavoritesView.metricWorkloadScheduledItemCount',
+  'adoption.activeMembers': 'MetricFavoritesView.metricAdoptionActiveMembers',
 };
 
 /**
@@ -54,6 +56,7 @@ export function MetricFavoritesView({
   client,
 }: MetricFavoritesViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const favorites = useQuery({
@@ -82,38 +85,38 @@ export function MetricFavoritesView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights"
-      title="Favorite metrics"
-      description="Star the insight metrics you watch most. Starred metrics surface first; only you see your favorites."
+      eyebrow={t('MetricFavoritesView.eyebrow')}
+      title={t('MetricFavoritesView.title')}
+      description={t('MetricFavoritesView.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <section className="tm-panel tm-stack" aria-labelledby="tm-metric-favorites-strip">
           <h2 id="tm-metric-favorites-strip" className="tm-eyebrow">
-            Your favorites
+            {t('MetricFavoritesView.yourFavorites')}
           </h2>
 
           {favorites.isError ? (
-            <InlineAlert tone="danger" title="Could not load your favorite metrics" live>
+            <InlineAlert tone="danger" title={t('MetricFavoritesView.loadError')} live>
               {describeError(favorites.error)}
             </InlineAlert>
           ) : null}
 
           {favorites.isPending ? (
-            <LoadingRegion label="Loading your favorite metrics.">
+            <LoadingRegion label={t('MetricFavoritesView.loading')}>
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!favorites.isPending && !favorites.isError ? (
             starredList.length === 0 ? (
-              <InlineAlert tone="neutral" title="No favorites yet">
-                Star a metric below to pin it here.
+              <InlineAlert tone="neutral" title={t('MetricFavoritesView.noFavoritesTitle')}>
+                {t('MetricFavoritesView.noFavoritesBody')}
               </InlineAlert>
             ) : (
               <ul className="tm-tag-list">
                 {starredList.map((metricKey) => (
                   <li key={metricKey} className="tm-tag">
-                    {METRIC_LABELS[metricKey]}
+                    {t(METRIC_LABEL_KEYS[metricKey])}
                   </li>
                 ))}
               </ul>
@@ -123,11 +126,11 @@ export function MetricFavoritesView({
 
         <section className="tm-panel tm-stack" aria-labelledby="tm-metric-favorites-all">
           <h2 id="tm-metric-favorites-all" className="tm-eyebrow">
-            All metrics
+            {t('MetricFavoritesView.allMetrics')}
           </h2>
 
           {toggle.isError ? (
-            <InlineAlert tone="danger" title="Could not update the favorite" live>
+            <InlineAlert tone="danger" title={t('MetricFavoritesView.updateError')} live>
               {describeError(toggle.error)}
             </InlineAlert>
           ) : null}
@@ -137,18 +140,22 @@ export function MetricFavoritesView({
               const isStarred = starred.has(metricKey);
               return (
                 <li key={metricKey} className="tm-list__row">
-                  <span>{METRIC_LABELS[metricKey]}</span>
+                  <span>{t(METRIC_LABEL_KEYS[metricKey])}</span>
                   <Button
                     type="button"
                     tone={isStarred ? 'ink' : 'outline'}
                     size="accessible"
                     aria-pressed={isStarred}
                     loading={toggle.isPending && toggle.variables === metricKey}
-                    loadingLabel={isStarred ? 'Removing' : 'Saving'}
+                    loadingLabel={
+                      isStarred
+                        ? t('MetricFavoritesView.removing')
+                        : t('MetricFavoritesView.saving')
+                    }
                     disabled={favorites.isPending}
                     onClick={() => toggle.mutate(metricKey)}
                   >
-                    {isStarred ? 'Starred' : 'Star'}
+                    {isStarred ? t('MetricFavoritesView.starred') : t('MetricFavoritesView.star')}
                   </Button>
                 </li>
               );

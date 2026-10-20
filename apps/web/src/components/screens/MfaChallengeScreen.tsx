@@ -8,6 +8,7 @@ import { completeMfaChallenge, completeWithRecoveryCode } from '../../lib/api/au
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/identity.css';
 
 export interface MfaChallengeScreenProps {
@@ -65,6 +66,7 @@ export function MfaChallengeScreen({
   onCompleted,
 }: MfaChallengeScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   // Reached at its own route, the method radios and the code field are controlled inputs in the
   // server HTML with no query to gate them. They hang on the hydration signal instead — disabled
@@ -86,11 +88,15 @@ export function MfaChallengeScreen({
     event.preventDefault();
 
     if (!challengeToken) {
-      setFailure('This page was opened directly. Start again from the sign-in screen.');
+      setFailure(t('MfaChallengeScreen.openedDirectly'));
       return;
     }
     if (!codeLooksComplete) {
-      setFailure(method === 'code' ? 'Enter all six digits.' : 'Enter your recovery code.');
+      setFailure(
+        method === 'code'
+          ? t('MfaChallengeScreen.enterAllDigits')
+          : t('MfaChallengeScreen.enterRecovery'),
+      );
       return;
     }
 
@@ -126,25 +132,23 @@ export function MfaChallengeScreen({
       <form className="tm-id-bare tm-id-card tm-id-mfa" noValidate onSubmit={submit}>
         <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
           <div className="tm-id-intro">
-            <h1 className="tm-identity__title">Confirm it&rsquo;s you</h1>
+            <h1 className="tm-identity__title">{t('MfaChallengeScreen.title')}</h1>
             <p className="tm-id-lede">
-              {organizationName ?? 'Your organization'} requires a second factor for internal
-              members.
+              {organizationName ?? t('MfaChallengeScreen.orgFallback')}{' '}
+              {t('MfaChallengeScreen.requiresSecondFactor')}
             </p>
           </div>
 
           {challengeToken === undefined ? (
-            <InlineAlert tone="warning" title="There is nothing to verify here">
-              This screen is the second step of a sign-in and holds the challenge in memory rather
-              than in the address bar, so it cannot be reached directly. Start again from the
-              sign-in screen.
+            <InlineAlert tone="warning" title={t('MfaChallengeScreen.nothingToVerifyTitle')}>
+              {t('MfaChallengeScreen.nothingToVerifyBody')}
             </InlineAlert>
           ) : null}
 
           {method === 'code' ? (
             <div className="tm-id-code">
               <label className="tm-field__label" htmlFor={codeId}>
-                Six-digit code
+                {t('MfaChallengeScreen.sixDigitCode')}
               </label>
               <div className="tm-id-code__frame">
                 <input
@@ -182,13 +186,13 @@ export function MfaChallengeScreen({
                 </div>
               </div>
               <span className="tm-field__hint" id={`${codeId}-hint`}>
-                From your authenticator app.
+                {t('MfaChallengeScreen.codeHint')}
               </span>
             </div>
           ) : (
             <Field
               className="tm-id-recovery-field"
-              label="Recovery code"
+              label={t('MfaChallengeScreen.recoveryLabel')}
               name="recoveryCode"
               value={value}
               onChange={(event) => {
@@ -198,13 +202,13 @@ export function MfaChallengeScreen({
               autoComplete="one-time-code"
               spellCheck={false}
               dir="ltr"
-              hint="Ten characters, in two groups. Case and hyphens do not matter."
+              hint={t('MfaChallengeScreen.recoveryHint')}
               disabled={rateLimited}
             />
           )}
 
           {failure ? (
-            <InlineAlert tone="danger" title="That did not work" live>
+            <InlineAlert tone="danger" title={t('MfaChallengeScreen.didNotWork')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -216,12 +220,12 @@ export function MfaChallengeScreen({
               size="accessible"
               disabled={rateLimited || challengeToken === undefined}
               loading={working}
-              loadingLabel="Verifying"
+              loadingLabel={t('MfaChallengeScreen.verifying')}
             >
-              Verify
+              {t('MfaChallengeScreen.verify')}
             </Button>
             <p className="tm-id-expiry">
-              <span className="tm-visually-hidden">Factor: </span>
+              <span className="tm-visually-hidden">{t('MfaChallengeScreen.factorPrefix')}</span>
               <span>{factorLabel}</span>
             </p>
           </div>
@@ -229,7 +233,7 @@ export function MfaChallengeScreen({
       </form>
 
       <fieldset className="tm-id-fallbacks" disabled={!hydrated}>
-        <legend>How do you want to verify?</legend>
+        <legend>{t('MfaChallengeScreen.howVerify')}</legend>
         <label className="tm-id-fallback">
           <input
             className="tm-id-fallback__input"
@@ -243,11 +247,13 @@ export function MfaChallengeScreen({
             #
           </span>
           <span className="tm-id-fallback__text">
-            <span className="tm-id-fallback__name">A code from your authenticator</span>
-            <span className="tm-id-fallback__detail">Six digits, from {factorLabel}.</span>
+            <span className="tm-id-fallback__name">{t('MfaChallengeScreen.codeMethodName')}</span>
+            <span className="tm-id-fallback__detail">
+              {t('MfaChallengeScreen.sixDigitsFrom')} {factorLabel}.
+            </span>
           </span>
           <span className="tm-id-fallback__action" aria-hidden="true">
-            Use
+            {t('MfaChallengeScreen.use')}
           </span>
         </label>
         <label className="tm-id-fallback">
@@ -263,13 +269,15 @@ export function MfaChallengeScreen({
             ▤
           </span>
           <span className="tm-id-fallback__text">
-            <span className="tm-id-fallback__name">A recovery code</span>
+            <span className="tm-id-fallback__name">
+              {t('MfaChallengeScreen.recoveryMethodName')}
+            </span>
             <span className="tm-id-fallback__detail">
-              One of the ten you saved. Each one works once.
+              {t('MfaChallengeScreen.recoveryMethodDetail')}
             </span>
           </span>
           <span className="tm-id-fallback__action" aria-hidden="true">
-            Enter
+            {t('MfaChallengeScreen.enter')}
           </span>
         </label>
         {/* Passkeys and admin-assisted verification are not built: shown, never offered. */}
@@ -278,25 +286,29 @@ export function MfaChallengeScreen({
             ◉
           </span>
           <span className="tm-id-fallback__text">
-            <span className="tm-id-fallback__name">Use a passkey on this device</span>
+            <span className="tm-id-fallback__name">{t('MfaChallengeScreen.passkeyName')}</span>
           </span>
-          <span className="tm-id-fallback__action">Not available yet</span>
+          <span className="tm-id-fallback__action">{t('MfaChallengeScreen.notAvailable')}</span>
         </div>
         <div className="tm-id-fallback tm-id-fallback--off">
           <span className="tm-id-fallback__glyph" aria-hidden="true">
             ✉
           </span>
           <span className="tm-id-fallback__text">
-            <span className="tm-id-fallback__name">Ask an admin to verify you</span>
+            <span className="tm-id-fallback__name">{t('MfaChallengeScreen.adminName')}</span>
           </span>
-          <span className="tm-id-fallback__action">Not available yet</span>
+          <span className="tm-id-fallback__action">{t('MfaChallengeScreen.notAvailable')}</span>
         </div>
       </fieldset>
 
       {rateLimited ? (
-        <InlineAlert className="tm-id-notice" tone="warning" title="Rate limited" live>
-          Too many attempts. Try again in a few minutes, or use a recovery code. The attempt was
-          recorded in the audit log.
+        <InlineAlert
+          className="tm-id-notice"
+          tone="warning"
+          title={t('MfaChallengeScreen.rateLimitedTitle')}
+          live
+        >
+          {t('MfaChallengeScreen.rateLimitedBody')}
         </InlineAlert>
       ) : null}
     </IdentityShell>

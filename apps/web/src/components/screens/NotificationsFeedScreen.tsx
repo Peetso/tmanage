@@ -10,6 +10,8 @@ import type { NotificationView } from '../../lib/api/notifications-feed';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
 
 export interface NotificationsFeedScreenProps {
@@ -49,6 +51,7 @@ export function NotificationsFeedScreen({
   client,
 }: NotificationsFeedScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const feed = useInfiniteQuery({
@@ -81,32 +84,34 @@ export function NotificationsFeedScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="inbox"
-      eyebrow="Inbox"
-      title="Notifications"
-      titleMeta={items.length > 0 ? `${unread.length} unread` : undefined}
-      description="Everything you have been told, newest first — unread first, then what you have cleared."
+      eyebrow={t('NotificationsFeedScreen.eyebrow')}
+      title={t('NotificationsFeedScreen.title')}
+      titleMeta={
+        items.length > 0 ? `${unread.length} ${t('NotificationsFeedScreen.unread')}` : undefined
+      }
+      description={t('NotificationsFeedScreen.description')}
     >
       {feed.isError ? (
-        <InlineAlert tone="danger" title="Could not load your notifications" live>
+        <InlineAlert tone="danger" title={t('NotificationsFeedScreen.loadError')} live>
           {describeError(feed.error)}
         </InlineAlert>
       ) : null}
 
       {markRead.isError ? (
-        <InlineAlert tone="danger" title="Could not mark that read" live>
+        <InlineAlert tone="danger" title={t('NotificationsFeedScreen.markError')} live>
           {describeError(markRead.error)}
         </InlineAlert>
       ) : null}
 
       {items.length > 0 ? (
-        <div className="tm-chip-row" role="group" aria-label="Show">
+        <div className="tm-chip-row" role="group" aria-label={t('NotificationsFeedScreen.show')}>
           <button
             type="button"
             className="tm-chip"
             aria-pressed={filter === 'all'}
             onClick={() => setFilter('all')}
           >
-            All · {items.length}
+            {t('NotificationsFeedScreen.chipAll')} · {items.length}
           </button>
           <button
             type="button"
@@ -114,7 +119,7 @@ export function NotificationsFeedScreen({
             aria-pressed={filter === 'unread'}
             onClick={() => setFilter('unread')}
           >
-            Unread · {unread.length}
+            {t('NotificationsFeedScreen.chipUnread')} · {unread.length}
           </button>
           <button
             type="button"
@@ -122,13 +127,13 @@ export function NotificationsFeedScreen({
             aria-pressed={filter === 'read'}
             onClick={() => setFilter('read')}
           >
-            Read · {read.length}
+            {t('NotificationsFeedScreen.chipRead')} · {read.length}
           </button>
         </div>
       ) : null}
 
       {feed.isPending ? (
-        <LoadingRegion label="Loading your notifications.">
+        <LoadingRegion label={t('NotificationsFeedScreen.loading')}>
           <Skeleton height="44px" />
           <Skeleton height="44px" />
         </LoadingRegion>
@@ -136,27 +141,26 @@ export function NotificationsFeedScreen({
 
       {!feed.isPending && !feed.isError && items.length === 0 && !feed.hasNextPage ? (
         <div className="tm-card tm-card--empty tm-notif-empty">
-          <h2 className="tm-card__title">Nothing to catch up on</h2>
-          <p className="tm-card__meta">
-            When something happens that involves you — a blocker, a mention, an answer — it shows up
-            here.
-          </p>
+          <h2 className="tm-card__title">{t('NotificationsFeedScreen.emptyTitle')}</h2>
+          <p className="tm-card__meta">{t('NotificationsFeedScreen.emptyBody')}</p>
         </div>
       ) : null}
 
       {items.length > 0 ? (
         <div className="tm-notif-table">
           <div className="tm-notif-table__head" aria-hidden="true">
-            <span>Event</span>
-            <span>About</span>
-            <span>State</span>
-            <span>When</span>
+            <span>{t('NotificationsFeedScreen.colEvent')}</span>
+            <span>{t('NotificationsFeedScreen.colAbout')}</span>
+            <span>{t('NotificationsFeedScreen.colState')}</span>
+            <span>{t('NotificationsFeedScreen.colWhen')}</span>
           </div>
 
           {shown.length === 0 ? (
             <p className="tm-notif-row">
               <span className="tm-notif-row__sub">
-                {filter === 'unread' ? 'Nothing unread.' : 'Nothing read yet.'}
+                {filter === 'unread'
+                  ? t('NotificationsFeedScreen.nothingUnread')
+                  : t('NotificationsFeedScreen.nothingReadYet')}
               </span>
             </p>
           ) : null}
@@ -164,20 +168,23 @@ export function NotificationsFeedScreen({
           {filter !== 'read' && unread.length > 0 ? (
             <section aria-labelledby="tm-notif-unread">
               <h2 id="tm-notif-unread" className="tm-visually-hidden">
-                Unread
+                {t('NotificationsFeedScreen.chipUnread')}
               </h2>
-              <ul className="tm-notif-list" aria-label="Unread notifications">
+              <ul
+                className="tm-notif-list"
+                aria-label={t('NotificationsFeedScreen.unreadNotifications')}
+              >
                 {unread.map((item) => (
                   <li key={item.id} className="tm-notif-row" data-read="false">
                     <div className="tm-notif-row__event">
                       <p className="tm-notif-row__title">
-                        <strong>{describeType(item.type)}</strong>
+                        <strong>{describeType(item.type, t)}</strong>
                       </p>
                     </div>
                     <span className="tm-notif-row__object">{describeObject(item)}</span>
                     <span className="tm-notif-row__state">
                       <span className="tm-notif-pill" data-tone="unread">
-                        unread
+                        {t('NotificationsFeedScreen.unread')}
                       </span>
                     </span>
                     <span className="tm-notif-row__when">
@@ -186,11 +193,11 @@ export function NotificationsFeedScreen({
                         tone="outline"
                         size="compact"
                         loading={markRead.isPending && markRead.variables === item.id}
-                        loadingLabel="Marking read"
-                        aria-label={`Mark read: ${describeType(item.type)}`}
+                        loadingLabel={t('NotificationsFeedScreen.markingRead')}
+                        aria-label={`${t('NotificationsFeedScreen.markReadColon')} ${describeType(item.type, t)}`}
                         onClick={() => markRead.mutate(item.id)}
                       >
-                        Mark read
+                        {t('NotificationsFeedScreen.markRead')}
                       </Button>
                     </span>
                   </li>
@@ -202,20 +209,25 @@ export function NotificationsFeedScreen({
           {filter !== 'unread' && read.length > 0 ? (
             <section aria-labelledby="tm-notif-read">
               <h2 id="tm-notif-read" className="tm-visually-hidden">
-                Read
+                {t('NotificationsFeedScreen.chipRead')}
               </h2>
-              <ul className="tm-notif-list" aria-label="Read notifications">
+              <ul
+                className="tm-notif-list"
+                aria-label={t('NotificationsFeedScreen.readNotifications')}
+              >
                 {read.map((item) => (
                   <li key={item.id} className="tm-notif-row" data-read="true">
                     <div className="tm-notif-row__event">
-                      <p className="tm-notif-row__title">{describeType(item.type)}</p>
+                      <p className="tm-notif-row__title">{describeType(item.type, t)}</p>
                       {item.readAt ? (
-                        <p className="tm-notif-row__sub">Read {formatInstant(item.readAt)}</p>
+                        <p className="tm-notif-row__sub">
+                          {t('NotificationsFeedScreen.chipRead')} {formatInstant(item.readAt)}
+                        </p>
                       ) : null}
                     </div>
                     <span className="tm-notif-row__object">{describeObject(item)}</span>
                     <span className="tm-notif-row__state">
-                      <span className="tm-notif-pill">read</span>
+                      <span className="tm-notif-pill">{t('NotificationsFeedScreen.pillRead')}</span>
                     </span>
                     <span className="tm-notif-row__when">
                       <time dateTime={item.createdAt}>{formatWhen(item.createdAt)}</time>
@@ -234,10 +246,10 @@ export function NotificationsFeedScreen({
             tone="outline"
             size="accessible"
             loading={feed.isFetchingNextPage}
-            loadingLabel="Loading more"
+            loadingLabel={t('NotificationsFeedScreen.loadingMore')}
             onClick={() => void feed.fetchNextPage()}
           >
-            Load more
+            {t('NotificationsFeedScreen.loadMore')}
           </Button>
         </div>
       ) : null}
@@ -246,7 +258,7 @@ export function NotificationsFeedScreen({
       <Announce
         message={
           (feed.data?.pages.length ?? 0) > 1 && !feed.isFetchingNextPage
-            ? `${items.length} ${items.length === 1 ? 'notification' : 'notifications'} loaded in total.`
+            ? `${items.length} ${items.length === 1 ? t('NotificationsFeedScreen.notification') : t('NotificationsFeedScreen.notifications')} ${t('NotificationsFeedScreen.loadedInTotal')}`
             : ''
         }
       />
@@ -268,24 +280,24 @@ function formatWhen(value: string): string {
  * unknown identifier falls back to a humanised form rather than a raw wire string, so a new
  * producer never renders `some.event.v1` verbatim.
  */
-const TYPE_LABELS: Record<string, string> = {
-  'work_item.blocked.v1': 'A work item you follow was blocked',
-  'work_item.assigned.v1': 'A work item was assigned to you',
-  'client_request.submitted.v1': 'A client submitted a request',
-  'client_request.transitioned.v1': 'A request you follow changed',
-  'usage.threshold_reached.v1': 'Your organization is nearing its storage limit',
-  'message.mentioned.v1': 'Someone mentioned you in a channel',
-  'document.mentioned.v1': 'Someone mentioned you in a document comment',
-  'document.comment_created.v1': 'Someone commented on your document',
-  'meeting.attendee_invited.v1': 'You were invited to a meeting',
-  'project.member_added.v1': 'You were added to a project',
-  'automation.notified.v1': 'An automation rule notified you',
-  'automation.test_run.v1': 'You test-ran an automation rule',
+const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
+  'work_item.blocked.v1': 'NotificationsFeedScreen.typeWorkItemBlocked',
+  'work_item.assigned.v1': 'NotificationsFeedScreen.typeWorkItemAssigned',
+  'client_request.submitted.v1': 'NotificationsFeedScreen.typeClientRequestSubmitted',
+  'client_request.transitioned.v1': 'NotificationsFeedScreen.typeClientRequestTransitioned',
+  'usage.threshold_reached.v1': 'NotificationsFeedScreen.typeUsageThreshold',
+  'message.mentioned.v1': 'NotificationsFeedScreen.typeMessageMentioned',
+  'document.mentioned.v1': 'NotificationsFeedScreen.typeDocumentMentioned',
+  'document.comment_created.v1': 'NotificationsFeedScreen.typeDocumentCommentCreated',
+  'meeting.attendee_invited.v1': 'NotificationsFeedScreen.typeMeetingAttendeeInvited',
+  'project.member_added.v1': 'NotificationsFeedScreen.typeProjectMemberAdded',
+  'automation.notified.v1': 'NotificationsFeedScreen.typeAutomationNotified',
+  'automation.test_run.v1': 'NotificationsFeedScreen.typeAutomationTestRun',
 };
 
-function describeType(type: string): string {
-  const label = TYPE_LABELS[type];
-  if (label) return label;
+function describeType(type: string, t: (key: MessageKey) => string): string {
+  const key = TYPE_LABEL_KEYS[type];
+  if (key) return t(key);
   // Humanise `some.event.v1` → "Some event": drop a trailing version, split on dots.
   const withoutVersion = type.replace(/\.v\d+$/, '');
   const words = withoutVersion.replace(/[._]/g, ' ').trim();

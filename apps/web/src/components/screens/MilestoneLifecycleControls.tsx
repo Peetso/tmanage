@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 /** `project_milestones.title` is VARCHAR(300). */
 const MAX_MILESTONE_TITLE_LENGTH = 300;
@@ -61,6 +62,7 @@ export function MilestoneLifecycleControls({
   status,
   onChange,
 }: MilestoneLifecycleControlsProps) {
+  const t = useT();
   const queries = useQueryClient();
   const [draftTitle, setDraftTitle] = useState(title);
   const [draftDueOn, setDraftDueOn] = useState(dueOn ?? '');
@@ -102,17 +104,19 @@ export function MilestoneLifecycleControls({
           disabled={complete.isPending || isComplete}
           className="tm-push-end"
         >
-          {isComplete ? 'Completed' : 'Mark complete'}
+          {isComplete
+            ? t('MilestoneLifecycleControls.completed')
+            : t('MilestoneLifecycleControls.markComplete')}
         </Button>
       </div>
 
       {edit.isError ? (
-        <InlineAlert tone="danger" title="Could not edit milestone" live>
+        <InlineAlert tone="danger" title={t('MilestoneLifecycleControls.editError')} live>
           {describe(edit.error)}
         </InlineAlert>
       ) : null}
       {complete.isError ? (
-        <InlineAlert tone="danger" title="Could not complete milestone" live>
+        <InlineAlert tone="danger" title={t('MilestoneLifecycleControls.completeError')} live>
           {describe(complete.error)}
         </InlineAlert>
       ) : null}
@@ -126,7 +130,7 @@ export function MilestoneLifecycleControls({
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor={`tm-milestone-title-${milestoneId}`}>
-            Title
+            {t('MilestoneLifecycleControls.title')}
           </label>
           <input
             id={`tm-milestone-title-${milestoneId}`}
@@ -138,7 +142,7 @@ export function MilestoneLifecycleControls({
         </div>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor={`tm-milestone-due-${milestoneId}`}>
-            Due date
+            {t('MilestoneLifecycleControls.dueDate')}
           </label>
           <input
             id={`tm-milestone-due-${milestoneId}`}
@@ -149,7 +153,9 @@ export function MilestoneLifecycleControls({
           />
         </div>
         <Button type="submit" disabled={!canEdit}>
-          {edit.isPending ? 'Saving…' : 'Save changes'}
+          {edit.isPending
+            ? t('MilestoneLifecycleControls.saving')
+            : t('MilestoneLifecycleControls.saveChanges')}
         </Button>
       </form>
     </div>

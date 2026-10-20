@@ -13,6 +13,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { formatDay } from '../../lib/client-request-presentation';
 import './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface NewClientRequestScreenProps {
   organizationSlug: string;
@@ -88,6 +89,7 @@ export function NewClientRequestScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState(() =>
@@ -128,19 +130,19 @@ export function NewClientRequestScreen({
     setFieldErrors(new Map());
 
     if (title.trim() === '') {
-      setFailure('Say what you need in the first field.');
+      setFailure(t('NewClientRequestScreen.sayWhatYouNeed'));
       return;
     }
     if (description.trim() === '') {
-      setFailure('Tell the studio why it matters, so they can judge it.');
+      setFailure(t('NewClientRequestScreen.tellWhyMatters'));
       return;
     }
     if (noProjectShared) {
-      setFailure('No project has been shared with you yet, so there is nothing to ask about.');
+      setFailure(t('NewClientRequestScreen.noProjectShared'));
       return;
     }
     if (chosenProjectId === '') {
-      setFailure('Choose which project this is about before you send it.');
+      setFailure(t('NewClientRequestScreen.chooseProjectFirst'));
       return;
     }
 
@@ -164,9 +166,9 @@ export function NewClientRequestScreen({
         if (fields.size > 0) setFieldErrors(fields);
         else setFailure(error.message);
       } else if (error instanceof NetworkError) {
-        setFailure('The portal is not answering. Try again shortly.');
+        setFailure(t('NewClientRequestScreen.portalNotAnswering'));
       } else {
-        setFailure('Something went wrong. Try again.');
+        setFailure(t('NewClientRequestScreen.genericError'));
       }
     } finally {
       setSending(false);
@@ -179,8 +181,8 @@ export function NewClientRequestScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="overview"
-      title={sent ? 'Your request is with the studio' : 'What do you need?'}
-      eyebrow={`Ask ${providerName} for something`}
+      title={sent ? t('NewClientRequestScreen.titleSent') : t('NewClientRequestScreen.titleAsk')}
+      eyebrow={`${t('NewClientRequestScreen.askPrefix')} ${providerName} ${t('NewClientRequestScreen.askSuffix')}`}
     >
       <div className="tm-pt tm-pt--compact">
         {sent ? (
@@ -192,13 +194,13 @@ export function NewClientRequestScreen({
         ) : (
           <>
             {projects.isError ? (
-              <InlineAlert tone="danger" title="Could not load your projects" live>
+              <InlineAlert tone="danger" title={t('NewClientRequestScreen.loadProjectsError')} live>
                 {describe(projects.error)}
               </InlineAlert>
             ) : null}
 
             {projects.isPending ? (
-              <LoadingRegion label="Loading your projects.">
+              <LoadingRegion label={t('NewClientRequestScreen.loadingProjects')}>
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
@@ -209,10 +211,12 @@ export function NewClientRequestScreen({
               Send cannot be reached and then refused.
             */}
             {noProjectShared ? (
-              <InlineAlert tone="warning" title="There is nothing to ask about yet" live>
-                {providerName} has not shared a project with you yet. When they do, it appears here
-                and you can send a request about it. Until then there is nothing for a request to be
-                attached to.
+              <InlineAlert
+                tone="warning"
+                title={t('NewClientRequestScreen.nothingToAskTitle')}
+                live
+              >
+                {providerName} {t('NewClientRequestScreen.notSharedBody')}
               </InlineAlert>
             ) : null}
 
@@ -222,7 +226,7 @@ export function NewClientRequestScreen({
               that never mentions what the person clicked.
             */}
             {aboutItemTitle && !noProjectShared ? (
-              <InlineAlert tone="neutral" title="You are asking about">
+              <InlineAlert tone="neutral" title={t('NewClientRequestScreen.askingAboutTitle')}>
                 {aboutItemTitle}
               </InlineAlert>
             ) : null}
@@ -241,11 +245,11 @@ export function NewClientRequestScreen({
                 <div className="tm-pt-form">
                   <div className="tm-pt-form__title">
                     <Field
-                      label="The request"
+                      label={t('NewClientRequestScreen.requestLabel')}
                       name="title"
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
-                      hint="One line. This is what the studio sees first."
+                      hint={t('NewClientRequestScreen.requestHint')}
                       required
                       {...errorFor(fieldErrors, 'title')}
                     />
@@ -253,7 +257,7 @@ export function NewClientRequestScreen({
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-request-description">
-                      Why it matters
+                      {t('NewClientRequestScreen.whyItMatters')}
                       <span className="tm-field__required" aria-hidden="true">
                         {' '}
                         *
@@ -271,8 +275,7 @@ export function NewClientRequestScreen({
                       required
                     />
                     <span className="tm-field__hint" id="tm-request-description-hint">
-                      What you are trying to achieve, and what happens if it does not get done. The
-                      studio judges the request on this.
+                      {t('NewClientRequestScreen.whyItMattersHint')}
                     </span>
                     {fieldErrors.get('description') ? (
                       <span className="tm-field__error">{fieldErrors.get('description')}</span>
@@ -281,13 +284,13 @@ export function NewClientRequestScreen({
 
                   <div className="tm-pt-form__pair">
                     <Field
-                      label="When you would like it"
+                      label={t('NewClientRequestScreen.whenLabel')}
                       name="desiredAt"
                       type="date"
                       value={desiredDate}
                       onChange={(event) => setDesiredDate(event.target.value)}
                       dir="ltr"
-                      hint="Optional, and it is a wish rather than a deadline. Nothing is scheduled until the studio agrees a date."
+                      hint={t('NewClientRequestScreen.whenHint')}
                       {...errorFor(fieldErrors, 'desiredAt')}
                     />
 
@@ -299,7 +302,7 @@ export function NewClientRequestScreen({
                     {available.length > 1 ? (
                       <div className="tm-field">
                         <label className="tm-field__label" htmlFor="tm-request-project">
-                          Which project
+                          {t('NewClientRequestScreen.whichProject')}
                           <span className="tm-field__required" aria-hidden="true">
                             {' '}
                             *
@@ -317,7 +320,7 @@ export function NewClientRequestScreen({
                             and a silent default is how a request lands against the wrong project.
                           */}
                           <option value="" disabled>
-                            Choose a project
+                            {t('NewClientRequestScreen.chooseProject')}
                           </option>
                           {available.map((project) => (
                             <option key={project.id} value={project.id}>
@@ -326,16 +329,19 @@ export function NewClientRequestScreen({
                           ))}
                         </select>
                         <span className="tm-field__hint">
-                          Pick the project this is about. {providerName} has shared more than one
-                          with you.
+                          {t('NewClientRequestScreen.pickProject')} {providerName}{' '}
+                          {t('NewClientRequestScreen.sharedMoreThanOne')}
                         </span>
                       </div>
                     ) : singleProject ? (
                       <div className="tm-field">
-                        <span className="tm-field__label">Which project</span>
+                        <span className="tm-field__label">
+                          {t('NewClientRequestScreen.whichProject')}
+                        </span>
                         <p className="tm-pt-fixed">{chosenProject?.name}</p>
                         <span className="tm-field__hint">
-                          The only project {providerName} has shared with you.
+                          {t('NewClientRequestScreen.onlyProjectPrefix')} {providerName}{' '}
+                          {t('NewClientRequestScreen.onlyProjectSuffix')}
                         </span>
                       </div>
                     ) : null}
@@ -343,28 +349,28 @@ export function NewClientRequestScreen({
 
                   <div className="tm-pt-form__pair">
                     <Field
-                      label="Category"
+                      label={t('NewClientRequestScreen.categoryLabel')}
                       name="category"
                       value={category}
                       onChange={(event) => setCategory(event.target.value)}
-                      hint="Optional. A short label such as new-page or bug-report — lowercase, no spaces."
+                      hint={t('NewClientRequestScreen.categoryHint')}
                       {...errorFor(fieldErrors, 'category')}
                     />
                     <Field
-                      label="Is it urgent, and why?"
+                      label={t('NewClientRequestScreen.urgencyLabel')}
                       name="urgencyReason"
                       value={urgencyReason}
                       onChange={(event) => setUrgencyReason(event.target.value)}
-                      hint="Optional. A deadline of your own, a season, an event — anything that makes the timing matter."
+                      hint={t('NewClientRequestScreen.urgencyHint')}
                       {...errorFor(fieldErrors, 'urgencyReason')}
                     />
                   </div>
 
-                  <p className="tm-pt-eyebrow">⊘ Visible to the studio and your team</p>
+                  <p className="tm-pt-eyebrow">{t('NewClientRequestScreen.visibleToStudio')}</p>
                 </div>
 
                 {failure ? (
-                  <InlineAlert tone="danger" title="Could not send the request" live>
+                  <InlineAlert tone="danger" title={t('NewClientRequestScreen.sendError')} live>
                     {failure}
                   </InlineAlert>
                 ) : null}
@@ -375,10 +381,10 @@ export function NewClientRequestScreen({
                     tone="ink"
                     size="accessible"
                     loading={sending}
-                    loadingLabel="Sending"
+                    loadingLabel={t('NewClientRequestScreen.sending')}
                     disabled={projects.isPending || noProjectShared}
                   >
-                    Send request
+                    {t('NewClientRequestScreen.sendRequest')}
                   </Button>
                 </div>
               </fieldset>
@@ -386,28 +392,28 @@ export function NewClientRequestScreen({
               <div className="tm-pt-col">
                 <section className="tm-pt-ink" aria-labelledby="tm-request-summary">
                   <h2 id="tm-request-summary" className="tm-pt-eyebrow">
-                    What happens next
+                    {t('NewClientRequestScreen.whatHappensNext')}
                   </h2>
                   <p className="tm-pt-ink__title">
-                    {providerName} reads it, asks anything unclear, then either agrees a date or
-                    tells you why not.
+                    {providerName} {t('NewClientRequestScreen.readsItSuffix')}
                   </p>
+                  <p className="tm-pt-quiet">{t('NewClientRequestScreen.dateWishQuiet')}</p>
                   <p className="tm-pt-quiet">
-                    A date you ask for is not a date you are given. Nothing is scheduled until the
-                    studio commits, and your date stays visible either way.
-                  </p>
-                  <p className="tm-pt-quiet">
-                    Asked for: {desiredDate === '' ? 'No date' : formatDay(desiredDate)}
+                    {t('NewClientRequestScreen.askedForColon')}{' '}
+                    {desiredDate === ''
+                      ? t('NewClientRequestScreen.noDate')
+                      : formatDay(desiredDate)}
                   </p>
                 </section>
 
                 <section className="tm-pt-card" aria-labelledby="tm-request-audience">
                   <h2 id="tm-request-audience" className="tm-pt-eyebrow">
-                    Who will see this
+                    {t('NewClientRequestScreen.whoWillSee')}
                   </h2>
                   <p className="tm-pt-quiet">
-                    {providerName}&rsquo;s delivery team, and your colleagues at {clientName}.
-                    Nobody outside those two groups — no other client of {providerName} can see it.
+                    {providerName}&rsquo;s {t('NewClientRequestScreen.audiencePart1')} {clientName}.{' '}
+                    {t('NewClientRequestScreen.audiencePart2')} {providerName}{' '}
+                    {t('NewClientRequestScreen.audiencePart3')}
                   </p>
                 </section>
               </div>
@@ -434,19 +440,22 @@ interface SentConfirmationProps {
  * just pressed Send is the moment they most want to know whether they have set a deadline.
  */
 function SentConfirmation({ request, providerName, organizationSlug }: SentConfirmationProps) {
+  const t = useT();
   return (
     <div className="tm-pt-split tm-pt-split--aside">
       <section className="tm-pt-form" aria-labelledby="tm-request-sent">
         <h2 id="tm-request-sent" className="tm-pt-eyebrow">
-          Sent
+          {t('NewClientRequestScreen.sent')}
         </h2>
-        <InlineAlert tone="success" title="Your request is with the studio" live>
+        <InlineAlert tone="success" title={t('NewClientRequestScreen.titleSent')} live>
           <p className="tm-pt-card__title">{request.title}</p>
         </InlineAlert>
         <p className="tm-pt-aside-row">
-          <span className="tm-pt-tag">Asked for</span>
+          <span className="tm-pt-tag">{t('NewClientRequestScreen.askedForTag')}</span>
           <span className="tm-pt-quiet">
-            {request.desiredAt === null ? 'No date' : formatDay(request.desiredAt)}
+            {request.desiredAt === null
+              ? t('NewClientRequestScreen.noDate')
+              : formatDay(request.desiredAt)}
           </span>
         </p>
         {/*
@@ -458,22 +467,21 @@ function SentConfirmation({ request, providerName, organizationSlug }: SentConfi
             className="tm-pt-btn tm-pt-btn--ink"
             href={`/${organizationSlug}/portal/requests/${request.id}`}
           >
-            See this request
+            {t('NewClientRequestScreen.seeThisRequest')}
           </Link>
           <Link className="tm-pt-btn" href={`/${organizationSlug}/portal/requests`}>
-            All of your requests
+            {t('NewClientRequestScreen.allYourRequests')}
           </Link>
         </div>
       </section>
 
       <section className="tm-pt-ink" aria-labelledby="tm-request-next">
         <h2 id="tm-request-next" className="tm-pt-ink__title">
-          Nothing is scheduled yet
+          {t('NewClientRequestScreen.nothingScheduledYet')}
         </h2>
         <p className="tm-pt-quiet">
-          The date above is the one you asked for. It is not a commitment and it has not been
-          agreed. {providerName} will read the request, ask you anything they need, and then either
-          agree a date or tell you why not — you will see whichever it is on this request.
+          {t('NewClientRequestScreen.nothingScheduledPart1')} {providerName}{' '}
+          {t('NewClientRequestScreen.nothingScheduledPart2')}
         </p>
       </section>
     </div>

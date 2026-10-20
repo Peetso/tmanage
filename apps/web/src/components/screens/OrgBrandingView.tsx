@@ -13,6 +13,7 @@ import {
 import type { OrgBrandingView as OrgBrandingRecord } from '../../lib/api/org-branding';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface OrgBrandingViewProps {
   organizationSlug: string;
@@ -45,6 +46,7 @@ export function OrgBrandingView({
   client,
 }: OrgBrandingViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queries = useQueryClient();
 
   const branding = useQuery({
@@ -83,15 +85,15 @@ export function OrgBrandingView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Org branding"
-      description="Set how this organization presents itself in the app: the product name, accent colour, and logo text."
+      title={t('OrgBrandingView.title')}
+      description={t('OrgBrandingView.description')}
     >
       {branding.isPending ? (
-        <LoadingRegion label="Loading org branding">
+        <LoadingRegion label={t('OrgBrandingView.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : branding.isError ? (
-        <InlineAlert tone="danger" title="We could not load the branding">
+        <InlineAlert tone="danger" title={t('OrgBrandingView.loadError')}>
           {errorMessage(branding.error)}
         </InlineAlert>
       ) : (
@@ -105,12 +107,12 @@ export function OrgBrandingView({
           }}
         >
           <h2 id="tm-org-branding-heading" className="tm-eyebrow">
-            Chrome branding
+            {t('OrgBrandingView.chromeBranding')}
           </h2>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-org-product-name">
-              Product name
+              {t('OrgBrandingView.productName')}
             </label>
             <input
               id="tm-org-product-name"
@@ -118,14 +120,14 @@ export function OrgBrandingView({
               type="text"
               maxLength={PRODUCT_NAME_MAX_LENGTH}
               value={productName}
-              placeholder="Shown in the app chrome"
+              placeholder={t('OrgBrandingView.productNamePlaceholder')}
               onChange={(event) => setProductName(event.target.value)}
             />
           </div>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-org-accent">
-              Accent colour
+              {t('OrgBrandingView.accentColour')}
             </label>
             <input
               id="tm-org-accent"
@@ -138,14 +140,14 @@ export function OrgBrandingView({
             />
             {!accentValid ? (
               <p className="tm-field__hint" role="alert">
-                Enter a hex colour, e.g. #2563eb or #14b.
+                {t('OrgBrandingView.accentHint')}
               </p>
             ) : null}
           </div>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-org-logo-text">
-              Logo text
+              {t('OrgBrandingView.logoText')}
             </label>
             <input
               id="tm-org-logo-text"
@@ -153,26 +155,26 @@ export function OrgBrandingView({
               type="text"
               maxLength={LOGO_TEXT_MAX_LENGTH}
               value={logoText}
-              placeholder="Initials or a short label"
+              placeholder={t('OrgBrandingView.logoTextPlaceholder')}
               onChange={(event) => setLogoText(event.target.value)}
             />
           </div>
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="We could not save the branding">
+            <InlineAlert tone="danger" title={t('OrgBrandingView.saveError')}>
               {errorMessage(save.error)}
             </InlineAlert>
           ) : null}
 
           {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved">
-              The org branding has been saved.
+            <InlineAlert tone="success" title={t('OrgBrandingView.savedTitle')}>
+              {t('OrgBrandingView.savedBody')}
             </InlineAlert>
           ) : null}
 
           <div>
             <Button type="submit" disabled={save.isPending || !accentValid}>
-              {save.isPending ? 'Saving…' : 'Save branding'}
+              {save.isPending ? t('OrgBrandingView.saving') : t('OrgBrandingView.saveBranding')}
             </Button>
           </div>
         </form>

@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listDocBookmarks } from '../../lib/api/doc-bookmarks';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MyBookmarksScreenProps {
   organizationSlug: string;
@@ -34,6 +35,7 @@ export function MyBookmarksScreen({
   client,
 }: MyBookmarksScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const bookmarks = useQuery({
     queryKey: ['doc-bookmarks', organizationSlug],
@@ -47,31 +49,30 @@ export function MyBookmarksScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      title="Bookmarked documents"
-      description="The documents you have bookmarked, newest first. Only documents you can still read appear here."
+      title={t('MyBookmarksScreen.title')}
+      description={t('MyBookmarksScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-bookmarks-heading">
         <h2 id="tm-bookmarks-heading" className="tm-eyebrow">
-          Your bookmarks
+          {t('MyBookmarksScreen.yourBookmarks')}
         </h2>
 
         {bookmarks.isError ? (
-          <InlineAlert tone="danger" title="Could not load your bookmarks" live>
+          <InlineAlert tone="danger" title={t('MyBookmarksScreen.loadError')} live>
             {describeError(bookmarks.error)}
           </InlineAlert>
         ) : null}
 
         {bookmarks.isPending ? (
-          <LoadingRegion label="Loading your bookmarks.">
+          <LoadingRegion label={t('MyBookmarksScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!bookmarks.isPending && !bookmarks.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No bookmarks yet">
-            Bookmark a document to keep it here. Use the bookmark control beside a document to add
-            it.
+          <InlineAlert tone="neutral" title={t('MyBookmarksScreen.emptyTitle')}>
+            {t('MyBookmarksScreen.emptyBody')}
           </InlineAlert>
         ) : null}
 
@@ -83,16 +84,17 @@ export function MyBookmarksScreen({
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Bookmarked documents"
+            aria-label={t('MyBookmarksScreen.title')}
           >
             <table className="tm-table">
               <caption className="tm-visually-hidden">
-                Your bookmarked documents, newest first, {rows.length} shown.
+                {t('MyBookmarksScreen.captionPrefix')} {rows.length}{' '}
+                {t('MyBookmarksScreen.captionShown')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">Bookmarked at</th>
+                  <th scope="col">{t('MyBookmarksScreen.colDocument')}</th>
+                  <th scope="col">{t('MyBookmarksScreen.colBookmarkedAt')}</th>
                 </tr>
               </thead>
               <tbody>

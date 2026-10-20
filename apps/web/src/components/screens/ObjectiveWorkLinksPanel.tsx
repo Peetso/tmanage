@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/objective-work-links';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ObjectiveWorkLinksPanelProps {
   organizationSlug: string;
@@ -41,6 +42,7 @@ export function ObjectiveWorkLinksPanel({
   client,
 }: ObjectiveWorkLinksPanelProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const [workItemId, setWorkItemId] = useState('');
@@ -85,7 +87,7 @@ export function ObjectiveWorkLinksPanel({
   return (
     <section className="tm-card tm-prj-card" aria-labelledby={headingId}>
       <h3 id={headingId} className="tm-prj-eyebrow">
-        Linked work — {objectiveName}
+        {t('ObjectiveWorkLinksPanel.linkedWork')} {objectiveName}
       </h3>
 
       <form className="tm-stack" onSubmit={onSubmit} noValidate>
@@ -94,17 +96,17 @@ export function ObjectiveWorkLinksPanel({
           disabled={linkMutation.isPending}
         >
           <Field
-            label="Work item ID"
+            label={t('ObjectiveWorkLinksPanel.workItemIdLabel')}
             name="workItemId"
             value={workItemId}
             onChange={(event) => setWorkItemId(event.target.value)}
-            hint="The ID of a work item in this project to link to the objective."
+            hint={t('ObjectiveWorkLinksPanel.workItemIdHint')}
             required
           />
         </fieldset>
 
         {linkMutation.isError ? (
-          <InlineAlert tone="danger" title="Could not link the work item" live>
+          <InlineAlert tone="danger" title={t('ObjectiveWorkLinksPanel.linkError')} live>
             {describeError(linkMutation.error)}
           </InlineAlert>
         ) : null}
@@ -115,34 +117,34 @@ export function ObjectiveWorkLinksPanel({
             tone="ink"
             size="accessible"
             loading={linkMutation.isPending}
-            loadingLabel="Linking"
+            loadingLabel={t('ObjectiveWorkLinksPanel.linking')}
             disabled={!canSubmit}
           >
-            Link work item
+            {t('ObjectiveWorkLinksPanel.linkWorkItem')}
           </Button>
         </div>
       </form>
 
       {links.isError ? (
-        <InlineAlert tone="danger" title="Could not load the linked work" live>
+        <InlineAlert tone="danger" title={t('ObjectiveWorkLinksPanel.loadError')} live>
           {describeError(links.error)}
         </InlineAlert>
       ) : null}
 
       {links.isPending ? (
-        <LoadingRegion label="Loading the objective's linked work.">
+        <LoadingRegion label={t('ObjectiveWorkLinksPanel.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!links.isPending && !links.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No linked work yet">
-          No work is linked to this objective. Link the first item above.
+        <InlineAlert tone="neutral" title={t('ObjectiveWorkLinksPanel.emptyTitle')}>
+          {t('ObjectiveWorkLinksPanel.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 && unlinkMutation.isError ? (
-        <InlineAlert tone="danger" title="Could not unlink the work item" live>
+        <InlineAlert tone="danger" title={t('ObjectiveWorkLinksPanel.unlinkError')} live>
           {describeError(unlinkMutation.error)}
         </InlineAlert>
       ) : null}
@@ -155,17 +157,18 @@ export function ObjectiveWorkLinksPanel({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
-          aria-label={`Work linked to ${objectiveName}`}
+          aria-label={`${t('ObjectiveWorkLinksPanel.workLinkedTo')} ${objectiveName}`}
         >
           <table className="tm-table">
             <caption className="tm-visually-hidden">
-              Work linked to this objective, in link order, {rows.length} shown.
+              {t('ObjectiveWorkLinksPanel.captionPrefix')} {rows.length}{' '}
+              {t('ObjectiveWorkLinksPanel.captionShown')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Work item</th>
-                <th scope="col">State</th>
-                <th scope="col">Action</th>
+                <th scope="col">{t('ObjectiveWorkLinksPanel.colWorkItem')}</th>
+                <th scope="col">{t('ObjectiveWorkLinksPanel.colState')}</th>
+                <th scope="col">{t('ObjectiveWorkLinksPanel.colAction')}</th>
               </tr>
             </thead>
             <tbody>
@@ -183,7 +186,7 @@ export function ObjectiveWorkLinksPanel({
                       onClick={() => unlinkMutation.mutate(row.linkId)}
                       disabled={unlinkMutation.isPending}
                     >
-                      Unlink
+                      {t('ObjectiveWorkLinksPanel.unlink')}
                     </Button>
                   </td>
                 </tr>

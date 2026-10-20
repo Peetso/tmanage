@@ -13,6 +13,7 @@ import {
 import type { AnnouncementSummary } from '../../lib/api/admin-announcements';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface OrgAnnouncementsViewProps {
   organizationSlug: string;
@@ -48,6 +49,7 @@ export function OrgAnnouncementsView({
   client,
 }: OrgAnnouncementsViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
   const bodyId = useId();
 
@@ -106,29 +108,32 @@ export function OrgAnnouncementsView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Announcements"
-      description="Post an organization-wide banner your members see, and read the ones active now."
+      title={t('OrgAnnouncementsView.title')}
+      description={t('OrgAnnouncementsView.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-announcements-active-heading">
         <h2 id="tm-announcements-active-heading" className="tm-eyebrow">
-          Active announcements
+          {t('OrgAnnouncementsView.activeAnnouncements')}
         </h2>
 
         {announcements.isPending ? (
-          <LoadingRegion label="Loading the announcements." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('OrgAnnouncementsView.loading')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {announcements.isError ? (
-          <InlineAlert tone="danger" title="Could not load the announcements" live>
+          <InlineAlert tone="danger" title={t('OrgAnnouncementsView.loadError')} live>
             {describeError(announcements.error)}
           </InlineAlert>
         ) : null}
 
         {announcements.isSuccess && visible.length === 0 ? (
-          <InlineAlert tone="neutral" title="No active announcements">
-            There is nothing to show right now.
+          <InlineAlert tone="neutral" title={t('OrgAnnouncementsView.noActiveTitle')}>
+            {t('OrgAnnouncementsView.noActiveBody')}
           </InlineAlert>
         ) : null}
 
@@ -139,13 +144,13 @@ export function OrgAnnouncementsView({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-announcements-new-heading">
         <h2 id="tm-announcements-new-heading" className="tm-eyebrow">
-          Post an announcement
+          {t('OrgAnnouncementsView.postHeading')}
         </h2>
 
         <form
           className="tm-stack"
           noValidate
-          aria-label="Post an announcement"
+          aria-label={t('OrgAnnouncementsView.postHeading')}
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
             setCreated(false);
@@ -153,17 +158,17 @@ export function OrgAnnouncementsView({
           }}
         >
           <Field
-            label="Title"
+            label={t('OrgAnnouncementsView.titleLabel')}
             name="announcement-title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             required
-            hint="A short heading your members will see first."
+            hint={t('OrgAnnouncementsView.titleHint')}
           />
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor={bodyId}>
-              Body
+              {t('OrgAnnouncementsView.bodyLabel')}
             </label>
             <textarea
               id={bodyId}
@@ -176,30 +181,30 @@ export function OrgAnnouncementsView({
           </div>
 
           <Field
-            label="Starts (optional)"
+            label={t('OrgAnnouncementsView.startsLabel')}
             name="announcement-starts"
             type="datetime-local"
             value={startsAt}
             onChange={(event) => setStartsAt(event.target.value)}
-            hint="Leave empty to show it immediately."
+            hint={t('OrgAnnouncementsView.startsHint')}
           />
           <Field
-            label="Ends (optional)"
+            label={t('OrgAnnouncementsView.endsLabel')}
             name="announcement-ends"
             type="datetime-local"
             value={endsAt}
             onChange={(event) => setEndsAt(event.target.value)}
-            hint="Leave empty to show it with no end."
+            hint={t('OrgAnnouncementsView.endsHint')}
           />
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="Could not post the announcement" live>
+            <InlineAlert tone="danger" title={t('OrgAnnouncementsView.postError')} live>
               {describeError(save.error)}
             </InlineAlert>
           ) : null}
           {created && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Announcement posted" live>
-              Your members will see it while it is active.
+            <InlineAlert tone="success" title={t('OrgAnnouncementsView.postedTitle')} live>
+              {t('OrgAnnouncementsView.postedBody')}
             </InlineAlert>
           ) : null}
 
@@ -209,15 +214,15 @@ export function OrgAnnouncementsView({
               tone="ink"
               size="accessible"
               loading={save.isPending}
-              loadingLabel="Posting"
+              loadingLabel={t('OrgAnnouncementsView.posting')}
             >
-              Post announcement
+              {t('OrgAnnouncementsView.postButton')}
             </Button>
           </div>
         </form>
 
         {visible.length > 0 ? (
-          <ul className="tm-stack" aria-label="Active announcements you can remove">
+          <ul className="tm-stack" aria-label={t('OrgAnnouncementsView.removableAria')}>
             {visible.map((item) => (
               <li key={item.id} className="tm-row">
                 <strong>{item.title}</strong>
@@ -226,12 +231,12 @@ export function OrgAnnouncementsView({
                   tone="destructive"
                   size="accessible"
                   loading={remove.isPending && remove.variables === item.id}
-                  loadingLabel="Removing"
+                  loadingLabel={t('OrgAnnouncementsView.removing')}
                   onClick={() => {
                     if (!remove.isPending) remove.mutate(item.id);
                   }}
                 >
-                  Remove
+                  {t('OrgAnnouncementsView.remove')}
                 </Button>
               </li>
             ))}
@@ -239,7 +244,7 @@ export function OrgAnnouncementsView({
         ) : null}
 
         {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not remove the announcement" live>
+          <InlineAlert tone="danger" title={t('OrgAnnouncementsView.removeError')} live>
             {describeError(remove.error)}
           </InlineAlert>
         ) : null}
@@ -256,14 +261,19 @@ function AnnouncementBanner({
   item: AnnouncementSummary;
   onDismiss: () => void;
 }) {
+  const t = useT();
   return (
-    <div className="tm-row" role="note" aria-label={`Announcement: ${item.title}`}>
+    <div
+      className="tm-row"
+      role="note"
+      aria-label={`${t('OrgAnnouncementsView.announcementPrefix')} ${item.title}`}
+    >
       <div className="tm-stack tm-stack--tight">
         <strong>{item.title}</strong>
         <p className="tm-prose">{item.body}</p>
       </div>
       <Button type="button" tone="text" size="accessible" onClick={onDismiss}>
-        Dismiss
+        {t('OrgAnnouncementsView.dismiss')}
       </Button>
     </div>
   );

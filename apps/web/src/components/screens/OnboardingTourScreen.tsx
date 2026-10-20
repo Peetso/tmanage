@@ -11,6 +11,8 @@ import {
 } from '../../lib/api/onboarding-tour';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface OnboardingTourScreenProps {
   organizationSlug: string;
@@ -39,6 +41,7 @@ export function OnboardingTourScreen({
   client,
 }: OnboardingTourScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
   const queryKey = ['onboarding-tour', organizationSlug];
 
@@ -65,28 +68,28 @@ export function OnboardingTourScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="home"
-      title="Guided tour"
+      title={t('OnboardingTourScreen.title')}
       titleVariant="display"
-      description="Five short steps through TManage. Mark each one done as you go — your progress is your own."
+      description={t('OnboardingTourScreen.description')}
     >
       <style href="tm-onboarding-tour" precedence="default">
         {TOUR_CSS}
       </style>
 
       {tour.isError ? (
-        <InlineAlert tone="danger" title="Could not load the tour" live>
+        <InlineAlert tone="danger" title={t('OnboardingTourScreen.loadError')} live>
           {describeError(tour.error)}
         </InlineAlert>
       ) : null}
 
       {complete.isError ? (
-        <InlineAlert tone="danger" title="Could not mark that step done" live>
+        <InlineAlert tone="danger" title={t('OnboardingTourScreen.markStepError')} live>
           {describeError(complete.error)}
         </InlineAlert>
       ) : null}
 
       {tour.isPending ? (
-        <LoadingRegion label="Loading the tour." className="tm-tour">
+        <LoadingRegion label={t('OnboardingTourScreen.loading')} className="tm-tour">
           <Skeleton height="72px" />
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
@@ -102,7 +105,7 @@ export function OnboardingTourScreen({
               </span>
               <div>
                 <p className="tm-tour__next-title">{next.label}</p>
-                <p className="tm-tour__next-why">{STEP_COPY[next.step]}</p>
+                <p className="tm-tour__next-why">{t(STEP_COPY_KEYS[next.step])}</p>
               </div>
             </div>
           ) : (
@@ -111,8 +114,8 @@ export function OnboardingTourScreen({
                 ✓
               </span>
               <div>
-                <p className="tm-tour__next-title">Tour complete</p>
-                <p className="tm-tour__next-why">Every step is done. Nothing here needs you.</p>
+                <p className="tm-tour__next-title">{t('OnboardingTourScreen.tourComplete')}</p>
+                <p className="tm-tour__next-why">{t('OnboardingTourScreen.tourCompleteWhy')}</p>
               </div>
             </div>
           )}
@@ -120,7 +123,7 @@ export function OnboardingTourScreen({
           <section className="tm-tour__card" aria-labelledby="tm-tour-heading">
             <div className="tm-tour__head">
               <h2 id="tm-tour-heading" className="tm-tour__eyebrow">
-                Tour · your progress
+                {t('OnboardingTourScreen.tourProgress')}
               </h2>
               <div className="tm-tour__dashes" aria-hidden="true">
                 {steps.map((step, index) => (
@@ -135,7 +138,8 @@ export function OnboardingTourScreen({
               </div>
             </div>
             <p className="tm-tour__count" aria-live="polite">
-              {doneCount} of {steps.length} steps done.
+              {doneCount} {t('OnboardingTourScreen.of')} {steps.length}{' '}
+              {t('OnboardingTourScreen.stepsDone')}
             </p>
             <ol className="tm-tour__steps">
               {steps.map((step, index) => (
@@ -150,21 +154,23 @@ export function OnboardingTourScreen({
                   <span className="tm-tour__label">
                     {step.label}
                     <span className="tm-visually-hidden">
-                      {step.completed ? ' — done' : ' — to do'}
+                      {step.completed
+                        ? t('OnboardingTourScreen.dashDone')
+                        : t('OnboardingTourScreen.dashToDo')}
                     </span>
                   </span>
                   {step.completed ? (
-                    <span className="tm-tour__done">Done</span>
+                    <span className="tm-tour__done">{t('OnboardingTourScreen.done')}</span>
                   ) : (
                     <Button
                       type="button"
                       tone={index === nextIndex ? 'ink' : 'outline'}
                       size="compact"
                       loading={complete.isPending && complete.variables === step.step}
-                      loadingLabel="Saving"
+                      loadingLabel={t('OnboardingTourScreen.saving')}
                       onClick={() => complete.mutate(step.step)}
                     >
-                      Mark done
+                      {t('OnboardingTourScreen.markDone')}
                       <span className="tm-visually-hidden">: {step.label}</span>
                     </Button>
                   )}
@@ -178,13 +184,13 @@ export function OnboardingTourScreen({
   );
 }
 
-/** What each fixed step is for — the "and it always says why" line under the next action. */
-const STEP_COPY: Record<OnboardingTourStep, string> = {
-  welcome: 'My Day shows the one action that is next, and why. Start there.',
-  create_project: 'A project holds the milestones, deliverables and client portal.',
-  invite_team: 'Bring in the people who deliver. Clients are invited separately.',
-  explore_work: 'The work board shows what is moving, waiting and blocked.',
-  share_portal: 'Clients see only what you publish to them — nothing internal.',
+/** The message key for what each fixed step is for — the "says why" line under the next action. */
+const STEP_COPY_KEYS: Record<OnboardingTourStep, MessageKey> = {
+  welcome: 'OnboardingTourScreen.stepWelcome',
+  create_project: 'OnboardingTourScreen.stepCreateProject',
+  invite_team: 'OnboardingTourScreen.stepInviteTeam',
+  explore_work: 'OnboardingTourScreen.stepExploreWork',
+  share_portal: 'OnboardingTourScreen.stepSharePortal',
 };
 
 const TOUR_CSS = `

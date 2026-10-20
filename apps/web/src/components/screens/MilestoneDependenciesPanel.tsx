@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/milestone-links';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MilestoneDependenciesPanelProps {
   organizationSlug: string;
@@ -41,6 +42,7 @@ export function MilestoneDependenciesPanel({
   client,
 }: MilestoneDependenciesPanelProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const [dependsOnMilestoneId, setDependsOnMilestoneId] = useState('');
@@ -85,7 +87,7 @@ export function MilestoneDependenciesPanel({
   return (
     <section className="tm-panel tm-stack" aria-labelledby={headingId}>
       <h3 id={headingId} className="tm-eyebrow">
-        Depends on — {milestoneTitle}
+        {t('MilestoneDependenciesPanel.dependsOn')} {milestoneTitle}
       </h3>
 
       <form className="tm-stack" onSubmit={onSubmit} noValidate>
@@ -94,17 +96,17 @@ export function MilestoneDependenciesPanel({
           disabled={linkMutation.isPending}
         >
           <Field
-            label="Prerequisite milestone ID"
+            label={t('MilestoneDependenciesPanel.prerequisiteIdLabel')}
             name="dependsOnMilestoneId"
             value={dependsOnMilestoneId}
             onChange={(event) => setDependsOnMilestoneId(event.target.value)}
-            hint="The ID of another milestone in this project that must come first."
+            hint={t('MilestoneDependenciesPanel.prerequisiteIdHint')}
             required
           />
         </fieldset>
 
         {linkMutation.isError ? (
-          <InlineAlert tone="danger" title="Could not add the dependency" live>
+          <InlineAlert tone="danger" title={t('MilestoneDependenciesPanel.addError')} live>
             {describeError(linkMutation.error)}
           </InlineAlert>
         ) : null}
@@ -115,34 +117,34 @@ export function MilestoneDependenciesPanel({
             tone="ink"
             size="accessible"
             loading={linkMutation.isPending}
-            loadingLabel="Linking"
+            loadingLabel={t('MilestoneDependenciesPanel.linking')}
             disabled={!canSubmit}
           >
-            Add dependency
+            {t('MilestoneDependenciesPanel.addDependency')}
           </Button>
         </div>
       </form>
 
       {dependencies.isError ? (
-        <InlineAlert tone="danger" title="Could not load the dependencies" live>
+        <InlineAlert tone="danger" title={t('MilestoneDependenciesPanel.loadError')} live>
           {describeError(dependencies.error)}
         </InlineAlert>
       ) : null}
 
       {dependencies.isPending ? (
-        <LoadingRegion label="Loading the milestone's dependencies.">
+        <LoadingRegion label={t('MilestoneDependenciesPanel.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!dependencies.isPending && !dependencies.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No dependencies yet">
-          This milestone depends on nothing yet. Add the first prerequisite above.
+        <InlineAlert tone="neutral" title={t('MilestoneDependenciesPanel.emptyTitle')}>
+          {t('MilestoneDependenciesPanel.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 && unlinkMutation.isError ? (
-        <InlineAlert tone="danger" title="Could not remove the dependency" live>
+        <InlineAlert tone="danger" title={t('MilestoneDependenciesPanel.removeError')} live>
           {describeError(unlinkMutation.error)}
         </InlineAlert>
       ) : null}
@@ -155,17 +157,18 @@ export function MilestoneDependenciesPanel({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
-          aria-label={`Milestones ${milestoneTitle} depends on`}
+          aria-label={`${t('MilestoneDependenciesPanel.regionPrefix')} ${milestoneTitle} ${t('MilestoneDependenciesPanel.regionSuffix')}`}
         >
           <table className="tm-table">
             <caption className="tm-visually-hidden">
-              Milestones this one depends on, in link order, {rows.length} shown.
+              {t('MilestoneDependenciesPanel.captionPrefix')} {rows.length}{' '}
+              {t('MilestoneDependenciesPanel.captionShown')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Prerequisite</th>
-                <th scope="col">Status</th>
-                <th scope="col">Action</th>
+                <th scope="col">{t('MilestoneDependenciesPanel.colPrerequisite')}</th>
+                <th scope="col">{t('MilestoneDependenciesPanel.colStatus')}</th>
+                <th scope="col">{t('MilestoneDependenciesPanel.colAction')}</th>
               </tr>
             </thead>
             <tbody>
@@ -183,7 +186,7 @@ export function MilestoneDependenciesPanel({
                       onClick={() => unlinkMutation.mutate(row.dependsOnMilestoneId)}
                       disabled={unlinkMutation.isPending}
                     >
-                      Remove
+                      {t('MilestoneDependenciesPanel.remove')}
                     </Button>
                   </td>
                 </tr>

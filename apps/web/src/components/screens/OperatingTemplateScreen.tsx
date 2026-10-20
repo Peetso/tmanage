@@ -10,6 +10,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
 import { readOrgSettings, setOrgSetting } from '../../lib/api/org-settings';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 /**
  * The four templates of ON-03, named as the approved design names them — "Delivery with client
@@ -28,45 +30,48 @@ import { readOrgSettings, setOrgSetting } from '../../lib/api/org-settings';
 const TEMPLATES = [
   {
     value: 'delivery-client-review',
-    name: 'Delivery with client review',
-    summary: 'Internal review required · client approval binds a version',
+    nameKey: 'OperatingTemplateScreen.tplDeliveryName',
+    summaryKey: 'OperatingTemplateScreen.tplDeliverySummary',
     /** `true` when the template runs the deliverable machine as well as the work machine. */
     clientReview: true,
-    rules: [
-      'Work cannot reach client review before internal review passes.',
-      'The person who authored a version cannot pass its internal review.',
-      'Publication runs a safety check and generates a client projection.',
-      'An approval is bound to one version; a new version invalidates it.',
+    ruleKeys: [
+      'OperatingTemplateScreen.tplDeliveryRule1',
+      'OperatingTemplateScreen.tplDeliveryRule2',
+      'OperatingTemplateScreen.tplDeliveryRule3',
+      'OperatingTemplateScreen.tplDeliveryRule4',
     ],
   },
   {
     value: 'intake-commitment',
-    name: 'Intake and commitment',
-    summary: 'Triage step · commitment per cycle',
+    nameKey: 'OperatingTemplateScreen.tplIntakeName',
+    summaryKey: 'OperatingTemplateScreen.tplIntakeSummary',
     clientReview: true,
-    rules: [
-      'A request is triaged before it becomes committed work.',
-      'Commitments belong to a cycle and are visible to the client.',
-    ],
+    ruleKeys: ['OperatingTemplateScreen.tplIntakeRule1', 'OperatingTemplateScreen.tplIntakeRule2'],
   },
   {
     value: 'internal-delivery',
-    name: 'Internal delivery',
-    summary: 'No publication step',
+    nameKey: 'OperatingTemplateScreen.tplInternalName',
+    summaryKey: 'OperatingTemplateScreen.tplInternalSummary',
     clientReview: false,
-    rules: [
-      'Work cannot reach done before internal review passes.',
-      'Milestones advance on evidence rather than on a date passing.',
+    ruleKeys: [
+      'OperatingTemplateScreen.tplInternalRule1',
+      'OperatingTemplateScreen.tplInternalRule2',
     ],
   },
   {
     value: 'empty',
-    name: 'Start from empty',
-    summary: 'Define your own states later in Control Center',
+    nameKey: 'OperatingTemplateScreen.tplEmptyName',
+    summaryKey: 'OperatingTemplateScreen.tplEmptySummary',
     clientReview: false,
-    rules: ['Nothing is enforced until you define it.'],
+    ruleKeys: ['OperatingTemplateScreen.tplEmptyRule1'],
   },
-] as const;
+] as const satisfies readonly {
+  value: string;
+  nameKey: MessageKey;
+  summaryKey: MessageKey;
+  clientReview: boolean;
+  ruleKeys: readonly MessageKey[];
+}[];
 
 export interface OperatingTemplateScreenProps {
   signedInAs: string;
@@ -104,6 +109,7 @@ export function OperatingTemplateScreen({
   onContinue,
 }: OperatingTemplateScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   // The template radios are controlled inputs in the server HTML with no query behind them, so a
   // choice made on a cold page would be re-applied to the default by hydration. The picker is
   // disabled until React is live: `false` in the server render, `true` on the first client render.
@@ -144,7 +150,9 @@ export function OperatingTemplateScreen({
       onContinue?.();
     } catch (error) {
       setFailure(
-        error instanceof ApiRequestError ? error.message : 'The template could not be saved.',
+        error instanceof ApiRequestError
+          ? error.message
+          : t('OperatingTemplateScreen.couldNotSave'),
       );
     } finally {
       setSaving(false);
@@ -153,18 +161,20 @@ export function OperatingTemplateScreen({
   const template = TEMPLATES.find((candidate) => candidate.value === chosen) ?? TEMPLATES[0];
 
   return (
-    <OnboardingShell current="ON-02" signedInAs={signedInAs} title="How work should move">
+    <OnboardingShell
+      current="ON-02"
+      signedInAs={signedInAs}
+      title={t('OperatingTemplateScreen.title')}
+    >
       <OnboardingScreenStyles />
       <style href="tm-onboarding-template" precedence="default">
         {TEMPLATE_CSS}
       </style>
-      <p className="tm-ob-lede">
-        The template is a workflow, not a theme. Here is exactly what each one does.
-      </p>
+      <p className="tm-ob-lede">{t('OperatingTemplateScreen.lede')}</p>
 
       <div className="tm-ob-template">
         <fieldset className="tm-fieldset tm-ob-template__list" disabled={!hydrated}>
-          <legend className="tm-visually-hidden">Operating template</legend>
+          <legend className="tm-visually-hidden">{t('OperatingTemplateScreen.legend')}</legend>
           {TEMPLATES.map((option) => (
             <label
               key={option.value}
@@ -181,8 +191,8 @@ export function OperatingTemplateScreen({
                   setChosen(option.value);
                 }}
               />
-              <span className="tm-ob-tcard__name">{option.name}</span>
-              <span className="tm-ob-tcard__detail">{option.summary}</span>
+              <span className="tm-ob-tcard__name">{t(option.nameKey)}</span>
+              <span className="tm-ob-tcard__detail">{t(option.summaryKey)}</span>
             </label>
           ))}
         </fieldset>
@@ -192,14 +202,18 @@ export function OperatingTemplateScreen({
           aria-labelledby="tm-template-preview"
         >
           <h2 id="tm-template-preview" className="tm-ob-eyebrow">
-            Workflow preview · what this template enforces
+            {t('OperatingTemplateScreen.preview')}
           </h2>
 
           <div className="tm-ob-template__machine">
             <p className="tm-ob-template__caption">
-              Work items move through {WORK_ITEM_STATES.length} states:
+              {t('OperatingTemplateScreen.workItemsMovePrefix')} {WORK_ITEM_STATES.length}{' '}
+              {t('OperatingTemplateScreen.statesSuffix')}
             </p>
-            <ol className="tm-ob-track tm-ob-arrows" aria-label="Work item states">
+            <ol
+              className="tm-ob-track tm-ob-arrows"
+              aria-label={t('OperatingTemplateScreen.workItemStates')}
+            >
               {WORK_ITEM_STATES.map((state, index) => (
                 <li key={state}>
                   <span
@@ -219,10 +233,13 @@ export function OperatingTemplateScreen({
           {template.clientReview ? (
             <div className="tm-ob-template__machine">
               <p className="tm-ob-template__caption">
-                Deliverables published to the client move through {DELIVERABLE_STATES.length}{' '}
-                states:
+                {t('OperatingTemplateScreen.deliverablesMovePrefix')} {DELIVERABLE_STATES.length}{' '}
+                {t('OperatingTemplateScreen.statesSuffix')}
               </p>
-              <ol className="tm-ob-track tm-ob-arrows" aria-label="Deliverable states">
+              <ol
+                className="tm-ob-track tm-ob-arrows"
+                aria-label={t('OperatingTemplateScreen.deliverableStates')}
+              >
                 {DELIVERABLE_STATES.map((state, index) => (
                   <li key={state}>
                     <span className={`tm-ob-capsule ${deliverablePaint(state, index)}`}>
@@ -237,27 +254,28 @@ export function OperatingTemplateScreen({
               <span className="tm-ob-glyph" aria-hidden="true">
                 i
               </span>
-              <p>
-                This template has no publication step, so nothing is projected to a client portal.
-              </p>
+              <p>{t('OperatingTemplateScreen.noPublicationNote')}</p>
             </div>
           )}
 
           <hr className="tm-ob-rule" />
 
-          <ol className="tm-ob-template__rules" aria-label="What it enforces">
-            {template.rules.map((rule, index) => (
-              <li key={rule}>
+          <ol
+            className="tm-ob-template__rules"
+            aria-label={t('OperatingTemplateScreen.whatItEnforces')}
+          >
+            {template.ruleKeys.map((ruleKey, index) => (
+              <li key={ruleKey}>
                 <span className="tm-ob-glyph tm-ob-glyph--ink" aria-hidden="true">
                   {index + 1}
                 </span>
-                <span>{rule}</span>
+                <span>{t(ruleKey)}</span>
               </li>
             ))}
           </ol>
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not save the template" live>
+            <InlineAlert tone="danger" title={t('OperatingTemplateScreen.saveError')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -268,10 +286,10 @@ export function OperatingTemplateScreen({
               size="feature"
               disabled={!hydrated}
               loading={saving}
-              loadingLabel="Saving"
+              loadingLabel={t('OperatingTemplateScreen.saving')}
               onClick={() => void saveTemplate()}
             >
-              Use this template
+              {t('OperatingTemplateScreen.useThisTemplate')}
             </Button>
           </div>
         </section>

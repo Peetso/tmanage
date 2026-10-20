@@ -9,6 +9,7 @@ import { getOrgChart, setReportingManager } from '../../lib/api/reporting-lines'
 import type { ReportingLine } from '../../lib/api/reporting-lines';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/people.css';
 
 export interface OrgChartScreenProps {
@@ -79,6 +80,7 @@ export function OrgChartScreen({
   client,
 }: OrgChartScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
   const queryKey = ['org-chart', organizationSlug];
 
@@ -110,39 +112,37 @@ export function OrgChartScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      eyebrow="People · Org chart"
-      title="Org chart"
-      description="Who reports to whom — the reporting tree, folded from each member's manager."
+      eyebrow={t('OrgChartScreen.eyebrow')}
+      title={t('OrgChartScreen.title')}
+      description={t('OrgChartScreen.description')}
     >
       <div className="ppl-screen">
         <div className="ppl-body">
           <div className="ppl-main">
             {chart.isError ? (
-              <InlineAlert tone="danger" title="Could not load the org chart" live>
+              <InlineAlert tone="danger" title={t('OrgChartScreen.loadError')} live>
                 {describeError(chart.error)}
               </InlineAlert>
             ) : null}
 
             {chart.isPending ? (
-              <LoadingRegion label="Loading the org chart.">
+              <LoadingRegion label={t('OrgChartScreen.loading')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {chart.data !== undefined && forest.length === 0 ? (
-              <section className="ppl-card" aria-label="No reporting lines yet">
-                <h2 className="ppl-card__title">No reporting lines yet</h2>
-                <p className="ppl-dashed-note">
-                  No one has a manager set. Add a reporting line to start the chart.
-                </p>
+              <section className="ppl-card" aria-label={t('OrgChartScreen.noLinesTitle')}>
+                <h2 className="ppl-card__title">{t('OrgChartScreen.noLinesTitle')}</h2>
+                <p className="ppl-dashed-note">{t('OrgChartScreen.noLinesBody')}</p>
               </section>
             ) : null}
 
             {forest.length > 0 ? (
               <section className="ppl-card" aria-labelledby="tm-orgchart-tree">
                 <h2 id="tm-orgchart-tree" className="ppl-mono">
-                  Reporting tree
+                  {t('OrgChartScreen.reportingTree')}
                 </h2>
                 <ul className="ppl-tree">
                   {forest.map((node) => (
@@ -156,7 +156,7 @@ export function OrgChartScreen({
           <div className="ppl-aside ppl-aside--352">
             <section className="ppl-card ppl-card--tight" aria-labelledby="tm-orgchart-set">
               <h2 id="tm-orgchart-set" className="ppl-card__title">
-                Set a reporting line
+                {t('OrgChartScreen.setLine')}
               </h2>
               <form
                 className="ppl-form"
@@ -169,7 +169,7 @@ export function OrgChartScreen({
               >
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-orgchart-member">
-                    Member
+                    {t('OrgChartScreen.member')}
                   </label>
                   <input
                     id="tm-orgchart-member"
@@ -177,13 +177,13 @@ export function OrgChartScreen({
                     className="tm-field__control"
                     value={memberId}
                     onChange={(event) => setMemberId(event.target.value)}
-                    placeholder="membership id"
+                    placeholder={t('OrgChartScreen.membershipIdPlaceholder')}
                     required
                   />
                 </div>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-orgchart-manager">
-                    Manager
+                    {t('OrgChartScreen.manager')}
                   </label>
                   <input
                     id="tm-orgchart-manager"
@@ -191,7 +191,7 @@ export function OrgChartScreen({
                     className="tm-field__control"
                     value={managerId}
                     onChange={(event) => setManagerId(event.target.value)}
-                    placeholder="membership id"
+                    placeholder={t('OrgChartScreen.membershipIdPlaceholder')}
                   />
                 </div>
                 <div className="ppl-button-row">
@@ -201,7 +201,7 @@ export function OrgChartScreen({
                     size="accessible"
                     disabled={!canSet || save.isPending}
                   >
-                    Set manager
+                    {t('OrgChartScreen.setManager')}
                   </Button>
                   <Button
                     type="button"
@@ -210,12 +210,12 @@ export function OrgChartScreen({
                     disabled={!canClear || save.isPending}
                     onClick={() => save.mutate({ member: memberId.trim(), manager: null })}
                   >
-                    Clear manager
+                    {t('OrgChartScreen.clearManager')}
                   </Button>
                 </div>
               </form>
               {save.isError ? (
-                <InlineAlert tone="danger" title="Could not save the reporting line" live>
+                <InlineAlert tone="danger" title={t('OrgChartScreen.saveError')} live>
                   {describeError(save.error)}
                 </InlineAlert>
               ) : null}
@@ -226,12 +226,9 @@ export function OrgChartScreen({
               aria-labelledby="tm-orgchart-note"
             >
               <h2 id="tm-orgchart-note" className="ppl-mono">
-                What a reporting line means
+                {t('OrgChartScreen.whatLineMeans')}
               </h2>
-              <p className="ppl-note ppl-note--ink">
-                A line records who someone reports to, set on record by someone who may manage the
-                organization. Access and approval come from roles, not from the chart.
-              </p>
+              <p className="ppl-note ppl-note--ink">{t('OrgChartScreen.whatLineMeansBody')}</p>
             </section>
           </div>
         </div>

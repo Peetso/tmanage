@@ -18,6 +18,8 @@ import type {
 } from '../../lib/api/org-objectives';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/portfolio.css';
 
 export interface OrgObjectivesScreenProps {
@@ -26,10 +28,10 @@ export interface OrgObjectivesScreenProps {
   client?: ApiClient;
 }
 
-const STATUS_LABELS: Readonly<Record<OrgObjectiveStatus, string>> = {
-  open: 'Open',
-  met: 'Met',
-  missed: 'Missed',
+const STATUS_LABEL_KEYS: Readonly<Record<OrgObjectiveStatus, MessageKey>> = {
+  open: 'OrgObjectivesScreen.statusOpen',
+  met: 'OrgObjectivesScreen.statusMet',
+  missed: 'OrgObjectivesScreen.statusMissed',
 };
 
 /**
@@ -54,6 +56,7 @@ export function OrgObjectivesScreen({
   client,
 }: OrgObjectivesScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const [name, setName] = useState('');
@@ -114,11 +117,15 @@ export function OrgObjectivesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow={rows.length > 0 ? `Objectives · ${openCount} open of ${rows.length}` : 'Objectives'}
-      title="What the work is for"
+      eyebrow={
+        rows.length > 0
+          ? `${t('OrgObjectivesScreen.objectives')} · ${openCount} ${t('OrgObjectivesScreen.openOf')} ${rows.length}`
+          : t('OrgObjectivesScreen.objectives')
+      }
+      title={t('OrgObjectivesScreen.title')}
     >
       {objectives.isError ? (
-        <InlineAlert tone="danger" title="Could not load the objectives" live>
+        <InlineAlert tone="danger" title={t('OrgObjectivesScreen.loadError')} live>
           {describeError(objectives.error)}
         </InlineAlert>
       ) : null}
@@ -126,20 +133,20 @@ export function OrgObjectivesScreen({
       <div className="tm-obj">
         <div className="tm-obj__hub">
           {objectives.isPending ? (
-            <LoadingRegion label="Loading the organization's objectives.">
+            <LoadingRegion label={t('OrgObjectivesScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!objectives.isPending && !objectives.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No objectives yet">
-              This organization has no objectives. Set the first one below.
+            <InlineAlert tone="neutral" title={t('OrgObjectivesScreen.emptyTitle')}>
+              {t('OrgObjectivesScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
           {rows.length > 0 && transition.isError ? (
-            <InlineAlert tone="danger" title="Could not update the objective" live>
+            <InlineAlert tone="danger" title={t('OrgObjectivesScreen.updateError')} live>
               {describeError(transition.error)}
             </InlineAlert>
           ) : null}
@@ -147,7 +154,7 @@ export function OrgObjectivesScreen({
           {rows.length > 0 ? (
             <section aria-labelledby="tm-org-objectives-heading">
               <h2 id="tm-org-objectives-heading" className="tm-visually-hidden">
-                Objectives
+                {t('OrgObjectivesScreen.objectives')}
               </h2>
               <ul className="tm-obj__list" aria-labelledby="tm-org-objectives-heading">
                 {rows.map((objective) => (
@@ -174,23 +181,23 @@ export function OrgObjectivesScreen({
             <details className="tm-obj-compose__toggle" open={rows.length === 0 ? true : undefined}>
               <summary>
                 <h2 id="tm-org-objectives-author" className="tm-obj-eyebrow">
-                  Set an objective
+                  {t('OrgObjectivesScreen.setAnObjective')}
                 </h2>
               </summary>
               <form className="tm-stack" onSubmit={onSubmit} noValidate>
                 <fieldset className="tm-fieldset tm-stack" disabled={create.isPending}>
                   <Field
-                    label="Objective"
+                    label={t('OrgObjectivesScreen.objectiveLabel')}
                     name="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    hint="One line. What the organization is aiming at."
+                    hint={t('OrgObjectivesScreen.objectiveHint')}
                     required
                   />
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-org-objective-description">
-                      Description
+                      {t('OrgObjectivesScreen.descriptionLabel')}
                     </label>
                     <textarea
                       id="tm-org-objective-description"
@@ -202,21 +209,21 @@ export function OrgObjectivesScreen({
                       aria-describedby="tm-org-objective-description-hint"
                     />
                     <span className="tm-field__hint" id="tm-org-objective-description-hint">
-                      Optional. The objective in full, and why it matters.
+                      {t('OrgObjectivesScreen.descriptionHint')}
                     </span>
                   </div>
 
                   <Field
-                    label="Target"
+                    label={t('OrgObjectivesScreen.targetLabel')}
                     name="target"
                     value={target}
                     onChange={(event) => setTarget(event.target.value)}
-                    hint="Optional. What success looks like, e.g. “+40% ARR” or “ship by Q3”."
+                    hint={t('OrgObjectivesScreen.targetHint')}
                   />
                 </fieldset>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not set the objective" live>
+                  <InlineAlert tone="danger" title={t('OrgObjectivesScreen.setError')} live>
                     {describeError(create.error)}
                   </InlineAlert>
                 ) : null}
@@ -227,10 +234,10 @@ export function OrgObjectivesScreen({
                     tone="ink"
                     size="accessible"
                     loading={create.isPending}
-                    loadingLabel="Saving"
+                    loadingLabel={t('OrgObjectivesScreen.saving')}
                     disabled={!canSubmit}
                   >
-                    Set objective
+                    {t('OrgObjectivesScreen.setObjective')}
                   </Button>
                 </div>
               </form>
@@ -264,6 +271,7 @@ function ObjectiveCard({
   onTransition: (status: OrgObjectiveOutcome) => void;
   busy: boolean;
 }) {
+  const t = useT();
   return (
     <article
       className="tm-card tm-obj-card"
@@ -289,7 +297,7 @@ function ObjectiveCard({
           {objective.target ? (
             <div className="tm-obj-card__metric">
               <span className="tm-obj-card__value">{objective.target}</span>
-              <span className="tm-obj-card__label">target</span>
+              <span className="tm-obj-card__label">{t('OrgObjectivesScreen.targetWord')}</span>
             </div>
           ) : null}
           {objective.target && objective.description ? (
@@ -310,7 +318,7 @@ function ObjectiveCard({
             onClick={() => onTransition('met')}
             disabled={busy}
           >
-            Mark met
+            {t('OrgObjectivesScreen.markMet')}
           </Button>
           <Button
             type="button"
@@ -319,7 +327,7 @@ function ObjectiveCard({
             onClick={() => onTransition('missed')}
             disabled={busy}
           >
-            Mark missed
+            {t('OrgObjectivesScreen.markMissed')}
           </Button>
         </div>
       ) : null}
@@ -336,10 +344,11 @@ function ObjectiveDetail({
   objective: OrgObjectiveSummary;
   client?: ApiClient;
 }) {
+  const t = useT();
   return (
     <section className="tm-obj__detail" aria-labelledby="tm-org-objective-detail">
       <div>
-        <p className="tm-obj-eyebrow">Objective detail</p>
+        <p className="tm-obj-eyebrow">{t('OrgObjectivesScreen.objectiveDetail')}</p>
         <h2 id="tm-org-objective-detail" className="tm-obj-detail__title">
           {objective.name}
         </h2>
@@ -347,16 +356,16 @@ function ObjectiveDetail({
 
       <div className="tm-card tm-obj-detail__card">
         <p className="tm-obj-detail__prose">
-          {objective.description ?? 'No description recorded for this objective.'}
+          {objective.description ?? t('OrgObjectivesScreen.noDescription')}
         </p>
         <div className="tm-obj-detail__rule" aria-hidden="true" />
         <dl className="tm-obj-detail__stats">
           <div>
-            <dt>Target</dt>
+            <dt>{t('OrgObjectivesScreen.targetLabel')}</dt>
             <dd className="tm-obj-detail__figure">{objective.target ?? '—'}</dd>
           </div>
           <div>
-            <dt>Status</dt>
+            <dt>{t('OrgObjectivesScreen.statusWord')}</dt>
             <dd>
               <StatusPill status={objective.status} />
             </dd>
@@ -375,9 +384,10 @@ function ObjectiveDetail({
 }
 
 function StatusPill({ status }: { status: OrgObjectiveStatus }) {
+  const t = useT();
   return (
     <span className="tm-obj-pill" data-status={status}>
-      {STATUS_LABELS[status]}
+      {t(STATUS_LABEL_KEYS[status])}
     </span>
   );
 }

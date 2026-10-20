@@ -25,6 +25,8 @@ import { listFocusBlocks } from '../../lib/api/focus-blocks';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatDay, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
 
 export interface MyDayScreenProps {
@@ -57,6 +59,7 @@ type CardFilter = 'all' | 'overdue' | 'due_soon';
  */
 export function MyDayScreen({ organizationSlug, organizationName, client }: MyDayScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const [filter, setFilter] = useState<CardFilter>('all');
 
   const myDay = useQuery({
@@ -93,7 +96,8 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
     for (const project of projects.data ?? []) names.set(project.id, project.name);
     return names;
   }, [projects.data]);
-  const projectName = (id: string): string => projectNames.get(id) ?? 'Another project';
+  const projectName = (id: string): string =>
+    projectNames.get(id) ?? t('MyDayScreen.anotherProjectCap');
 
   const items = useMemo(() => myDay.data?.items ?? [], [myDay.data]);
   const waitingItems = waiting.data?.items ?? [];
@@ -111,7 +115,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="home"
-      title="My Day"
+      title={t('MyDayScreen.title')}
       titleVariant="display"
       actionsPlacement="inline"
       actions={
@@ -122,7 +126,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           <span className="tm-button__orb" aria-hidden="true">
             +
           </span>
-          New work
+          {t('MyDayScreen.newWork')}
         </Link>
       }
       description={describeDay(summary.data, summary.isPending || summary.isError)}
@@ -131,18 +135,22 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
         <DayPulseBar
           organizationSlug={organizationSlug}
           items={pulseItems}
-          nowLabel={top ? top.workItem.title : 'Nothing scheduled right now'}
+          nowLabel={top ? top.workItem.title : t('MyDayScreen.nothingScheduled')}
         />
       }
     >
       {summary.isError ? (
-        <InlineAlert tone="danger" title="Could not load your summary" live>
+        <InlineAlert tone="danger" title={t('MyDayScreen.summaryError')} live>
           {describeSummaryError(summary.error)}
         </InlineAlert>
       ) : null}
 
       {top ? (
-        <div className="tm-focus-capsule tm-home-focus" role="group" aria-label="Do this next">
+        <div
+          className="tm-focus-capsule tm-home-focus"
+          role="group"
+          aria-label={t('MyDayScreen.doThisNext')}
+        >
           <span className="tm-focus-capsule__orb" aria-hidden="true">
             ▸
           </span>
@@ -166,7 +174,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
             <Link
               href={`/${organizationSlug}/work/${top.workItem.id}`}
               className="tm-home-focus__go"
-              aria-label={`Open ${top.workItem.title}`}
+              aria-label={`${t('MyDayScreen.openPrefix')} ${top.workItem.title}`}
             >
               <span aria-hidden="true">→</span>
             </Link>
@@ -179,19 +187,23 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           <section className="tm-home-section" aria-labelledby="tm-my-day-personal">
             <div className="tm-section-head">
               <h2 id="tm-my-day-personal" className="tm-section-head__title">
-                Due &amp; at risk
+                {t('MyDayScreen.dueAtRisk')}
               </h2>
               <span className="tm-section-head__meta tm-home-section__count">
-                {items.length} {items.length === 1 ? 'item' : 'items'}
+                {items.length} {items.length === 1 ? t('MyDayScreen.item') : t('MyDayScreen.items')}
               </span>
-              <div className="tm-section-head__end tm-chip-row" role="group" aria-label="Show">
+              <div
+                className="tm-section-head__end tm-chip-row"
+                role="group"
+                aria-label={t('MyDayScreen.show')}
+              >
                 <button
                   type="button"
                   className="tm-chip tm-chip--compact"
                   aria-pressed={filter === 'all'}
                   onClick={() => setFilter('all')}
                 >
-                  Today
+                  {t('MyDayScreen.today')}
                 </button>
                 <button
                   type="button"
@@ -199,7 +211,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                   aria-pressed={filter === 'overdue'}
                   onClick={() => setFilter('overdue')}
                 >
-                  Overdue · {overdueCount}
+                  {t('MyDayScreen.overdue')} · {overdueCount}
                 </button>
                 <button
                   type="button"
@@ -207,44 +219,43 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                   aria-pressed={filter === 'due_soon'}
                   onClick={() => setFilter('due_soon')}
                 >
-                  Due soon · {dueSoonCount}
+                  {t('MyDayScreen.dueSoon')} · {dueSoonCount}
                 </button>
               </div>
             </div>
 
             {myDay.isError ? (
-              <InlineAlert tone="danger" title="Could not load your work" live>
+              <InlineAlert tone="danger" title={t('MyDayScreen.workError')} live>
                 {describeError(myDay.error)}
               </InlineAlert>
             ) : null}
 
             {myDay.isPending ? (
-              <LoadingRegion label="Loading your work.">
+              <LoadingRegion label={t('MyDayScreen.loadingWork')}>
                 <Skeleton height="180px" radius="var(--r-card)" />
               </LoadingRegion>
             ) : null}
 
             {!myDay.isPending && !myDay.isError && items.length === 0 ? (
               <div className="tm-card tm-card--empty tm-home-empty">
-                <h3 className="tm-card__title">Nothing needs you right now</h3>
-                <p className="tm-card__meta">
-                  You have no open work assigned to you. Work assigned to you across any project
-                  shows up here, with what is overdue or due soon first.
-                </p>
+                <h3 className="tm-card__title">{t('MyDayScreen.nothingNeedsYouTitle')}</h3>
+                <p className="tm-card__meta">{t('MyDayScreen.nothingNeedsYouBody')}</p>
               </div>
             ) : null}
 
             {items.length > 0 && cards.length === 0 ? (
               <div className="tm-card tm-card--empty tm-home-empty">
                 <h3 className="tm-card__title">
-                  {filter === 'overdue' ? 'Nothing is overdue' : 'Nothing is due soon'}
+                  {filter === 'overdue'
+                    ? t('MyDayScreen.nothingOverdue')
+                    : t('MyDayScreen.nothingDueSoon')}
                 </h3>
-                <p className="tm-card__meta">Everything else that needs you is listed below.</p>
+                <p className="tm-card__meta">{t('MyDayScreen.everythingElseBelow')}</p>
               </div>
             ) : null}
 
             {cards.length > 0 ? (
-              <ul className="tm-home-cards" aria-label="Your work, ranked">
+              <ul className="tm-home-cards" aria-label={t('MyDayScreen.yourWorkRanked')}>
                 {cards.map((entry, index) => (
                   <li key={entry.workItem.id}>
                     <WorkCard
@@ -265,21 +276,19 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           >
             <div className="tm-section-head">
               <h2 id="tm-my-day-waiting" className="tm-section-head__title">
-                Waiting on you
+                {t('MyDayScreen.waitingOnYou')}
               </h2>
-              <span className="tm-section-head__meta">
-                reviews and client requests that cannot move until you act
-              </span>
+              <span className="tm-section-head__meta">{t('MyDayScreen.waitingMeta')}</span>
             </div>
 
             {waiting.isError ? (
-              <InlineAlert tone="danger" title="Could not load what is waiting on you" live>
+              <InlineAlert tone="danger" title={t('MyDayScreen.waitingError')} live>
                 {describeWaitingError(waiting.error)}
               </InlineAlert>
             ) : null}
 
             {waiting.isPending ? (
-              <LoadingRegion label="Loading what is waiting on you.">
+              <LoadingRegion label={t('MyDayScreen.loadingWaiting')}>
                 <Skeleton height="44px" />
                 <Skeleton height="44px" />
               </LoadingRegion>
@@ -287,17 +296,13 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
 
             {!waiting.isPending && !waiting.isError && waitingItems.length === 0 ? (
               <div className="tm-card tm-card--empty tm-home-empty">
-                <h3 className="tm-card__title">Nothing is waiting on you</h3>
-                <p className="tm-card__meta">
-                  You have no reviews pending and no client requests to triage. Approvals assigned
-                  to you, client requests awaiting your triage, and stale follow-ups across any
-                  project show up here, with what needs you first.
-                </p>
+                <h3 className="tm-card__title">{t('MyDayScreen.nothingWaitingTitle')}</h3>
+                <p className="tm-card__meta">{t('MyDayScreen.nothingWaitingBody')}</p>
               </div>
             ) : null}
 
             {waitingItems.length > 0 ? (
-              <ul className="tm-row-list tm-home-rows" aria-label="Waiting on you">
+              <ul className="tm-row-list tm-home-rows" aria-label={t('MyDayScreen.waitingOnYou')}>
                 {waitingItems.map((entry) => (
                   <WaitingRow
                     key={entry.kind === 'approval' ? entry.approvalId : entry.clientRequestId}
@@ -317,13 +322,14 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
             >
               <div className="tm-section-head">
                 <h2 id="tm-my-day-all" className="tm-section-head__title">
-                  Personal work
+                  {t('MyDayScreen.personalWork')}
                 </h2>
                 <span className="tm-section-head__meta">
-                  {groups.length} {groups.length === 1 ? 'project' : 'projects'}
+                  {groups.length}{' '}
+                  {groups.length === 1 ? t('MyDayScreen.project') : t('MyDayScreen.projects')}
                 </span>
               </div>
-              <ul className="tm-home-groups" aria-label="Your open work, by project">
+              <ul className="tm-home-groups" aria-label={t('MyDayScreen.yourOpenWorkByProject')}>
                 {groups.map((group) => (
                   <li key={group.projectId} className="tm-home-group">
                     <h3 className="tm-home-group__head">
@@ -364,32 +370,32 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           <section className="tm-home-saved" aria-labelledby="tm-my-day-saved">
             <div className="tm-home-saved__head">
               <h2 id="tm-my-day-saved" className="tm-home-saved__heading">
-                Saved
+                {t('MyDayScreen.saved')}
               </h2>
               {savedGroups.length > 0 ? (
                 <span className="tm-home-saved__count">
-                  {savedGroups.reduce((total, group) => total + group.items.length, 0)} saved
+                  {savedGroups.reduce((total, group) => total + group.items.length, 0)}{' '}
+                  {t('MyDayScreen.savedCountSuffix')}
                 </span>
               ) : null}
             </div>
 
             {saved.isError ? (
-              <InlineAlert tone="danger" title="Could not load your saved items" live>
+              <InlineAlert tone="danger" title={t('MyDayScreen.savedItemsError')} live>
                 {describeSavedError(saved.error)}
               </InlineAlert>
             ) : null}
 
             {saved.isPending ? (
-              <LoadingRegion label="Loading your saved items.">
+              <LoadingRegion label={t('MyDayScreen.loadingSaved')}>
                 <Skeleton height="52px" radius="var(--r-control)" />
               </LoadingRegion>
             ) : null}
 
             {!saved.isPending && !saved.isError && savedGroups.length === 0 ? (
               <p className="tm-home-saved__empty">
-                <strong>Nothing saved yet</strong>
-                Messages, docs, work and files you pin are kept here, grouped by project, so you can
-                return to them from any screen.
+                <strong>{t('MyDayScreen.nothingSavedTitle')}</strong>
+                {t('MyDayScreen.nothingSavedBody')}
               </p>
             ) : null}
 
@@ -398,7 +404,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                 <h3 className="tm-home-saved__group">{projectName(group.projectId)}</h3>
                 <ul
                   className="tm-home-saved__list"
-                  aria-label={`Saved in ${projectNames.get(group.projectId) ?? 'another project'}`}
+                  aria-label={`${t('MyDayScreen.savedInPrefix')} ${projectNames.get(group.projectId) ?? t('MyDayScreen.anotherProject')}`}
                 >
                   {group.items.map((item) => (
                     <li key={item.id} className="tm-home-saved__item" data-kind={item.entityType}>
@@ -409,14 +415,15 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                         <span className="tm-home-saved__title">
                           {item.entityType === 'work' ? (
                             <Link href={`/${organizationSlug}/work/${item.entityId}`}>
-                              {savedTypeLabel(item.entityType)}
+                              {t(savedTypeLabelKey(item.entityType))}
                             </Link>
                           ) : (
-                            <span>{savedTypeLabel(item.entityType)}</span>
+                            <span>{t(savedTypeLabelKey(item.entityType))}</span>
                           )}
                         </span>
                         <span className="tm-home-saved__meta">
-                          {item.entityType} · saved {shortDay(item.createdAt)}
+                          {item.entityType} · {t('MyDayScreen.savedCountSuffix')}{' '}
+                          {shortDay(item.createdAt)}
                         </span>
                       </span>
                     </li>
@@ -447,6 +454,7 @@ function WorkCard({
   organizationSlug: string;
   projectName: string;
 }) {
+  const t = useT();
   const href = `/${organizationSlug}/work/${entry.workItem.id}`;
   return (
     <article className={`tm-card tm-home-card${lime ? ' tm-card--lime' : ''}`}>
@@ -468,8 +476,10 @@ function WorkCard({
       </h3>
       <div className="tm-home-card__foot">
         <span className="tm-card__meta">
-          {entry.workItem.dueAt ? `due ${shortDay(entry.workItem.dueAt)}` : 'no due date'} ·{' '}
-          {reasonLabel(entry.reason).toLowerCase()}
+          {entry.workItem.dueAt
+            ? `${t('MyDayScreen.due')} ${shortDay(entry.workItem.dueAt)}`
+            : t('MyDayScreen.noDueDate')}{' '}
+          · {t(reasonLabelKey(entry.reason)).toLowerCase()}
         </span>
         <StateCapsule state={stateCapsule(entry.workItem.state)}>
           {stateLabel(entry.workItem.state)}
@@ -489,8 +499,9 @@ function WaitingRow({
   organizationSlug: string;
   projectName: string;
 }) {
+  const t = useT();
   const isApproval = entry.kind === 'approval';
-  const title = isApproval ? 'Deliverable review' : entry.title;
+  const title = isApproval ? t('MyDayScreen.deliverableReview') : entry.title;
   const since = isApproval ? entry.requestedAt : entry.waitingSince;
   // REQ-11: Triage opens the request itself, not the general inbox the person then has to search.
   const href =
@@ -506,11 +517,13 @@ function WaitingRow({
         {title} <span className="tm-home-rows__project">· {projectName}</span>
       </span>
       <span className="tm-home-rows__status" data-tone={waitingTone(entry.reason)}>
-        {waitingReasonLabel(entry.reason)}
+        {t(waitingReasonLabelKey(entry.reason))}
       </span>
-      <span className="tm-meta-mono tm-home-rows__when">since {shortDay(since)}</span>
+      <span className="tm-meta-mono tm-home-rows__when">
+        {t('MyDayScreen.since')} {shortDay(since)}
+      </span>
       <Link href={href} className="tm-button tm-button--outline tm-button--compact">
-        {isApproval ? 'Review' : 'Triage'}
+        {isApproval ? t('MyDayScreen.review') : t('MyDayScreen.triage')}
         <span className="tm-visually-hidden">: {title}</span>
       </Link>
     </li>
@@ -712,17 +725,17 @@ function savedGlyph(entityType: SavedContextEntityType): string {
   }
 }
 
-/** The word each pinned reference shows. The live title/preview is the deferred read-fan-out. */
-function savedTypeLabel(entityType: SavedContextEntityType): string {
+/** The message key for the word each pinned reference shows. */
+function savedTypeLabelKey(entityType: SavedContextEntityType): MessageKey {
   switch (entityType) {
     case 'message':
-      return 'Saved message';
+      return 'MyDayScreen.savedMessage';
     case 'doc':
-      return 'Saved document';
+      return 'MyDayScreen.savedDocument';
     case 'work':
-      return 'Saved work item';
+      return 'MyDayScreen.savedWorkItem';
     case 'file':
-      return 'Saved file';
+      return 'MyDayScreen.savedFile';
   }
 }
 
@@ -732,15 +745,15 @@ function describeSavedError(error: unknown): string {
   return 'Something went wrong loading your saved items.';
 }
 
-/** The word each ranking reason shows — the capsule is never colour alone. */
-function reasonLabel(reason: MyDayReason): string {
+/** The message key for the word each ranking reason shows — the capsule is never colour alone. */
+function reasonLabelKey(reason: MyDayReason): MessageKey {
   switch (reason) {
     case 'overdue':
-      return 'Overdue';
+      return 'MyDayScreen.overdue';
     case 'due_soon':
-      return 'Due soon';
+      return 'MyDayScreen.dueSoon';
     case 'assigned':
-      return 'Assigned';
+      return 'MyDayScreen.reasonAssigned';
   }
 }
 
@@ -750,19 +763,19 @@ function describeError(error: unknown): string {
   return 'Something went wrong loading your work.';
 }
 
-/** The word each waiting reason shows — the status is never colour alone. */
-function waitingReasonLabel(reason: WaitingReason): string {
+/** The message key for the word each waiting reason shows — the status is never colour alone. */
+function waitingReasonLabelKey(reason: WaitingReason): MessageKey {
   switch (reason) {
     case 'approval_requested':
-      return 'Review requested';
+      return 'MyDayScreen.waitingReviewRequested';
     case 'approval_viewed':
-      return 'In review';
+      return 'MyDayScreen.waitingInReview';
     case 'client_submitted':
-      return 'New request';
+      return 'MyDayScreen.waitingNewRequest';
     case 'client_triage':
-      return 'In triage';
+      return 'MyDayScreen.waitingInTriage';
     case 'stale_follow_up':
-      return 'Follow up';
+      return 'MyDayScreen.waitingFollowUp';
   }
 }
 

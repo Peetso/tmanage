@@ -14,6 +14,8 @@ import { describeInternalRole } from '../../lib/roles';
 import { getOffboardingImpact, offboardMember } from '../../lib/api/offboarding';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface OffboardingScreenProps {
   organizationSlug: string;
@@ -50,6 +52,7 @@ export function OffboardingScreen({
   client,
 }: OffboardingScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   // The picker ships disabled until React hydrates: a name typed into the server HTML would be
@@ -89,28 +92,40 @@ export function OffboardingScreen({
     acknowledged &&
     !offboard.isPending;
 
-  const who = chosenName || 'this member';
+  const who = chosenName || t('OffboardingScreen.thisMember');
 
   return (
     <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="offboarding"
-      crumbs={chosenName ? ['Members', chosenName, 'Offboarding'] : ['Members', 'Offboarding']}
-      title={chosenName ? `If ${chosenName} left today` : 'Who is leaving?'}
-      description="Nothing here is a guess. Every number is a live count of what names this person as responsible. Offboarding cannot be undone."
+      crumbs={
+        chosenName
+          ? [
+              t('OffboardingScreen.crumbMembers'),
+              chosenName,
+              t('OffboardingScreen.crumbOffboarding'),
+            ]
+          : [t('OffboardingScreen.crumbMembers'), t('OffboardingScreen.crumbOffboarding')]
+      }
+      title={
+        chosenName
+          ? `${t('OffboardingScreen.ifPrefix')} ${chosenName} ${t('OffboardingScreen.leftToday')}`
+          : t('OffboardingScreen.whoLeaving')
+      }
+      description={t('OffboardingScreen.description')}
       actions={
         <Link
           href={`/${organizationSlug}/people`}
           className="tm-button tm-button--outline tm-button--compact"
         >
-          Back to members
+          {t('OffboardingScreen.backToMembers')}
         </Link>
       }
     >
       <div className="tm-cc-card">
         <MemberSelect
-          label="Member to offboard"
+          label={t('OffboardingScreen.memberToOffboard')}
           members={directory.members}
           value={selectedUserId}
           onChange={(userId) => {
@@ -122,23 +137,25 @@ export function OffboardingScreen({
           failed={directory.isError}
           disabled={!hydrated}
           openOnFocus
-          hint="Only active members can be offboarded."
+          hint={t('OffboardingScreen.onlyActive')}
         />
       </div>
 
       {offboard.isSuccess ? (
-        <InlineAlert tone="success" title="Member offboarded" live>
-          Their access has been revoked. They no longer appear in the member list.
+        <InlineAlert tone="success" title={t('OffboardingScreen.memberOffboardedTitle')} live>
+          {t('OffboardingScreen.memberOffboardedBody')}
         </InlineAlert>
       ) : null}
 
       {selectedUserId === '' ? null : (
-        <section className="tm-cc-column" aria-label={`Offboarding impact for ${who}`}>
-          <h2 className="tm-visually-hidden">What {who} holds</h2>
+        <section className="tm-cc-column" aria-label={`${t('OffboardingScreen.impactFor')} ${who}`}>
+          <h2 className="tm-visually-hidden">
+            {t('OffboardingScreen.whatPrefix')} {who} {t('OffboardingScreen.holds')}
+          </h2>
 
           {impact.isPending ? (
             <LoadingRegion
-              label="Loading the access this member holds."
+              label={t('OffboardingScreen.loadingAccess')}
               className="tm-stack tm-stack--tight"
             >
               <Skeleton height="var(--row)" />
@@ -147,14 +164,14 @@ export function OffboardingScreen({
           ) : null}
 
           {impact.isError ? (
-            <InlineAlert tone="danger" title="Could not load the impact preview" live>
+            <InlineAlert tone="danger" title={t('OffboardingScreen.impactError')} live>
               {describe(impact.error)}
             </InlineAlert>
           ) : null}
 
           {impact.isSuccess ? (
             <>
-              <ul className="tm-cc-metrics" aria-label="If nothing is done">
+              <ul className="tm-cc-metrics" aria-label={t('OffboardingScreen.ifNothingDone')}>
                 <li
                   className={
                     impact.data.ownedWorkItemCount > 0
@@ -165,56 +182,76 @@ export function OffboardingScreen({
                   <p className="tm-cc-metric__value">{impact.data.ownedWorkItemCount}</p>
                   <p className="tm-cc-metric__label">
                     {impact.data.ownedWorkItemCount === 1
-                      ? 'open work item loses its owner'
-                      : 'open work items lose their owner'}
+                      ? t('OffboardingScreen.workItemLosesOwnerOne')
+                      : t('OffboardingScreen.workItemLosesOwnerMany')}
                   </p>
-                  <p className="tm-cc-metric__source">Reassign before access ends</p>
+                  <p className="tm-cc-metric__source">{t('OffboardingScreen.reassignBefore')}</p>
                 </li>
                 <li className="tm-cc-metric">
                   <p className="tm-cc-metric__value">{impact.data.projectMembershipCount}</p>
                   <p className="tm-cc-metric__label">
                     {impact.data.projectMembershipCount === 1
-                      ? 'project loses this member'
-                      : 'projects lose this member'}
+                      ? t('OffboardingScreen.projectLosesMemberOne')
+                      : t('OffboardingScreen.projectLosesMemberMany')}
                   </p>
-                  <p className="tm-cc-metric__source">Memberships end at once</p>
+                  <p className="tm-cc-metric__source">{t('OffboardingScreen.membershipsEnd')}</p>
                 </li>
                 <li className="tm-cc-metric">
                   <p className="tm-cc-metric__value">
                     {describeInternalRole(impact.data.role).label}
                   </p>
-                  <p className="tm-cc-metric__label">role that stops applying</p>
-                  <p className="tm-cc-metric__source">Access is revoked, never restored</p>
+                  <p className="tm-cc-metric__label">{t('OffboardingScreen.roleStops')}</p>
+                  <p className="tm-cc-metric__source">{t('OffboardingScreen.accessRevoked')}</p>
                 </li>
               </ul>
 
               <div className="tm-cc-split tm-cc-split--even tm-cc-split--stretch">
                 <div className="tm-cc-card tm-cc-card--flush">
-                  <table className="tm-table tm-cc-table" aria-label={`What ${who} holds`}>
+                  <table
+                    className="tm-table tm-cc-table"
+                    aria-label={`${t('OffboardingScreen.whatPrefix')} ${who} ${t('OffboardingScreen.holds')}`}
+                  >
                     <thead>
                       <tr>
-                        <th scope="col">What {chosenName ? 'they own' : 'is held'}</th>
+                        <th scope="col">
+                          {t('OffboardingScreen.whatPrefix')}{' '}
+                          {chosenName
+                            ? t('OffboardingScreen.theyOwn')
+                            : t('OffboardingScreen.isHeld')}
+                        </th>
                         <th scope="col" className="tm-cc-end">
-                          Count
+                          {t('OffboardingScreen.count')}
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr>
                         <td>
-                          <span className="tm-cc-cell-title">Projects</span>
-                          <span className="tm-cc-cell-sub">memberships that end</span>
+                          <span className="tm-cc-cell-title">
+                            {t('OffboardingScreen.projects')}
+                          </span>
+                          <span className="tm-cc-cell-sub">
+                            {t('OffboardingScreen.membershipsThatEnd')}
+                          </span>
                         </td>
                         <td className="tm-cc-end">
                           <span className="tm-cc-pill">
-                            {plural(impact.data.projectMembershipCount, 'project membership')}
+                            {plural(
+                              impact.data.projectMembershipCount,
+                              t('OffboardingScreen.projectMembershipOne'),
+                              t('OffboardingScreen.projectMembershipMany'),
+                            )}
                           </span>
                         </td>
                       </tr>
                       <tr>
                         <td>
-                          <span className="tm-cc-cell-title">Owned work</span>
-                          <span className="tm-cc-cell-sub">items that name them as owner</span>
+                          <span className="tm-cc-cell-title">
+                            {t('OffboardingScreen.ownedWork')}
+                          </span>
+                          <span className="tm-cc-cell-sub">
+                            {t('OffboardingScreen.itemsNameOwner')}
+                          </span>
                         </td>
                         <td className="tm-cc-end">
                           <span
@@ -224,18 +261,24 @@ export function OffboardingScreen({
                                 : 'tm-cc-pill'
                             }
                           >
-                            {plural(impact.data.ownedWorkItemCount, 'work item')}
+                            {plural(
+                              impact.data.ownedWorkItemCount,
+                              t('OffboardingScreen.workItemOne'),
+                              t('OffboardingScreen.workItemMany'),
+                            )}
                           </span>
                         </td>
                       </tr>
                       <tr>
                         <td>
-                          <span className="tm-cc-cell-title">Status</span>
-                          <span className="tm-cc-cell-sub">membership today</span>
+                          <span className="tm-cc-cell-title">{t('OffboardingScreen.status')}</span>
+                          <span className="tm-cc-cell-sub">
+                            {t('OffboardingScreen.membershipToday')}
+                          </span>
                         </td>
                         <td className="tm-cc-end">
                           <StatusDot tone={impact.data.offboardable ? 'neutral' : 'danger'}>
-                            {statusLabel(impact.data.status)}
+                            {statusLabel(impact.data.status, t)}
                           </StatusDot>
                         </td>
                       </tr>
@@ -246,18 +289,16 @@ export function OffboardingScreen({
                 <div className="tm-cc-card tm-cc-card--ink">
                   {impact.data.offboardable ? (
                     <>
-                      <p className="tm-cc-eyebrow">Before you offboard</p>
+                      <p className="tm-cc-eyebrow">{t('OffboardingScreen.beforeYouOffboard')}</p>
                       <p className="tm-cc-card__lead">
                         {impact.data.ownedWorkItemCount > 0
-                          ? `Transfer ${plural(impact.data.ownedWorkItemCount, 'work item')} first, or ${impact.data.ownedWorkItemCount === 1 ? 'it lands' : 'they land'} unowned.`
-                          : `${who} owns no open work. Offboarding ends their access everywhere.`}
+                          ? `${t('OffboardingScreen.transferPrefix')} ${plural(impact.data.ownedWorkItemCount, t('OffboardingScreen.workItemOne'), t('OffboardingScreen.workItemMany'))} ${t('OffboardingScreen.firstOr')} ${impact.data.ownedWorkItemCount === 1 ? t('OffboardingScreen.itLands') : t('OffboardingScreen.theyLand')} ${t('OffboardingScreen.unowned')}`
+                          : `${who} ${t('OffboardingScreen.ownsNoWork')}`}
                       </p>
-                      <p className="tm-cc-card__body">
-                        Offboarding revokes access at once. It cannot be undone.
-                      </p>
+                      <p className="tm-cc-card__body">{t('OffboardingScreen.revokesAtOnce')}</p>
                       <hr className="tm-cc-rule" />
                       <Checkbox
-                        label="I understand offboarding cannot be undone."
+                        label={t('OffboardingScreen.understandCannotUndo')}
                         checked={acknowledged}
                         onChange={(event) => setAcknowledged(event.target.checked)}
                       />
@@ -266,21 +307,20 @@ export function OffboardingScreen({
                           tone="lime"
                           size="accessible"
                           loading={offboard.isPending}
-                          loadingLabel="Offboarding"
+                          loadingLabel={t('OffboardingScreen.crumbOffboarding')}
                           disabled={!canOffboard}
                           onClick={() => offboard.mutate()}
                         >
-                          Offboard {who}
+                          {t('OffboardingScreen.offboardPrefix')} {who}
                         </Button>
                       </div>
                     </>
                   ) : (
                     <>
-                      <p className="tm-cc-eyebrow">Nothing left to do</p>
-                      <p className="tm-cc-card__lead">Already offboarded</p>
+                      <p className="tm-cc-eyebrow">{t('OffboardingScreen.nothingLeftToDo')}</p>
+                      <p className="tm-cc-card__lead">{t('OffboardingScreen.alreadyOffboarded')}</p>
                       <p className="tm-cc-card__body">
-                        This member has already been offboarded. Their access cannot be revoked
-                        again.
+                        {t('OffboardingScreen.alreadyOffboardedBody')}
                       </p>
                     </>
                   )}
@@ -292,7 +332,7 @@ export function OffboardingScreen({
       )}
 
       {offboard.isError ? (
-        <InlineAlert tone="danger" title="Offboarding failed" live>
+        <InlineAlert tone="danger" title={t('OffboardingScreen.offboardingFailed')} live>
           {describe(offboard.error)}
         </InlineAlert>
       ) : null}
@@ -320,12 +360,13 @@ function plural(count: number, one: string, many = `${one}s`): string {
  * are lowercase (`active`, `offboarded`, `invited`, `suspended`); an unknown one is title-cased
  * rather than guessed at, so a status added later still reads as a label and never as a bug.
  */
-function statusLabel(status: string): string {
-  const labels: Record<string, string> = {
-    active: 'Active',
-    offboarded: 'Offboarded',
-    invited: 'Invited',
-    suspended: 'Suspended',
+function statusLabel(status: string, t: (key: MessageKey) => string): string {
+  const keys: Record<string, MessageKey> = {
+    active: 'OffboardingScreen.statusActive',
+    offboarded: 'OffboardingScreen.statusOffboarded',
+    invited: 'OffboardingScreen.statusInvited',
+    suspended: 'OffboardingScreen.statusSuspended',
   };
-  return labels[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
+  const key = keys[status];
+  return key ? t(key) : status.charAt(0).toUpperCase() + status.slice(1);
 }

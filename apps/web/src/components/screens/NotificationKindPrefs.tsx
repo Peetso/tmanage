@@ -14,6 +14,8 @@ import { getQuietHours } from '../../lib/api/quiet-hours';
 import { getDigestPreference, type DigestPrefView } from '../../lib/api/digest';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
 
 export interface NotificationKindPrefsProps {
@@ -22,29 +24,30 @@ export interface NotificationKindPrefsProps {
   client?: ApiClient;
 }
 
-/** What each kind is called on screen, and the one-line description read with its switch. */
-const KIND_LABELS: Readonly<Record<NotificationKind, { label: string; hint: string }>> = {
-  client_request: {
-    label: 'Client requests',
-    hint: 'When a client submits or moves a request.',
-  },
-  work_item: {
-    label: 'Work updates',
-    hint: 'When a work item you follow changes or becomes blocked.',
-  },
-  message: {
-    label: 'Comments',
-    hint: 'When someone comments on a document you wrote.',
-  },
-  file: {
-    label: 'Files',
-    hint: 'When a file is ready, rejected, or removed.',
-  },
-  mention: {
-    label: 'Mentions',
-    hint: 'When someone mentions you in a channel or a document comment.',
-  },
-};
+/** The message keys for what each kind is called on screen, and its one-line description. */
+const KIND_LABEL_KEYS: Readonly<Record<NotificationKind, { label: MessageKey; hint: MessageKey }>> =
+  {
+    client_request: {
+      label: 'NotificationKindPrefs.kindClientRequestLabel',
+      hint: 'NotificationKindPrefs.kindClientRequestHint',
+    },
+    work_item: {
+      label: 'NotificationKindPrefs.kindWorkItemLabel',
+      hint: 'NotificationKindPrefs.kindWorkItemHint',
+    },
+    message: {
+      label: 'NotificationKindPrefs.kindMessageLabel',
+      hint: 'NotificationKindPrefs.kindMessageHint',
+    },
+    file: {
+      label: 'NotificationKindPrefs.kindFileLabel',
+      hint: 'NotificationKindPrefs.kindFileHint',
+    },
+    mention: {
+      label: 'NotificationKindPrefs.kindMentionLabel',
+      hint: 'NotificationKindPrefs.kindMentionHint',
+    },
+  };
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -67,6 +70,7 @@ export function NotificationKindPrefs({
   client,
 }: NotificationKindPrefsProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
   const queryKey = ['notification-kind-prefs', organizationSlug];
 
@@ -103,30 +107,30 @@ export function NotificationKindPrefs({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="inbox"
-      eyebrow="Preferences · Notifications"
-      title="What reaches you, and how"
-      description="Turning a kind off stops future notifications of that kind."
+      eyebrow={t('NotificationKindPrefs.eyebrow')}
+      title={t('NotificationKindPrefs.title')}
+      description={t('NotificationKindPrefs.description')}
     >
       <div className="tm-prefs tm-prefs--notifications">
         <section className="tm-prefs__main" aria-labelledby="tm-notif-kinds-heading">
           <h2 id="tm-notif-kinds-heading" className="tm-visually-hidden">
-            Notification kinds
+            {t('NotificationKindPrefs.kindsHeading')}
           </h2>
 
           {prefs.isError ? (
-            <InlineAlert tone="danger" title="Could not load your notification settings" live>
+            <InlineAlert tone="danger" title={t('NotificationKindPrefs.loadError')} live>
               {describeError(prefs.error)}
             </InlineAlert>
           ) : null}
 
           {setKind.isError ? (
-            <InlineAlert tone="danger" title="Could not save that change" live>
+            <InlineAlert tone="danger" title={t('NotificationKindPrefs.saveError')} live>
               {describeError(setKind.error)}
             </InlineAlert>
           ) : null}
 
           {prefs.isPending ? (
-            <LoadingRegion label="Loading your notification settings.">
+            <LoadingRegion label={t('NotificationKindPrefs.loading')}>
               <Skeleton height="46px" />
               <Skeleton height="46px" />
             </LoadingRegion>
@@ -136,8 +140,12 @@ export function NotificationKindPrefs({
             <>
               <div className="tm-prefs-table">
                 <div className="tm-prefs-table__head" aria-hidden="true">
-                  <span className="tm-prefs-table__event">When this happens</span>
-                  <span className="tm-prefs-table__channel">Notify me</span>
+                  <span className="tm-prefs-table__event">
+                    {t('NotificationKindPrefs.whenThisHappens')}
+                  </span>
+                  <span className="tm-prefs-table__channel">
+                    {t('NotificationKindPrefs.notifyMe')}
+                  </span>
                 </div>
                 {kinds.map(({ kind, enabled }) => {
                   const id = `tm-notif-kind-${kind}`;
@@ -145,10 +153,10 @@ export function NotificationKindPrefs({
                     <div className="tm-prefs-table__row" key={kind}>
                       <span className="tm-prefs-table__event">
                         <label className="tm-prefs-table__label" htmlFor={id}>
-                          {KIND_LABELS[kind].label}
+                          {t(KIND_LABEL_KEYS[kind].label)}
                         </label>
                         <span className="tm-prefs-table__hint" id={`${id}-hint`}>
-                          {KIND_LABELS[kind].hint}
+                          {t(KIND_LABEL_KEYS[kind].hint)}
                         </span>
                       </span>
                       <span className="tm-prefs-table__channel">
@@ -172,7 +180,7 @@ export function NotificationKindPrefs({
               <p className="tm-prefs-legend">
                 <span className="tm-prefs-legend__item">
                   <span className="tm-prefs-legend__swatch" aria-hidden="true" />
-                  your choice — saved the moment you tick it
+                  {t('NotificationKindPrefs.legend')}
                 </span>
               </p>
             </>
@@ -182,19 +190,19 @@ export function NotificationKindPrefs({
         <div className="tm-prefs__side">
           <section className="tm-prefs-card tm-prefs-card--tight" aria-labelledby="tm-quiet-card">
             <h2 id="tm-quiet-card" className="tm-prefs-card__title">
-              Quiet hours
+              {t('NotificationKindPrefs.quietHours')}
             </h2>
             <p className="tm-prefs-card__body">
               {quiet && typeof quiet.enabled === 'boolean'
                 ? quiet.enabled
-                  ? `${quiet.startTime} – ${quiet.endTime} ${quiet.timezone}. Notifications wait until the window ends.`
-                  : 'Off. Notifications arrive whenever they happen.'
+                  ? `${quiet.startTime} – ${quiet.endTime} ${quiet.timezone}. ${t('NotificationKindPrefs.notificationsWait')}`
+                  : t('NotificationKindPrefs.quietOff')
                 : quietHours.isPending
-                  ? 'Loading…'
-                  : 'Your quiet hours could not be read.'}
+                  ? t('NotificationKindPrefs.loadingEllipsis')
+                  : t('NotificationKindPrefs.quietUnreadable')}
             </p>
             <Link className="tm-prefs-capsule" href={`/${organizationSlug}/settings/quiet-hours`}>
-              Change quiet hours
+              {t('NotificationKindPrefs.changeQuietHours')}
             </Link>
           </section>
 
@@ -203,15 +211,13 @@ export function NotificationKindPrefs({
             aria-labelledby="tm-digest-card"
           >
             <h2 id="tm-digest-card" className="tm-prefs-eyebrow">
-              Summary email
+              {t('NotificationKindPrefs.summaryEmail')}
             </h2>
             <p className="tm-prefs-card__lead">{describeDigest(digest.data, digest.isPending)}</p>
-            <p className="tm-prefs-card__note">
-              How often your notifications are bundled into one email.
-            </p>
+            <p className="tm-prefs-card__note">{t('NotificationKindPrefs.summaryNote')}</p>
             <div className="tm-prefs-card__foot">
               <Link className="tm-prefs-capsule" href={`/${organizationSlug}/settings/digest`}>
-                Change the summary
+                {t('NotificationKindPrefs.changeSummary')}
               </Link>
             </div>
           </section>

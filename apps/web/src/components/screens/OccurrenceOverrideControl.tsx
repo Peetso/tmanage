@@ -14,6 +14,8 @@ import {
 import type { MeetingOccurrenceOverrideStatus } from '../../lib/api/meeting-occurrence-override';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/calendar.css';
 
 export interface OccurrenceOverrideControlProps {
@@ -25,10 +27,10 @@ export interface OccurrenceOverrideControlProps {
   client?: ApiClient;
 }
 
-/** How each override kind reads in the picker. */
-const STATUS_LABEL: Record<MeetingOccurrenceOverrideStatus, string> = {
-  moved: 'Moved',
-  cancelled: 'Cancelled',
+/** The message key for how each override kind reads in the picker. */
+const STATUS_LABEL_KEYS: Record<MeetingOccurrenceOverrideStatus, MessageKey> = {
+  moved: 'OccurrenceOverrideControl.statusMoved',
+  cancelled: 'OccurrenceOverrideControl.statusCancelled',
 };
 
 /**
@@ -54,6 +56,7 @@ export function OccurrenceOverrideControl({
   client,
 }: OccurrenceOverrideControlProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['occurrence-override', organizationSlug, seriesId, occurrenceDate];
 
@@ -107,17 +110,17 @@ export function OccurrenceOverrideControl({
   return (
     <section className="tm-cal-card" aria-labelledby="tm-occurrence-override">
       <h2 id="tm-occurrence-override" className="tm-cal-eyebrow">
-        Override {occurrenceDate}
+        {t('OccurrenceOverrideControl.override')} {occurrenceDate}
       </h2>
 
       {override.isPending ? (
-        <LoadingRegion label="Loading the override.">
+        <LoadingRegion label={t('OccurrenceOverrideControl.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {override.isError ? (
-        <InlineAlert tone="danger" title="Could not load the override" live>
+        <InlineAlert tone="danger" title={t('OccurrenceOverrideControl.loadError')} live>
           {describeError(override.error)}
         </InlineAlert>
       ) : null}
@@ -125,20 +128,22 @@ export function OccurrenceOverrideControl({
       {override.data ? (
         <InlineAlert
           tone="neutral"
-          title={`This occurrence is ${STATUS_LABEL[override.data.status]}`}
+          title={`${t('OccurrenceOverrideControl.thisOccurrenceIs')} ${t(STATUS_LABEL_KEYS[override.data.status])}`}
         >
           {override.data.status === 'moved'
-            ? `Moved to ${override.data.newDate ?? occurrenceDate}${
-                override.data.newStartTime ? ` at ${override.data.newStartTime}` : ''
+            ? `${t('OccurrenceOverrideControl.movedTo')} ${override.data.newDate ?? occurrenceDate}${
+                override.data.newStartTime
+                  ? ` ${t('OccurrenceOverrideControl.at')} ${override.data.newStartTime}`
+                  : ''
               }${override.data.newTitle ? ` — ${override.data.newTitle}` : ''}.`
-            : 'This occurrence is cancelled.'}
+            : t('OccurrenceOverrideControl.occurrenceCancelled')}
         </InlineAlert>
       ) : null}
 
       <form className="tm-cal-form" onSubmit={submitSave}>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-override-status">
-            This occurrence
+            {t('OccurrenceOverrideControl.thisOccurrence')}
           </label>
           <select
             id="tm-override-status"
@@ -148,7 +153,7 @@ export function OccurrenceOverrideControl({
           >
             {MEETING_OCCURRENCE_OVERRIDE_STATUSES.map((value) => (
               <option key={value} value={value}>
-                {STATUS_LABEL[value]}
+                {t(STATUS_LABEL_KEYS[value])}
               </option>
             ))}
           </select>
@@ -158,7 +163,7 @@ export function OccurrenceOverrideControl({
           <>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-override-date">
-                New date (optional)
+                {t('OccurrenceOverrideControl.newDate')}
               </label>
               <input
                 id="tm-override-date"
@@ -170,7 +175,7 @@ export function OccurrenceOverrideControl({
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-override-time">
-                New time (optional)
+                {t('OccurrenceOverrideControl.newTime')}
               </label>
               <input
                 id="tm-override-time"
@@ -182,7 +187,7 @@ export function OccurrenceOverrideControl({
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-override-title">
-                New title (optional)
+                {t('OccurrenceOverrideControl.newTitle')}
               </label>
               <input
                 id="tm-override-title"
@@ -191,16 +196,16 @@ export function OccurrenceOverrideControl({
                 onChange={(event) => setNewTitle(event.target.value)}
                 maxLength={300}
               />
-              <span className="tm-field__hint">Move needs a new date, time or title.</span>
+              <span className="tm-field__hint">{t('OccurrenceOverrideControl.moveNeeds')}</span>
             </div>
           </>
         ) : null}
 
         {save.isError ? (
-          <InlineAlert tone="danger" title="Could not save the override" live>
+          <InlineAlert tone="danger" title={t('OccurrenceOverrideControl.saveError')} live>
             {save.error instanceof ApiRequestError
               ? save.error.message
-              : 'The API did not answer. Try again.'}
+              : t('OccurrenceOverrideControl.apiNoAnswer')}
           </InlineAlert>
         ) : null}
 
@@ -210,10 +215,10 @@ export function OccurrenceOverrideControl({
             tone="ink"
             size="accessible"
             loading={save.isPending}
-            loadingLabel="Saving"
+            loadingLabel={t('OccurrenceOverrideControl.saving')}
             disabled={!canSave}
           >
-            Save override
+            {t('OccurrenceOverrideControl.saveOverride')}
           </Button>
           {override.data ? (
             <Button
@@ -221,16 +226,16 @@ export function OccurrenceOverrideControl({
               tone="outline"
               size="accessible"
               loading={clear.isPending}
-              loadingLabel="Clearing"
+              loadingLabel={t('OccurrenceOverrideControl.clearing')}
               onClick={() => clear.mutate()}
             >
-              Clear override
+              {t('OccurrenceOverrideControl.clearOverride')}
             </Button>
           ) : null}
         </div>
 
         {clear.isError ? (
-          <InlineAlert tone="danger" title="Could not clear the override" live>
+          <InlineAlert tone="danger" title={t('OccurrenceOverrideControl.clearError')} live>
             {describeError(clear.error)}
           </InlineAlert>
         ) : null}
