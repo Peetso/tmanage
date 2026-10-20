@@ -118,24 +118,37 @@ describe('AuditService.listForViewer', () => {
     expect(events.some((e) => e.action === 'secret.thing')).toBe(false);
     expect(JSON.stringify(events)).not.toContain(OTHER_ORG);
 
-    // The projection is exactly the seven narrow fields — no metadata, correlationId or effectiveActorId.
+    // The projection is exactly the narrow fields — no metadata, correlationId or effectiveActorId.
     expect(Object.keys(events[0]!).sort()).toEqual(
-      ['action', 'actorId', 'entityId', 'entityType', 'id', 'occurredAt', 'summary'].sort(),
+      [
+        'action',
+        'actorId',
+        'entityId',
+        'entityType',
+        'id',
+        'occurredAt',
+        'result',
+        'summary',
+      ].sort(),
     );
     expect(JSON.stringify(events)).not.toContain('must-never-surface');
     expect(JSON.stringify(events)).not.toContain('secret_token');
 
-    // Mapping: occurredAt is the ISO createdAt; a denial names its result in the summary.
+    // Mapping: occurredAt is the ISO createdAt; the summary is the action in plain words (TXT-03),
+    // and a denial names its outcome. The raw action and result travel alongside for filtering.
     expect(events[1]).toMatchObject({
       id: idAt(1),
       occurredAt: '2026-02-01T09:00:00.000Z',
       actorId: ACTOR,
       entityType: 'project',
-      summary: 'project.created',
+      action: 'project.created',
+      result: 'allowed',
+      summary: 'Created a project',
     });
     expect(events[0]).toMatchObject({
       entityId: null,
-      summary: 'membership.revoked (denied)',
+      result: 'denied',
+      summary: 'Membership revoked (refused)',
     });
   });
 
@@ -297,6 +310,7 @@ describe('audit CSV serialization', () => {
         action: '=IMPORTXML(evil)',
         entityType: 'project',
         entityId: null,
+        result: 'allowed',
         summary: 'ok',
       },
     ]);

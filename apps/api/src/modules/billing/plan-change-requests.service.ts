@@ -5,6 +5,7 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { BillingPlanChangeRequestRow } from '../../common/database/schema.js';
 import { PlanChangeRequestsRepository } from './plan-change-requests.repository.js';
 import type { PlanId } from './plan-catalog.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * Billing & entitlements (module 19, x284). The plan-change-requests service — the business layer over
@@ -75,6 +76,12 @@ export class PlanChangeRequestsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly requests: PlanChangeRequestsRepository = new PlanChangeRequestsRepository(),
+    /**
+     * ADM-11 (CQ-08). Optional so a unit test can construct the service without the audit wiring,
+     * the `CustomRolesController` posture. When present, a submission and a real cancellation each
+     * leave an audit row inside the same transaction as the write they describe (§3 step 8).
+     */
+    private readonly audit?: AuditService,
   ) {}
 
   /** List the acting tenant's plan-change requests, newest-first, for an org admin. */
@@ -110,7 +117,19 @@ export class PlanChangeRequestsService {
           'plan_change_request_already_pending',
         );
       }
-      return this.requests.create(tx, context, { ...params, createdBy: context.userId });
+      const created = await this.requests.create(tx, context, {
+        ...params,
+        createdBy: context.userId,
+      });
+      // ADM-11: a plan change is an owner-only organization decision the audit log must carry.
+      // The target plan and the date are tokens; the free-text note is prose and is never recorded.
+      await this.audit?.record(tx, context, {
+        action: 'plan_change_request.submitted',
+        objectId: created.id,
+        result: 'allowed',
+        metadata: { target_plan_code: created.targetPlanCode, effective_on: created.effectiveOn },
+      });
+      return created;
     });
     return toView(row);
   }
@@ -138,9 +157,21 @@ export class PlanChangeRequestsService {
       );
     }
     this.requireOrgManage(principal, context, 'plan_change_request.cancel');
-    const row = await this.database.transaction(context, (tx) =>
-      this.requests.cancel(tx, context, id),
-    );
+    const row = await this.database.transaction(context, async (tx) => {
+      const cancelled = await this.requests.cancel(tx, context, id);
+      // ADM-11: record only a real cancellation — a pending request actually withdrawn. Re-cancelling
+      // an already-cancelled request writes nothing (the repository is idempotent), so the count of
+      // these rows is the count of actual withdrawals, not of calls to the route.
+      if (existing.status === 'pending') {
+        await this.audit?.record(tx, context, {
+          action: 'plan_change_request.cancelled',
+          objectId: id,
+          result: 'allowed',
+          metadata: { target_plan_code: existing.targetPlanCode },
+        });
+      }
+      return cancelled;
+    });
     return toView(row);
   }
 

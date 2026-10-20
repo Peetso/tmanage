@@ -1,4 +1,4 @@
-import { hasCapability, isSafeAuditMetadata } from '@tmanage/domain';
+import { describeAuditEvent, hasCapability, isSafeAuditMetadata } from '@tmanage/domain';
 import type { AuditAction, AuditMetadata, AuditResult, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -110,6 +110,11 @@ export interface AdminAuditEventView {
   readonly entityType: string;
   /** The object the action names, or `null` when the action is not about a row. */
   readonly entityId: string | null;
+  /**
+   * Whether the action succeeded, was refused, or errored. Carried so the viewer can group the
+   * flood of refusals (ADM-11) and tell a denial apart at a glance; an enum, never sensitive.
+   */
+  readonly result: AuditResult;
   /** A one-line, non-sensitive gloss derived from the action and its result. */
   readonly summary: string;
 }
@@ -130,9 +135,11 @@ export interface AuditViewerListOptions {
 /**
  * Narrow a rich {@link AuditEventView} to the {@link AdminAuditEventView} the viewer renders.
  *
- * The `summary` is derived here rather than stored: an allowed event reads as its action, a
- * non-allowed one names its result in parentheses so a denial is legible at a glance in the list.
- * It carries no metadata, so it cannot leak what the projection deliberately dropped.
+ * The `summary` is derived here rather than stored: `describeAuditEvent` turns the action into a
+ * plain sentence (TXT-03 — "raw event codes" become "plain sentences"), naming the outcome when
+ * it is a refusal or an error. It carries no metadata, so it cannot leak what the projection
+ * deliberately dropped. The raw `action` and the `result` travel alongside it so the viewer can
+ * still filter by the stable key and group the refusals (ADM-11).
  */
 function toAdminAuditView(view: AuditEventView): AdminAuditEventView {
   return {
@@ -142,7 +149,8 @@ function toAdminAuditView(view: AuditEventView): AdminAuditEventView {
     action: view.action,
     entityType: view.objectType,
     entityId: view.objectId,
-    summary: view.result === 'allowed' ? view.action : `${view.action} (${view.result})`,
+    result: view.result,
+    summary: describeAuditEvent(view.action, view.result),
   };
 }
 

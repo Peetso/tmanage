@@ -2,12 +2,13 @@
 
 import { useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { auditExportUrl, listAuditEvents, MAX_AUDIT_PAGE } from '../../lib/api/admin-audit';
 import type { AdminAuditEvent } from '../../lib/api/admin-audit';
+import { listMembers } from '../../lib/api/members';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -53,6 +54,21 @@ export function AdminAuditScreen({
   const [entityInput, setEntityInput] = useState('');
   const [applied, setApplied] = useState<AppliedFilters>({ actorId: '', entityId: '' });
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [expandedRuns, setExpandedRuns] = useState<ReadonlySet<string>>(new Set());
+
+  // TXT-03 "names": the audit projection carries actor ids (a stable key), never display names,
+  // so resolve them here against the member directory the rest of the Control Center already
+  // reads. A member beyond the first page or one since offboarded is simply unresolved, and the
+  // row then reads "A teammate" rather than a raw id — a name is never guessed from the id itself.
+  const members = useQuery({
+    queryKey: ['members', organizationSlug, 'audit-actors'],
+    queryFn: () => listMembers(api, organizationSlug),
+  });
+  const actorNames = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const member of members.data?.members ?? []) map.set(member.userId, member.displayName);
+    return map;
+  }, [members.data]);
 
   const events = useInfiniteQuery({
     queryKey: ['admin-audit', organizationSlug, applied.actorId, applied.entityId],
@@ -70,12 +86,27 @@ export function AdminAuditScreen({
 
   const rows = useMemo(() => events.data?.pages.flat() ?? [], [events.data]);
   const selected = rows.find((event) => event.id === selectedId) ?? null;
+  // ADM-11: the log is flooded with refused attempts, so collapse each run of consecutive
+  // refusals into one line the viewer can expand. Allowed and errored events are never grouped.
+  const grouped = useMemo(() => groupDeniedRuns(rows), [rows]);
 
   function onApply(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSelectedId(null);
     setApplied({ actorId: actorInput.trim(), entityId: entityInput.trim() });
   }
+
+  function toggleRun(key: string) {
+    setExpandedRuns((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const actorLabel = (actorId: string | null): string =>
+    actorId === null ? 'System' : (actorNames.get(actorId) ?? 'A teammate');
 
   const title = events.isSuccess
     ? `${rows.length}${events.hasNextPage ? '+' : ''} ${rows.length === 1 ? 'event' : 'events'}`
@@ -140,22 +171,35 @@ export function AdminAuditScreen({
                   <thead>
                     <tr>
                       <th scope="col">When</th>
-                      <th scope="col">Who · what changed</th>
-                      <th scope="col">Event</th>
+                      <th scope="col">What happened</th>
+                      <th scope="col">Who</th>
                       <th scope="col" className="tm-cc-end">
                         Class
                       </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((event) => (
-                      <AuditRow
-                        key={event.id}
-                        event={event}
-                        selected={event.id === selectedId}
-                        onSelect={() => setSelectedId(event.id)}
-                      />
-                    ))}
+                    {grouped.map((item) =>
+                      item.kind === 'single' ? (
+                        <AuditRow
+                          key={item.event.id}
+                          event={item.event}
+                          actor={actorLabel(item.event.actorId)}
+                          selected={item.event.id === selectedId}
+                          onSelect={() => setSelectedId(item.event.id)}
+                        />
+                      ) : (
+                        <RefusedRunRows
+                          key={item.key}
+                          run={item}
+                          expanded={expandedRuns.has(item.key)}
+                          onToggle={() => toggleRun(item.key)}
+                          selectedId={selectedId}
+                          onSelect={setSelectedId}
+                          actorLabel={actorLabel}
+                        />
+                      ),
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -180,21 +224,16 @@ export function AdminAuditScreen({
         <aside className="tm-cc-card" aria-label="Event details and filters">
           {selected ? (
             <>
-              <p className="tm-cc-eyebrow">Event {shortId(selected.id)}</p>
+              <p className="tm-cc-eyebrow">{outcomeWord(selected.result)}</p>
               <h2 className="tm-cc-card__title">{selected.summary}</h2>
               <dl className="tm-cc-dl">
-                <dt>Actor</dt>
-                <dd>{selected.actorId ?? 'system'}</dd>
-                <dt>Action</dt>
-                <dd>{selected.action}</dd>
-                <dt>Target</dt>
-                <dd>
-                  {selected.entityType}
-                  {selected.entityId === null ? '' : ` · ${selected.entityId}`}
-                </dd>
+                <dt>Who</dt>
+                <dd>{actorLabel(selected.actorId)}</dd>
+                <dt>Type</dt>
+                <dd>{humanise(selected.entityType)}</dd>
                 <dt>When</dt>
                 <dd>{formatMoment(selected.occurredAt)}</dd>
-                <dt>Id</dt>
+                <dt>Reference</dt>
                 <dd className="tm-mono">{selected.id}</dd>
               </dl>
               <hr className="tm-cc-rule" />
@@ -240,10 +279,12 @@ export function AdminAuditScreen({
 
 function AuditRow({
   event,
+  actor,
   selected,
   onSelect,
 }: {
   event: AdminAuditEvent;
+  actor: string;
   selected: boolean;
   onSelect: () => void;
 }) {
@@ -261,20 +302,71 @@ function AuditRow({
         >
           {event.summary}
         </button>
-        <span className="tm-cc-cell-sub">
-          <span>{event.action}</span> ·{' '}
-          <span title={event.actorId ?? undefined}>
-            {event.actorId === null ? 'system' : `by ${shortId(event.actorId)}`}
-          </span>
-        </span>
       </td>
-      <td>
-        <span className="tm-cc-cell-mono">{shortId(event.id)}</span>
-      </td>
+      <td>{actor}</td>
       <td className="tm-cc-end">
         <span className={classPill(event.entityType)}>{humanise(event.entityType)}</span>
       </td>
     </tr>
+  );
+}
+
+/**
+ * One collapsed run of consecutive refusals (ADM-11). The summary row names how many and who;
+ * expanding it reveals the individual attempts, each an ordinary {@link AuditRow}.
+ */
+function RefusedRunRows({
+  run,
+  expanded,
+  onToggle,
+  selectedId,
+  onSelect,
+  actorLabel,
+}: {
+  run: RefusedRun;
+  expanded: boolean;
+  onToggle: () => void;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+  actorLabel: (actorId: string | null) => string;
+}) {
+  const count = run.events.length;
+  const actorIds = new Set(run.events.map((event) => event.actorId));
+  const who = actorIds.size === 1 ? actorLabel(run.events[0]!.actorId) : 'various people';
+  return (
+    <>
+      <tr data-refused-run="true">
+        <td>
+          <span className="tm-cc-cell-mono">{formatWhen(run.events[0]!.occurredAt)}</span>
+        </td>
+        <td>
+          <button
+            type="button"
+            className="tm-cc-row-button tm-cc-cell-title"
+            aria-expanded={expanded}
+            onClick={onToggle}
+          >
+            {count} refused attempts
+          </button>
+          <span className="tm-cc-cell-sub">{expanded ? 'Hide attempts' : 'Show each attempt'}</span>
+        </td>
+        <td>{who}</td>
+        <td className="tm-cc-end">
+          <span className="tm-cc-pill">Refused</span>
+        </td>
+      </tr>
+      {expanded
+        ? run.events.map((event) => (
+            <AuditRow
+              key={event.id}
+              event={event}
+              actor={actorLabel(event.actorId)}
+              selected={event.id === selectedId}
+              onSelect={() => onSelect(event.id)}
+            />
+          ))
+        : null}
+    </>
   );
 }
 
@@ -300,10 +392,55 @@ function humanise(value: string): string {
   return value.replace(/[_.]+/g, ' ');
 }
 
-/** The trailing part of an id — enough to tell rows apart, as the frame's "EV·9C41". */
-function shortId(id: string): string {
-  const tail = id.replace(/-/g, '').slice(-6);
-  return id.length <= 10 ? id : `…${tail}`;
+/** A run of two or more consecutive refusals, collapsed into one line (ADM-11). */
+export interface RefusedRun {
+  readonly kind: 'refused-run';
+  /** A stable React key for the run — the newest attempt's id. */
+  readonly key: string;
+  readonly events: readonly AdminAuditEvent[];
+}
+
+/** Either a single event shown as its own row, or a collapsed run of refusals. */
+export type AuditListItem =
+  { readonly kind: 'single'; readonly event: AdminAuditEvent } | RefusedRun;
+
+/**
+ * Collapse each maximal run of consecutive refused events into one {@link RefusedRun}, leaving
+ * allowed and errored events — and a lone refusal — as single rows. The input is already
+ * newest-first, and the order is preserved, so a run groups events that truly sat together in
+ * the trail rather than refusals scattered across time (ADM-11 "the log is flooded with denied
+ * rows" → group them without hiding anything).
+ */
+export function groupDeniedRuns(rows: readonly AdminAuditEvent[]): readonly AuditListItem[] {
+  const items: AuditListItem[] = [];
+  let run: AdminAuditEvent[] = [];
+
+  const flush = () => {
+    if (run.length >= 2) {
+      items.push({ kind: 'refused-run', key: `refused-${run[0]!.id}`, events: run });
+    } else {
+      for (const event of run) items.push({ kind: 'single', event });
+    }
+    run = [];
+  };
+
+  for (const event of rows) {
+    if (event.result === 'denied') {
+      run.push(event);
+      continue;
+    }
+    flush();
+    items.push({ kind: 'single', event });
+  }
+  flush();
+  return items;
+}
+
+/** The eyebrow word for the detail panel — the outcome in plain terms. */
+function outcomeWord(result: AdminAuditEvent['result']): string {
+  if (result === 'denied') return 'Refused attempt';
+  if (result === 'error') return 'Did not complete';
+  return 'Change';
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */

@@ -25,6 +25,30 @@ export const WEBHOOK_EVENT_KINDS = [
 export type WebhookEventKind = (typeof WEBHOOK_EVENT_KINDS)[number];
 
 /**
+ * Plain names for the event kinds (TXT-03 — "raw event codes" → "plain sentences"). The raw kind
+ * (`work.created`) is the stable wire value an endpoint subscribes to; these are the words shown
+ * in the picker and the endpoint list instead. `satisfies` keeps a new kind a compile error here
+ * until it is given a label, so the screen can never fall back to a dotted code.
+ */
+const WEBHOOK_EVENT_LABELS = {
+  'work.created': 'Work item created',
+  'work.updated': 'Work item updated',
+  'work.completed': 'Work item completed',
+  'approval.decided': 'Approval decided',
+  'document.published': 'Document published',
+  'client_request.created': 'Client request submitted',
+} as const satisfies Record<WebhookEventKind, string>;
+
+/** The plain name for an event kind, for display. Falls back to a de-coded kind for an older value. */
+export function webhookEventLabel(kind: string): string {
+  if ((WEBHOOK_EVENT_KINDS as readonly string[]).includes(kind)) {
+    return WEBHOOK_EVENT_LABELS[kind as WebhookEventKind];
+  }
+  const words = kind.replace(/[_.]+/g, ' ').trim();
+  return words.length === 0 ? kind : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
  * One webhook endpoint — paired Exact with the API's `WebhookEndpointView`. `organizationId` is
  * absent on both sides, and there is no `secret` field: the wire projection never echoes the tenant
  * id or the signing secret.

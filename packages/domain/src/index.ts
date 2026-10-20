@@ -154,7 +154,9 @@ export {
   AUDIT_RESULTS,
   UnsafeAuditMetadataError,
   assertSafeAuditMetadata,
+  auditActionLabel,
   auditObjectTypeFor,
+  describeAuditEvent,
   isAuditAction,
   isSafeAuditMetadata,
 } from './policies/audit.js';

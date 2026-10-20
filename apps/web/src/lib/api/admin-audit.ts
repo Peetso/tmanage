@@ -24,6 +24,12 @@ export interface AdminAuditEvent {
   readonly entityType: string;
   /** The object the action names, or `null` when the action is not about a row. */
   readonly entityId: string | null;
+  /**
+   * Whether the action succeeded, was refused, or errored. Structurally the API's `AuditResult`
+   * (paired Exact in the contracts gate); spelled as a literal union here so this hand-written lib
+   * need not depend on `@tmanage/domain`. Lets the viewer group the flood of refusals (ADM-11).
+   */
+  readonly result: 'allowed' | 'denied' | 'error';
   readonly summary: string;
 }
 

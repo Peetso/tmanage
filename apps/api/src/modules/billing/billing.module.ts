@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  AUDIT_SERVICE,
   BILLING_PROFILE_REPOSITORY,
   BILLING_TAX_DETAILS_REPOSITORY,
   BILLING_TAX_DETAILS_SERVICE,
@@ -10,6 +11,7 @@ import {
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { SubscriptionRepository } from './subscription.repository.js';
 import { SubscriptionService } from './subscription.service.js';
 import { SubscriptionController } from './subscription.controller.js';
@@ -83,9 +85,11 @@ export class BillingModule {
     // shape the other billing wiring here takes. Reuses `org.manage`; adds nothing to the caps files.
     const planChangeRequests: Provider = {
       provide: PLAN_CHANGE_REQUESTS_SERVICE,
-      inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) =>
-        new PlanChangeRequestsService(database, new PlanChangeRequestsRepository()),
+      // ADM-11 (CQ-08): the globally-exported audit service is injected optionally (the custom-roles
+      // posture) so a submission and a cancellation each leave an audit row in the same transaction.
+      inject: [TENANT_DATABASE, { token: AUDIT_SERVICE, optional: true }],
+      useFactory: (database: TenantDatabase, audit?: AuditService) =>
+        new PlanChangeRequestsService(database, new PlanChangeRequestsRepository(), audit),
     };
 
     return {

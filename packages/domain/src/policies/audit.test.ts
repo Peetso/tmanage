@@ -5,7 +5,9 @@ import {
   AUDIT_RESULTS,
   UnsafeAuditMetadataError,
   assertSafeAuditMetadata,
+  auditActionLabel,
   auditObjectTypeFor,
+  describeAuditEvent,
   isAuditAction,
   isSafeAuditMetadata,
 } from './audit.js';
@@ -253,6 +255,30 @@ describe('safe metadata — what is refused', () => {
     for (const value of cases) {
       expect(isSafeAuditMetadata(value)).toBe(violationsOf(value).length === 0);
     }
+  });
+});
+
+describe('plain-English labels (TXT-03 / ADM-11)', () => {
+  it('gives every catalogued action a non-empty, code-free plain label', () => {
+    for (const action of AUDIT_ACTIONS) {
+      const label = auditActionLabel(action);
+      expect(label.length).toBeGreaterThan(0);
+      // No dotted machine code leaks into the words shown to a person.
+      expect(label).not.toContain('.');
+      expect(label).not.toContain('_');
+    }
+  });
+
+  it('names the outcome for a refusal or error, but not for an allowed event', () => {
+    expect(describeAuditEvent('project.created', 'allowed')).toBe('Created a project');
+    expect(describeAuditEvent('project.created', 'denied')).toBe('Created a project (refused)');
+    expect(describeAuditEvent('project.created', 'error')).toBe('Created a project (failed)');
+    // A capability denial already reads as a block, so it is not suffixed "(refused)" twice.
+    expect(describeAuditEvent('security.capability_denied', 'denied')).toBe(
+      'Blocked for a missing permission',
+    );
+    // An unknown action is de-coded into words rather than shown as a raw code.
+    expect(describeAuditEvent('future.new_thing', 'allowed')).toBe('Future new thing');
   });
 });
 

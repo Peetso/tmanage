@@ -13,6 +13,7 @@ import {
   registerWebhookEndpoint,
   setWebhookEndpointEnabled,
   WEBHOOK_EVENT_KINDS,
+  webhookEventLabel,
   type WebhookEndpointSummary,
   type WebhookEventKind,
 } from '../../lib/api/webhooks';
@@ -158,7 +159,8 @@ export function WebhookEndpointsScreen({
                     <div className="tm-aut-list__main">
                       <span className="tm-aut-rowtitle tm-aut-url">{endpoint.url}</span>
                       <span className="tm-aut-rowsub">
-                        {endpoint.eventKind} &middot; {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                        {webhookEventLabel(endpoint.eventKind)} &middot;{' '}
+                        {endpoint.enabled ? 'Enabled' : 'Disabled'}
                       </span>
                     </div>
                     <div className="tm-aut-list__end">
@@ -223,7 +225,7 @@ export function WebhookEndpointsScreen({
                 >
                   {WEBHOOK_EVENT_KINDS.map((kind) => (
                     <option key={kind} value={kind}>
-                      {kind}
+                      {webhookEventLabel(kind)}
                     </option>
                   ))}
                 </select>

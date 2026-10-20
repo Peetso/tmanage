@@ -41,7 +41,8 @@ const EVENTS = {
       action: 'project.created',
       entityType: 'project',
       entityId: 'project-1',
-      summary: 'project.created',
+      result: 'allowed',
+      summary: 'Created a project',
     },
     {
       id: 'audit-2',
@@ -50,7 +51,8 @@ const EVENTS = {
       action: 'membership.revoked',
       entityType: 'membership',
       entityId: null,
-      summary: 'membership.revoked (denied)',
+      result: 'denied',
+      summary: 'Removed a member (refused)',
     },
   ],
 };
@@ -59,11 +61,12 @@ describe('AdminAuditScreen', () => {
   it('renders the filter form and a row per event, and is accessible', async () => {
     const { container } = mount(EVENTS);
 
-    // An allowed event's summary equals its action, so the string appears twice (action + summary).
-    expect((await screen.findAllByText('project.created')).length).toBe(2);
-    expect(screen.getByText('membership.revoked (denied)')).toBeTruthy();
-    // A system-initiated event shows "system" rather than an empty actor cell.
-    expect(screen.getByText('system')).toBeTruthy();
+    // TXT-03: the row shows the plain summary, not a raw action code.
+    expect(await screen.findByText('Created a project')).toBeTruthy();
+    // A lone refusal is not grouped, so its summary still shows.
+    expect(screen.getByText('Removed a member (refused)')).toBeTruthy();
+    // A system-initiated event shows "System" rather than a raw id or an empty actor cell.
+    expect(screen.getByText('System')).toBeTruthy();
     // The filters are real, labelled form controls.
     expect(screen.getByLabelText('Actor ID')).toBeTruthy();
     expect(screen.getByLabelText('Entity ID')).toBeTruthy();

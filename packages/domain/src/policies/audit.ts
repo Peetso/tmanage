@@ -542,6 +542,22 @@ export const AUDIT_ACTION_CATALOG = {
     // latter, because a row reading "this denial succeeded" describes nothing that happens.
     clause: '§12 "Denied sensitive attempts are security events with safe metadata"',
   },
+  /**
+   * ADM-11 (CQ-08). Billing module 19 (x284). A plan-change request is a recorded intent to move
+   * an organization to another plan — the owner-only decision §12's "organization settings" names,
+   * and the audit header promises every admin change is logged. Two actions, submitting and
+   * cancelling; neither carries the free-text note (prose), only the target plan and the date.
+   */
+  'plan_change_request.submitted': {
+    objectType: 'billing_plan_change_request',
+    clause:
+      '§12 organization settings — moving the organization to another plan is an admin change',
+  },
+  'plan_change_request.cancelled': {
+    objectType: 'billing_plan_change_request',
+    clause:
+      '§12 organization settings — withdrawing a pending plan change is the same decision undone',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -555,6 +571,96 @@ export function isAuditAction(value: string): value is AuditAction {
 /** The object type an action describes. Callers never choose it. */
 export function auditObjectTypeFor(action: AuditAction): string {
   return AUDIT_ACTION_CATALOG[action].objectType;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Plain-English labels — TXT-03 / ADM-11 (CQ-08)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * A plain sentence for each action, for the admin audit viewer and the Control Center's
+ * "recent changes" list (TXT-03 — "raw event codes" → "plain sentences with names").
+ *
+ * The raw action name (`custom_role.created`) is a stable machine key and the right thing to
+ * filter and index by, but the wrong thing to show an owner reading the log. These are the
+ * words shown instead. They are deliberately the *action* in human terms and nothing more — no
+ * ids, no metadata — so this map stays non-sensitive and never needs the redaction the viewer
+ * projection applies to everything else.
+ *
+ * `satisfies Record<AuditAction, string>` is the point: a new action added to the catalog is a
+ * compile error here until it is given a label, so the viewer can never fall back to a raw code.
+ */
+const AUDIT_ACTION_LABELS = {
+  'organization.provisioned': 'Set up the organization',
+  'project.created': 'Created a project',
+  'work_item.created': 'Created a work item',
+  'work_item.transitioned': 'Moved a work item to a new stage',
+  'work_item.audience_changed': 'Changed who can see a work item',
+  'work_item.deleted': 'Deleted a work item',
+  'work_item.dependency_removed': 'Removed a work item dependency',
+  'client_organization.created': 'Added a client company',
+  'client_organization.updated': 'Renamed a client company',
+  'client_organization.archived': 'Archived a client company',
+  'client_membership.invited': 'Invited a client contact',
+  'client_membership.role_changed': "Changed a client contact's role",
+  'client_membership.expiry_changed': "Changed a client contact's access expiry",
+  'client_membership.status_changed': "Changed a client contact's access",
+  'membership.offboarded': 'Offboarded a member',
+  'custom_role.created': 'Created a custom role',
+  'custom_role.updated': 'Updated a custom role',
+  'membership.role_changed': "Changed a member's role",
+  'project.client_linked': 'Gave a client access to a project',
+  'project.client_unlinked': "Removed a client's access to a project",
+  'invitation.issued': 'Issued an invitation',
+  'invitation.emailed': 'Sent an invitation email',
+  'invitation.accepted': 'An invitation was accepted',
+  'invitation.revoked': 'Revoked an invitation',
+  'invitation.expired': 'Expired old invitations',
+  'project_membership.granted': 'Added a member to a project',
+  'project_membership.role_changed': "Changed a member's project role",
+  'project_membership.revoked': 'Removed a member from a project',
+  'client_request.submitted': 'A client submitted a request',
+  'client_request.transitioned': 'Responded to a client request',
+  'conversation.created': 'Created a channel',
+  'conversation.member_added': 'Added someone to a channel',
+  'conversation.member_removed': 'Removed someone from a channel',
+  'message.deleted': 'Deleted a message',
+  'upload_session.refused': 'Refused an upload',
+  'upload_session.abort_failed': 'Could not cancel an upload',
+  'file_asset.uploaded': 'Uploaded a file',
+  'file_asset.verified': 'Verified a file',
+  'file_asset.rejected': 'Rejected a file',
+  'file_asset.scan_failed': 'Could not scan a file',
+  'file_asset.scanned': 'Scanned a file',
+  'file_asset.downloaded': 'Downloaded a file',
+  'file_asset.scan_disputed': "A file's scan result changed",
+  'file_asset.purged': 'Deleted stored file data',
+  'upload_session.expired': 'Cleaned up an expired upload',
+  'usage_counter.drift_corrected': 'Corrected a storage counter',
+  'usage.threshold_reached': 'Storage reached its limit',
+  'security.capability_denied': 'Blocked for a missing permission',
+  'plan_change_request.submitted': 'Requested a plan change',
+  'plan_change_request.cancelled': 'Cancelled a plan-change request',
+} as const satisfies Record<AuditAction, string>;
+
+/** The plain sentence for an action, for display. Falls back to a de-coded action name. */
+export function auditActionLabel(action: string): string {
+  if (isAuditAction(action)) return AUDIT_ACTION_LABELS[action];
+  // An action not in the catalog (an older row, a future producer) still reads as words rather
+  // than as a dotted code: `foo.bar_baz` → `Foo bar baz`.
+  const words = action.replace(/[_.]+/g, ' ').trim();
+  return words.length === 0 ? action : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/**
+ * A one-line, non-sensitive gloss of an audit event for a human reader: the action in plain
+ * words, with the outcome named when it is not a plain success. A refusal recorded against
+ * `security.capability_denied` already reads as a block, so it is not suffixed twice.
+ */
+export function describeAuditEvent(action: string, result: AuditResult): string {
+  const label = auditActionLabel(action);
+  if (result === 'allowed' || action === 'security.capability_denied') return label;
+  return result === 'denied' ? `${label} (refused)` : `${label} (failed)`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
