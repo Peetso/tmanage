@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { listMyMessageBookmarks } from '../../lib/api/message-bookmarks';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -34,6 +35,7 @@ export function SavedMessagesScreen({
 }: SavedMessagesScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const saved = useQuery({
     queryKey: savedMessagesKey(organizationSlug),
@@ -47,38 +49,41 @@ export function SavedMessagesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
-      title="Saved messages"
-      description="Messages you have privately saved, across your conversations."
+      title={t('SavedMessagesScreen.title')}
+      description={t('SavedMessagesScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-saved-messages">
         <h2 id="tm-saved-messages" className="tm-eyebrow">
-          My saved messages
+          {t('SavedMessagesScreen.heading')}
         </h2>
 
         {saved.isPending ? (
-          <LoadingRegion label="Loading your saved messages">
+          <LoadingRegion label={t('SavedMessagesScreen.loading')}>
             <Skeleton />
             <Skeleton />
           </LoadingRegion>
         ) : saved.isError ? (
           <InlineAlert tone="danger" live>
             {saved.error instanceof ApiRequestError
-              ? 'Your saved messages could not be loaded.'
+              ? t('SavedMessagesScreen.loadFailedApi')
               : saved.error instanceof NetworkError
-                ? 'Could not reach the server. Try again.'
-                : 'Something went wrong.'}
+                ? t('SavedMessagesScreen.loadFailedNetwork')
+                : t('SavedMessagesScreen.loadFailedGeneric')}
           </InlineAlert>
         ) : rows.length === 0 ? (
-          <p className="tm-muted">You have not saved any messages yet.</p>
+          <p className="tm-muted">{t('SavedMessagesScreen.empty')}</p>
         ) : (
           <ul className="tm-stack">
             {rows.map((message) => (
               <li key={message.messageId} className="tm-panel">
                 <p className="tm-message-body">
-                  {message.body ?? <em className="tm-muted">This message was removed.</em>}
+                  {message.body ?? (
+                    <em className="tm-muted">{t('SavedMessagesScreen.messageRemoved')}</em>
+                  )}
                 </p>
                 <p className="tm-muted tm-caption">
-                  Saved {new Date(message.bookmarkedAt).toLocaleString()}
+                  {t('SavedMessagesScreen.savedPrefix')}
+                  {new Date(message.bookmarkedAt).toLocaleString()}
                 </p>
                 <MessageBookmarkView
                   organizationSlug={organizationSlug}

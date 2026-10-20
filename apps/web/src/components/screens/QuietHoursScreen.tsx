@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { getQuietHours, updateQuietHours } from '../../lib/api/quiet-hours';
 import type { QuietHoursView } from '../../lib/api/quiet-hours';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -28,15 +30,17 @@ const DEFAULTS: QuietHoursView = {
   days: [0, 1, 2, 3, 4, 5, 6],
 };
 
-const DAY_LABELS: readonly { value: number; label: string }[] = [
-  { value: 1, label: 'Mon' },
-  { value: 2, label: 'Tue' },
-  { value: 3, label: 'Wed' },
-  { value: 4, label: 'Thu' },
-  { value: 5, label: 'Fri' },
-  { value: 6, label: 'Sat' },
-  { value: 0, label: 'Sun' },
-];
+const DAYS_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
+
+const DAY_KEY: Record<0 | 1 | 2 | 3 | 4 | 5 | 6, MessageKey> = {
+  1: 'QuietHoursScreen.dayMon',
+  2: 'QuietHoursScreen.dayTue',
+  3: 'QuietHoursScreen.dayWed',
+  4: 'QuietHoursScreen.dayThu',
+  5: 'QuietHoursScreen.dayFri',
+  6: 'QuietHoursScreen.daySat',
+  0: 'QuietHoursScreen.daySun',
+};
 
 /** The IANA zone the browser is set to, so the form can default to something meaningful. */
 function browserTimezone(): string {
@@ -64,6 +68,7 @@ export function QuietHoursScreen({
 }: QuietHoursScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const preferences = useQuery({
     queryKey: ['quiet-hours', organizationSlug],
@@ -113,15 +118,15 @@ export function QuietHoursScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Preferences · Notifications"
-      title="Quiet hours"
+      eyebrow={t('QuietHoursScreen.eyebrow')}
+      title={t('QuietHoursScreen.title')}
     >
       {preferences.isPending ? (
-        <LoadingRegion label="Loading your quiet hours">
+        <LoadingRegion label={t('QuietHoursScreen.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : preferences.isError ? (
-        <InlineAlert tone="danger" title="We could not load your quiet hours">
+        <InlineAlert tone="danger" title={t('QuietHoursScreen.loadFailed')}>
           {errorMessage(preferences.error)}
         </InlineAlert>
       ) : (
@@ -137,12 +142,12 @@ export function QuietHoursScreen({
               }}
             >
               <h2 id="tm-quiet-heading" className="tm-prefs-eyebrow">
-                Do-not-disturb window
+                {t('QuietHoursScreen.windowHeading')}
               </h2>
 
               <PreferenceToggle
-                label="Enable quiet hours"
-                hint="notifications wait until the window ends"
+                label={t('QuietHoursScreen.enableLabel')}
+                hint={t('QuietHoursScreen.enableHint')}
                 checked={enabled}
                 onChange={(event) => setEnabled(event.target.checked)}
               />
@@ -152,7 +157,7 @@ export function QuietHoursScreen({
               <div className="tm-prefs-fields">
                 <div className="tm-prefs-field">
                   <label className="tm-prefs-field__label" htmlFor="tm-quiet-start">
-                    Start time
+                    {t('QuietHoursScreen.startTime')}
                   </label>
                   <input
                     id="tm-quiet-start"
@@ -165,7 +170,7 @@ export function QuietHoursScreen({
 
                 <div className="tm-prefs-field">
                   <label className="tm-prefs-field__label" htmlFor="tm-quiet-end">
-                    End time
+                    {t('QuietHoursScreen.endTime')}
                   </label>
                   <input
                     id="tm-quiet-end"
@@ -178,23 +183,23 @@ export function QuietHoursScreen({
 
                 <div className="tm-prefs-field tm-prefs-field--wide">
                   <label className="tm-prefs-field__label" htmlFor="tm-quiet-timezone">
-                    Timezone
+                    {t('QuietHoursScreen.timezone')}
                   </label>
                   <input
                     id="tm-quiet-timezone"
                     className="tm-prefs-field__control"
                     type="text"
                     value={timezone}
-                    placeholder="e.g. America/New_York"
+                    placeholder={t('QuietHoursScreen.timezonePlaceholder')}
                     onChange={(event) => setTimezone(event.target.value)}
                   />
                 </div>
               </div>
 
               <fieldset className="tm-prefs-section">
-                <legend className="tm-prefs-eyebrow">Days</legend>
+                <legend className="tm-prefs-eyebrow">{t('QuietHoursScreen.days')}</legend>
                 <div className="tm-prefs-choices">
-                  {DAY_LABELS.map(({ value, label }) => (
+                  {DAYS_ORDER.map((value) => (
                     <label className="tm-prefs-choice" key={value}>
                       <input
                         id={`tm-quiet-day-${value}`}
@@ -202,21 +207,21 @@ export function QuietHoursScreen({
                         checked={days.includes(value)}
                         onChange={() => toggleDay(value)}
                       />
-                      {label}
+                      {t(DAY_KEY[value])}
                     </label>
                   ))}
                 </div>
               </fieldset>
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="We could not save your quiet hours">
+                <InlineAlert tone="danger" title={t('QuietHoursScreen.saveFailed')}>
                   {errorMessage(save.error)}
                 </InlineAlert>
               ) : null}
 
               {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Saved">
-                  Your quiet hours have been saved.
+                <InlineAlert tone="success" title={t('QuietHoursScreen.savedTitle')}>
+                  {t('QuietHoursScreen.savedBody')}
                 </InlineAlert>
               ) : null}
 
@@ -226,7 +231,7 @@ export function QuietHoursScreen({
                   className="tm-prefs-capsule tm-prefs-capsule--ink"
                   disabled={save.isPending}
                 >
-                  {save.isPending ? 'Saving…' : 'Save quiet hours'}
+                  {save.isPending ? t('QuietHoursScreen.saving') : t('QuietHoursScreen.save')}
                 </button>
               </div>
             </form>
@@ -235,28 +240,26 @@ export function QuietHoursScreen({
           <aside className="tm-prefs__side" aria-labelledby="tm-quiet-summary">
             <div className="tm-prefs-card tm-prefs-card--tight">
               <h2 id="tm-quiet-summary" className="tm-prefs-card__title">
-                {enabled ? `${startTime} – ${endTime}` : 'Quiet hours are off'}
+                {enabled ? `${startTime} – ${endTime}` : t('QuietHoursScreen.summaryOff')}
               </h2>
               <p className="tm-prefs-card__body">
                 {enabled
                   ? `${timezone || browserTimezone()}, on ${days.length === 7 ? 'every day' : `${days.length} day${days.length === 1 ? '' : 's'} a week`}. Notifications wait until the window ends.`
-                  : 'Notifications arrive whenever they happen. Turn quiet hours on to hold them overnight.'}
+                  : t('QuietHoursScreen.summaryOffBody')}
               </p>
             </div>
             <div className="tm-prefs-card tm-prefs-card--paper tm-prefs-card--grow">
-              <h3 className="tm-prefs-eyebrow">Also in notifications</h3>
-              <p className="tm-prefs-card__body">
-                Which kinds of notification reach you, and how often the summary email arrives.
-              </p>
+              <h3 className="tm-prefs-eyebrow">{t('QuietHoursScreen.alsoInNotifications')}</h3>
+              <p className="tm-prefs-card__body">{t('QuietHoursScreen.alsoBody')}</p>
               <div className="tm-prefs-card__foot">
                 <Link
                   className="tm-prefs-capsule"
                   href={`/${organizationSlug}/inbox/notification-preferences`}
                 >
-                  Notifications
+                  {t('QuietHoursScreen.notificationsLink')}
                 </Link>
                 <Link className="tm-prefs-capsule" href={`/${organizationSlug}/settings/digest`}>
-                  Summary email
+                  {t('QuietHoursScreen.summaryEmailLink')}
                 </Link>
               </div>
             </div>

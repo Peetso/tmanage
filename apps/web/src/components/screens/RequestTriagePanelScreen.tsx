@@ -6,6 +6,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { fetchRequestTriage, putRequestTriage } from '../../lib/api/request-triage';
 import type { RequestTriageView } from '../../lib/api/request-triage';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -37,14 +39,23 @@ export interface RequestTriagePanelScreenProps {
  */
 
 /** The category vocabulary, mirroring REQUEST_TRIAGE_CATEGORIES on the API with human labels. */
-const CATEGORY_OPTIONS: readonly { id: string; label: string }[] = [
-  { id: 'general', label: 'General' },
-  { id: 'bug', label: 'Bug' },
-  { id: 'change_request', label: 'Change request' },
-  { id: 'question', label: 'Question' },
-  { id: 'billing', label: 'Billing' },
-  { id: 'feedback', label: 'Feedback' },
-];
+const CATEGORY_IDS = [
+  'general',
+  'bug',
+  'change_request',
+  'question',
+  'billing',
+  'feedback',
+] as const;
+
+const CATEGORY_KEY: Record<(typeof CATEGORY_IDS)[number], MessageKey> = {
+  general: 'RequestTriagePanelScreen.catGeneral',
+  bug: 'RequestTriagePanelScreen.catBug',
+  change_request: 'RequestTriagePanelScreen.catChangeRequest',
+  question: 'RequestTriagePanelScreen.catQuestion',
+  billing: 'RequestTriagePanelScreen.catBilling',
+  feedback: 'RequestTriagePanelScreen.catFeedback',
+};
 
 export function RequestTriagePanelScreen({
   organizationSlug,
@@ -54,6 +65,7 @@ export function RequestTriagePanelScreen({
 }: RequestTriagePanelScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const triage = useQuery({
     queryKey: ['request-triage', organizationSlug, clientRequestId],
@@ -97,8 +109,8 @@ export function RequestTriagePanelScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Request triage"
-      eyebrow="Request detail / Triage"
+      title={t('RequestTriagePanelScreen.title')}
+      eyebrow={t('RequestTriagePanelScreen.eyebrow')}
       actions={
         <Link
           className="wp-capsule"
@@ -106,28 +118,29 @@ export function RequestTriagePanelScreen({
             clientRequestId,
           )}`}
         >
-          Back to the request
+          {t('RequestTriagePanelScreen.backToRequest')}
         </Link>
       }
     >
       <section className="wp-triage" aria-labelledby="tm-request-triage-heading">
         <div className="wp-triage__asked">
           <h2 id="tm-request-triage-heading" className="wp-mono-label">
-            Triage
+            {t('RequestTriagePanelScreen.triage')}
           </h2>
-          <p className="wp-triage__quote">
-            File the request under a category and give it an owner, before anything is committed.
-          </p>
+          <p className="wp-triage__quote">{t('RequestTriagePanelScreen.intro')}</p>
 
           {triage.isPending ? (
-            <LoadingRegion label="Loading triage." className="tm-stack tm-stack--tight">
+            <LoadingRegion
+              label={t('RequestTriagePanelScreen.loading')}
+              className="tm-stack tm-stack--tight"
+            >
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {triage.isError ? (
-            <InlineAlert tone="danger" title="Could not load triage" live>
+            <InlineAlert tone="danger" title={t('RequestTriagePanelScreen.loadFailed')} live>
               {describe(triage.error)}
             </InlineAlert>
           ) : null}
@@ -136,7 +149,7 @@ export function RequestTriagePanelScreen({
             <form id="tm-request-triage-form" className="wp-stack" noValidate onSubmit={submit}>
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-triage-category">
-                  Category
+                  {t('RequestTriagePanelScreen.category')}
                 </label>
                 <select
                   id="tm-triage-category"
@@ -144,31 +157,31 @@ export function RequestTriagePanelScreen({
                   value={category}
                   onChange={(event) => setCategory(event.target.value)}
                 >
-                  {CATEGORY_OPTIONS.map((option) => (
-                    <option key={option.id} value={option.id}>
-                      {option.label}
+                  {CATEGORY_IDS.map((id) => (
+                    <option key={id} value={id}>
+                      {t(CATEGORY_KEY[id])}
                     </option>
                   ))}
                 </select>
               </div>
 
               <Field
-                label="Assign to"
+                label={t('RequestTriagePanelScreen.assignTo')}
                 name="assigneeMembershipId"
                 value={assignee}
                 onChange={(event) => setAssignee(event.target.value)}
-                hint="Optional. The membership id of an active member of this studio. Leave blank to leave the request unassigned."
+                hint={t('RequestTriagePanelScreen.assignHint')}
               />
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="Could not save triage" live>
+                <InlineAlert tone="danger" title={t('RequestTriagePanelScreen.saveFailed')} live>
                   {describe(save.error)}
                 </InlineAlert>
               ) : null}
 
               {save.isSuccess ? (
-                <InlineAlert tone="success" title="Triage saved" live>
-                  The request has been triaged.
+                <InlineAlert tone="success" title={t('RequestTriagePanelScreen.savedTitle')} live>
+                  {t('RequestTriagePanelScreen.savedBody')}
                 </InlineAlert>
               ) : null}
             </form>
@@ -183,12 +196,12 @@ export function RequestTriagePanelScreen({
               tone="ink"
               size="accessible"
               loading={save.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('RequestTriagePanelScreen.saving')}
             >
-              Save triage
+              {t('RequestTriagePanelScreen.saveTriage')}
             </Button>
           ) : null}
-          <p className="wp-caption">Triage files and assigns. It promises nothing to the client.</p>
+          <p className="wp-caption">{t('RequestTriagePanelScreen.caption')}</p>
         </div>
       </section>
     </AppShell>

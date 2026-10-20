@@ -6,6 +6,7 @@ import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { defineProjectTag, listProjectTags } from '../../lib/api/project-tags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -39,6 +40,7 @@ export function ProjectTagsScreen({
 }: ProjectTagsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['project-tags', organizationSlug] as const;
 
   const [name, setName] = useState('');
@@ -66,9 +68,9 @@ export function ProjectTagsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Project tags"
-      description="Define reusable tags, then tag projects with them to filter the portfolio."
-      eyebrow="Projects · Tags"
+      title={t('ProjectTagsScreen.title')}
+      description={t('ProjectTagsScreen.description')}
+      eyebrow={t('ProjectTagsScreen.eyebrow')}
       topBar={<ProjectTabs organizationSlug={organizationSlug} />}
     >
       <div className="tm-prj tm-prj--sub">
@@ -76,7 +78,7 @@ export function ProjectTagsScreen({
           <div className="tm-prj__col tm-prj__col--aside">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-project-tag-new-heading">
               <h2 id="tm-project-tag-new-heading" className="tm-prj-eyebrow">
-                New tag
+                {t('ProjectTagsScreen.newTag')}
               </h2>
               <form
                 className="tm-stack"
@@ -87,16 +89,16 @@ export function ProjectTagsScreen({
                 }}
               >
                 <Field
-                  label="Name"
+                  label={t('ProjectTagsScreen.nameLabel')}
                   name="name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  hint="A short handle, such as Retainer or At risk."
+                  hint={t('ProjectTagsScreen.nameHint')}
                   required
                 />
 
                 {failure ? (
-                  <InlineAlert tone="danger" title="Could not define the tag" live>
+                  <InlineAlert tone="danger" title={t('ProjectTagsScreen.defineFailed')} live>
                     {failure}
                   </InlineAlert>
                 ) : null}
@@ -107,10 +109,10 @@ export function ProjectTagsScreen({
                     tone="ink"
                     size="accessible"
                     loading={define.isPending}
-                    loadingLabel="Saving"
+                    loadingLabel={t('ProjectTagsScreen.saving')}
                     disabled={!canDefine}
                   >
-                    Define tag
+                    {t('ProjectTagsScreen.defineTag')}
                   </Button>
                 </div>
               </form>
@@ -119,24 +121,24 @@ export function ProjectTagsScreen({
           <div className="tm-prj__col">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-project-tag-list-heading">
               <h2 id="tm-project-tag-list-heading" className="tm-prj-eyebrow">
-                Tags
+                {t('ProjectTagsScreen.tags')}
               </h2>
               {tags.isPending ? (
-                <LoadingRegion label="Loading this studio’s project tags.">
+                <LoadingRegion label={t('ProjectTagsScreen.loading')}>
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
               ) : null}
 
               {tags.isError ? (
-                <InlineAlert tone="danger" title="Could not load the tags" live>
+                <InlineAlert tone="danger" title={t('ProjectTagsScreen.loadFailed')} live>
                   {describe(tags.error)}
                 </InlineAlert>
               ) : null}
 
               {tags.data ? (
                 rows.length === 0 ? (
-                  <p className="tm-prose">No project tags defined yet.</p>
+                  <p className="tm-prose">{t('ProjectTagsScreen.empty')}</p>
                 ) : (
                   <ul
                     className="tm-row tm-row--wrap"

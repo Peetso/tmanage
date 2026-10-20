@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   acceptClientRequest,
   getClientRequestRecord,
@@ -82,6 +83,7 @@ export function RequestTriageScreen({
 }: RequestTriageScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const [outcome, setOutcome] = useState<Outcome>(null);
   const [question, setQuestion] = useState('');
@@ -218,35 +220,35 @@ export function RequestTriageScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title={found?.title ?? 'Client request'}
-      eyebrow="Request detail / Triage"
+      title={found?.title ?? t('RequestTriageScreen.clientRequest')}
+      eyebrow={t('RequestTriageScreen.eyebrow')}
       actions={
         <Link className="wp-capsule" href={`/${organizationSlug}/work/requests`}>
-          Back to the request inbox
+          {t('RequestTriageScreen.backToInbox')}
         </Link>
       }
     >
       {request.isError ? (
-        <InlineAlert tone="danger" title="Could not load this request" live>
+        <InlineAlert tone="danger" title={t('RequestTriageScreen.loadFailed')} live>
           {describeFailure(request.error)}
         </InlineAlert>
       ) : null}
 
       {request.isPending ? (
-        <LoadingRegion label="Loading the request.">
+        <LoadingRegion label={t('RequestTriageScreen.loading')}>
           <Skeleton height="56px" />
           <Skeleton height="220px" />
         </LoadingRegion>
       ) : null}
 
       {accepted ? (
-        <InlineAlert tone="success" title="Accepted, and the work is committed" live>
+        <InlineAlert tone="success" title={t('RequestTriageScreen.acceptedTitle')} live>
           <p className="tm-prose">
             {accepted.created
-              ? 'A work item was created for this request.'
-              : 'The request was linked to work that already existed.'}{' '}
+              ? t('RequestTriageScreen.workItemCreated')
+              : t('RequestTriageScreen.workItemLinked')}{' '}
             <Link href={`/${organizationSlug}/work/${accepted.workItemId}`}>
-              Open the work item
+              {t('RequestTriageScreen.openWorkItem')}
             </Link>
           </p>
         </InlineAlert>
@@ -271,12 +273,12 @@ export function RequestTriageScreen({
               <div className="wp-triage">
                 <section className="wp-triage__asked" aria-labelledby="tm-triage-asked">
                   <h2 id="tm-triage-asked" className="wp-mono-label">
-                    What they asked
+                    {t('RequestTriageScreen.whatAsked')}
                   </h2>
                   <p className="wp-triage__quote">&ldquo;{found.description}&rdquo;</p>
                   {found.urgencyReason !== null ? (
                     <>
-                      <h3 className="wp-mono-label">Why the timing matters to them</h3>
+                      <h3 className="wp-mono-label">{t('RequestTriageScreen.whyTiming')}</h3>
                       <p className="wp-triage__quote">{found.urgencyReason}</p>
                     </>
                   ) : null}
@@ -287,26 +289,28 @@ export function RequestTriageScreen({
                   */}
                   <dl className="wp-triage__facts">
                     <div>
-                      <dt>Desired</dt>
+                      <dt>{t('RequestTriageScreen.desired')}</dt>
                       <dd className={found.desiredAt === null ? 'wp-unset' : 'wp-desired'}>
-                        {found.desiredAt === null ? 'no date' : formatDay(found.desiredAt)}
+                        {found.desiredAt === null
+                          ? t('RequestTriageScreen.noDate')
+                          : formatDay(found.desiredAt)}
                       </dd>
                     </div>
                     <div>
-                      <dt>Committed</dt>
+                      <dt>{t('RequestTriageScreen.committedTerm')}</dt>
                       <dd className={found.commitment === 'committed' ? undefined : 'wp-unset'}>
                         {describeCommitted(found)}
                       </dd>
                     </div>
                     <div>
-                      <dt>Category</dt>
+                      <dt>{t('RequestTriageScreen.category')}</dt>
                       <dd>{found.category}</dd>
                     </div>
                   </dl>
                   {found.clarificationQuestion !== null ? (
                     <section className="wp-stack" aria-labelledby="tm-triage-question">
                       <h3 id="tm-triage-question" className="wp-mono-label">
-                        What was already asked
+                        {t('RequestTriageScreen.whatAlreadyAsked')}
                       </h3>
                       <p className="wp-note">{found.clarificationQuestion}</p>
                     </section>
@@ -314,7 +318,7 @@ export function RequestTriageScreen({
                   {found.clientVisibleReason !== null ? (
                     <section className="wp-stack" aria-labelledby="tm-triage-reason">
                       <h3 id="tm-triage-reason" className="wp-mono-label">
-                        The reason the client was given
+                        {t('RequestTriageScreen.reasonGiven')}
                       </h3>
                       <p className="wp-note">{found.clientVisibleReason}</p>
                     </section>
@@ -346,7 +350,7 @@ export function RequestTriageScreen({
           )}
 
           {failure ? (
-            <InlineAlert tone="danger" title="That did not go through" live>
+            <InlineAlert tone="danger" title={t('RequestTriageScreen.didNotGoThrough')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -363,22 +367,24 @@ export function RequestTriageScreen({
  * steps still ahead (dashed). Every step is a fact the record carries — nothing is projected.
  */
 function StateTrack({ request }: { request: ClientRequestRecord }) {
+  const t = useT();
   const answered = ['accepted', 'planned', 'delivered'].includes(request.state);
   const planned = request.state === 'planned' || request.state === 'delivered';
   const committed = request.commitment === 'committed' && request.committedAt !== null;
   const asked = request.clarificationQuestion !== null && request.state === 'needs_clarification';
 
   return (
-    <ol className="wp-track" aria-label="Where this request is">
+    <ol className="wp-track" aria-label={t('RequestTriageScreen.trackLabel')}>
       <li className="wp-track__step wp-track__step--done">
-        Received {formatDay(request.createdAt)}
+        {t('RequestTriageScreen.received')}
+        {formatDay(request.createdAt)}
       </li>
       <li
         className={`wp-track__step ${answered ? 'wp-track__step--done' : 'wp-track__step--current'}`}
         aria-current={answered ? undefined : 'step'}
       >
         {triageStateLabel(request.state)}
-        {asked ? ' · 1 question asked' : ''}
+        {asked ? t('RequestTriageScreen.oneQuestionAsked') : ''}
       </li>
       <li
         className={`wp-track__step ${
@@ -391,17 +397,22 @@ function StateTrack({ request }: { request: ClientRequestRecord }) {
               : ''
         }`}
       >
-        {committed && request.committedAt !== null
-          ? `Committed ${formatDay(request.committedAt)}`
-          : answered
-            ? 'Accepted, no date set'
-            : 'Committed'}
+        {committed && request.committedAt !== null ? (
+          <>
+            {t('RequestTriageScreen.committedPrefix')}
+            {formatDay(request.committedAt)}
+          </>
+        ) : answered ? (
+          t('RequestTriageScreen.acceptedNoDate')
+        ) : (
+          t('RequestTriageScreen.committed')
+        )}
       </li>
       <li
         className={`wp-track__step ${planned ? 'wp-track__step--current' : ''}`}
         aria-current={planned ? 'step' : undefined}
       >
-        Planned
+        {t('RequestTriageScreen.planned')}
       </li>
     </ol>
   );
@@ -426,25 +437,23 @@ interface TriageActionsProps {
  * rather than offered and then rejected.
  */
 function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: TriageActionsProps) {
+  const t = useT();
   if (request.state === 'submitted') {
     return (
       <section className="wp-triage__actions" aria-labelledby="tm-triage-start">
         <h2 id="tm-triage-start" className="wp-triage__heading">
-          Nobody has picked this up
+          {t('RequestTriageScreen.nobodyPicked')}
         </h2>
-        <p>
-          Opening it tells the client somebody is looking. It also means they can no longer withdraw
-          it themselves — once triage has started, only somebody here can close it.
-        </p>
+        <p>{t('RequestTriageScreen.submittedBody')}</p>
         <Button
           type="button"
           tone="ink"
           size="accessible"
           loading={working}
-          loadingLabel="Opening"
+          loadingLabel={t('RequestTriageScreen.opening')}
           onClick={onOpenTriage}
         >
-          Start triaging
+          {t('RequestTriageScreen.startTriaging')}
         </Button>
       </section>
     );
@@ -454,7 +463,7 @@ function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: Tr
     return (
       <section className="wp-triage__actions" aria-labelledby="tm-triage-waiting">
         <h2 id="tm-triage-waiting" className="wp-triage__heading">
-          Waiting on the client
+          {t('RequestTriageScreen.waitingTitle')}
         </h2>
         {/*
           The three outcomes are deliberately absent here. `23-ERD` §6 routes every answer back
@@ -462,20 +471,16 @@ function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: Tr
           or declined — so offering them in this state would render three buttons the state
           machine refuses with a 422.
         */}
-        <p>
-          They have been asked something, and the request sits with them until they answer. When
-          their reply reaches you, record it here — committing, deferring and declining come back
-          once the request is in triage again.
-        </p>
+        <p>{t('RequestTriageScreen.waitingBody')}</p>
         <Button
           type="button"
           tone="ink"
           size="accessible"
           loading={working}
-          loadingLabel="Reopening"
+          loadingLabel={t('RequestTriageScreen.reopening')}
           onClick={onOpenTriage}
         >
-          The client has answered
+          {t('RequestTriageScreen.clientAnswered')}
         </Button>
       </section>
     );
@@ -485,11 +490,12 @@ function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: Tr
     return (
       <section className="wp-triage__actions" aria-labelledby="tm-triage-closed">
         <h2 id="tm-triage-closed" className="wp-triage__heading">
-          This request has been answered
+          {t('RequestTriageScreen.answeredTitle')}
         </h2>
         <p>
-          It is {triageStateLabel(request.state).toLowerCase()}, and there is no move back from
-          here. A client who needs something else sends a new request.
+          {t('RequestTriageScreen.answeredBodyPrefix')}
+          {triageStateLabel(request.state).toLowerCase()}
+          {t('RequestTriageScreen.answeredBodySuffix')}
         </p>
       </section>
     );
@@ -498,7 +504,7 @@ function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: Tr
   return (
     <section className="wp-triage__actions" aria-labelledby="tm-triage-actions">
       <h2 id="tm-triage-actions" className="tm-visually-hidden">
-        Answer this request
+        {t('RequestTriageScreen.answerThis')}
       </h2>
       <button
         type="button"
@@ -506,7 +512,7 @@ function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: Tr
         aria-pressed={outcome === 'accept'}
         onClick={() => onChoose('accept')}
       >
-        Commit with a date
+        {t('RequestTriageScreen.commitWithDate')}
       </button>
       <button
         type="button"
@@ -514,7 +520,7 @@ function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: Tr
         aria-pressed={outcome === 'clarify'}
         onClick={() => onChoose('clarify')}
       >
-        Ask another question
+        {t('RequestTriageScreen.askAnother')}
       </button>
       <button
         type="button"
@@ -522,7 +528,7 @@ function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: Tr
         aria-pressed={outcome === 'defer'}
         onClick={() => onChoose('defer')}
       >
-        Defer with a reason
+        {t('RequestTriageScreen.deferWithReason')}
       </button>
       <button
         type="button"
@@ -530,11 +536,11 @@ function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: Tr
         aria-pressed={outcome === 'decline'}
         onClick={() => onChoose('decline')}
       >
-        Decline with a reason
+        {t('RequestTriageScreen.declineWithReason')}
       </button>
       {/* The artifact's caption, and it is the design rather than decoration. */}
       <p className="wp-caption">
-        <strong>Every outcome requires a reason the client can read.</strong>
+        <strong>{t('RequestTriageScreen.everyOutcome')}</strong>
       </p>
     </section>
   );
@@ -584,12 +590,13 @@ function OutcomeForm({
   onDecline,
   onReview,
 }: OutcomeFormProps) {
+  const t = useT();
   if (outcome === 'clarify') {
     return (
-      <section className="wp-outcome-form" aria-label="Ask another question">
+      <section className="wp-outcome-form" aria-label={t('RequestTriageScreen.askAnother')}>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-triage-question-field">
-            What do you need to know?
+            {t('RequestTriageScreen.whatToKnow')}
           </label>
           <textarea
             id="tm-triage-question-field"
@@ -600,7 +607,7 @@ function OutcomeForm({
             aria-describedby="tm-triage-question-hint"
           />
           <span className="tm-field__hint" id="tm-triage-question-hint">
-            The client reads this word for word, and the request waits for them until they answer.
+            {t('RequestTriageScreen.clarifyHint')}
           </span>
         </div>
         <div className="tm-row">
@@ -608,11 +615,11 @@ function OutcomeForm({
             type="button"
             tone="ink"
             loading={working}
-            loadingLabel="Sending"
+            loadingLabel={t('RequestTriageScreen.sending')}
             disabled={question.trim() === ''}
             onClick={onAsk}
           >
-            Ask the client
+            {t('RequestTriageScreen.askClient')}
           </Button>
         </div>
       </section>
@@ -623,11 +630,17 @@ function OutcomeForm({
     return (
       <section
         className="wp-outcome-form"
-        aria-label={outcome === 'defer' ? 'Defer with a reason' : 'Decline with a reason'}
+        aria-label={
+          outcome === 'defer'
+            ? t('RequestTriageScreen.deferWithReason')
+            : t('RequestTriageScreen.declineWithReason')
+        }
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-triage-reason-field">
-            {outcome === 'defer' ? 'Why not now?' : 'Why not at all?'}
+            {outcome === 'defer'
+              ? t('RequestTriageScreen.whyNotNow')
+              : t('RequestTriageScreen.whyNotAtAll')}
           </label>
           <textarea
             id="tm-triage-reason-field"
@@ -638,7 +651,7 @@ function OutcomeForm({
             aria-describedby="tm-triage-reason-hint"
           />
           <span className="tm-field__hint" id="tm-triage-reason-hint">
-            This is shown to the client as your answer. Write it for them, not for the team.
+            {t('RequestTriageScreen.reasonHint')}
           </span>
         </div>
         <div className="tm-row">
@@ -646,11 +659,13 @@ function OutcomeForm({
             type="button"
             tone={outcome === 'decline' ? 'destructive' : 'ink'}
             loading={working}
-            loadingLabel="Sending"
+            loadingLabel={t('RequestTriageScreen.sending')}
             disabled={reason.trim() === ''}
             onClick={outcome === 'defer' ? onDefer : onDecline}
           >
-            {outcome === 'defer' ? 'Defer this request' : 'Decline this request'}
+            {outcome === 'defer'
+              ? t('RequestTriageScreen.deferThis')
+              : t('RequestTriageScreen.declineThis')}
           </Button>
         </div>
       </section>
@@ -660,10 +675,10 @@ function OutcomeForm({
   if (outcome !== 'accept') return null;
 
   return (
-    <section className="wp-outcome-form" aria-label="Commit with a date">
+    <section className="wp-outcome-form" aria-label={t('RequestTriageScreen.commitWithDate')}>
       <div className="tm-field">
         <label className="tm-field__label" htmlFor="tm-triage-scope-field">
-          What are you agreeing to do?
+          {t('RequestTriageScreen.whatAgreeing')}
         </label>
         <textarea
           id="tm-triage-scope-field"
@@ -674,19 +689,19 @@ function OutcomeForm({
           aria-describedby="tm-triage-scope-hint"
         />
         <span className="tm-field__hint" id="tm-triage-scope-hint">
-          The client-safe scope summary. It is what the client will hold you to.
+          {t('RequestTriageScreen.scopeHint')}
         </span>
       </div>
 
       <Field
-        label="Committed date"
+        label={t('RequestTriageScreen.committedDate')}
         name="committedDay"
         type="date"
         value={committedDay}
         onChange={(event) => onCommittedDay(event.target.value)}
         dir="ltr"
         disabled={unscheduled}
-        hint="A promise, not an estimate. The client sees this one as agreed."
+        hint={t('RequestTriageScreen.committedDateHint')}
       />
 
       <label className="tm-choice tm-choice--inline">
@@ -696,20 +711,20 @@ function OutcomeForm({
           checked={unscheduled}
           onChange={(event) => onUnscheduled(event.target.checked)}
         />
-        <span className="tm-choice__name">Accept without a date yet</span>
-        <span className="tm-choice__detail">
-          The client is told you have taken it on and have not scheduled it — which is an answer,
-          unlike silence.
-        </span>
+        <span className="tm-choice__name">{t('RequestTriageScreen.acceptNoDate')}</span>
+        <span className="tm-choice__detail">{t('RequestTriageScreen.acceptNoDateDetail')}</span>
       </label>
 
       {gap ? (
-        <InlineAlert tone="warning" title="That is not the date they asked for">
+        <InlineAlert tone="warning" title={t('RequestTriageScreen.notTheirDate')}>
           {gap}
         </InlineAlert>
       ) : null}
 
-      <p className="wp-note">Impact: {impact}</p>
+      <p className="wp-note">
+        {t('RequestTriageScreen.impactPrefix')}
+        {impact}
+      </p>
 
       <div className="tm-row">
         <Button
@@ -719,7 +734,7 @@ function OutcomeForm({
           disabled={!acceptable}
           onClick={onReview}
         >
-          Review the commitment
+          {t('RequestTriageScreen.reviewCommitment')}
         </Button>
       </div>
     </section>
@@ -750,30 +765,32 @@ function CommitmentReview({
   onBack,
   onCommit,
 }: CommitmentReviewProps) {
+  const t = useT();
   return (
     <section className="wp-review" aria-labelledby="tm-triage-review">
       <div className="wp-review__promise">
-        <p className="wp-mono-label">Commitment review</p>
+        <p className="wp-mono-label">{t('RequestTriageScreen.commitmentReview')}</p>
         <h2 id="tm-triage-review" className="wp-review__title">
-          You are about to promise a date to {request.clientOrganizationName ?? 'this client'}
+          {t('RequestTriageScreen.promisePrefix')}
+          {request.clientOrganizationName ?? t('RequestTriageScreen.thisClient')}
         </h2>
 
         <dl className="wp-review__facts">
           <div>
-            <dt>Scope</dt>
+            <dt>{t('RequestTriageScreen.labelScope')}</dt>
             <dd>{scopeSummary}</dd>
           </div>
           <div>
-            <dt>Committed</dt>
+            <dt>{t('RequestTriageScreen.labelCommitted')}</dt>
             <dd>
               {commitment.kind === 'unscheduled'
-                ? 'No date yet, stated'
+                ? t('RequestTriageScreen.noDateStated')
                 : formatDay(commitment.day)}
             </dd>
           </div>
           <div>
-            <dt>Work</dt>
-            <dd>A work item in this project, created with the acceptance</dd>
+            <dt>{t('RequestTriageScreen.labelWork')}</dt>
+            <dd>{t('RequestTriageScreen.workDd')}</dd>
           </div>
         </dl>
 
@@ -783,19 +800,19 @@ function CommitmentReview({
             tone="ink"
             size="accessible"
             loading={working}
-            loadingLabel="Committing"
+            loadingLabel={t('RequestTriageScreen.committing')}
             onClick={onCommit}
           >
-            Commit and tell the client
+            {t('RequestTriageScreen.commitAndTell')}
           </Button>
           <Button type="button" tone="outline" size="accessible" onClick={onBack}>
-            Back
+            {t('RequestTriageScreen.back')}
           </Button>
         </div>
       </div>
 
       <section className="wp-review__client" aria-labelledby="tm-triage-preview">
-        <h3 id="tm-triage-preview">What the client will read</h3>
+        <h3 id="tm-triage-preview">{t('RequestTriageScreen.whatClientReads')}</h3>
         <p>&ldquo;{previewClientSentence(scopeSummary, commitment)}&rdquo;</p>
         {gap ? <p className="wp-caption">{gap}</p> : null}
       </section>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { completePasswordReset, requestPasswordReset } from '../../lib/api/password-reset';
@@ -27,10 +28,6 @@ export interface RecoveryScreenProps {
 
 /** `PASSWORD_MIN_LENGTH` in `apps/api/src/modules/identity/password.ts`. */
 const MIN_PASSWORD = 8;
-
-/** The honest fallback, in every state a person might be stuck in. */
-const ADMIN_FALLBACK =
-  'If no email arrives, ask whoever administers your TManage workspace to invite you again or to help you back in.';
 
 /**
  * **ID-05 Session and recovery** — the recovery half, now working (ACC-02).
@@ -56,6 +53,8 @@ const ADMIN_FALLBACK =
  */
 export function RecoveryScreen({ state: initial, token, client }: RecoveryScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
+  const adminFallback = t('RecoveryScreen.adminFallback');
   const [state, setState] = useState<RecoveryState>(
     initial ?? (token === undefined ? 'request' : 'reset'),
   );
@@ -106,24 +105,22 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
   return (
     <IdentityShell
       screenId="ID-05"
-      eyebrow="Recovery"
-      footer={<Link href="/sign-in">Back to sign in</Link>}
+      eyebrow={t('RecoveryScreen.eyebrow')}
+      footer={<Link href="/sign-in">{t('RecoveryScreen.backToSignIn')}</Link>}
     >
       {state === 'request' ? (
         <div className="tm-id-bare tm-stack">
           <section className="tm-id-card tm-id-card--ink">
-            <span className="tm-id-step tm-id-step--ink">Request</span>
-            <h1 className="tm-id-card__title">Recover access</h1>
-            <p className="tm-id-card__body">
-              We will send a link to your work email. It works once and expires in 30 minutes.
-            </p>
+            <span className="tm-id-step tm-id-step--ink">{t('RecoveryScreen.stepRequest')}</span>
+            <h1 className="tm-id-card__title">{t('RecoveryScreen.recoverAccess')}</h1>
+            <p className="tm-id-card__body">{t('RecoveryScreen.requestBody')}</p>
             <form
               className="tm-stack tm-stack--tight"
               noValidate
               onSubmit={(event) => void sendLink(event)}
             >
               <Field
-                label="Work email"
+                label={t('RecoveryScreen.workEmail')}
                 type="email"
                 name="email"
                 autoComplete="username"
@@ -135,7 +132,7 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
                 disabled={busy}
               />
               {failure ? (
-                <InlineAlert tone="danger" title="That did not go through" live>
+                <InlineAlert tone="danger" title={t('RecoveryScreen.didNotGoThrough')} live>
                   {failure}
                 </InlineAlert>
               ) : null}
@@ -145,65 +142,60 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
                   tone="ink"
                   size="accessible"
                   loading={busy}
-                  loadingLabel="Sending"
+                  loadingLabel={t('RecoveryScreen.sending')}
                   disabled={email.trim() === ''}
                 >
-                  Send a recovery link
+                  {t('RecoveryScreen.sendLink')}
                 </Button>
               </div>
             </form>
           </section>
-          <p className="tm-id-card__body">{ADMIN_FALLBACK}</p>
+          <p className="tm-id-card__body">{adminFallback}</p>
         </div>
       ) : null}
 
       {state === 'sent' ? (
         <div className="tm-id-bare tm-stack">
           <section className="tm-id-card">
-            <span className="tm-id-step">Sent</span>
-            <h1 className="tm-id-card__title">Check your email</h1>
-            <InlineAlert tone="neutral" title="A link may be on its way">
-              If an account exists for that address, a link is on its way. The link works once and
-              expires in 30 minutes.
+            <span className="tm-id-step">{t('RecoveryScreen.stepSent')}</span>
+            <h1 className="tm-id-card__title">{t('RecoveryScreen.checkEmail')}</h1>
+            <InlineAlert tone="neutral" title={t('RecoveryScreen.linkMaybeTitle')}>
+              {t('RecoveryScreen.sentBody')}
             </InlineAlert>
-            <p className="tm-id-card__body">
-              We do not say whether an account exists for an address. That is deliberate: it would
-              let anyone check who uses TManage.
-            </p>
+            <p className="tm-id-card__body">{t('RecoveryScreen.sentExplain')}</p>
           </section>
-          <p className="tm-id-card__body">{ADMIN_FALLBACK}</p>
+          <p className="tm-id-card__body">{adminFallback}</p>
         </div>
       ) : null}
 
       {state === 'reset' ? (
         <div className="tm-id-bare tm-stack">
           <section className="tm-id-card tm-id-card--ink">
-            <span className="tm-id-step tm-id-step--ink">New password</span>
-            <h1 className="tm-id-card__title">Choose a new password</h1>
-            <p className="tm-id-card__body">
-              After this, every device signed in to your account is signed out, and you sign in
-              again with the new password.
-            </p>
+            <span className="tm-id-step tm-id-step--ink">
+              {t('RecoveryScreen.stepNewPassword')}
+            </span>
+            <h1 className="tm-id-card__title">{t('RecoveryScreen.chooseNewPassword')}</h1>
+            <p className="tm-id-card__body">{t('RecoveryScreen.resetBody')}</p>
             <form
               className="tm-stack tm-stack--tight"
               noValidate
               onSubmit={(event) => void choosePassword(event)}
             >
               <Field
-                label="New password"
+                label={t('RecoveryScreen.newPassword')}
                 type="password"
                 name="password"
                 autoComplete="new-password"
                 minLength={MIN_PASSWORD}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                hint={`At least ${MIN_PASSWORD} characters.`}
+                hint={`${t('RecoveryScreen.passwordHintPrefix')}${MIN_PASSWORD}${t('RecoveryScreen.passwordHintSuffix')}`}
                 required
                 disabled={busy}
                 {...(passwordError ? { error: passwordError } : {})}
               />
               {failure ? (
-                <InlineAlert tone="danger" title="That did not go through" live>
+                <InlineAlert tone="danger" title={t('RecoveryScreen.didNotGoThrough')} live>
                   {failure}
                 </InlineAlert>
               ) : null}
@@ -213,9 +205,9 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
                   tone="ink"
                   size="accessible"
                   loading={busy}
-                  loadingLabel="Saving"
+                  loadingLabel={t('RecoveryScreen.saving')}
                 >
-                  Save new password
+                  {t('RecoveryScreen.saveNewPassword')}
                 </Button>
               </div>
             </form>
@@ -226,12 +218,11 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
       {state === 'expired' ? (
         <div className="tm-id-bare tm-stack">
           <section className="tm-id-card tm-id-card--warning">
-            <span className="tm-id-step tm-id-step--warning">Expired</span>
-            <h1 className="tm-id-card__title">That link has expired</h1>
-            <p className="tm-id-card__body">
-              For safety we do not extend recovery links, and each one works once. Request a new one
-              — it takes a few seconds.
-            </p>
+            <span className="tm-id-step tm-id-step--warning">
+              {t('RecoveryScreen.stepExpired')}
+            </span>
+            <h1 className="tm-id-card__title">{t('RecoveryScreen.linkExpired')}</h1>
+            <p className="tm-id-card__body">{t('RecoveryScreen.expiredBody')}</p>
             <div className="tm-id-action-row">
               <Button
                 tone="ink"
@@ -241,26 +232,27 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
                   setState('request');
                 }}
               >
-                Request a new link
+                {t('RecoveryScreen.requestNewLink')}
               </Button>
             </div>
           </section>
-          <p className="tm-id-card__body">{ADMIN_FALLBACK}</p>
+          <p className="tm-id-card__body">{adminFallback}</p>
         </div>
       ) : null}
 
       {state === 'completed' ? (
         <div className="tm-id-bare tm-stack">
           <section className="tm-id-card tm-id-card--success">
-            <span className="tm-id-step tm-id-step--success">Completed</span>
-            <h1 className="tm-id-card__title">Access restored</h1>
-            <InlineAlert tone="success" title="Your password was changed">
-              Every device signed in to your account was signed out, and we emailed you a note that
-              the password changed. Sign in with your new password.
+            <span className="tm-id-step tm-id-step--success">
+              {t('RecoveryScreen.stepCompleted')}
+            </span>
+            <h1 className="tm-id-card__title">{t('RecoveryScreen.accessRestored')}</h1>
+            <InlineAlert tone="success" title={t('RecoveryScreen.passwordChangedTitle')}>
+              {t('RecoveryScreen.completedBody')}
             </InlineAlert>
             <div className="tm-id-action-row">
               <Link className="tm-button tm-button--ink tm-button--accessible" href="/sign-in">
-                Sign in
+                {t('RecoveryScreen.signIn')}
               </Link>
             </div>
           </section>

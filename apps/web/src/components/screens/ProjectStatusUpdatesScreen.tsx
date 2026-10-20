@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   createProjectStatusUpdate,
   listProjectStatusUpdates,
@@ -24,11 +25,11 @@ export interface ProjectStatusUpdatesScreenProps {
   client?: ApiClient;
 }
 
-const BAND_LABELS: Readonly<Record<ProjectStatusBand, string>> = {
-  on_track: 'On track',
-  at_risk: 'At risk',
-  off_track: 'Off track',
-};
+const BAND_KEY = {
+  on_track: 'ProjectStatusUpdatesScreen.bandOnTrack',
+  at_risk: 'ProjectStatusUpdatesScreen.bandAtRisk',
+  off_track: 'ProjectStatusUpdatesScreen.bandOffTrack',
+} as const;
 
 const BANDS: readonly ProjectStatusBand[] = ['on_track', 'at_risk', 'off_track'];
 
@@ -52,6 +53,7 @@ export function ProjectStatusUpdatesScreen({
 }: ProjectStatusUpdatesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [statusBand, setStatusBand] = useState<ProjectStatusBand>('on_track');
   const [body, setBody] = useState('');
@@ -94,18 +96,18 @@ export function ProjectStatusUpdatesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Status updates"
-      description="This project's internal status log — where it stands, in the team's own words."
+      title={t('ProjectStatusUpdatesScreen.title')}
+      description={t('ProjectStatusUpdatesScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-status-author">
         <h2 id="tm-status-author" className="tm-eyebrow">
-          Post an update
+          {t('ProjectStatusUpdatesScreen.postAnUpdate')}
         </h2>
         <form className="tm-stack" onSubmit={onSubmit} noValidate>
           <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={post.isPending}>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-status-band">
-                Status
+                {t('ProjectStatusUpdatesScreen.status')}
               </label>
               <select
                 id="tm-status-band"
@@ -116,7 +118,7 @@ export function ProjectStatusUpdatesScreen({
               >
                 {BANDS.map((value) => (
                   <option key={value} value={value}>
-                    {BAND_LABELS[value]}
+                    {t(BAND_KEY[value])}
                   </option>
                 ))}
               </select>
@@ -124,7 +126,7 @@ export function ProjectStatusUpdatesScreen({
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-status-body">
-                Update
+                {t('ProjectStatusUpdatesScreen.update')}
               </label>
               <textarea
                 id="tm-status-body"
@@ -137,13 +139,13 @@ export function ProjectStatusUpdatesScreen({
                 required
               />
               <span className="tm-field__hint" id="tm-status-body-hint">
-                What changed, what stands, what is next. The team sees this — clients do not.
+                {t('ProjectStatusUpdatesScreen.bodyHint')}
               </span>
             </div>
           </fieldset>
 
           {post.isError ? (
-            <InlineAlert tone="danger" title="Could not post the update" live>
+            <InlineAlert tone="danger" title={t('ProjectStatusUpdatesScreen.postFailed')} live>
               {describeError(post.error)}
             </InlineAlert>
           ) : null}
@@ -154,38 +156,38 @@ export function ProjectStatusUpdatesScreen({
               tone="ink"
               size="accessible"
               loading={post.isPending}
-              loadingLabel="Posting"
+              loadingLabel={t('ProjectStatusUpdatesScreen.posting')}
               disabled={!canSubmit}
             >
-              Post update
+              {t('ProjectStatusUpdatesScreen.postUpdate')}
             </Button>
           </div>
         </form>
       </section>
 
       {updates.isError ? (
-        <InlineAlert tone="danger" title="Could not load the status log" live>
+        <InlineAlert tone="danger" title={t('ProjectStatusUpdatesScreen.loadFailed')} live>
           {describeError(updates.error)}
         </InlineAlert>
       ) : null}
 
       {updates.isPending ? (
-        <LoadingRegion label="Loading the project's status updates.">
+        <LoadingRegion label={t('ProjectStatusUpdatesScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!updates.isPending && !updates.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No updates yet">
-          This project has no status updates. Post the first one above.
+        <InlineAlert tone="neutral" title={t('ProjectStatusUpdatesScreen.emptyTitle')}>
+          {t('ProjectStatusUpdatesScreen.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (
         <section className="tm-panel tm-stack" aria-labelledby="tm-status-log-heading">
           <h2 id="tm-status-log-heading" className="tm-eyebrow">
-            Log
+            {t('ProjectStatusUpdatesScreen.log')}
           </h2>
           <ol className="tm-stack tm-stack--loose">
             {rows.map((update) => (
@@ -199,10 +201,11 @@ export function ProjectStatusUpdatesScreen({
 }
 
 function StatusUpdateItem({ update }: { update: ProjectStatusUpdateSummary }) {
+  const t = useT();
   return (
     <li className="tm-stack">
       <div className="tm-row">
-        <span className="tm-eyebrow">{BAND_LABELS[update.statusBand]}</span>
+        <span className="tm-eyebrow">{t(BAND_KEY[update.statusBand])}</span>
         <time className="tm-field__hint" dateTime={update.postedAt}>
           {new Date(update.postedAt).toLocaleString()}
         </time>

@@ -6,6 +6,7 @@ import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   createProjectTemplate,
   instantiateProjectTemplate,
@@ -42,6 +43,7 @@ export function ProjectTemplatesScreen({
 }: ProjectTemplatesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -99,9 +101,9 @@ export function ProjectTemplatesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Project templates"
-      description="Saved project shapes you can stamp out a new project from."
-      eyebrow="Projects · Templates"
+      title={t('ProjectTemplatesScreen.title')}
+      description={t('ProjectTemplatesScreen.description')}
+      eyebrow={t('ProjectTemplatesScreen.eyebrow')}
       topBar={<ProjectTabs organizationSlug={organizationSlug} />}
     >
       <div className="tm-prj tm-prj--sub">
@@ -109,7 +111,7 @@ export function ProjectTemplatesScreen({
           <div className="tm-prj__col tm-prj__col--aside">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-project-templates-author">
               <h2 id="tm-project-templates-author" className="tm-prj-eyebrow">
-                Define a template
+                {t('ProjectTemplatesScreen.defineATemplate')}
               </h2>
               <form className="tm-stack" onSubmit={onSubmit} noValidate>
                 <fieldset
@@ -117,17 +119,17 @@ export function ProjectTemplatesScreen({
                   disabled={create.isPending}
                 >
                   <Field
-                    label="Template name"
+                    label={t('ProjectTemplatesScreen.nameLabel')}
                     name="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    hint="One line. What kind of project this template makes."
+                    hint={t('ProjectTemplatesScreen.nameHint')}
                     required
                   />
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-project-template-description">
-                      Description
+                      {t('ProjectTemplatesScreen.descriptionLabel')}
                     </label>
                     <textarea
                       id="tm-project-template-description"
@@ -139,13 +141,13 @@ export function ProjectTemplatesScreen({
                       aria-describedby="tm-project-template-description-hint"
                     />
                     <span className="tm-field__hint" id="tm-project-template-description-hint">
-                      Optional. What the template is for.
+                      {t('ProjectTemplatesScreen.descriptionHint')}
                     </span>
                   </div>
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-project-template-objectives">
-                      Default objectives
+                      {t('ProjectTemplatesScreen.defaultObjectives')}
                     </label>
                     <textarea
                       id="tm-project-template-objectives"
@@ -157,13 +159,13 @@ export function ProjectTemplatesScreen({
                       aria-describedby="tm-project-template-objectives-hint"
                     />
                     <span className="tm-field__hint" id="tm-project-template-objectives-hint">
-                      Optional. One objective title per line.
+                      {t('ProjectTemplatesScreen.objectivesHint')}
                     </span>
                   </div>
                 </fieldset>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not define the template" live>
+                  <InlineAlert tone="danger" title={t('ProjectTemplatesScreen.defineFailed')} live>
                     {describeError(create.error)}
                   </InlineAlert>
                 ) : null}
@@ -174,10 +176,10 @@ export function ProjectTemplatesScreen({
                     tone="ink"
                     size="accessible"
                     loading={create.isPending}
-                    loadingLabel="Saving"
+                    loadingLabel={t('ProjectTemplatesScreen.saving')}
                     disabled={!canSubmit}
                   >
-                    Define template
+                    {t('ProjectTemplatesScreen.defineTemplate')}
                   </Button>
                 </div>
               </form>
@@ -185,21 +187,21 @@ export function ProjectTemplatesScreen({
           </div>
           <div className="tm-prj__col">
             {templates.isError ? (
-              <InlineAlert tone="danger" title="Could not load the templates" live>
+              <InlineAlert tone="danger" title={t('ProjectTemplatesScreen.loadFailed')} live>
                 {describeError(templates.error)}
               </InlineAlert>
             ) : null}
 
             {templates.isPending ? (
-              <LoadingRegion label="Loading the organization's project templates.">
+              <LoadingRegion label={t('ProjectTemplatesScreen.loading')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {!templates.isPending && !templates.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title="No templates yet">
-                This organization has no project templates. Define the first one with the form.
+              <InlineAlert tone="neutral" title={t('ProjectTemplatesScreen.emptyTitle')}>
+                {t('ProjectTemplatesScreen.emptyBody')}
               </InlineAlert>
             ) : null}
 
@@ -209,21 +211,21 @@ export function ProjectTemplatesScreen({
                 aria-labelledby="tm-project-templates-heading"
               >
                 <h2 id="tm-project-templates-heading" className="tm-prj-eyebrow">
-                  Templates
+                  {t('ProjectTemplatesScreen.templates')}
                 </h2>
 
                 <Field
-                  label="Workspace ID"
+                  label={t('ProjectTemplatesScreen.workspaceId')}
                   name="workspaceId"
                   value={workspaceId}
                   onChange={(event) => setWorkspaceId(event.target.value)}
-                  hint="The workspace a new project is created in when you instantiate a template."
+                  hint={t('ProjectTemplatesScreen.workspaceHint')}
                 />
 
                 {instantiate.isError ? (
                   <InlineAlert
                     tone="danger"
-                    title="Could not create a project from the template"
+                    title={t('ProjectTemplatesScreen.instantiateFailed')}
                     live
                   >
                     {describeError(instantiate.error)}
@@ -231,8 +233,10 @@ export function ProjectTemplatesScreen({
                 ) : null}
 
                 {instantiate.isSuccess ? (
-                  <InlineAlert tone="success" title="Project created" live>
-                    A new project “{instantiate.data.name}” was created from the template.
+                  <InlineAlert tone="success" title={t('ProjectTemplatesScreen.created')} live>
+                    {t('ProjectTemplatesScreen.createdBodyPrefix')}
+                    {instantiate.data.name}
+                    {t('ProjectTemplatesScreen.createdBodySuffix')}
                   </InlineAlert>
                 ) : null}
 
@@ -243,18 +247,19 @@ export function ProjectTemplatesScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Project templates"
+                  aria-label={t('ProjectTemplatesScreen.tableLabel')}
                 >
                   <table className="tm-table">
                     <caption className="tm-visually-hidden">
-                      Project templates for this organization, in creation order, {rows.length}{' '}
-                      shown.
+                      {t('ProjectTemplatesScreen.captionPrefix')}
+                      {rows.length}
+                      {t('ProjectTemplatesScreen.captionSuffix')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Template</th>
-                        <th scope="col">Default objectives</th>
-                        <th scope="col">Create</th>
+                        <th scope="col">{t('ProjectTemplatesScreen.colTemplate')}</th>
+                        <th scope="col">{t('ProjectTemplatesScreen.defaultObjectives')}</th>
+                        <th scope="col">{t('ProjectTemplatesScreen.colCreate')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -290,6 +295,7 @@ function TemplateRow({
   busy: boolean;
   canInstantiate: boolean;
 }) {
+  const t = useT();
   return (
     <tr>
       <th scope="row" className="tm-table__title">
@@ -317,7 +323,7 @@ function TemplateRow({
           onClick={onInstantiate}
           disabled={busy || !canInstantiate}
         >
-          Create project
+          {t('ProjectTemplatesScreen.createProject')}
         </Button>
       </td>
     </tr>

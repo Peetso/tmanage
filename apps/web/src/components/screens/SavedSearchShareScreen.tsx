@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { listSavedSearches } from '../../lib/api/saved-searches';
 import {
   listSharedSavedSearches,
@@ -38,6 +39,7 @@ export function SavedSearchShareScreen({
 }: SavedSearchShareScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const ownKey = ['saved-searches', organizationSlug];
   const sharedKey = ['shared-saved-searches', organizationSlug];
@@ -72,31 +74,31 @@ export function SavedSearchShareScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Shared searches"
-      description="Share a saved search with your team, and see the ones your team has shared."
+      title={t('SavedSearchShareScreen.title')}
+      description={t('SavedSearchShareScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-share-own">
         <h2 id="tm-share-own" className="tm-eyebrow">
-          Your saved searches
+          {t('SavedSearchShareScreen.yourSaved')}
         </h2>
         {own.isError ? (
-          <InlineAlert tone="danger" title="Could not load your saved searches" live>
+          <InlineAlert tone="danger" title={t('SavedSearchShareScreen.loadOwnFailed')} live>
             {describeError(own.error)}
           </InlineAlert>
         ) : null}
         {own.isPending ? (
-          <LoadingRegion label="Loading your saved searches.">
+          <LoadingRegion label={t('SavedSearchShareScreen.loadingOwn')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
         {!own.isPending && !own.isError && ownList.length === 0 ? (
-          <InlineAlert tone="neutral" title="No saved searches yet">
-            Save a search first, then share it with your team here.
+          <InlineAlert tone="neutral" title={t('SavedSearchShareScreen.emptyOwnTitle')}>
+            {t('SavedSearchShareScreen.emptyOwnBody')}
           </InlineAlert>
         ) : null}
         {ownList.length > 0 ? (
-          <ul className="tm-stack tm-list" aria-label="Your saved searches">
+          <ul className="tm-stack tm-list" aria-label={t('SavedSearchShareScreen.yourSaved')}>
             {ownList.map((item) => {
               const isShared = sharedIds.has(item.id);
               return (
@@ -110,7 +112,7 @@ export function SavedSearchShareScreen({
                       onClick={() => unshare.mutate(item.id)}
                       disabled={unshare.isPending}
                     >
-                      Stop sharing
+                      {t('SavedSearchShareScreen.stopSharing')}
                     </Button>
                   ) : (
                     <Button
@@ -119,7 +121,7 @@ export function SavedSearchShareScreen({
                       onClick={() => share.mutate(item.id)}
                       disabled={share.isPending}
                     >
-                      Share with team
+                      {t('SavedSearchShareScreen.shareWithTeam')}
                     </Button>
                   )}
                 </li>
@@ -128,12 +130,12 @@ export function SavedSearchShareScreen({
           </ul>
         ) : null}
         {share.isError ? (
-          <InlineAlert tone="danger" title="Could not share the search" live>
+          <InlineAlert tone="danger" title={t('SavedSearchShareScreen.shareFailed')} live>
             {describeError(share.error)}
           </InlineAlert>
         ) : null}
         {unshare.isError ? (
-          <InlineAlert tone="danger" title="Could not stop sharing the search" live>
+          <InlineAlert tone="danger" title={t('SavedSearchShareScreen.unshareFailed')} live>
             {describeError(unshare.error)}
           </InlineAlert>
         ) : null}
@@ -141,25 +143,25 @@ export function SavedSearchShareScreen({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-share-team">
         <h2 id="tm-share-team" className="tm-eyebrow">
-          Shared with team
+          {t('SavedSearchShareScreen.sharedWithTeam')}
         </h2>
         {shared.isError ? (
-          <InlineAlert tone="danger" title="Could not load the team’s shared searches" live>
+          <InlineAlert tone="danger" title={t('SavedSearchShareScreen.loadSharedFailed')} live>
             {describeError(shared.error)}
           </InlineAlert>
         ) : null}
         {shared.isPending ? (
-          <LoadingRegion label="Loading the team’s shared searches.">
+          <LoadingRegion label={t('SavedSearchShareScreen.loadingShared')}>
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
         {!shared.isPending && !shared.isError && sharedList.length === 0 ? (
-          <InlineAlert tone="neutral" title="Nothing shared yet">
-            When someone shares a saved search, it shows up here for the whole team.
+          <InlineAlert tone="neutral" title={t('SavedSearchShareScreen.emptySharedTitle')}>
+            {t('SavedSearchShareScreen.emptySharedBody')}
           </InlineAlert>
         ) : null}
         {sharedList.length > 0 ? (
-          <ul className="tm-stack tm-list" aria-label="Searches shared with your team">
+          <ul className="tm-stack tm-list" aria-label={t('SavedSearchShareScreen.sharedListLabel')}>
             {sharedList.map((item) => (
               <li key={item.id} className="tm-row">
                 <Link href={`/${organizationSlug}/search?q=${encodeURIComponent(item.query)}`}>

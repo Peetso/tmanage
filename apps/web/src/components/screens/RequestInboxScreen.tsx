@@ -6,6 +6,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { MAX_CLIENT_REQUEST_PAGE, listClientRequestRecords } from '../../lib/api/client-requests';
 import type { ClientRequestRecord } from '../../lib/api/client-requests';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -60,6 +61,7 @@ export function RequestInboxScreen({
   now = new Date(),
 }: RequestInboxScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const [bucket, setBucket] = useState<TriageBucketId | 'all'>('all');
 
   /*
@@ -89,11 +91,12 @@ export function RequestInboxScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Request inbox"
-      eyebrow="Requests"
+      title={t('RequestInboxScreen.title')}
+      eyebrow={t('RequestInboxScreen.eyebrow')}
       headerAside={
         <span className="wp-total" aria-hidden="true">
-          {all.length} {requests.hasNextPage ? 'loaded' : 'total'}
+          {all.length}{' '}
+          {requests.hasNextPage ? t('RequestInboxScreen.loaded') : t('RequestInboxScreen.total')}
         </span>
       }
     >
@@ -106,10 +109,10 @@ export function RequestInboxScreen({
         {all.length} {all.length === 1 ? 'request' : 'requests'}{' '}
         {requests.hasNextPage ? 'loaded — there are more' : 'in total'}
       </h2>
-      <div className="wp-chips" role="group" aria-label="Filter by state">
+      <div className="wp-chips" role="group" aria-label={t('RequestInboxScreen.filterByState')}>
         <FilterButton
           id="all"
-          label="All"
+          label={t('RequestInboxScreen.filterAll')}
           count={all.length}
           active={bucket === 'all'}
           onSelect={setBucket}
@@ -127,13 +130,13 @@ export function RequestInboxScreen({
       </div>
 
       {requests.isError ? (
-        <InlineAlert tone="danger" title="Could not load the request inbox" live>
+        <InlineAlert tone="danger" title={t('RequestInboxScreen.loadFailed')} live>
           {describe(requests.error)}
         </InlineAlert>
       ) : null}
 
       {requests.isPending ? (
-        <LoadingRegion label="Loading requests.">
+        <LoadingRegion label={t('RequestInboxScreen.loading')}>
           <Skeleton height="46px" />
           <Skeleton height="46px" />
           <Skeleton height="46px" />
@@ -142,11 +145,8 @@ export function RequestInboxScreen({
 
       {!requests.isPending && !requests.isError && all.length === 0 ? (
         <div className="wp-empty">
-          <h2 className="wp-empty__title">No client has asked for anything yet</h2>
-          <p className="wp-empty__body">
-            Requests arrive here when a client submits one from their portal. Nothing has to be set
-            up for that — every client role can already do it.
-          </p>
+          <h2 className="wp-empty__title">{t('RequestInboxScreen.emptyTitle')}</h2>
+          <p className="wp-empty__body">{t('RequestInboxScreen.emptyBody')}</p>
         </div>
       ) : null}
 
@@ -158,23 +158,21 @@ export function RequestInboxScreen({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
-          aria-label="Client requests"
+          aria-label={t('RequestInboxScreen.clientRequests')}
         >
           <table>
-            <caption className="tm-visually-hidden">
-              Client requests, oldest first. Each row links to its triage page.
-            </caption>
+            <caption className="tm-visually-hidden">{t('RequestInboxScreen.caption')}</caption>
             <thead>
               <tr>
-                <th scope="col">Request</th>
+                <th scope="col">{t('RequestInboxScreen.colRequest')}</th>
                 <th scope="col" className="wp-col-state">
-                  State
+                  {t('RequestInboxScreen.colState')}
                 </th>
                 <th scope="col" className="wp-col-desired wp-hide-sm">
-                  Desired
+                  {t('RequestInboxScreen.colDesired')}
                 </th>
                 <th scope="col" className="wp-col-age wp-num">
-                  Age
+                  {t('RequestInboxScreen.colAge')}
                 </th>
               </tr>
             </thead>
@@ -203,7 +201,7 @@ export function RequestInboxScreen({
                           endpoint that lists them is gated on `org.manage`. The API puts it on
                           the internal projection for exactly this row.
                         */}
-                        {request.clientOrganizationName ?? 'A client of this organization'}
+                        {request.clientOrganizationName ?? t('RequestInboxScreen.aClient')}
                       </span>
                     </th>
                     <td>
@@ -219,7 +217,9 @@ export function RequestInboxScreen({
                             : 'wp-row-mono'
                         }
                       >
-                        {request.desiredAt === null ? 'not set' : formatDay(request.desiredAt)}
+                        {request.desiredAt === null
+                          ? t('RequestInboxScreen.notSet')
+                          : formatDay(request.desiredAt)}
                       </span>
                     </td>
                     <td className="wp-num">
@@ -239,7 +239,7 @@ export function RequestInboxScreen({
 
       {!requests.isPending && all.length > 0 && shown.length === 0 ? (
         <div className="wp-empty">
-          <p className="wp-empty__body">Nothing in that state.</p>
+          <p className="wp-empty__body">{t('RequestInboxScreen.nothingInState')}</p>
         </div>
       ) : null}
 
@@ -249,10 +249,10 @@ export function RequestInboxScreen({
             tone="outline"
             size="accessible"
             loading={requests.isFetchingNextPage}
-            loadingLabel="Loading more"
+            loadingLabel={t('RequestInboxScreen.loadingMore')}
             onClick={() => void requests.fetchNextPage()}
           >
-            Load more
+            {t('RequestInboxScreen.loadMore')}
           </Button>
         </div>
       ) : null}

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   closePurchaseOrder,
   createPurchaseOrder,
@@ -49,6 +50,7 @@ export function PurchaseOrdersView({
 }: PurchaseOrdersViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const purchaseOrders = useQuery({
     queryKey: ['purchase-orders', organizationSlug],
@@ -104,14 +106,14 @@ export function PurchaseOrdersView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Purchase orders"
-      description="Record the purchase-order references your finance team issues, so invoices can cite one."
+      eyebrow={t('PurchaseOrdersView.eyebrow')}
+      title={t('PurchaseOrdersView.title')}
+      description={t('PurchaseOrdersView.description')}
     >
       <div className="tm-bil">
         <section className="tm-panel tm-stack" aria-labelledby="tm-po-new-heading">
           <h2 id="tm-po-new-heading" className="tm-eyebrow">
-            New purchase order
+            {t('PurchaseOrdersView.newPurchaseOrder')}
           </h2>
           <form
             className="tm-stack"
@@ -122,39 +124,39 @@ export function PurchaseOrdersView({
             }}
           >
             <Field
-              label="PO number"
+              label={t('PurchaseOrdersView.poNumberLabel')}
               name="poNumber"
               value={poNumber}
               onChange={(event) => setPoNumber(event.target.value)}
-              hint="The reference your finance team issued."
+              hint={t('PurchaseOrdersView.poNumberHint')}
               required
             />
             <Field
-              label="Amount (minor units)"
+              label={t('PurchaseOrdersView.amountLabel')}
               name="amount"
               type="number"
               min={0}
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              hint="Optional. A whole number in the smallest currency unit (e.g. cents)."
+              hint={t('PurchaseOrdersView.amountHint')}
             />
             <Field
-              label="Currency"
+              label={t('PurchaseOrdersView.currencyLabel')}
               name="currency"
               value={currency}
               onChange={(event) => setCurrency(event.target.value)}
-              hint="Optional. A 3-letter ISO-4217 code, e.g. USD."
+              hint={t('PurchaseOrdersView.currencyHint')}
             />
             <Field
-              label="Note"
+              label={t('PurchaseOrdersView.noteLabel')}
               name="note"
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              hint="Optional. What the PO is for."
+              hint={t('PurchaseOrdersView.noteHint')}
             />
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="Could not record the purchase order" live>
+              <InlineAlert tone="danger" title={t('PurchaseOrdersView.recordFailed')} live>
                 {describeError(create.error)}
               </InlineAlert>
             ) : null}
@@ -165,10 +167,10 @@ export function PurchaseOrdersView({
                 tone="ink"
                 size="accessible"
                 loading={create.isPending}
-                loadingLabel="Recording"
+                loadingLabel={t('PurchaseOrdersView.recording')}
                 disabled={!canCreate}
               >
-                Record purchase order
+                {t('PurchaseOrdersView.recordPurchaseOrder')}
               </Button>
             </div>
           </form>
@@ -176,31 +178,31 @@ export function PurchaseOrdersView({
 
         <section className="tm-panel tm-panel--quiet tm-stack" aria-labelledby="tm-po-list-heading">
           <h2 id="tm-po-list-heading" className="tm-eyebrow">
-            Purchase orders
+            {t('PurchaseOrdersView.purchaseOrders')}
           </h2>
 
           {purchaseOrders.isError ? (
-            <InlineAlert tone="danger" title="Could not load the purchase orders" live>
+            <InlineAlert tone="danger" title={t('PurchaseOrdersView.loadFailed')} live>
               {describeError(purchaseOrders.error)}
             </InlineAlert>
           ) : null}
 
           {close.isError || remove.isError ? (
-            <InlineAlert tone="danger" title="Could not update the purchase order" live>
+            <InlineAlert tone="danger" title={t('PurchaseOrdersView.updateFailed')} live>
               {describeError(close.error ?? remove.error)}
             </InlineAlert>
           ) : null}
 
           {purchaseOrders.isPending ? (
-            <LoadingRegion label="Loading the purchase orders.">
+            <LoadingRegion label={t('PurchaseOrdersView.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!purchaseOrders.isPending && !purchaseOrders.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No purchase orders yet">
-              Record a purchase order with the form so an invoice can cite it.
+            <InlineAlert tone="neutral" title={t('PurchaseOrdersView.emptyTitle')}>
+              {t('PurchaseOrdersView.emptyBody')}
             </InlineAlert>
           ) : null}
 
@@ -212,19 +214,20 @@ export function PurchaseOrdersView({
               // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
               tabIndex={0}
               role="region"
-              aria-label="Purchase orders"
+              aria-label={t('PurchaseOrdersView.purchaseOrders')}
             >
               <table className="tm-table">
                 <caption className="tm-visually-hidden">
-                  Purchase-order references for this organization, in number order, {rows.length}{' '}
-                  shown.
+                  {t('PurchaseOrdersView.captionPrefix')}
+                  {rows.length}
+                  {t('PurchaseOrdersView.captionSuffix')}
                 </caption>
                 <thead>
                   <tr>
-                    <th scope="col">Number</th>
-                    <th scope="col">Amount</th>
-                    <th scope="col">Status</th>
-                    <th scope="col">Actions</th>
+                    <th scope="col">{t('PurchaseOrdersView.colNumber')}</th>
+                    <th scope="col">{t('PurchaseOrdersView.colAmount')}</th>
+                    <th scope="col">{t('PurchaseOrdersView.colStatus')}</th>
+                    <th scope="col">{t('PurchaseOrdersView.colActions')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -234,7 +237,11 @@ export function PurchaseOrdersView({
                         {po.poNumber}
                       </th>
                       <td>{formatAmount(po.amountMinor, po.currency)}</td>
-                      <td>{po.status === 'closed' ? 'Closed' : 'Open'}</td>
+                      <td>
+                        {po.status === 'closed'
+                          ? t('PurchaseOrdersView.statusClosed')
+                          : t('PurchaseOrdersView.statusOpen')}
+                      </td>
                       <td>
                         <div className="tm-row">
                           {po.status === 'open' ? (
@@ -243,10 +250,10 @@ export function PurchaseOrdersView({
                               tone="ink"
                               size="compact"
                               loading={close.isPending && close.variables === po.id}
-                              loadingLabel="Closing"
+                              loadingLabel={t('PurchaseOrdersView.closing')}
                               onClick={() => close.mutate(po.id)}
                             >
-                              Close
+                              {t('PurchaseOrdersView.close')}
                             </Button>
                           ) : null}
                           <Button
@@ -254,10 +261,10 @@ export function PurchaseOrdersView({
                             tone="outline"
                             size="compact"
                             loading={remove.isPending && remove.variables === po.id}
-                            loadingLabel="Removing"
+                            loadingLabel={t('PurchaseOrdersView.removing')}
                             onClick={() => remove.mutate(po.id)}
                           >
-                            Remove
+                            {t('PurchaseOrdersView.remove')}
                           </Button>
                         </div>
                       </td>

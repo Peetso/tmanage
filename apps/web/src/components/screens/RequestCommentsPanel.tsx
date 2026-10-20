@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/request-comments';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface RequestCommentsPanelProps {
   organizationSlug: string;
@@ -60,6 +61,7 @@ export function RequestCommentsPanel({
   api,
 }: RequestCommentsPanelProps) {
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['request-comments', organizationSlug, clientRequestId] as const;
   const bodyId = useId();
   const [body, setBody] = useState('');
@@ -118,34 +120,34 @@ export function RequestCommentsPanel({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-request-comments">
       <h2 id="tm-request-comments" className="tm-eyebrow">
-        Internal notes
+        {t('RequestCommentsPanel.internalNotes')}
       </h2>
-      <p className="tm-field__hint">Visible to your team only — never shown to the client.</p>
+      <p className="tm-field__hint">{t('RequestCommentsPanel.internalHint')}</p>
 
       {comments.isPending ? (
-        <LoadingRegion label="Loading this request’s internal notes.">
+        <LoadingRegion label={t('RequestCommentsPanel.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {comments.isError ? (
-        <InlineAlert tone="danger" title="Could not load the notes" live>
+        <InlineAlert tone="danger" title={t('RequestCommentsPanel.loadFailed')} live>
           {describe(comments.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('RequestCommentsPanel.didNotGoThrough')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {comments.data ? (
         threaded.length === 0 ? (
-          <p className="tm-prose">No internal notes yet. Add the first one below.</p>
+          <p className="tm-prose">{t('RequestCommentsPanel.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Internal notes">
+          <ul className="tm-list" aria-label={t('RequestCommentsPanel.internalNotes')}>
             {threaded.map(({ comment, replies }) => (
               <li key={comment.id} className="tm-stack">
                 <p className="tm-prose">{comment.body}</p>
@@ -162,22 +164,22 @@ export function RequestCommentsPanel({
                       setReplyBody('');
                     }}
                   >
-                    Reply
+                    {t('RequestCommentsPanel.reply')}
                   </Button>
                   <Button
                     type="button"
                     tone="destructive"
                     size="compact"
                     loading={remove.isPending && remove.variables === comment.id}
-                    loadingLabel="Removing"
+                    loadingLabel={t('RequestCommentsPanel.removing')}
                     onClick={() => remove.mutate(comment.id)}
                   >
-                    Remove
+                    {t('RequestCommentsPanel.remove')}
                   </Button>
                 </div>
 
                 {replies.length > 0 ? (
-                  <ul className="tm-list" aria-label="Replies">
+                  <ul className="tm-list" aria-label={t('RequestCommentsPanel.replies')}>
                     {replies.map((reply) => (
                       <li key={reply.id} className="tm-stack">
                         <p className="tm-prose">{reply.body}</p>
@@ -190,10 +192,10 @@ export function RequestCommentsPanel({
                             tone="destructive"
                             size="compact"
                             loading={remove.isPending && remove.variables === reply.id}
-                            loadingLabel="Removing"
+                            loadingLabel={t('RequestCommentsPanel.removing')}
                             onClick={() => remove.mutate(reply.id)}
                           >
-                            Remove
+                            {t('RequestCommentsPanel.remove')}
                           </Button>
                         </div>
                       </li>
@@ -209,7 +211,7 @@ export function RequestCommentsPanel({
                   >
                     <textarea
                       className="tm-field__control"
-                      aria-label="Reply"
+                      aria-label={t('RequestCommentsPanel.reply')}
                       value={replyBody}
                       rows={2}
                       maxLength={MAX_BODY_LENGTH}
@@ -221,10 +223,10 @@ export function RequestCommentsPanel({
                         tone="ink"
                         size="compact"
                         loading={add.isPending}
-                        loadingLabel="Replying"
+                        loadingLabel={t('RequestCommentsPanel.replying')}
                         disabled={replyBody.trim() === ''}
                       >
-                        Reply
+                        {t('RequestCommentsPanel.reply')}
                       </Button>
                     </div>
                   </form>
@@ -238,7 +240,7 @@ export function RequestCommentsPanel({
       <form className="tm-stack" noValidate onSubmit={submit}>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor={bodyId}>
-            Add an internal note
+            {t('RequestCommentsPanel.addLabel')}
           </label>
           <textarea
             id={bodyId}
@@ -248,9 +250,7 @@ export function RequestCommentsPanel({
             maxLength={MAX_BODY_LENGTH}
             onChange={(event) => setBody(event.target.value)}
           />
-          <span className="tm-field__hint">
-            A working note about this request. Added to the end of the thread.
-          </span>
+          <span className="tm-field__hint">{t('RequestCommentsPanel.addHint')}</span>
         </div>
         <div className="tm-row">
           <Button
@@ -258,10 +258,10 @@ export function RequestCommentsPanel({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('RequestCommentsPanel.adding')}
             disabled={body.trim() === ''}
           >
-            Add note
+            {t('RequestCommentsPanel.addNote')}
           </Button>
         </div>
       </form>

@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton, TextButton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { addRequestTag, fetchRequestTags, removeRequestTag } from '../../lib/api/request-tags';
 import type { RequestTagItem } from '../../lib/api/request-tags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -37,6 +38,7 @@ export function RequestTagsView({
 }: RequestTagsViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['request-tags', organizationSlug, clientRequestId];
 
   const tags = useQuery({
@@ -67,27 +69,27 @@ export function RequestTagsView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-request-tags-heading">
       <h2 id="tm-request-tags-heading" className="tm-eyebrow">
-        Tags
+        {t('RequestTagsView.tags')}
       </h2>
 
       {tags.isError ? (
-        <InlineAlert tone="danger" title="Could not load the tags" live>
+        <InlineAlert tone="danger" title={t('RequestTagsView.loadFailed')} live>
           {describeError(tags.error)}
         </InlineAlert>
       ) : null}
 
       {tags.isPending ? (
-        <LoadingRegion label="Loading the tags.">
+        <LoadingRegion label={t('RequestTagsView.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!tags.isPending && !tags.isError && rows.length === 0 ? (
-        <p className="tm-muted">No tags yet.</p>
+        <p className="tm-muted">{t('RequestTagsView.empty')}</p>
       ) : null}
 
       {rows.length > 0 ? (
-        <ul className="tm-tag-list" aria-label="Tags on this request">
+        <ul className="tm-tag-list" aria-label={t('RequestTagsView.listLabel')}>
           {rows.map((tag) => (
             <li key={tag.id} className="tm-tag-chip">
               <span>{tag.label}</span>
@@ -97,9 +99,9 @@ export function RequestTagsView({
                 onClick={() => {
                   if (!remove.isPending) remove.mutate(tag.id);
                 }}
-                aria-label={`Remove tag ${tag.label}`}
+                aria-label={`${t('RequestTagsView.removeTagPrefix')}${tag.label}`}
               >
-                Remove
+                {t('RequestTagsView.remove')}
               </TextButton>
             </li>
           ))}
@@ -109,19 +111,19 @@ export function RequestTagsView({
       <form
         className="tm-row"
         noValidate
-        aria-label="Add a tag"
+        aria-label={t('RequestTagsView.addFormLabel')}
         onSubmit={(event: FormEvent<HTMLFormElement>) => {
           event.preventDefault();
           if (trimmed !== '' && !add.isPending) add.mutate(trimmed);
         }}
       >
         <Field
-          label="New tag"
+          label={t('RequestTagsView.newTag')}
           name="request-tag-label"
           value={label}
           maxLength={120}
           onChange={(event) => setLabel(event.target.value)}
-          hint="A short free-text label. It is added once; duplicates are ignored."
+          hint={t('RequestTagsView.newTagHint')}
         />
         <Button
           type="submit"
@@ -129,19 +131,19 @@ export function RequestTagsView({
           size="accessible"
           disabled={trimmed === ''}
           loading={add.isPending}
-          loadingLabel="Adding"
+          loadingLabel={t('RequestTagsView.adding')}
         >
-          Add tag
+          {t('RequestTagsView.addTag')}
         </Button>
       </form>
 
       {add.isError ? (
-        <InlineAlert tone="danger" title="Could not add the tag" live>
+        <InlineAlert tone="danger" title={t('RequestTagsView.addFailed')} live>
           {describeError(add.error)}
         </InlineAlert>
       ) : null}
       {remove.isError ? (
-        <InlineAlert tone="danger" title="Could not remove the tag" live>
+        <InlineAlert tone="danger" title={t('RequestTagsView.removeFailed')} live>
           {describeError(remove.error)}
         </InlineAlert>
       ) : null}

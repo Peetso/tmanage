@@ -6,6 +6,8 @@ import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import {
   INSIGHT_REPORT_KINDS,
   createInsightReportSchedule,
@@ -27,14 +29,26 @@ export interface ReportSchedulesScreenProps {
   client?: ApiClient;
 }
 
-const REPORT_KIND_LABELS: Readonly<Record<InsightReportKind, string>> = {
-  portfolio: 'Portfolio',
-  'delivery-flow': 'Delivery flow',
-  'approval-cycle': 'Approval cycle',
-  workload: 'Workload',
-  adoption: 'Adoption',
-  forecast: 'Forecast',
+const REPORT_KIND_KEY: Readonly<Record<InsightReportKind, MessageKey>> = {
+  portfolio: 'ReportSchedulesScreen.reportPortfolio',
+  'delivery-flow': 'ReportSchedulesScreen.reportDeliveryFlow',
+  'approval-cycle': 'ReportSchedulesScreen.reportApprovalCycle',
+  workload: 'ReportSchedulesScreen.reportWorkload',
+  adoption: 'ReportSchedulesScreen.reportAdoption',
+  forecast: 'ReportSchedulesScreen.reportForecast',
 };
+
+const DAY_KEY: Readonly<Record<0 | 1 | 2 | 3 | 4 | 5 | 6, MessageKey>> = {
+  0: 'ReportSchedulesScreen.daySunday',
+  1: 'ReportSchedulesScreen.dayMonday',
+  2: 'ReportSchedulesScreen.dayTuesday',
+  3: 'ReportSchedulesScreen.dayWednesday',
+  4: 'ReportSchedulesScreen.dayThursday',
+  5: 'ReportSchedulesScreen.dayFriday',
+  6: 'ReportSchedulesScreen.daySaturday',
+};
+
+const DAY_ORDER = [0, 1, 2, 3, 4, 5, 6] as const;
 
 const DAY_LABELS = [
   'Sunday',
@@ -81,6 +95,7 @@ export function ReportSchedulesScreen({
 }: ReportSchedulesScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const listKey = ['insight-report-schedules', organizationSlug] as const;
 
   const [reportKey, setReportKey] = useState<InsightReportKind>('portfolio');
@@ -121,14 +136,14 @@ export function ReportSchedulesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights"
-      title="Report schedules"
-      description="Schedule an insights report to run on a daily or weekly cadence."
+      eyebrow={t('ReportSchedulesScreen.eyebrow')}
+      title={t('ReportSchedulesScreen.title')}
+      description={t('ReportSchedulesScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <section className="tm-panel tm-stack" aria-labelledby="tm-report-schedule-editor">
           <h2 id="tm-report-schedule-editor" className="tm-eyebrow">
-            New schedule
+            {t('ReportSchedulesScreen.newSchedule')}
           </h2>
 
           <form
@@ -140,7 +155,7 @@ export function ReportSchedulesScreen({
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-report-schedule-report">
-                Report
+                {t('ReportSchedulesScreen.report')}
               </label>
               <select
                 id="tm-report-schedule-report"
@@ -150,7 +165,7 @@ export function ReportSchedulesScreen({
               >
                 {INSIGHT_REPORT_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
-                    {REPORT_KIND_LABELS[kind]}
+                    {t(REPORT_KIND_KEY[kind])}
                   </option>
                 ))}
               </select>
@@ -158,7 +173,7 @@ export function ReportSchedulesScreen({
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-report-schedule-cadence">
-                Cadence
+                {t('ReportSchedulesScreen.cadence')}
               </label>
               <select
                 id="tm-report-schedule-cadence"
@@ -166,15 +181,15 @@ export function ReportSchedulesScreen({
                 value={cadence}
                 onChange={(event) => setCadence(event.target.value as InsightReportCadence)}
               >
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
+                <option value="daily">{t('ReportSchedulesScreen.daily')}</option>
+                <option value="weekly">{t('ReportSchedulesScreen.weekly')}</option>
               </select>
             </div>
 
             {cadence === 'weekly' ? (
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-report-schedule-day">
-                  Day of week
+                  {t('ReportSchedulesScreen.dayOfWeek')}
                 </label>
                 <select
                   id="tm-report-schedule-day"
@@ -182,9 +197,9 @@ export function ReportSchedulesScreen({
                   value={dayOfWeek}
                   onChange={(event) => setDayOfWeek(Number(event.target.value))}
                 >
-                  {DAY_LABELS.map((label, index) => (
-                    <option key={label} value={index}>
-                      {label}
+                  {DAY_ORDER.map((index) => (
+                    <option key={index} value={index}>
+                      {t(DAY_KEY[index])}
                     </option>
                   ))}
                 </select>
@@ -193,7 +208,7 @@ export function ReportSchedulesScreen({
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-report-schedule-hour">
-                Hour (UTC)
+                {t('ReportSchedulesScreen.hourUtc')}
               </label>
               <input
                 id="tm-report-schedule-hour"
@@ -204,11 +219,11 @@ export function ReportSchedulesScreen({
                 value={hour}
                 onChange={(event) => setHour(Number(event.target.value))}
               />
-              <span className="tm-field__hint">The hour of day, 0–23, in UTC.</span>
+              <span className="tm-field__hint">{t('ReportSchedulesScreen.hourHint')}</span>
             </div>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not create the schedule" live>
+              <InlineAlert tone="danger" title={t('ReportSchedulesScreen.createFailed')} live>
                 {describeError(save.error)}
               </InlineAlert>
             ) : null}
@@ -220,9 +235,9 @@ export function ReportSchedulesScreen({
                 size="accessible"
                 disabled={save.isPending}
                 loading={save.isPending}
-                loadingLabel="Saving"
+                loadingLabel={t('ReportSchedulesScreen.saving')}
               >
-                Create schedule
+                {t('ReportSchedulesScreen.createSchedule')}
               </Button>
             </div>
           </form>
@@ -233,31 +248,31 @@ export function ReportSchedulesScreen({
           aria-labelledby="tm-report-schedule-list"
         >
           <h2 id="tm-report-schedule-list" className="tm-eyebrow">
-            Your schedules
+            {t('ReportSchedulesScreen.yourSchedules')}
           </h2>
 
           {schedules.isError ? (
-            <InlineAlert tone="danger" title="Could not load your schedules" live>
+            <InlineAlert tone="danger" title={t('ReportSchedulesScreen.loadFailed')} live>
               {describeError(schedules.error)}
             </InlineAlert>
           ) : null}
 
           {remove.isError ? (
-            <InlineAlert tone="danger" title="Could not remove the schedule" live>
+            <InlineAlert tone="danger" title={t('ReportSchedulesScreen.removeFailed')} live>
               {describeError(remove.error)}
             </InlineAlert>
           ) : null}
 
           {schedules.isPending ? (
-            <LoadingRegion label="Loading your schedules.">
+            <LoadingRegion label={t('ReportSchedulesScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!schedules.isPending && !schedules.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No schedules yet">
-              Define a recurring report above and it will appear here with its next run.
+            <InlineAlert tone="neutral" title={t('ReportSchedulesScreen.emptyTitle')}>
+              {t('ReportSchedulesScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
@@ -266,7 +281,7 @@ export function ReportSchedulesScreen({
               {rows.map((schedule) => (
                 <li key={schedule.id} className="tm-row tm-row--wrap">
                   <div className="tm-stack tm-stack--tight">
-                    <strong>{REPORT_KIND_LABELS[schedule.reportKey]}</strong>
+                    <strong>{t(REPORT_KIND_KEY[schedule.reportKey])}</strong>
                     <span className="tm-field__hint">
                       {describeSchedule(schedule)} · Next run{' '}
                       {new Date(schedule.nextRunAt).toISOString().replace('T', ' ').slice(0, 16)}{' '}
@@ -277,10 +292,10 @@ export function ReportSchedulesScreen({
                     tone="outline"
                     size="accessible"
                     loading={remove.isPending && remove.variables === schedule.id}
-                    loadingLabel="Removing"
+                    loadingLabel={t('ReportSchedulesScreen.removing')}
                     onClick={() => remove.mutate(schedule.id)}
                   >
-                    Remove
+                    {t('ReportSchedulesScreen.remove')}
                   </Button>
                 </li>
               ))}
@@ -288,7 +303,7 @@ export function ReportSchedulesScreen({
           ) : null}
         </section>
 
-        <Announce message={save.isSuccess ? 'Schedule created.' : ''} />
+        <Announce message={save.isSuccess ? t('ReportSchedulesScreen.scheduleCreated') : ''} />
       </div>
     </AppShell>
   );

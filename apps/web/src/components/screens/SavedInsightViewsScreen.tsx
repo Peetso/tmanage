@@ -6,6 +6,8 @@ import { Announce, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import {
   INSIGHT_REPORT_KINDS,
   createInsightSavedView,
@@ -23,13 +25,13 @@ export interface SavedInsightViewsScreenProps {
   client?: ApiClient;
 }
 
-const REPORT_KIND_LABELS: Readonly<Record<InsightReportKind, string>> = {
-  portfolio: 'Portfolio',
-  'delivery-flow': 'Delivery flow',
-  'approval-cycle': 'Approval cycle',
-  workload: 'Workload',
-  adoption: 'Adoption',
-  forecast: 'Forecast',
+const REPORT_KIND_KEY: Readonly<Record<InsightReportKind, MessageKey>> = {
+  portfolio: 'SavedInsightViewsScreen.reportPortfolio',
+  'delivery-flow': 'SavedInsightViewsScreen.reportDeliveryFlow',
+  'approval-cycle': 'SavedInsightViewsScreen.reportApprovalCycle',
+  workload: 'SavedInsightViewsScreen.reportWorkload',
+  adoption: 'SavedInsightViewsScreen.reportAdoption',
+  forecast: 'SavedInsightViewsScreen.reportForecast',
 };
 
 /**
@@ -56,6 +58,7 @@ export function SavedInsightViewsScreen({
 }: SavedInsightViewsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const listKey = ['insight-saved-views', organizationSlug] as const;
 
   const [name, setName] = useState('');
@@ -100,14 +103,14 @@ export function SavedInsightViewsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights"
-      title="Saved insight views"
-      description="Name and re-open an insights report with the filters you use most."
+      eyebrow={t('SavedInsightViewsScreen.eyebrow')}
+      title={t('SavedInsightViewsScreen.title')}
+      description={t('SavedInsightViewsScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <section className="tm-panel tm-stack" aria-labelledby="tm-insight-view-editor">
           <h2 id="tm-insight-view-editor" className="tm-eyebrow">
-            New saved view
+            {t('SavedInsightViewsScreen.newSavedView')}
           </h2>
 
           <form
@@ -119,7 +122,7 @@ export function SavedInsightViewsScreen({
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-insight-view-name">
-                Name
+                {t('SavedInsightViewsScreen.nameLabel')}
               </label>
               <input
                 id="tm-insight-view-name"
@@ -133,7 +136,7 @@ export function SavedInsightViewsScreen({
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-insight-view-report">
-                Report
+                {t('SavedInsightViewsScreen.report')}
               </label>
               <select
                 id="tm-insight-view-report"
@@ -143,7 +146,7 @@ export function SavedInsightViewsScreen({
               >
                 {INSIGHT_REPORT_KINDS.map((kind) => (
                   <option key={kind} value={kind}>
-                    {REPORT_KIND_LABELS[kind]}
+                    {t(REPORT_KIND_KEY[kind])}
                   </option>
                 ))}
               </select>
@@ -151,31 +154,29 @@ export function SavedInsightViewsScreen({
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-insight-view-filter-field">
-                Filter (optional)
+                {t('SavedInsightViewsScreen.filterOptional')}
               </label>
               <div className="tm-row">
                 <input
                   id="tm-insight-view-filter-field"
                   className="tm-field__control"
                   value={filterField}
-                  placeholder="Field — e.g. projectId"
+                  placeholder={t('SavedInsightViewsScreen.filterFieldPlaceholder')}
                   onChange={(event) => setFilterField(event.target.value)}
                 />
                 <input
-                  aria-label="Filter value"
+                  aria-label={t('SavedInsightViewsScreen.filterValueLabel')}
                   className="tm-field__control"
                   value={filterValue}
-                  placeholder="Value"
+                  placeholder={t('SavedInsightViewsScreen.filterValuePlaceholder')}
                   onChange={(event) => setFilterValue(event.target.value)}
                 />
               </div>
-              <span className="tm-field__hint">
-                One field and value to pin the report to. Leave blank for no filter.
-              </span>
+              <span className="tm-field__hint">{t('SavedInsightViewsScreen.filterHint')}</span>
             </div>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save the view" live>
+              <InlineAlert tone="danger" title={t('SavedInsightViewsScreen.saveFailed')} live>
                 {describeError(save.error)}
               </InlineAlert>
             ) : null}
@@ -187,9 +188,9 @@ export function SavedInsightViewsScreen({
                 size="accessible"
                 disabled={!canSave}
                 loading={save.isPending}
-                loadingLabel="Saving"
+                loadingLabel={t('SavedInsightViewsScreen.saving')}
               >
-                Save view
+                {t('SavedInsightViewsScreen.saveView')}
               </Button>
             </div>
           </form>
@@ -200,31 +201,31 @@ export function SavedInsightViewsScreen({
           aria-labelledby="tm-insight-view-list"
         >
           <h2 id="tm-insight-view-list" className="tm-eyebrow">
-            Your saved views
+            {t('SavedInsightViewsScreen.yourSavedViews')}
           </h2>
 
           {savedViews.isError ? (
-            <InlineAlert tone="danger" title="Could not load your saved views" live>
+            <InlineAlert tone="danger" title={t('SavedInsightViewsScreen.loadFailed')} live>
               {describeError(savedViews.error)}
             </InlineAlert>
           ) : null}
 
           {remove.isError ? (
-            <InlineAlert tone="danger" title="Could not remove the view" live>
+            <InlineAlert tone="danger" title={t('SavedInsightViewsScreen.removeFailed')} live>
               {describeError(remove.error)}
             </InlineAlert>
           ) : null}
 
           {savedViews.isPending ? (
-            <LoadingRegion label="Loading your saved views.">
+            <LoadingRegion label={t('SavedInsightViewsScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!savedViews.isPending && !savedViews.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No saved views yet">
-              Save a report configuration above and it will appear here for you to re-open.
+            <InlineAlert tone="neutral" title={t('SavedInsightViewsScreen.emptyTitle')}>
+              {t('SavedInsightViewsScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
@@ -237,20 +238,20 @@ export function SavedInsightViewsScreen({
                     <div className="tm-stack tm-stack--tight">
                       <strong>{view.name}</strong>
                       <span className="tm-field__hint">
-                        {REPORT_KIND_LABELS[view.reportKind]}
+                        {t(REPORT_KIND_KEY[view.reportKind])}
                         {filterEntries.length > 0
                           ? ` · ${filterEntries.map(([key, value]) => `${key}=${value}`).join(', ')}`
-                          : ' · No filter'}
+                          : t('SavedInsightViewsScreen.noFilter')}
                       </span>
                     </div>
                     <Button
                       tone="outline"
                       size="accessible"
                       loading={remove.isPending && remove.variables === view.id}
-                      loadingLabel="Removing"
+                      loadingLabel={t('SavedInsightViewsScreen.removing')}
                       onClick={() => remove.mutate(view.id)}
                     >
-                      Remove
+                      {t('SavedInsightViewsScreen.remove')}
                     </Button>
                   </li>
                 );
@@ -259,7 +260,7 @@ export function SavedInsightViewsScreen({
           ) : null}
         </section>
 
-        <Announce message={save.isSuccess ? 'Saved view stored.' : ''} />
+        <Announce message={save.isSuccess ? t('SavedInsightViewsScreen.savedViewStored') : ''} />
       </div>
     </AppShell>
   );

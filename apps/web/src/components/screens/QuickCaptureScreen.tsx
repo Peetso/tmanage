@@ -7,6 +7,7 @@ import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tm
 import { AppShell } from '../shell/AppShell';
 import { NewProjectLink, useCanCreateProjects } from '../projects/NewProjectLink';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { listProjects } from '../../lib/api/projects';
 import { addWorkComment, attachWorkItemFile, createWorkItem } from '../../lib/api/work-items';
 import type { CreateWorkItemInput, WorkItemSummary } from '../../lib/api/work-items';
@@ -136,6 +137,7 @@ export function QuickCaptureScreen({
 }: QuickCaptureScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const headingId = useId();
   const canCreateProjects = useCanCreateProjects(organizationSlug, client);
 
@@ -185,7 +187,7 @@ export function QuickCaptureScreen({
 
   const capture = useMutation({
     mutationFn: async (): Promise<CaptureResult> => {
-      setProgress('Filing…');
+      setProgress(t('QuickCaptureScreen.filing'));
       const item = await createWorkItem(
         api,
         organizationSlug,
@@ -239,11 +241,11 @@ export function QuickCaptureScreen({
 
   const submit = (): void => {
     if (title.trim() === '') {
-      setFormError('Give the capture a title.');
+      setFormError(t('QuickCaptureScreen.needTitle'));
       return;
     }
     if (effectiveProjectId === '') {
-      setFormError('Choose the project this work belongs to.');
+      setFormError(t('QuickCaptureScreen.needProject'));
       return;
     }
     setFormError(null);
@@ -255,16 +257,16 @@ export function QuickCaptureScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Work"
-      title="Quick capture"
-      description="File a note or task without leaving what you are doing."
+      eyebrow={t('QuickCaptureScreen.eyebrow')}
+      title={t('QuickCaptureScreen.title')}
+      description={t('QuickCaptureScreen.description')}
     >
       {projects.isPending ? (
-        <LoadingRegion label="Loading your projects">
+        <LoadingRegion label={t('QuickCaptureScreen.loadingProjects')}>
           <Skeleton height="220px" radius="var(--r-feature)" />
         </LoadingRegion>
       ) : projects.isError ? (
-        <InlineAlert tone="danger" title="We could not load your projects">
+        <InlineAlert tone="danger" title={t('QuickCaptureScreen.loadProjectsFailed')}>
           {errorMessage(projects.error)}
         </InlineAlert>
       ) : (
@@ -277,38 +279,42 @@ export function QuickCaptureScreen({
           }}
         >
           <h2 id={headingId} className="tm-visually-hidden">
-            Capture
+            {t('QuickCaptureScreen.capture')}
           </h2>
 
           <div className="tm-capture__capsule">
             <Field
               className="tm-capture__title"
-              label="Title"
+              label={t('QuickCaptureScreen.titleLabel')}
               required
               value={title}
               maxLength={500}
               onChange={(event) => setTitle(event.target.value)}
             />
 
-            <div className="tm-capture__chips" role="group" aria-label="What this capture will be">
+            <div
+              className="tm-capture__chips"
+              role="group"
+              aria-label={t('QuickCaptureScreen.chipsLabel')}
+            >
               <span className="tm-chip tm-chip--compact tm-capture__chip-static">
-                Owner · unassigned
+                {t('QuickCaptureScreen.ownerUnassigned')}
               </span>
               <span className="tm-chip tm-chip--compact tm-chip--dashed">
-                Committed date · not set
+                {t('QuickCaptureScreen.committedNotSet')}
               </span>
             </div>
 
             {available.length === 0 ? (
               <div className="tm-capture__no-project">
-                <InlineAlert tone="neutral" title="No project to capture into">
+                <InlineAlert tone="neutral" title={t('QuickCaptureScreen.noProjectTitle')}>
                   {canCreateProjects
-                    ? 'Work lives in a project. Create your first one, then capture here.'
-                    : 'You are not a member of a project that accepts new work yet. Ask an owner or admin to add you to one, then capture here.'}
+                    ? t('QuickCaptureScreen.noProjectCanCreate')
+                    : t('QuickCaptureScreen.noProjectCannotCreate')}
                 </InlineAlert>
                 <NewProjectLink
                   organizationSlug={organizationSlug}
-                  label="Create a project"
+                  label={t('QuickCaptureScreen.createProject')}
                   size="default"
                   {...(client ? { client } : {})}
                 />
@@ -316,15 +322,17 @@ export function QuickCaptureScreen({
             ) : (
               <Select
                 className="tm-capture__note"
-                label="Project"
+                label={t('QuickCaptureScreen.projectLabel')}
                 required
-                hint="The project this work is filed in. Only projects you can add work to are listed."
+                hint={t('QuickCaptureScreen.projectHint')}
                 value={effectiveProjectId}
                 onChange={(event) => setProjectId(event.target.value)}
               >
                 {/* CQ-07 (WRK-09): no project is preselected, so the field opens on a prompt
                     rather than silently on the first project. */}
-                {effectiveProjectId === '' ? <option value="">Choose a project…</option> : null}
+                {effectiveProjectId === '' ? (
+                  <option value="">{t('QuickCaptureScreen.chooseProject')}</option>
+                ) : null}
                 {available.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
@@ -354,38 +362,40 @@ export function QuickCaptureScreen({
 
             <Field
               className="tm-capture__note"
-              label="Note"
-              hint="Optional. Filed as the first comment on the new item."
+              label={t('QuickCaptureScreen.noteLabel')}
+              hint={t('QuickCaptureScreen.noteHint')}
               value={note}
               maxLength={2000}
               onChange={(event) => setNote(event.target.value)}
             />
 
             {formError ? (
-              <InlineAlert tone="danger" title="Check the capture">
+              <InlineAlert tone="danger" title={t('QuickCaptureScreen.checkCapture')}>
                 {formError}
               </InlineAlert>
             ) : null}
 
             {capture.isError ? (
-              <InlineAlert tone="danger" title="We could not file the capture">
+              <InlineAlert tone="danger" title={t('QuickCaptureScreen.fileFailed')}>
                 {errorMessage(capture.error)}
               </InlineAlert>
             ) : null}
 
             {captured ? (
-              <InlineAlert tone="success" title="Captured">
-                “{captured.item.title}” was filed.{' '}
+              <InlineAlert tone="success" title={t('QuickCaptureScreen.capturedTitle')}>
+                “{captured.item.title}
+                {t('QuickCaptureScreen.capturedFiled')}
                 <Link href={`/${organizationSlug}/work/${encodeURIComponent(captured.item.id)}`}>
-                  Open it
+                  {t('QuickCaptureScreen.openIt')}
                 </Link>
-                , capture another, or carry on.
+                {t('QuickCaptureScreen.capturedRest')}
               </InlineAlert>
             ) : null}
 
             {captured && captured.failures.length > 0 ? (
-              <InlineAlert tone="warning" title="Some extras were not added">
-                {captured.failures.join(' ')} Open the item to add them again.
+              <InlineAlert tone="warning" title={t('QuickCaptureScreen.extrasTitle')}>
+                {captured.failures.join(' ')}
+                {t('QuickCaptureScreen.extrasRest')}
               </InlineAlert>
             ) : null}
 
@@ -396,7 +406,9 @@ export function QuickCaptureScreen({
                 size="feature"
                 disabled={capture.isPending || available.length === 0}
               >
-                {capture.isPending ? (progress ?? 'Filing…') : 'Capture'}
+                {capture.isPending
+                  ? (progress ?? t('QuickCaptureScreen.filing'))
+                  : t('QuickCaptureScreen.captureButton')}
               </Button>
             </div>
           </div>
@@ -405,13 +417,10 @@ export function QuickCaptureScreen({
             <span className="tm-capture__note-glyph" aria-hidden="true">
               !
             </span>
-            <span>
-              A capture is filed without an owner or a committed date. Open it afterwards to assign
-              it and commit a date — until then it is not a commitment.
-            </span>
+            <span>{t('QuickCaptureScreen.calloutBody')}</span>
           </p>
 
-          <p className="tm-capture__keys">Enter captures · the note is optional</p>
+          <p className="tm-capture__keys">{t('QuickCaptureScreen.keysHint')}</p>
         </form>
       )}
     </AppShell>

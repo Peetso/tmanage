@@ -6,6 +6,7 @@ import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   createProjectInternalRisk,
   listProjectInternalRisks,
@@ -29,24 +30,18 @@ export interface ProjectRiskRegisterScreenProps {
   client?: ApiClient;
 }
 
-const AXIS_LABELS: Readonly<Record<'low' | 'medium' | 'high', string>> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-};
+const LEVEL_KEY = {
+  low: 'ProjectRiskRegisterScreen.levelLow',
+  medium: 'ProjectRiskRegisterScreen.levelMedium',
+  high: 'ProjectRiskRegisterScreen.levelHigh',
+} as const;
 
-const SEVERITY_LABELS: Readonly<Record<ProjectInternalRiskSeverity, string>> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-};
-
-const STATUS_LABELS: Readonly<Record<ProjectInternalRiskStatus, string>> = {
-  open: 'Open',
-  mitigating: 'Mitigating',
-  mitigated: 'Mitigated',
-  closed: 'Closed',
-};
+const STATUS_KEY = {
+  open: 'ProjectRiskRegisterScreen.statusOpen',
+  mitigating: 'ProjectRiskRegisterScreen.statusMitigating',
+  mitigated: 'ProjectRiskRegisterScreen.statusMitigated',
+  closed: 'ProjectRiskRegisterScreen.statusClosed',
+} as const;
 
 const AXES: readonly ('low' | 'medium' | 'high')[] = ['low', 'medium', 'high'];
 const STATUSES: readonly ProjectInternalRiskStatus[] = [
@@ -78,6 +73,7 @@ export function ProjectRiskRegisterScreen({
 }: ProjectRiskRegisterScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [title, setTitle] = useState('');
   const [likelihood, setLikelihood] = useState<ProjectInternalRiskLikelihood>('medium');
@@ -134,9 +130,9 @@ export function ProjectRiskRegisterScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Risk register"
-      description="This project's internal risks, their severity, and how each is being mitigated."
-      eyebrow="Project · Risks"
+      title={t('ProjectRiskRegisterScreen.title')}
+      description={t('ProjectRiskRegisterScreen.description')}
+      eyebrow={t('ProjectRiskRegisterScreen.eyebrow')}
       topBar={
         <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="risks" />
       }
@@ -146,7 +142,7 @@ export function ProjectRiskRegisterScreen({
           <div className="tm-prj__col tm-prj__col--aside">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-risk-author">
               <h2 id="tm-risk-author" className="tm-prj-eyebrow">
-                Log a risk
+                {t('ProjectRiskRegisterScreen.logARisk')}
               </h2>
               <form className="tm-stack" onSubmit={onSubmit} noValidate>
                 <fieldset
@@ -154,17 +150,17 @@ export function ProjectRiskRegisterScreen({
                   disabled={create.isPending}
                 >
                   <Field
-                    label="Risk"
+                    label={t('ProjectRiskRegisterScreen.riskLabel')}
                     name="title"
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
-                    hint="One line. What could go wrong."
+                    hint={t('ProjectRiskRegisterScreen.riskHint')}
                     required
                   />
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-risk-likelihood">
-                      Likelihood
+                      {t('ProjectRiskRegisterScreen.likelihood')}
                     </label>
                     <select
                       id="tm-risk-likelihood"
@@ -177,7 +173,7 @@ export function ProjectRiskRegisterScreen({
                     >
                       {AXES.map((value) => (
                         <option key={value} value={value}>
-                          {AXIS_LABELS[value]}
+                          {t(LEVEL_KEY[value])}
                         </option>
                       ))}
                     </select>
@@ -185,7 +181,7 @@ export function ProjectRiskRegisterScreen({
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-risk-impact">
-                      Impact
+                      {t('ProjectRiskRegisterScreen.impact')}
                     </label>
                     <select
                       id="tm-risk-impact"
@@ -198,7 +194,7 @@ export function ProjectRiskRegisterScreen({
                     >
                       {AXES.map((value) => (
                         <option key={value} value={value}>
-                          {AXIS_LABELS[value]}
+                          {t(LEVEL_KEY[value])}
                         </option>
                       ))}
                     </select>
@@ -206,7 +202,7 @@ export function ProjectRiskRegisterScreen({
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-risk-mitigation">
-                      Mitigation
+                      {t('ProjectRiskRegisterScreen.mitigation')}
                     </label>
                     <textarea
                       id="tm-risk-mitigation"
@@ -218,13 +214,13 @@ export function ProjectRiskRegisterScreen({
                       aria-describedby="tm-risk-mitigation-hint"
                     />
                     <span className="tm-field__hint" id="tm-risk-mitigation-hint">
-                      Optional. How the risk is being reduced or handled.
+                      {t('ProjectRiskRegisterScreen.mitigationHint')}
                     </span>
                   </div>
                 </fieldset>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not log the risk" live>
+                  <InlineAlert tone="danger" title={t('ProjectRiskRegisterScreen.logFailed')} live>
                     {describeError(create.error)}
                   </InlineAlert>
                 ) : null}
@@ -235,10 +231,10 @@ export function ProjectRiskRegisterScreen({
                     tone="ink"
                     size="accessible"
                     loading={create.isPending}
-                    loadingLabel="Saving"
+                    loadingLabel={t('ProjectRiskRegisterScreen.saving')}
                     disabled={!canSubmit}
                   >
-                    Log risk
+                    {t('ProjectRiskRegisterScreen.logRisk')}
                   </Button>
                 </div>
               </form>
@@ -246,28 +242,28 @@ export function ProjectRiskRegisterScreen({
           </div>
           <div className="tm-prj__col">
             {risks.isError ? (
-              <InlineAlert tone="danger" title="Could not load the risk register" live>
+              <InlineAlert tone="danger" title={t('ProjectRiskRegisterScreen.loadFailed')} live>
                 {describeError(risks.error)}
               </InlineAlert>
             ) : null}
 
             {risks.isPending ? (
-              <LoadingRegion label="Loading the project's risk register.">
+              <LoadingRegion label={t('ProjectRiskRegisterScreen.loading')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {!risks.isPending && !risks.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title="No risks yet">
-                This project has no risks logged. Log the first one with the form.
+              <InlineAlert tone="neutral" title={t('ProjectRiskRegisterScreen.emptyTitle')}>
+                {t('ProjectRiskRegisterScreen.emptyBody')}
               </InlineAlert>
             ) : null}
 
             {rows.length > 0 ? <SeverityMatrix rows={rows} /> : null}
 
             {rows.length > 0 && changeStatus.isError ? (
-              <InlineAlert tone="danger" title="Could not update the risk" live>
+              <InlineAlert tone="danger" title={t('ProjectRiskRegisterScreen.updateFailed')} live>
                 {describeError(changeStatus.error)}
               </InlineAlert>
             ) : null}
@@ -275,7 +271,7 @@ export function ProjectRiskRegisterScreen({
             {rows.length > 0 ? (
               <section className="tm-card tm-prj-card" aria-labelledby="tm-risks-heading">
                 <h2 id="tm-risks-heading" className="tm-prj-eyebrow">
-                  Risks
+                  {t('ProjectRiskRegisterScreen.risks')}
                 </h2>
                 <div
                   className="tm-table-scroll"
@@ -284,19 +280,21 @@ export function ProjectRiskRegisterScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Project risk register"
+                  aria-label={t('ProjectRiskRegisterScreen.tableLabel')}
                 >
                   <table className="tm-table">
                     <caption className="tm-visually-hidden">
-                      Internal risks for this project, in creation order, {rows.length} shown.
+                      {t('ProjectRiskRegisterScreen.captionPrefix')}
+                      {rows.length}
+                      {t('ProjectRiskRegisterScreen.captionSuffix')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Risk</th>
-                        <th scope="col">Likelihood</th>
-                        <th scope="col">Impact</th>
-                        <th scope="col">Severity</th>
-                        <th scope="col">Status</th>
+                        <th scope="col">{t('ProjectRiskRegisterScreen.colRisk')}</th>
+                        <th scope="col">{t('ProjectRiskRegisterScreen.likelihood')}</th>
+                        <th scope="col">{t('ProjectRiskRegisterScreen.impact')}</th>
+                        <th scope="col">{t('ProjectRiskRegisterScreen.severity')}</th>
+                        <th scope="col">{t('ProjectRiskRegisterScreen.status')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -322,6 +320,7 @@ export function ProjectRiskRegisterScreen({
 
 /** A compact count of risks by computed severity band — the register's headline. */
 function SeverityMatrix({ rows }: { rows: readonly ProjectInternalRiskSummary[] }) {
+  const t = useT();
   const counts = useMemo(() => {
     const tally: Record<ProjectInternalRiskSeverity, number> = { low: 0, medium: 0, high: 0 };
     for (const risk of rows) tally[risk.severity] += 1;
@@ -331,12 +330,12 @@ function SeverityMatrix({ rows }: { rows: readonly ProjectInternalRiskSummary[] 
   return (
     <section className="tm-card tm-prj-card" aria-labelledby="tm-risk-matrix-heading">
       <h2 id="tm-risk-matrix-heading" className="tm-prj-eyebrow">
-        Severity
+        {t('ProjectRiskRegisterScreen.severity')}
       </h2>
       <dl className="tm-row">
         {(['high', 'medium', 'low'] as const).map((band) => (
           <div key={band} className="tm-stat">
-            <dt className="tm-field__hint">{SEVERITY_LABELS[band]}</dt>
+            <dt className="tm-field__hint">{t(LEVEL_KEY[band])}</dt>
             <dd className="tm-stat__value">{counts[band]}</dd>
           </div>
         ))}
@@ -354,19 +353,21 @@ function RiskRow({
   onStatus: (status: ProjectInternalRiskStatus) => void;
   busy: boolean;
 }) {
+  const t = useT();
   return (
     <tr>
       <th scope="row" className="tm-table__title">
         {risk.title}
         {risk.mitigation ? <span className="tm-field__hint">{risk.mitigation}</span> : null}
       </th>
-      <td>{AXIS_LABELS[risk.likelihood]}</td>
-      <td>{AXIS_LABELS[risk.impact]}</td>
-      <td>{SEVERITY_LABELS[risk.severity]}</td>
+      <td>{t(LEVEL_KEY[risk.likelihood])}</td>
+      <td>{t(LEVEL_KEY[risk.impact])}</td>
+      <td>{t(LEVEL_KEY[risk.severity])}</td>
       <td>
         <div className="tm-field">
           <label className="tm-visually-hidden" htmlFor={`tm-risk-status-${risk.id}`}>
-            Status for {risk.title}
+            {t('ProjectRiskRegisterScreen.statusForPrefix')}
+            {risk.title}
           </label>
           <select
             id={`tm-risk-status-${risk.id}`}
@@ -377,7 +378,7 @@ function RiskRow({
           >
             {STATUSES.map((value) => (
               <option key={value} value={value}>
-                {STATUS_LABELS[value]}
+                {t(STATUS_KEY[value])}
               </option>
             ))}
           </select>

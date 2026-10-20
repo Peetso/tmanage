@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { readCustomRoles } from '../../lib/api/admin-roles';
 import { cloneCustomRole, editCustomRole } from '../../lib/api/admin-role-edit';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -40,6 +41,7 @@ export function RoleEditScreen({
 }: RoleEditScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const roles = useQuery({
     queryKey: ['admin-roles', organizationSlug],
@@ -112,7 +114,7 @@ export function RoleEditScreen({
   const rail = (
     <div>
       <p className="tm-cc-sections__label" id="tm-role-edit-list">
-        Roles
+        {t('RoleEditScreen.roles')}
       </p>
       {rows.length > 0 ? (
         <ul className="tm-cc-sections__group" aria-labelledby="tm-role-edit-list">
@@ -138,7 +140,7 @@ export function RoleEditScreen({
         href={`/${organizationSlug}/admin/roles`}
         className="tm-cc-sections__item tm-cc-sections__new"
       >
-        New role
+        {t('RoleEditScreen.newRole')}
       </Link>
     </div>
   );
@@ -148,9 +150,9 @@ export function RoleEditScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="roles"
-      crumbs={current ? ['Roles', current.name] : ['Roles']}
-      title={current?.name ?? 'Role editor'}
-      description="Edit a role's name and capabilities, or clone it under a new name. A role can only grant what you hold yourself."
+      crumbs={current ? [t('RoleEditScreen.roles'), current.name] : [t('RoleEditScreen.roles')]}
+      title={current?.name ?? t('RoleEditScreen.roleEditor')}
+      description={t('RoleEditScreen.description')}
       {...(current
         ? {
             actions: (
@@ -162,7 +164,7 @@ export function RoleEditScreen({
                   onClick={discard}
                   disabled={changeCount === 0 || save.isPending}
                 >
-                  Discard
+                  {t('RoleEditScreen.discard')}
                 </Button>
                 <Button
                   type="submit"
@@ -170,9 +172,9 @@ export function RoleEditScreen({
                   tone="ink"
                   size="compact"
                   loading={save.isPending}
-                  loadingLabel="Saving"
+                  loadingLabel={t('RoleEditScreen.saving')}
                 >
-                  Save changes
+                  {t('RoleEditScreen.saveChanges')}
                 </Button>
               </>
             ),
@@ -181,13 +183,13 @@ export function RoleEditScreen({
       rail={rail}
     >
       {roles.isError ? (
-        <InlineAlert tone="danger" title="Could not load the roles" live>
+        <InlineAlert tone="danger" title={t('RoleEditScreen.loadFailed')} live>
           {describeError(roles.error)}
         </InlineAlert>
       ) : null}
 
       {roles.isPending ? (
-        <LoadingRegion label="Loading the roles.">
+        <LoadingRegion label={t('RoleEditScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
@@ -195,10 +197,8 @@ export function RoleEditScreen({
 
       {!roles.isPending && !roles.isError && rows.length === 0 ? (
         <div className="tm-cc-card tm-cc-card--quiet">
-          <p className="tm-cc-card__title">No custom roles yet</p>
-          <p className="tm-cc-card__body">
-            No custom roles have been defined, so there is nothing to edit or clone.
-          </p>
+          <p className="tm-cc-card__title">{t('RoleEditScreen.emptyTitle')}</p>
+          <p className="tm-cc-card__body">{t('RoleEditScreen.emptyBody')}</p>
         </div>
       ) : null}
 
@@ -206,14 +206,14 @@ export function RoleEditScreen({
         <div className="tm-cc-split">
           <section className="tm-cc-column" aria-labelledby="tm-role-edit-form-heading">
             <h2 id="tm-role-edit-form-heading" className="tm-visually-hidden">
-              Edit role
+              {t('RoleEditScreen.editRole')}
             </h2>
 
             <form
               id={FORM_ID}
               className="tm-stack"
               noValidate
-              aria-label="Edit the role"
+              aria-label={t('RoleEditScreen.editTheRole')}
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 setSaved(false);
@@ -221,18 +221,18 @@ export function RoleEditScreen({
               }}
             >
               <Field
-                label="Role name"
+                label={t('RoleEditScreen.roleName')}
                 name="role-name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                hint="A short name for the role, unique within your organization."
+                hint={t('RoleEditScreen.roleNameHint')}
               />
 
               <fieldset className="tm-cc-matrix tm-cc-card tm-cc-card--flush">
-                <legend className="tm-visually-hidden">Capabilities</legend>
+                <legend className="tm-visually-hidden">{t('RoleEditScreen.capabilities')}</legend>
                 <div className="tm-cc-matrix__head" aria-hidden="true">
-                  <span>Capability</span>
-                  <span>Granted</span>
+                  <span>{t('RoleEditScreen.capability')}</span>
+                  <span>{t('RoleEditScreen.granted')}</span>
                 </div>
                 <ul className="tm-cc-matrix__list">
                   {CAPABILITIES_BY_AREA.map((capability) => (
@@ -252,18 +252,16 @@ export function RoleEditScreen({
                   ))}
                 </ul>
               </fieldset>
-              <p className="tm-cc-note">
-                Marked rows differ from the saved role. Nothing changes until you save.
-              </p>
+              <p className="tm-cc-note">{t('RoleEditScreen.matrixNote')}</p>
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="Could not save the role" live>
+                <InlineAlert tone="danger" title={t('RoleEditScreen.saveFailed')} live>
                   {describeError(save.error)}
                 </InlineAlert>
               ) : null}
               {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Role saved" live>
-                  The role has been updated for your organization.
+                <InlineAlert tone="success" title={t('RoleEditScreen.savedTitle')} live>
+                  {t('RoleEditScreen.savedBody')}
                 </InlineAlert>
               ) : null}
             </form>
@@ -274,34 +272,43 @@ export function RoleEditScreen({
               className="tm-cc-card tm-cc-card--ink"
               aria-labelledby="tm-role-edit-effect-heading"
             >
-              <p className="tm-cc-eyebrow">Effect of this edit</p>
+              <p className="tm-cc-eyebrow">{t('RoleEditScreen.effectEyebrow')}</p>
               <h2 id="tm-role-edit-effect-heading" className="tm-cc-card__lead">
                 {changeCount === 0
                   ? `Nothing changes yet for anyone holding ${current.name}.`
                   : `Everyone holding ${current.name} ${describeEffect(granted.length, removed.length, renamed)}.`}
               </h2>
               {granted.length > 0 ? (
-                <p className="tm-cc-card__body">Gains: {granted.map(capabilityLabel).join(', ')}</p>
+                <p className="tm-cc-card__body">
+                  {t('RoleEditScreen.gainsPrefix')}
+                  {granted.map(capabilityLabel).join(', ')}
+                </p>
               ) : null}
               {removed.length > 0 ? (
-                <p className="tm-cc-card__body">Loses: {removed.map(capabilityLabel).join(', ')}</p>
+                <p className="tm-cc-card__body">
+                  {t('RoleEditScreen.losesPrefix')}
+                  {removed.map(capabilityLabel).join(', ')}
+                </p>
               ) : null}
               {renamed ? (
                 <p className="tm-cc-card__body">
-                  Renamed from {current.name} to {name.trim() || 'an empty name'}
+                  {t('RoleEditScreen.renamedPrefix')}
+                  {current.name}
+                  {t('RoleEditScreen.renamedMiddle')}
+                  {name.trim() || t('RoleEditScreen.emptyName')}
                 </p>
               ) : null}
             </section>
 
             <section className="tm-cc-card" aria-labelledby="tm-role-clone-heading">
               <h2 id="tm-role-clone-heading" className="tm-cc-card__title">
-                Clone role
+                {t('RoleEditScreen.cloneRole')}
               </h2>
 
               <form
                 className="tm-stack"
                 noValidate
-                aria-label="Clone the role"
+                aria-label={t('RoleEditScreen.cloneForm')}
                 onSubmit={(event: FormEvent<HTMLFormElement>) => {
                   event.preventDefault();
                   setCloned(false);
@@ -309,21 +316,21 @@ export function RoleEditScreen({
                 }}
               >
                 <Field
-                  label="New role name"
+                  label={t('RoleEditScreen.newRoleName')}
                   name="clone-name"
                   value={cloneName}
                   onChange={(event) => setCloneName(event.target.value)}
-                  hint="The clone copies this role's saved capabilities under a new, unique name."
+                  hint={t('RoleEditScreen.cloneHint')}
                 />
 
                 {clone.isError ? (
-                  <InlineAlert tone="danger" title="Could not clone the role" live>
+                  <InlineAlert tone="danger" title={t('RoleEditScreen.cloneFailed')} live>
                     {describeError(clone.error)}
                   </InlineAlert>
                 ) : null}
                 {cloned && !clone.isPending && !clone.isError ? (
-                  <InlineAlert tone="success" title="Role cloned" live>
-                    A copy of the role has been created for your organization.
+                  <InlineAlert tone="success" title={t('RoleEditScreen.clonedTitle')} live>
+                    {t('RoleEditScreen.clonedBody')}
                   </InlineAlert>
                 ) : null}
 
@@ -333,9 +340,9 @@ export function RoleEditScreen({
                     tone="outline"
                     size="accessible"
                     loading={clone.isPending}
-                    loadingLabel="Cloning"
+                    loadingLabel={t('RoleEditScreen.cloning')}
                   >
-                    Clone role
+                    {t('RoleEditScreen.cloneRole')}
                   </Button>
                 </div>
               </form>

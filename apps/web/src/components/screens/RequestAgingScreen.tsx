@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { fetchRequestAging } from '../../lib/api/request-aging';
 import type { RequestAgingItem, RequestAgingView } from '../../lib/api/request-aging';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -39,6 +41,7 @@ export function RequestAgingScreen({
   client,
 }: RequestAgingScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const aging = useQuery({
     queryKey: ['request-aging', organizationSlug],
@@ -50,34 +53,35 @@ export function RequestAgingScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Request aging"
-      eyebrow="Requests"
+      title={t('RequestAgingScreen.title')}
+      eyebrow={t('RequestAgingScreen.eyebrow')}
       headerAside={
         aging.isSuccess ? (
           <span className="wp-total" aria-hidden="true">
-            {aging.data.counts.total} open
+            {aging.data.counts.total}
+            {t('RequestAgingScreen.openSuffix')}
           </span>
         ) : undefined
       }
       actions={
         <Link className="wp-capsule" href={`/${organizationSlug}/work/requests`}>
-          Request inbox
+          {t('RequestAgingScreen.requestInbox')}
         </Link>
       }
     >
       <h2 id="tm-request-aging-heading" className="tm-visually-hidden">
-        Request aging
+        {t('RequestAgingScreen.title')}
       </h2>
 
       {aging.isPending ? (
-        <LoadingRegion label="Loading request aging." className="tm-stack tm-stack--tight">
+        <LoadingRegion label={t('RequestAgingScreen.loading')} className="tm-stack tm-stack--tight">
           <Skeleton height="46px" />
           <Skeleton height="46px" />
         </LoadingRegion>
       ) : null}
 
       {aging.isError ? (
-        <InlineAlert tone="danger" title="Could not load request aging" live>
+        <InlineAlert tone="danger" title={t('RequestAgingScreen.loadFailed')} live>
           {describe(aging.error)}
         </InlineAlert>
       ) : null}
@@ -89,11 +93,13 @@ export function RequestAgingScreen({
   );
 }
 
-const BUCKETS: readonly { id: 'fresh' | 'aging' | 'overdue'; label: string }[] = [
-  { id: 'fresh', label: 'Fresh' },
-  { id: 'aging', label: 'Aging' },
-  { id: 'overdue', label: 'Overdue' },
-];
+const BUCKET_IDS: readonly ('fresh' | 'aging' | 'overdue')[] = ['fresh', 'aging', 'overdue'];
+
+const BUCKET_KEY: Record<RequestAgingItem['bucket'], MessageKey> = {
+  fresh: 'RequestAgingScreen.bucketFresh',
+  aging: 'RequestAgingScreen.bucketAging',
+  overdue: 'RequestAgingScreen.bucketOverdue',
+};
 
 /**
  * The counts summary and the per-request list, in REQ-01's row grammar: a quiet bordered table,
@@ -106,6 +112,7 @@ function AgingReport({
   aging: RequestAgingView;
   organizationSlug: string;
 }) {
+  const t = useT();
   const { thresholds, counts, requests } = aging;
   return (
     <div className="wp-aging-grid">
@@ -118,17 +125,17 @@ function AgingReport({
             </caption>
             <thead>
               <tr>
-                <th scope="col">Bucket</th>
+                <th scope="col">{t('RequestAgingScreen.colBucket')}</th>
                 <th scope="col" className="wp-num">
-                  Count
+                  {t('RequestAgingScreen.colCount')}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {BUCKETS.map(({ id, label }) => (
+              {BUCKET_IDS.map((id) => (
                 <tr key={id}>
                   <th scope="row">
-                    <span className="wp-row-title">{label}</span>
+                    <span className="wp-row-title">{t(BUCKET_KEY[id])}</span>
                   </th>
                   <td className="wp-num">
                     <span
@@ -145,7 +152,7 @@ function AgingReport({
               ))}
               <tr>
                 <th scope="row">
-                  <span className="wp-row-title">Uncommitted</span>
+                  <span className="wp-row-title">{t('RequestAgingScreen.rowUncommitted')}</span>
                 </th>
                 <td className="wp-num">
                   <span className="wp-row-mono">{counts.uncommitted}</span>
@@ -153,7 +160,7 @@ function AgingReport({
               </tr>
               <tr className="wp-row--first">
                 <th scope="row">
-                  <span className="wp-row-title">Total open</span>
+                  <span className="wp-row-title">{t('RequestAgingScreen.rowTotalOpen')}</span>
                 </th>
                 <td className="wp-num">
                   <span className="wp-row-mono">{counts.total}</span>
@@ -170,26 +177,24 @@ function AgingReport({
 
       {requests.length === 0 ? (
         <div className="wp-empty">
-          <h3 className="wp-empty__title">Nothing is waiting</h3>
-          <p className="wp-empty__body">No open client request is currently aging.</p>
+          <h3 className="wp-empty__title">{t('RequestAgingScreen.emptyTitle')}</h3>
+          <p className="wp-empty__body">{t('RequestAgingScreen.emptyBody')}</p>
         </div>
       ) : (
         <div className="wp-rows">
           <table>
-            <caption className="tm-visually-hidden">
-              Open client requests, oldest first, with age and bucket
-            </caption>
+            <caption className="tm-visually-hidden">{t('RequestAgingScreen.captionList')}</caption>
             <thead>
               <tr>
-                <th scope="col">Request</th>
+                <th scope="col">{t('RequestAgingScreen.colRequest')}</th>
                 <th scope="col" className="wp-col-state">
-                  Bucket
+                  {t('RequestAgingScreen.colBucket')}
                 </th>
                 <th scope="col" className="wp-col-desired wp-num">
-                  Age (days)
+                  {t('RequestAgingScreen.colAgeDays')}
                 </th>
                 <th scope="col" className="wp-col-desired wp-hide-sm">
-                  Committed
+                  {t('RequestAgingScreen.colCommitted')}
                 </th>
               </tr>
             </thead>
@@ -212,6 +217,7 @@ function AgingRow({
   request: RequestAgingItem;
   organizationSlug: string;
 }) {
+  const t = useT();
   const overdue = request.bucket === 'overdue';
   return (
     <tr>
@@ -222,7 +228,7 @@ function AgingRow({
       </th>
       <td>
         <span className={`wp-pill ${request.bucket === 'fresh' ? 'wp-pill--new' : ''}`}>
-          {BUCKET_LABELS[request.bucket]}
+          {t(BUCKET_KEY[request.bucket])}
         </span>
       </td>
       <td className="wp-num">
@@ -231,17 +237,13 @@ function AgingRow({
         </span>
       </td>
       <td className="wp-hide-sm">
-        <span className="wp-row-mono">{request.committed ? 'Yes' : 'No'}</span>
+        <span className="wp-row-mono">
+          {request.committed ? t('RequestAgingScreen.yes') : t('RequestAgingScreen.no')}
+        </span>
       </td>
     </tr>
   );
 }
-
-const BUCKET_LABELS: Record<RequestAgingItem['bucket'], string> = {
-  fresh: 'Fresh',
-  aging: 'Aging',
-  overdue: 'Overdue',
-};
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
 function describe(error: unknown): string {

@@ -7,6 +7,7 @@ import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { createProjectRisk, listProjectRisks } from '../../lib/api/portal';
 import type { ProjectRisk, RiskSeverity, RiskStatus } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -21,6 +22,18 @@ export interface ProjectRisksScreenProps {
 
 const SEVERITIES: readonly RiskSeverity[] = ['low', 'medium', 'high'];
 const STATUSES: readonly RiskStatus[] = ['open', 'mitigated', 'closed'];
+
+const SEVERITY_KEY = {
+  low: 'ProjectRisksScreen.severityLow',
+  medium: 'ProjectRisksScreen.severityMedium',
+  high: 'ProjectRisksScreen.severityHigh',
+} as const;
+
+const STATUS_KEY = {
+  open: 'ProjectRisksScreen.statusOpen',
+  mitigated: 'ProjectRisksScreen.statusMitigated',
+  closed: 'ProjectRisksScreen.statusClosed',
+} as const;
 
 /**
  * **Project risks — internal compose (x140).**
@@ -41,6 +54,7 @@ export function ProjectRisksScreen({
 }: ProjectRisksScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const risks = useQuery({
     queryKey: ['project-risks', organizationSlug, projectId],
@@ -84,9 +98,9 @@ export function ProjectRisksScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Project risks"
-      description="Record a risk for this project, and choose what the client is told."
-      eyebrow="Project · Risks"
+      title={t('ProjectRisksScreen.title')}
+      description={t('ProjectRisksScreen.description')}
+      eyebrow={t('ProjectRisksScreen.eyebrow')}
       topBar={
         <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="risks" />
       }
@@ -96,7 +110,7 @@ export function ProjectRisksScreen({
           <div className="tm-prj__col tm-prj__col--aside">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-risks-compose">
               <h2 id="tm-risks-compose" className="tm-prj-eyebrow">
-                Record a risk
+                {t('ProjectRisksScreen.recordARisk')}
               </h2>
               <form
                 className="tm-stack"
@@ -107,7 +121,7 @@ export function ProjectRisksScreen({
               >
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-risk-title">
-                    Internal title
+                    {t('ProjectRisksScreen.internalTitle')}
                   </label>
                   <input
                     id="tm-risk-title"
@@ -117,12 +131,12 @@ export function ProjectRisksScreen({
                     maxLength={300}
                     required
                   />
-                  <p className="tm-field__hint">Staff-facing. The client never sees this.</p>
+                  <p className="tm-field__hint">{t('ProjectRisksScreen.internalTitleHint')}</p>
                 </div>
 
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-risk-client-summary">
-                    Client summary
+                    {t('ProjectRisksScreen.clientSummary')}
                   </label>
                   <textarea
                     id="tm-risk-client-summary"
@@ -133,12 +147,12 @@ export function ProjectRisksScreen({
                     rows={3}
                     required
                   />
-                  <p className="tm-field__hint">Shown to the client when this risk is published.</p>
+                  <p className="tm-field__hint">{t('ProjectRisksScreen.clientSummaryHint')}</p>
                 </div>
 
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-risk-internal-note">
-                    Internal note (optional)
+                    {t('ProjectRisksScreen.internalNote')}
                   </label>
                   <textarea
                     id="tm-risk-internal-note"
@@ -148,12 +162,12 @@ export function ProjectRisksScreen({
                     maxLength={5000}
                     rows={3}
                   />
-                  <p className="tm-field__hint">Internal-only. Never projected to the client.</p>
+                  <p className="tm-field__hint">{t('ProjectRisksScreen.internalNoteHint')}</p>
                 </div>
 
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-risk-severity">
-                    Severity
+                    {t('ProjectRisksScreen.severity')}
                   </label>
                   <select
                     id="tm-risk-severity"
@@ -163,7 +177,7 @@ export function ProjectRisksScreen({
                   >
                     {SEVERITIES.map((value) => (
                       <option key={value} value={value}>
-                        {severityLabel(value)}
+                        {t(SEVERITY_KEY[value])}
                       </option>
                     ))}
                   </select>
@@ -171,7 +185,7 @@ export function ProjectRisksScreen({
 
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-risk-status">
-                    Status
+                    {t('ProjectRisksScreen.status')}
                   </label>
                   <select
                     id="tm-risk-status"
@@ -181,7 +195,7 @@ export function ProjectRisksScreen({
                   >
                     {STATUSES.map((value) => (
                       <option key={value} value={value}>
-                        {statusLabel(value)}
+                        {t(STATUS_KEY[value])}
                       </option>
                     ))}
                   </select>
@@ -194,11 +208,11 @@ export function ProjectRisksScreen({
                     checked={published}
                     onChange={(event) => setPublished(event.target.checked)}
                   />
-                  <span className="tm-choice__name">Publish to the client now</span>
+                  <span className="tm-choice__name">{t('ProjectRisksScreen.publishNow')}</span>
                 </label>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not record the risk" live>
+                  <InlineAlert tone="danger" title={t('ProjectRisksScreen.recordFailed')} live>
                     {describe(create.error)}
                   </InlineAlert>
                 ) : null}
@@ -210,9 +224,9 @@ export function ProjectRisksScreen({
                     size="accessible"
                     disabled={!canSubmit}
                     loading={create.isPending}
-                    loadingLabel="Recording"
+                    loadingLabel={t('ProjectRisksScreen.recording')}
                   >
-                    Record risk
+                    {t('ProjectRisksScreen.recordRisk')}
                   </Button>
                 </div>
               </form>
@@ -221,19 +235,19 @@ export function ProjectRisksScreen({
           <div className="tm-prj__col">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-risks-list">
               <h2 id="tm-risks-list" className="tm-prj-eyebrow">
-                Recorded risks
+                {t('ProjectRisksScreen.recordedRisks')}
               </h2>
               {risks.isError ? (
-                <InlineAlert tone="danger" title="Could not load risks" live>
+                <InlineAlert tone="danger" title={t('ProjectRisksScreen.loadFailed')} live>
                   {describe(risks.error)}
                 </InlineAlert>
               ) : risks.isPending ? (
-                <LoadingRegion label="Loading risks">
+                <LoadingRegion label={t('ProjectRisksScreen.loading')}>
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
               ) : (risks.data ?? []).length === 0 ? (
-                <p className="tm-prose">No risks recorded for this project yet.</p>
+                <p className="tm-prose">{t('ProjectRisksScreen.empty')}</p>
               ) : (
                 <ol className="tm-list tm-stack">
                   {(risks.data ?? []).map((risk) => (
@@ -250,33 +264,28 @@ export function ProjectRisksScreen({
 }
 
 function RiskRow({ risk }: { risk: ProjectRisk }) {
+  const t = useT();
   return (
     <li className="tm-stack tm-stack--tight">
       <div className="tm-row tm-row--wrap">
         <h3 className="tm-heading-3">{risk.title}</h3>
         <StateCapsule state={severityCapsule(risk.severity)}>
-          {severityLabel(risk.severity)}
+          {t(SEVERITY_KEY[risk.severity])}
         </StateCapsule>
-        <StateCapsule state={statusCapsule(risk.status)}>{statusLabel(risk.status)}</StateCapsule>
+        <StateCapsule state={statusCapsule(risk.status)}>{t(STATUS_KEY[risk.status])}</StateCapsule>
         <StateCapsule state={risk.published ? 'client' : 'neutral'} className="tm-push-end">
-          {risk.published ? 'Published' : 'Draft'}
+          {risk.published ? t('ProjectRisksScreen.published') : t('ProjectRisksScreen.draft')}
         </StateCapsule>
       </div>
       <p className="tm-prose">{risk.clientSummary}</p>
-      {risk.internalNote ? <p className="tm-field__hint">Internal: {risk.internalNote}</p> : null}
+      {risk.internalNote ? (
+        <p className="tm-field__hint">
+          {t('ProjectRisksScreen.internalPrefix')}
+          {risk.internalNote}
+        </p>
+      ) : null}
     </li>
   );
-}
-
-function severityLabel(severity: RiskSeverity): string {
-  switch (severity) {
-    case 'high':
-      return 'High';
-    case 'low':
-      return 'Low';
-    default:
-      return 'Medium';
-  }
 }
 
 function severityCapsule(severity: RiskSeverity): CapsuleState {
@@ -287,17 +296,6 @@ function severityCapsule(severity: RiskSeverity): CapsuleState {
       return 'neutral';
     default:
       return 'waiting';
-  }
-}
-
-function statusLabel(status: RiskStatus): string {
-  switch (status) {
-    case 'mitigated':
-      return 'Mitigated';
-    case 'closed':
-      return 'Closed';
-    default:
-      return 'Open';
   }
 }
 
