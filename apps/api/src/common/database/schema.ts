@@ -155,6 +155,117 @@ export const personalAccessTokens = mysqlTable(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// OAuth authorization server (0208, MCP connector S7)
+// ─────────────────────────────────────────────────────────────────────────────
+// TManage is its own OAuth 2.1 AS so AI apps can connect without a copied key. Only hashes of
+// secrets are stored; tokens are opaque and checked against these rows on every request, so a
+// `revoked_at` revokes immediately. `oauth_grants` is tenant-owned (TENANT_TABLES); the other
+// four are global, resolved by hash before any tenant exists (NON_TENANT_TABLES).
+
+/** A registered (DCR) or CIMD-published OAuth client. Public clients only — no secret issued. */
+export const oauthClients = mysqlTable(
+  'oauth_clients',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    /** The OAuth `client_id`: an opaque DCR id, or a CIMD document https URL. */
+    clientId: varchar('client_id', { length: 512 }).notNull(),
+    /** `dcr` or `cimd`. */
+    kind: varchar('kind', { length: 16 }).notNull(),
+    name: varchar('name', { length: 190 }).notNull(),
+    /** The exact redirect URIs, matched by string equality. */
+    redirectUrisJson: json('redirect_uris_json').$type<readonly string[]>().notNull(),
+    verified: boolean('verified').notNull().default(false),
+    /** SHA-256 of the registering IP (for the DCR rate limit); never the raw IP. */
+    createdIpHash: char('created_ip_hash', { length: 64 }),
+    lastUsedAt: datetime('last_used_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [uniqueIndex('uq_oauth_clients_client_id').on(table.clientId)],
+);
+
+/** A consented authorization: one client acting as one membership in one org. Tenant-owned. */
+export const oauthGrants = mysqlTable(
+  'oauth_grants',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    clientPk: char('client_pk', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    /** Space-separated consented scopes, e.g. `tmanage:read tmanage:write`. */
+    scopes: varchar('scopes', { length: 255 }).notNull(),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_oauth_grants_org_id').on(table.organizationId, table.id),
+    index('ix_oauth_grants_membership').on(table.organizationId, table.membershipId, table.id),
+    index('ix_oauth_grants_client').on(table.clientPk),
+  ],
+);
+
+/** A one-time authorization code, keyed by SHA-256 hex. Single-use, 60 s, PKCE/redirect-bound. */
+export const oauthCodes = mysqlTable(
+  'oauth_codes',
+  {
+    codeHash: char('code_hash', { length: 64 }).primaryKey(),
+    grantId: char('grant_id', { length: 36 }).notNull(),
+    /** The PKCE S256 challenge; the verifier is checked at token time. */
+    challenge: varchar('challenge', { length: 128 }).notNull(),
+    redirectUri: varchar('redirect_uri', { length: 2048 }).notNull(),
+    resource: varchar('resource', { length: 512 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    usedAt: datetime('used_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [index('ix_oauth_codes_grant').on(table.grantId)],
+);
+
+/** An opaque access token stored as SHA-256 hex. 30 min, audience-bound to `/mcp`. Global. */
+export const oauthAccessTokens = mysqlTable(
+  'oauth_access_tokens',
+  {
+    tokenHash: char('token_hash', { length: 64 }).primaryKey(),
+    grantId: char('grant_id', { length: 36 }).notNull(),
+    familyId: char('family_id', { length: 36 }).notNull(),
+    audience: varchar('audience', { length: 512 }).notNull(),
+    scopes: varchar('scopes', { length: 255 }).notNull(),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    /** Reserved for a future DPoP confirmation (`cnf.jkt`); NULL in v1. */
+    cnfJkt: varchar('cnf_jkt', { length: 255 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index('ix_oauth_access_tokens_grant').on(table.grantId),
+    index('ix_oauth_access_tokens_family').on(table.familyId),
+  ],
+);
+
+/** An opaque refresh token stored as SHA-256 hex. Rotates on use; reuse revokes the family. */
+export const oauthRefreshTokens = mysqlTable(
+  'oauth_refresh_tokens',
+  {
+    tokenHash: char('token_hash', { length: 64 }).primaryKey(),
+    familyId: char('family_id', { length: 36 }).notNull(),
+    grantId: char('grant_id', { length: 36 }).notNull(),
+    /** The refresh token this one was rotated from; NULL for the first in a family. */
+    parentHash: char('parent_hash', { length: 64 }),
+    usedAt: datetime('used_at', { mode: 'date', fsp: 3 }),
+    /** Idle expiry: now + 30 days, refreshed on each rotation. */
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** Absolute expiry: first-issue + 90 days, carried forward unchanged on rotation. */
+    absoluteExpiresAt: datetime('absolute_expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    revokedAt: datetime('revoked_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index('ix_oauth_refresh_tokens_grant').on(table.grantId),
+    index('ix_oauth_refresh_tokens_family').on(table.familyId),
+  ],
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tenant root
 // ─────────────────────────────────────────────────────────────────────────────
 // Tenant-owned, but its tenant key is `id` rather than `organization_id` — the guard's
@@ -8204,6 +8315,11 @@ export const TABLES = {
   sessions,
   session_refresh_tokens: sessionRefreshTokens,
   personal_access_tokens: personalAccessTokens,
+  oauth_clients: oauthClients,
+  oauth_grants: oauthGrants,
+  oauth_codes: oauthCodes,
+  oauth_access_tokens: oauthAccessTokens,
+  oauth_refresh_tokens: oauthRefreshTokens,
   organizations,
   memberships,
   workspaces,
@@ -8386,6 +8502,11 @@ export const TABLES = {
 export type SessionRow = typeof sessions.$inferSelect;
 export type SessionRefreshTokenRow = typeof sessionRefreshTokens.$inferSelect;
 export type PersonalAccessTokenRow = typeof personalAccessTokens.$inferSelect;
+export type OauthClientRow = typeof oauthClients.$inferSelect;
+export type OauthGrantRow = typeof oauthGrants.$inferSelect;
+export type OauthCodeRow = typeof oauthCodes.$inferSelect;
+export type OauthAccessTokenRow = typeof oauthAccessTokens.$inferSelect;
+export type OauthRefreshTokenRow = typeof oauthRefreshTokens.$inferSelect;
 export type OrganizationRow = typeof organizations.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;

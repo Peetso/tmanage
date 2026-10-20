@@ -44,6 +44,11 @@ export const NEVER_REASONS = [
   'google_auth',
   'invitation',
   'mcp_endpoint',
+  // 0208 / S7. The OAuth 2.1 authorization server and its discovery metadata — the connector's
+  // own front door. An AI principal must never drive sign-in, consent, token minting or client
+  // registration as a tool (architecture B3: it cannot create PATs or OAuth clients or change
+  // its own grant). These routes are public and session-establishing, not org-scoped actions.
+  'oauth',
   'org_creation_or_account',
   'org_security_manage',
   'platform_admin',

@@ -72,6 +72,13 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // once. The Bearer authentication read by `token_hash` is the one unscoped path, and it goes
   // through `bootstrapRead` with a mandatory reason, not through the guard.
   personal_access_tokens: 'organization_id',
+  // 0208 (MCP connector S7). An OAuth grant names one organization and one membership, exactly
+  // as a PAT does, so it is tenant-owned. Its one unscoped access — resolving a presented token
+  // back to its grant before any tenant context exists — is a READ that goes through
+  // `bootstrapRead` with a mandatory reason. Grant writes (consent, disconnect) always carry a
+  // tenant context. The four hash-keyed OAuth token tables carry no `organization_id` and are
+  // registered in NON_TENANT_TABLES below.
+  oauth_grants: 'organization_id',
   workspaces: 'organization_id',
   projects: 'organization_id',
   project_memberships: 'organization_id',
@@ -1059,6 +1066,16 @@ export const NON_TENANT_TABLES: readonly string[] = Object.freeze([
   // "Continue with Google" (migration 0205). A linked sign-in identity belongs to a person and is
   // read on the unauthenticated callback before any tenant exists — global like the credentials.
   'user_identities',
+  // OAuth authorization server (migration 0208, MCP connector S7). Clients, authorization codes,
+  // access tokens and refresh tokens carry no `organization_id`: they are resolved by the SHA-256
+  // hash of a secret (or the client_id) on the public authorize/token path, before any tenant is
+  // known — global like `session_refresh_tokens` and the credential tables. The identity path
+  // reads and writes them (token minting and rotation are writes). The tenant-owned part of the
+  // model — `oauth_grants` — is in TENANT_TABLES, NOT here, on purpose.
+  'oauth_clients',
+  'oauth_codes',
+  'oauth_access_tokens',
+  'oauth_refresh_tokens',
   // Platform admin (migration 0206). The TManage operator's own step-ups, the platform audit log
   // and the operator's switches describe the service, not a tenant, so they carry no
   // `organization_id` and are reached on the identity path. Registered here — NOT in

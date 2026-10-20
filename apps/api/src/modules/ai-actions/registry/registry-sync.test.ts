@@ -47,8 +47,10 @@ const METHOD_METADATA = 'method';
 const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS', 'HEAD', 'SEARCH'];
 
 /** The number of live routes at the time slice S1 classified them (plan §2). A canary: when the
- *  API genuinely gains or loses a route this is updated in the same change that classifies it. */
-const EXPECTED_ROUTE_COUNT = 710;
+ *  API genuinely gains or loses a route this is updated in the same change that classifies it.
+ *  710 at S1; +6 at S7 (the OAuth AS: three discovery metadata GETs and /oauth authorize, token,
+ *  revoke), all withheld via NEVER. */
+const EXPECTED_ROUTE_COUNT = 716;
 
 interface LiveRoute {
   readonly method: string;

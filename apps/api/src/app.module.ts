@@ -104,6 +104,7 @@ import { AdminSessionsModule } from './modules/identity/admin-sessions.controlle
 import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
 import { PersonalAccessTokensModule } from './modules/personal-access-tokens/personal-access-tokens.controller.js';
 import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
+import { OAuthModule } from './modules/oauth/oauth.module.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
 import { AdminOverviewModule } from './modules/admin/overview.controller.js';
@@ -1020,6 +1021,10 @@ export class AppModule {
         // signed in with a personal access token. Every tool call is an in-process request
         // through this same guard chain, so it is tenant- and permission-scoped like REST.
         McpEndpointModule.register(),
+        // OAuth 2.1 authorization server (MCP connector S7): discovery metadata, /oauth/authorize,
+        // /oauth/token and /oauth/revoke, so AI apps connect with a browser consent instead of a
+        // copied key. PKCE S256 only, opaque hashed tokens, rotation with reuse detection.
+        OAuthModule.register(),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a

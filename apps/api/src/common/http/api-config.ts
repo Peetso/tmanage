@@ -65,6 +65,13 @@ export interface ApiConfig extends SessionServiceOptions {
   readonly googleOAuth?: { readonly clientId: string; readonly clientSecret: string } | null;
   /** `WEB_PUBLIC_URL` — the origin the browser uses; the Google callback lives under it. */
   readonly webPublicUrl?: string;
+  /**
+   * `API_PUBLIC_URL` — the API's own public origin, e.g. `https://tmanage.peetrix.com`. The OAuth
+   * authorization server (MCP connector S7) uses it as the issuer and derives the canonical MCP
+   * resource `<origin>/mcp` from it; both must be exact, so the server reads its own origin rather
+   * than guessing. Optional on the type so existing config fixtures need not set it.
+   */
+  readonly apiPublicUrl?: string;
   /** ID-002. The lockout window, counted from `authentication_events` because there is no Redis. */
   readonly maxFailuresInWindow: number;
   readonly failureWindowSeconds: number;
@@ -227,6 +234,7 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
         ? { clientId: env.GOOGLE_CLIENT_ID, clientSecret: env.GOOGLE_CLIENT_SECRET }
         : null,
     ...(env.WEB_PUBLIC_URL === undefined ? {} : { webPublicUrl: env.WEB_PUBLIC_URL }),
+    apiPublicUrl: env.API_PUBLIC_URL,
     maxFailuresInWindow: env.AUTH_MAX_FAILURES_IN_WINDOW,
     failureWindowSeconds: env.AUTH_FAILURE_WINDOW_SECONDS,
     totpIssuer: env.AUTH_TOTP_ISSUER,

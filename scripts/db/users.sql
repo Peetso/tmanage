@@ -1150,6 +1150,16 @@ GRANT INSERT, UPDATE ON `tmanage`.`user_identities`      TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`platform_admin_step_ups`     TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`platform_admin_audit_events` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`platform_settings`   TO 'tmanage_app'@'%';
+-- 0208 OAuth authorization server (MCP connector S7). Clients, grants, codes, access tokens and
+-- refresh tokens: INSERT (register/consent/mint), UPDATE (soft-revoke, record used_at/last_used_at,
+-- rotate). SELECT is the database-wide read above. No DELETE anywhere: codes and tokens are
+-- retired by `used_at`/`revoked_at` and kept as evidence, the same posture the credential tables
+-- take. The worker holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`oauth_clients`        TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`oauth_grants`         TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`oauth_codes`          TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`oauth_access_tokens`  TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`oauth_refresh_tokens` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 
