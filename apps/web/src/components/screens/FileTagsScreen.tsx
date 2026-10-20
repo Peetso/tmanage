@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { defineFileTag, listFileTags } from '../../lib/api/file-tags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -36,6 +37,7 @@ export function FileTagsScreen({
   organizationName,
   client,
 }: FileTagsScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['file-tags', organizationSlug] as const;
@@ -65,12 +67,12 @@ export function FileTagsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="File tags"
-      description="Define reusable tags, then tag files with them to find them in the upload centre."
+      title={t('FileTagsScreen.title')}
+      description={t('FileTagsScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-file-tag-new-heading">
         <h2 id="tm-file-tag-new-heading" className="tm-eyebrow">
-          New tag
+          {t('FileTagsScreen.newTagHeading')}
         </h2>
         <form
           className="tm-stack"
@@ -81,16 +83,16 @@ export function FileTagsScreen({
           }}
         >
           <Field
-            label="Name"
+            label={t('FileTagsScreen.nameLabel')}
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Contract or Signed."
+            hint={t('FileTagsScreen.nameHint')}
             required
           />
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not define the tag" live>
+            <InlineAlert tone="danger" title={t('FileTagsScreen.defineErrorTitle')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -101,10 +103,10 @@ export function FileTagsScreen({
               tone="ink"
               size="accessible"
               loading={define.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('FileTagsScreen.saving')}
               disabled={!canDefine}
             >
-              Define tag
+              {t('FileTagsScreen.defineButton')}
             </Button>
           </div>
         </form>
@@ -112,24 +114,24 @@ export function FileTagsScreen({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-file-tag-list-heading">
         <h2 id="tm-file-tag-list-heading" className="tm-eyebrow">
-          Tags
+          {t('FileTagsScreen.tagsHeading')}
         </h2>
         {tags.isPending ? (
-          <LoadingRegion label="Loading this organization’s file tags.">
+          <LoadingRegion label={t('FileTagsScreen.loadingTags')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {tags.isError ? (
-          <InlineAlert tone="danger" title="Could not load the tags" live>
+          <InlineAlert tone="danger" title={t('FileTagsScreen.loadErrorTitle')} live>
             {describe(tags.error)}
           </InlineAlert>
         ) : null}
 
         {tags.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">No file tags defined yet.</p>
+            <p className="tm-prose">{t('FileTagsScreen.empty')}</p>
           ) : (
             <ul
               className="tm-row tm-row--wrap"

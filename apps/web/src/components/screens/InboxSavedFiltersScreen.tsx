@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createInboxSavedFilter,
@@ -36,6 +37,7 @@ export function InboxSavedFiltersScreen({
   currentFilter,
   client,
 }: InboxSavedFiltersScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const queryKey = ['inbox-saved-filters', organizationSlug];
@@ -76,41 +78,41 @@ export function InboxSavedFiltersScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="inbox"
-      title="Saved inbox filters"
-      description="Your saved inbox filter sets. Save the current filter under a name, then apply it as a chip above the inbox."
+      title={t('InboxSavedFiltersScreen.title')}
+      description={t('InboxSavedFiltersScreen.description')}
     >
       <section className="tm-card tm-inbox-panel" aria-labelledby="tm-inbox-filters-heading">
         <h2 id="tm-inbox-filters-heading" className="tm-card__title">
-          Your saved filters
+          {t('InboxSavedFiltersScreen.heading')}
         </h2>
 
         {filters.isError ? (
-          <InlineAlert tone="danger" title="Could not load your saved filters" live>
+          <InlineAlert tone="danger" title={t('InboxSavedFiltersScreen.loadErrorTitle')} live>
             {describeError(filters.error)}
           </InlineAlert>
         ) : null}
 
         {create.isError ? (
-          <InlineAlert tone="danger" title="Could not save the filter" live>
+          <InlineAlert tone="danger" title={t('InboxSavedFiltersScreen.saveErrorTitle')} live>
             {describeError(create.error)}
           </InlineAlert>
         ) : null}
 
         {filters.isPending ? (
-          <LoadingRegion label="Loading your saved filters.">
+          <LoadingRegion label={t('InboxSavedFiltersScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!filters.isPending && !filters.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No saved filters yet">
-            Save the current inbox filter under a name to keep it here and apply it in one click.
+          <InlineAlert tone="neutral" title={t('InboxSavedFiltersScreen.emptyTitle')}>
+            {t('InboxSavedFiltersScreen.emptyBody')}
           </InlineAlert>
         ) : null}
 
         {rows.length > 0 ? (
-          <ul className="tm-chip-row" aria-label="Saved inbox filters">
+          <ul className="tm-chip-row" aria-label={t('InboxSavedFiltersScreen.listLabel')}>
             {rows.map((filter) => (
               <li key={filter.id} className="tm-chip">
                 <span className="tm-chip__label">{filter.name}</span>
@@ -119,7 +121,7 @@ export function InboxSavedFiltersScreen({
                   className="tm-chip__remove"
                   onClick={() => remove.mutate(filter.id)}
                   disabled={remove.isPending}
-                  aria-label={`Delete saved filter ${filter.name}`}
+                  aria-label={`${t('InboxSavedFiltersScreen.deletePrefix')} ${filter.name}`}
                 >
                   ×
                 </button>
@@ -137,7 +139,7 @@ export function InboxSavedFiltersScreen({
             }}
           >
             <label className="tm-field">
-              <span className="tm-field__label">Filter name</span>
+              <span className="tm-field__label">{t('InboxSavedFiltersScreen.nameLabel')}</span>
               <input
                 className="tm-input"
                 type="text"
@@ -153,7 +155,7 @@ export function InboxSavedFiltersScreen({
                 className="tm-button tm-button--ink"
                 disabled={create.isPending || name.trim().length === 0}
               >
-                Save filter
+                {t('InboxSavedFiltersScreen.saveButton')}
               </button>
               <button
                 type="button"
@@ -161,7 +163,7 @@ export function InboxSavedFiltersScreen({
                 onClick={() => setDialogOpen(false)}
                 disabled={create.isPending}
               >
-                Cancel
+                {t('InboxSavedFiltersScreen.cancel')}
               </button>
             </div>
           </form>
@@ -172,7 +174,7 @@ export function InboxSavedFiltersScreen({
               className="tm-button tm-button--ink"
               onClick={() => setDialogOpen(true)}
             >
-              Save current filter
+              {t('InboxSavedFiltersScreen.saveCurrent')}
             </button>
           </div>
         )}

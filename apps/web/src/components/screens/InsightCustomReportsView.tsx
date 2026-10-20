@@ -20,6 +20,8 @@ import type {
 } from '../../lib/api/insight-custom-reports';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InsightCustomReportsViewProps {
   organizationSlug: string;
@@ -28,16 +30,16 @@ export interface InsightCustomReportsViewProps {
   client?: ApiClient;
 }
 
-const METRIC_LABELS: Readonly<Record<InsightCustomReportMetric, string>> = {
-  open_items: 'Open items',
-  scheduled_items: 'Scheduled items',
-  active_projects: 'Active projects',
-  active_assignees: 'Active assignees',
+const METRIC_LABEL_KEYS: Readonly<Record<InsightCustomReportMetric, MessageKey>> = {
+  open_items: 'InsightCustomReportsView.metricOpenItems',
+  scheduled_items: 'InsightCustomReportsView.metricScheduledItems',
+  active_projects: 'InsightCustomReportsView.metricActiveProjects',
+  active_assignees: 'InsightCustomReportsView.metricActiveAssignees',
 };
 
-const LAYOUT_LABELS: Readonly<Record<InsightCustomReportLayout, string>> = {
-  list: 'List',
-  grid: 'Grid',
+const LAYOUT_LABEL_KEYS: Readonly<Record<InsightCustomReportLayout, MessageKey>> = {
+  list: 'InsightCustomReportsView.layoutList',
+  grid: 'InsightCustomReportsView.layoutGrid',
 };
 
 /**
@@ -64,6 +66,7 @@ export function InsightCustomReportsView({
   organizationName,
   client,
 }: InsightCustomReportsViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const listKey = ['insight-custom-reports', organizationSlug] as const;
@@ -117,14 +120,14 @@ export function InsightCustomReportsView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights"
-      title="Custom insight reports"
-      description="Compose the metrics you care about into a named report and render it against today’s numbers."
+      eyebrow={t('InsightCustomReportsView.eyebrow')}
+      title={t('InsightCustomReportsView.title')}
+      description={t('InsightCustomReportsView.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <section className="tm-panel tm-stack" aria-labelledby="tm-custom-report-editor">
           <h2 id="tm-custom-report-editor" className="tm-eyebrow">
-            New custom report
+            {t('InsightCustomReportsView.newHeading')}
           </h2>
 
           <form
@@ -136,7 +139,7 @@ export function InsightCustomReportsView({
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-custom-report-name">
-                Name
+                {t('InsightCustomReportsView.nameLabel')}
               </label>
               <input
                 id="tm-custom-report-name"
@@ -149,7 +152,9 @@ export function InsightCustomReportsView({
             </div>
 
             <fieldset className="tm-field">
-              <legend className="tm-field__label">Metrics</legend>
+              <legend className="tm-field__label">
+                {t('InsightCustomReportsView.metricsLegend')}
+              </legend>
               <div className="tm-stack tm-stack--tight">
                 {INSIGHT_CUSTOM_REPORT_METRICS.map((metric) => (
                   <label key={metric} className="tm-row tm-row--tight">
@@ -158,18 +163,16 @@ export function InsightCustomReportsView({
                       checked={metricKeys.includes(metric)}
                       onChange={() => toggleMetric(metric)}
                     />
-                    <span>{METRIC_LABELS[metric]}</span>
+                    <span>{t(METRIC_LABEL_KEYS[metric])}</span>
                   </label>
                 ))}
               </div>
-              <span className="tm-field__hint">
-                Pick one or more metrics. The report renders them in the order you add them.
-              </span>
+              <span className="tm-field__hint">{t('InsightCustomReportsView.metricsHint')}</span>
             </fieldset>
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-custom-report-layout">
-                Layout
+                {t('InsightCustomReportsView.layoutLabel')}
               </label>
               <select
                 id="tm-custom-report-layout"
@@ -179,14 +182,14 @@ export function InsightCustomReportsView({
               >
                 {INSIGHT_CUSTOM_REPORT_LAYOUTS.map((option) => (
                   <option key={option} value={option}>
-                    {LAYOUT_LABELS[option]}
+                    {t(LAYOUT_LABEL_KEYS[option])}
                   </option>
                 ))}
               </select>
             </div>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save the report" live>
+              <InlineAlert tone="danger" title={t('InsightCustomReportsView.saveErrorTitle')} live>
                 {describeError(save.error)}
               </InlineAlert>
             ) : null}
@@ -198,9 +201,9 @@ export function InsightCustomReportsView({
                 size="accessible"
                 disabled={!canSave}
                 loading={save.isPending}
-                loadingLabel="Saving"
+                loadingLabel={t('InsightCustomReportsView.saving')}
               >
-                Save report
+                {t('InsightCustomReportsView.saveButton')}
               </Button>
             </div>
           </form>
@@ -211,31 +214,31 @@ export function InsightCustomReportsView({
           aria-labelledby="tm-custom-report-list"
         >
           <h2 id="tm-custom-report-list" className="tm-eyebrow">
-            Your custom reports
+            {t('InsightCustomReportsView.listHeading')}
           </h2>
 
           {reports.isError ? (
-            <InlineAlert tone="danger" title="Could not load your reports" live>
+            <InlineAlert tone="danger" title={t('InsightCustomReportsView.loadErrorTitle')} live>
               {describeError(reports.error)}
             </InlineAlert>
           ) : null}
 
           {remove.isError ? (
-            <InlineAlert tone="danger" title="Could not remove the report" live>
+            <InlineAlert tone="danger" title={t('InsightCustomReportsView.removeErrorTitle')} live>
               {describeError(remove.error)}
             </InlineAlert>
           ) : null}
 
           {reports.isPending ? (
-            <LoadingRegion label="Loading your reports.">
+            <LoadingRegion label={t('InsightCustomReportsView.loadingList')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!reports.isPending && !reports.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No custom reports yet">
-              Compose a report above and it will appear here for you to render.
+            <InlineAlert tone="neutral" title={t('InsightCustomReportsView.emptyTitle')}>
+              {t('InsightCustomReportsView.emptyBody')}
             </InlineAlert>
           ) : null}
 
@@ -246,8 +249,8 @@ export function InsightCustomReportsView({
                   <div className="tm-stack tm-stack--tight">
                     <strong>{report.name}</strong>
                     <span className="tm-field__hint">
-                      {LAYOUT_LABELS[report.layout]} ·{' '}
-                      {report.metricKeys.map((metric) => METRIC_LABELS[metric]).join(', ')}
+                      {t(LAYOUT_LABEL_KEYS[report.layout])} ·{' '}
+                      {report.metricKeys.map((metric) => t(METRIC_LABEL_KEYS[metric])).join(', ')}
                     </span>
                   </div>
                   <div className="tm-row tm-row--tight">
@@ -255,19 +258,19 @@ export function InsightCustomReportsView({
                       tone="ink"
                       size="accessible"
                       loading={rendered.isFetching && renderId === report.id}
-                      loadingLabel="Rendering"
+                      loadingLabel={t('InsightCustomReportsView.rendering')}
                       onClick={() => setRenderId(report.id)}
                     >
-                      Render
+                      {t('InsightCustomReportsView.render')}
                     </Button>
                     <Button
                       tone="outline"
                       size="accessible"
                       loading={remove.isPending && remove.variables === report.id}
-                      loadingLabel="Removing"
+                      loadingLabel={t('InsightCustomReportsView.removing')}
                       onClick={() => remove.mutate(report.id)}
                     >
-                      Remove
+                      {t('InsightCustomReportsView.remove')}
                     </Button>
                   </div>
                 </li>
@@ -279,17 +282,21 @@ export function InsightCustomReportsView({
         {renderId !== null ? (
           <section className="tm-panel tm-stack" aria-labelledby="tm-custom-report-rendered">
             <h2 id="tm-custom-report-rendered" className="tm-eyebrow">
-              Rendered report
+              {t('InsightCustomReportsView.renderedHeading')}
             </h2>
 
             {rendered.isError ? (
-              <InlineAlert tone="danger" title="Could not render the report" live>
+              <InlineAlert
+                tone="danger"
+                title={t('InsightCustomReportsView.renderErrorTitle')}
+                live
+              >
                 {describeError(rendered.error)}
               </InlineAlert>
             ) : null}
 
             {rendered.isPending ? (
-              <LoadingRegion label="Rendering the report.">
+              <LoadingRegion label={t('InsightCustomReportsView.renderingReport')}>
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
@@ -300,7 +307,7 @@ export function InsightCustomReportsView({
                 <ul className="tm-list tm-stack tm-stack--tight">
                   {rendered.data.metrics.map((entry) => (
                     <li key={entry.metric} className="tm-row tm-row--wrap">
-                      <span>{METRIC_LABELS[entry.metric]}</span>
+                      <span>{t(METRIC_LABEL_KEYS[entry.metric])}</span>
                       <strong>{entry.value}</strong>
                     </li>
                   ))}
@@ -310,7 +317,7 @@ export function InsightCustomReportsView({
           </section>
         ) : null}
 
-        <Announce message={save.isSuccess ? 'Custom report stored.' : ''} />
+        <Announce message={save.isSuccess ? t('InsightCustomReportsView.storedAnnounce') : ''} />
       </div>
     </AppShell>
   );

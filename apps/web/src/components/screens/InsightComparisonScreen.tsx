@@ -10,6 +10,10 @@ import { fetchPeriodComparison } from '../../lib/api/insights-comparison';
 import type { ComparisonMetric, PeriodComparisonView } from '../../lib/api/insights-comparison';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+
+type Translate = (key: MessageKey) => string;
 
 export interface InsightComparisonScreenProps {
   organizationSlug: string;
@@ -19,9 +23,9 @@ export interface InsightComparisonScreenProps {
 }
 
 /** The metrics the API accepts, listed for the selector — the exact server allowlist. */
-const METRIC_OPTIONS: readonly { value: ComparisonMetric; label: string }[] = [
-  { value: 'work_items_created', label: 'Work items created' },
-  { value: 'meetings_held', label: 'Meetings held' },
+const METRIC_OPTIONS: readonly { value: ComparisonMetric; labelKey: MessageKey }[] = [
+  { value: 'work_items_created', labelKey: 'InsightComparisonScreen.metricWorkItems' },
+  { value: 'meetings_held', labelKey: 'InsightComparisonScreen.metricMeetings' },
 ];
 
 /** A calendar day (`YYYY-MM-DD`) as an inclusive-start / exclusive-end ISO instant. */
@@ -76,6 +80,7 @@ export function InsightComparisonScreen({
   organizationName,
   client,
 }: InsightComparisonScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const defaults = defaultDays();
 
@@ -101,14 +106,14 @@ export function InsightComparisonScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="insights"
-      eyebrow="Insights"
-      title="Period comparison"
-      description="Set one metric's count in two windows side by side."
+      eyebrow={t('InsightComparisonScreen.eyebrow')}
+      title={t('InsightComparisonScreen.title')}
+      description={t('InsightComparisonScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <section className="tm-panel tm-stack" aria-labelledby="tm-compare-heading">
           <h2 id="tm-compare-heading" className="tm-eyebrow">
-            Period comparison
+            {t('InsightComparisonScreen.heading')}
           </h2>
 
           <form
@@ -123,56 +128,84 @@ export function InsightComparisonScreen({
             }}
           >
             <Select
-              label="Metric"
+              label={t('InsightComparisonScreen.metricLabel')}
               value={metric}
               onChange={(event) => setMetric(event.currentTarget.value as ComparisonMetric)}
             >
               {METRIC_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.labelKey)}
                 </option>
               ))}
             </Select>
 
-            <DateField label="Period A start" value={aStart} onValueChange={setAStart} />
-            <DateField label="Period A end" value={aEnd} onValueChange={setAEnd} />
-            <DateField label="Period B start" value={bStart} onValueChange={setBStart} />
-            <DateField label="Period B end" value={bEnd} onValueChange={setBEnd} />
+            <DateField
+              label={t('InsightComparisonScreen.periodAStart')}
+              value={aStart}
+              onValueChange={setAStart}
+            />
+            <DateField
+              label={t('InsightComparisonScreen.periodAEnd')}
+              value={aEnd}
+              onValueChange={setAEnd}
+            />
+            <DateField
+              label={t('InsightComparisonScreen.periodBStart')}
+              value={bStart}
+              onValueChange={setBStart}
+            />
+            <DateField
+              label={t('InsightComparisonScreen.periodBEnd')}
+              value={bEnd}
+              onValueChange={setBEnd}
+            />
 
-            <Button type="submit">Compare</Button>
+            <Button type="submit">{t('InsightComparisonScreen.compare')}</Button>
           </form>
 
           {comparison.isPending ? (
-            <LoadingRegion label="Loading the comparison." className="tm-stack tm-stack--tight">
+            <LoadingRegion
+              label={t('InsightComparisonScreen.loading')}
+              className="tm-stack tm-stack--tight"
+            >
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {comparison.isError ? (
-            <InlineAlert tone="danger" title="Could not load the comparison" live>
+            <InlineAlert tone="danger" title={t('InsightComparisonScreen.loadErrorTitle')} live>
               {describe(comparison.error)}
             </InlineAlert>
           ) : null}
 
-          {comparison.isSuccess ? <ComparisonCards comparison={comparison.data} /> : null}
+          {comparison.isSuccess ? <ComparisonCards comparison={comparison.data} t={t} /> : null}
         </section>
       </div>
     </AppShell>
   );
 }
 
-function ComparisonCards({ comparison }: { comparison: PeriodComparisonView }) {
+function ComparisonCards({ comparison, t }: { comparison: PeriodComparisonView; t: Translate }) {
   const { a, b, delta, pct } = comparison;
   return (
     <div className="tm-stack tm-stack--tight" aria-live="polite">
       <dl className="tm-row">
-        <Metric label={`Period A (${windowCaption(a.start, a.end)})`} value={a.value} />
-        <Metric label={`Period B (${windowCaption(b.start, b.end)})`} value={b.value} />
-        <Metric label="Change" value={formatDelta(delta)} />
-        <Metric label="Percent change" value={pct === null ? 'n/a' : formatPercent(pct)} />
+        <Metric
+          label={`${t('InsightComparisonScreen.periodA')} (${windowCaption(a.start, a.end, t)})`}
+          value={a.value}
+        />
+        <Metric
+          label={`${t('InsightComparisonScreen.periodB')} (${windowCaption(b.start, b.end, t)})`}
+          value={b.value}
+        />
+        <Metric label={t('InsightComparisonScreen.change')} value={formatDelta(delta)} />
+        <Metric
+          label={t('InsightComparisonScreen.percentChange')}
+          value={pct === null ? t('InsightComparisonScreen.na') : formatPercent(pct)}
+        />
       </dl>
-      <p className="tm-prose tm-mono">Computed {formatMoment(comparison.computedAt)}.</p>
+      <p className="tm-prose tm-mono">{`${t('InsightComparisonScreen.computed')} ${formatMoment(comparison.computedAt)}.`}</p>
     </div>
   );
 }
@@ -198,8 +231,8 @@ function formatPercent(fraction: number): string {
 }
 
 /** A short label for a window, from two ISO instants. */
-function windowCaption(startIso: string, endIso: string): string {
-  return `${startIso.slice(0, 10)} to ${endIso.slice(0, 10)}`;
+function windowCaption(startIso: string, endIso: string, t: Translate): string {
+  return `${startIso.slice(0, 10)} ${t('InsightComparisonScreen.to')} ${endIso.slice(0, 10)}`;
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */

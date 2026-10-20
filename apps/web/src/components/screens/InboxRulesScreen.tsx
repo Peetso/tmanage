@@ -20,6 +20,8 @@ import type {
 } from '../../lib/api/inbox-rules';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface InboxRulesScreenProps {
   organizationSlug: string;
@@ -27,19 +29,19 @@ export interface InboxRulesScreenProps {
   client?: ApiClient;
 }
 
-/** Human labels for the two match fields, keyed by the value the API validates against. */
-const MATCH_TYPE_LABELS: Record<InboxRuleMatchType, string> = {
-  type: 'Notification type',
-  object_type: 'About',
+/** Message keys for the two match fields, keyed by the value the API validates against. */
+const MATCH_TYPE_LABEL_KEYS: Record<InboxRuleMatchType, MessageKey> = {
+  type: 'InboxRulesScreen.matchTypeNotification',
+  object_type: 'InboxRulesScreen.matchTypeAbout',
 };
 
-/** Human labels for the category a rule applies, keyed by the value the API validates against. */
-const CATEGORY_LABELS: Record<InboxRuleCategory, string> = {
-  urgent: 'Urgent',
-  follow_up: 'Follow up',
-  waiting: 'Waiting',
-  fyi: 'FYI',
-  archive: 'Archive',
+/** Message keys for the category a rule applies, keyed by the value the API validates against. */
+const CATEGORY_LABEL_KEYS: Record<InboxRuleCategory, MessageKey> = {
+  urgent: 'InboxRulesScreen.categoryUrgent',
+  follow_up: 'InboxRulesScreen.categoryFollowUp',
+  waiting: 'InboxRulesScreen.categoryWaiting',
+  fyi: 'InboxRulesScreen.categoryFyi',
+  archive: 'InboxRulesScreen.categoryArchive',
 };
 
 /**
@@ -57,6 +59,7 @@ export function InboxRulesScreen({
   organizationName,
   client,
 }: InboxRulesScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['inbox-rules', organizationSlug];
@@ -98,16 +101,16 @@ export function InboxRulesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="inbox"
-      eyebrow="Inbox"
-      title="Inbox rules"
-      description="Route your notifications to a category — saved to your account."
+      eyebrow={t('InboxRulesScreen.eyebrow')}
+      title={t('InboxRulesScreen.title')}
+      description={t('InboxRulesScreen.description')}
     >
       {rules.isPending ? (
-        <LoadingRegion label="Loading your inbox rules">
+        <LoadingRegion label={t('InboxRulesScreen.loading')}>
           <Skeleton height="160px" />
         </LoadingRegion>
       ) : rules.isError ? (
-        <InlineAlert tone="danger" title="We could not load your inbox rules">
+        <InlineAlert tone="danger" title={t('InboxRulesScreen.loadErrorTitle')}>
           {errorMessage(rules.error)}
         </InlineAlert>
       ) : (
@@ -120,15 +123,15 @@ export function InboxRulesScreen({
               if (canAdd) add.mutate();
             }}
           >
-            <p className="tm-inbox-eyebrow">New rule</p>
+            <p className="tm-inbox-eyebrow">{t('InboxRulesScreen.newRuleEyebrow')}</p>
             <h2 id="tm-inbox-rules-add-heading" className="tm-card__title">
-              Add a rule
+              {t('InboxRulesScreen.addHeading')}
             </h2>
 
             <div className="tm-inbox-rules__sentence">
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-inbox-rule-match-type">
-                  When the
+                  {t('InboxRulesScreen.whenThe')}
                 </label>
                 <select
                   id="tm-inbox-rule-match-type"
@@ -138,7 +141,7 @@ export function InboxRulesScreen({
                 >
                   {INBOX_RULE_MATCH_TYPES.map((value) => (
                     <option key={value} value={value}>
-                      {MATCH_TYPE_LABELS[value]}
+                      {t(MATCH_TYPE_LABEL_KEYS[value])}
                     </option>
                   ))}
                 </select>
@@ -146,7 +149,7 @@ export function InboxRulesScreen({
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-inbox-rule-match-value">
-                  matches
+                  {t('InboxRulesScreen.matches')}
                 </label>
                 <input
                   id="tm-inbox-rule-match-value"
@@ -160,7 +163,7 @@ export function InboxRulesScreen({
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-inbox-rule-category">
-                  label it
+                  {t('InboxRulesScreen.labelIt')}
                 </label>
                 <select
                   id="tm-inbox-rule-category"
@@ -170,7 +173,7 @@ export function InboxRulesScreen({
                 >
                   {INBOX_RULE_CATEGORIES.map((value) => (
                     <option key={value} value={value}>
-                      {CATEGORY_LABELS[value]}
+                      {t(CATEGORY_LABEL_KEYS[value])}
                     </option>
                   ))}
                 </select>
@@ -178,14 +181,14 @@ export function InboxRulesScreen({
             </div>
 
             {add.isError ? (
-              <InlineAlert tone="danger" title="We could not add the rule">
+              <InlineAlert tone="danger" title={t('InboxRulesScreen.addErrorTitle')}>
                 {errorMessage(add.error)}
               </InlineAlert>
             ) : null}
 
             <div>
               <Button type="submit" disabled={!canAdd}>
-                {add.isPending ? 'Adding…' : 'Add rule'}
+                {add.isPending ? t('InboxRulesScreen.adding') : t('InboxRulesScreen.addButton')}
               </Button>
             </div>
           </form>
@@ -193,10 +196,14 @@ export function InboxRulesScreen({
           <section className="tm-card" aria-labelledby="tm-inbox-rules-list-heading">
             <div className="tm-section-head">
               <h2 id="tm-inbox-rules-list-heading" className="tm-card__title">
-                Your rules
+                {t('InboxRulesScreen.listHeading')}
               </h2>
               <span className="tm-section-head__meta">
-                {rules.data.length === 1 ? '1 rule' : `${rules.data.length} rules`}
+                {`${rules.data.length} ${
+                  rules.data.length === 1
+                    ? t('InboxRulesScreen.ruleWord')
+                    : t('InboxRulesScreen.rulesWord')
+                }`}
               </span>
             </div>
             {rules.data.length === 0 ? (
@@ -204,27 +211,27 @@ export function InboxRulesScreen({
                 <span className="tm-inbox-orb tm-inbox-orb--quiet" aria-hidden="true">
                   ✓
                 </span>
-                <p className="tm-inbox-caught-up__text">You have no inbox rules yet.</p>
+                <p className="tm-inbox-caught-up__text">{t('InboxRulesScreen.empty')}</p>
               </div>
             ) : (
-              <ul className="tm-inbox-rule-list" aria-label="Inbox rules">
+              <ul className="tm-inbox-rule-list" aria-label={t('InboxRulesScreen.listLabel')}>
                 {rules.data.map((rule, index) => (
                   <li className="tm-inbox-rule" key={rule.id}>
                     <span className="tm-inbox-rule__index" aria-hidden="true">
                       {String(index + 1).padStart(2, '0')}
                     </span>
                     <span className="tm-inbox-rule__text">
-                      {MATCH_TYPE_LABELS[rule.matchType]} “{rule.matchValue}” →{' '}
-                      {CATEGORY_LABELS[rule.category]}
+                      {t(MATCH_TYPE_LABEL_KEYS[rule.matchType])} “{rule.matchValue}” →{' '}
+                      {t(CATEGORY_LABEL_KEYS[rule.category])}
                     </span>
                     <Button
                       type="button"
                       tone="outline"
                       disabled={remove.isPending}
-                      aria-label={`Remove rule for ${rule.matchValue}`}
+                      aria-label={`${t('InboxRulesScreen.removeRulePrefix')} ${rule.matchValue}`}
                       onClick={() => remove.mutate(rule.id)}
                     >
-                      Remove
+                      {t('InboxRulesScreen.remove')}
                     </Button>
                   </li>
                 ))}
@@ -232,7 +239,7 @@ export function InboxRulesScreen({
             )}
 
             {remove.isError ? (
-              <InlineAlert tone="danger" title="We could not remove the rule">
+              <InlineAlert tone="danger" title={t('InboxRulesScreen.removeErrorTitle')}>
                 {errorMessage(remove.error)}
               </InlineAlert>
             ) : null}

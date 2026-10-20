@@ -9,6 +9,8 @@ import { getRecentItems } from '../../lib/api/home';
 import type { RecentItemObjectType } from '../../lib/api/home';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface HomeRecentItemsViewProps {
   organizationSlug: string;
@@ -28,6 +30,7 @@ export interface HomeRecentItemsViewProps {
  * way the sibling sections are.
  */
 export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItemsViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const recents = useQuery({
@@ -41,33 +44,32 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
     <section className="tm-home-saved" aria-labelledby="tm-my-day-recents">
       <div className="tm-home-saved__head">
         <h2 id="tm-my-day-recents" className="tm-home-saved__heading">
-          Recently viewed
+          {t('HomeRecentItemsView.heading')}
         </h2>
         {items.length > 0 ? <span className="tm-home-saved__count">{items.length}</span> : null}
       </div>
 
       {recents.isError ? (
-        <InlineAlert tone="danger" title="Could not load your recently-viewed items" live>
+        <InlineAlert tone="danger" title={t('HomeRecentItemsView.loadErrorTitle')} live>
           {describeRecentsError(recents.error)}
         </InlineAlert>
       ) : null}
 
       {recents.isPending ? (
-        <LoadingRegion label="Loading your recently-viewed items.">
+        <LoadingRegion label={t('HomeRecentItemsView.loading')}>
           <Skeleton height="52px" radius="var(--r-control)" />
         </LoadingRegion>
       ) : null}
 
       {!recents.isPending && !recents.isError && items.length === 0 ? (
         <p className="tm-home-saved__empty">
-          <strong>Nothing viewed yet</strong>
-          Work, projects, documents and meetings you open are kept here, newest first, so you can
-          return to them from any screen.
+          <strong>{t('HomeRecentItemsView.emptyTitle')}</strong>
+          {t('HomeRecentItemsView.emptyBody')}
         </p>
       ) : null}
 
       {items.length > 0 ? (
-        <ul className="tm-home-saved__list" aria-label="Recently viewed">
+        <ul className="tm-home-saved__list" aria-label={t('HomeRecentItemsView.listLabel')}>
           {items.map((item) => (
             <li key={item.id} className="tm-home-saved__item" data-kind={item.objectType}>
               <span className="tm-home-orb" aria-hidden="true">
@@ -77,18 +79,19 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
                 <span className="tm-home-saved__title">
                   {item.objectType === 'work' ? (
                     <Link href={`/${organizationSlug}/work/${item.objectId}`}>
-                      {recentTypeLabel(item.objectType)}
+                      {t(recentTypeLabelKey(item.objectType))}
                     </Link>
                   ) : item.objectType === 'project' ? (
                     <Link href={`/${organizationSlug}/projects/${item.objectId}`}>
-                      {recentTypeLabel(item.objectType)}
+                      {t(recentTypeLabelKey(item.objectType))}
                     </Link>
                   ) : (
-                    <span>{recentTypeLabel(item.objectType)}</span>
+                    <span>{t(recentTypeLabelKey(item.objectType))}</span>
                   )}
                 </span>
                 <span className="tm-home-saved__meta">
-                  {item.objectType} · viewed {shortDay(item.viewedAt)}
+                  {item.objectType} · {t('HomeRecentItemsView.viewedPrefix')}{' '}
+                  {shortDay(item.viewedAt)}
                 </span>
               </span>
             </li>
@@ -120,17 +123,17 @@ function recentGlyph(objectType: RecentItemObjectType): string {
   }
 }
 
-/** The word each recent reference shows. The live title/preview is the deferred read fan-out. */
-function recentTypeLabel(objectType: RecentItemObjectType): string {
+/** The message key each recent reference shows. The live title/preview is the deferred read fan-out. */
+function recentTypeLabelKey(objectType: RecentItemObjectType): MessageKey {
   switch (objectType) {
     case 'work':
-      return 'Recently viewed work item';
+      return 'HomeRecentItemsView.workLabel';
     case 'project':
-      return 'Recently viewed project';
+      return 'HomeRecentItemsView.projectLabel';
     case 'document':
-      return 'Recently viewed document';
+      return 'HomeRecentItemsView.documentLabel';
     case 'meeting':
-      return 'Recently viewed meeting';
+      return 'HomeRecentItemsView.meetingLabel';
   }
 }
 

@@ -13,6 +13,8 @@ import {
 import type { HomeWidgetId, HomeWidgetPrefsView } from '../../lib/api/home-widget-prefs';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface HomeWidgetPrefsScreenProps {
   organizationSlug: string;
@@ -20,14 +22,14 @@ export interface HomeWidgetPrefsScreenProps {
   client?: ApiClient;
 }
 
-/** Human labels for the fixed Home widgets, keyed by the id the API validates against. */
-const WIDGET_LABELS: Record<HomeWidgetId, string> = {
-  myDay: 'My Day',
-  waiting: 'Waiting on others',
-  pulse: 'Pulse',
-  summary: 'Summary',
-  pins: 'Pinned items',
-  savedContext: 'Saved context',
+/** Message keys for the fixed Home widgets, keyed by the id the API validates against. */
+const WIDGET_LABEL_KEYS: Record<HomeWidgetId, MessageKey> = {
+  myDay: 'HomeWidgetPrefsScreen.widgetMyDay',
+  waiting: 'HomeWidgetPrefsScreen.widgetWaiting',
+  pulse: 'HomeWidgetPrefsScreen.widgetPulse',
+  summary: 'HomeWidgetPrefsScreen.widgetSummary',
+  pins: 'HomeWidgetPrefsScreen.widgetPins',
+  savedContext: 'HomeWidgetPrefsScreen.widgetSavedContext',
 };
 
 /**
@@ -61,6 +63,7 @@ export function HomeWidgetPrefsScreen({
   organizationName,
   client,
 }: HomeWidgetPrefsScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -113,15 +116,15 @@ export function HomeWidgetPrefsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Customise Home"
-      description="Reorder or hide the widgets on your Home — saved to your account."
+      title={t('HomeWidgetPrefsScreen.title')}
+      description={t('HomeWidgetPrefsScreen.description')}
     >
       {prefs.isPending ? (
-        <LoadingRegion label="Loading your Home layout">
+        <LoadingRegion label={t('HomeWidgetPrefsScreen.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : prefs.isError ? (
-        <InlineAlert tone="danger" title="We could not load your Home layout">
+        <InlineAlert tone="danger" title={t('HomeWidgetPrefsScreen.loadErrorTitle')}>
           {errorMessage(prefs.error)}
         </InlineAlert>
       ) : (
@@ -135,30 +138,30 @@ export function HomeWidgetPrefsScreen({
           }}
         >
           <h2 id="tm-widget-prefs-heading" className="tm-eyebrow">
-            Home widgets
+            {t('HomeWidgetPrefsScreen.widgetsHeading')}
           </h2>
 
-          <ul className="tm-stack" aria-label="Home widgets">
+          <ul className="tm-stack" aria-label={t('HomeWidgetPrefsScreen.widgetsListLabel')}>
             {order.map((id, index) => (
               <li className="tm-field tm-field--inline" key={id}>
-                <span className="tm-field__label">{WIDGET_LABELS[id]}</span>
+                <span className="tm-field__label">{t(WIDGET_LABEL_KEYS[id])}</span>
                 <Button
                   type="button"
                   tone="outline"
                   disabled={index === 0}
-                  aria-label={`Move ${WIDGET_LABELS[id]} up`}
+                  aria-label={`${t('HomeWidgetPrefsScreen.moveLabel')} ${t(WIDGET_LABEL_KEYS[id])} ${t('HomeWidgetPrefsScreen.upSuffix')}`}
                   onClick={() => move(index, -1)}
                 >
-                  Up
+                  {t('HomeWidgetPrefsScreen.up')}
                 </Button>
                 <Button
                   type="button"
                   tone="outline"
                   disabled={index === order.length - 1}
-                  aria-label={`Move ${WIDGET_LABELS[id]} down`}
+                  aria-label={`${t('HomeWidgetPrefsScreen.moveLabel')} ${t(WIDGET_LABEL_KEYS[id])} ${t('HomeWidgetPrefsScreen.downSuffix')}`}
                   onClick={() => move(index, 1)}
                 >
-                  Down
+                  {t('HomeWidgetPrefsScreen.down')}
                 </Button>
                 <input
                   id={`tm-widget-visible-${id}`}
@@ -168,27 +171,29 @@ export function HomeWidgetPrefsScreen({
                   onChange={(event) => toggleHidden(id, !event.target.checked)}
                 />
                 <label className="tm-field__label" htmlFor={`tm-widget-visible-${id}`}>
-                  Show
+                  {t('HomeWidgetPrefsScreen.show')}
                 </label>
               </li>
             ))}
           </ul>
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="We could not save your Home layout">
+            <InlineAlert tone="danger" title={t('HomeWidgetPrefsScreen.saveErrorTitle')}>
               {errorMessage(save.error)}
             </InlineAlert>
           ) : null}
 
           {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved">
-              Your Home layout has been saved.
+            <InlineAlert tone="success" title={t('HomeWidgetPrefsScreen.savedTitle')}>
+              {t('HomeWidgetPrefsScreen.savedBody')}
             </InlineAlert>
           ) : null}
 
           <div>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save layout'}
+              {save.isPending
+                ? t('HomeWidgetPrefsScreen.saving')
+                : t('HomeWidgetPrefsScreen.saveButton')}
             </Button>
           </div>
         </form>

@@ -13,6 +13,8 @@ import { DEFAULT_INBOX_PAGE, listInbox, markBundleRead } from '../../lib/api/inb
 import type { InboxBundle, InboxItem, InboxMode, InboxUsageNotice } from '../../lib/api/inbox';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import { triageStateCapsule, triageStateLabel } from '../../lib/triage-presentation';
 import '../../styles/screens/inbox.css';
@@ -55,6 +57,7 @@ export interface InboxScreenProps {
  * and then asks the list again rather than pretending it knows the outcome.
  */
 export function InboxScreen({ organizationSlug, organizationName, client }: InboxScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<InboxMode>('all');
@@ -92,7 +95,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
 
   const markReadProps = (item: InboxItem) => ({
     loading: markRead.isPending && markRead.variables === item.bundleId,
-    loadingLabel: 'Marking read',
+    loadingLabel: t('InboxScreen.markingRead'),
     onClick: () => markRead.mutate(item.bundleId),
   });
 
@@ -101,21 +104,25 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="inbox"
-      title="Inbox"
+      title={t('InboxScreen.title')}
       {...(unreadBundles > 0
-        ? { titleMeta: <span className="tm-inbox-badge">{`${unreadBundles} unread`}</span> }
+        ? {
+            titleMeta: (
+              <span className="tm-inbox-badge">{`${unreadBundles} ${t('InboxScreen.unread')}`}</span>
+            ),
+          }
         : {})}
     >
       <div className="tm-inbox">
         <div className="tm-inbox__alerts">
           {inbox.isError ? (
-            <InlineAlert tone="danger" title="Could not load the inbox" live>
+            <InlineAlert tone="danger" title={t('InboxScreen.loadErrorTitle')} live>
               {describe(inbox.error)}
             </InlineAlert>
           ) : null}
 
           {markRead.isError ? (
-            <InlineAlert tone="danger" title="Could not mark that read" live>
+            <InlineAlert tone="danger" title={t('InboxScreen.markErrorTitle')} live>
               {describe(markRead.error)}
             </InlineAlert>
           ) : null}
@@ -124,14 +131,18 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
         <div className="tm-inbox__list">
           <section aria-labelledby="tm-inbox-modes">
             <h2 id="tm-inbox-modes" className="tm-visually-hidden">
-              Show
+              {t('InboxScreen.showHeading')}
             </h2>
-            <div className="tm-chip-row tm-inbox-modes" role="group" aria-label="Inbox mode">
+            <div
+              className="tm-chip-row tm-inbox-modes"
+              role="group"
+              aria-label={t('InboxScreen.modeGroupLabel')}
+            >
               {MODES.map((candidate) => (
                 <ModeButton
                   key={candidate.id}
                   id={candidate.id}
-                  label={candidate.label}
+                  label={t(candidate.labelKey)}
                   active={mode === candidate.id}
                   onSelect={selectMode}
                 />
@@ -140,7 +151,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
           </section>
 
           {inbox.isPending ? (
-            <LoadingRegion label="Loading the inbox.">
+            <LoadingRegion label={t('InboxScreen.loading')}>
               <Skeleton height="160px" />
               <Skeleton height="140px" />
             </LoadingRegion>
@@ -157,24 +168,24 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                 ✓
               </span>
               <div className="tm-inbox-caught-up__text">
-                <p className="tm-inbox-caught-up__title">{EMPTY_TITLES[mode]}</p>
-                <p>{EMPTY_BODIES[mode]}</p>
+                <p className="tm-inbox-caught-up__title">{t(EMPTY_TITLE_KEYS[mode])}</p>
+                <p>{t(EMPTY_BODY_KEYS[mode])}</p>
               </div>
             </div>
           ) : null}
 
           {!inbox.isPending && !inbox.isError && bundles.length === 0 && inbox.hasNextPage ? (
-            <p className="tm-inbox-pagenote">
-              Nothing you can still see on this page. There are older pages.
-            </p>
+            <p className="tm-inbox-pagenote">{t('InboxScreen.pagenote')}</p>
           ) : null}
 
           {bundles.length > 0 ? (
-            <ul className="tm-inbox-cards" aria-label="Notification bundles">
+            <ul className="tm-inbox-cards" aria-label={t('InboxScreen.bundlesLabel')}>
               {bundles.map((item) => {
                 const isSelected = item.bundleId === selected?.bundleId;
                 const name =
-                  item.objectType === 'organization_usage' ? 'Storage usage' : item.title;
+                  item.objectType === 'organization_usage'
+                    ? t('InboxScreen.storageUsage')
+                    : item.title;
                 return (
                   <li key={item.bundleId}>
                     <article
@@ -188,8 +199,8 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                         </span>
                         <span className="tm-inbox-card__who">
                           {item.objectType === 'organization_usage'
-                            ? 'Storage usage'
-                            : describeWhy(item)}
+                            ? t('InboxScreen.storageUsage')
+                            : describeWhy(item, t)}
                         </span>
                         <time
                           className="tm-inbox-card__when"
@@ -205,7 +216,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                         id={`tm-inbox-card-${cssId(item.bundleId)}`}
                       >
                         {item.objectType === 'organization_usage' ? (
-                          describeUsage(item)
+                          describeUsage(item, t)
                         ) : (
                           <Link href={hrefOf(organizationSlug, item)}>{item.title}</Link>
                         )}
@@ -213,10 +224,15 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
 
                       <p className="tm-inbox-card__body">
                         <span>
-                          {item.count} {item.count === 1 ? 'update' : 'updates'}
+                          {item.count}{' '}
+                          {item.count === 1
+                            ? t('InboxScreen.updateWord')
+                            : t('InboxScreen.updatesWord')}
                         </span>
                         {item.unreadCount > 0 ? (
-                          <span className="tm-inbox-card__unread">{item.unreadCount} unread</span>
+                          <span className="tm-inbox-card__unread">
+                            {item.unreadCount} {t('InboxScreen.unread')}
+                          </span>
                         ) : null}
                       </p>
 
@@ -230,13 +246,13 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                         <div className="tm-inbox-track">
                           {item.types.map((type) => (
                             <span key={type} className="tm-inbox-track__step">
-                              {WHY[type] ?? type}
+                              {whyText(type, t)}
                             </span>
                           ))}
                           <span className="tm-inbox-track__arrow" aria-hidden="true">
                             →
                           </span>
-                          <StateCapsule state={capsuleOf(item)}>{labelOf(item)}</StateCapsule>
+                          <StateCapsule state={capsuleOf(item)}>{labelOf(item, t)}</StateCapsule>
                         </div>
                       )}
 
@@ -245,9 +261,9 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                           <Link
                             href={hrefOf(organizationSlug, item)}
                             className="tm-button tm-button--ink tm-button--compact"
-                            aria-label={`Open: ${item.title}`}
+                            aria-label={`${t('InboxScreen.openAriaPrefix')} ${item.title}`}
                           >
-                            Open
+                            {t('InboxScreen.openLink')}
                           </Link>
                         )}
                         {/* The same inline action on every row: a usage notice has no object to
@@ -258,20 +274,20 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                           <Button
                             tone="outline"
                             size="compact"
-                            aria-label={`Mark read: ${name}`}
+                            aria-label={`${t('InboxScreen.markReadAriaPrefix')} ${name}`}
                             {...markReadProps(item)}
                           >
-                            Mark read
+                            {t('InboxScreen.markRead')}
                           </Button>
                         ) : null}
                         <button
                           type="button"
                           className="tm-inbox-textlink"
                           aria-pressed={isSelected}
-                          aria-label={`Details: ${name}`}
+                          aria-label={`${t('InboxScreen.detailsAriaPrefix')} ${name}`}
                           onClick={() => setSelectedId(item.bundleId)}
                         >
-                          Details
+                          {t('InboxScreen.details')}
                         </button>
                       </div>
                     </article>
@@ -288,18 +304,18 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
               </span>
               <div className="tm-inbox-caught-up__text">
                 {mode === 'all' ? (
-                  <p>You’re caught up. That is everything on work you are part of.</p>
+                  <p>{t('InboxScreen.caughtUpAll')}</p>
                 ) : (
                   <p>
-                    Then you’re caught up. Everything else is grouped in{' '}
+                    {t('InboxScreen.caughtUpOtherPrefix')}{' '}
                     <button
                       type="button"
                       className="tm-inbox-textlink"
                       onClick={() => selectMode('all')}
                     >
-                      all events
+                      {t('InboxScreen.allEventsLink')}
                     </button>
-                    .
+                    {t('InboxScreen.caughtUpOtherSuffix')}
                   </p>
                 )}
               </div>
@@ -312,10 +328,10 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
                 tone="outline"
                 size="compact"
                 loading={inbox.isFetchingNextPage}
-                loadingLabel="Loading more"
+                loadingLabel={t('InboxScreen.loadingMore')}
                 onClick={() => void inbox.fetchNextPage()}
               >
-                Load more
+                {t('InboxScreen.loadMore')}
               </Button>
             </div>
           ) : null}
@@ -339,7 +355,7 @@ export function InboxScreen({ organizationSlug, organizationName, client }: Inbo
       <Announce
         message={
           (inbox.data?.pages.length ?? 0) > 1 && !inbox.isFetchingNextPage
-            ? `${bundles.length} ${bundles.length === 1 ? 'notification' : 'notifications'} loaded in total.`
+            ? `${bundles.length} ${bundles.length === 1 ? t('InboxScreen.notification') : t('InboxScreen.notifications')} ${t('InboxScreen.loadedInTotal')}`
             : ''
         }
       />
@@ -360,8 +376,9 @@ interface BundleDetailProps {
  * endpoint for a bundle's history, its client projection or its consequence yet.
  */
 function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailProps) {
+  const t = useT();
   const ago = now ? shortAgo(item.latestAt, now) : '';
-  const updates = `${item.count} ${item.count === 1 ? 'update' : 'updates'}`;
+  const updates = `${item.count} ${item.count === 1 ? t('InboxScreen.updateWord') : t('InboxScreen.updatesWord')}`;
 
   if (item.objectType === 'organization_usage') {
     const held = item.used + item.reserved;
@@ -369,34 +386,34 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
       <section className="tm-inbox-detail" aria-labelledby="tm-inbox-detail-title">
         <div className="tm-inbox-detail__head">
           <div className="tm-inbox-detail__titles">
-            <p className="tm-inbox-eyebrow">Bundle · Storage usage</p>
+            <p className="tm-inbox-eyebrow">{`${t('InboxScreen.bundleWord')} · ${t('InboxScreen.storageUsage')}`}</p>
             <h2 className="tm-inbox-detail__title" id="tm-inbox-detail-title">
-              {`Storage has reached ${item.band}% of the quota`}
+              {`${t('InboxScreen.storageReachedPrefix')} ${item.band}% ${t('InboxScreen.storageReachedSuffix')}`}
             </h2>
           </div>
         </div>
         <div className="tm-inbox-detail__grid">
           <div className="tm-inbox-detail__main">
             <div className="tm-inbox-detail__card">
-              <h3 className="tm-inbox-detail__card-title">Where it stands</h3>
+              <h3 className="tm-inbox-detail__card-title">{t('InboxScreen.whereItStands')}</h3>
               <p className="tm-inbox-detail__mono">
-                {`${formatBytes(held)} held of a ${formatBytes(item.quota)} quota · ${formatBytes(item.reserved)} reserved by uploads in progress`}
+                {`${formatBytes(held)} ${t('InboxScreen.heldOfA')} ${formatBytes(item.quota)} ${t('InboxScreen.quotaMid')} ${formatBytes(item.reserved)} ${t('InboxScreen.reservedByUploads')}`}
               </p>
             </div>
             {item.unreadCount > 0 ? (
               <div className="tm-inbox-detail__actions">
                 <Button tone="outline" {...markRead}>
-                  Mark read
+                  {t('InboxScreen.markRead')}
                 </Button>
               </div>
             ) : null}
           </div>
           <div className="tm-inbox-detail__aside">
             <div className="tm-inbox-ink">
-              <p className="tm-inbox-eyebrow">Storage band</p>
+              <p className="tm-inbox-eyebrow">{t('InboxScreen.storageBand')}</p>
               <div className="tm-inbox-ink__figure">
                 <span className="tm-inbox-ink__value">{`${item.band}%`}</span>
-                <p className="tm-inbox-ink__muted">of the quota in use</p>
+                <p className="tm-inbox-ink__muted">{t('InboxScreen.ofQuotaInUse')}</p>
               </div>
             </div>
           </div>
@@ -405,14 +422,14 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
     );
   }
 
-  const kind = KIND_OF[item.objectType];
+  const kind = kindText(item.objectType, t);
   const href = hrefOf(organizationSlug, item);
   return (
     <section className="tm-inbox-detail" aria-labelledby="tm-inbox-detail-title">
       <div className="tm-inbox-detail__head">
         <div className="tm-inbox-detail__titles">
           <p className="tm-inbox-eyebrow">
-            {`Bundle · ${kind} · ${item.types.map((type) => WHY[type] ?? type).join(', ')}`}
+            {`${t('InboxScreen.bundleWord')} · ${kind} · ${item.types.map((type) => whyText(type, t)).join(', ')}`}
           </p>
           <h2 className="tm-inbox-detail__title" id="tm-inbox-detail-title">
             {item.title}
@@ -422,7 +439,7 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
           <Link
             href={href}
             className="tm-inbox-detail__tool"
-            aria-label={`Go to the ${kind.toLowerCase()}`}
+            aria-label={`${t('InboxScreen.goToThe')} ${kind.toLowerCase()}`}
           >
             ⇱
           </Link>
@@ -432,11 +449,11 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
       <div className="tm-inbox-detail__track">
         {item.types.map((type) => (
           <span key={type} className="tm-inbox-detail__step">
-            {WHY[type] ?? type}
+            {whyText(type, t)}
           </span>
         ))}
         <div className="tm-inbox-detail__now">
-          <strong>{labelOf(item)}</strong>
+          <strong>{labelOf(item, t)}</strong>
           <span>{ago ? `${ago} · ${updates}` : updates}</span>
         </div>
       </div>
@@ -444,19 +461,19 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
       <div className="tm-inbox-detail__grid">
         <div className="tm-inbox-detail__main">
           <div className="tm-inbox-detail__card">
-            <h3 className="tm-inbox-detail__card-title">What happened</h3>
+            <h3 className="tm-inbox-detail__card-title">{t('InboxScreen.whatHappened')}</h3>
             <ul className="tm-inbox-detail__inset">
               {item.types.map((type) => (
                 <li key={type} className="tm-inbox-detail__event">
                   <span className={orbClass(item)} aria-hidden="true">
                     {glyphOf(item)}
                   </span>
-                  {WHY[type] ?? type}
+                  {whyText(type, t)}
                 </li>
               ))}
               <li>
                 <p className="tm-inbox-detail__mono">
-                  {`${updates} · latest ${formatInstant(item.latestAt)}`}
+                  {`${updates} · ${t('InboxScreen.latest')} ${formatInstant(item.latestAt)}`}
                 </p>
               </li>
             </ul>
@@ -465,18 +482,18 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
                 <span className="tm-inbox-orb" aria-hidden="true">
                   ◎
                 </span>
-                From a client. Triage decides scope, owner and committed date.
+                {t('InboxScreen.fromClientNote')}
               </p>
             ) : null}
           </div>
 
           <div className="tm-inbox-detail__actions">
             <Link href={href} className="tm-button tm-button--ink">
-              {`Open ${OPEN_NOUN[item.objectType]}`}
+              {`${t('InboxScreen.openWord')} ${openNounText(item.objectType, t)}`}
             </Link>
             {item.unreadCount > 0 ? (
               <Button tone="outline" {...markRead}>
-                Mark read
+                {t('InboxScreen.markRead')}
               </Button>
             ) : null}
           </div>
@@ -484,28 +501,30 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
 
         <div className="tm-inbox-detail__aside">
           <div className="tm-inbox-ink">
-            <p className="tm-inbox-eyebrow">Still unread</p>
+            <p className="tm-inbox-eyebrow">{t('InboxScreen.stillUnread')}</p>
             <div className="tm-inbox-ink__figure">
               <span className="tm-inbox-ink__value">{item.unreadCount}</span>
-              <p className="tm-inbox-ink__muted">{`of ${updates}`}</p>
+              <p className="tm-inbox-ink__muted">{`${t('InboxScreen.ofWord')} ${updates}`}</p>
             </div>
             <span className="tm-inbox-ink__rule" aria-hidden="true" />
-            <p className="tm-inbox-eyebrow">Events</p>
+            <p className="tm-inbox-eyebrow">{t('InboxScreen.events')}</p>
             <ul className="tm-inbox-ink__list">
               {item.types.map((type) => (
                 <li key={type} className="tm-inbox-ink__item">
                   <span className="tm-inbox-ink__glyph" aria-hidden="true">
                     {glyphOf(item)}
                   </span>
-                  {WHY[type] ?? type}
+                  {whyText(type, t)}
                 </li>
               ))}
             </ul>
           </div>
           <div className="tm-inbox-why">
-            <p className="tm-inbox-eyebrow">Why this reached you</p>
-            <p>{reasonOf(item)}</p>
-            <Link href={`/${organizationSlug}/inbox/rules`}>Tune what reaches me</Link>
+            <p className="tm-inbox-eyebrow">{t('InboxScreen.whyReachedYou')}</p>
+            <p>{reasonOf(item, t)}</p>
+            <Link href={`/${organizationSlug}/inbox/rules`}>
+              {t('InboxScreen.tuneWhatReaches')}
+            </Link>
           </div>
         </div>
       </div>
@@ -513,66 +532,82 @@ function BundleDetail({ item, organizationSlug, now, markRead }: BundleDetailPro
   );
 }
 
-const MODES: readonly { readonly id: InboxMode; readonly label: string }[] = [
-  { id: 'important', label: 'Important' },
-  { id: 'all', label: 'All' },
-  { id: 'waiting_on_me', label: 'Waiting on me' },
-  { id: 'client_actions', label: 'Client' },
+type Translate = (key: MessageKey) => string;
+
+const MODES: readonly { readonly id: InboxMode; readonly labelKey: MessageKey }[] = [
+  { id: 'important', labelKey: 'InboxScreen.modeImportant' },
+  { id: 'all', labelKey: 'InboxScreen.modeAll' },
+  { id: 'waiting_on_me', labelKey: 'InboxScreen.modeWaitingOnMe' },
+  { id: 'client_actions', labelKey: 'InboxScreen.modeClient' },
 ];
 
-const EMPTY_TITLES: Record<InboxMode, string> = {
-  important: 'Nothing important is waiting',
-  all: 'Nothing has happened yet',
-  waiting_on_me: 'Nothing is unread',
-  client_actions: 'No client has acted recently',
+const EMPTY_TITLE_KEYS: Record<InboxMode, MessageKey> = {
+  important: 'InboxScreen.emptyTitleImportant',
+  all: 'InboxScreen.emptyTitleAll',
+  waiting_on_me: 'InboxScreen.emptyTitleWaiting',
+  client_actions: 'InboxScreen.emptyTitleClient',
 };
 
-const EMPTY_BODIES: Record<InboxMode, string> = {
-  important: 'Important means a blocker on work you own. There is none right now.',
-  all: 'Notifications arrive here when something happens to work you are part of, or when a client submits a request you can triage.',
-  waiting_on_me: 'Everything that reached you has been read.',
-  client_actions: 'A client submitting a request shows up here.',
+const EMPTY_BODY_KEYS: Record<InboxMode, MessageKey> = {
+  important: 'InboxScreen.emptyBodyImportant',
+  all: 'InboxScreen.emptyBodyAll',
+  waiting_on_me: 'InboxScreen.emptyBodyWaiting',
+  client_actions: 'InboxScreen.emptyBodyClient',
 };
 
 /** The event types this half of INBOX-001 knows, said in words. Unknown types are shown as is. */
-const WHY: Record<string, string> = {
-  'work_item.blocked.v1': 'Blocked',
-  'client_request.submitted.v1': 'Client submitted a request',
-  'client_request.transitioned.v1': 'Request answered',
-  'message.mentioned.v1': 'You were mentioned',
-  'document.mentioned.v1': 'You were mentioned in a comment',
-  'document.comment_created.v1': 'New comment',
-  'meeting.attendee_invited.v1': 'You were invited',
-  'project.member_added.v1': 'You were added',
-  'automation.notified.v1': 'An automation told you',
-  'automation.test_run.v1': 'Test run',
+const WHY_KEYS: Record<string, MessageKey> = {
+  'work_item.blocked.v1': 'InboxScreen.whyBlocked',
+  'client_request.submitted.v1': 'InboxScreen.whyClientSubmitted',
+  'client_request.transitioned.v1': 'InboxScreen.whyRequestAnswered',
+  'message.mentioned.v1': 'InboxScreen.whyMentioned',
+  'document.mentioned.v1': 'InboxScreen.whyMentionedComment',
+  'document.comment_created.v1': 'InboxScreen.whyNewComment',
+  'meeting.attendee_invited.v1': 'InboxScreen.whyInvited',
+  'project.member_added.v1': 'InboxScreen.whyAdded',
+  'automation.notified.v1': 'InboxScreen.whyAutomation',
+  'automation.test_run.v1': 'InboxScreen.whyTestRun',
 };
+
+/** An event type said in words, falling back to the raw type for one this build does not know. */
+function whyText(type: string, t: Translate): string {
+  const key = WHY_KEYS[type];
+  return key ? t(key) : type;
+}
 
 /** What each kind of bundle is called on screen. */
-const KIND_OF: Record<InboxBundle['objectType'], string> = {
-  work_item: 'Work item',
-  client_request: 'Client request',
-  conversation: 'Channel',
-  document: 'Document',
-  meeting: 'Meeting',
-  project: 'Project',
-  workflow_template: 'Automation',
+const KIND_KEYS: Record<InboxBundle['objectType'], MessageKey> = {
+  work_item: 'InboxScreen.kindWorkItem',
+  client_request: 'InboxScreen.kindClientRequest',
+  conversation: 'InboxScreen.kindConversation',
+  document: 'InboxScreen.kindDocument',
+  meeting: 'InboxScreen.kindMeeting',
+  project: 'InboxScreen.kindProject',
+  workflow_template: 'InboxScreen.kindWorkflowTemplate',
 };
+
+function kindText(objectType: InboxBundle['objectType'], t: Translate): string {
+  return t(KIND_KEYS[objectType]);
+}
 
 /** The noun after "Open" on the detail's button. */
-const OPEN_NOUN: Record<InboxBundle['objectType'], string> = {
-  work_item: 'work item',
-  client_request: 'request',
-  conversation: 'channel',
-  document: 'document',
-  meeting: 'meeting',
-  project: 'project',
-  workflow_template: 'automation',
+const OPEN_NOUN_KEYS: Record<InboxBundle['objectType'], MessageKey> = {
+  work_item: 'InboxScreen.openWorkItem',
+  client_request: 'InboxScreen.openClientRequest',
+  conversation: 'InboxScreen.openConversation',
+  document: 'InboxScreen.openDocument',
+  meeting: 'InboxScreen.openMeeting',
+  project: 'InboxScreen.openProject',
+  workflow_template: 'InboxScreen.openWorkflowTemplate',
 };
 
-function describeWhy(bundle: InboxBundle): string {
-  const words = bundle.types.map((type) => WHY[type] ?? type);
-  return `${KIND_OF[bundle.objectType]} · ${words.join(', ')}`;
+function openNounText(objectType: InboxBundle['objectType'], t: Translate): string {
+  return t(OPEN_NOUN_KEYS[objectType]);
+}
+
+function describeWhy(bundle: InboxBundle, t: Translate): string {
+  const words = bundle.types.map((type) => whyText(type, t));
+  return `${kindText(bundle.objectType, t)} · ${words.join(', ')}`;
 }
 
 /**
@@ -613,9 +648,9 @@ function mergeItem(seen: InboxItem, next: InboxItem): InboxItem {
 }
 
 /** "Storage at 85 % — 8.5 GB of 10 GB": the band, then used+reserved of quota (35 §1's copy). */
-function describeUsage(notice: InboxUsageNotice): string {
+function describeUsage(notice: InboxUsageNotice, t: Translate): string {
   const held = notice.used + notice.reserved;
-  return `Storage at ${notice.band}% — ${formatBytes(held)} of ${formatBytes(notice.quota)}`;
+  return `${t('InboxScreen.storageAt')} ${notice.band}% — ${formatBytes(held)} ${t('InboxScreen.ofWord')} ${formatBytes(notice.quota)}`;
 }
 
 /** A capsule state for a threshold band, within the palette the matrix draws. */
@@ -673,24 +708,25 @@ function capsuleOf(bundle: InboxBundle): CapsuleState {
   return 'neutral';
 }
 
-function labelOf(bundle: InboxBundle): string {
+function labelOf(bundle: InboxBundle, t: Translate): string {
   if (bundle.objectType === 'work_item' && isWorkItemState(bundle.state)) {
     return stateLabel(bundle.state);
   }
   if (bundle.objectType === 'client_request' && isClientRequestState(bundle.state)) {
     return triageStateLabel(bundle.state);
   }
-  return STATE_WORDS[bundle.state] ?? bundle.state;
+  const key = STATE_WORD_KEYS[bundle.state];
+  return key ? t(key) : bundle.state;
 }
 
 /** The state words the collaboration bundles carry, said plainly. */
-const STATE_WORDS: Record<string, string> = {
-  active: 'Open',
-  archived: 'Archived',
-  document: 'Document',
-  meeting: 'Meeting',
-  live: 'Live',
-  off: 'Off',
+const STATE_WORD_KEYS: Record<string, MessageKey> = {
+  active: 'InboxScreen.stateActive',
+  archived: 'InboxScreen.stateArchived',
+  document: 'InboxScreen.stateDocument',
+  meeting: 'InboxScreen.stateMeeting',
+  live: 'InboxScreen.stateLive',
+  off: 'InboxScreen.stateOff',
 };
 
 function isWorkItemState(value: string): value is WorkItemState {
@@ -775,39 +811,39 @@ function cssId(bundleId: string): string {
 }
 
 /** Why the bundle reached this person, from the event types it holds — nothing inferred. */
-function reasonOf(bundle: InboxBundle): string {
+function reasonOf(bundle: InboxBundle, t: Translate): string {
   const reasons: string[] = [];
   if (bundle.types.includes('work_item.blocked.v1')) {
-    reasons.push('It was marked blocked, and blockers on work you are part of always reach you.');
+    reasons.push(t('InboxScreen.reasonBlocked'));
   }
   if (bundle.types.includes('client_request.submitted.v1')) {
-    reasons.push('A client submitted it and you can triage requests.');
+    reasons.push(t('InboxScreen.reasonClientSubmitted'));
   }
   if (bundle.types.includes('client_request.transitioned.v1')) {
-    reasons.push('A request you follow was answered.');
+    reasons.push(t('InboxScreen.reasonRequestAnswered'));
   }
   if (
     bundle.types.includes('message.mentioned.v1') ||
     bundle.types.includes('document.mentioned.v1')
   ) {
-    reasons.push('Someone mentioned you.');
+    reasons.push(t('InboxScreen.reasonMentioned'));
   }
   if (bundle.types.includes('document.comment_created.v1')) {
-    reasons.push('Someone commented on a document you wrote.');
+    reasons.push(t('InboxScreen.reasonComment'));
   }
   if (bundle.types.includes('meeting.attendee_invited.v1')) {
-    reasons.push('You were invited to this meeting.');
+    reasons.push(t('InboxScreen.reasonInvited'));
   }
   if (bundle.types.includes('project.member_added.v1')) {
-    reasons.push('You were added to this project.');
+    reasons.push(t('InboxScreen.reasonAdded'));
   }
   if (bundle.types.includes('automation.notified.v1')) {
-    reasons.push('An automation rule notifies the owner of this.');
+    reasons.push(t('InboxScreen.reasonAutomation'));
   }
   if (bundle.types.includes('automation.test_run.v1')) {
-    reasons.push('You ran this automation rule to test it.');
+    reasons.push(t('InboxScreen.reasonTestRun'));
   }
-  if (reasons.length === 0) reasons.push('You are part of the work it is about.');
+  if (reasons.length === 0) reasons.push(t('InboxScreen.reasonDefault'));
   return reasons.join(' ');
 }
 

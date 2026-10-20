@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createFocusBlock, deleteFocusBlock, listFocusBlocks } from '../../lib/api/focus-blocks';
 import type { FocusBlockView } from '../../lib/api/focus-blocks';
@@ -45,6 +46,7 @@ export function FocusBlocksScreen({
   organizationName,
   client,
 }: FocusBlocksScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const window = useMemo(listWindow, []);
@@ -88,11 +90,11 @@ export function FocusBlocksScreen({
     event.preventDefault();
     setFormError(null);
     if (!startsAt || !endsAt || title.trim().length === 0) {
-      setFormError('A start, an end and a title are all required.');
+      setFormError(t('FocusBlocksScreen.allFieldsRequired'));
       return;
     }
     if (new Date(endsAt).getTime() <= new Date(startsAt).getTime()) {
-      setFormError('The end must be after the start.');
+      setFormError(t('FocusBlocksScreen.endAfterStart'));
       return;
     }
     create.mutate();
@@ -103,8 +105,8 @@ export function FocusBlocksScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Focus blocks"
-      eyebrow="Calendar · Protected time"
+      title={t('FocusBlocksScreen.title')}
+      eyebrow={t('FocusBlocksScreen.eyebrow')}
       actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="none" />}
     >
       <div className="tm-cal">
@@ -113,34 +115,36 @@ export function FocusBlocksScreen({
         <div className="tm-cal-body">
           <div className="tm-cal-main">
             {blocks.isPending ? (
-              <LoadingRegion label="Loading your focus blocks">
+              <LoadingRegion label={t('FocusBlocksScreen.loading')}>
                 <Skeleton />
               </LoadingRegion>
             ) : blocks.isError ? (
-              <InlineAlert tone="danger" title="We could not load your focus blocks">
+              <InlineAlert tone="danger" title={t('FocusBlocksScreen.loadErrorTitle')}>
                 {errorMessage(blocks.error)}
               </InlineAlert>
             ) : blocks.data.length === 0 ? (
-              <InlineAlert tone="neutral" title="No focus blocks">
-                You have no upcoming focus blocks. Create one beside the list.
+              <InlineAlert tone="neutral" title={t('FocusBlocksScreen.emptyTitle')}>
+                {t('FocusBlocksScreen.emptyBody')}
               </InlineAlert>
             ) : (
               <div className="tm-cal-sheet">
                 <table>
                   <caption className="tm-visually-hidden">
-                    Your focus blocks for the next 30 days, {blocks.data.length} shown.
+                    {`${t('FocusBlocksScreen.captionPrefix')} ${blocks.data.length} ${t('FocusBlocksScreen.captionSuffix')}`}
                   </caption>
                   <thead>
                     <tr>
-                      <th scope="col">Time</th>
-                      <th scope="col">What</th>
-                      <th scope="col">Kind</th>
+                      <th scope="col">{t('FocusBlocksScreen.colTime')}</th>
+                      <th scope="col">{t('FocusBlocksScreen.colWhat')}</th>
+                      <th scope="col">{t('FocusBlocksScreen.colKind')}</th>
                       <th scope="col">
-                        <span className="tm-visually-hidden">Actions</span>
+                        <span className="tm-visually-hidden">
+                          {t('FocusBlocksScreen.colActions')}
+                        </span>
                       </th>
                     </tr>
                   </thead>
-                  <tbody aria-label="Upcoming focus blocks">
+                  <tbody aria-label={t('FocusBlocksScreen.tableLabel')}>
                     {blocks.data.map((block) => (
                       <tr key={block.id}>
                         <td className="tm-cal-sheet__time">
@@ -153,7 +157,7 @@ export function FocusBlocksScreen({
                           </span>
                         </th>
                         <td className="tm-cal-sheet__kind">
-                          Focus · {durationMinutes(block.startsAt, block.endsAt)} min
+                          {`${t('FocusBlocksScreen.kindPrefix')} ${durationMinutes(block.startsAt, block.endsAt)} ${t('FocusBlocksScreen.minUnit')}`}
                         </td>
                         <td className="tm-cal-sheet__end">
                           <Button
@@ -163,7 +167,7 @@ export function FocusBlocksScreen({
                             disabled={remove.isPending}
                             onClick={() => remove.mutate(block.id)}
                           >
-                            Remove
+                            {t('FocusBlocksScreen.remove')}
                           </Button>
                         </td>
                       </tr>
@@ -174,7 +178,7 @@ export function FocusBlocksScreen({
             )}
 
             {remove.isError ? (
-              <InlineAlert tone="danger" title="We could not remove the focus block">
+              <InlineAlert tone="danger" title={t('FocusBlocksScreen.removeErrorTitle')}>
                 {errorMessage(remove.error)}
               </InlineAlert>
             ) : null}
@@ -183,20 +187,20 @@ export function FocusBlocksScreen({
           <div className="tm-cal-side">
             <form className="tm-cal-card" aria-labelledby="tm-focus-heading" onSubmit={submit}>
               <h2 id="tm-focus-heading" className="tm-cal-eyebrow">
-                New focus block
+                {t('FocusBlocksScreen.newHeading')}
               </h2>
-              <p className="tm-cal-card__title">Protect time on your calendar</p>
+              <p className="tm-cal-card__title">{t('FocusBlocksScreen.newSubtitle')}</p>
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-focus-title">
-                  Title
+                  {t('FocusBlocksScreen.titleLabel')}
                 </label>
                 <input
                   id="tm-focus-title"
                   className="tm-field__control"
                   type="text"
                   value={title}
-                  placeholder="e.g. Deep work"
+                  placeholder={t('FocusBlocksScreen.titlePlaceholder')}
                   maxLength={200}
                   onChange={(event) => setTitle(event.target.value)}
                 />
@@ -204,7 +208,7 @@ export function FocusBlocksScreen({
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-focus-start">
-                  Start
+                  {t('FocusBlocksScreen.startLabel')}
                 </label>
                 <input
                   id="tm-focus-start"
@@ -217,7 +221,7 @@ export function FocusBlocksScreen({
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-focus-end">
-                  End
+                  {t('FocusBlocksScreen.endLabel')}
                 </label>
                 <input
                   id="tm-focus-end"
@@ -229,19 +233,21 @@ export function FocusBlocksScreen({
               </div>
 
               {formError ? (
-                <InlineAlert tone="danger" title="Check the focus block">
+                <InlineAlert tone="danger" title={t('FocusBlocksScreen.checkTitle')}>
                   {formError}
                 </InlineAlert>
               ) : null}
 
               {create.isError ? (
-                <InlineAlert tone="danger" title="We could not create the focus block">
+                <InlineAlert tone="danger" title={t('FocusBlocksScreen.createErrorTitle')}>
                   {errorMessage(create.error)}
                 </InlineAlert>
               ) : null}
 
               <Button type="submit" disabled={create.isPending}>
-                {create.isPending ? 'Creating…' : 'Create focus block'}
+                {create.isPending
+                  ? t('FocusBlocksScreen.creating')
+                  : t('FocusBlocksScreen.createButton')}
               </Button>
             </form>
           </div>

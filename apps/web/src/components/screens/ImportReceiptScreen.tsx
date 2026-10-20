@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchImportReceipt } from '../../lib/api/imports';
 import type { ImportReceipt, ImportReceiptRow } from '../../lib/api/imports';
@@ -44,6 +45,7 @@ export function ImportReceiptScreen({
   jobId,
   client,
 }: ImportReceiptScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const receipt = useQuery({
@@ -55,17 +57,17 @@ export function ImportReceiptScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Import receipt"
+      title={t('ImportReceiptScreen.title')}
       titleVariant="display"
-      eyebrow="Import · receipt"
-      description="What happened to this import and to each row it committed."
+      eyebrow={t('ImportReceiptScreen.eyebrow')}
+      description={t('ImportReceiptScreen.description')}
     >
       <style href="tm-onboarding-import" precedence="default">
         {IMPORT_CSS}
       </style>
 
       {receipt.isPending ? (
-        <LoadingRegion label="Loading import receipt." className="tm-import">
+        <LoadingRegion label={t('ImportReceiptScreen.loading')} className="tm-import">
           <Skeleton height="48px" />
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
@@ -73,7 +75,7 @@ export function ImportReceiptScreen({
       ) : null}
 
       {receipt.isError ? (
-        <InlineAlert tone="danger" title="Could not load the import receipt" live>
+        <InlineAlert tone="danger" title={t('ImportReceiptScreen.loadErrorTitle')} live>
           {describe(receipt.error)}
         </InlineAlert>
       ) : null}
@@ -84,20 +86,30 @@ export function ImportReceiptScreen({
 }
 
 function ReceiptPanel({ receipt }: { receipt: ImportReceipt }) {
-  const statusText = receipt.status === 'committed' ? 'Committed' : 'Committed with errors';
+  const t = useT();
+  const statusText =
+    receipt.status === 'committed'
+      ? t('ImportReceiptScreen.statusCommitted')
+      : t('ImportReceiptScreen.statusCommittedErrors');
   const statusState = receipt.status === 'committed' ? 'done' : 'blocked';
   const total = receipt.committedCount + receipt.failedCount;
   const failures = groupFailures(receipt.rows);
 
   return (
     <div className="tm-import">
-      <ol className="tm-import__track" aria-label="Import steps">
-        <li className="tm-import__capsule tm-import__capsule--ink">Validate ✓</li>
-        <li className="tm-import__capsule tm-import__capsule--ink">Commit ✓</li>
+      <ol className="tm-import__track" aria-label={t('ImportReceiptScreen.stepsLabel')}>
+        <li className="tm-import__capsule tm-import__capsule--ink">
+          {t('ImportReceiptScreen.stepValidate')}
+        </li>
+        <li className="tm-import__capsule tm-import__capsule--ink">
+          {t('ImportReceiptScreen.stepCommit')}
+        </li>
         <li className="tm-import__capsule tm-import__capsule--lime" aria-current="step">
-          <span className="tm-import__capsule-key">Receipt</span>
+          <span className="tm-import__capsule-key">{t('ImportReceiptScreen.stepReceipt')}</span>
           <span className="tm-import__capsule-text">
-            {receipt.committedCount} of {total} {total === 1 ? 'record' : 'records'} committed
+            {receipt.committedCount} {t('ImportReceiptScreen.of')} {total}{' '}
+            {total === 1 ? t('ImportReceiptScreen.record') : t('ImportReceiptScreen.records')}{' '}
+            {t('ImportReceiptScreen.committed')}
           </span>
         </li>
       </ol>
@@ -105,35 +117,45 @@ function ReceiptPanel({ receipt }: { receipt: ImportReceipt }) {
       <div className="tm-import__grid">
         <section className="tm-import__card" aria-labelledby="tm-receipt-heading">
           <h2 id="tm-receipt-heading" className="tm-import__eyebrow">
-            This import
+            {t('ImportReceiptScreen.thisImport')}
           </h2>
 
           <dl className="tm-detail-list tm-import__summary">
             <div className="tm-detail-list__pair">
-              <dt>Status</dt>
+              <dt>{t('ImportReceiptScreen.statusLabel')}</dt>
               <dd>
                 <StateCapsule state={statusState}>{statusText}</StateCapsule>
               </dd>
             </div>
             <div className="tm-detail-list__pair">
-              <dt>Committed</dt>
+              <dt>{t('ImportReceiptScreen.committedLabel')}</dt>
               <dd className="tm-mono">{receipt.committedCount}</dd>
             </div>
             <div className="tm-detail-list__pair">
-              <dt>Failed</dt>
+              <dt>{t('ImportReceiptScreen.failedLabel')}</dt>
               <dd className="tm-mono">{receipt.failedCount}</dd>
             </div>
           </dl>
 
           <div className="tm-import__bars" aria-hidden="true">
-            <ProgressBar label="Committed" value={receipt.committedCount} total={total} />
-            <ProgressBar label="Failed" value={receipt.failedCount} total={total} tone="warning" />
+            <ProgressBar
+              label={t('ImportReceiptScreen.committedLabel')}
+              value={receipt.committedCount}
+              total={total}
+            />
+            <ProgressBar
+              label={t('ImportReceiptScreen.failedLabel')}
+              value={receipt.failedCount}
+              total={total}
+              tone="warning"
+            />
           </div>
 
           <hr className="tm-import__rule" />
           <p className="tm-import__note">
-            Every imported item is <strong>internal</strong> — nothing becomes client-visible by
-            import.
+            {t('ImportReceiptScreen.notePrefix')}{' '}
+            <strong>{t('ImportReceiptScreen.noteInternal')}</strong>{' '}
+            {t('ImportReceiptScreen.noteSuffix')}
           </p>
         </section>
 
@@ -147,18 +169,17 @@ function ReceiptPanel({ receipt }: { receipt: ImportReceipt }) {
                 !
               </span>
               <h2 id="tm-receipt-failures" className="tm-import__failure-title">
-                Partial failure · {receipt.failedCount}{' '}
-                {receipt.failedCount === 1 ? 'record' : 'records'}
+                {t('ImportReceiptScreen.partialFailure')} · {receipt.failedCount}{' '}
+                {receipt.failedCount === 1
+                  ? t('ImportReceiptScreen.record')
+                  : t('ImportReceiptScreen.records')}
               </h2>
             </div>
-            <p className="tm-import__note">
-              The rows that did commit stay committed. Each failed row is listed below with its
-              reason.
-            </p>
+            <p className="tm-import__note">{t('ImportReceiptScreen.failureNote')}</p>
             <ul className="tm-import__reasons">
               {failures.map((failure) => (
                 <li key={failure.reason}>
-                  {`${failure.count} ${failure.count === 1 ? 'row' : 'rows'} · ${failure.reason}`}
+                  {`${failure.count} ${failure.count === 1 ? t('ImportReceiptScreen.row') : t('ImportReceiptScreen.rows')} · ${failure.reason}`}
                 </li>
               ))}
             </ul>
@@ -168,7 +189,7 @@ function ReceiptPanel({ receipt }: { receipt: ImportReceipt }) {
 
       <section className="tm-import__card" aria-labelledby="tm-receipt-rows">
         <h2 id="tm-receipt-rows" className="tm-import__eyebrow">
-          Row by row
+          {t('ImportReceiptScreen.rowByRow')}
         </h2>
         <RowsTable rows={receipt.rows} />
       </section>
@@ -219,21 +240,20 @@ function groupFailures(rows: readonly ImportReceiptRow[]): { reason: string; cou
 }
 
 function RowsTable({ rows }: { rows: readonly ImportReceiptRow[] }) {
+  const t = useT();
   if (rows.length === 0) {
-    return <p className="tm-prose">This import committed no rows.</p>;
+    return <p className="tm-prose">{t('ImportReceiptScreen.noRows')}</p>;
   }
 
   return (
-    <div className="tm-table-scroll" role="region" aria-label="Imported rows">
+    <div className="tm-table-scroll" role="region" aria-label={t('ImportReceiptScreen.rowsLabel')}>
       <table className="tm-table">
-        <caption className="tm-visually-hidden">
-          Each source row and what the import did with it, in source order.
-        </caption>
+        <caption className="tm-visually-hidden">{t('ImportReceiptScreen.rowsCaption')}</caption>
         <thead>
           <tr>
-            <th scope="col">Row</th>
-            <th scope="col">Outcome</th>
-            <th scope="col">Result</th>
+            <th scope="col">{t('ImportReceiptScreen.colRow')}</th>
+            <th scope="col">{t('ImportReceiptScreen.colOutcome')}</th>
+            <th scope="col">{t('ImportReceiptScreen.colResult')}</th>
           </tr>
         </thead>
         <tbody>
@@ -244,16 +264,16 @@ function RowsTable({ rows }: { rows: readonly ImportReceiptRow[] }) {
               </th>
               <td>
                 {row.outcome === 'created' ? (
-                  <StateCapsule state="done">Created</StateCapsule>
+                  <StateCapsule state="done">{t('ImportReceiptScreen.created')}</StateCapsule>
                 ) : (
-                  <StateCapsule state="blocked">Failed</StateCapsule>
+                  <StateCapsule state="blocked">{t('ImportReceiptScreen.failed')}</StateCapsule>
                 )}
               </td>
               <td>
                 {row.outcome === 'created' ? (
                   <span className="tm-mono">{row.createdEntityId}</span>
                 ) : (
-                  <span className="tm-prose">{row.error ?? 'No detail recorded.'}</span>
+                  <span className="tm-prose">{row.error ?? t('ImportReceiptScreen.noDetail')}</span>
                 )}
               </td>
             </tr>

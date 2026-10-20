@@ -11,6 +11,8 @@ import type {
 } from '../../lib/api/inbox-snooze';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/inbox.css';
 
 export interface InboxSnoozeViewProps {
@@ -21,10 +23,10 @@ export interface InboxSnoozeViewProps {
 }
 
 /** The three quick snooze horizons the menu offers, resolved to a future instant at click time. */
-const HORIZONS: readonly { readonly label: string; readonly hours: number }[] = [
-  { label: 'Later today (3h)', hours: 3 },
-  { label: 'Tomorrow', hours: 24 },
-  { label: 'Next week', hours: 24 * 7 },
+const HORIZONS: readonly { readonly labelKey: MessageKey; readonly hours: number }[] = [
+  { labelKey: 'InboxSnoozeView.horizonLaterToday', hours: 3 },
+  { labelKey: 'InboxSnoozeView.horizonTomorrow', hours: 24 },
+  { labelKey: 'InboxSnoozeView.horizonNextWeek', hours: 24 * 7 },
 ];
 
 /**
@@ -38,6 +40,7 @@ const HORIZONS: readonly { readonly label: string; readonly hours: number }[] = 
  * server's future check is met without depending on any clock but the browser's.
  */
 export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSnoozeViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
@@ -59,7 +62,7 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
     },
     onSuccess: (result) => {
       onSuccess(result);
-      setMessage('Snoozed. It will return to your inbox then.');
+      setMessage(t('InboxSnoozeView.snoozedMessage'));
     },
   });
 
@@ -68,7 +71,7 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
       unsnoozeBundle(api, organizationSlug, id),
     onSuccess: (result) => {
       onSuccess(result);
-      setMessage('Un-snoozed.');
+      setMessage(t('InboxSnoozeView.unsnoozedMessage'));
     },
   });
 
@@ -77,11 +80,11 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
   return (
     <section className="tm-card tm-inbox-panel" aria-labelledby="tm-inbox-snoozed">
       <h2 id="tm-inbox-snoozed" className="tm-card__title">
-        Snoozed
+        {t('InboxSnoozeView.heading')}
       </h2>
 
       {bundleId ? (
-        <div className="tm-row" role="group" aria-label="Snooze this item">
+        <div className="tm-row" role="group" aria-label={t('InboxSnoozeView.groupLabel')}>
           {HORIZONS.map((horizon) => (
             <Button
               key={horizon.hours}
@@ -90,7 +93,7 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
               disabled={snooze.isPending}
               onClick={() => snooze.mutate(horizon.hours)}
             >
-              {horizon.label}
+              {t(horizon.labelKey)}
             </Button>
           ))}
         </div>
@@ -103,30 +106,30 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
       ) : null}
 
       {snoozed.isError ? (
-        <InlineAlert tone="danger" title="Could not load your snoozed items" live>
+        <InlineAlert tone="danger" title={t('InboxSnoozeView.loadErrorTitle')} live>
           {describeError(snoozed.error)}
         </InlineAlert>
       ) : null}
 
       {snoozed.isPending ? (
-        <LoadingRegion label="Loading your snoozed items.">
+        <LoadingRegion label={t('InboxSnoozeView.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!snoozed.isPending && !snoozed.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="Nothing snoozed">
-          Snooze an inbox item to hide it until a time you choose; it returns to your inbox then.
+        <InlineAlert tone="neutral" title={t('InboxSnoozeView.emptyTitle')}>
+          {t('InboxSnoozeView.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (
-        <ul className="tm-list" aria-label="Snoozed items">
+        <ul className="tm-list" aria-label={t('InboxSnoozeView.listLabel')}>
           {rows.map((row) => (
             <li key={row.bundleId} className="tm-row">
               <span>{row.bundleId}</span>
               <time dateTime={row.snoozedUntil}>
-                until {new Date(row.snoozedUntil).toLocaleString()}
+                {t('InboxSnoozeView.until')} {new Date(row.snoozedUntil).toLocaleString()}
               </time>
               <Button
                 type="button"
@@ -134,7 +137,7 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
                 disabled={unsnooze.isPending}
                 onClick={() => unsnooze.mutate(row.bundleId)}
               >
-                Un-snooze
+                {t('InboxSnoozeView.unsnooze')}
               </Button>
             </li>
           ))}

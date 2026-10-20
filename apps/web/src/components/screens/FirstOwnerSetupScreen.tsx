@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { completeFirstOwnerSetup, fetchSetupAvailability } from '../../lib/api/setup';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -92,6 +93,7 @@ export function FirstOwnerSetupScreen({
   onCompleted,
   boundary = authBoundary,
 }: FirstOwnerSetupScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const hydrated = useHydrated();
 
@@ -154,19 +156,19 @@ export function FirstOwnerSetupScreen({
     const trimmedOrganization = organizationName.trim();
 
     const missing: Partial<Record<SetupField, string>> = {};
-    if (setupToken === '') missing.setupToken = 'Enter the setup token.';
-    if (trimmedName === '') missing.displayName = 'Enter your name.';
-    if (trimmedEmail === '') missing.email = 'Enter your email.';
-    if (password.length < MIN_PASSWORD)
-      missing.password = `Use at least ${MIN_PASSWORD} characters.`;
-    if (trimmedOrganization === '') missing.organizationName = 'Enter an organization name.';
+    if (setupToken === '') missing.setupToken = t('FirstOwnerSetupScreen.missingSetupToken');
+    if (trimmedName === '') missing.displayName = t('FirstOwnerSetupScreen.missingName');
+    if (trimmedEmail === '') missing.email = t('FirstOwnerSetupScreen.missingEmail');
+    if (password.length < MIN_PASSWORD) missing.password = t('FirstOwnerSetupScreen.shortPassword');
+    if (trimmedOrganization === '')
+      missing.organizationName = t('FirstOwnerSetupScreen.missingOrganization');
     if (Object.keys(missing).length > 0) {
       setFieldErrors(missing);
-      setFailure('Some fields need attention.');
+      setFailure(t('FirstOwnerSetupScreen.fieldsNeedAttention'));
       return;
     }
     if (localSlugError !== undefined || effectiveSlug === '') {
-      setFailure('Fix the workspace web link first.');
+      setFailure(t('FirstOwnerSetupScreen.fixWorkspaceLink'));
       return;
     }
 
@@ -218,19 +220,21 @@ export function FirstOwnerSetupScreen({
 
   const footer = (
     <>
-      <Link href="/legal/privacy">Privacy</Link>
+      <Link href="/legal/privacy">{t('FirstOwnerSetupScreen.privacy')}</Link>
       {/* `/support` is not a published route (ACC-13); Contact is the live page. */}
-      <Link href="/contact">Support</Link>
+      <Link href="/contact">{t('FirstOwnerSetupScreen.support')}</Link>
     </>
   );
 
   if (availability === 'unavailable') {
     return (
-      <IdentityShell screenId="Setup" eyebrow="First owner" footer={footer}>
+      <IdentityShell screenId="Setup" eyebrow={t('FirstOwnerSetupScreen.eyebrow')} footer={footer}>
         <div className="tm-id-intro">
-          <h1 className="tm-identity__title">Setup is not available</h1>
+          <h1 className="tm-identity__title">{t('FirstOwnerSetupScreen.unavailableTitle')}</h1>
           <p className="tm-id-lede">
-            If you already have an account, <Link href="/sign-in">sign in</Link>.
+            {t('FirstOwnerSetupScreen.unavailablePrefix')}{' '}
+            <Link href="/sign-in">{t('FirstOwnerSetupScreen.unavailableSignIn')}</Link>
+            {t('FirstOwnerSetupScreen.unavailableSuffix')}
           </p>
         </div>
       </IdentityShell>
@@ -238,24 +242,21 @@ export function FirstOwnerSetupScreen({
   }
 
   return (
-    <IdentityShell screenId="Setup" eyebrow="First owner" footer={footer}>
+    <IdentityShell screenId="Setup" eyebrow={t('FirstOwnerSetupScreen.eyebrow')} footer={footer}>
       <div className="tm-id-intro">
-        <h1 className="tm-identity__title">Create the owner account</h1>
-        <p className="tm-id-lede">
-          This sets up the first organization on this installation and signs you in as its owner.
-          You need the setup token the person who installed TManage was given.
-        </p>
+        <h1 className="tm-identity__title">{t('FirstOwnerSetupScreen.title')}</h1>
+        <p className="tm-id-lede">{t('FirstOwnerSetupScreen.lede')}</p>
       </div>
 
       {availability === 'checking' ? (
         <InlineAlert tone="neutral" live>
-          Checking whether setup is open…
+          {t('FirstOwnerSetupScreen.checking')}
         </InlineAlert>
       ) : null}
 
       {availability === 'failed' ? (
-        <InlineAlert tone="danger" title="Could not check setup" live>
-          We could not reach the server. Reload the page to try again.
+        <InlineAlert tone="danger" title={t('FirstOwnerSetupScreen.checkFailedTitle')} live>
+          {t('FirstOwnerSetupScreen.checkFailedBody')}
         </InlineAlert>
       ) : null}
 
@@ -263,7 +264,7 @@ export function FirstOwnerSetupScreen({
         <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
           <fieldset className="tm-fieldset tm-stack" disabled={!hydrated || submitting}>
             <Field
-              label="Setup token"
+              label={t('FirstOwnerSetupScreen.setupTokenLabel')}
               type="password"
               name="setupToken"
               autoComplete="off"
@@ -278,7 +279,7 @@ export function FirstOwnerSetupScreen({
               {...errorProp(fieldErrors.setupToken)}
             />
             <Field
-              label="Your name"
+              label={t('FirstOwnerSetupScreen.nameLabel')}
               name="displayName"
               autoComplete="name"
               maxLength={MAX_NAME}
@@ -291,7 +292,7 @@ export function FirstOwnerSetupScreen({
               {...errorProp(fieldErrors.displayName)}
             />
             <Field
-              label="Email"
+              label={t('FirstOwnerSetupScreen.emailLabel')}
               type="email"
               name="email"
               autoComplete="username"
@@ -307,7 +308,7 @@ export function FirstOwnerSetupScreen({
               {...errorProp(fieldErrors.email)}
             />
             <Field
-              label="Password"
+              label={t('FirstOwnerSetupScreen.passwordLabel')}
               type="password"
               name="password"
               autoComplete="new-password"
@@ -317,16 +318,16 @@ export function FirstOwnerSetupScreen({
                 setPassword(event.target.value);
                 clearFieldError('password');
               }}
-              hint={`At least ${MIN_PASSWORD} characters.`}
+              hint={t('FirstOwnerSetupScreen.passwordHint')}
               required
               {...errorProp(fieldErrors.password)}
             />
           </fieldset>
 
           <fieldset className="tm-fieldset tm-stack" disabled={!hydrated || submitting}>
-            <legend className="tm-field__label">Your organization</legend>
+            <legend className="tm-field__label">{t('FirstOwnerSetupScreen.orgLegend')}</legend>
             <Field
-              label="Organization name"
+              label={t('FirstOwnerSetupScreen.orgNameLabel')}
               name="organizationName"
               maxLength={MAX_ORGANIZATION_NAME_LENGTH}
               value={organizationName}
@@ -335,7 +336,7 @@ export function FirstOwnerSetupScreen({
                 clearFieldError('organizationName');
                 if (!slugEdited) clearFieldError('slug');
               }}
-              hint="The name your team and your clients will see."
+              hint={t('FirstOwnerSetupScreen.orgNameHint')}
               required
               {...errorProp(fieldErrors.organizationName)}
             />
@@ -357,7 +358,7 @@ export function FirstOwnerSetupScreen({
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-setup-timezone">
-                Timezone
+                {t('FirstOwnerSetupScreen.timezoneLabel')}
               </label>
               <select
                 id="tm-setup-timezone"
@@ -386,7 +387,7 @@ export function FirstOwnerSetupScreen({
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-setup-locale">
-                Language
+                {t('FirstOwnerSetupScreen.languageLabel')}
               </label>
               <select
                 id="tm-setup-locale"
@@ -415,7 +416,7 @@ export function FirstOwnerSetupScreen({
           </fieldset>
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not create the owner account" live>
+            <InlineAlert tone="danger" title={t('FirstOwnerSetupScreen.createErrorTitle')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -426,10 +427,10 @@ export function FirstOwnerSetupScreen({
               tone="ink"
               size="accessible"
               loading={submitting}
-              loadingLabel="Creating"
+              loadingLabel={t('FirstOwnerSetupScreen.creating')}
               disabled={!hydrated}
             >
-              Create owner account
+              {t('FirstOwnerSetupScreen.submit')}
             </Button>
           </div>
         </form>

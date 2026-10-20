@@ -2,6 +2,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from '@tmanage/ui';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getHomePulse } from '../../lib/api/home';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -23,6 +24,7 @@ export interface HomeHeroSectionProps {
  * show nothing the lists do not. Read-only; it owns its own query and error state.
  */
 export function HomeHeroSection({ organizationSlug, client }: HomeHeroSectionProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const pulse = useQuery({
@@ -33,7 +35,7 @@ export function HomeHeroSection({ organizationSlug, client }: HomeHeroSectionPro
   return (
     <section className="tm-home-metrics" aria-labelledby="tm-home-focus">
       <h2 id="tm-home-focus" className="tm-home-metrics__heading">
-        Your focus today
+        {t('HomeHeroSection.heading')}
       </h2>
 
       {pulse.isError ? (
@@ -43,7 +45,12 @@ export function HomeHeroSection({ organizationSlug, client }: HomeHeroSectionPro
       ) : null}
 
       {pulse.isPending ? (
-        <div className="tm-metric" role="status" aria-busy="true" aria-label="Loading your focus.">
+        <div
+          className="tm-metric"
+          role="status"
+          aria-busy="true"
+          aria-label={t('HomeHeroSection.loading')}
+        >
           <Skeleton width="160px" height="56px" />
         </div>
       ) : null}
@@ -52,24 +59,36 @@ export function HomeHeroSection({ organizationSlug, client }: HomeHeroSectionPro
         <>
           <Metric
             value={pad(pulse.data.openWork)}
-            pill={pulse.data.dueToday > 0 ? `${pulse.data.dueToday} due today` : 'on track'}
+            pill={
+              pulse.data.dueToday > 0
+                ? `${pulse.data.dueToday} ${t('HomeHeroSection.dueToday')}`
+                : t('HomeHeroSection.onTrack')
+            }
             tone={pulse.data.dueToday > 0 ? 'warning' : 'current'}
-            label="open work items"
-            source="assigned to you, every project"
+            label={t('HomeHeroSection.openWorkLabel')}
+            source={t('HomeHeroSection.openWorkSource')}
           />
           <Metric
             value={String(pulse.data.waitingOnYou)}
-            pill={pulse.data.waitingOnYou > 0 ? 'waiting' : 'clear'}
+            pill={
+              pulse.data.waitingOnYou > 0
+                ? t('HomeHeroSection.waiting')
+                : t('HomeHeroSection.clear')
+            }
             tone={pulse.data.waitingOnYou > 0 ? 'warning' : 'neutral'}
-            label="waiting on you"
-            source="reviews and client requests"
+            label={t('HomeHeroSection.waitingLabel')}
+            source={t('HomeHeroSection.waitingSource')}
           />
           <Metric
             value={String(pulse.data.meetingsToday)}
-            pill="today"
+            pill={t('HomeHeroSection.today')}
             tone="neutral"
-            label={pulse.data.meetingsToday === 1 ? 'meeting today' : 'meetings today'}
-            source="on your calendar"
+            label={
+              pulse.data.meetingsToday === 1
+                ? t('HomeHeroSection.meetingToday')
+                : t('HomeHeroSection.meetingsToday')
+            }
+            source={t('HomeHeroSection.meetingsSource')}
           />
         </>
       ) : null}

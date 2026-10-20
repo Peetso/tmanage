@@ -17,6 +17,8 @@ import type {
 } from '../../lib/api/inbox-source-mutes';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/inbox.css';
 
 export interface InboxSourceMutesViewProps {
@@ -26,11 +28,11 @@ export interface InboxSourceMutesViewProps {
   client?: ApiClient | undefined;
 }
 
-/** A human label for an object-type prefix, for the muted-sources list. */
-const TYPE_LABELS: Readonly<Record<InboxMuteObjectType, string>> = {
-  work_item: 'Work item',
-  client_request: 'Request',
-  organization_usage: 'Usage notice',
+/** A message key for an object-type prefix, for the muted-sources list. */
+const TYPE_LABEL_KEYS: Readonly<Record<InboxMuteObjectType, MessageKey>> = {
+  work_item: 'InboxSourceMutesView.typeWorkItem',
+  client_request: 'InboxSourceMutesView.typeRequest',
+  organization_usage: 'InboxSourceMutesView.typeUsageNotice',
 };
 
 /**
@@ -48,6 +50,7 @@ export function InboxSourceMutesView({
   source,
   client,
 }: InboxSourceMutesViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const [message, setMessage] = useState<string | null>(null);
@@ -74,7 +77,7 @@ export function InboxSourceMutesView({
     },
     onSuccess: (result) => {
       setData(result);
-      setMessage('Muted. It will stay out of your inbox until you un-mute it.');
+      setMessage(t('InboxSourceMutesView.mutedMessage'));
     },
   });
 
@@ -84,25 +87,25 @@ export function InboxSourceMutesView({
     },
     onSuccess: async () => {
       await queries.invalidateQueries({ queryKey: ['inbox', 'source-mutes', organizationSlug] });
-      setMessage('Un-muted.');
+      setMessage(t('InboxSourceMutesView.unmutedMessage'));
     },
   });
 
   return (
     <section className="tm-card tm-inbox-panel" aria-labelledby="tm-inbox-muted">
       <h2 id="tm-inbox-muted" className="tm-card__title">
-        Muted sources
+        {t('InboxSourceMutesView.heading')}
       </h2>
 
       {source ? (
-        <div className="tm-row" role="group" aria-label="Mute this source">
+        <div className="tm-row" role="group" aria-label={t('InboxSourceMutesView.groupLabel')}>
           <Button
             type="button"
             tone="outline"
             disabled={mute.isPending || unmute.isPending || isMuted}
             onClick={() => mute.mutate()}
           >
-            {isMuted ? 'Muted' : 'Mute this source'}
+            {isMuted ? t('InboxSourceMutesView.muted') : t('InboxSourceMutesView.muteThisSource')}
           </Button>
         </div>
       ) : null}
@@ -114,29 +117,29 @@ export function InboxSourceMutesView({
       ) : null}
 
       {muted.isError ? (
-        <InlineAlert tone="danger" title="Could not load your muted sources" live>
+        <InlineAlert tone="danger" title={t('InboxSourceMutesView.loadErrorTitle')} live>
           {describeError(muted.error)}
         </InlineAlert>
       ) : null}
 
       {muted.isPending ? (
-        <LoadingRegion label="Loading your muted sources.">
+        <LoadingRegion label={t('InboxSourceMutesView.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!muted.isPending && !muted.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="Nothing muted">
-          Mute an inbox source to keep it out of your inbox until you un-mute it.
+        <InlineAlert tone="neutral" title={t('InboxSourceMutesView.emptyTitle')}>
+          {t('InboxSourceMutesView.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (
-        <ul className="tm-list" aria-label="Muted sources">
+        <ul className="tm-list" aria-label={t('InboxSourceMutesView.listLabel')}>
           {rows.map((row) => (
             <li key={`${row.objectType}:${row.objectId}`} className="tm-row">
               <span>
-                {TYPE_LABELS[row.objectType]} · {row.objectId}
+                {t(TYPE_LABEL_KEYS[row.objectType])} · {row.objectId}
               </span>
               <Button
                 type="button"
@@ -144,7 +147,7 @@ export function InboxSourceMutesView({
                 disabled={unmute.isPending}
                 onClick={() => unmute.mutate(row)}
               >
-                Un-mute
+                {t('InboxSourceMutesView.unmute')}
               </Button>
             </li>
           ))}

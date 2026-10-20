@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { OnboardingScreenStyles } from './CreateOrganizationScreen';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createProject, listWorkspaces } from '../../lib/api/projects';
@@ -70,6 +71,7 @@ export function FirstProjectScreen({
   mode = 'onboarding',
   organizationName = '',
 }: FirstProjectScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const [name, setName] = useState('');
@@ -101,11 +103,11 @@ export function FirstProjectScreen({
     setServerDateError(undefined);
 
     if (name.trim() === '') {
-      setFailure('Enter a project name.');
+      setFailure(t('FirstProjectScreen.nameRequired'));
       return;
     }
     if (!workspaceId) {
-      setFailure('This organization has no workspace to put a project in.');
+      setFailure(t('FirstProjectScreen.noWorkspace'));
       return;
     }
 
@@ -126,9 +128,9 @@ export function FirstProjectScreen({
           setFailure(error.message);
         }
       } else if (error instanceof NetworkError) {
-        setFailure('The API did not answer. Is it running?');
+        setFailure(t('FirstProjectScreen.apiNoAnswer'));
       } else {
-        setFailure('Something went wrong. Try again.');
+        setFailure(t('FirstProjectScreen.genericError'));
       }
     } finally {
       setCreating(false);
@@ -143,10 +145,10 @@ export function FirstProjectScreen({
       </style>
 
       {workspaces.isError ? (
-        <InlineAlert tone="danger" title="Could not load this organization" live>
+        <InlineAlert tone="danger" title={t('FirstProjectScreen.loadErrorTitle')} live>
           {workspaces.error instanceof ApiRequestError
             ? workspaces.error.message
-            : 'The API did not answer. Is it running?'}
+            : t('FirstProjectScreen.apiNoAnswer')}
         </InlineAlert>
       ) : null}
 
@@ -164,10 +166,12 @@ export function FirstProjectScreen({
         */}
         <fieldset className="tm-fieldset tm-ob-sheet" disabled={workspaces.isPending}>
           <legend className="tm-visually-hidden">
-            {mode === 'new' ? 'New project' : 'Your first project'}
+            {mode === 'new'
+              ? t('FirstProjectScreen.legendNew')
+              : t('FirstProjectScreen.legendFirst')}
           </legend>
           <Field
-            label="Project name"
+            label={t('FirstProjectScreen.projectNameLabel')}
             name="projectName"
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -175,7 +179,9 @@ export function FirstProjectScreen({
           />
 
           <fieldset className="tm-fieldset tm-field">
-            <legend className="tm-field__label tm-ob-legend">Who is this for</legend>
+            <legend className="tm-field__label tm-ob-legend">
+              {t('FirstProjectScreen.audienceLegend')}
+            </legend>
             <div className="tm-ob-pills">
               <label className="tm-ob-pill tm-ob-pill--client">
                 <input
@@ -188,7 +194,7 @@ export function FirstProjectScreen({
                 <span className="tm-ob-pill__ring" aria-hidden="true">
                   ◎
                 </span>
-                A client
+                {t('FirstProjectScreen.audienceClient')}
               </label>
               <label className="tm-ob-pill">
                 <input
@@ -198,13 +204,13 @@ export function FirstProjectScreen({
                   checked={audience === 'internal'}
                   onChange={() => setAudience('internal')}
                 />
-                Internal only
+                {t('FirstProjectScreen.audienceInternal')}
               </label>
             </div>
             <span className="tm-field__hint">
               {audience === 'client'
-                ? 'The client organization and its portal are linked to the project after setup.'
-                : 'No portal. You can switch one on later without recreating the project.'}
+                ? t('FirstProjectScreen.audienceClientHint')
+                : t('FirstProjectScreen.audienceInternalHint')}
             </span>
           </fieldset>
 
@@ -217,47 +223,49 @@ export function FirstProjectScreen({
               creating the project, and this says so.
             */}
             <div className="tm-field">
-              <span className="tm-field__label">Project owner</span>
+              <span className="tm-field__label">{t('FirstProjectScreen.ownerLabel')}</span>
               <div className="tm-ob-project__owner">
                 <span className="tm-ob-avatar" aria-hidden="true">
-                  {initialsOf(signedInAs || 'You')}
+                  {initialsOf(signedInAs || t('FirstProjectScreen.you'))}
                 </span>
-                <span className="tm-ob-project__owner-name">{signedInAs || 'You'}</span>
+                <span className="tm-ob-project__owner-name">
+                  {signedInAs || t('FirstProjectScreen.you')}
+                </span>
               </div>
               <span className="tm-field__hint">
                 {mode === 'new'
-                  ? 'You, as the person creating it.'
-                  : 'You, until your team has joined.'}
+                  ? t('FirstProjectScreen.ownerHintNew')
+                  : t('FirstProjectScreen.ownerHintFirst')}
               </span>
             </div>
 
             <Field
-              label="Target date"
+              label={t('FirstProjectScreen.targetDateLabel')}
               name="targetDate"
               type="date"
               value={targetDate}
               onChange={(event) => setTargetDate(event.target.value)}
               dir="ltr"
-              hint="A target, not a commitment, until a milestone plan is confirmed."
+              hint={t('FirstProjectScreen.targetDateHint')}
               {...(dateProblem === undefined ? {} : { error: dateProblem })}
             />
           </div>
 
           <div className="tm-field">
-            <span className="tm-field__label">Default audience for new content</span>
+            <span className="tm-field__label">{t('FirstProjectScreen.defaultAudienceLabel')}</span>
             <div className="tm-ob-project__audience">
               <span className="tm-ob-project__square" aria-hidden="true">
                 ■
               </span>
               <span>
-                <strong>Default audience: internal</strong>
+                <strong>{t('FirstProjectScreen.defaultAudienceValue')}</strong>
                 <span className="tm-ob-project__audience-detail">
                   {' '}
-                  — only your team can see new content until it is published.
+                  {t('FirstProjectScreen.defaultAudienceDetail')}
                 </span>
               </span>
               <span className="tm-ob-project__fixed" aria-hidden="true">
-                Fixed
+                {t('FirstProjectScreen.fixed')}
               </span>
             </div>
           </div>
@@ -266,29 +274,31 @@ export function FirstProjectScreen({
 
           <section className="tm-ob-project__preview" aria-labelledby="tm-project-summary">
             <h2 id="tm-project-summary" className="tm-ob-eyebrow">
-              Live pulse track preview
+              {t('FirstProjectScreen.previewHeading')}
             </h2>
             <ol className="tm-ob-track">
               <li className="tm-ob-capsule tm-ob-capsule--tall tm-ob-capsule--lime">
-                START · TODAY
+                {t('FirstProjectScreen.capsuleStart')}
               </li>
               <li className="tm-ob-capsule tm-ob-capsule--tall tm-ob-capsule--grow">
-                Milestones added next
+                {t('FirstProjectScreen.capsuleMilestones')}
               </li>
               <li className="tm-ob-capsule tm-ob-capsule--tall tm-ob-capsule--future">
-                {targetDate === '' ? 'No target yet' : `Target ${formatDate(targetDate)}`}
+                {targetDate === ''
+                  ? t('FirstProjectScreen.capsuleNoTarget')
+                  : `${t('FirstProjectScreen.capsuleTargetPrefix')} ${formatDate(targetDate)}`}
               </li>
             </ol>
           </section>
 
           {workspaces.isPending ? (
-            <LoadingRegion label="Loading this organization.">
+            <LoadingRegion label={t('FirstProjectScreen.loadingOrg')}>
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not create the project" live>
+            <InlineAlert tone="danger" title={t('FirstProjectScreen.createErrorTitle')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -300,10 +310,10 @@ export function FirstProjectScreen({
               size="feature"
               className="tm-ob-cta"
               loading={creating}
-              loadingLabel="Creating"
+              loadingLabel={t('FirstProjectScreen.creating')}
               disabled={workspaces.isPending}
             >
-              Create project
+              {t('FirstProjectScreen.submit')}
             </Button>
           </div>
         </fieldset>
@@ -317,9 +327,9 @@ export function FirstProjectScreen({
         organizationSlug={organizationSlug}
         organizationName={organizationName}
         activeNavigationId="work"
-        eyebrow="Projects"
-        title="New project"
-        description="Name it and, if you have one, give it a target date. You can add milestones, people and a client next."
+        eyebrow={t('FirstProjectScreen.newEyebrow')}
+        title={t('FirstProjectScreen.newTitle')}
+        description={t('FirstProjectScreen.newDescription')}
       >
         {body}
       </AppShell>
@@ -327,7 +337,11 @@ export function FirstProjectScreen({
   }
 
   return (
-    <OnboardingShell current="ON-03" signedInAs={signedInAs} title="Create your first project">
+    <OnboardingShell
+      current="ON-03"
+      signedInAs={signedInAs}
+      title={t('FirstProjectScreen.onboardingTitle')}
+    >
       {body}
     </OnboardingShell>
   );

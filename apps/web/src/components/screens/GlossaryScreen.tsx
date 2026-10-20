@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createGlossaryTerm,
@@ -42,6 +43,7 @@ export function GlossaryScreen({
   organizationName,
   client,
 }: GlossaryScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
@@ -97,46 +99,44 @@ export function GlossaryScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      title="Glossary"
-      description="Your studio's shared vocabulary — the terms and what they mean here."
+      title={t('GlossaryScreen.title')}
+      description={t('GlossaryScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-glossary-heading">
         <h2 id="tm-glossary-heading" className="tm-eyebrow">
-          Terms
+          {t('GlossaryScreen.termsHeading')}
         </h2>
 
         <Field
-          label="Search"
+          label={t('GlossaryScreen.searchLabel')}
           name="glossary-search"
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          hint="Filter by the start of a term. Leave empty to see the whole glossary."
+          hint={t('GlossaryScreen.searchHint')}
         />
 
         {terms.isError ? (
-          <InlineAlert tone="danger" title="Could not load the glossary" live>
+          <InlineAlert tone="danger" title={t('GlossaryScreen.loadErrorTitle')} live>
             {describeError(terms.error)}
           </InlineAlert>
         ) : null}
 
         {terms.isPending ? (
-          <LoadingRegion label="Loading the glossary.">
+          <LoadingRegion label={t('GlossaryScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!terms.isPending && !terms.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No terms">
-            {search.trim() === ''
-              ? 'The glossary is empty. Add the first term below.'
-              : 'No term starts with that. Try a different search.'}
+          <InlineAlert tone="neutral" title={t('GlossaryScreen.emptyTitle')}>
+            {search.trim() === '' ? t('GlossaryScreen.emptyAll') : t('GlossaryScreen.emptySearch')}
           </InlineAlert>
         ) : null}
 
         {rows.length > 0 ? (
-          <ul className="tm-stack" aria-label="Glossary terms">
+          <ul className="tm-stack" aria-label={t('GlossaryScreen.listLabel')}>
             {rows.map((row) => (
               <li key={row.id} className="tm-row">
                 <div className="tm-stack">
@@ -145,20 +145,20 @@ export function GlossaryScreen({
                 </div>
                 <div className="tm-row">
                   <Button type="button" tone="text" size="compact" onClick={() => beginEdit(row)}>
-                    Edit
+                    {t('GlossaryScreen.edit')}
                   </Button>
                   <Button
                     type="button"
                     tone="destructive"
                     size="compact"
                     loading={remove.isPending && remove.variables === row.id}
-                    loadingLabel="Removing"
+                    loadingLabel={t('GlossaryScreen.removing')}
                     onClick={() => {
                       setSaved(false);
                       if (!remove.isPending) remove.mutate(row.id);
                     }}
                   >
-                    Remove
+                    {t('GlossaryScreen.remove')}
                   </Button>
                 </div>
               </li>
@@ -169,13 +169,17 @@ export function GlossaryScreen({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-glossary-form-heading">
         <h2 id="tm-glossary-form-heading" className="tm-eyebrow">
-          {editingId === null ? 'Add a term' : 'Edit term'}
+          {editingId === null ? t('GlossaryScreen.addHeading') : t('GlossaryScreen.editHeading')}
         </h2>
 
         <form
           className="tm-stack"
           noValidate
-          aria-label={editingId === null ? 'Add a glossary term' : 'Edit a glossary term'}
+          aria-label={
+            editingId === null
+              ? t('GlossaryScreen.addFormLabel')
+              : t('GlossaryScreen.editFormLabel')
+          }
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
             setSaved(false);
@@ -183,30 +187,30 @@ export function GlossaryScreen({
           }}
         >
           <Field
-            label="Term"
+            label={t('GlossaryScreen.termLabel')}
             name="glossary-term"
             value={term}
             required
             onChange={(event) => setTerm(event.target.value)}
-            hint="A short name, unique within your studio."
+            hint={t('GlossaryScreen.termHint')}
           />
           <Field
-            label="Definition"
+            label={t('GlossaryScreen.definitionLabel')}
             name="glossary-definition"
             value={definition}
             required
             onChange={(event) => setDefinition(event.target.value)}
-            hint="What the term means here."
+            hint={t('GlossaryScreen.definitionHint')}
           />
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save the term" live>
+            <InlineAlert tone="danger" title={t('GlossaryScreen.saveErrorTitle')} live>
               {describeError(save.error)}
             </InlineAlert>
           ) : null}
           {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved" live>
-              The glossary has been updated.
+            <InlineAlert tone="success" title={t('GlossaryScreen.savedTitle')} live>
+              {t('GlossaryScreen.savedBody')}
             </InlineAlert>
           ) : null}
 
@@ -216,9 +220,9 @@ export function GlossaryScreen({
               tone="ink"
               size="accessible"
               loading={save.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('GlossaryScreen.saving')}
             >
-              {editingId === null ? 'Add term' : 'Save changes'}
+              {editingId === null ? t('GlossaryScreen.addButton') : t('GlossaryScreen.saveButton')}
             </Button>
             {editingId !== null ? (
               <Button
@@ -230,7 +234,7 @@ export function GlossaryScreen({
                   resetForm();
                 }}
               >
-                Cancel
+                {t('GlossaryScreen.cancel')}
               </Button>
             ) : null}
           </div>

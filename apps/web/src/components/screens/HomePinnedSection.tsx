@@ -9,6 +9,8 @@ import { getHomePins } from '../../lib/api/home';
 import type { HomePinTargetKind } from '../../lib/api/home';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface HomePinnedSectionProps {
   organizationSlug: string;
@@ -27,6 +29,7 @@ export interface HomePinnedSectionProps {
  * list, so it is axe-clean the way the sibling sections are.
  */
 export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectionProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const pins = useQuery({
@@ -40,33 +43,32 @@ export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectio
     <section className="tm-home-saved" aria-labelledby="tm-my-day-pinned">
       <div className="tm-home-saved__head">
         <h2 id="tm-my-day-pinned" className="tm-home-saved__heading">
-          Pinned
+          {t('HomePinnedSection.heading')}
         </h2>
         {items.length > 0 ? <span className="tm-home-saved__count">{items.length}</span> : null}
       </div>
 
       {pins.isError ? (
-        <InlineAlert tone="danger" title="Could not load your pinned items" live>
+        <InlineAlert tone="danger" title={t('HomePinnedSection.loadErrorTitle')} live>
           {describePinsError(pins.error)}
         </InlineAlert>
       ) : null}
 
       {pins.isPending ? (
-        <LoadingRegion label="Loading your pinned items.">
+        <LoadingRegion label={t('HomePinnedSection.loading')}>
           <Skeleton height="52px" radius="var(--r-control)" />
         </LoadingRegion>
       ) : null}
 
       {!pins.isPending && !pins.isError && items.length === 0 ? (
         <p className="tm-home-saved__empty">
-          <strong>Nothing pinned yet</strong>
-          Work, projects and documents you pin are kept here, newest first, so you can return to
-          them from any screen.
+          <strong>{t('HomePinnedSection.emptyTitle')}</strong>
+          {t('HomePinnedSection.emptyBody')}
         </p>
       ) : null}
 
       {items.length > 0 ? (
-        <ul className="tm-home-saved__list" aria-label="Pinned to your Home">
+        <ul className="tm-home-saved__list" aria-label={t('HomePinnedSection.listLabel')}>
           {items.map((item) => (
             <li key={item.id} className="tm-home-saved__item" data-kind={item.targetKind}>
               <span className="tm-home-orb" aria-hidden="true">
@@ -76,18 +78,19 @@ export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectio
                 <span className="tm-home-saved__title">
                   {item.targetKind === 'work' ? (
                     <Link href={`/${organizationSlug}/work/${item.targetId}`}>
-                      {pinTypeLabel(item.targetKind)}
+                      {t(pinTypeLabelKey(item.targetKind))}
                     </Link>
                   ) : item.targetKind === 'project' ? (
                     <Link href={`/${organizationSlug}/projects/${item.targetId}`}>
-                      {pinTypeLabel(item.targetKind)}
+                      {t(pinTypeLabelKey(item.targetKind))}
                     </Link>
                   ) : (
-                    <span>{pinTypeLabel(item.targetKind)}</span>
+                    <span>{t(pinTypeLabelKey(item.targetKind))}</span>
                   )}
                 </span>
                 <span className="tm-home-saved__meta">
-                  {item.targetKind} · pinned {shortDay(item.createdAt)}
+                  {item.targetKind} · {t('HomePinnedSection.pinnedPrefix')}{' '}
+                  {shortDay(item.createdAt)}
                 </span>
               </span>
             </li>
@@ -117,15 +120,15 @@ function shortDay(value: string): string {
     : parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-/** The word each pinned reference shows. The live title/preview is the deferred read fan-out. */
-function pinTypeLabel(targetKind: HomePinTargetKind): string {
+/** The message key each pinned reference shows. The live title/preview is the deferred read fan-out. */
+function pinTypeLabelKey(targetKind: HomePinTargetKind): MessageKey {
   switch (targetKind) {
     case 'work':
-      return 'Pinned work item';
+      return 'HomePinnedSection.workLabel';
     case 'project':
-      return 'Pinned project';
+      return 'HomePinnedSection.projectLabel';
     case 'document':
-      return 'Pinned document';
+      return 'HomePinnedSection.documentLabel';
   }
 }
 

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/insights.css';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   addInsightAnnotation,
@@ -48,6 +49,7 @@ export function InsightAnnotationsScreen({
   currentMembershipId,
   client,
 }: InsightAnnotationsScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -81,11 +83,11 @@ export function InsightAnnotationsScreen({
     setFormError(null);
     const trimmed = note.trim();
     if (trimmed.length === 0) {
-      setFormError('A note is required.');
+      setFormError(t('InsightAnnotationsScreen.noteRequired'));
       return;
     }
     if (trimmed.length > MAX_NOTE_LENGTH) {
-      setFormError(`A note must be at most ${MAX_NOTE_LENGTH} characters.`);
+      setFormError(t('InsightAnnotationsScreen.noteTooLong'));
       return;
     }
     add.mutate();
@@ -95,9 +97,9 @@ export function InsightAnnotationsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Insights"
-      title="Snapshot annotations"
-      description="Explain a captured figure. Add context to a snapshot, read the thread, and remove your own notes."
+      eyebrow={t('InsightAnnotationsScreen.eyebrow')}
+      title={t('InsightAnnotationsScreen.title')}
+      description={t('InsightAnnotationsScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         <form
@@ -106,18 +108,18 @@ export function InsightAnnotationsScreen({
           onSubmit={submit}
         >
           <h2 id="tm-annotation-heading" className="tm-eyebrow">
-            Add a note
+            {t('InsightAnnotationsScreen.addHeading')}
           </h2>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-annotation-note">
-              Note
+              {t('InsightAnnotationsScreen.noteLabel')}
             </label>
             <textarea
               id="tm-annotation-note"
               className="tm-field__control"
               value={note}
-              placeholder="Explain what this figure shows and why."
+              placeholder={t('InsightAnnotationsScreen.notePlaceholder')}
               maxLength={MAX_NOTE_LENGTH}
               rows={3}
               onChange={(event) => setNote(event.target.value)}
@@ -125,38 +127,40 @@ export function InsightAnnotationsScreen({
           </div>
 
           {formError ? (
-            <InlineAlert tone="danger" title="Check the note">
+            <InlineAlert tone="danger" title={t('InsightAnnotationsScreen.checkTitle')}>
               {formError}
             </InlineAlert>
           ) : null}
 
           {add.isError ? (
-            <InlineAlert tone="danger" title="We could not add the note">
+            <InlineAlert tone="danger" title={t('InsightAnnotationsScreen.addErrorTitle')}>
               {errorMessage(add.error)}
             </InlineAlert>
           ) : null}
 
           <div>
             <Button type="submit" disabled={add.isPending}>
-              {add.isPending ? 'Adding…' : 'Add note'}
+              {add.isPending
+                ? t('InsightAnnotationsScreen.adding')
+                : t('InsightAnnotationsScreen.addButton')}
             </Button>
           </div>
         </form>
 
         {annotations.isPending ? (
-          <LoadingRegion label="Loading annotations">
+          <LoadingRegion label={t('InsightAnnotationsScreen.loading')}>
             <Skeleton />
           </LoadingRegion>
         ) : annotations.isError ? (
-          <InlineAlert tone="danger" title="We could not load the annotations">
+          <InlineAlert tone="danger" title={t('InsightAnnotationsScreen.loadErrorTitle')}>
             {errorMessage(annotations.error)}
           </InlineAlert>
         ) : annotations.data.length === 0 ? (
-          <InlineAlert tone="neutral" title="No annotations">
-            This snapshot has no notes yet. Add one above.
+          <InlineAlert tone="neutral" title={t('InsightAnnotationsScreen.emptyTitle')}>
+            {t('InsightAnnotationsScreen.emptyBody')}
           </InlineAlert>
         ) : (
-          <ul className="tm-list tm-stack" aria-label="Snapshot annotations">
+          <ul className="tm-list tm-stack" aria-label={t('InsightAnnotationsScreen.listLabel')}>
             {annotations.data.map((annotation) => (
               <li key={annotation.id} className="tm-row tm-row--between">
                 <div className="tm-stack tm-stack--tight">
@@ -170,7 +174,7 @@ export function InsightAnnotationsScreen({
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(annotation.id)}
                   >
-                    Remove
+                    {t('InsightAnnotationsScreen.remove')}
                   </Button>
                 ) : null}
               </li>
@@ -179,7 +183,7 @@ export function InsightAnnotationsScreen({
         )}
 
         {remove.isError ? (
-          <InlineAlert tone="danger" title="We could not remove the note">
+          <InlineAlert tone="danger" title={t('InsightAnnotationsScreen.removeErrorTitle')}>
             {errorMessage(remove.error)}
           </InlineAlert>
         ) : null}

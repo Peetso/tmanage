@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   MAX_QUICK_LINKS,
@@ -38,6 +39,7 @@ export function HomeQuickLinksScreen({
   organizationName,
   client,
 }: HomeQuickLinksScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['home-quick-links', organizationSlug];
@@ -85,11 +87,11 @@ export function HomeQuickLinksScreen({
     const trimmedLabel = label.trim();
     const trimmedPath = path.trim();
     if (trimmedLabel.length === 0) {
-      setFormError('Enter a label for the link.');
+      setFormError(t('HomeQuickLinksScreen.labelRequired'));
       return;
     }
     if (!isSafeInAppPath(trimmedPath)) {
-      setFormError('Enter an in-app path that begins with "/" (no web address).');
+      setFormError(t('HomeQuickLinksScreen.pathInvalid'));
       return;
     }
     setFormError(null);
@@ -109,15 +111,15 @@ export function HomeQuickLinksScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Quick links"
-      description="Your personal shortcuts on Home — saved to your account."
+      title={t('HomeQuickLinksScreen.title')}
+      description={t('HomeQuickLinksScreen.description')}
     >
       {links.isPending ? (
-        <LoadingRegion label="Loading your quick links">
+        <LoadingRegion label={t('HomeQuickLinksScreen.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : links.isError ? (
-        <InlineAlert tone="danger" title="We could not load your quick links">
+        <InlineAlert tone="danger" title={t('HomeQuickLinksScreen.loadErrorTitle')}>
           {errorMessage(links.error)}
         </InlineAlert>
       ) : (
@@ -131,51 +133,54 @@ export function HomeQuickLinksScreen({
             }}
           >
             <h2 id="tm-quick-links-add-heading" className="tm-eyebrow">
-              Add a quick link
+              {t('HomeQuickLinksScreen.addHeading')}
             </h2>
             <Field
-              label="Label"
+              label={t('HomeQuickLinksScreen.labelLabel')}
               value={label}
               maxLength={200}
               onChange={(event) => setLabel(event.target.value)}
             />
             <Field
-              label="In-app path"
-              hint='A path within the app, e.g. "/work/inbox".'
+              label={t('HomeQuickLinksScreen.pathLabel')}
+              hint={t('HomeQuickLinksScreen.pathHint')}
               value={path}
               maxLength={512}
               onChange={(event) => setPath(event.target.value)}
             />
             {formError ? (
-              <InlineAlert tone="danger" title="Check the link">
+              <InlineAlert tone="danger" title={t('HomeQuickLinksScreen.checkTitle')}>
                 {formError}
               </InlineAlert>
             ) : null}
             {add.isError ? (
-              <InlineAlert tone="danger" title="We could not add the link">
+              <InlineAlert tone="danger" title={t('HomeQuickLinksScreen.addErrorTitle')}>
                 {errorMessage(add.error)}
               </InlineAlert>
             ) : null}
             {atCap ? (
-              <InlineAlert tone="neutral" title="You have reached the limit">
-                You can keep at most {MAX_QUICK_LINKS} quick links. Remove one to add another.
+              <InlineAlert tone="neutral" title={t('HomeQuickLinksScreen.capTitle')}>
+                {t('HomeQuickLinksScreen.capPrefix')} {MAX_QUICK_LINKS}{' '}
+                {t('HomeQuickLinksScreen.capSuffix')}
               </InlineAlert>
             ) : null}
             <div>
               <Button type="submit" disabled={add.isPending || atCap}>
-                {add.isPending ? 'Adding…' : 'Add link'}
+                {add.isPending
+                  ? t('HomeQuickLinksScreen.adding')
+                  : t('HomeQuickLinksScreen.addButton')}
               </Button>
             </div>
           </form>
 
           <section className="tm-panel tm-stack" aria-labelledby="tm-quick-links-heading">
             <h2 id="tm-quick-links-heading" className="tm-eyebrow">
-              Your quick links
+              {t('HomeQuickLinksScreen.listHeading')}
             </h2>
             {current.length === 0 ? (
-              <p className="tm-muted">You have not added any quick links yet.</p>
+              <p className="tm-muted">{t('HomeQuickLinksScreen.empty')}</p>
             ) : (
-              <ul className="tm-stack" aria-label="Quick links">
+              <ul className="tm-stack" aria-label={t('HomeQuickLinksScreen.listLabel')}>
                 {current.map((link, index) => (
                   <li className="tm-field tm-field--inline" key={link.id}>
                     <span className="tm-field__label">{link.label}</span>
@@ -184,40 +189,40 @@ export function HomeQuickLinksScreen({
                       type="button"
                       tone="outline"
                       disabled={index === 0 || reorder.isPending}
-                      aria-label={`Move ${link.label} up`}
+                      aria-label={`${t('HomeQuickLinksScreen.moveLabel')} ${link.label} ${t('HomeQuickLinksScreen.upSuffix')}`}
                       onClick={() => move(index, -1)}
                     >
-                      Up
+                      {t('HomeQuickLinksScreen.up')}
                     </Button>
                     <Button
                       type="button"
                       tone="outline"
                       disabled={index === current.length - 1 || reorder.isPending}
-                      aria-label={`Move ${link.label} down`}
+                      aria-label={`${t('HomeQuickLinksScreen.moveLabel')} ${link.label} ${t('HomeQuickLinksScreen.downSuffix')}`}
                       onClick={() => move(index, 1)}
                     >
-                      Down
+                      {t('HomeQuickLinksScreen.down')}
                     </Button>
                     <Button
                       type="button"
                       tone="outline"
                       disabled={remove.isPending}
-                      aria-label={`Remove ${link.label}`}
+                      aria-label={`${t('HomeQuickLinksScreen.removeLabel')} ${link.label}`}
                       onClick={() => remove.mutate(link.id)}
                     >
-                      Remove
+                      {t('HomeQuickLinksScreen.remove')}
                     </Button>
                   </li>
                 ))}
               </ul>
             )}
             {reorder.isError ? (
-              <InlineAlert tone="danger" title="We could not reorder your links">
+              <InlineAlert tone="danger" title={t('HomeQuickLinksScreen.reorderErrorTitle')}>
                 {errorMessage(reorder.error)}
               </InlineAlert>
             ) : null}
             {remove.isError ? (
-              <InlineAlert tone="danger" title="We could not remove the link">
+              <InlineAlert tone="danger" title={t('HomeQuickLinksScreen.removeErrorTitle')}>
                 {errorMessage(remove.error)}
               </InlineAlert>
             ) : null}
