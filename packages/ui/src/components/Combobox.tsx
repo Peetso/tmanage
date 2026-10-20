@@ -55,6 +55,17 @@ export interface ComboboxProps extends Omit<
    * type, and for nothing else — the same narrow purpose as `Tooltip`'s `defaultOpen`.
    */
   defaultOpen?: boolean;
+  /**
+   * Open the popup when the control is focused, before a single key is pressed, so the whole
+   * list is there to click through rather than appearing only once typing starts.
+   *
+   * Off by default: a combobox whose list is already in the reader's head is quieter opening on
+   * the first keystroke. It is turned on for the people pickers a reader is browsing rather than
+   * recalling — the offboarding member picker the walkthrough flagged as "empty until you type"
+   * (ADM-16) — where seeing the roster is the point. Focus still never leaves the input, and
+   * every other behaviour (filter, Escape, blur-revert, selection) is unchanged.
+   */
+  openOnFocus?: boolean;
 }
 
 /**
@@ -101,6 +112,7 @@ export function Combobox({
   onQueryChange,
   emptyLabel = 'No matches',
   defaultOpen = false,
+  openOnFocus = false,
   className,
   required,
   ...rest
@@ -246,6 +258,15 @@ export function Combobox({
             }
           }}
           onKeyDown={onKeyDown}
+          onFocus={(event) => {
+            rest.onFocus?.(event);
+            // Show the list on focus when asked, so a reader browsing the roster sees it without
+            // typing. The active option stays unset — the virtual focus is still the reader's to
+            // move — and DOM focus never leaves the input.
+            if (openOnFocus) {
+              setOpen(true);
+            }
+          }}
           onBlur={onBlur}
         />
         <span className="tm-select__glyph" aria-hidden="true">

@@ -364,4 +364,34 @@ export class ProjectMembershipsRepository {
 
     return result[0].affectedRows > 0;
   }
+
+  /**
+   * Take one person off every project in the acting tenant, in a single statement.
+   *
+   * The access half of offboarding (ADM-07, CQ-05): a member's project memberships *are* the
+   * projects they can reach, so revoking access means these rows go. Everywhere else removal is a
+   * state, but a project membership is a grant — see the note at the top of this file — so, like
+   * {@link remove}, this is a real `DELETE`. One `WHERE (organization_id, user_id)` matches
+   * `ix_project_memberships_user`, so it is a single indexed write rather than a row-at-a-time
+   * loop, and it is run inside the offboarding transaction so access and work settle together.
+   *
+   * Returns how many rows were removed, so the offboard audit records the size of the revocation.
+   * Zero is not an error: a member on no project is already fully revoked here.
+   */
+  async removeAllForUser(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .delete(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.organizationId, context.organizationId),
+          eq(projectMemberships.userId, userId),
+        ),
+      );
+
+    return result[0].affectedRows;
+  }
 }

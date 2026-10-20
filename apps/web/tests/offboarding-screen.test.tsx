@@ -160,10 +160,36 @@ describe('OffboardingScreen', () => {
     });
 
     await selectOmar();
-    await screen.findByText('1 project memberships');
+    // ADM-16: one membership reads as singular, not "1 project memberships".
+    await screen.findByText('1 project membership');
+    // ADM-16: the role is a label, not the stored lowercase code.
+    expect(screen.getByText('Owner')).toBeInTheDocument();
+    expect(screen.queryByText('owner')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('checkbox', { name: /cannot be undone/i }));
     await userEvent.click(screen.getByRole('button', { name: /Offboard Omar Haddad/ }));
 
     await waitFor(() => expect(screen.getByText('Offboarding failed')).toBeInTheDocument());
+  });
+
+  it('shows the roster on focus, before anything is typed (ADM-16)', async () => {
+    mount({
+      impact: {
+        membershipId: 'm-omar',
+        userId: 'u-omar',
+        role: 'manager',
+        status: 'active',
+        projectMembershipCount: 2,
+        ownedWorkItemCount: 5,
+        offboardable: true,
+      },
+    });
+
+    const picker = await screen.findByRole('combobox', { name: 'Member to offboard' });
+    await waitFor(() => expect(picker).toBeEnabled());
+    await userEvent.click(picker);
+
+    // The list is there to click through without typing a single character.
+    expect(await screen.findByRole('option', { name: /Omar Haddad/ })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: /Ada Okonkwo/ })).toBeInTheDocument();
   });
 });

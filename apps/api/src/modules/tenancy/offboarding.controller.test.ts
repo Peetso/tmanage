@@ -72,6 +72,7 @@ interface AuditCall {
   readonly action: string;
   readonly result: string;
   readonly objectId: string | null;
+  readonly metadata: Record<string, unknown> | undefined;
 }
 
 /**
@@ -89,6 +90,8 @@ function serviceWith(
   service: OffboardingService;
   transitions: MembershipRow[];
   audits: AuditCall[];
+  projectRemovals: string[];
+  workClears: string[];
 } {
   // Keyed by user id: the routes resolve a member by `(organization_id, user_id)`, so the fake
   // `findByUserId` is the tenant-scoped lookup, and an unknown user id stands in for one that is
@@ -97,6 +100,10 @@ function serviceWith(
   if (seed) store.set(seed.userId, seed);
   const transitions: MembershipRow[] = [];
   const audits: AuditCall[] = [];
+  // Every user id offboarding revokes access and work for, so a refusal can be proven to have
+  // removed no project membership and cleared no owned work.
+  const projectRemovals: string[] = [];
+  const workClears: string[] = [];
 
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -125,19 +132,37 @@ function serviceWith(
 
   const projectMemberships = {
     countByUser: async () => 3,
+    removeAllForUser: async (_runner: unknown, _ctx: unknown, userId: string) => {
+      projectRemovals.push(userId);
+      return 3;
+    },
   } as unknown as ProjectMembershipsRepository;
 
   const workItems = {
     countOwnedByUser: async () => 7,
+    clearOwnerForUser: async (_runner: unknown, _ctx: unknown, ownerUserId: string) => {
+      workClears.push(ownerUserId);
+      return 7;
+    },
   } as unknown as WorkItemsRepository;
 
   const audit = {
     record: async (
       _runner: unknown,
       _ctx: unknown,
-      input: { action: string; result: string; objectId: string | null },
+      input: {
+        action: string;
+        result: string;
+        objectId: string | null;
+        metadata?: Record<string, unknown>;
+      },
     ) => {
-      audits.push({ action: input.action, result: input.result, objectId: input.objectId });
+      audits.push({
+        action: input.action,
+        result: input.result,
+        objectId: input.objectId,
+        metadata: input.metadata,
+      });
       return {} as unknown;
     },
   } as unknown as AuditService;
@@ -146,6 +171,8 @@ function serviceWith(
     service: new OffboardingService(database, memberships, audit, projectMemberships, workItems),
     transitions,
     audits,
+    projectRemovals,
+    workClears,
   };
 }
 
@@ -170,9 +197,39 @@ describe('OffboardingService', () => {
     expect(transitions).toHaveLength(1);
     expect(transitions[0]?.status).toBe('offboarded');
     // Exactly one audit row, and only for the real transition.
-    expect(audits).toEqual([
-      { action: 'membership.offboarded', result: 'allowed', objectId: TARGET_MEMBERSHIP },
-    ]);
+    expect(audits).toHaveLength(1);
+    expect(audits[0]?.action).toBe('membership.offboarded');
+    expect(audits[0]?.result).toBe('allowed');
+    expect(audits[0]?.objectId).toBe(TARGET_MEMBERSHIP);
+  });
+
+  it('revokes project access and releases owned work in the same transaction (ADM-06, ADM-07)', async () => {
+    const { service, projectRemovals, workClears, audits } = serviceWith(membershipRow());
+
+    await service.offboard(context, owner(), TARGET_USER);
+
+    // Both run, keyed by the target's user id, not the caller's.
+    expect(projectRemovals).toEqual([TARGET_USER]);
+    expect(workClears).toEqual([TARGET_USER]);
+    // The counts are recorded on the one audit row, so "who revoked what" is answerable.
+    expect(audits[0]?.metadata).toMatchObject({
+      target_user_id: TARGET_USER,
+      project_memberships_removed: 3,
+      owned_work_items_cleared: 7,
+    });
+  });
+
+  it('removes no project membership and clears no work when the offboard is refused', async () => {
+    // Re-offboarding a terminal member is refused before the transaction (Guard 2).
+    const { service, projectRemovals, workClears } = serviceWith(
+      membershipRow({ status: 'offboarded' }),
+    );
+
+    await expect(service.offboard(context, owner(), TARGET_USER)).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(projectRemovals).toHaveLength(0);
+    expect(workClears).toHaveLength(0);
   });
 
   it('returns 404 with no write for an unknown or cross-tenant membership id (Known trap)', async () => {

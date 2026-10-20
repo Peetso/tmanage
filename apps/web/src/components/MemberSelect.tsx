@@ -39,6 +39,13 @@ export interface MemberSelectProps {
   name?: string;
   /** Disables the field — e.g. until React hydrates, so typing is not lost to hydration. */
   disabled?: boolean;
+  /**
+   * Show the roster when the field is focused, before anything is typed. For a picker a person
+   * is browsing rather than recalling a name into — the offboarding member picker the
+   * walkthrough flagged as "empty until you type" (ADM-16). Off by default, so the pickers that
+   * open on the first keystroke are unchanged.
+   */
+  openOnFocus?: boolean;
 }
 
 /**
@@ -94,6 +101,7 @@ export function MemberSelect({
   failed = false,
   name,
   disabled,
+  openOnFocus = false,
 }: MemberSelectProps) {
   const options = memberOptions(members, value === '' ? null : value, loading);
 
@@ -117,6 +125,7 @@ export function MemberSelect({
       value={value}
       onValueChange={onChange}
       onQueryChange={setTyped}
+      openOnFocus={openOnFocus}
       emptyLabel={loading ? 'Loading members' : 'No member of this organization matches'}
       {...(name === undefined ? {} : { name })}
       {...(required === undefined ? {} : { required })}

@@ -233,6 +233,46 @@ export class WorkItemsRepository {
   }
 
   /**
+   * Clear the owner from every live work item one person owns, within the acting tenant.
+   *
+   * The work half of offboarding (ADM-06, CQ-05): once a member's access is revoked, work the
+   * row still names them as owner reads as "Former or hidden member" and cannot be acted on, so
+   * the owner is set back to `NULL` — the same "unassigned" the column already models for a work
+   * item nobody owns yet. The predicate is {@link countOwnedByUser}'s, so the number this clears
+   * is exactly the number the offboarding preview reported, and `ix_work_items_org_owner_state_due`
+   * begins `(organization_id, owner_user_id, …)`, so it is one indexed write, not a loop.
+   *
+   * `version` is bumped and `updated_at` touched like any other write, so a concurrent editor of
+   * one of these items still loses its optimistic-concurrency race rather than silently overwriting
+   * the cleared owner. Soft-deleted items are left alone: deleted work is not work anyone holds.
+   * Run inside the offboarding transaction, so the clear and the status change commit together.
+   *
+   * Returns how many rows were cleared, so the offboard audit records the size of the change.
+   */
+  async clearOwnerForUser(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    ownerUserId: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .update(workItems)
+      .set({
+        ownerUserId: null,
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(workItems.organizationId, context.organizationId),
+          eq(workItems.ownerUserId, ownerUserId),
+          isNull(workItems.deletedAt),
+        ),
+      );
+
+    return result[0].affectedRows;
+  }
+
+  /**
    * Fetch one work item by id, within the acting tenant.
    *
    * There is deliberately no `findById(id)` without a context. On MySQL such a method returns

@@ -104,8 +104,10 @@ export class OffboardingService {
     private readonly memberships: MembershipsRepository,
     private readonly audit: AuditService,
     /**
-     * Read-only, and used only for the impact preview's counts. Stateless like the others, so it
-     * is constructed here rather than injected (the reasoning `MeetingsService` records for the
+     * The impact preview counts a member's project memberships and owned work; the offboard
+     * itself removes those memberships and clears that work (ADM-06, ADM-07). Both are read for
+     * the preview and written inside the offboard transaction. Stateless like the others, so they
+     * are constructed here rather than injected (the reasoning `MeetingsService` records for the
      * repositories it owns a second handle on).
      */
     private readonly projectMemberships: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
@@ -233,6 +235,21 @@ export class OffboardingService {
         membership.version,
         'offboarded',
       );
+
+      // Revoke access and release work in the same unit of work as the status change
+      // (ADM-06, ADM-07). Every project membership is a grant into a project the member can
+      // reach, so offboarding removes them — a status flip that left the grants standing would
+      // leave an offboarded person still on the project team, named by a raw id. Owned work is
+      // set back to unassigned rather than left reading as "Former or hidden member" on a row
+      // nobody can act on. Both commit with the transition, so there is never a half-revoked
+      // member, and the counts are recorded on the one audit row.
+      const projectMembershipsRemoved = await this.projectMemberships.removeAllForUser(
+        tx,
+        context,
+        row.userId,
+      );
+      const ownedWorkItemsCleared = await this.workItems.clearOwnerForUser(tx, context, row.userId);
+
       await this.audit.record(tx, context, {
         action: 'membership.offboarded',
         result: 'allowed',
@@ -241,6 +258,8 @@ export class OffboardingService {
           membership_id: row.id,
           target_user_id: row.userId,
           previous_status: membership.status,
+          project_memberships_removed: projectMembershipsRemoved,
+          owned_work_items_cleared: ownedWorkItemsCleared,
         },
       });
       return row;

@@ -10,6 +10,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { useMembers, memberKeys } from '../../lib/use-members';
 import { useHydrated } from '../../lib/use-hydrated';
 import { memberDisplayName } from '../../lib/members-presentation';
+import { describeInternalRole } from '../../lib/roles';
 import { getOffboardingImpact, offboardMember } from '../../lib/api/offboarding';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -120,6 +121,7 @@ export function OffboardingScreen({
           loading={directory.isPending}
           failed={directory.isError}
           disabled={!hydrated}
+          openOnFocus
           hint="Only active members can be offboarded."
         />
       </div>
@@ -161,16 +163,26 @@ export function OffboardingScreen({
                   }
                 >
                   <p className="tm-cc-metric__value">{impact.data.ownedWorkItemCount}</p>
-                  <p className="tm-cc-metric__label">open work items lose their owner</p>
+                  <p className="tm-cc-metric__label">
+                    {impact.data.ownedWorkItemCount === 1
+                      ? 'open work item loses its owner'
+                      : 'open work items lose their owner'}
+                  </p>
                   <p className="tm-cc-metric__source">Reassign before access ends</p>
                 </li>
                 <li className="tm-cc-metric">
                   <p className="tm-cc-metric__value">{impact.data.projectMembershipCount}</p>
-                  <p className="tm-cc-metric__label">projects lose this member</p>
+                  <p className="tm-cc-metric__label">
+                    {impact.data.projectMembershipCount === 1
+                      ? 'project loses this member'
+                      : 'projects lose this member'}
+                  </p>
                   <p className="tm-cc-metric__source">Memberships end at once</p>
                 </li>
                 <li className="tm-cc-metric">
-                  <p className="tm-cc-metric__value">{impact.data.role}</p>
+                  <p className="tm-cc-metric__value">
+                    {describeInternalRole(impact.data.role).label}
+                  </p>
                   <p className="tm-cc-metric__label">role that stops applying</p>
                   <p className="tm-cc-metric__source">Access is revoked, never restored</p>
                 </li>
@@ -195,7 +207,7 @@ export function OffboardingScreen({
                         </td>
                         <td className="tm-cc-end">
                           <span className="tm-cc-pill">
-                            {impact.data.projectMembershipCount} project memberships
+                            {plural(impact.data.projectMembershipCount, 'project membership')}
                           </span>
                         </td>
                       </tr>
@@ -212,7 +224,7 @@ export function OffboardingScreen({
                                 : 'tm-cc-pill'
                             }
                           >
-                            {impact.data.ownedWorkItemCount} work items
+                            {plural(impact.data.ownedWorkItemCount, 'work item')}
                           </span>
                         </td>
                       </tr>
@@ -223,7 +235,7 @@ export function OffboardingScreen({
                         </td>
                         <td className="tm-cc-end">
                           <StatusDot tone={impact.data.offboardable ? 'neutral' : 'danger'}>
-                            {impact.data.status}
+                            {statusLabel(impact.data.status)}
                           </StatusDot>
                         </td>
                       </tr>
@@ -237,7 +249,7 @@ export function OffboardingScreen({
                       <p className="tm-cc-eyebrow">Before you offboard</p>
                       <p className="tm-cc-card__lead">
                         {impact.data.ownedWorkItemCount > 0
-                          ? `Transfer ${impact.data.ownedWorkItemCount} work items first, or they land unowned.`
+                          ? `Transfer ${plural(impact.data.ownedWorkItemCount, 'work item')} first, or ${impact.data.ownedWorkItemCount === 1 ? 'it lands' : 'they land'} unowned.`
                           : `${who} owns no open work. Offboarding ends their access everywhere.`}
                       </p>
                       <p className="tm-cc-card__body">
@@ -293,4 +305,27 @@ function describe(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
   return 'Something went wrong. Try again.';
+}
+
+/**
+ * `count` followed by the noun, singular at one (ADM-16). "1 project memberships" and "1 work
+ * items" are the exact wrongness the walkthrough flagged on this screen.
+ */
+function plural(count: number, one: string, many = `${one}s`): string {
+  return `${count} ${count === 1 ? one : many}`;
+}
+
+/**
+ * A membership status as a word a person reads, not the stored code (ADM-16). The API's values
+ * are lowercase (`active`, `offboarded`, `invited`, `suspended`); an unknown one is title-cased
+ * rather than guessed at, so a status added later still reads as a label and never as a bug.
+ */
+function statusLabel(status: string): string {
+  const labels: Record<string, string> = {
+    active: 'Active',
+    offboarded: 'Offboarded',
+    invited: 'Invited',
+    suspended: 'Suspended',
+  };
+  return labels[status] ?? status.charAt(0).toUpperCase() + status.slice(1);
 }

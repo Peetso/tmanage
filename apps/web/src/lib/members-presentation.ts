@@ -20,7 +20,13 @@ import { describeInternalRole } from './roles';
  * picker is not a reason to put the staff address book on a screen.
  */
 export function memberLabel(member: MemberSummary): string {
-  return `${member.displayName} · ${describeInternalRole(member.role).label}`;
+  // An offboarded member in a list reads as a former member first; the role still follows, so a
+  // team view that includes people who have left stays disambiguated the same way (ADM-07).
+  const name =
+    member.status === OFFBOARDED_STATUS
+      ? formerMemberLabel(member.displayName)
+      : member.displayName;
+  return `${name} · ${describeInternalRole(member.role).label}`;
 }
 
 /**
@@ -37,6 +43,23 @@ export function memberLabel(member: MemberSummary): string {
 export function unknownMemberLabel(userId: string): string {
   return `Former or hidden member (${userId.slice(0, 8)})`;
 }
+
+/**
+ * What to show for someone whose name the directory *does* know, but who has been offboarded —
+ * ADM-07.
+ *
+ * The id-only label above is for an absent id with no name to put to it. This is the other
+ * half: a project team or a work item still naming a colleague who has left, where the name is
+ * in hand. "Former member: Ada Okonkwo" keeps the person readable and says, in words rather
+ * than a raw id, that they are gone — the exact thing the review found the team screen failing
+ * to say when it printed the bare id instead.
+ */
+export function formerMemberLabel(displayName: string): string {
+  return `Former member: ${displayName}`;
+}
+
+/** The membership status that reads as "has left"; the one status `formerMemberLabel` is for. */
+const OFFBOARDED_STATUS = 'offboarded';
 
 /**
  * What to show for a stored id while the directory has not answered yet.
@@ -66,7 +89,13 @@ export function memberDisplayName(
 ): string {
   if (userId === null) return 'Unassigned';
   const found = members.find((member) => member.userId === userId);
-  if (found) return found.displayName;
+  if (found) {
+    // A member still in the list but offboarded reads as "Former member: Name", not a bare
+    // name that would suggest they are still present (ADM-07).
+    return found.status === OFFBOARDED_STATUS
+      ? formerMemberLabel(found.displayName)
+      : found.displayName;
+  }
   return loading ? LOADING_MEMBER_LABEL : unknownMemberLabel(userId);
 }
 
