@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchTeam, listTeams } from '../../lib/api/people-teams';
 import type { TeamDetailView, TeamView } from '../../lib/api/people-teams';
@@ -36,6 +37,7 @@ export interface TeamsScreenProps {
  *    WIP limit, commitments and cover rows have no read behind them yet, so they are not drawn.
  */
 export function TeamsScreen({ organizationSlug, organizationName, client }: TeamsScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const [chosenId, setChosenId] = useState<string | null>(null);
 
@@ -60,29 +62,34 @@ export function TeamsScreen({ organizationSlug, organizationName, client }: Team
       activeNavigationId="people"
       eyebrow={
         teams.isSuccess
-          ? `People · Teams · ${teamList.length} ${teamList.length === 1 ? 'team' : 'teams'}`
-          : 'People · Teams'
+          ? `${t('TeamsScreen.eyebrowPrefix')} ${teamList.length} ${
+              teamList.length === 1 ? t('TeamsScreen.teamSingular') : t('TeamsScreen.teamPlural')
+            }`
+          : t('TeamsScreen.eyebrowBase')
       }
-      title="Teams"
-      description="Named teams in this organization and who is on them."
+      title={t('TeamsScreen.title')}
+      description={t('TeamsScreen.description')}
     >
       <div className="ppl-screen">
         <div className="ppl-body ppl-body--wide-gap">
           <div className="ppl-aside ppl-aside--392">
             <section className="ppl-card" aria-labelledby="tm-teams-heading">
               <h2 id="tm-teams-heading" className="ppl-mono">
-                Teams
+                {t('TeamsScreen.teamsHeading')}
               </h2>
 
               {teams.isPending ? (
-                <LoadingRegion label="Loading the teams." className="tm-stack tm-stack--tight">
+                <LoadingRegion
+                  label={t('TeamsScreen.loadingTeams')}
+                  className="tm-stack tm-stack--tight"
+                >
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
               ) : null}
 
               {teams.isError ? (
-                <InlineAlert tone="danger" title="Could not load the teams" live>
+                <InlineAlert tone="danger" title={t('TeamsScreen.teamsLoadError')} live>
                   {describePeopleError(teams.error)}
                 </InlineAlert>
               ) : null}
@@ -94,12 +101,9 @@ export function TeamsScreen({ organizationSlug, organizationName, client }: Team
 
             <section className="ppl-card" aria-labelledby="tm-teams-how">
               <h2 id="tm-teams-how" className="ppl-card__title">
-                How a team is shaped
+                {t('TeamsScreen.howShapedHeading')}
               </h2>
-              <p className="ppl-dashed-note">
-                A team is a named group of members. Membership is set on record by an organization
-                admin; nothing here is inferred from who works with whom.
-              </p>
+              <p className="ppl-dashed-note">{t('TeamsScreen.howShapedBody')}</p>
             </section>
           </div>
 
@@ -109,9 +113,12 @@ export function TeamsScreen({ organizationSlug, organizationName, client }: Team
                 {detail.isPending ? (
                   <>
                     <h2 id="tm-team-detail-heading" className="ppl-card__title ppl-card__title--lg">
-                      Team detail
+                      {t('TeamsScreen.teamDetailHeading')}
                     </h2>
-                    <LoadingRegion label="Loading the team." className="tm-stack tm-stack--tight">
+                    <LoadingRegion
+                      label={t('TeamsScreen.loadingTeam')}
+                      className="tm-stack tm-stack--tight"
+                    >
                       <Skeleton height="var(--row)" />
                     </LoadingRegion>
                   </>
@@ -120,9 +127,9 @@ export function TeamsScreen({ organizationSlug, organizationName, client }: Team
                 {detail.isError ? (
                   <>
                     <h2 id="tm-team-detail-heading" className="ppl-card__title ppl-card__title--lg">
-                      Team detail
+                      {t('TeamsScreen.teamDetailHeading')}
                     </h2>
-                    <InlineAlert tone="danger" title="Could not load the team" live>
+                    <InlineAlert tone="danger" title={t('TeamsScreen.teamLoadError')} live>
                       {describePeopleError(detail.error)}
                     </InlineAlert>
                   </>
@@ -133,11 +140,8 @@ export function TeamsScreen({ organizationSlug, organizationName, client }: Team
                 ) : null}
               </section>
             ) : teams.isSuccess ? (
-              <section className="ppl-card" aria-label="Team detail">
-                <p className="ppl-dashed-note">
-                  No teams have been defined yet. When an admin creates one, its members appear
-                  here.
-                </p>
+              <section className="ppl-card" aria-label={t('TeamsScreen.teamDetailAria')}>
+                <p className="ppl-dashed-note">{t('TeamsScreen.noTeamsBody')}</p>
               </section>
             ) : null}
           </div>
@@ -156,11 +160,12 @@ function TeamsList({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const t = useT();
   if (teams.length === 0) {
-    return <p className="ppl-note">No teams have been defined yet.</p>;
+    return <p className="ppl-note">{t('TeamsScreen.noTeamsShort')}</p>;
   }
   return (
-    <ul className="ppl-soft-list" aria-label="Teams in this organization">
+    <ul className="ppl-soft-list" aria-label={t('TeamsScreen.teamsListAria')}>
       {teams.map((team) => (
         <li key={team.id}>
           <button
@@ -175,7 +180,9 @@ function TeamsList({
             <span>
               <span className="ppl-person__name">{team.name}</span>
               <span className="ppl-person__sub">
-                {team.memberCount === 1 ? '1 member' : `${team.memberCount} members`}
+                {team.memberCount === 1
+                  ? t('TeamsScreen.oneMember')
+                  : `${team.memberCount} ${t('TeamsScreen.memberPlural')}`}
               </span>
             </span>
           </button>
@@ -192,6 +199,7 @@ function TeamDetail({
   team: TeamDetailView;
   organizationSlug: string;
 }) {
+  const t = useT();
   return (
     <>
       <div className="ppl-card__head">
@@ -199,20 +207,23 @@ function TeamDetail({
           {team.name}
         </h2>
         <span className="ppl-mono ppl-mono--meta">
-          {team.members.length} {team.members.length === 1 ? 'member' : 'members'}
+          {team.members.length}{' '}
+          {team.members.length === 1
+            ? t('TeamsScreen.memberSingular')
+            : t('TeamsScreen.memberPlural')}
         </span>
       </div>
 
       {team.members.length === 0 ? (
-        <p className="ppl-dashed-note">This team has no members yet.</p>
+        <p className="ppl-dashed-note">{t('TeamsScreen.noMembersYet')}</p>
       ) : (
         <div className="ppl-inner-table">
           <div className="ppl-table-head" aria-hidden="true">
-            <span className="ppl-col-person">Member</span>
-            <span className="ppl-col-owner">Role</span>
-            <span className="ppl-col-when">Status</span>
+            <span className="ppl-col-person">{t('TeamsScreen.memberCol')}</span>
+            <span className="ppl-col-owner">{t('TeamsScreen.roleCol')}</span>
+            <span className="ppl-col-when">{t('TeamsScreen.statusCol')}</span>
           </div>
-          <ul className="ppl-people" aria-label={`Members of ${team.name}`}>
+          <ul className="ppl-people" aria-label={`${t('TeamsScreen.membersOf')} ${team.name}`}>
             {team.members.map((member) => (
               <li key={member.membershipId} className="ppl-inner-row">
                 <span className="ppl-col-person ppl-person__who">
@@ -235,7 +246,7 @@ function TeamDetail({
                       member.status === 'active' ? 'ppl-status' : 'ppl-status ppl-status--quiet'
                     }
                   >
-                    {member.status === 'active' ? 'Active' : member.status}
+                    {member.status === 'active' ? t('TeamsScreen.activeStatus') : member.status}
                   </span>
                 </span>
               </li>

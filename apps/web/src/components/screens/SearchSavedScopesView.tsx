@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createSearchScope,
@@ -48,6 +49,7 @@ export function SearchSavedScopesView({
   onApply,
   client,
 }: SearchSavedScopesViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const scopesKey = ['search-scopes', organizationSlug];
@@ -83,27 +85,27 @@ export function SearchSavedScopesView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-search-scopes">
       <h2 id="tm-search-scopes" className="tm-eyebrow">
-        Saved scopes
+        {t('SearchSavedScopesView.heading')}
       </h2>
 
       {scopes.isError ? (
-        <InlineAlert tone="danger" title="Could not load your saved scopes" live>
+        <InlineAlert tone="danger" title={t('SearchSavedScopesView.loadError')} live>
           {describeError(scopes.error)}
         </InlineAlert>
       ) : null}
       {scopes.isPending ? (
-        <LoadingRegion label="Loading your saved scopes.">
+        <LoadingRegion label={t('SearchSavedScopesView.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
       {!scopes.isPending && !scopes.isError && list.length === 0 ? (
-        <InlineAlert tone="neutral" title="No saved scopes yet">
-          Filter a search, then save the current filters as a named scope to reuse them.
+        <InlineAlert tone="neutral" title={t('SearchSavedScopesView.emptyTitle')}>
+          {t('SearchSavedScopesView.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {list.length > 0 ? (
-        <ul className="tm-row tm-wrap tm-chips" aria-label="Your saved scopes">
+        <ul className="tm-row tm-wrap tm-chips" aria-label={t('SearchSavedScopesView.listAria')}>
           {list.map((scope) => (
             <li key={scope.id} className="tm-chip">
               <Button
@@ -118,7 +120,7 @@ export function SearchSavedScopesView({
                 type="button"
                 tone="text"
                 size="accessible"
-                aria-label={`Delete scope ${scope.name}`}
+                aria-label={`${t('SearchSavedScopesView.deleteScopeAria')} ${scope.name}`}
                 onClick={() => remove.mutate(scope.id)}
                 disabled={remove.isPending}
               >
@@ -137,28 +139,28 @@ export function SearchSavedScopesView({
         }}
       >
         <label className="tm-field">
-          <span className="tm-label">Save current scope</span>
+          <span className="tm-label">{t('SearchSavedScopesView.saveCurrentLabel')}</span>
           <input
             className="tm-input"
             type="text"
             value={name}
             maxLength={300}
-            placeholder="Name this scope"
+            placeholder={t('SearchSavedScopesView.namePlaceholder')}
             onChange={(event) => setName(event.target.value)}
           />
         </label>
         <Button type="submit" size="accessible" disabled={trimmed.length === 0 || save.isPending}>
-          Save scope
+          {t('SearchSavedScopesView.saveScope')}
         </Button>
       </form>
 
       {save.isError ? (
-        <InlineAlert tone="danger" title="Could not save the scope" live>
+        <InlineAlert tone="danger" title={t('SearchSavedScopesView.saveError')} live>
           {describeError(save.error)}
         </InlineAlert>
       ) : null}
       {remove.isError ? (
-        <InlineAlert tone="danger" title="Could not delete the scope" live>
+        <InlineAlert tone="danger" title={t('SearchSavedScopesView.deleteError')} live>
           {describeError(remove.error)}
         </InlineAlert>
       ) : null}

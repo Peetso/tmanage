@@ -151,7 +151,7 @@ export function SignInScreen({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (email.trim() === '' || password === '') {
-      setFailure('Enter your work email and password.');
+      setFailure(t('SignInScreen.enterEmailPassword'));
       return;
     }
 
@@ -201,7 +201,7 @@ export function SignInScreen({
   async function submitDevelopmentSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (userId.trim() === '') {
-      setDevelopmentFailure('Enter the user id to sign in as.');
+      setDevelopmentFailure(t('SignInScreen.enterUserId'));
       return;
     }
 
@@ -221,20 +221,20 @@ export function SignInScreen({
   return (
     <IdentityShell
       screenId="ID-01"
-      eyebrow="Sign in"
+      eyebrow={t('SignInScreen.eyebrow')}
       footer={
         <>
-          <Link href="/legal/privacy">Privacy</Link>
+          <Link href="/legal/privacy">{t('SignInScreen.privacy')}</Link>
           {/* `/support` and `/legal/accessibility` are not published routes — both 404'd (ACC-13).
               Contact is the live page that reaches a person, so both point there. */}
-          <Link href="/contact">Support</Link>
-          <Link href="/contact">Accessibility</Link>
+          <Link href="/contact">{t('SignInScreen.support')}</Link>
+          <Link href="/contact">{t('SignInScreen.accessibility')}</Link>
         </>
       }
     >
       <div className="tm-id-intro">
-        <h1 className="tm-identity__title">Sign in</h1>
-        <p className="tm-id-lede">You will choose the organization after this step.</p>
+        <h1 className="tm-identity__title">{t('SignInScreen.heading')}</h1>
+        <p className="tm-id-lede">{t('SignInScreen.lede')}</p>
       </div>
 
       {/*
@@ -259,7 +259,7 @@ export function SignInScreen({
           <span className="tm-id-orb" aria-hidden="true">
             ◉
           </span>
-          Continue with a passkey
+          {t('SignInScreen.continuePasskey')}
         </Button>
         <Button
           tone="outline"
@@ -267,14 +267,14 @@ export function SignInScreen({
           disabled
           aria-describedby="tm-sign-in-methods-note"
         >
-          Continue with your company SSO
+          {t('SignInScreen.continueSso')}
         </Button>
         <p className="tm-id-methods__note" id="tm-sign-in-methods-note">
-          <strong>Not available yet</strong> — sign in with your work email below.
+          <strong>{t('SignInScreen.notAvailableYet')}</strong> {t('SignInScreen.methodsNote')}
         </p>
       </div>
 
-      <p className="tm-divider">Or email</p>
+      <p className="tm-divider">{t('SignInScreen.orEmail')}</p>
 
       {/*
         `noValidate` because this form does its own checking and reports it through the design
@@ -285,7 +285,7 @@ export function SignInScreen({
       <form className="tm-stack" noValidate onSubmit={submit}>
         <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
           <Field
-            label="Work email"
+            label={t('SignInScreen.workEmail')}
             type="email"
             name="email"
             autoComplete="username"
@@ -300,7 +300,7 @@ export function SignInScreen({
             required
           />
           <Field
-            label="Password"
+            label={t('SignInScreen.password')}
             type="password"
             name="password"
             autoComplete="current-password"
@@ -313,7 +313,7 @@ export function SignInScreen({
           />
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not sign you in" live>
+            <InlineAlert tone="danger" title={t('SignInScreen.couldNotSignIn')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -324,12 +324,12 @@ export function SignInScreen({
               tone="ink"
               size="accessible"
               loading={signingIn}
-              loadingLabel="Signing in"
+              loadingLabel={t('SignInScreen.signingIn')}
             >
-              Sign in
+              {t('SignInScreen.signInButton')}
             </Button>
             <Link className="tm-id-link" href="/recover">
-              Forgot access
+              {t('SignInScreen.forgotAccess')}
             </Link>
           </div>
         </fieldset>
@@ -341,29 +341,23 @@ export function SignInScreen({
         </p>
       ) : null}
 
-      <InlineAlert tone="neutral">
-        Client reviewers usually arrive through an invitation or portal link — open that link to set
-        up your access.
-      </InlineAlert>
+      <InlineAlert tone="neutral">{t('SignInScreen.clientReviewersNote')}</InlineAlert>
 
       {developmentSignInEnabled ? (
         <details className="tm-id-dev">
-          <summary>Development sign-in — not authentication</summary>
-          <p className="tm-prose">
-            This posts a user id the API accepts on trust. It is how a seeded account that has never
-            set a password can still be reached, and it is not registered in production.
-          </p>
+          <summary>{t('SignInScreen.devSummary')}</summary>
+          <p className="tm-prose">{t('SignInScreen.devBody')}</p>
 
           <form className="tm-stack" noValidate onSubmit={submitDevelopmentSignIn}>
             <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
               <Field
-                label="User id"
+                label={t('SignInScreen.userIdLabel')}
                 name="userId"
                 value={userId}
                 onChange={(event) => setUserId(event.target.value)}
                 autoComplete="off"
                 spellCheck={false}
-                hint="The uuid of an existing row in users."
+                hint={t('SignInScreen.userIdHint')}
                 {...(developmentFailure === undefined ? {} : { error: developmentFailure })}
               />
               <div className="tm-row">
@@ -371,17 +365,17 @@ export function SignInScreen({
                   type="submit"
                   tone="lime"
                   loading={developmentState === 'working'}
-                  loadingLabel="Starting a session"
+                  loadingLabel={t('SignInScreen.startingSession')}
                 >
-                  Start a development session
+                  {t('SignInScreen.startDevSession')}
                 </Button>
               </div>
             </fieldset>
           </form>
 
           {developmentState === 'signed-in' ? (
-            <InlineAlert tone="success" title="Session started" live>
-              The session cookies are set. Choose an organization next.
+            <InlineAlert tone="success" title={t('SignInScreen.sessionStarted')} live>
+              {t('SignInScreen.sessionStartedBody')}
             </InlineAlert>
           ) : null}
         </details>

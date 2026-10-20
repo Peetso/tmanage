@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createPersonalAccessToken,
@@ -40,6 +41,7 @@ export function SecurityScreen({
   organizationName,
   client,
 }: SecurityScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['personal-access-tokens', organizationSlug] as const;
@@ -81,27 +83,27 @@ export function SecurityScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Preferences · Security"
-      title="Access tokens"
-      description="Tokens let the TManage MCP server and other tools act as you. A token has your permissions and nothing more, and you can revoke it anytime."
+      eyebrow={t('SecurityScreen.eyebrow')}
+      title={t('SecurityScreen.title')}
+      description={t('SecurityScreen.description')}
     >
       <div className="tm-prefs">
         <section className="tm-prefs__main" aria-labelledby="tm-pat-list-heading">
           <div className="tm-prefs-card">
             <h2 id="tm-pat-list-heading" className="tm-prefs-eyebrow">
-              Your tokens
+              {t('SecurityScreen.yourTokensHeading')}
             </h2>
 
             {tokens.isPending ? (
-              <LoadingRegion label="Loading your personal access tokens">
+              <LoadingRegion label={t('SecurityScreen.loading')}>
                 <Skeleton />
               </LoadingRegion>
             ) : tokens.isError ? (
-              <InlineAlert tone="danger" title="We could not load your tokens">
+              <InlineAlert tone="danger" title={t('SecurityScreen.loadError')}>
                 {errorMessage(tokens.error)}
               </InlineAlert>
             ) : tokens.data.length === 0 ? (
-              <p className="tm-prefs-card__body">You have no personal access tokens yet.</p>
+              <p className="tm-prefs-card__body">{t('SecurityScreen.emptyBody')}</p>
             ) : (
               <ul className="tm-prefs-tokens">
                 {tokens.data.map((token) => (
@@ -114,10 +116,10 @@ export function SecurityScreen({
                         disabled={revoke.isPending}
                         onClick={() => revoke.mutate(token.id)}
                       >
-                        Revoke
+                        {t('SecurityScreen.revoke')}
                       </button>
                     ) : (
-                      <span className="tm-prefs-token__meta">Revoked</span>
+                      <span className="tm-prefs-token__meta">{t('SecurityScreen.revoked')}</span>
                     )}
                   </li>
                 ))}
@@ -125,7 +127,7 @@ export function SecurityScreen({
             )}
 
             {revoke.isError ? (
-              <InlineAlert tone="danger" title="We could not revoke that token">
+              <InlineAlert tone="danger" title={t('SecurityScreen.revokeError')}>
                 {errorMessage(revoke.error)}
               </InlineAlert>
             ) : null}
@@ -143,12 +145,12 @@ export function SecurityScreen({
             }}
           >
             <h2 id="tm-pat-create-heading" className="tm-prefs-card__title">
-              Create a token
+              {t('SecurityScreen.createHeading')}
             </h2>
 
             <div className="tm-prefs-field">
               <label className="tm-prefs-field__label" htmlFor="tm-pat-name">
-                Name
+                {t('SecurityScreen.nameLabel')}
               </label>
               <input
                 id="tm-pat-name"
@@ -156,7 +158,7 @@ export function SecurityScreen({
                 type="text"
                 value={name}
                 maxLength={190}
-                placeholder="e.g. Claude Desktop on my laptop"
+                placeholder={t('SecurityScreen.namePlaceholder')}
                 onChange={(event) => setName(event.target.value)}
                 required
               />
@@ -164,7 +166,7 @@ export function SecurityScreen({
 
             <div className="tm-prefs-field">
               <label className="tm-prefs-field__label" htmlFor="tm-pat-expiry">
-                Expires in (days, optional)
+                {t('SecurityScreen.expiryLabel')}
               </label>
               <input
                 id="tm-pat-expiry"
@@ -173,23 +175,20 @@ export function SecurityScreen({
                 min={1}
                 max={365}
                 value={expiry}
-                placeholder="Leave blank for no expiry"
+                placeholder={t('SecurityScreen.expiryPlaceholder')}
                 onChange={(event) => setExpiry(event.target.value)}
               />
             </div>
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="We could not create the token">
+              <InlineAlert tone="danger" title={t('SecurityScreen.createError')}>
                 {errorMessage(create.error)}
               </InlineAlert>
             ) : null}
 
             {created ? (
-              <InlineAlert tone="success" title="Token created — copy it now">
-                <p>
-                  This is the only time the token is shown. Paste it into your MCP client
-                  configuration now; if you lose it, revoke it and create a new one.
-                </p>
+              <InlineAlert tone="success" title={t('SecurityScreen.createdTitle')}>
+                <p>{t('SecurityScreen.createdBody')}</p>
                 <code className="tm-prefs-secret" data-testid="tm-pat-secret">
                   {created.token}
                 </code>
@@ -202,7 +201,7 @@ export function SecurityScreen({
                 className="tm-prefs-capsule tm-prefs-capsule--ink"
                 disabled={create.isPending || name.trim() === ''}
               >
-                {create.isPending ? 'Creating…' : 'Create token'}
+                {create.isPending ? t('SecurityScreen.creating') : t('SecurityScreen.createButton')}
               </button>
             </div>
           </form>
@@ -213,14 +212,19 @@ export function SecurityScreen({
 }
 
 function TokenRow({ token }: { token: PersonalAccessTokenView }) {
+  const t = useT();
   return (
     <span className="tm-prefs-token__text">
       <span className="tm-prefs-token__name">{token.name}</span>
       <code className="tm-prefs-kbd">{token.tokenPrefix}</code>
       <span className="tm-prefs-token__meta">
-        Created {formatDate(token.createdAt)}
-        {token.expiresAt ? ` · expires ${formatDate(token.expiresAt)}` : ' · no expiry'}
-        {token.lastUsedAt ? ` · last used ${formatDate(token.lastUsedAt)}` : ' · never used'}
+        {t('SecurityScreen.createdWord')} {formatDate(token.createdAt)}
+        {token.expiresAt
+          ? ` · ${t('SecurityScreen.expiresWord')} ${formatDate(token.expiresAt)}`
+          : ` · ${t('SecurityScreen.noExpiry')}`}
+        {token.lastUsedAt
+          ? ` · ${t('SecurityScreen.lastUsedWord')} ${formatDate(token.lastUsedAt)}`
+          : ` · ${t('SecurityScreen.neverUsed')}`}
       </span>
     </span>
   );

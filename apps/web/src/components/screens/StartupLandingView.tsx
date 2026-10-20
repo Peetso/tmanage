@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getStartupPref, updateStartupPref, LANDING_KEYS } from '../../lib/api/startup-prefs';
 import type { LandingKey, StartupPrefView } from '../../lib/api/startup-prefs';
@@ -20,14 +21,6 @@ export interface StartupLandingViewProps {
 /** The default an unsaved account routes by; the same value the API's `DEFAULT_LANDING_KEY` holds. */
 const DEFAULT_LANDING_KEY: LandingKey = 'home';
 
-/** Human labels for each landing destination, in the order they are offered. */
-const DESTINATION_LABELS: Readonly<Record<LandingKey, string>> = {
-  home: 'Home',
-  inbox: 'Inbox',
-  'my-work': 'My Work',
-  calendar: 'Calendar',
-};
-
 /**
  * **Default startup landing view (module 20 Preferences & accessibility, PREF-STARTUP, x287).**
  *
@@ -42,8 +35,17 @@ export function StartupLandingView({
   organizationName,
   client,
 }: StartupLandingViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+
+  /** Human labels for each landing destination, in the order they are offered. */
+  const destinationLabels: Readonly<Record<LandingKey, string>> = {
+    home: t('StartupLandingView.destHome'),
+    inbox: t('StartupLandingView.destInbox'),
+    'my-work': t('StartupLandingView.destMyWork'),
+    calendar: t('StartupLandingView.destCalendar'),
+  };
 
   const preference = useQuery({
     queryKey: ['startup-pref', organizationSlug],
@@ -71,15 +73,15 @@ export function StartupLandingView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Preferences · Startup"
-      title="Where TManage opens"
+      eyebrow={t('StartupLandingView.eyebrow')}
+      title={t('StartupLandingView.title')}
     >
       {preference.isPending ? (
-        <LoadingRegion label="Loading your startup view">
+        <LoadingRegion label={t('StartupLandingView.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : preference.isError ? (
-        <InlineAlert tone="danger" title="We could not load your startup view">
+        <InlineAlert tone="danger" title={t('StartupLandingView.loadError')}>
           {errorMessage(preference.error)}
         </InlineAlert>
       ) : (
@@ -95,11 +97,11 @@ export function StartupLandingView({
               }}
             >
               <h2 id="tm-startup-heading" className="tm-visually-hidden">
-                Open to
+                {t('StartupLandingView.openTo')}
               </h2>
 
               <fieldset className="tm-prefs-section">
-                <legend className="tm-prefs-eyebrow">Landing screen on sign-in</legend>
+                <legend className="tm-prefs-eyebrow">{t('StartupLandingView.legend')}</legend>
                 <div className="tm-prefs-choices">
                   {LANDING_KEYS.map((key) => (
                     <label className="tm-prefs-choice" key={key}>
@@ -111,24 +113,22 @@ export function StartupLandingView({
                         checked={landingKey === key}
                         onChange={() => setLandingKey(key)}
                       />
-                      {DESTINATION_LABELS[key]}
+                      {destinationLabels[key]}
                     </label>
                   ))}
                 </div>
-                <p className="tm-prefs-card__note">
-                  Home is the default. The choice is yours only and applies on every device.
-                </p>
+                <p className="tm-prefs-card__note">{t('StartupLandingView.note')}</p>
               </fieldset>
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="We could not save your startup view">
+                <InlineAlert tone="danger" title={t('StartupLandingView.saveError')}>
                   {errorMessage(save.error)}
                 </InlineAlert>
               ) : null}
 
               {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Saved">
-                  Your startup view has been saved.
+                <InlineAlert tone="success" title={t('StartupLandingView.savedTitle')}>
+                  {t('StartupLandingView.savedBody')}
                 </InlineAlert>
               ) : null}
 
@@ -138,7 +138,9 @@ export function StartupLandingView({
                   className="tm-prefs-capsule tm-prefs-capsule--ink"
                   disabled={save.isPending}
                 >
-                  {save.isPending ? 'Saving…' : 'Save startup view'}
+                  {save.isPending
+                    ? t('StartupLandingView.saving')
+                    : t('StartupLandingView.saveButton')}
                 </button>
               </div>
             </form>
@@ -147,10 +149,12 @@ export function StartupLandingView({
           <aside className="tm-prefs__side" aria-labelledby="tm-startup-summary">
             <div className="tm-prefs-card tm-prefs-card--paper tm-prefs-card--grow">
               <h2 id="tm-startup-summary" className="tm-prefs-eyebrow">
-                After you sign in
+                {t('StartupLandingView.summaryHeading')}
               </h2>
               <p className="tm-prefs-card__lead">
-                TManage opens on {DESTINATION_LABELS[landingKey]}.
+                {t('StartupLandingView.opensOnPrefix')}
+                {destinationLabels[landingKey]}
+                {t('StartupLandingView.opensOnSuffix')}
               </p>
             </div>
           </aside>

@@ -3,6 +3,7 @@
 import { useState, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { appendThreadReply, listThreadReplies } from '../../lib/api/thread-replies';
 import type { ThreadReplyView as ThreadReply } from '../../lib/api/thread-replies';
@@ -47,6 +48,7 @@ export function ThreadView({
   rootMessageBody,
   client,
 }: ThreadViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
@@ -96,43 +98,43 @@ export function ThreadView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-thread-replies">
       <h2 id="tm-thread-replies" className="tm-eyebrow">
-        Thread
+        {t('ThreadView.heading')}
       </h2>
 
       {rootMessageBody !== undefined ? (
-        <p className="tm-prose" aria-label="Thread source message">
+        <p className="tm-prose" aria-label={t('ThreadView.sourceAria')}>
           {rootMessageBody}
         </p>
       ) : null}
 
       {thread.isPending ? (
-        <LoadingRegion label="Loading replies.">
+        <LoadingRegion label={t('ThreadView.loadingReplies')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {notAvailable ? (
-        <InlineAlert tone="neutral" title="Thread unavailable" live>
-          This thread is not available.
+        <InlineAlert tone="neutral" title={t('ThreadView.unavailableTitle')} live>
+          {t('ThreadView.unavailableBody')}
         </InlineAlert>
       ) : null}
 
       {thread.isError && !notAvailable ? (
-        <InlineAlert tone="danger" title="Could not load the thread" live>
+        <InlineAlert tone="danger" title={t('ThreadView.loadError')} live>
           {describeError(thread.error)}
         </InlineAlert>
       ) : null}
 
       {!thread.isPending && !thread.isError ? (
         replies.length > 0 ? (
-          <ol className="tm-stack" aria-label="Replies in this thread">
+          <ol className="tm-stack" aria-label={t('ThreadView.repliesAria')}>
             {replies.map((item) => (
               <ThreadReplyView key={item.id} reply={item} />
             ))}
           </ol>
         ) : (
-          <p className="tm-prose">No replies yet.</p>
+          <p className="tm-prose">{t('ThreadView.noReplies')}</p>
         )
       ) : null}
 
@@ -146,7 +148,7 @@ export function ThreadView({
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-thread-reply-body">
-            Reply in thread
+            {t('ThreadView.replyLabel')}
           </label>
           <textarea
             id="tm-thread-reply-body"
@@ -160,7 +162,7 @@ export function ThreadView({
         </div>
 
         {reply.isError ? (
-          <InlineAlert tone="danger" title="Could not post the reply" live>
+          <InlineAlert tone="danger" title={t('ThreadView.postError')} live>
             {describeError(reply.error)}
           </InlineAlert>
         ) : null}
@@ -171,10 +173,10 @@ export function ThreadView({
             tone="ink"
             size="accessible"
             loading={reply.isPending}
-            loadingLabel="Posting"
+            loadingLabel={t('ThreadView.posting')}
             disabled={!canReply}
           >
-            Reply
+            {t('ThreadView.replyButton')}
           </Button>
         </div>
       </form>

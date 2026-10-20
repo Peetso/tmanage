@@ -4,6 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { PublicIntro, PublicPage } from './public/PublicSite';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicTrust } from '../../lib/api/public-trust';
 import type { PublicTrustView } from '../../lib/api/public-trust';
@@ -29,6 +31,7 @@ export interface TrustScreenProps {
  * single `<main>`, exactly one `<h1>`. `27-TEST-CATALOG` A11Y-01, proved axe-clean.
  */
 export function TrustScreen({ client }: TrustScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const trust = useQuery({
     queryKey: ['public-trust'],
@@ -47,39 +50,35 @@ export function TrustScreen({ client }: TrustScreenProps) {
       <section className="tm-pub-columns" aria-labelledby="tm-trust-title">
         <div className="tm-pub-aside">
           <PublicIntro
-            eyebrow="Security & trust"
+            eyebrow={t('TrustScreen.eyebrow')}
             titleId="tm-trust-title"
             size="sm"
-            title="Two tenants can never see each other."
+            title={t('TrustScreen.title')}
           >
-            <p className="tm-pub-lede tm-pub-lede--md">
-              Isolation is enforced in the database, not in the interface. Every request is bound to
-              one organization and checked before any handler runs. This page describes the design;
-              for whether systems are up right now, see the status page.
-            </p>
+            <p className="tm-pub-lede tm-pub-lede--md">{t('TrustScreen.lede')}</p>
           </PublicIntro>
           <div className="tm-pub-btn-row">
             <a className="tm-pub-btn tm-pub-btn--sm tm-pub-btn--quiet" href="#tm-trust-controls">
-              Architecture overview
+              {t('TrustScreen.architectureOverview')}
             </a>
             <Link className="tm-pub-btn tm-pub-btn--sm tm-pub-btn--ink" href="/contact">
-              Request the security pack
+              {t('TrustScreen.requestSecurityPack')}
             </Link>
           </div>
         </div>
 
         <div className="tm-pub-stack">
           {trust.isPending ? (
-            <LoadingRegion label="Loading the security and trust information.">
+            <LoadingRegion label={t('TrustScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : trust.isError || !trust.data ? (
-            <InlineAlert tone="danger" title="This information could not be loaded" live>
+            <InlineAlert tone="danger" title={t('TrustScreen.loadError')} live>
               {trust.error instanceof NetworkError
-                ? 'The API did not answer. Please try again shortly.'
-                : 'Something went wrong loading this page. Please try again shortly.'}
+                ? t('TrustScreen.networkError')
+                : t('TrustScreen.genericError')}
             </InlineAlert>
           ) : (
             <Content trust={trust.data} status={status.data} />
@@ -92,6 +91,13 @@ export function TrustScreen({ client }: TrustScreenProps) {
   );
 }
 
+const OVERALL_DOT: Record<string, 'warning' | 'danger' | undefined> = {
+  operational: undefined,
+  investigating: 'danger',
+  identified: 'warning',
+  monitoring: 'warning',
+};
+
 function Content({
   trust,
   status,
@@ -99,7 +105,15 @@ function Content({
   trust: PublicTrustView;
   status: PublicStatusView | undefined;
 }) {
-  const overall = status ? OVERALL[status.overall] : undefined;
+  const t = useT();
+  const overallLabels: Record<string, string> = {
+    operational: t('TrustScreen.overallOperational'),
+    investigating: t('TrustScreen.overallInvestigating'),
+    identified: t('TrustScreen.overallIdentified'),
+    monitoring: t('TrustScreen.overallMonitoring'),
+  };
+  const overallLabel = status ? overallLabels[status.overall] : undefined;
+  const overallDot = status ? OVERALL_DOT[status.overall] : undefined;
   const lastIncident = status?.incidents?.[0];
 
   return (
@@ -127,14 +141,14 @@ function Content({
               id="tm-trust-subprocessors"
               className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide"
             >
-              Subprocessors
+              {t('TrustScreen.subprocessorsHeading')}
             </h2>
-            <table className="tm-pub-table" aria-label="Subprocessors that handle customer data">
+            <table className="tm-pub-table" aria-label={t('TrustScreen.subprocessorsAria')}>
               <thead>
                 <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Purpose</th>
-                  <th scope="col">Location</th>
+                  <th scope="col">{t('TrustScreen.nameCol')}</th>
+                  <th scope="col">{t('TrustScreen.purposeCol')}</th>
+                  <th scope="col">{t('TrustScreen.locationCol')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -151,7 +165,7 @@ function Content({
 
           <section className="tm-pub-card" aria-labelledby="tm-trust-data">
             <h2 id="tm-trust-data" className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">
-              Data handling
+              {t('TrustScreen.dataHandlingHeading')}
             </h2>
             <ul className="tm-pub-card__list">
               {trust.dataHandling.map((line) => (
@@ -165,7 +179,7 @@ function Content({
               id="tm-trust-compliance"
               className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide"
             >
-              Compliance posture
+              {t('TrustScreen.complianceHeading')}
             </h2>
             <ul className="tm-pub-card__list">
               {trust.compliance.map((line) => (
@@ -180,27 +194,27 @@ function Content({
           aria-labelledby="tm-trust-status"
         >
           <h2 id="tm-trust-status" className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">
-            System status
+            {t('TrustScreen.systemStatusHeading')}
           </h2>
-          {overall ? (
+          {overallLabel ? (
             <p className="tm-pub-status-card__state">
               <span
-                className={`tm-pub-dot${overall.dot ? ` tm-pub-dot--${overall.dot}` : ''}`}
+                className={`tm-pub-dot${overallDot ? ` tm-pub-dot--${overallDot}` : ''}`}
                 aria-hidden="true"
               />
-              {overall.label}
+              {overallLabel}
             </p>
           ) : null}
           <p className="tm-pub-card__body">
             {lastIncident
-              ? `Last incident: ${lastIncident.title} (${lastIncident.component}).`
-              : 'Live status and published incidents are on the status page.'}
+              ? `${t('TrustScreen.lastIncidentPrefix')}${lastIncident.title} (${lastIncident.component}).`
+              : t('TrustScreen.noIncidentInfo')}
           </p>
           <Link
             className="tm-pub-btn tm-pub-btn--sm tm-pub-btn--on-ink tm-pub-card__foot"
             href={trust.statusPath}
           >
-            Open status page
+            {t('TrustScreen.openStatusPage')}
           </Link>
         </section>
       </div>
@@ -208,15 +222,19 @@ function Content({
   );
 }
 
-const OVERALL: Record<string, { label: string; dot?: 'warning' | 'danger' }> = {
-  operational: { label: 'All systems operational' },
-  investigating: { label: 'Investigating an incident', dot: 'danger' },
-  identified: { label: 'Issue identified', dot: 'warning' },
-  monitoring: { label: 'Monitoring a fix', dot: 'warning' },
-};
-
 /** PUB-06 — accessibility commitments, shown as the trust page's `#accessibility` section. */
 function AccessibilitySection() {
+  const t = useT();
+  const modeKeys: readonly MessageKey[] = [
+    'TrustScreen.modeKeyboard',
+    'TrustScreen.modeScreenReader',
+    'TrustScreen.modeReducedMotion',
+    'TrustScreen.modeHighContrast',
+    'TrustScreen.modeZoom',
+    'TrustScreen.modeTouch',
+    'TrustScreen.modeArabicRtl',
+    'TrustScreen.modeDarkTheme',
+  ];
   return (
     <section
       id="accessibility"
@@ -225,68 +243,59 @@ function AccessibilitySection() {
     >
       <div className="tm-pub-head">
         <div className="tm-pub-intro">
-          <p className="tm-pub-eyebrow">Accessibility</p>
+          <p className="tm-pub-eyebrow">{t('TrustScreen.a11yEyebrow')}</p>
           <h2 id="tm-a11y-title" className="tm-pub-display tm-pub-display--xs">
-            Every workflow can be completed without a mouse.
+            {t('TrustScreen.a11yTitle')}
           </h2>
         </div>
         <Link className="tm-pub-btn" href="/contact">
-          Report a barrier
+          {t('TrustScreen.reportBarrier')}
         </Link>
       </div>
       <div className="tm-pub-a11y">
         <div className="tm-pub-card tm-pub-card--roomy">
-          <h3 className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">Commitments</h3>
+          <h3 className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">
+            {t('TrustScreen.commitmentsHeading')}
+          </h3>
           <p className="tm-pub-card__body tm-pub-card__body--md">
-            WCAG 2.2 AA is our floor, tested at 200% zoom, keyboard-only, with screen readers, in
-            reduced motion, high contrast, coarse pointer, English and Arabic.
+            {t('TrustScreen.commitmentsBody')}
           </p>
           <hr className="tm-pub-card__rule" />
           <ul className="tm-pub-card__statements">
-            <li>Drag is never the only way to move work.</li>
-            <li>Colour is never the only carrier of state.</li>
-            <li>Time tracks always have an ordered text equivalent.</li>
-            <li>Focus is never hidden behind a sticky bar or sheet.</li>
+            <li>{t('TrustScreen.statement1')}</li>
+            <li>{t('TrustScreen.statement2')}</li>
+            <li>{t('TrustScreen.statement3')}</li>
+            <li>{t('TrustScreen.statement4')}</li>
           </ul>
         </div>
         <div className="tm-pub-card tm-pub-card--roomy">
-          <h3 className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">Supported modes</h3>
+          <h3 className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">
+            {t('TrustScreen.supportedModesHeading')}
+          </h3>
           <ul className="tm-pub-chips">
-            {MODES.map((mode) => (
-              <li key={mode}>{mode}</li>
+            {modeKeys.map((modeKey) => (
+              <li key={modeKey}>{t(modeKey)}</li>
             ))}
           </ul>
           <hr className="tm-pub-card__rule" />
           <p className="tm-pub-card__body tm-pub-card__body--md">
-            Known gaps are published, not hidden. If something blocks you, tell us and we will treat
-            it as a defect.
+            {t('TrustScreen.knownGapsBody')}
           </p>
         </div>
         <div className="tm-pub-card tm-pub-card--roomy tm-pub-card--ink">
-          <h3 className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">Conformance target</h3>
+          <h3 className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">
+            {t('TrustScreen.conformanceHeading')}
+          </h3>
           <p className="tm-pub-big">AA</p>
-          <p className="tm-pub-card__body">
-            WCAG 2.2 level AA is the floor every screen is built and tested to.
-          </p>
+          <p className="tm-pub-card__body">{t('TrustScreen.conformanceBody')}</p>
           <Link
             className="tm-pub-btn tm-pub-btn--sm tm-pub-btn--lime tm-pub-card__foot"
             href="/contact"
           >
-            Ask about accessibility
+            {t('TrustScreen.askAccessibility')}
           </Link>
         </div>
       </div>
     </section>
   );
 }
-
-const MODES = [
-  'Keyboard only',
-  'Screen reader',
-  'Reduced motion',
-  'High contrast',
-  '200% zoom',
-  'Touch / coarse pointer',
-  'Arabic RTL',
-  'Dark theme',
-];

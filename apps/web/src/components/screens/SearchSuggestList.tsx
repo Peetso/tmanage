@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSuggestions } from '../../lib/api/search-suggestions';
 import type { ApiClient } from '../../lib/api/client';
@@ -43,6 +44,7 @@ export function SearchSuggestList({
   listId,
   client,
 }: SearchSuggestListProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const prefix = query.trim();
 
@@ -60,7 +62,7 @@ export function SearchSuggestList({
       id={listId}
       className="tm-stack tm-list"
       role="listbox"
-      aria-label={`Suggestions for “${prefix}”`}
+      aria-label={`${t('SearchSuggestList.suggestionsFor')} “${prefix}”`}
     >
       {items.map((suggestion) => (
         <li key={suggestion} role="presentation">

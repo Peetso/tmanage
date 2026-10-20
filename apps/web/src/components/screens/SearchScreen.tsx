@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { search } from '../../lib/api/search';
 import type { SearchAudience, SearchResultKind, SearchTimeWindow } from '../../lib/api/search';
@@ -22,16 +23,6 @@ export interface SearchScreenProps {
   client?: ApiClient;
 }
 
-/** The singular label each hit carries so its kind stays legible in one flat, ranked list. */
-const KIND_LABEL: Readonly<Record<SearchResultKind, string>> = {
-  work_item: 'Work item',
-  document: 'Document',
-  meeting: 'Meeting',
-  message: 'Message',
-  decision: 'Decision',
-  project: 'Project',
-};
-
 /** The TYPE facet capsules (SR-02), in the order the design lists them. */
 const KIND_ORDER: readonly SearchResultKind[] = [
   'work_item',
@@ -41,14 +32,6 @@ const KIND_ORDER: readonly SearchResultKind[] = [
   'decision',
   'project',
 ];
-const KIND_FACET: Readonly<Record<SearchResultKind, string>> = {
-  work_item: 'Work',
-  document: 'Docs',
-  meeting: 'Meetings',
-  message: 'Messages',
-  decision: 'Decisions',
-  project: 'Projects',
-};
 
 /** The AUDIENCE facet rows (SR-02), each with the glyph the design pairs it with. */
 const AUDIENCE_ORDER: readonly SearchAudience[] = [
@@ -56,25 +39,9 @@ const AUDIENCE_ORDER: readonly SearchAudience[] = [
   'client_visible',
   'client_action_required',
 ];
-const AUDIENCE_FACET: Readonly<Record<SearchAudience, string>> = {
-  internal: '■ Internal only',
-  client_visible: '◎ Client visible',
-  client_action_required: '! Client action required',
-};
-/** The per-card audience pill text. */
-const AUDIENCE_PILL: Readonly<Record<SearchAudience, string>> = {
-  internal: '■ internal',
-  client_visible: '◎ client visible',
-  client_action_required: '! client action required',
-};
 
 /** The TIME facet capsules (SR-02). */
 const TIME_ORDER: readonly SearchTimeWindow[] = ['7d', '30d', 'all'];
-const TIME_FACET: Readonly<Record<SearchTimeWindow, string>> = {
-  '7d': '7 days',
-  '30d': '30 days',
-  all: 'All time',
-};
 
 /**
  * **SRCH-01 Global search (x111), ranked by SRCH ranking (x148)** — drawn as SR-02 Universal
@@ -107,7 +74,42 @@ export function SearchScreen({
   initialQuery,
   client,
 }: SearchScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
+
+  /** The singular label each hit carries so its kind stays legible in one flat, ranked list. */
+  const KIND_LABEL: Readonly<Record<SearchResultKind, string>> = {
+    work_item: t('SearchScreen.kindWorkItem'),
+    document: t('SearchScreen.kindDocument'),
+    meeting: t('SearchScreen.kindMeeting'),
+    message: t('SearchScreen.kindMessage'),
+    decision: t('SearchScreen.kindDecision'),
+    project: t('SearchScreen.kindProject'),
+  };
+  const KIND_FACET: Readonly<Record<SearchResultKind, string>> = {
+    work_item: t('SearchScreen.facetWork'),
+    document: t('SearchScreen.facetDocs'),
+    meeting: t('SearchScreen.facetMeetings'),
+    message: t('SearchScreen.facetMessages'),
+    decision: t('SearchScreen.facetDecisions'),
+    project: t('SearchScreen.facetProjects'),
+  };
+  const AUDIENCE_FACET: Readonly<Record<SearchAudience, string>> = {
+    internal: t('SearchScreen.audienceInternal'),
+    client_visible: t('SearchScreen.audienceClientVisible'),
+    client_action_required: t('SearchScreen.audienceClientAction'),
+  };
+  const AUDIENCE_PILL: Readonly<Record<SearchAudience, string>> = {
+    internal: t('SearchScreen.pillInternal'),
+    client_visible: t('SearchScreen.pillClientVisible'),
+    client_action_required: t('SearchScreen.pillClientAction'),
+  };
+  const TIME_FACET: Readonly<Record<SearchTimeWindow, string>> = {
+    '7d': t('SearchScreen.time7d'),
+    '30d': t('SearchScreen.time30d'),
+    all: t('SearchScreen.timeAll'),
+  };
+
   const [draft, setDraft] = useState<string>(initialQuery ?? '');
   const [query, setQuery] = useState<string>(initialQuery?.trim() ?? '');
   const [kind, setKind] = useState<'all' | SearchResultKind>('all');
@@ -164,7 +166,7 @@ export function SearchScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Search"
+      title={t('SearchScreen.title')}
     >
       <div className="tm-sa-search tm-sa-headerless">
         <form className="tm-sa-searchbar" onSubmit={onSubmit} role="search">
@@ -172,7 +174,7 @@ export function SearchScreen({
             ⌕
           </span>
           <label className="tm-visually-hidden" htmlFor="tm-search-q">
-            What are you looking for?
+            {t('SearchScreen.searchLabel')}
           </label>
           <input
             id="tm-search-q"
@@ -180,12 +182,13 @@ export function SearchScreen({
             type="search"
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
-            placeholder="Search work, docs, meetings, decisions, projects and messages you can see"
+            placeholder={t('SearchScreen.searchPlaceholder')}
           />
           <div className="tm-sa-searchbar__actions">
             {settled ? (
               <span className="tm-sa-searchbar__count" aria-live="polite">
-                {total} {total === 1 ? 'result' : 'results'}
+                {total}{' '}
+                {total === 1 ? t('SearchScreen.resultSingular') : t('SearchScreen.resultPlural')}
               </span>
             ) : null}
             {copilotEnabled ? (
@@ -197,7 +200,7 @@ export function SearchScreen({
                 }
                 className="tm-sa-capsule"
               >
-                Ask copilot
+                {t('SearchScreen.askCopilot')}
               </Link>
             ) : null}
             {query !== '' ? (
@@ -205,7 +208,7 @@ export function SearchScreen({
                 href={`/${org}/search/saved?q=${encodeURIComponent(query)}`}
                 className="tm-sa-capsule"
               >
-                Save this search
+                {t('SearchScreen.saveThisSearch')}
               </Link>
             ) : null}
             <button
@@ -213,7 +216,7 @@ export function SearchScreen({
               className="tm-sa-capsule tm-sa-capsule--ink"
               disabled={draft.trim() === ''}
             >
-              Search
+              {t('SearchScreen.searchButton')}
             </button>
           </div>
         </form>
@@ -222,7 +225,7 @@ export function SearchScreen({
           <div className="tm-sa-facets">
             <div className="tm-sa-facet" role="group" aria-labelledby="tm-search-type">
               <p id="tm-search-type" className="tm-sa-eyebrow">
-                Type
+                {t('SearchScreen.facetTypeHeading')}
               </p>
               <div className="tm-chip-row">
                 <button
@@ -231,7 +234,7 @@ export function SearchScreen({
                   aria-pressed={kind === 'all'}
                   onClick={() => setKind('all')}
                 >
-                  All {total}
+                  {t('SearchScreen.allFacet')} {total}
                 </button>
                 {KIND_ORDER.map((value) => {
                   const count = hits.filter((hit) => hit.kind === value).length;
@@ -251,7 +254,9 @@ export function SearchScreen({
               </div>
             </div>
             <fieldset className="tm-sa-facet">
-              <legend className="tm-sa-eyebrow tm-sa-facet__legend">Audience</legend>
+              <legend className="tm-sa-eyebrow tm-sa-facet__legend">
+                {t('SearchScreen.facetAudienceLegend')}
+              </legend>
               {AUDIENCE_ORDER.map((value) => (
                 <label key={value} className="tm-sa-check">
                   <input
@@ -269,7 +274,7 @@ export function SearchScreen({
             </fieldset>
             <div className="tm-sa-facet" role="group" aria-labelledby="tm-search-time">
               <p id="tm-search-time" className="tm-sa-eyebrow">
-                Time
+                {t('SearchScreen.facetTimeHeading')}
               </p>
               <div className="tm-chip-row">
                 {TIME_ORDER.map((value) => (
@@ -289,44 +294,40 @@ export function SearchScreen({
               </div>
             </div>
             <div className="tm-sa-note">
-              <p className="tm-sa-eyebrow">Hidden from you</p>
-              <p className="tm-sa-note__body">
-                Results are filtered by your access before they are ranked. Matches in projects you
-                are not on are never shown, not even their titles.
-              </p>
+              <p className="tm-sa-eyebrow">{t('SearchScreen.hiddenEyebrow')}</p>
+              <p className="tm-sa-note__body">{t('SearchScreen.hiddenBody')}</p>
             </div>
           </div>
 
           <section className="tm-sa-results" aria-labelledby="tm-search-results">
             <h2 id="tm-search-results" className="tm-sa-eyebrow">
-              {total > 0 ? `Results (${total}) · sorted by relevance` : 'Results'}
+              {total > 0
+                ? `${t('SearchScreen.resultsHeadingPrefix')} (${total}) ${t('SearchScreen.resultsHeadingSuffix')}`
+                : t('SearchScreen.resultsHeading')}
             </h2>
 
             {query === '' ? (
               <div className="tm-sa-empty">
-                <p className="tm-sa-empty__title">Search this organization</p>
-                <p className="tm-sa-empty__body">
-                  Enter a word or two above to find work, docs, meetings, decisions, projects and
-                  messages you can see.
-                </p>
+                <p className="tm-sa-empty__title">{t('SearchScreen.emptySearchTitle')}</p>
+                <p className="tm-sa-empty__body">{t('SearchScreen.emptySearchBody')}</p>
               </div>
             ) : null}
 
             {query !== '' && noAudience ? (
               <div className="tm-sa-empty" role="status">
-                <p className="tm-sa-empty__title">No audience selected</p>
-                <p className="tm-sa-empty__body">Tick at least one audience to see results.</p>
+                <p className="tm-sa-empty__title">{t('SearchScreen.noAudienceTitle')}</p>
+                <p className="tm-sa-empty__body">{t('SearchScreen.noAudienceBody')}</p>
               </div>
             ) : null}
 
             {results.isError ? (
-              <InlineAlert tone="danger" title="Could not run the search" live>
+              <InlineAlert tone="danger" title={t('SearchScreen.runError')} live>
                 {describeError(results.error)}
               </InlineAlert>
             ) : null}
 
             {query !== '' && !noAudience && results.isPending ? (
-              <LoadingRegion label="Running the search.">
+              <LoadingRegion label={t('SearchScreen.running')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
@@ -335,17 +336,19 @@ export function SearchScreen({
 
             {settled && total === 0 ? (
               <div className="tm-sa-empty" role="status">
-                <p className="tm-sa-empty__title">No matches</p>
+                <p className="tm-sa-empty__title">{t('SearchScreen.noMatchesTitle')}</p>
                 <p className="tm-sa-empty__body">
-                  Nothing you can see matches “{query}”
-                  {audienceFilter !== undefined || since !== 'all' ? ' with these filters' : ''}.
-                  Try a different word.
+                  {t('SearchScreen.noMatchesBefore')}“{query}”
+                  {audienceFilter !== undefined || since !== 'all'
+                    ? t('SearchScreen.withFilters')
+                    : ''}
+                  {t('SearchScreen.noMatchesAfter')}
                 </p>
               </div>
             ) : null}
 
             {total > 0 ? (
-              <ul className="tm-sa-results__list" aria-label="Search results, most relevant first">
+              <ul className="tm-sa-results__list" aria-label={t('SearchScreen.resultsListAria')}>
                 {shown.map((hit) => (
                   <li key={`${hit.kind}:${hit.id}`} className="tm-sa-hit">
                     <div className="tm-sa-hit__head">
@@ -386,7 +389,8 @@ export function SearchScreen({
                     </div>
                     {hit.snippet ? <p className="tm-sa-hit__body">{hit.snippet}</p> : null}
                     <p className="tm-sa-hit__meta">
-                      Project {shortRef(hit.projectId)} · updated {shortDate(hit.updatedAt)}
+                      {t('SearchScreen.projectMetaPrefix')} {shortRef(hit.projectId)}{' '}
+                      {t('SearchScreen.updatedMeta')} {shortDate(hit.updatedAt)}
                     </p>
                   </li>
                 ))}

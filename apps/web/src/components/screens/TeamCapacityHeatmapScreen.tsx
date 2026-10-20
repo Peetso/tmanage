@@ -4,6 +4,8 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getTeamCapacityHeatmap } from '../../lib/api/team-capacity-heatmap';
 import type { CapacityHeatmapView } from '../../lib/api/team-capacity-heatmap';
@@ -36,16 +38,17 @@ function currentMonday(today: Date): string {
  */
 interface Band {
   readonly id: string;
-  readonly label: string;
+  /** The message key for the band's human label. */
+  readonly labelKey: MessageKey;
   /** The legend swatch class; the cell paint is `data-band` in people.css, from the tokens. */
   readonly swatch: string;
 }
 
 const BANDS: readonly Band[] = [
-  { id: 'none', label: 'No capacity set', swatch: 'ppl-swatch--none' },
-  { id: 'under', label: 'Under 70%', swatch: 'ppl-swatch--under' },
-  { id: 'healthy', label: '70–100%', swatch: 'ppl-swatch--today' },
-  { id: 'over', label: 'Over 100%', swatch: 'ppl-swatch--over' },
+  { id: 'none', labelKey: 'TeamCapacityHeatmapScreen.bandNone', swatch: 'ppl-swatch--none' },
+  { id: 'under', labelKey: 'TeamCapacityHeatmapScreen.bandUnder', swatch: 'ppl-swatch--under' },
+  { id: 'healthy', labelKey: 'TeamCapacityHeatmapScreen.bandHealthy', swatch: 'ppl-swatch--today' },
+  { id: 'over', labelKey: 'TeamCapacityHeatmapScreen.bandOver', swatch: 'ppl-swatch--over' },
 ];
 
 function bandFor(utilisation: number | null, overAllocated: boolean): Band {
@@ -70,6 +73,7 @@ export function TeamCapacityHeatmapScreen({
   client,
   defaultFrom,
 }: TeamCapacityHeatmapScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const initialFrom = defaultFrom ?? currentMonday(new Date());
 
@@ -97,14 +101,18 @@ export function TeamCapacityHeatmapScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      eyebrow={`People · Capacity · ${applied.weeks} ${applied.weeks === 1 ? 'week' : 'weeks'}`}
-      title="Team capacity heatmap"
-      description="Every member's utilisation — allocated share against weekly capacity — across the weeks ahead."
+      eyebrow={`${t('TeamCapacityHeatmapScreen.eyebrowPrefix')} ${applied.weeks} ${
+        applied.weeks === 1
+          ? t('TeamCapacityHeatmapScreen.weekSingular')
+          : t('TeamCapacityHeatmapScreen.weekPlural')
+      }`}
+      title={t('TeamCapacityHeatmapScreen.title')}
+      description={t('TeamCapacityHeatmapScreen.description')}
     >
       <div className="ppl-screen">
         <section className="ppl-card ppl-card--tight" aria-labelledby="tm-heatmap-window">
           <h2 id="tm-heatmap-window" className="ppl-mono">
-            Window
+            {t('TeamCapacityHeatmapScreen.windowHeading')}
           </h2>
           <form
             className="ppl-toolbar"
@@ -117,7 +125,7 @@ export function TeamCapacityHeatmapScreen({
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-heatmap-from">
-                First week (Monday)
+                {t('TeamCapacityHeatmapScreen.firstWeekLabel')}
               </label>
               <input
                 id="tm-heatmap-from"
@@ -131,7 +139,7 @@ export function TeamCapacityHeatmapScreen({
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-heatmap-weeks">
-                Weeks
+                {t('TeamCapacityHeatmapScreen.weeksLabel')}
               </label>
               <input
                 id="tm-heatmap-weeks"
@@ -148,47 +156,48 @@ export function TeamCapacityHeatmapScreen({
                 required
               />
               <span className="tm-field__hint" id="tm-heatmap-weeks-hint">
-                How many weeks to show, from 1 to 26.
+                {t('TeamCapacityHeatmapScreen.weeksHint')}
               </span>
             </div>
             <Button type="submit" tone="ink" size="accessible" disabled={!canApply}>
-              Apply
+              {t('TeamCapacityHeatmapScreen.apply')}
             </Button>
           </form>
         </section>
 
         <section aria-labelledby="tm-heatmap-legend-heading">
           <h2 id="tm-heatmap-legend-heading" className="tm-visually-hidden">
-            Legend
+            {t('TeamCapacityHeatmapScreen.legendHeading')}
           </h2>
           <ul className="ppl-legend">
             {BANDS.map((band) => (
               <li key={band.id}>
                 <span className={`ppl-swatch ${band.swatch}`} aria-hidden="true" />
-                {band.label}
+                {t(band.labelKey)}
               </li>
             ))}
           </ul>
         </section>
 
         {heatmap.isError ? (
-          <InlineAlert tone="danger" title="Could not load the heatmap" live>
+          <InlineAlert tone="danger" title={t('TeamCapacityHeatmapScreen.loadError')} live>
             {describeError(heatmap.error)}
           </InlineAlert>
         ) : null}
 
         {heatmap.isPending ? (
-          <LoadingRegion label="Loading the team capacity heatmap.">
+          <LoadingRegion label={t('TeamCapacityHeatmapScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {view !== undefined && view.members.length === 0 ? (
-          <section className="ppl-card ppl-card--tight" aria-label="No members to show">
-            <p className="ppl-dashed-note">
-              No one has capacity set or an allocation in this window.
-            </p>
+          <section
+            className="ppl-card ppl-card--tight"
+            aria-label={t('TeamCapacityHeatmapScreen.noMembersAria')}
+          >
+            <p className="ppl-dashed-note">{t('TeamCapacityHeatmapScreen.noMembersBody')}</p>
           </section>
         ) : null}
 
@@ -199,11 +208,12 @@ export function TeamCapacityHeatmapScreen({
 }
 
 function HeatmapGrid({ view }: { view: CapacityHeatmapView }) {
+  const t = useT();
   const columns = useMemo(() => view.weekStarts, [view.weekStarts]);
   return (
     <section className="ppl-card ppl-card--tight" aria-labelledby="tm-heatmap-heading">
       <h2 id="tm-heatmap-heading" className="ppl-mono">
-        Utilisation
+        {t('TeamCapacityHeatmapScreen.utilisationHeading')}
       </h2>
       <div
         className="tm-table-scroll"
@@ -212,16 +222,19 @@ function HeatmapGrid({ view }: { view: CapacityHeatmapView }) {
         // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
         role="region"
-        aria-label="Team capacity heatmap"
+        aria-label={t('TeamCapacityHeatmapScreen.gridAria')}
       >
         <table className="ppl-heat">
           <caption className="tm-visually-hidden">
-            Each member's weekly utilisation over {columns.length} weeks from {view.from}. A cell
-            shows the allocated percent of the member's capacity; over 100% is over-allocated.
+            {t('TeamCapacityHeatmapScreen.captionBefore')}
+            {columns.length}
+            {t('TeamCapacityHeatmapScreen.captionMid')}
+            {view.from}
+            {t('TeamCapacityHeatmapScreen.captionAfter')}
           </caption>
           <thead>
             <tr>
-              <th scope="col">Member</th>
+              <th scope="col">{t('TeamCapacityHeatmapScreen.memberCol')}</th>
               {columns.map((weekStart) => (
                 <th key={weekStart} scope="col">
                   {weekStart}
@@ -239,10 +252,10 @@ function HeatmapGrid({ view }: { view: CapacityHeatmapView }) {
                     <td key={cell.weekStart} data-band={band.id}>
                       {cell.capacityHours === 0 ? '—' : `${cell.allocatedPercent}%`}
                       <span className="tm-visually-hidden">
-                        {` (${band.label}${
+                        {` (${t(band.labelKey)}${
                           cell.utilisation === null
                             ? ''
-                            : `, ${cell.allocatedHours}h of ${cell.capacityHours}h`
+                            : `, ${cell.allocatedHours}${t('TeamCapacityHeatmapScreen.hourSuffix')} ${t('TeamCapacityHeatmapScreen.ofWord')} ${cell.capacityHours}${t('TeamCapacityHeatmapScreen.hourSuffix')}`
                         })`}
                       </span>
                     </td>

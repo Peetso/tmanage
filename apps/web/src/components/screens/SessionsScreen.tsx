@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listDevices, signOut } from '../../lib/api/session';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -49,6 +50,7 @@ export function SessionsScreen({
   onSignedOut,
   boundary = authBoundary,
 }: SessionsScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const devices = useQuery({
@@ -69,29 +71,29 @@ export function SessionsScreen({
   });
 
   return (
-    <IdentityShell screenId="ID-06" eyebrow="Sessions and devices">
+    <IdentityShell screenId="ID-06" eyebrow={t('SessionsScreen.eyebrow')}>
       <div className="tm-id-bare tm-id-sessions tm-stack">
         <div className="tm-id-sessions__head">
-          <h1 className="tm-identity__title">Where you are signed in</h1>
+          <h1 className="tm-identity__title">{t('SessionsScreen.heading')}</h1>
           <Button
             tone="destructive"
             size="accessible"
             loading={endSession.isPending}
-            loadingLabel="Signing out"
+            loadingLabel={t('SessionsScreen.signingOut')}
             onClick={() => endSession.mutate()}
           >
-            Sign out of this session
+            {t('SessionsScreen.signOut')}
           </Button>
         </div>
 
         {endSession.isError ? (
-          <InlineAlert tone="danger" title="Sign-out failed" live>
+          <InlineAlert tone="danger" title={t('SessionsScreen.signOutFailed')} live>
             {describe(endSession.error)}
           </InlineAlert>
         ) : null}
 
         {devices.isPending ? (
-          <LoadingRegion label="Loading your sessions." className="tm-stack tm-stack--tight">
+          <LoadingRegion label={t('SessionsScreen.loading')} className="tm-stack tm-stack--tight">
             <Skeleton height="56px" />
             <Skeleton height="56px" />
             <Skeleton height="56px" />
@@ -99,14 +101,14 @@ export function SessionsScreen({
         ) : null}
 
         {devices.isError ? (
-          <InlineAlert tone="danger" title="Could not load your sessions" live>
+          <InlineAlert tone="danger" title={t('SessionsScreen.loadError')} live>
             {describe(devices.error)}
           </InlineAlert>
         ) : null}
 
         {devices.isSuccess ? (
           devices.data.length === 0 ? (
-            <InlineAlert tone="neutral">No active sessions.</InlineAlert>
+            <InlineAlert tone="neutral">{t('SessionsScreen.noActiveSessions')}</InlineAlert>
           ) : (
             <ul className="tm-id-session-list">
               {devices.data.map((session) => (
@@ -116,14 +118,14 @@ export function SessionsScreen({
                   </span>
                   <div className="tm-id-session__text">
                     <p className="tm-id-session__agent" title={session.userAgent ?? undefined}>
-                      {session.userAgent ?? 'Unknown device'}
+                      {session.userAgent ?? t('SessionsScreen.unknownDevice')}
                     </p>
                     <p className="tm-id-session__meta">
-                      Started {formatMoment(session.createdAt)} · Expires{' '}
-                      {formatMoment(session.expiresAt)}
+                      {t('SessionsScreen.started')} {formatMoment(session.createdAt)}{' '}
+                      {t('SessionsScreen.expiresWord')} {formatMoment(session.expiresAt)}
                       {session.rotatedAt === null
                         ? ''
-                        : ` · Last refreshed ${formatMoment(session.rotatedAt)}`}
+                        : ` ${t('SessionsScreen.lastRefreshedWord')} ${formatMoment(session.rotatedAt)}`}
                     </p>
                   </div>
                   {/* There is no per-session revoke route yet, so the control is shown disabled. */}
@@ -131,9 +133,9 @@ export function SessionsScreen({
                     tone="outline"
                     size="compact"
                     disabled
-                    title="Revoking another session is not available yet"
+                    title={t('SessionsScreen.revokeUnavailable')}
                   >
-                    Revoke
+                    {t('SessionsScreen.revoke')}
                   </Button>
                 </li>
               ))}
@@ -144,21 +146,15 @@ export function SessionsScreen({
         <div className="tm-id-cards">
           <section className="tm-id-card" aria-labelledby="tm-sessions-passkeys">
             <h2 id="tm-sessions-passkeys" className="tm-id-mono">
-              Passkeys
+              {t('SessionsScreen.passkeysHeading')}
             </h2>
-            <p className="tm-id-card__body">
-              Not available yet. Sign-in uses your password and, where your organization requires
-              it, a second factor.
-            </p>
+            <p className="tm-id-card__body">{t('SessionsScreen.passkeysBody')}</p>
           </section>
           <section className="tm-id-card" aria-labelledby="tm-sessions-recovery">
             <h2 id="tm-sessions-recovery" className="tm-id-mono">
-              Recovery codes
+              {t('SessionsScreen.recoveryHeading')}
             </h2>
-            <p className="tm-id-card__body">
-              Saved when you set up a second factor. Each one works once and cannot be shown again
-              here.
-            </p>
+            <p className="tm-id-card__body">{t('SessionsScreen.recoveryBody')}</p>
           </section>
         </div>
       </div>

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
+import { useT } from '../../lib/i18n/use-t';
 import {
   searchSkills,
   type SkillLevel,
@@ -16,12 +17,8 @@ export interface SkillSearchScreenProps {
   api: ApiClient;
 }
 
-const LEVELS: readonly { value: '' | SkillLevel; label: string }[] = [
-  { value: '', label: 'Any level' },
-  { value: 'basic', label: 'Basic or above' },
-  { value: 'proficient', label: 'Proficient or above' },
-  { value: 'expert', label: 'Expert' },
-];
+/** The minimum-level options offered, in order. */
+const LEVEL_VALUES: readonly ('' | SkillLevel)[] = ['', 'basic', 'proficient', 'expert'];
 
 function describe(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
@@ -39,9 +36,17 @@ function describe(error: unknown): string {
  * skills; this screen reads across members.
  */
 export function SkillSearchScreen({ organizationSlug, api }: SkillSearchScreenProps) {
+  const t = useT();
   const [tags, setTags] = useState<readonly string[]>([]);
   const [draft, setDraft] = useState('');
   const [level, setLevel] = useState<'' | SkillLevel>('');
+
+  const levelLabels: Readonly<Record<'' | SkillLevel, string>> = {
+    '': t('SkillSearchScreen.levelAny'),
+    basic: t('SkillSearchScreen.levelBasic'),
+    proficient: t('SkillSearchScreen.levelProficient'),
+    expert: t('SkillSearchScreen.levelExpert'),
+  };
 
   const queryKey = ['skill-search', organizationSlug, tags, level] as const;
   const results = useQuery({
@@ -70,70 +75,75 @@ export function SkillSearchScreen({ organizationSlug, api }: SkillSearchScreenPr
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-skill-search">
       <h2 id="tm-skill-search" className="tm-eyebrow">
-        Find people by skill
+        {t('SkillSearchScreen.heading')}
       </h2>
 
       <form className="tm-stack" noValidate onSubmit={addTag}>
         <Field
-          label="Add a skill tag"
+          label={t('SkillSearchScreen.addTagLabel')}
           name="skillTag"
           value={draft}
           maxLength={80}
           onChange={(event) => setDraft(event.target.value)}
-          hint="Add one or more skills to filter by, e.g. TypeScript."
+          hint={t('SkillSearchScreen.addTagHint')}
         />
         <Select
-          label="Minimum level"
+          label={t('SkillSearchScreen.minLevelLabel')}
           name="minLevel"
           value={level}
           onChange={(event) => setLevel(event.target.value as '' | SkillLevel)}
         >
-          {LEVELS.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
+          {LEVEL_VALUES.map((value) => (
+            <option key={value} value={value}>
+              {levelLabels[value]}
             </option>
           ))}
         </Select>
         <div className="tm-row">
           <Button type="submit" tone="ink" size="accessible" disabled={draft.trim() === ''}>
-            Add skill
+            {t('SkillSearchScreen.addSkill')}
           </Button>
         </div>
       </form>
 
       {tags.length > 0 ? (
-        <ul className="tm-list" aria-label="Selected skills">
+        <ul className="tm-list" aria-label={t('SkillSearchScreen.selectedSkillsAria')}>
           {tags.map((tag) => (
             <li key={tag} className="tm-row">
               <span>{tag}</span>
               <Button type="button" tone="text" size="accessible" onClick={() => removeTag(tag)}>
-                Remove <span className="tm-visually-hidden">the {tag} filter</span>
+                {t('SkillSearchScreen.remove')}{' '}
+                <span className="tm-visually-hidden">
+                  {t('SkillSearchScreen.theFilterBefore')}
+                  {tag}
+                  {t('SkillSearchScreen.theFilterAfter')}
+                </span>
               </Button>
             </li>
           ))}
         </ul>
       ) : (
-        <p className="tm-prose">Add a skill above to search the directory.</p>
+        <p className="tm-prose">{t('SkillSearchScreen.emptyPrompt')}</p>
       )}
 
       {results.isPending && tags.length > 0 ? (
-        <LoadingRegion label="Searching the directory.">
+        <LoadingRegion label={t('SkillSearchScreen.searching')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {results.isError ? (
-        <InlineAlert tone="danger" title="Could not run the search" live>
+        <InlineAlert tone="danger" title={t('SkillSearchScreen.searchError')} live>
           {describe(results.error)}
         </InlineAlert>
       ) : null}
 
       {results.data ? (
         hits.length === 0 ? (
-          <p className="tm-prose">No members match those skills.</p>
+          <p className="tm-prose">{t('SkillSearchScreen.noMatches')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Matching members">
+          <ul className="tm-list" aria-label={t('SkillSearchScreen.matchingAria')}>
             {hits.map((hit) => (
               <li key={hit.membershipId} className="tm-row">
                 <span>

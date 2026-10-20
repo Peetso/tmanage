@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createSavedSearch,
@@ -56,6 +57,7 @@ export function SavedSearchesScreen({
   initialQuery,
   client,
 }: SavedSearchesScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -121,33 +123,34 @@ export function SavedSearchesScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Saved searches"
+      title={t('SavedSearchesScreen.title')}
     >
       <div className="tm-sa-saved tm-sa-headerless">
         <div className="tm-sa-saved__rail">
           <section className="tm-stack" aria-labelledby="tm-saved-list">
             <h2 id="tm-saved-list" className="tm-sa-eyebrow">
-              Saved searches{savedList.length > 0 ? ` · ${savedList.length}` : ''}
+              {t('SavedSearchesScreen.savedListHeading')}
+              {savedList.length > 0 ? ` · ${savedList.length}` : ''}
             </h2>
             {saved.isError ? (
-              <InlineAlert tone="danger" title="Could not load your saved searches" live>
+              <InlineAlert tone="danger" title={t('SavedSearchesScreen.savedLoadError')} live>
                 {describeError(saved.error)}
               </InlineAlert>
             ) : null}
             {saved.isPending ? (
-              <LoadingRegion label="Loading your saved searches.">
+              <LoadingRegion label={t('SavedSearchesScreen.savedLoading')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
             {!saved.isPending && !saved.isError && savedList.length === 0 ? (
               <div className="tm-sa-empty">
-                <p className="tm-sa-empty__title">No saved searches yet</p>
-                <p className="tm-sa-empty__body">Save a search to keep it here.</p>
+                <p className="tm-sa-empty__title">{t('SavedSearchesScreen.savedEmptyTitle')}</p>
+                <p className="tm-sa-empty__body">{t('SavedSearchesScreen.savedEmptyBody')}</p>
               </div>
             ) : null}
             {savedList.length > 0 ? (
-              <ul className="tm-sa-saved__list" aria-label="Your saved searches">
+              <ul className="tm-sa-saved__list" aria-label={t('SavedSearchesScreen.savedListAria')}>
                 {savedList.map((item) => (
                   <li key={item.id}>
                     <button
@@ -163,7 +166,7 @@ export function SavedSearchesScreen({
                       <span className="tm-sa-saved-item__meta">
                         “{item.query}”
                         {item.filters.length > 0
-                          ? ` · ${item.filters.length} ${item.filters.length === 1 ? 'filter' : 'filters'}`
+                          ? ` · ${item.filters.length} ${item.filters.length === 1 ? t('SavedSearchesScreen.filterSingular') : t('SavedSearchesScreen.filterPlural')}`
                           : ''}
                       </span>
                     </button>
@@ -175,22 +178,20 @@ export function SavedSearchesScreen({
 
           <section className="tm-stack" aria-labelledby="tm-recent-list">
             <h2 id="tm-recent-list" className="tm-sa-eyebrow">
-              Recent searches
+              {t('SavedSearchesScreen.recentHeading')}
             </h2>
             {recent.isPending ? (
-              <LoadingRegion label="Loading your recent searches.">
+              <LoadingRegion label={t('SavedSearchesScreen.recentLoading')}>
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
             {!recent.isPending && !recent.isError && recentList.length === 0 ? (
-              <p className="tm-sa-saved-item__meta">
-                Searches you run will show up here so you can pick them up again.
-              </p>
+              <p className="tm-sa-saved-item__meta">{t('SavedSearchesScreen.recentEmpty')}</p>
             ) : null}
             {recentList.length > 0 ? (
               <ul
                 className="tm-sa-saved__list"
-                aria-label="Your recent searches, most recent first"
+                aria-label={t('SavedSearchesScreen.recentListAria')}
               >
                 {recentList.map((item) => (
                   <li key={`${item.searchedAt}:${item.query}`}>
@@ -214,7 +215,7 @@ export function SavedSearchesScreen({
               aria-controls="tm-saved-search-form"
               onClick={() => setComposing(true)}
             >
-              New saved search
+              {t('SavedSearchesScreen.newSavedSearch')}
             </button>
           </div>
         </div>
@@ -222,9 +223,9 @@ export function SavedSearchesScreen({
         <div className="tm-sa-saved__main">
           {showForm ? (
             <div className="tm-sa-saved__titles">
-              <p className="tm-sa-saved__eyebrow">Saved search · a standing question</p>
+              <p className="tm-sa-saved__eyebrow">{t('SavedSearchesScreen.formEyebrow')}</p>
               <p className="tm-sa-saved__title" aria-hidden="true">
-                New saved search
+                {t('SavedSearchesScreen.newSavedSearch')}
               </p>
             </div>
           ) : null}
@@ -235,13 +236,13 @@ export function SavedSearchesScreen({
               aria-labelledby="tm-saved-search-form-title"
             >
               <h2 id="tm-saved-search-form-title" className="tm-sa-eyebrow">
-                Save a search
+                {t('SavedSearchesScreen.formHeading')}
               </h2>
               <form className="tm-stack" onSubmit={onSubmit}>
                 <div className="tm-sa-form__fields">
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-saved-name">
-                      Name
+                      {t('SavedSearchesScreen.nameLabel')}
                     </label>
                     <input
                       id="tm-saved-name"
@@ -249,12 +250,12 @@ export function SavedSearchesScreen({
                       type="text"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      placeholder="e.g. My open work"
+                      placeholder={t('SavedSearchesScreen.namePlaceholder')}
                     />
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-saved-query">
-                      Query
+                      {t('SavedSearchesScreen.queryLabel')}
                     </label>
                     <input
                       id="tm-saved-query"
@@ -262,7 +263,7 @@ export function SavedSearchesScreen({
                       type="search"
                       value={query}
                       onChange={(event) => setQuery(event.target.value)}
-                      placeholder="The words to search for"
+                      placeholder={t('SavedSearchesScreen.queryPlaceholder')}
                     />
                   </div>
                 </div>
@@ -272,16 +273,16 @@ export function SavedSearchesScreen({
                     tone="ink"
                     disabled={name.trim() === '' || query.trim() === '' || create.isPending}
                   >
-                    Save search
+                    {t('SavedSearchesScreen.saveSearch')}
                   </Button>
                   {savedList.length > 0 ? (
                     <Button type="button" tone="outline" onClick={() => setComposing(false)}>
-                      Cancel
+                      {t('SavedSearchesScreen.cancel')}
                     </Button>
                   ) : null}
                 </div>
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not save the search" live>
+                  <InlineAlert tone="danger" title={t('SavedSearchesScreen.saveError')} live>
                     {describeError(create.error)}
                   </InlineAlert>
                 ) : null}
@@ -294,7 +295,8 @@ export function SavedSearchesScreen({
               <div className="tm-sa-saved__head">
                 <div className="tm-sa-saved__titles">
                   <p className="tm-sa-saved__eyebrow">
-                    Saved search · saved {DATE.format(new Date(selected.createdAt))}
+                    {t('SavedSearchesScreen.savedOnPrefix')}{' '}
+                    {DATE.format(new Date(selected.createdAt))}
                   </p>
                   <h2 className="tm-sa-saved__title">{selected.name}</h2>
                 </div>
@@ -305,26 +307,26 @@ export function SavedSearchesScreen({
                     onClick={() => remove.mutate(selected.id)}
                     disabled={remove.isPending}
                   >
-                    Delete
+                    {t('SavedSearchesScreen.delete')}
                   </button>
                   <Link
                     href={searchHref(selected.query)}
                     className="tm-sa-capsule tm-sa-capsule--ink"
                   >
-                    Open in search
+                    {t('SavedSearchesScreen.openInSearch')}
                   </Link>
                 </div>
               </div>
 
               {remove.isError ? (
-                <InlineAlert tone="danger" title="Could not delete the search" live>
+                <InlineAlert tone="danger" title={t('SavedSearchesScreen.deleteError')} live>
                   {describeError(remove.error)}
                 </InlineAlert>
               ) : null}
 
               <div className="tm-sa-query">
                 <p id="tm-saved-query-label" className="tm-sa-eyebrow">
-                  Query
+                  {t('SavedSearchesScreen.queryEyebrow')}
                 </p>
                 <ul className="tm-sa-query" aria-labelledby="tm-saved-query-label">
                   <li className="tm-sa-query__chip">“{selected.query}”</li>
@@ -336,24 +338,27 @@ export function SavedSearchesScreen({
                 </ul>
               </div>
 
-              <section className="tm-sa-table" aria-label="Current results">
+              <section
+                className="tm-sa-table"
+                aria-label={t('SavedSearchesScreen.currentResultsAria')}
+              >
                 {results.isPending ? (
-                  <LoadingRegion label="Running the saved search.">
+                  <LoadingRegion label={t('SavedSearchesScreen.runningSearch')}>
                     <Skeleton height="var(--row)" />
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
                 ) : null}
                 {results.isError ? (
-                  <InlineAlert tone="danger" title="Could not run the saved search" live>
+                  <InlineAlert tone="danger" title={t('SavedSearchesScreen.runError')} live>
                     {describeError(results.error)}
                   </InlineAlert>
                 ) : null}
                 {!results.isPending && !results.isError && hits.length === 0 ? (
                   <div className="tm-sa-empty">
-                    <p className="tm-sa-empty__title">Nothing matches right now</p>
+                    <p className="tm-sa-empty__title">{t('SavedSearchesScreen.noMatchTitle')}</p>
                     <p className="tm-sa-empty__body">
-                      Nothing you can see matches “{selected.query}” today. It stays saved and will
-                      show matches as they appear.
+                      {t('SavedSearchesScreen.noMatchBodyBefore')}“{selected.query}”
+                      {t('SavedSearchesScreen.noMatchBodyAfter')}
                     </p>
                   </div>
                 ) : null}
@@ -361,9 +366,9 @@ export function SavedSearchesScreen({
                   <table className="tm-sa-table__grid">
                     <thead>
                       <tr>
-                        <th scope="col">Item</th>
-                        <th scope="col">Type</th>
-                        <th scope="col">Reference</th>
+                        <th scope="col">{t('SavedSearchesScreen.itemCol')}</th>
+                        <th scope="col">{t('SavedSearchesScreen.typeCol')}</th>
+                        <th scope="col">{t('SavedSearchesScreen.referenceCol')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -385,11 +390,14 @@ export function SavedSearchesScreen({
                 ) : null}
                 <div className="tm-sa-table__foot">
                   <span>
-                    {hits.length} {hits.length === 1 ? 'match' : 'matches'} · filtered by your
-                    access before ranking
+                    {hits.length}{' '}
+                    {hits.length === 1
+                      ? t('SavedSearchesScreen.matchSingular')
+                      : t('SavedSearchesScreen.matchPlural')}{' '}
+                    {t('SavedSearchesScreen.filteredSuffix')}
                   </span>
                   <Link href={searchHref(selected.query)} className="tm-sa-link">
-                    Refine in search
+                    {t('SavedSearchesScreen.refineInSearch')}
                   </Link>
                 </div>
               </section>

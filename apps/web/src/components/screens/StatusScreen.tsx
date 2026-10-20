@@ -3,6 +3,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { PublicPage } from './public/PublicSite';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicStatus } from '../../lib/api/public-site';
 import type {
@@ -34,6 +36,7 @@ export interface StatusScreenProps {
  * owns the one `<h1>` and the content.
  */
 export function StatusScreen({ client }: StatusScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const status = useQuery({
@@ -48,15 +51,16 @@ export function StatusScreen({ client }: StatusScreenProps) {
       statusMeta={
         status.isSuccess ? (
           <>
-            Updated <time dateTime={status.data.asOf}>{formatMoment(status.data.asOf)}</time>
+            {t('StatusScreen.updatedPrefix')}
+            <time dateTime={status.data.asOf}>{formatMoment(status.data.asOf)}</time>
           </>
         ) : null
       }
     >
       {status.isPending ? (
         <>
-          <h1 className="tm-visually-hidden">Service status</h1>
-          <LoadingRegion label="Loading the service status." className="tm-stack tm-stack--tight">
+          <h1 className="tm-visually-hidden">{t('StatusScreen.serviceStatus')}</h1>
+          <LoadingRegion label={t('StatusScreen.loading')} className="tm-stack tm-stack--tight">
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -65,8 +69,8 @@ export function StatusScreen({ client }: StatusScreenProps) {
 
       {status.isError ? (
         <>
-          <h1 className="tm-pub-banner__title">Service status</h1>
-          <InlineAlert tone="danger" title="Could not load the status page" live>
+          <h1 className="tm-pub-banner__title">{t('StatusScreen.serviceStatus')}</h1>
+          <InlineAlert tone="danger" title={t('StatusScreen.loadError')} live>
             {describe(status.error)}
           </InlineAlert>
         </>
@@ -80,8 +84,25 @@ export function StatusScreen({ client }: StatusScreenProps) {
 const DAY = 24 * 60 * 60 * 1000;
 const WINDOW_DAYS = 91;
 
+/** The overall banner's dot for each state. `operational` is the only one with no dot (green). */
+const OVERALL_DOT: Record<PublicStatusView['overall'], 'warning' | 'danger' | 'live' | undefined> =
+  {
+    operational: undefined,
+    investigating: 'danger',
+    identified: 'warning',
+    monitoring: 'live',
+  };
+
 function StatusBody({ status }: { status: PublicStatusView }) {
-  const overall = OVERALL[status.overall];
+  const t = useT();
+  const overallLabels: Record<PublicStatusView['overall'], string> = {
+    operational: t('StatusScreen.overallOperational'),
+    investigating: t('StatusScreen.overallInvestigating'),
+    identified: t('StatusScreen.overallIdentified'),
+    monitoring: t('StatusScreen.overallMonitoring'),
+  };
+  const overallLabel = overallLabels[status.overall];
+  const overallDot = OVERALL_DOT[status.overall];
   const asOf = parseTime(status.asOf) ?? Date.now();
   const recent = status.incidents.filter((incident) => {
     const at = parseTime(incident.startedAt);
@@ -96,18 +117,18 @@ function StatusBody({ status }: { status: PublicStatusView }) {
     <>
       <section className="tm-pub-banner" aria-labelledby="tm-status-title">
         <span
-          className={`tm-pub-banner__dot${overall.dot ? ` tm-pub-banner__dot--${overall.dot}` : ''}`}
+          className={`tm-pub-banner__dot${overallDot ? ` tm-pub-banner__dot--${overallDot}` : ''}`}
           aria-hidden="true"
         />
         <div className="tm-pub-banner__copy">
           <h1 id="tm-status-title" className="tm-pub-banner__title">
-            {overall.label}
+            {overallLabel}
           </h1>
-          <p className="tm-pub-banner__body">{summarise(recent.length, open.length)}</p>
+          <p className="tm-pub-banner__body">{summarise(recent.length, open.length, t)}</p>
         </div>
         <p className="tm-pub-banner__metric">
           <strong>{recent.length}</strong>
-          <span>Incidents · 90 days</span>
+          <span>{t('StatusScreen.incidents90Days')}</span>
         </p>
       </section>
 
@@ -115,11 +136,11 @@ function StatusBody({ status }: { status: PublicStatusView }) {
         <div className="tm-pub-status-col">
           <section className="tm-pub-status-col" aria-labelledby="tm-status-components">
             <h2 id="tm-status-components" className="tm-pub-eyebrow">
-              Components
+              {t('StatusScreen.componentsHeading')}
             </h2>
             {components.length === 0 ? (
               <p className="tm-pub-card tm-pub-card__body tm-pub-card--dashed">
-                No component has reported a problem.
+                {t('StatusScreen.noComponentProblem')}
               </p>
             ) : (
               <ul className="tm-pub-components">
@@ -132,12 +153,14 @@ function StatusBody({ status }: { status: PublicStatusView }) {
                     <div>
                       <p className="tm-pub-components__name">{row.component}</p>
                       <p className="tm-pub-components__meta">
-                        {row.count === 1 ? '1 incident' : `${row.count} incidents`} · last{' '}
-                        {formatDay(row.lastAt)}
+                        {row.count === 1
+                          ? t('StatusScreen.oneIncident')
+                          : `${row.count} ${t('StatusScreen.incidentsCount')}`}{' '}
+                        {t('StatusScreen.lastLabel')} {formatDay(row.lastAt)}
                       </p>
                     </div>
                     <p className="tm-pub-components__state">
-                      {row.open ? 'Affected' : 'Operational'}
+                      {row.open ? t('StatusScreen.affected') : t('StatusScreen.operational')}
                     </p>
                   </li>
                 ))}
@@ -148,9 +171,9 @@ function StatusBody({ status }: { status: PublicStatusView }) {
           {older.length > 0 ? (
             <section className="tm-pub-status-col" aria-labelledby="tm-status-history">
               <h2 id="tm-status-history" className="tm-pub-eyebrow">
-                Earlier incidents
+                {t('StatusScreen.earlierHeading')}
               </h2>
-              <ol className="tm-pub-stack" aria-label="Earlier incidents, newest first">
+              <ol className="tm-pub-stack" aria-label={t('StatusScreen.earlierAria')}>
                 {older.map((incident) => (
                   <li key={incident.id}>
                     <IncidentCard incident={incident} level={3} />
@@ -164,40 +187,40 @@ function StatusBody({ status }: { status: PublicStatusView }) {
         <div className="tm-pub-status-col">
           <section className="tm-pub-status-col" aria-labelledby="tm-status-incidents">
             <h2 id="tm-status-incidents" className="tm-pub-eyebrow">
-              Last incident
+              {t('StatusScreen.lastIncidentHeading')}
             </h2>
             {latest ? (
               <IncidentCard incident={latest} level={3} />
             ) : (
               <p className="tm-pub-card tm-pub-card__body tm-pub-card--dashed">
-                No incidents have been reported.
+                {t('StatusScreen.noIncidentsReported')}
               </p>
             )}
           </section>
 
           <section className="tm-pub-card tm-pub-card--roomy" aria-labelledby="tm-status-weeks">
             <h2 id="tm-status-weeks" className="tm-pub-eyebrow">
-              Last 90 days
+              {t('StatusScreen.last90Heading')}
             </h2>
-            <ol className="tm-pub-bars" aria-label="Weeks in the last 90 days, oldest first">
+            <ol className="tm-pub-bars" aria-label={t('StatusScreen.weeksAria')}>
               {weeks.map((week) => (
                 <li
                   key={week.start}
                   className={week.incidents > 0 ? 'tm-pub-bars__bad' : undefined}
-                  aria-label={`Week of ${formatDay(week.start)}: ${
+                  aria-label={`${t('StatusScreen.weekOf')}${formatDay(week.start)}: ${
                     week.incidents === 0
-                      ? 'no incidents'
+                      ? t('StatusScreen.noIncidentsShort')
                       : week.incidents === 1
-                        ? '1 incident'
-                        : `${week.incidents} incidents`
+                        ? t('StatusScreen.oneIncident')
+                        : `${week.incidents} ${t('StatusScreen.incidentsCount')}`
                   }`}
                 />
               ))}
             </ol>
             <p className="tm-pub-card__body">
               {weeks.some((week) => week.incidents > 0)
-                ? 'Each bar is one week. Shorter amber bars are weeks with a published incident.'
-                : 'Each bar is one week. No incident was published in this window.'}
+                ? t('StatusScreen.barsNoteSome')
+                : t('StatusScreen.barsNoteNone')}
             </p>
           </section>
         </div>
@@ -207,7 +230,14 @@ function StatusBody({ status }: { status: PublicStatusView }) {
 }
 
 function IncidentCard({ incident, level }: { incident: PublicIncidentView; level: 2 | 3 }) {
-  const state = INCIDENT[incident.status];
+  const t = useT();
+  const incidentLabels: Record<IncidentStatus, string> = {
+    investigating: t('StatusScreen.incidentInvestigating'),
+    identified: t('StatusScreen.incidentIdentified'),
+    monitoring: t('StatusScreen.incidentMonitoring'),
+    resolved: t('StatusScreen.incidentResolved'),
+  };
+  const stateLabel = incidentLabels[incident.status];
   const Heading = level === 2 ? 'h2' : 'h3';
   return (
     <article
@@ -217,7 +247,7 @@ function IncidentCard({ incident, level }: { incident: PublicIncidentView; level
     >
       <p className="tm-pub-card__eyebrow">
         {formatDay(parseTime(incident.startedAt) ?? 0)}
-        {duration(incident)} · {state.label} · {incident.component}
+        {duration(incident, t)} · {stateLabel} · {incident.component}
       </p>
       <Heading className="tm-pub-card__title">{incident.title}</Heading>
       <p className="tm-pub-card__body">{incident.body}</p>
@@ -225,31 +255,16 @@ function IncidentCard({ incident, level }: { incident: PublicIncidentView; level
   );
 }
 
-/** The overall banner's word and dot for each state. `operational` is the only green one. */
-const OVERALL: Record<
-  PublicStatusView['overall'],
-  { label: string; dot?: 'warning' | 'danger' | 'live' }
-> = {
-  operational: { label: 'All systems operational' },
-  investigating: { label: 'Investigating an incident', dot: 'danger' },
-  identified: { label: 'Issue identified', dot: 'warning' },
-  monitoring: { label: 'Monitoring a fix', dot: 'live' },
-};
-
-/** Per-incident state word. */
-const INCIDENT: Record<IncidentStatus, { label: string }> = {
-  investigating: { label: 'Investigating' },
-  identified: { label: 'Identified' },
-  monitoring: { label: 'Monitoring' },
-  resolved: { label: 'Resolved' },
-};
-
-function summarise(recent: number, open: number): string {
+function summarise(recent: number, open: number, t: (key: MessageKey) => string): string {
   const opening =
-    open === 0 ? '' : open === 1 ? 'One incident is open. ' : `${open} incidents are open. `;
-  if (recent === 0) return `${opening}No incidents in the last 90 days.`;
-  if (recent === 1) return `${opening}One incident in the last 90 days.`;
-  return `${opening}${recent} incidents in the last 90 days.`;
+    open === 0
+      ? ''
+      : open === 1
+        ? t('StatusScreen.oneIncidentOpen')
+        : `${open} ${t('StatusScreen.incidentsAreOpen')}`;
+  if (recent === 0) return `${opening}${t('StatusScreen.noIncidents90')}`;
+  if (recent === 1) return `${opening}${t('StatusScreen.oneIncident90')}`;
+  return `${opening}${recent} ${t('StatusScreen.incidents90')}`;
 }
 
 /** One row per component named in a published incident, newest first. */
@@ -290,14 +305,14 @@ function weekBars(incidents: readonly PublicIncidentView[], asOf: number) {
   return weeks;
 }
 
-function duration(incident: PublicIncidentView): string {
+function duration(incident: PublicIncidentView, t: (key: MessageKey) => string): string {
   const start = parseTime(incident.startedAt);
   const end = incident.resolvedAt === null ? null : parseTime(incident.resolvedAt);
   if (start === null || end === null || end < start) return '';
   const minutes = Math.round((end - start) / 60000);
-  if (minutes < 60) return ` · ${minutes} min`;
+  if (minutes < 60) return ` · ${minutes} ${t('StatusScreen.minUnit')}`;
   const hours = Math.round(minutes / 6) / 10;
-  return ` · ${hours} h`;
+  return ` · ${hours} ${t('StatusScreen.hourUnit')}`;
 }
 
 function parseTime(iso: string): number | null {

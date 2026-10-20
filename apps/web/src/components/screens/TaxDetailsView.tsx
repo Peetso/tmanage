@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   fetchTaxDetails,
@@ -68,6 +69,7 @@ export function TaxDetailsView({
   organizationName,
   client,
 }: TaxDetailsViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
@@ -109,19 +111,19 @@ export function TaxDetailsView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Tax and legal entity"
-      description="Your legal billing entity and tax details, shown on invoices. No card details are stored here."
+      eyebrow={t('TaxDetailsView.eyebrow')}
+      title={t('TaxDetailsView.title')}
+      description={t('TaxDetailsView.description')}
     >
       <div className="tm-bil">
         {details.isError ? (
-          <InlineAlert tone="danger" title="Could not load tax details" live>
+          <InlineAlert tone="danger" title={t('TaxDetailsView.loadError')} live>
             {describeError(details.error)}
           </InlineAlert>
         ) : null}
 
         {details.isPending ? (
-          <LoadingRegion label="Loading tax details." className="tm-stack tm-stack--tight">
+          <LoadingRegion label={t('TaxDetailsView.loading')} className="tm-stack tm-stack--tight">
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -131,7 +133,7 @@ export function TaxDetailsView({
           <form
             className="tm-panel tm-stack"
             noValidate
-            aria-label="Tax and legal entity"
+            aria-label={t('TaxDetailsView.formAria')}
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
               if (!save.isPending) save.mutate();
@@ -139,49 +141,49 @@ export function TaxDetailsView({
           >
             <section className="tm-stack" aria-labelledby="tm-tax-details-heading">
               <h2 id="tm-tax-details-heading" className="tm-eyebrow">
-                Legal entity
+                {t('TaxDetailsView.legalEntityHeading')}
               </h2>
               <Field
-                label="Legal name"
+                label={t('TaxDetailsView.legalNameLabel')}
                 name="legalName"
                 value={form.legalName}
                 onChange={(event) => set({ legalName: event.target.value })}
-                hint="The legal name of the entity billed. Required."
+                hint={t('TaxDetailsView.legalNameHint')}
                 required
               />
               <Field
-                label="Tax / VAT ID"
+                label={t('TaxDetailsView.taxIdLabel')}
                 name="taxId"
                 value={form.taxId}
                 onChange={(event) => set({ taxId: event.target.value })}
-                hint="VAT, EIN or equivalent. Not a card or account number."
+                hint={t('TaxDetailsView.taxIdHint')}
               />
               <Field
-                label="Registration number"
+                label={t('TaxDetailsView.registrationLabel')}
                 name="registrationNo"
                 value={form.registrationNo}
                 onChange={(event) => set({ registrationNo: event.target.value })}
-                hint="Company or business registration number, if any."
+                hint={t('TaxDetailsView.registrationHint')}
               />
               <Field
-                label="Tax country"
+                label={t('TaxDetailsView.taxCountryLabel')}
                 name="taxCountry"
                 value={form.taxCountry}
                 onChange={(event) => set({ taxCountry: event.target.value })}
-                hint="A two-letter ISO country code, such as GB or US."
+                hint={t('TaxDetailsView.taxCountryHint')}
                 required
               />
             </section>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save tax details" live>
+              <InlineAlert tone="danger" title={t('TaxDetailsView.saveError')} live>
                 {describeError(save.error)}
               </InlineAlert>
             ) : null}
 
             {saved && !save.isError ? (
-              <InlineAlert tone="success" title="Tax details saved" live>
-                Your tax and legal entity details have been updated.
+              <InlineAlert tone="success" title={t('TaxDetailsView.savedTitle')} live>
+                {t('TaxDetailsView.savedBody')}
               </InlineAlert>
             ) : null}
 
@@ -191,9 +193,9 @@ export function TaxDetailsView({
                 tone="ink"
                 size="accessible"
                 loading={save.isPending}
-                loadingLabel="Saving"
+                loadingLabel={t('TaxDetailsView.saving')}
               >
-                Save tax details
+                {t('TaxDetailsView.saveButton')}
               </Button>
             </div>
           </form>

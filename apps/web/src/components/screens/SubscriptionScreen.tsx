@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Select, Skeleton, StateCapsule } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSubscription, requestPlanChange } from '../../lib/api/subscription';
 import type { SubscriptionView } from '../../lib/api/subscription';
@@ -33,19 +35,15 @@ export interface SubscriptionScreenProps {
  *    status is `pending_change` until a later payment slice (an external provider) activates it.
  */
 
-/** The plans a change may target. Kept in step with the API plan catalog (x157 pricing, later). */
-const PLAN_OPTIONS: readonly { readonly id: string; readonly label: string }[] = [
-  { id: 'free', label: 'Free' },
-  { id: 'starter', label: 'Starter' },
-  { id: 'pro', label: 'Pro' },
-  { id: 'business', label: 'Business' },
-];
+/** The plan ids a change may target. Kept in step with the API plan catalog (x157 pricing, later). */
+const PLAN_IDS: readonly string[] = ['free', 'starter', 'pro', 'business'];
 
 export function SubscriptionScreen({
   organizationSlug,
   organizationName,
   client,
 }: SubscriptionScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const subscriptionKey = ['organization-subscription', organizationSlug];
@@ -67,20 +65,23 @@ export function SubscriptionScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Subscription"
-      description="The plan this organization is on, and how to request a change."
+      eyebrow={t('SubscriptionScreen.eyebrow')}
+      title={t('SubscriptionScreen.title')}
+      description={t('SubscriptionScreen.description')}
     >
       <div className="tm-bil">
         {subscription.isPending ? (
-          <LoadingRegion label="Loading subscription." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('SubscriptionScreen.loading')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {subscription.isError ? (
-          <InlineAlert tone="danger" title="Could not load the subscription" live>
+          <InlineAlert tone="danger" title={t('SubscriptionScreen.loadError')} live>
             {describe(subscription.error)}
           </InlineAlert>
         ) : null}
@@ -112,6 +113,7 @@ function SubscriptionPanel({
   changeError: string | null;
   changed: SubscriptionView | null;
 }) {
+  const t = useT();
   const [target, setTarget] = useState<string>(subscription.planId);
 
   return (
@@ -119,39 +121,45 @@ function SubscriptionPanel({
       <div className="tm-bil-col tm-bil-col--wide tm-bil-main">
         <div className="tm-bil-figure">
           <p className="tm-bil-eyebrow">
-            {subscription.status === 'pending_change' ? 'Change pending' : 'Active'}
+            {subscription.status === 'pending_change'
+              ? t('SubscriptionScreen.changePending')
+              : t('SubscriptionScreen.active')}
             {subscription.currentPeriodEnd === null
               ? ''
-              : ` · renews ${formatMoment(subscription.currentPeriodEnd)}`}
+              : ` · ${t('SubscriptionScreen.renewsWord')} ${formatMoment(subscription.currentPeriodEnd)}`}
           </p>
-          <p className="tm-bil-figure__value">{planLabel(subscription.planId)} plan</p>
+          <p className="tm-bil-figure__value">
+            {planLabel(subscription.planId, t)} {t('SubscriptionScreen.planWord')}
+          </p>
         </div>
 
         <section className="tm-bil-card" aria-labelledby="tm-subscription-heading">
           <h2 id="tm-subscription-heading" className="tm-bil-card__title">
-            Current plan
+            {t('SubscriptionScreen.currentPlanHeading')}
           </h2>
 
           <dl className="tm-detail-list">
             <div className="tm-detail-list__pair">
-              <dt>Plan</dt>
-              <dd className="tm-mono">{planLabel(subscription.planId)}</dd>
+              <dt>{t('SubscriptionScreen.planLabelDt')}</dt>
+              <dd className="tm-mono">{planLabel(subscription.planId, t)}</dd>
             </div>
             <div className="tm-detail-list__pair">
-              <dt>Status</dt>
+              <dt>{t('SubscriptionScreen.statusLabel')}</dt>
               <dd>
                 <StateCapsule
                   state={subscription.status === 'pending_change' ? 'waiting' : 'current'}
                 >
-                  {subscription.status === 'pending_change' ? 'Change pending' : 'Active'}
+                  {subscription.status === 'pending_change'
+                    ? t('SubscriptionScreen.changePending')
+                    : t('SubscriptionScreen.active')}
                 </StateCapsule>
               </dd>
             </div>
             <div className="tm-detail-list__pair">
-              <dt>Renews</dt>
+              <dt>{t('SubscriptionScreen.renewsLabelDt')}</dt>
               <dd className="tm-mono">
                 {subscription.currentPeriodEnd === null
-                  ? 'No renewal date'
+                  ? t('SubscriptionScreen.noRenewalDate')
                   : formatMoment(subscription.currentPeriodEnd)}
               </dd>
             </div>
@@ -161,7 +169,7 @@ function SubscriptionPanel({
 
       <section className="tm-bil-card" aria-labelledby="tm-subscription-change-heading">
         <h2 id="tm-subscription-change-heading" className="tm-bil-card__title">
-          Change plan
+          {t('SubscriptionScreen.changePlanHeading')}
         </h2>
         <form
           className="tm-stack tm-stack--tight"
@@ -171,34 +179,36 @@ function SubscriptionPanel({
           }}
         >
           <Select
-            label="Change plan"
+            label={t('SubscriptionScreen.changePlanLabel')}
             value={target}
             onChange={(event) => setTarget(event.target.value)}
-            hint="Requesting a change does not charge you. Billing is arranged separately."
+            hint={t('SubscriptionScreen.changeHint')}
           >
-            {PLAN_OPTIONS.map((plan) => (
-              <option key={plan.id} value={plan.id}>
-                {plan.label}
+            {PLAN_IDS.map((planId) => (
+              <option key={planId} value={planId}>
+                {planLabel(planId, t)}
               </option>
             ))}
           </Select>
 
           <div>
             <Button type="submit" disabled={isChanging}>
-              {isChanging ? 'Requesting…' : 'Request plan change'}
+              {isChanging
+                ? t('SubscriptionScreen.requesting')
+                : t('SubscriptionScreen.requestChange')}
             </Button>
           </div>
         </form>
 
         {changeError !== null ? (
-          <InlineAlert tone="danger" title="Could not request the change" live>
+          <InlineAlert tone="danger" title={t('SubscriptionScreen.changeErrorTitle')} live>
             {changeError}
           </InlineAlert>
         ) : null}
 
         {changed !== null ? (
-          <InlineAlert tone="success" title="Change requested" live>
-            {`We recorded your request to move to ${planLabel(changed.planId)}. Nothing has been charged — billing is arranged separately.`}
+          <InlineAlert tone="success" title={t('SubscriptionScreen.changeRequestedTitle')} live>
+            {`${t('SubscriptionScreen.changedBodyBefore')}${planLabel(changed.planId, t)}${t('SubscriptionScreen.changedBodyAfter')}`}
           </InlineAlert>
         ) : null}
       </section>
@@ -206,8 +216,14 @@ function SubscriptionPanel({
   );
 }
 
-function planLabel(planId: string): string {
-  return PLAN_OPTIONS.find((plan) => plan.id === planId)?.label ?? planId;
+function planLabel(planId: string, t: (key: MessageKey) => string): string {
+  const labels: Record<string, string> = {
+    free: t('SubscriptionScreen.planFree'),
+    starter: t('SubscriptionScreen.planStarter'),
+    pro: t('SubscriptionScreen.planPro'),
+    business: t('SubscriptionScreen.planBusiness'),
+  };
+  return labels[planId] ?? planId;
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */

@@ -5,6 +5,7 @@ import type { FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
 import { shortRef } from './SearchScreen';
 import '../../styles/screens/search-ai.css';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -44,6 +45,7 @@ export function SearchPinsView({
   organizationName,
   client,
 }: SearchPinsViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -91,36 +93,37 @@ export function SearchPinsView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Pinned results"
-      eyebrow="Search"
-      {...(pinList.length > 0 ? { titleMeta: `${pinList.length} pinned` } : {})}
-      description="Keep the work, documents, meetings and projects you reach for often close to hand."
+      title={t('SearchPinsView.title')}
+      eyebrow={t('SearchPinsView.eyebrow')}
+      {...(pinList.length > 0
+        ? { titleMeta: `${pinList.length} ${t('SearchPinsView.pinned')}` }
+        : {})}
+      description={t('SearchPinsView.description')}
     >
       <section className="tm-stack" aria-labelledby="tm-pins-list">
         <h2 id="tm-pins-list" className="tm-sa-eyebrow">
-          Your pins{pinList.length > 0 ? ` · ${pinList.length}` : ''}
+          {t('SearchPinsView.yourPinsHeading')}
+          {pinList.length > 0 ? ` · ${pinList.length}` : ''}
         </h2>
         {pins.isError ? (
-          <InlineAlert tone="danger" title="Could not load your pins" live>
+          <InlineAlert tone="danger" title={t('SearchPinsView.loadError')} live>
             {describeError(pins.error)}
           </InlineAlert>
         ) : null}
         {pins.isPending ? (
-          <LoadingRegion label="Loading your pins.">
+          <LoadingRegion label={t('SearchPinsView.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
         {!pins.isPending && !pins.isError && pinList.length === 0 ? (
           <div className="tm-sa-empty">
-            <p className="tm-sa-empty__title">No pins yet</p>
-            <p className="tm-sa-empty__body">
-              Pin an entity below to keep it here for quick access.
-            </p>
+            <p className="tm-sa-empty__title">{t('SearchPinsView.emptyTitle')}</p>
+            <p className="tm-sa-empty__body">{t('SearchPinsView.emptyBody')}</p>
           </div>
         ) : null}
         {pinList.length > 0 ? (
-          <ul className="tm-sa-pins" aria-label="Your pinned results, most recent first">
+          <ul className="tm-sa-pins" aria-label={t('SearchPinsView.listAria')}>
             {pinList.map((item) => (
               <li key={item.id} className="tm-sa-hit">
                 <div className="tm-sa-hit__head">
@@ -136,9 +139,9 @@ export function SearchPinsView({
                     className="tm-sa-capsule"
                     onClick={() => remove.mutate(item.id)}
                     disabled={remove.isPending}
-                    aria-label={`Unpin ${item.label}`}
+                    aria-label={`${t('SearchPinsView.unpin')} ${item.label}`}
                   >
-                    Unpin
+                    {t('SearchPinsView.unpin')}
                   </button>
                 </div>
               </li>
@@ -146,7 +149,7 @@ export function SearchPinsView({
           </ul>
         ) : null}
         {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not unpin" live>
+          <InlineAlert tone="danger" title={t('SearchPinsView.unpinError')} live>
             {describeError(remove.error)}
           </InlineAlert>
         ) : null}
@@ -154,13 +157,13 @@ export function SearchPinsView({
 
       <section className="tm-sa-form" aria-labelledby="tm-pin-form">
         <h2 id="tm-pin-form" className="tm-sa-eyebrow">
-          Pin an entity
+          {t('SearchPinsView.pinFormHeading')}
         </h2>
         <form className="tm-stack" onSubmit={onSubmit}>
           <div className="tm-sa-form__fields">
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-pin-type">
-                Type
+                {t('SearchPinsView.typeLabel')}
               </label>
               <select
                 id="tm-pin-type"
@@ -177,7 +180,7 @@ export function SearchPinsView({
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-pin-id">
-                Entity id
+                {t('SearchPinsView.entityIdLabel')}
               </label>
               <input
                 id="tm-pin-id"
@@ -185,12 +188,12 @@ export function SearchPinsView({
                 type="text"
                 value={objectId}
                 onChange={(event) => setObjectId(event.target.value)}
-                placeholder="The id of the item, document, meeting or project"
+                placeholder={t('SearchPinsView.entityIdPlaceholder')}
               />
             </div>
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-pin-label">
-                Label
+                {t('SearchPinsView.labelLabel')}
               </label>
               <input
                 id="tm-pin-label"
@@ -198,7 +201,7 @@ export function SearchPinsView({
                 type="text"
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
-                placeholder="A short name to show in the strip"
+                placeholder={t('SearchPinsView.labelPlaceholder')}
               />
             </div>
           </div>
@@ -207,11 +210,11 @@ export function SearchPinsView({
               type="submit"
               disabled={objectId.trim() === '' || label.trim() === '' || create.isPending}
             >
-              Pin
+              {t('SearchPinsView.pin')}
             </Button>
           </div>
           {create.isError ? (
-            <InlineAlert tone="danger" title="Could not pin" live>
+            <InlineAlert tone="danger" title={t('SearchPinsView.pinError')} live>
               {describeError(create.error)}
             </InlineAlert>
           ) : null}

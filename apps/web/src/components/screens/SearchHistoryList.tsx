@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert } from '@tmanage/ui';
+import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { clearSearchHistory, listSearchHistory } from '../../lib/api/search-history';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -26,6 +27,7 @@ export interface SearchHistoryListProps {
  * this component lists, selects and clears.
  */
 export function SearchHistoryList({ organizationSlug, onSelect, client }: SearchHistoryListProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const historyKey = ['search-history', organizationSlug];
@@ -46,8 +48,8 @@ export function SearchHistoryList({ organizationSlug, onSelect, client }: Search
 
   if (!history.isPending && !history.isError && entries.length === 0) {
     return (
-      <InlineAlert tone="neutral" title="No recent searches">
-        Searches you run will show up here so you can pick them up again.
+      <InlineAlert tone="neutral" title={t('SearchHistoryList.noRecentTitle')}>
+        {t('SearchHistoryList.emptyBody')}
       </InlineAlert>
     );
   }
@@ -56,7 +58,7 @@ export function SearchHistoryList({ organizationSlug, onSelect, client }: Search
     <section className="tm-stack" aria-labelledby="tm-search-history-heading">
       <div className="tm-row">
         <h2 id="tm-search-history-heading" className="tm-eyebrow">
-          Recent searches
+          {t('SearchHistoryList.recentHeading')}
         </h2>
         {entries.length > 0 ? (
           <Button
@@ -66,22 +68,22 @@ export function SearchHistoryList({ organizationSlug, onSelect, client }: Search
             onClick={() => clear.mutate()}
             disabled={clear.isPending}
           >
-            Clear all
+            {t('SearchHistoryList.clearAll')}
           </Button>
         ) : null}
       </div>
       {history.isError ? (
-        <InlineAlert tone="danger" title="Could not load your recent searches" live>
+        <InlineAlert tone="danger" title={t('SearchHistoryList.loadError')} live>
           {describeError(history.error)}
         </InlineAlert>
       ) : null}
       {clear.isError ? (
-        <InlineAlert tone="danger" title="Could not clear your recent searches" live>
+        <InlineAlert tone="danger" title={t('SearchHistoryList.clearError')} live>
           {describeError(clear.error)}
         </InlineAlert>
       ) : null}
       {entries.length > 0 ? (
-        <ul className="tm-stack tm-list" aria-label="Your recent searches, most recent first">
+        <ul className="tm-stack tm-list" aria-label={t('SearchHistoryList.listAria')}>
           {entries.map((entry) => (
             <li key={`${entry.recordedAt}:${entry.query}`} className="tm-row">
               <Button

@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterSections } from '../admin/ControlCenterShell';
 import { AppShell } from '../shell/AppShell';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchOrganizationUsage } from '../../lib/api/usage';
 import type { OrganizationUsage } from '../../lib/api/usage';
@@ -20,14 +22,6 @@ export interface StorageUsageScreenProps {
   /** Injected in tests. Defaults to the browser client. */
   client?: ApiClient;
 }
-
-/** Plan ids as the subscription endpoint names them, with the label a person reads. */
-const PLAN_LABELS: Readonly<Record<string, string>> = {
-  free: 'Free',
-  starter: 'Starter',
-  pro: 'Pro',
-  business: 'Business',
-};
 
 /**
  * **Storage usage** — the billing home (BIL-01 "Plan and usage"). It shows what
@@ -51,6 +45,7 @@ export function StorageUsageScreen({
   organizationName,
   client,
 }: StorageUsageScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const usage = useQuery({
@@ -74,31 +69,31 @@ export function StorageUsageScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       contextRail={<ControlCenterSections organizationSlug={organizationSlug} section="billing" />}
-      eyebrow="Control center · Billing"
-      title="Plan and usage"
+      eyebrow={t('StorageUsageScreen.eyebrow')}
+      title={t('StorageUsageScreen.title')}
       actions={
         <div className="tm-bil-actions">
           <Link href={`/${organizationSlug}/billing/invoices`} className="tm-bil-capsule">
-            Invoices
+            {t('StorageUsageScreen.invoices')}
           </Link>
           <Link
             href={`/${organizationSlug}/billing/plan-change/request`}
             className="tm-bil-capsule tm-bil-capsule--ink"
           >
-            Change plan
+            {t('StorageUsageScreen.changePlan')}
           </Link>
         </div>
       }
     >
       {usage.isPending ? (
-        <LoadingRegion label="Loading storage usage." className="tm-stack tm-stack--tight">
+        <LoadingRegion label={t('StorageUsageScreen.loading')} className="tm-stack tm-stack--tight">
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {usage.isError ? (
-        <InlineAlert tone="danger" title="Could not load storage usage" live>
+        <InlineAlert tone="danger" title={t('StorageUsageScreen.loadError')} live>
           {describe(usage.error)}
         </InlineAlert>
       ) : null}
@@ -113,12 +108,9 @@ export function StorageUsageScreen({
               aria-labelledby="tm-usage-audience-heading"
             >
               <h2 id="tm-usage-audience-heading" className="tm-bil-eyebrow">
-                Who can see this
+                {t('StorageUsageScreen.whoCanSeeHeading')}
               </h2>
-              <p className="tm-bil-card__body">
-                Only owners. Project managers and members never see the plan, its usage or its
-                invoices.
-              </p>
+              <p className="tm-bil-card__body">{t('StorageUsageScreen.whoCanSeeBody')}</p>
             </section>
           </div>
         </div>
@@ -128,37 +120,43 @@ export function StorageUsageScreen({
 }
 
 function UsagePanel({ usage, plan }: { usage: OrganizationUsage; plan: SubscriptionView | null }) {
+  const t = useT();
   const committed = usage.used + usage.reserved;
   const percent = usage.quota > 0 ? Math.min(100, Math.round((committed / usage.quota) * 100)) : 0;
-  const valueText = `${formatBytes(committed)} of ${formatBytes(usage.quota)} used (${formatBytes(
-    usage.reserved,
-  )} reserved)`;
+  const valueText = `${formatBytes(committed)} ${t('StorageUsageScreen.of')} ${formatBytes(
+    usage.quota,
+  )} ${t('StorageUsageScreen.usedOpenParen')}${formatBytes(usage.reserved)}${t('StorageUsageScreen.reservedCloseParen')}`;
   const eyebrow = plan
     ? [
-        `${planLabel(plan.planId)} plan`,
-        plan.status === 'pending_change' ? 'change pending' : null,
-        plan.currentPeriodEnd ? `renews ${formatDay(plan.currentPeriodEnd)}` : null,
+        `${planLabel(plan.planId, t)} ${t('StorageUsageScreen.planWord')}`,
+        plan.status === 'pending_change' ? t('StorageUsageScreen.changePending') : null,
+        plan.currentPeriodEnd
+          ? `${t('StorageUsageScreen.renews')} ${formatDay(plan.currentPeriodEnd)}`
+          : null,
       ]
         .filter(Boolean)
         .join(' · ')
-    : 'Storage';
+    : t('StorageUsageScreen.storageFallback');
 
   return (
     <div className="tm-bil-col tm-bil-col--wide tm-bil-main">
       <div className="tm-bil-figure">
         <p className="tm-bil-eyebrow">{eyebrow}</p>
-        <p className="tm-bil-figure__value">{percent}% of storage in use</p>
+        <p className="tm-bil-figure__value">
+          {percent}
+          {t('StorageUsageScreen.percentStorageInUse')}
+        </p>
         <p className="tm-bil-figure__note">{valueText}.</p>
       </div>
 
       <section className="tm-bil-card" aria-labelledby="tm-usage-heading">
         <h2 id="tm-usage-heading" className="tm-bil-card__title">
-          Usage against the plan
+          {t('StorageUsageScreen.usageHeading')}
         </h2>
 
         <ul className="tm-bil-meters">
           <li className="tm-bil-meter">
-            <span className="tm-bil-meter__label">File storage</span>
+            <span className="tm-bil-meter__label">{t('StorageUsageScreen.fileStorage')}</span>
             <div
               className="tm-bil-meter__track"
               role="progressbar"
@@ -176,15 +174,15 @@ function UsagePanel({ usage, plan }: { usage: OrganizationUsage; plan: Subscript
 
         <dl className="tm-detail-list">
           <div className="tm-detail-list__pair">
-            <dt>Used</dt>
+            <dt>{t('StorageUsageScreen.usedLabel')}</dt>
             <dd className="tm-mono">{formatBytes(usage.used)}</dd>
           </div>
           <div className="tm-detail-list__pair">
-            <dt>Reserved</dt>
+            <dt>{t('StorageUsageScreen.reservedLabel')}</dt>
             <dd className="tm-mono">{formatBytes(usage.reserved)}</dd>
           </div>
           <div className="tm-detail-list__pair">
-            <dt>Quota</dt>
+            <dt>{t('StorageUsageScreen.quotaLabel')}</dt>
             <dd className="tm-mono">{formatBytes(usage.quota)}</dd>
           </div>
         </dl>
@@ -193,9 +191,9 @@ function UsagePanel({ usage, plan }: { usage: OrganizationUsage; plan: Subscript
 
         <p className="tm-bil-card__foot">
           {usage.reconciledAt === null
-            ? "We haven't checked this total against your files yet."
-            : `Last checked ${formatMoment(usage.reconciledAt)}.`}{' '}
-          Nothing here slows down your work.
+            ? t('StorageUsageScreen.notCheckedYet')
+            : `${t('StorageUsageScreen.lastCheckedPrefix')} ${formatMoment(usage.reconciledAt)}.`}{' '}
+          {t('StorageUsageScreen.nothingSlows')}
         </p>
       </section>
     </div>
@@ -209,45 +207,59 @@ function PlanCard({
   plan: SubscriptionView;
   organizationSlug: string;
 }) {
+  const t = useT();
   return (
     <section className="tm-bil-card" aria-labelledby="tm-usage-plan-heading">
       <h2 id="tm-usage-plan-heading" className="tm-bil-card__title">
-        Plan
+        {t('StorageUsageScreen.planHeading')}
       </h2>
       <dl className="tm-detail-list">
         <div className="tm-detail-list__pair">
-          <dt>Plan</dt>
-          <dd>{planLabel(plan.planId)}</dd>
+          <dt>{t('StorageUsageScreen.planHeading')}</dt>
+          <dd>{planLabel(plan.planId, t)}</dd>
         </div>
         <div className="tm-detail-list__pair">
-          <dt>Status</dt>
-          <dd>{plan.status === 'pending_change' ? 'Change pending' : 'Active'}</dd>
+          <dt>{t('StorageUsageScreen.statusLabel')}</dt>
+          <dd>
+            {plan.status === 'pending_change'
+              ? t('StorageUsageScreen.changePendingCap')
+              : t('StorageUsageScreen.active')}
+          </dd>
         </div>
         <div className="tm-detail-list__pair">
-          <dt>Renews</dt>
+          <dt>{t('StorageUsageScreen.renewsLabel')}</dt>
           <dd className="tm-mono">
-            {plan.currentPeriodEnd === null ? 'No renewal date' : formatDay(plan.currentPeriodEnd)}
+            {plan.currentPeriodEnd === null
+              ? t('StorageUsageScreen.noRenewalDate')
+              : formatDay(plan.currentPeriodEnd)}
           </dd>
         </div>
       </dl>
       <hr className="tm-bil-rule" />
       <div className="tm-bil-actions">
         <Link href={`/${organizationSlug}/billing/subscription`} className="tm-bil-capsule">
-          Subscription
+          {t('StorageUsageScreen.subscription')}
         </Link>
         <Link href={`/${organizationSlug}/billing/seats`} className="tm-bil-capsule">
-          Seats
+          {t('StorageUsageScreen.seats')}
         </Link>
         <Link href={`/${organizationSlug}/billing/settings`} className="tm-bil-capsule">
-          Billing profile
+          {t('StorageUsageScreen.billingProfile')}
         </Link>
       </div>
     </section>
   );
 }
 
-function planLabel(planId: string): string {
-  return PLAN_LABELS[planId] ?? planId;
+/** Plan ids as the subscription endpoint names them, with the label a person reads. */
+function planLabel(planId: string, t: (key: MessageKey) => string): string {
+  const labels: Record<string, string> = {
+    free: t('StorageUsageScreen.planFree'),
+    starter: t('StorageUsageScreen.planStarter'),
+    pro: t('StorageUsageScreen.planPro'),
+    business: t('StorageUsageScreen.planBusiness'),
+  };
+  return labels[planId] ?? planId;
 }
 
 function formatDay(iso: string): string {
