@@ -66,6 +66,17 @@ export interface GrantView {
   readonly revokedAt: Date | null;
 }
 
+export interface NewOauthClient {
+  readonly id: string;
+  readonly clientId: string;
+  readonly kind: 'dcr' | 'cimd';
+  readonly name: string;
+  readonly redirectUris: readonly string[];
+  readonly verified: boolean;
+  /** SHA-256 of the registering IP for DCR; NULL for a CIMD client (no registering IP). */
+  readonly createdIpHash: string | null;
+}
+
 export class OauthTokensRepository {
   // ── Clients ──────────────────────────────────────────────────────────────
 
@@ -83,6 +94,85 @@ export class OauthTokensRepository {
       .update(oauthClients)
       .set({ lastUsedAt: sql`current_timestamp(3)` })
       .where(eq(oauthClients.id, id));
+  }
+
+  /** Create a client (DCR registration or a freshly fetched CIMD document). MCP connector S8. */
+  async insertClient(runner: Runner, input: NewOauthClient): Promise<void> {
+    await tenantDrizzle(runner)
+      .insert(oauthClients)
+      .values({
+        id: input.id,
+        clientId: input.clientId,
+        kind: input.kind,
+        name: input.name,
+        redirectUrisJson: [...input.redirectUris],
+        verified: input.verified,
+        createdIpHash: input.createdIpHash,
+        createdAt: sql`current_timestamp(3)`,
+      });
+  }
+
+  /** Refresh a cached CIMD client's name/redirects/verified, and mark it used (24 h cache, S8). */
+  async refreshCimdClient(
+    runner: Runner,
+    input: {
+      readonly id: string;
+      readonly name: string;
+      readonly redirectUris: readonly string[];
+      readonly verified: boolean;
+    },
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .update(oauthClients)
+      .set({
+        name: input.name,
+        redirectUrisJson: [...input.redirectUris],
+        verified: input.verified,
+        lastUsedAt: sql`current_timestamp(3)`,
+      })
+      .where(eq(oauthClients.id, input.id));
+  }
+
+  /**
+   * How many clients this IP hash has registered in the last `withinSeconds`. The DCR rate limit
+   * (threat model B1: 10 per IP per hour) is enforced in the database, not in process, so it
+   * survives the single API process restarting — the same durability the sign-in lockout buys.
+   */
+  async countClientsByIpHashSince(
+    runner: Runner,
+    ipHash: string,
+    withinSeconds: number,
+  ): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ n: sql<number>`count(*)` })
+      .from(oauthClients)
+      .where(
+        and(
+          eq(oauthClients.createdIpHash, ipHash),
+          gt(
+            oauthClients.createdAt,
+            sql`date_sub(current_timestamp(3), interval ${withinSeconds} second)`,
+          ),
+        ),
+      );
+    return Number(rows[0]?.n ?? 0);
+  }
+
+  /** How many DCR clients were registered overall in the last `withinSeconds` (B1: 1000/day). */
+  async countDcrClientsSince(runner: Runner, withinSeconds: number): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ n: sql<number>`count(*)` })
+      .from(oauthClients)
+      .where(
+        and(
+          eq(oauthClients.kind, 'dcr'),
+          gt(
+            oauthClients.createdAt,
+            sql`date_sub(current_timestamp(3), interval ${withinSeconds} second)`,
+          ),
+        ),
+      );
+    return Number(rows[0]?.n ?? 0);
   }
 
   // ── Grants ───────────────────────────────────────────────────────────────

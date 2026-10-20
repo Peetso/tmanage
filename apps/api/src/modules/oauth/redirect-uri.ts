@@ -75,3 +75,46 @@ export function matchesRegisteredRedirect(
     );
   });
 }
+
+/** Thrown when a client registers redirect URIs that break the rules above (S8, T-DCR-01). */
+export class InvalidRedirectUrisError extends Error {
+  override name = 'InvalidRedirectUrisError';
+}
+
+/** The most redirect URIs one client may register — a generous cap that still bounds a row. */
+export const MAX_REDIRECT_URIS = 10;
+
+/**
+ * Validate the `redirect_uris` a client supplies at registration (DCR body, or a CIMD document's
+ * `redirect_uris`). The set is the exact allow-list the authorize endpoint will later match
+ * against, so it is checked to the same standard here: a non-empty array of strings, each an
+ * absolute URI with an allowed scheme (https, or http only for loopback) and no fragment. A
+ * `javascript:`, `data:`, http-non-loopback or fragment-bearing URI is rejected outright — never
+ * silently dropped, so a client cannot believe a bad URI was accepted. Returns the de-duplicated
+ * list in input order.
+ */
+export function validateRegistrationRedirectUris(raw: unknown): string[] {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    throw new InvalidRedirectUrisError('redirect_uris must be a non-empty array.');
+  }
+  if (raw.length > MAX_REDIRECT_URIS) {
+    throw new InvalidRedirectUrisError(`At most ${MAX_REDIRECT_URIS} redirect_uris are allowed.`);
+  }
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== 'string' || entry === '') {
+      throw new InvalidRedirectUrisError('Each redirect_uri must be a non-empty string.');
+    }
+    if (!isAllowedRedirectScheme(entry)) {
+      throw new InvalidRedirectUrisError(
+        `redirect_uri is not an https URI (or a loopback http URI) without a fragment: ${entry}`,
+      );
+    }
+    if (!seen.has(entry)) {
+      seen.add(entry);
+      out.push(entry);
+    }
+  }
+  return out;
+}

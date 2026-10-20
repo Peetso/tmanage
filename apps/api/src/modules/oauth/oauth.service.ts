@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type {
   IdentityQueryRunner,
   TenantContext,
@@ -6,6 +6,8 @@ import type {
 } from '../../common/database/tenant-context.js';
 import { OAUTH_GRANT_BOOTSTRAP_REASON, OAUTH_IDENTITY_TABLES } from './oauth-tokens.repository.js';
 import type { OauthTokensRepository } from './oauth-tokens.repository.js';
+import type { OauthClientRow } from '../../common/database/schema.js';
+import { CimdError, type CimdFetcher } from './cimd-fetcher.js';
 import { verifyPkceS256 } from './pkce.js';
 import { matchesRegisteredRedirect } from './redirect-uri.js';
 import { parseScopes, scopesToString } from './scopes.js';
@@ -37,6 +39,30 @@ export interface OAuthServiceOptions {
   readonly issuer: string;
   /** The canonical resource/audience — `<issuer>/mcp`. Every request must name exactly this. */
   readonly canonicalResource: string;
+  /**
+   * The SSRF-guarded CIMD fetcher (S8). Optional so the protocol-core tests can construct the
+   * service without it; when absent, an https `client_id` that is not already cached is refused.
+   */
+  readonly cimdFetcher?: CimdFetcher;
+}
+
+/** DCR rate limit — threat model B1: 10 registrations per IP per hour, 1000 per day overall. */
+export const DCR_MAX_PER_IP_PER_HOUR = 10;
+export const DCR_MAX_PER_DAY = 1000;
+/** A CIMD document is re-fetched once its cached row is older than this (threat model B5). */
+export const CIMD_CACHE_TTL_SECONDS = 24 * 60 * 60;
+
+/** A registered DCR client, as `/oauth/register` returns it (RFC 7591 §3.2.1). */
+export interface RegisteredClient {
+  readonly clientPk: string;
+  readonly clientId: string;
+  readonly name: string;
+  readonly redirectUris: readonly string[];
+}
+
+/** Thrown when a DCR registration exceeds the per-IP or overall rate limit (T-DCR-02 → HTTP 429). */
+export class DcrRateLimitError extends Error {
+  override name = 'DcrRateLimitError';
 }
 
 export interface TokenResponse {
@@ -98,12 +124,14 @@ export class OAuthService {
   private readonly repo: OauthTokensRepository;
   private readonly issuer: string;
   private readonly canonicalResource: string;
+  private readonly cimdFetcher: CimdFetcher | undefined;
 
   constructor(options: OAuthServiceOptions) {
     this.database = options.database;
     this.repo = options.repository;
     this.issuer = options.issuer;
     this.canonicalResource = options.canonicalResource;
+    this.cimdFetcher = options.cimdFetcher;
   }
 
   get issuerUrl(): string {
@@ -133,10 +161,14 @@ export class OAuthService {
       throw new OAuthError('invalid_request', 'Missing client_id.', false);
     }
 
-    const client = await this.database.identityRead(
-      { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
-      (db) => this.repo.findClientByClientId(db, clientId),
-    );
+    // A `client_id` that is an https URL is a CIMD client — resolved (fetched once, cached 24 h)
+    // through the SSRF-guarded fetcher. Any other value is an opaque DCR id, looked up directly.
+    const client = /^https:\/\//i.test(clientId)
+      ? await this.resolveCimdClient(clientId, correlationId)
+      : await this.database.identityRead(
+          { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
+          (db) => this.repo.findClientByClientId(db, clientId),
+        );
     if (!client) {
       throw new OAuthError('invalid_client', 'Unknown client_id.', false);
     }
@@ -180,6 +212,112 @@ export class OAuthService {
       resource: params.resource,
       state,
     };
+  }
+
+  /**
+   * Register a public client via Dynamic Client Registration (RFC 7591; MCP connector S8). The
+   * metadata is already validated and sanitised by the caller (`dcr-metadata.ts`); this method
+   * owns the rate limit and the write. The two counts and the insert run in one identity
+   * transaction so a burst of concurrent registrations cannot each read "9 so far" and all slip
+   * past the per-IP cap. An opaque, unguessable `client_id` is minted — never a secret, since
+   * these are public clients. Throws `DcrRateLimitError` when either limit is reached.
+   */
+  async registerClient(
+    input: {
+      readonly name: string;
+      readonly redirectUris: readonly string[];
+      /** SHA-256 of the registering IP, for the per-IP limit and abuse review. */
+      readonly ipHash: string;
+    },
+    correlationId: string,
+  ): Promise<RegisteredClient> {
+    const clientPk = randomUUID();
+    const clientId = randomBytes(24).toString('base64url');
+    await this.database.identityTransaction(
+      { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
+      async (tx) => {
+        const perIp = await this.repo.countClientsByIpHashSince(tx, input.ipHash, 60 * 60);
+        if (perIp >= DCR_MAX_PER_IP_PER_HOUR) {
+          throw new DcrRateLimitError('Too many client registrations from this address this hour.');
+        }
+        const perDay = await this.repo.countDcrClientsSince(tx, 24 * 60 * 60);
+        if (perDay >= DCR_MAX_PER_DAY) {
+          throw new DcrRateLimitError('Too many client registrations today; try again later.');
+        }
+        await this.repo.insertClient(tx, {
+          id: clientPk,
+          clientId,
+          kind: 'dcr',
+          name: input.name,
+          redirectUris: input.redirectUris,
+          verified: false,
+          createdIpHash: input.ipHash,
+        });
+      },
+    );
+    return { clientPk, clientId, name: input.name, redirectUris: input.redirectUris };
+  }
+
+  /**
+   * Resolve a CIMD client by its metadata-document URL. A cached row younger than 24 h is used as
+   * is; otherwise the document is re-fetched through the SSRF-guarded fetcher and the row is
+   * upserted. If the fetch fails but a (stale) row exists, that row is used — a vendor's blip does
+   * not lock out a client already known. A first-time fetch failure, or an unconfigured fetcher,
+   * yields `null`, which the authorize path turns into a non-redirectable `invalid_client`.
+   */
+  async resolveCimdClient(
+    clientIdUrl: string,
+    correlationId: string,
+  ): Promise<OauthClientRow | null> {
+    const existing = await this.database.identityRead(
+      { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
+      (db) => this.repo.findClientByClientId(db, clientIdUrl),
+    );
+    if (existing && existing.kind === 'cimd' && this.isCimdFresh(existing)) return existing;
+    if (!this.cimdFetcher) return existing ?? null;
+
+    let fetched;
+    try {
+      fetched = await this.cimdFetcher.fetchMetadata(clientIdUrl);
+    } catch (error) {
+      if (!(error instanceof CimdError)) throw error;
+      // Fall back to a known (if stale) row; otherwise the client is unknown.
+      return existing ?? null;
+    }
+
+    await this.database.identityTransaction(
+      { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
+      async (tx) => {
+        if (existing) {
+          await this.repo.refreshCimdClient(tx, {
+            id: existing.id,
+            name: fetched.name,
+            redirectUris: fetched.redirectUris,
+            verified: fetched.verified,
+          });
+        } else {
+          await this.repo.insertClient(tx, {
+            id: randomUUID(),
+            clientId: fetched.clientId,
+            kind: 'cimd',
+            name: fetched.name,
+            redirectUris: fetched.redirectUris,
+            verified: fetched.verified,
+            createdIpHash: null,
+          });
+        }
+      },
+    );
+    return this.database.identityRead({ correlationId, tables: [...OAUTH_IDENTITY_TABLES] }, (db) =>
+      this.repo.findClientByClientId(db, fetched.clientId),
+    );
+  }
+
+  /** A cached CIMD row is fresh while it (its last fetch or creation) is younger than 24 h. */
+  private isCimdFresh(client: OauthClientRow): boolean {
+    const stamp = client.lastUsedAt ?? client.createdAt;
+    if (!(stamp instanceof Date)) return false;
+    return Date.now() - stamp.getTime() < CIMD_CACHE_TTL_SECONDS * 1000;
   }
 
   /**

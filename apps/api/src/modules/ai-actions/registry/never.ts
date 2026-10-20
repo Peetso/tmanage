@@ -37,6 +37,9 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/.well-known/oauth-protected-resource', reason: 'oauth' },
   { method: 'GET', path: '/.well-known/oauth-protected-resource/mcp', reason: 'oauth' },
   { method: 'GET', path: '/oauth/authorize', reason: 'oauth' },
+  // S8: Dynamic Client Registration (RFC 7591) — public, rate-limited, establishes a client id,
+  // never an AI-driven tool.
+  { method: 'POST', path: '/oauth/register', reason: 'oauth' },
   { method: 'POST', path: '/oauth/revoke', reason: 'oauth' },
   { method: 'POST', path: '/oauth/token', reason: 'oauth' },
   { method: 'GET', path: '/public/setup/', reason: 'setup' },

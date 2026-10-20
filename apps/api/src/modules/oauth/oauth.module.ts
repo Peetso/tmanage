@@ -5,9 +5,11 @@ import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { OAuthAuthorizeController } from './authorize.controller.js';
 import { OAuthMetadataController } from './metadata.controller.js';
+import { OAuthRegisterController } from './register.controller.js';
 import { OAuthRevokeController } from './revoke.controller.js';
 import { OAuthTokenController } from './token.controller.js';
 import { OAuthFormBodyParser } from './form-body.parser.js';
+import { CimdFetcher } from './cimd-fetcher.js';
 import { OAuthService } from './oauth.service.js';
 import { OauthTokensRepository } from './oauth-tokens.repository.js';
 import { OAUTH_OPTIONS, OAUTH_SERVICE } from './oauth.tokens.js';
@@ -30,10 +32,10 @@ function issuerOrigin(config: ApiConfig): string {
 }
 
 /**
- * The OAuth 2.1 authorization server (MCP connector S7). Mounts discovery metadata, the authorize,
- * token and revoke endpoints, and registers the form-urlencoded body parser the token/revoke
- * endpoints need. The DCR/CIMD registration endpoint and the consent page are later slices (S8,
- * S9); this slice owns the protocol core and its tables.
+ * The OAuth 2.1 authorization server (MCP connector S7, extended in S8). Mounts discovery
+ * metadata, the authorize, token, register and revoke endpoints, registers the form-urlencoded
+ * body parser the token/revoke endpoints need, and provides the SSRF-guarded CIMD fetcher the
+ * service resolves https `client_id`s through. The consent page is a later slice (S9).
  */
 @Module({})
 export class OAuthModule {
@@ -48,23 +50,29 @@ export class OAuthModule {
     };
     const service: Provider = {
       provide: OAUTH_SERVICE,
-      inject: [TENANT_DATABASE, API_CONFIG],
-      useFactory: (database: TenantDatabase, config: ApiConfig): OAuthService => {
+      inject: [TENANT_DATABASE, API_CONFIG, CimdFetcher],
+      useFactory: (
+        database: TenantDatabase,
+        config: ApiConfig,
+        cimdFetcher: CimdFetcher,
+      ): OAuthService => {
         const issuer = issuerOrigin(config);
         return new OAuthService({
           database,
           repository: new OauthTokensRepository(),
           issuer,
           canonicalResource: `${issuer}/mcp`,
+          cimdFetcher,
         });
       },
     };
     return {
       module: OAuthModule,
-      providers: [options, service, OAuthFormBodyParser],
+      providers: [options, service, OAuthFormBodyParser, CimdFetcher],
       controllers: [
         OAuthMetadataController,
         OAuthAuthorizeController,
+        OAuthRegisterController,
         OAuthTokenController,
         OAuthRevokeController,
       ],
