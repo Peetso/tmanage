@@ -205,6 +205,24 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/policies/simulate/',
     reason: 'policy_definitions',
   },
+  // Personal access tokens (plan §2, "personal access tokens"): slice S4 finalised these into the
+  // deny-list. An AI principal must never read, mint or revoke a credential (architecture B3 —
+  // "an AI principal cannot create PATs or OAuth clients"). S1 had them as ops; wave C removed them.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/me/personal-access-tokens/',
+    reason: 'auth',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/me/personal-access-tokens/',
+    reason: 'auth',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/me/personal-access-tokens/:tokenId',
+    reason: 'auth',
+  },
   {
     method: 'GET',
     path: '/v1/organizations/address-availability',

@@ -2482,30 +2482,9 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
-  {
-    id: 'me.personal_access_tokens.list',
-    method: 'GET',
-    path: '/v1/organizations/:orgSlug/me/personal-access-tokens/',
-    capability: 'work.read',
-    risk: 'read',
-    scope: 'read',
-  },
-  {
-    id: 'me.personal_access_tokens.create',
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/me/personal-access-tokens/',
-    capability: 'work.read',
-    risk: 'write',
-    scope: 'write',
-  },
-  {
-    id: 'me.personal_access_tokens.delete',
-    method: 'DELETE',
-    path: '/v1/organizations/:orgSlug/me/personal-access-tokens/:tokenId',
-    capability: 'work.read',
-    risk: 'confirm',
-    scope: 'manage',
-  },
+  // me.personal_access_tokens.{list,create,delete} moved to the NEVER deny-list by slice S4
+  // (registry wave C, "Never list final"): an AI principal must never read or mint a credential
+  // (architecture B3 — "an AI principal cannot create PATs"). See never.ts, reason 'auth'.
   {
     id: 'me.preferences.list',
     method: 'GET',
