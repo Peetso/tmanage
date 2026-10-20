@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
@@ -884,6 +884,29 @@ function Composer({
 
   function submit(event: FormEvent) {
     event.preventDefault();
+    performSend();
+  }
+
+  /**
+   * COL-13: Enter sends; Shift+Enter inserts a newline. The guard against `isComposing` keeps an
+   * IME mid-composition Enter (choosing a candidate) from sending, so composing Arabic, Japanese or
+   * any other input method is unaffected. Any modifier (Ctrl/Cmd/Alt) is left to the browser.
+   */
+  function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key === 'Enter' &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      performSend();
+    }
+  }
+
+  function performSend() {
     if (composed === undefined || send.isPending) return;
     setInadmissible(undefined);
 
@@ -943,6 +966,7 @@ function Composer({
         value={draft}
         placeholder={placeholder ?? label}
         onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={onComposerKeyDown}
       />
 
       {composed?.kind === 'rich' ? (

@@ -236,13 +236,21 @@ export class MeetingAttendeesService {
   }
 
   /**
-   * Set an attendee's RSVP, for a caller who may write to the meeting.
+   * Set an attendee's RSVP, for a caller who may write to the meeting — **their own response only**
+   * (CQ-15, COL-11).
    *
    * The meeting is resolved tenant-scoped and relation-checked first (Known-trap order). The
    * attendee is then resolved tenant-scoped and checked to belong to *this* meeting: an unknown,
    * cross-tenant or cross-meeting `attendeeId` is a 404 with no write, never a 403 and never a row
    * from another meeting silently updated. The RSVP value's legality is the controller's (a value
    * outside the vocabulary never reaches here).
+   *
+   * A response belongs to the attendee: an RSVP is a statement about *your own* attendance, so a
+   * caller may only set the response of the attendee row that is their own membership. Setting
+   * someone else's is a `forbidden` denial — the attendee is listable (the caller may read the
+   * roster), so this is a 403 `rsvp_not_own`, not a 404 that would hide a row the caller can already
+   * see. Changing your own response in bulk belongs to the dedicated self-RSVP route
+   * (`…/meetings/:id/rsvp`, keyed on the principal structurally); this route keeps parity with it.
    */
   async setRsvp(
     context: TenantContext,
@@ -256,6 +264,10 @@ export class MeetingAttendeesService {
     );
     if (!attendee || attendee.meetingId !== command.meetingId) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'attendee_not_visible');
+    }
+
+    if (attendee.membershipId !== principal.membershipId) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'rsvp_not_own');
     }
 
     const row = await this.database.transaction(context, (tx) =>

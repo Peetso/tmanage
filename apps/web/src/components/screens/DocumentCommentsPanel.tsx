@@ -129,7 +129,8 @@ export function DocumentCommentsPanel({
         <span className="tm-dx-edge__note-orb" aria-hidden="true">
           ◎
         </span>
-        Comments are never part of the client projection. Publishing shares the document body only.
+        Comments stay with your team — they are never shared. Publishing shares the document itself
+        only.
       </p>
 
       <form

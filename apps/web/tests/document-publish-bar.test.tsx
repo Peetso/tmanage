@@ -46,6 +46,6 @@ describe('DocumentPublishBar', () => {
     expect(posts).toEqual([
       'https://api.example.test/v1/organizations/acme/documents/doc-1/publish',
     ]);
-    expect(screen.getByText('Client visible · 2 people')).toBeTruthy();
+    expect(screen.getByText('Shared with clients · 2 people')).toBeTruthy();
   });
 });

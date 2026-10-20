@@ -178,7 +178,7 @@ describe('DocumentViewScreen', () => {
     expect(
       await screen.findByRole('list', { name: /collaborators: maya hassan, omar adel/i }),
     ).toBeTruthy();
-    expect(screen.getByText(/2 after publication/)).toBeTruthy();
+    expect(screen.getByText('Your team only — not shared yet')).toBeTruthy();
     // A caller the API says may not publish gets no Publish button.
     expect(screen.queryByRole('button', { name: 'Publish' })).toBeNull();
 

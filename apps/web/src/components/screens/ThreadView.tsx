@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -74,6 +74,25 @@ export function ThreadView({
   const replies = thread.data?.replies ?? [];
   const canReply = draft.trim() !== '';
 
+  /**
+   * COL-13: Enter posts the reply; Shift+Enter inserts a newline. `isComposing` is left alone so an
+   * IME mid-composition Enter (choosing a candidate) does not post. Any modifier is left to the
+   * browser.
+   */
+  function onReplyKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (
+      event.key === 'Enter' &&
+      !event.shiftKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.altKey &&
+      !event.nativeEvent.isComposing
+    ) {
+      event.preventDefault();
+      if (canReply && !reply.isPending) reply.mutate();
+    }
+  }
+
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-thread-replies">
       <h2 id="tm-thread-replies" className="tm-eyebrow">
@@ -136,6 +155,7 @@ export function ThreadView({
             rows={3}
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={onReplyKeyDown}
           />
         </div>
 

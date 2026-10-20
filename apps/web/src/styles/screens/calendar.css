@@ -362,6 +362,13 @@
   color: var(--ink-650);
 }
 
+.tm-cal-note {
+  margin: 6px 0 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
 /* ── Cards ───────────────────────────────────────────────────────────────────────────── */
 
 .tm-cal-card {

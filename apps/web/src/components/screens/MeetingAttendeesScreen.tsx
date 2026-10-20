@@ -8,11 +8,7 @@ import type { CapsuleState } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listMembers } from '../../lib/api/members';
-import {
-  inviteMeetingAttendee,
-  listMeetingAttendees,
-  setMeetingAttendeeRsvp,
-} from '../../lib/api/meeting-attendees';
+import { inviteMeetingAttendee, listMeetingAttendees } from '../../lib/api/meeting-attendees';
 import type { AttendeeRsvp } from '../../lib/api/meeting-attendees';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -33,8 +29,6 @@ const RSVP_LABELS: Readonly<Record<AttendeeRsvp, string>> = {
   declined: 'Declined',
 };
 
-const RSVP_ORDER: readonly AttendeeRsvp[] = ['invited', 'accepted', 'declined'];
-
 /**
  * **CAL-01 / MTG-01 — a meeting's attendees and their RSVP (x126).**
  *
@@ -47,8 +41,10 @@ const RSVP_ORDER: readonly AttendeeRsvp[] = ['invited', 'accepted', 'declined'];
  *
  * - **The attendees, by name.** The API returns each attendee's `userId` and RSVP in the server's
  *   deterministic order; the member directory (`listMembers`) maps a `userId` to a display name, so
- *   the roster's identity is what the screen shows, never an opaque id. RSVP is a {@link StateCapsule}
- *   whose word and colour differ, and it can be changed inline (→ `PATCH …/attendees/:id`).
+ *   the roster's identity is what the screen shows, never an opaque id. RSVP is a read-only
+ *   {@link StateCapsule} whose word and colour differ: this roster shows who is coming, and a member
+ *   changes **their own** response from the RSVP tab (CQ-15, COL-11 — a response is self-only, and
+ *   the API refuses setting another member's with a 403).
  * - **Inviting a member.** A member picker (drawn from the directory, minus those already invited)
  *   posts the chosen `userId` behind `meeting.write`. A refusal is shown in the form, the list
  *   untouched.
@@ -101,16 +97,6 @@ export function MeetingAttendeesScreen({
       inviteMeetingAttendee(api, organizationSlug, meetingId, { userId: inviteUserId }),
     onSuccess: () => {
       setInviteUserId('');
-      void queries.invalidateQueries({
-        queryKey: ['meeting-attendees', organizationSlug, meetingId],
-      });
-    },
-  });
-
-  const rsvp = useMutation({
-    mutationFn: (input: { attendeeId: string; rsvp: AttendeeRsvp }) =>
-      setMeetingAttendeeRsvp(api, organizationSlug, meetingId, input.attendeeId, input.rsvp),
-    onSuccess: () => {
       void queries.invalidateQueries({
         queryKey: ['meeting-attendees', organizationSlug, meetingId],
       });
@@ -175,12 +161,6 @@ export function MeetingAttendeesScreen({
                 </LoadingRegion>
               ) : null}
 
-              {rsvp.isError ? (
-                <InlineAlert tone="danger" title="Could not update the RSVP" live>
-                  {describeError(rsvp.error)}
-                </InlineAlert>
-              ) : null}
-
               {!attendees.isPending && !attendees.isError && rows.length === 0 ? (
                 <InlineAlert tone="neutral" title="No attendees yet">
                   Nobody has been invited to this meeting yet. Invite a member beside the list.
@@ -192,6 +172,10 @@ export function MeetingAttendeesScreen({
                   <p className="tm-cal-eyebrow">
                     Participants · {rows.length} ·{' '}
                     {rows.filter((row) => row.rsvp === 'accepted').length} accepted
+                  </p>
+                  <p className="tm-cal-note">
+                    This list shows who is coming. To change your own response, open the RSVP tab —
+                    you can only set your own.
                   </p>
                   <ul className="tm-cal-items">
                     {rows.map((attendee) => {
@@ -215,32 +199,6 @@ export function MeetingAttendeesScreen({
                             <StateCapsule state={rsvpCapsule(attendee.rsvp)}>
                               {RSVP_LABELS[attendee.rsvp]}
                             </StateCapsule>
-                            <span className="tm-field">
-                              <label
-                                className="tm-visually-hidden"
-                                htmlFor={`tm-attendee-rsvp-${attendee.id}`}
-                              >
-                                RSVP for {nameByUserId.get(attendee.userId) ?? 'this member'}
-                              </label>
-                              <select
-                                id={`tm-attendee-rsvp-${attendee.id}`}
-                                className="tm-field__control"
-                                value={attendee.rsvp}
-                                disabled={rsvp.isPending}
-                                onChange={(event) =>
-                                  rsvp.mutate({
-                                    attendeeId: attendee.id,
-                                    rsvp: event.target.value as AttendeeRsvp,
-                                  })
-                                }
-                              >
-                                {RSVP_ORDER.map((value) => (
-                                  <option key={value} value={value}>
-                                    {RSVP_LABELS[value]}
-                                  </option>
-                                ))}
-                              </select>
-                            </span>
                           </span>
                         </li>
                       );

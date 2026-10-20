@@ -13,9 +13,12 @@ import { expectNoAxeViolations } from './axe';
  * proves is what the *screen* does with those answers:
  *
  * - it lists a meeting's attendees by name (resolving `userId` through the member directory) with a
- *   distinct RSVP capsule, and the mounted document is axe-clean (A11Y-01);
- * - the invite picker offers only members not already invited, and posts the chosen `userId`;
- * - changing an attendee's RSVP PATCHes it.
+ *   distinct, read-only RSVP capsule, and the mounted document is axe-clean (A11Y-01);
+ * - the invite picker offers only members not already invited, and posts the chosen `userId`.
+ *
+ * The roster is read-only (CQ-15, COL-11): a response is self-only, so the screen does not offer an
+ * inline per-attendee RSVP control — a member changes their own response from the RSVP tab, and the
+ * API refuses setting another member's with a 403 (proved in the controller unit test).
  */
 
 interface Call {
@@ -108,9 +111,8 @@ describe('MeetingAttendeesScreen', () => {
     await expectNoAxeViolations(container);
   });
 
-  it('posts the chosen member as userId when inviting, and PATCHes an RSVP change', async () => {
+  it('posts the chosen member as userId when inviting, and offers no inline RSVP control', async () => {
     const posted: Call[] = [];
-    const patched: Call[] = [];
     const { client } = clientOver((call) => {
       if (call.method === 'POST' && call.url.includes('/attendees')) {
         posted.push(call);
@@ -118,16 +120,6 @@ describe('MeetingAttendeesScreen', () => {
           { id: 'att-2', meetingId: MEETING, userId: 'user-bo', rsvp: 'invited', createdAt: NOW },
           201,
         );
-      }
-      if (call.method === 'PATCH' && call.url.includes('/attendees/')) {
-        patched.push(call);
-        return json({
-          id: 'att-1',
-          meetingId: MEETING,
-          userId: 'user-ada',
-          rsvp: 'accepted',
-          createdAt: NOW,
-        });
       }
       return routeBase(call);
     });
@@ -152,12 +144,7 @@ describe('MeetingAttendeesScreen', () => {
       'user-bo',
     );
 
-    fireEvent.change(screen.getByLabelText('RSVP for Ada Lovelace'), {
-      target: { value: 'accepted' },
-    });
-    await waitFor(() => expect(patched.length).toBe(1));
-    expect((JSON.parse(patched[0]!.body as string) as Record<string, unknown>)['rsvp']).toBe(
-      'accepted',
-    );
+    // The roster is read-only (CQ-15, COL-11): no per-attendee RSVP control is rendered.
+    expect(screen.queryByLabelText('RSVP for Ada Lovelace')).toBeNull();
   });
 });

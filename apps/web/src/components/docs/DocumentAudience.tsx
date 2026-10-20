@@ -114,15 +114,17 @@ export function DocumentPublishBar({
   if (!data || !Array.isArray(data.collaborators)) return null;
   const published = data.audience === 'client';
   const count = data.clientAudienceCount;
+  // COL-14: plain words, and no "client" wording while the document is still internal. Published:
+  // say who can see it now; unpublished: say it is internal to the team.
   const capsule = published
-    ? `Client visible · ${count} ${count === 1 ? 'person' : 'people'}`
-    : `Client visible · ${count} after publication`;
+    ? `Shared with clients · ${count} ${count === 1 ? 'person' : 'people'}`
+    : 'Your team only — not shared yet';
 
   return (
     <div className="tm-dx-share">
       <span className="tm-dx-share__audience" data-audience={data.audience}>
         <span className="tm-dx-share__orb" aria-hidden="true">
-          ◎
+          {published ? '◎' : '■'}
         </span>
         {capsule}
       </span>

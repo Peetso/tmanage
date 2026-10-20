@@ -56,6 +56,25 @@ function member(projectIds: readonly string[], hasOrgWideScope = false): Princip
   };
 }
 
+/**
+ * The invited member acting for themselves — their `membershipId` matches the attendee row the
+ * invite creates (`membersByUser[INVITEE]` → `MEMBERSHIP`), so they may set their own RSVP (CQ-15,
+ * COL-11).
+ */
+function invitedMember(): Principal {
+  return {
+    userId: INVITEE,
+    organizationId: ORG,
+    kind: 'internal',
+    role: 'member',
+    membershipId: MEMBERSHIP,
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [PROJECT],
+    hasOrgWideScope: false,
+  };
+}
+
 const context = { organizationId: ORG, userId: USER } as unknown as TenantContext;
 
 function meetingRow(overrides: Partial<MeetingRow> = {}): MeetingRow {
@@ -181,12 +200,39 @@ describe('MeetingAttendeesService', () => {
     const listed = await service.listAttendees(context, member([PROJECT]), { meetingId: MEETING });
     expect(listed.map((a) => a.id)).toEqual([invited.id]);
 
-    const answered = await service.setRsvp(context, member([PROJECT]), {
+    // CQ-15 (COL-11): a response is the attendee's own, so the invited member — not the organiser —
+    // records it. The caller's membership matches the attendee row's membership.
+    const answered = await service.setRsvp(context, invitedMember(), {
       meetingId: MEETING,
       attendeeId: invited.id,
       rsvp: 'accepted',
     });
     expect(answered.rsvp).toBe('accepted');
+  });
+
+  it('refuses to set another member RSVP as forbidden, and writes nothing (CQ-15 COL-11)', async () => {
+    const other = {
+      id: 'attendee-0000-0000-0000-000000000020',
+      organizationId: ORG,
+      meetingId: MEETING,
+      membershipId: MEMBERSHIP,
+      rsvp: 'invited',
+      createdAt: new Date(),
+      userId: INVITEE,
+    } as MeetingAttendeeRow & { userId: string };
+    const { service } = serviceWith({ attendees: [other] });
+    // The caller is an org-wide owner on the project (passes every relation gate), yet the attendee
+    // row is someone else's membership — so it is a 403, not a silent write.
+    const error = await service
+      .setRsvp(context, member([PROJECT], true), {
+        meetingId: MEETING,
+        attendeeId: other.id,
+        rsvp: 'accepted',
+      })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(403);
+    expect(other.rsvp).toBe('invited');
   });
 
   it('refuses to invite into a cross-tenant meeting as not-found, and writes nothing', async () => {

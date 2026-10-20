@@ -452,6 +452,32 @@ describe('TM-06 the project channel', () => {
       expect(second.clientGeneratedId).toBe(first.clientGeneratedId);
     });
   });
+
+  it('sends on Enter and inserts a newline on Shift+Enter (COL-13)', async () => {
+    const { client, calls } = clientOver(
+      channelHandler({
+        post: () => json(message({ id: 'msg-new', sequenceNo: 4 }), 201),
+      }),
+    );
+    renderChannel(client);
+
+    const box = await screen.findByLabelText('Message the channel');
+    // Shift+Enter is a newline, not a send.
+    await userEvent.type(box, 'First line{Shift>}{Enter}{/Shift}second line');
+    expect(box).toHaveValue('First line\nsecond line');
+    expect(
+      calls.filter((call) => call.method === 'POST' && call.url.endsWith('/messages')),
+    ).toHaveLength(0);
+
+    // Enter alone sends.
+    await userEvent.type(box, '{Enter}');
+    await waitFor(() => {
+      const posts = calls.filter(
+        (call) => call.method === 'POST' && call.url.endsWith('/messages'),
+      );
+      expect(posts).toHaveLength(1);
+    });
+  });
 });
 
 describe('TM-08 the thread pane', () => {
