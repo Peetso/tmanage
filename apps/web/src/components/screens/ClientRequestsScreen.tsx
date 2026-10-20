@@ -16,6 +16,7 @@ import {
 } from '../../lib/client-request-presentation';
 import { shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ClientRequestsScreenProps {
   organizationSlug: string;
@@ -46,6 +47,7 @@ export function ClientRequestsScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -65,10 +67,10 @@ export function ClientRequestsScreen({
   const projectCount = (projects.data ?? []).length;
   const requestsEyebrow =
     projectCount > 1
-      ? 'Your requests · All projects'
+      ? t('ClientRequestsScreen.yourRequestsAll')
       : project
-        ? `Your requests · ${project.name}`
-        : 'Your requests';
+        ? `${t('ClientRequestsScreen.yourRequestsProjectPrefix')}${project.name}`
+        : t('ClientRequestsScreen.yourRequests');
 
   return (
     <ClientPortalShell
@@ -76,7 +78,7 @@ export function ClientRequestsScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="overview"
-      title="Everything you have asked for"
+      title={t('ClientRequestsScreen.title')}
       eyebrow={requestsEyebrow}
       headerAside={
         // A link that looks like a button: going somewhere is an anchor, so middle-click and
@@ -85,19 +87,19 @@ export function ClientRequestsScreen({
           href={`/${organizationSlug}/portal/requests/new`}
           className="tm-pt-btn tm-pt-btn--ink"
         >
-          Ask for something
+          {t('ClientRequestsScreen.askForSomething')}
         </Link>
       }
     >
       <div className="tm-pt tm-pt--compact">
         {requests.isError ? (
-          <InlineAlert tone="danger" title="Could not load your requests" live>
+          <InlineAlert tone="danger" title={t('ClientRequestsScreen.loadError')} live>
             {describe(requests.error)}
           </InlineAlert>
         ) : null}
 
         {requests.isPending ? (
-          <LoadingRegion label="Loading your requests.">
+          <LoadingRegion label={t('ClientRequestsScreen.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -105,17 +107,17 @@ export function ClientRequestsScreen({
 
         {!requests.isPending && !requests.isError && ordered.length === 0 ? (
           <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
-            <h2 className="tm-pt-card__title">You have not asked for anything yet</h2>
+            <h2 className="tm-pt-card__title">{t('ClientRequestsScreen.emptyTitle')}</h2>
             <p className="tm-pt-card__body">
-              When you need something from {providerName}, ask here. They read it, ask you anything
-              unclear, and then either agree a date or tell you why not — and whichever it is
-              appears on this page.
+              {t('ClientRequestsScreen.emptyBefore')}
+              {providerName}
+              {t('ClientRequestsScreen.emptyAfter')}
             </p>
           </div>
         ) : null}
 
         {ordered.length > 0 ? (
-          <ul className="tm-pt-list" aria-label="Your requests">
+          <ul className="tm-pt-list" aria-label={t('ClientRequestsScreen.yourRequests')}>
             {ordered.map((request) => {
               const waiting = request.status === 'clarifying';
               return (
@@ -131,7 +133,10 @@ export function ClientRequestsScreen({
                       <Tag tone={waiting ? 'lime' : toneFor(request.status)}>
                         {requestStatusLabel(request.status)}
                       </Tag>
-                      <span className="tm-pt-mono">Sent {shortDay(request.createdAt)}</span>
+                      <span className="tm-pt-mono">
+                        {t('ClientRequestsScreen.sentPrefix')}
+                        {shortDay(request.createdAt)}
+                      </span>
                     </div>
                     <h2 className="tm-pt-action__title">
                       <Link href={`/${organizationSlug}/portal/requests/${request.id}`}>

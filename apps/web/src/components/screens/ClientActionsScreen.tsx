@@ -13,6 +13,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { isPast, longDay, Segmented, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ClientActionsScreenProps {
   organizationSlug: string;
@@ -58,6 +59,7 @@ export function ClientActionsScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
   const [view, setView] = useState<View>('needs');
 
   const projects = useQuery({
@@ -92,10 +94,10 @@ export function ClientActionsScreen({
   const projectCount = (projects.data ?? []).length;
   const actionsEyebrow =
     projectCount > 1
-      ? 'What needs you · All projects'
+      ? t('ClientActionsScreen.whatNeedsYouAll')
       : project
-        ? `What needs you · ${project.name}`
-        : 'What needs you';
+        ? `${t('ClientActionsScreen.whatNeedsYouProjectPrefix')}${project.name}`
+        : t('ClientActionsScreen.whatNeedsYou');
   const needCount = actions.length + awaitingAnswer.length;
   const settled = !workItems.isPending && !workItems.isError && !requests.isPending;
 
@@ -105,30 +107,33 @@ export function ClientActionsScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="actions"
-      title={settled ? headline(needCount) : 'My actions'}
+      title={settled ? headline(needCount) : t('ClientActionsScreen.myActions')}
       eyebrow={actionsEyebrow}
       headerAside={
         <Segmented<View>
-          label="Show"
+          label={t('ClientActionsScreen.show')}
           value={view}
           onChange={setView}
           options={[
-            { id: 'needs', label: `Needs you · ${needCount}` },
-            { id: 'studio', label: `Waiting on the studio · ${studio.length}` },
-            { id: 'done', label: `Done · ${done.length}` },
+            { id: 'needs', label: `${t('ClientActionsScreen.needsYouPrefix')}${needCount}` },
+            {
+              id: 'studio',
+              label: `${t('ClientActionsScreen.waitingStudioPrefix')}${studio.length}`,
+            },
+            { id: 'done', label: `${t('ClientActionsScreen.donePrefix')}${done.length}` },
           ]}
         />
       }
     >
       <div className="tm-pt tm-pt--compact">
         {workItems.isError ? (
-          <InlineAlert tone="danger" title="Could not load your actions" live>
+          <InlineAlert tone="danger" title={t('ClientActionsScreen.loadError')} live>
             {describe(workItems.error)}
           </InlineAlert>
         ) : null}
 
         {workItems.isPending ? (
-          <LoadingRegion label="Loading your actions.">
+          <LoadingRegion label={t('ClientActionsScreen.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -143,11 +148,13 @@ export function ClientActionsScreen({
                     ✓
                   </span>
                   <div className="tm-pt-item__main">
-                    <h2 className="tm-pt-card__title">Nothing is waiting on you</h2>
+                    <h2 className="tm-pt-card__title">
+                      {t('ClientActionsScreen.nothingWaitingTitle')}
+                    </h2>
                     <p className="tm-pt-card__body">
-                      You are up to date. When {providerName} needs something from you it will
-                      appear here, and you will be told — you do not have to keep checking this
-                      page.
+                      {t('ClientActionsScreen.nothingWaitingBodyBefore')}
+                      {providerName}
+                      {t('ClientActionsScreen.nothingWaitingBodyAfter')}
                     </p>
                   </div>
                 </div>
@@ -155,7 +162,7 @@ export function ClientActionsScreen({
             ) : null}
 
             {awaitingAnswer.length > 0 ? (
-              <ul className="tm-pt-list" aria-label="Questions to answer">
+              <ul className="tm-pt-list" aria-label={t('ClientActionsScreen.questionsToAnswer')}>
                 {awaitingAnswer.map((request, index) => (
                   <li
                     key={request.id}
@@ -170,8 +177,11 @@ export function ClientActionsScreen({
                     </span>
                     <div className="tm-pt-action__body">
                       <div className="tm-pt-action__meta">
-                        <Tag tone="lime">Waiting on you</Tag>
-                        <span className="tm-pt-mono">Asked by {providerName}</span>
+                        <Tag tone="lime">{t('ClientActionsScreen.waitingOnYou')}</Tag>
+                        <span className="tm-pt-mono">
+                          {t('ClientActionsScreen.askedByPrefix')}
+                          {providerName}
+                        </span>
                       </div>
                       <h2 className="tm-pt-action__title">
                         <Link href={`/${organizationSlug}/portal/requests/${request.id}`}>
@@ -181,16 +191,16 @@ export function ClientActionsScreen({
                       {/* The studio wrote the question down: the one "why" this card can carry. */}
                       <p className="tm-pt-action__text">
                         {request.clarificationQuestion ??
-                          `${providerName} has asked you something about this request.`}
+                          `${providerName}${t('ClientActionsScreen.askedSomethingSuffix')}`}
                       </p>
                     </div>
                     <div className="tm-pt-action__end">
                       <Link
                         className="tm-pt-btn tm-pt-btn--ink"
                         href={`/${organizationSlug}/portal/requests/${request.id}`}
-                        aria-label={`Answer: ${request.title}`}
+                        aria-label={`${t('ClientActionsScreen.answerPrefix')}${request.title}`}
                       >
-                        Answer
+                        {t('ClientActionsScreen.answer')}
                       </Link>
                     </div>
                   </li>
@@ -199,7 +209,7 @@ export function ClientActionsScreen({
             ) : null}
 
             {actions.length > 0 ? (
-              <ul className="tm-pt-list" aria-label="Your actions">
+              <ul className="tm-pt-list" aria-label={t('ClientActionsScreen.yourActions')}>
                 {actions.map((action, index) => (
                   <li
                     key={action.id}
@@ -211,14 +221,19 @@ export function ClientActionsScreen({
                     <div className="tm-pt-action__body">
                       <div className="tm-pt-action__meta">
                         {action.dueAt === null ? (
-                          <Tag>No deadline</Tag>
+                          <Tag>{t('ClientActionsScreen.noDeadline')}</Tag>
                         ) : (
                           <Tag tone={index === 0 ? 'lime' : undefined}>
-                            {index === 0 ? 'By' : 'Needed by'} {shortDay(action.dueAt)}
+                            {index === 0
+                              ? t('ClientActionsScreen.by')
+                              : t('ClientActionsScreen.neededBy')}{' '}
+                            {shortDay(action.dueAt)}
                           </Tag>
                         )}
-                        {isOverdue(action, now) ? <Tag tone="danger">Past its date</Tag> : null}
-                        <span className="tm-pt-mono">Waiting on you</span>
+                        {isOverdue(action, now) ? (
+                          <Tag tone="danger">{t('ClientActionsScreen.pastItsDate')}</Tag>
+                        ) : null}
+                        <span className="tm-pt-mono">{t('ClientActionsScreen.waitingOnYou')}</span>
                       </div>
                       <h2 className="tm-pt-action__title">{action.title}</h2>
                       <p className="tm-pt-action__text">{describeDue(action.dueAt)}</p>
@@ -229,9 +244,9 @@ export function ClientActionsScreen({
                         href={`/${organizationSlug}/portal/requests/new?about=${encodeURIComponent(
                           action.title,
                         )}&project=${encodeURIComponent(action.projectId)}`}
-                        aria-label={`Ask about: ${action.title}`}
+                        aria-label={`${t('ClientActionsScreen.askAboutPrefix')}${action.title}`}
                       >
-                        Ask about this
+                        {t('ClientActionsScreen.askAboutThis')}
                       </Link>
                     </div>
                   </li>
@@ -241,12 +256,16 @@ export function ClientActionsScreen({
           </>
         ) : (
           <ItemList
-            label={view === 'studio' ? 'Waiting on the studio' : 'Done'}
+            label={
+              view === 'studio'
+                ? t('ClientActionsScreen.waitingOnTheStudio')
+                : t('ClientActionsScreen.done')
+            }
             items={view === 'studio' ? studio : done}
             empty={
               view === 'studio'
-                ? `Nothing is with ${providerName} at the moment.`
-                : 'Nothing has been finished yet.'
+                ? `${t('ClientActionsScreen.nothingWithPrefix')}${providerName}${t('ClientActionsScreen.nothingWithSuffix')}`
+                : t('ClientActionsScreen.nothingFinished')
             }
             done={view === 'done'}
           />
@@ -254,7 +273,7 @@ export function ClientActionsScreen({
 
         {studio.length > 0 ? (
           <div className="tm-pt-foot">
-            <span className="tm-pt-eyebrow">Waiting on the studio</span>
+            <span className="tm-pt-eyebrow">{t('ClientActionsScreen.waitingOnTheStudio')}</span>
             <ul>
               {studio.slice(0, 2).map((item, index) => (
                 <li key={item.id} className="tm-pt-aside-row">
@@ -282,6 +301,7 @@ function ItemList({
   empty: string;
   done: boolean;
 }) {
+  const t = useT();
   if (items.length === 0) {
     return <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">{empty}</p>;
   }
@@ -294,10 +314,13 @@ function ItemList({
           </span>
           <div className="tm-pt-action__body">
             <div className="tm-pt-action__meta">
-              <Tag tone={done ? 'done' : undefined}>{done ? 'Done' : 'In progress'}</Tag>
+              <Tag tone={done ? 'done' : undefined}>
+                {done ? t('ClientActionsScreen.done') : t('ClientActionsScreen.inProgress')}
+              </Tag>
               {item.dueAt ? (
                 <span className="tm-pt-mono">
-                  {done ? 'Due' : 'Expected'} {shortDay(item.dueAt)}
+                  {done ? t('ClientActionsScreen.due') : t('ClientActionsScreen.expected')}{' '}
+                  {shortDay(item.dueAt)}
                 </span>
               ) : null}
             </div>

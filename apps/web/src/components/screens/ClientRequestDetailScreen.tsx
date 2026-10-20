@@ -18,6 +18,7 @@ import {
 } from '../../lib/client-request-presentation';
 import { Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ClientRequestDetailScreenProps {
   organizationSlug: string;
@@ -74,6 +75,7 @@ export function ClientRequestDetailScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
   const queries = useQueryClient();
 
   const [withdrawing, setWithdrawing] = useState(false);
@@ -106,15 +108,11 @@ export function ClientRequestDetailScreen({
       if (error instanceof ApiRequestError) {
         // 409 is the one worth its own sentence. It means somebody moved the request while
         // this page was open, and the fix is to look again rather than to press harder.
-        setFailure(
-          error.status === 409
-            ? 'This request changed while you were reading it. Reload the page to see where it is now.'
-            : error.message,
-        );
+        setFailure(error.status === 409 ? t('ClientRequestDetailScreen.conflict') : error.message);
       } else if (error instanceof NetworkError) {
-        setFailure('The portal is not answering. Try again shortly.');
+        setFailure(t('ClientRequestDetailScreen.portalNoAnswer'));
       } else {
-        setFailure('Something went wrong. Try again.');
+        setFailure(t('ClientRequestDetailScreen.genericError'));
       }
     } finally {
       setWithdrawing(false);
@@ -130,35 +128,40 @@ export function ClientRequestDetailScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="overview"
-      title={found?.title ?? 'Your request'}
+      title={found?.title ?? t('ClientRequestDetailScreen.yourRequest')}
       eyebrow={
         found ? (
           <span className="tm-pt-action__meta">
             <Tag tone={waitingOnClient ? 'lime' : undefined}>
               {requestStatusLabel(found.status)}
             </Tag>
-            {found.status === 'accepted' && !committed ? <Tag>No committed date</Tag> : null}
-            <span>Sent {formatDay(found.createdAt)}</span>
+            {found.status === 'accepted' && !committed ? (
+              <Tag>{t('ClientRequestDetailScreen.noCommittedDate')}</Tag>
+            ) : null}
+            <span>
+              {t('ClientRequestDetailScreen.sentPrefix')}
+              {formatDay(found.createdAt)}
+            </span>
           </span>
         ) : undefined
       }
       headerAside={
         found && found.canWithdraw && found.status !== 'withdrawn' && !confirming ? (
           <Button type="button" tone="outline" onClick={() => setConfirming(true)}>
-            Withdraw request
+            {t('ClientRequestDetailScreen.withdrawRequest')}
           </Button>
         ) : undefined
       }
     >
       <div className="tm-pt tm-pt--compact">
         {request.isError ? (
-          <InlineAlert tone="danger" title="Could not load this request" live>
+          <InlineAlert tone="danger" title={t('ClientRequestDetailScreen.loadError')} live>
             {describe(request.error)}
           </InlineAlert>
         ) : null}
 
         {request.isPending ? (
-          <LoadingRegion label="Loading your request.">
+          <LoadingRegion label={t('ClientRequestDetailScreen.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -168,16 +171,27 @@ export function ClientRequestDetailScreen({
           <div className="tm-pt-split tm-pt-split--aside">
             <div className="tm-pt-col">
               {failure ? (
-                <InlineAlert tone="danger" title="Could not withdraw the request" live>
+                <InlineAlert
+                  tone="danger"
+                  title={t('ClientRequestDetailScreen.withdrawError')}
+                  live
+                >
                   {failure}
                 </InlineAlert>
               ) : null}
 
               {confirming ? (
-                <section className="tm-pt-card tm-pt-card--lead" aria-label="Withdraw">
-                  <InlineAlert tone="warning" title="Withdraw this request?" live>
-                    {providerName} will see that you took it back. You can send a new request at any
-                    time, but this one cannot be reopened.
+                <section
+                  className="tm-pt-card tm-pt-card--lead"
+                  aria-label={t('ClientRequestDetailScreen.withdrawLabel')}
+                >
+                  <InlineAlert
+                    tone="warning"
+                    title={t('ClientRequestDetailScreen.withdrawConfirmTitle')}
+                    live
+                  >
+                    {providerName}
+                    {t('ClientRequestDetailScreen.withdrawConfirmSuffix')}
                   </InlineAlert>
                   <div className="tm-pt-form__actions">
                     <Button
@@ -185,13 +199,13 @@ export function ClientRequestDetailScreen({
                       tone="destructive"
                       size="accessible"
                       loading={withdrawing}
-                      loadingLabel="Withdrawing"
+                      loadingLabel={t('ClientRequestDetailScreen.withdrawing')}
                       onClick={() => void withdraw()}
                     >
-                      Yes, withdraw it
+                      {t('ClientRequestDetailScreen.yesWithdraw')}
                     </Button>
                     <Button type="button" tone="outline" onClick={() => setConfirming(false)}>
-                      Keep it
+                      {t('ClientRequestDetailScreen.keepIt')}
                     </Button>
                   </div>
                 </section>
@@ -202,15 +216,16 @@ export function ClientRequestDetailScreen({
                 <div className="tm-pt-item__main">
                   <h2 id="tm-request-status" className="tm-pt-ink__title">
                     {waitingOnClient && found.clarificationQuestion !== null
-                      ? `${providerName} has asked you something`
-                      : 'Where this request is'}
+                      ? `${providerName}${t('ClientRequestDetailScreen.askedSomethingSuffix')}`
+                      : t('ClientRequestDetailScreen.whereRequestIs')}
                   </h2>
                   {waitingOnClient && found.clarificationQuestion !== null ? (
                     <>
                       <p className="tm-pt-banner__question">{found.clarificationQuestion}</p>
                       <p className="tm-pt-quiet">
-                        Reply to {providerName} the way you normally reach them. This request stays
-                        here until they hear back.
+                        {t('ClientRequestDetailScreen.replyToPrefix')}
+                        {providerName}
+                        {t('ClientRequestDetailScreen.replyToSuffix')}
                       </p>
                     </>
                   ) : (
@@ -221,22 +236,24 @@ export function ClientRequestDetailScreen({
 
               <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-asked">
                 <h2 id="tm-request-asked" className="tm-pt-eyebrow">
-                  What you asked for
+                  {t('ClientRequestDetailScreen.whatAskedFor')}
                 </h2>
                 <p className="tm-pt-card__body tm-pt-card__body--ink">{found.description}</p>
                 {found.urgencyReason !== null ? (
                   <>
-                    <h3 className="tm-pt-eyebrow">Why the timing mattered</h3>
+                    <h3 className="tm-pt-eyebrow">
+                      {t('ClientRequestDetailScreen.whyTimingMattered')}
+                    </h3>
                     <p className="tm-pt-card__body">{found.urgencyReason}</p>
                   </>
                 ) : null}
                 <dl className="tm-pt-facts">
                   <div>
-                    <dt>Project</dt>
-                    <dd>{project?.name ?? 'A project shared with you'}</dd>
+                    <dt>{t('ClientRequestDetailScreen.project')}</dt>
+                    <dd>{project?.name ?? t('ClientRequestDetailScreen.sharedProjectFallback')}</dd>
                   </div>
                   <div>
-                    <dt>Category</dt>
+                    <dt>{t('ClientRequestDetailScreen.category')}</dt>
                     <dd>{found.category}</dd>
                   </div>
                 </dl>
@@ -244,15 +261,18 @@ export function ClientRequestDetailScreen({
 
               <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-dates">
                 <h2 id="tm-request-dates" className="tm-pt-eyebrow">
-                  Dates
+                  {t('ClientRequestDetailScreen.dates')}
                 </h2>
                 <dl className="tm-pt-dates">
                   <div className="tm-pt-date tm-pt-date--dashed">
-                    <dt className="tm-pt-eyebrow">You asked for</dt>
+                    <dt className="tm-pt-eyebrow">{t('ClientRequestDetailScreen.youAskedFor')}</dt>
                     <dd className="tm-pt-date__value">{describeDesiredDate(found.desiredAt)}</dd>
                   </div>
                   <div className="tm-pt-date">
-                    <dt className="tm-pt-eyebrow">{providerName} agreed</dt>
+                    <dt className="tm-pt-eyebrow">
+                      {providerName}
+                      {t('ClientRequestDetailScreen.agreedSuffix')}
+                    </dt>
                     <dd className="tm-pt-date__value">{describeCommitment(found)}</dd>
                   </div>
                 </dl>
@@ -261,7 +281,9 @@ export function ClientRequestDetailScreen({
               {found.clientVisibleReason !== null ? (
                 <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-reason">
                   <h2 id="tm-request-reason" className="tm-pt-eyebrow">
-                    What {providerName} said
+                    {t('ClientRequestDetailScreen.whatSaidBefore')}
+                    {providerName}
+                    {t('ClientRequestDetailScreen.whatSaidAfter')}
                   </h2>
                   <p className="tm-pt-card__body tm-pt-card__body--ink">
                     {found.clientVisibleReason}
@@ -272,7 +294,7 @@ export function ClientRequestDetailScreen({
               {found.clientSafeScopeSummary !== null ? (
                 <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-scope">
                   <h2 id="tm-request-scope" className="tm-pt-eyebrow">
-                    What they have agreed to do
+                    {t('ClientRequestDetailScreen.whatAgreedToDo')}
                   </h2>
                   <p className="tm-pt-card__body tm-pt-card__body--ink">
                     {found.clientSafeScopeSummary}
@@ -284,11 +306,11 @@ export function ClientRequestDetailScreen({
             <div className="tm-pt-col">
               <section className="tm-pt-card" aria-labelledby="tm-request-journey">
                 <h2 id="tm-request-journey" className="tm-pt-eyebrow">
-                  How it has moved
+                  {t('ClientRequestDetailScreen.howItMoved')}
                 </h2>
                 <ol className="tm-pt-steps">
                   <li className="tm-pt-steps__item tm-pt-steps__item--done">
-                    <p className="tm-pt-rows__title">You sent it</p>
+                    <p className="tm-pt-rows__title">{t('ClientRequestDetailScreen.youSentIt')}</p>
                     <p className="tm-pt-quiet">{formatDay(found.createdAt)}</p>
                   </li>
                   {found.status !== 'submitted' ? (
@@ -313,9 +335,13 @@ export function ClientRequestDetailScreen({
                           : 'tm-pt-steps__item'
                       }
                     >
-                      <p className="tm-pt-rows__title">Studio commits a date</p>
+                      <p className="tm-pt-rows__title">
+                        {t('ClientRequestDetailScreen.studioCommitsDate')}
+                      </p>
                       <p className="tm-pt-quiet">
-                        {committed ? formatDay(found.committedAt!) : 'not scheduled yet'}
+                        {committed
+                          ? formatDay(found.committedAt!)
+                          : t('ClientRequestDetailScreen.notScheduledYet')}
                       </p>
                     </li>
                   )}
@@ -328,30 +354,29 @@ export function ClientRequestDetailScreen({
                   aria-labelledby="tm-request-wish"
                 >
                   <h2 id="tm-request-wish" className="tm-pt-eyebrow">
-                    About the date you asked for
+                    {t('ClientRequestDetailScreen.aboutDateAsked')}
                   </h2>
                   <p className="tm-pt-quiet">
-                    It has not been committed, so treat it as a wish until {providerName} confirms.
-                    A date you asked for is never read back to you as a promise.
+                    {t('ClientRequestDetailScreen.wishBefore')}
+                    {providerName}
+                    {t('ClientRequestDetailScreen.wishAfter')}
                   </p>
                 </section>
               ) : null}
 
               <section className="tm-pt-card" aria-labelledby="tm-request-withdraw">
                 <h2 id="tm-request-withdraw" className="tm-pt-eyebrow">
-                  Take it back
+                  {t('ClientRequestDetailScreen.takeItBack')}
                 </h2>
                 {found.status === 'withdrawn' ? (
-                  <p className="tm-pt-quiet">
-                    You withdrew this request. Nothing is expected from anybody.
-                  </p>
+                  <p className="tm-pt-quiet">{t('ClientRequestDetailScreen.withdrewNote')}</p>
                 ) : found.canWithdraw ? (
                   // Two sentences: from `submitted` nobody has looked yet; from `clarifying`
                   // somebody has — they are the reason this page shows a question.
                   <p className="tm-pt-quiet">
                     {found.status === 'clarifying'
-                      ? 'You can still take this back, even with their question open. Withdrawing it is an answer too.'
-                      : `You can still take this back — ${providerName} has not started on it.`}
+                      ? t('ClientRequestDetailScreen.canStillClarifying')
+                      : `${t('ClientRequestDetailScreen.canStillBefore')}${providerName}${t('ClientRequestDetailScreen.canStillAfter')}`}
                   </p>
                 ) : (
                   // Said rather than merely hidden: a control that vanished without explanation

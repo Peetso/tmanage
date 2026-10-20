@@ -10,6 +10,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { PublicIntro, PublicPage } from './public/PublicSite';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ChangelogScreenProps {
   client?: ApiClient;
@@ -39,6 +40,7 @@ export interface ChangelogScreenProps {
  */
 export function ChangelogScreen({ client }: ChangelogScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const changelog = useQuery({
     queryKey: ['public-changelog'],
@@ -53,21 +55,19 @@ export function ChangelogScreen({ client }: ChangelogScreenProps) {
   return (
     <PublicPage>
       <div className="tm-pub-columns">
-        <PublicIntro eyebrow="Product · Changelog" title="What’s new">
-          <p className="tm-pub-lede tm-pub-lede--md">
-            Product updates, newest first. Grouped by the month each change went live.
-          </p>
+        <PublicIntro eyebrow={t('ChangelogScreen.eyebrow')} title={t('ChangelogScreen.title')}>
+          <p className="tm-pub-lede tm-pub-lede--md">{t('ChangelogScreen.lede')}</p>
         </PublicIntro>
 
         <div className="tm-pub-stack">
           {changelog.isError ? (
-            <InlineAlert tone="danger" title="Could not load the changelog" live>
+            <InlineAlert tone="danger" title={t('ChangelogScreen.loadError')} live>
               {describeError(changelog.error)}
             </InlineAlert>
           ) : null}
 
           {changelog.isPending ? (
-            <LoadingRegion label="Loading the changelog.">
+            <LoadingRegion label={t('ChangelogScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
@@ -76,10 +76,8 @@ export function ChangelogScreen({ client }: ChangelogScreenProps) {
 
           {!changelog.isPending && !changelog.isError && months.length === 0 ? (
             <div className="tm-pub-card tm-pub-card--roomy tm-pub-card--dashed">
-              <p className="tm-pub-card__title">Nothing here yet</p>
-              <p className="tm-pub-card__body">
-                No product updates have been published. Check back soon.
-              </p>
+              <p className="tm-pub-card__title">{t('ChangelogScreen.emptyTitle')}</p>
+              <p className="tm-pub-card__body">{t('ChangelogScreen.emptyBody')}</p>
             </div>
           ) : null}
 

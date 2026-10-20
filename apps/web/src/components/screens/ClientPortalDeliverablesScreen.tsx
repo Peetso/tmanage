@@ -16,6 +16,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { Segmented, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ClientPortalDeliverablesScreenProps {
   organizationSlug: string;
@@ -52,6 +53,7 @@ export function ClientPortalDeliverablesScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
   const [filter, setFilter] = useState<Filter>('all');
 
   const projects = useQuery({
@@ -79,19 +81,27 @@ export function ClientPortalDeliverablesScreen({
       providerName={providerName}
       activeNavigationId="deliverables"
       title={
-        settled && everything.length > 0 ? headline(everything.length, finalCount) : 'Deliverables'
+        settled && everything.length > 0
+          ? headline(everything.length, finalCount)
+          : t('ClientPortalDeliverablesScreen.deliverables')
       }
-      eyebrow="Deliverables · what you will receive"
+      eyebrow={t('ClientPortalDeliverablesScreen.eyebrow')}
       headerAside={
         everything.length > 0 ? (
           <Segmented<Filter>
-            label="Show"
+            label={t('ClientPortalDeliverablesScreen.show')}
             value={filter}
             onChange={setFilter}
             options={[
-              { id: 'all', label: 'All' },
-              { id: 'open', label: `Awaiting a decision · ${openCount}` },
-              { id: 'final', label: `Final · ${finalCount}` },
+              { id: 'all', label: t('ClientPortalDeliverablesScreen.all') },
+              {
+                id: 'open',
+                label: `${t('ClientPortalDeliverablesScreen.awaitingPrefix')}${openCount}`,
+              },
+              {
+                id: 'final',
+                label: `${t('ClientPortalDeliverablesScreen.finalPrefix')}${finalCount}`,
+              },
             ]}
           />
         ) : undefined
@@ -99,13 +109,13 @@ export function ClientPortalDeliverablesScreen({
     >
       <div className="tm-pt tm-pt--compact">
         {projects.isError ? (
-          <InlineAlert tone="danger" title="Could not load your deliverables" live>
+          <InlineAlert tone="danger" title={t('ClientPortalDeliverablesScreen.loadError')} live>
             {describe(projects.error)}
           </InlineAlert>
         ) : null}
 
         {projects.isPending ? (
-          <LoadingRegion label="Loading your deliverables.">
+          <LoadingRegion label={t('ClientPortalDeliverablesScreen.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -117,11 +127,12 @@ export function ClientPortalDeliverablesScreen({
             aria-labelledby="tm-deliverables-empty"
           >
             <h2 id="tm-deliverables-empty" className="tm-pt-card__title">
-              Deliverables
+              {t('ClientPortalDeliverablesScreen.deliverables')}
             </h2>
             <p className="tm-pt-card__body">
-              Nothing has been shared with you yet. {providerName} decides what appears here, and
-              they will tell you when something does.
+              {t('ClientPortalDeliverablesScreen.nothingSharedBefore')}
+              {providerName}
+              {t('ClientPortalDeliverablesScreen.nothingSharedAfter')}
             </p>
           </section>
         ) : null}
@@ -184,6 +195,7 @@ function ProjectDeliverables({
   filter,
   labelled,
 }: ProjectDeliverablesProps) {
+  const t = useT();
   const headingId = useId();
 
   const deliverables = useQuery({
@@ -203,20 +215,29 @@ function ProjectDeliverables({
       </h2>
 
       {deliverables.isError ? (
-        <InlineAlert tone="danger" title="Could not load these deliverables" live>
+        <InlineAlert
+          tone="danger"
+          title={t('ClientPortalDeliverablesScreen.loadErrorSection')}
+          live
+        >
           {describe(deliverables.error)}
         </InlineAlert>
       ) : null}
 
       {deliverables.isPending ? (
-        <LoadingRegion label={`Loading deliverables for ${project.name}.`}>
+        <LoadingRegion
+          label={`${t('ClientPortalDeliverablesScreen.loadingForPrefix')}${project.name}${t('ClientPortalDeliverablesScreen.loadingForSuffix')}`}
+        >
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {deliverables.isSuccess && (deliverables.data ?? []).length === 0 ? (
         <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-          {providerName} has not published anything on {project.name} yet.
+          {providerName}
+          {t('ClientPortalDeliverablesScreen.notPublishedOnMiddle')}
+          {project.name}
+          {t('ClientPortalDeliverablesScreen.notPublishedOnSuffix')}
         </p>
       ) : null}
 
@@ -247,6 +268,7 @@ interface DeliverablePanelProps {
 
 /** One published deliverable version — every field is the x97 allowlist and no more. */
 function DeliverablePanel({ api, organizationSlug, deliverable, lead }: DeliverablePanelProps) {
+  const t = useT();
   const [filesOpen, setFilesOpen] = useState(false);
   const filesRegionId = useId();
   const final = isFinal(deliverable);
@@ -266,8 +288,8 @@ function DeliverablePanel({ api, organizationSlug, deliverable, lead }: Delivera
         ) : null}
         <span className="tm-pt-mono">
           {deliverable.forecastDate
-            ? `Expected ${shortDay(deliverable.forecastDate)}`
-            : `Shared ${shortDay(deliverable.publishedAt)}`}
+            ? `${t('ClientPortalDeliverablesScreen.expectedPrefix')}${shortDay(deliverable.forecastDate)}`
+            : `${t('ClientPortalDeliverablesScreen.sharedPrefix')}${shortDay(deliverable.publishedAt)}`}
         </span>
       </div>
 
@@ -279,17 +301,21 @@ function DeliverablePanel({ api, organizationSlug, deliverable, lead }: Delivera
 
       {deliverable.publishedRisk ? (
         <p className="tm-pt-quiet">
-          <strong>Risk:</strong> {words(deliverable.publishedRisk)}
+          <strong>{t('ClientPortalDeliverablesScreen.riskLabel')}</strong>{' '}
+          {words(deliverable.publishedRisk)}
         </p>
       ) : null}
 
       {deliverable.approvedContacts.length > 0 ? (
-        <p className="tm-pt-quiet">Your contacts: {deliverable.approvedContacts.join(', ')}</p>
+        <p className="tm-pt-quiet">
+          {t('ClientPortalDeliverablesScreen.yourContactsPrefix')}
+          {deliverable.approvedContacts.join(', ')}
+        </p>
       ) : null}
 
       <div className="tm-pt-deliv__actions">
         <Link className={lead ? 'tm-pt-btn tm-pt-btn--lime' : 'tm-pt-btn'} href={href}>
-          Open
+          {t('ClientPortalDeliverablesScreen.open')}
         </Link>
         <button
           type="button"
@@ -298,7 +324,9 @@ function DeliverablePanel({ api, organizationSlug, deliverable, lead }: Delivera
           aria-controls={filesRegionId}
           onClick={() => setFilesOpen((open) => !open)}
         >
-          {filesOpen ? 'Hide files' : 'Show files'}
+          {filesOpen
+            ? t('ClientPortalDeliverablesScreen.hideFiles')
+            : t('ClientPortalDeliverablesScreen.showFiles')}
         </button>
       </div>
 
@@ -325,6 +353,7 @@ interface DeliverableFilesProps {
  * The files attached to one deliverable, fetched the first time the disclosure opens.
  */
 function DeliverableFiles({ api, organizationSlug, deliverableId }: DeliverableFilesProps) {
+  const t = useT();
   const files = useQuery({
     queryKey: ['portal-deliverable-files', organizationSlug, deliverableId],
     queryFn: () => listPortalDeliverableFiles(api, organizationSlug, deliverableId),
@@ -332,7 +361,7 @@ function DeliverableFiles({ api, organizationSlug, deliverableId }: DeliverableF
 
   if (files.isError) {
     return (
-      <InlineAlert tone="danger" title="Could not load these files" live>
+      <InlineAlert tone="danger" title={t('ClientPortalDeliverablesScreen.filesError')} live>
         {describe(files.error)}
       </InlineAlert>
     );
@@ -340,7 +369,7 @@ function DeliverableFiles({ api, organizationSlug, deliverableId }: DeliverableF
 
   if (files.isPending) {
     return (
-      <LoadingRegion label="Loading files.">
+      <LoadingRegion label={t('ClientPortalDeliverablesScreen.loadingFiles')}>
         <Skeleton height="var(--row)" />
       </LoadingRegion>
     );
@@ -348,7 +377,7 @@ function DeliverableFiles({ api, organizationSlug, deliverableId }: DeliverableF
 
   const rows = files.data ?? [];
   if (rows.length === 0) {
-    return <p className="tm-pt-quiet">No files are attached to this deliverable.</p>;
+    return <p className="tm-pt-quiet">{t('ClientPortalDeliverablesScreen.noFiles')}</p>;
   }
 
   return (

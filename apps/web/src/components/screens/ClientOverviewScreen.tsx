@@ -28,6 +28,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { Avatar, daysUntil, humanize, isPast, longDay, shortDay } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ClientOverviewScreenProps {
   organizationSlug: string;
@@ -72,6 +73,7 @@ export function ClientOverviewScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -131,7 +133,7 @@ export function ClientOverviewScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="overview"
-      title={project?.name ?? 'Overview'}
+      title={project?.name ?? t('ClientOverviewScreen.overview')}
       eyebrow={eyebrowFor(project)}
       description={describeHeadline(project, actionCount)}
       headerAside={
@@ -142,13 +144,13 @@ export function ClientOverviewScreen({
     >
       <div className="tm-pt">
         {projects.isError || workItems.isError ? (
-          <InlineAlert tone="danger" title="Could not load your portal" live>
+          <InlineAlert tone="danger" title={t('ClientOverviewScreen.loadError')} live>
             {describe(projects.error ?? workItems.error)}
           </InlineAlert>
         ) : null}
 
         {projects.isPending || workItems.isPending ? (
-          <LoadingRegion label="Loading your portal.">
+          <LoadingRegion label={t('ClientOverviewScreen.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -163,8 +165,9 @@ export function ClientOverviewScreen({
           />
         ) : !projects.isPending && !projects.isError ? (
           <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-            Nothing has been shared with you yet. {providerName} decides what appears here, and they
-            will tell you when something does.
+            {t('ClientOverviewScreen.nothingSharedBefore')}
+            {providerName}
+            {t('ClientOverviewScreen.nothingSharedAfter')}
           </p>
         ) : null}
 
@@ -200,7 +203,10 @@ export function ClientOverviewScreen({
               providerName={providerName}
               people={people.data ?? []}
             />
-            <p className="tm-pt-quiet">As of {formatMoment(now)}</p>
+            <p className="tm-pt-quiet">
+              {t('ClientOverviewScreen.asOfPrefix')}
+              {formatMoment(now)}
+            </p>
           </div>
         </div>
       </div>
@@ -241,6 +247,7 @@ interface HeaderMetricsProps {
 
 /** CL-01's two numbers: days to the agreed date, and how many things wait on the client. */
 function HeaderMetrics({ project, waiting, questions, now }: HeaderMetricsProps) {
+  const t = useT();
   const days = daysUntil(project.committedAt, now);
   const count = waiting.length + questions.length;
   const soon = waiting.some((item) => {
@@ -251,32 +258,52 @@ function HeaderMetrics({ project, waiting, questions, now }: HeaderMetricsProps)
 
   return (
     <div className="tm-pt-metrics">
-      <section className="tm-pt-metric" aria-label="Dates">
+      <section className="tm-pt-metric" aria-label={t('ClientOverviewScreen.datesLabel')}>
         <p className="tm-pt-metric__value">{days ?? '—'}</p>
         <p className="tm-pt-metric__label">
-          {days === null ? 'No date agreed yet' : days === 1 ? 'day to launch' : 'days to launch'}
+          {days === null
+            ? t('ClientOverviewScreen.noDateAgreedYet')
+            : days === 1
+              ? t('ClientOverviewScreen.dayToLaunch')
+              : t('ClientOverviewScreen.daysToLaunch')}
         </p>
         <dl className="tm-pt-metric__source">
           <div>
-            <dt>Agreed date</dt>{' '}
-            <dd>{project.committedAt ? shortDay(project.committedAt) : 'not agreed yet'}</dd>
+            <dt>{t('ClientOverviewScreen.agreedDate')}</dt>{' '}
+            <dd>
+              {project.committedAt
+                ? shortDay(project.committedAt)
+                : t('ClientOverviewScreen.notAgreedYet')}
+            </dd>
           </div>
           <div>
-            <dt>Current estimate</dt>{' '}
-            <dd>{project.forecastAt ? shortDay(project.forecastAt) : 'not estimated yet'}</dd>
+            <dt>{t('ClientOverviewScreen.currentEstimate')}</dt>{' '}
+            <dd>
+              {project.forecastAt
+                ? shortDay(project.forecastAt)
+                : t('ClientOverviewScreen.notEstimatedYet')}
+            </dd>
           </div>
         </dl>
       </section>
-      <section className="tm-pt-metric" aria-label="Waiting for you">
+      <section className="tm-pt-metric" aria-label={t('ClientOverviewScreen.waitingForYou')}>
         <div className="tm-pt-metric__row">
           <p className="tm-pt-metric__value">{count}</p>
-          {soon ? <span className="tm-pt-metric__pill">this week</span> : null}
+          {soon ? (
+            <span className="tm-pt-metric__pill">{t('ClientOverviewScreen.thisWeek')}</span>
+          ) : null}
         </div>
         <p className="tm-pt-metric__label">
-          {count === 1 ? 'action waiting for you' : 'actions waiting for you'}
+          {count === 1
+            ? t('ClientOverviewScreen.actionWaiting')
+            : t('ClientOverviewScreen.actionsWaiting')}
         </p>
         <p className="tm-pt-metric__source">
-          {next?.dueAt ? `next due ${shortDay(next.dueAt)}` : count === 0 ? 'all caught up' : ''}
+          {next?.dueAt
+            ? `${t('ClientOverviewScreen.nextDuePrefix')}${shortDay(next.dueAt)}`
+            : count === 0
+              ? t('ClientOverviewScreen.allCaughtUp')
+              : ''}
         </p>
       </section>
     </div>
@@ -297,6 +324,7 @@ function JourneyTrack({
   milestones,
   hasSharedWork,
 }: JourneyTrackProps) {
+  const t = useT();
   const ordered = [...milestones].sort(byDueOn);
   const nowIndex = ordered.findIndex((milestone) => milestone.status !== 'met');
 
@@ -304,14 +332,17 @@ function JourneyTrack({
     <section className="tm-stack tm-stack--tight" aria-labelledby="tm-portal-track">
       <div className="tm-pt-track-head">
         <h2 id="tm-portal-track" className="tm-pt-eyebrow">
-          Where the project is
+          {t('ClientOverviewScreen.whereProjectIs')}
         </h2>
         {ordered.length > 0 ? (
           <p className="tm-pt-quiet">
             {nowIndex === -1
               ? `all ${ordered.length} stages done`
               : `stage ${nowIndex + 1} of ${ordered.length}`}{' '}
-            · <Link href={`/${organizationSlug}/portal/timeline`}>see the full timeline</Link>
+            ·{' '}
+            <Link href={`/${organizationSlug}/portal/timeline`}>
+              {t('ClientOverviewScreen.seeFullTimeline')}
+            </Link>
           </p>
         ) : null}
       </div>
@@ -319,8 +350,8 @@ function JourneyTrack({
       {ordered.length === 0 ? (
         <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
           {hasSharedWork
-            ? `${providerName} has not shared the stages of this project yet. They will appear here as soon as they do.`
-            : `Nothing has been shared with you yet. ${providerName} decides what appears here, and they will tell you when something does.`}
+            ? `${providerName}${t('ClientOverviewScreen.notSharedStagesSuffix')}`
+            : `${t('ClientOverviewScreen.nothingSharedBefore')}${providerName}${t('ClientOverviewScreen.nothingSharedAfter')}`}
         </p>
       ) : (
         <ol className="tm-pt-track">
@@ -349,6 +380,7 @@ function TrackStep({
   position: 'done' | 'now' | 'ahead';
   last: boolean;
 }) {
+  const t = useT();
   if (position === 'done' || milestone.status === 'met') {
     return (
       <li className="tm-pt-step tm-pt-step--done">
@@ -358,7 +390,8 @@ function TrackStep({
         <span className="tm-pt-step__text">
           <span className="tm-pt-step__name">{milestone.title}</span>
           <span className="tm-pt-step__date">
-            done{milestone.dueOn ? ` ${shortDay(milestone.dueOn)}` : ''}
+            {t('ClientOverviewScreen.doneLower')}
+            {milestone.dueOn ? ` ${shortDay(milestone.dueOn)}` : ''}
           </span>
         </span>
       </li>
@@ -369,16 +402,16 @@ function TrackStep({
     return (
       <li className="tm-pt-step tm-pt-step--now" aria-current="step">
         <span className="tm-pt-step__text">
-          <span className="tm-pt-step__kicker">Now</span>
+          <span className="tm-pt-step__kicker">{t('ClientOverviewScreen.now')}</span>
           <span className="tm-pt-step__name">{milestone.title}</span>
         </span>
         <span className="tm-pt-step__end">
           <span className="tm-pt-step__date">
             {milestone.status === 'missed'
-              ? 'date missed'
+              ? t('ClientOverviewScreen.dateMissed')
               : milestone.dueOn
-                ? `by ${shortDay(milestone.dueOn)}`
-                : 'no date yet'}
+                ? `${t('ClientOverviewScreen.byPrefix')}${shortDay(milestone.dueOn)}`
+                : t('ClientOverviewScreen.noDateYet')}
           </span>
         </span>
       </li>
@@ -399,7 +432,7 @@ function TrackStep({
       <span className="tm-pt-step__text">
         <span className="tm-pt-step__name">{milestone.title}</span>
         <span className="tm-pt-step__date">
-          {undated ? 'no date yet' : shortDay(milestone.dueOn)}
+          {undated ? t('ClientOverviewScreen.noDateYet') : shortDay(milestone.dueOn)}
         </span>
       </span>
     </li>
@@ -425,40 +458,45 @@ function ActionsColumn({
   questions,
   now,
 }: ActionsColumnProps) {
+  const t = useT();
   const [first, ...rest] = waiting;
   const nothing = waiting.length === 0 && questions.length === 0;
 
   return (
     <section className="tm-pt-col" aria-labelledby="tm-portal-actions">
       <h2 id="tm-portal-actions" className="tm-pt-section-title">
-        Your actions
+        {t('ClientOverviewScreen.yourActions')}
       </h2>
 
       {first ? (
         <article className="tm-pt-feature">
           <div className="tm-pt-feature__top">
             <p className="tm-pt-eyebrow">
-              Needs you{first.dueAt ? ` · by ${shortDay(first.dueAt)}` : ''}
+              {t('ClientOverviewScreen.needsYou')}
+              {first.dueAt ? ` · ${t('ClientOverviewScreen.byLower')}${shortDay(first.dueAt)}` : ''}
             </p>
             {first.dueAt ? (
               <span className="tm-pt-feature__due">
-                {isPast(first.dueAt, now) ? 'Past its date' : `Due ${shortDay(first.dueAt)}`}
+                {isPast(first.dueAt, now)
+                  ? t('ClientOverviewScreen.pastItsDate')
+                  : `${t('ClientOverviewScreen.duePrefix')}${shortDay(first.dueAt)}`}
               </span>
             ) : null}
           </div>
           <h3 className="tm-pt-feature__title">{first.title}</h3>
           <p className="tm-pt-feature__text">
-            {providerName} is waiting on you for this. It is the soonest thing on your list.
+            {providerName}
+            {t('ClientOverviewScreen.waitingSuffix')}
           </p>
           <div className="tm-pt-feature__actions">
             <Link className="tm-pt-btn tm-pt-btn--orb" href={`/${organizationSlug}/portal/actions`}>
               <span className="tm-pt-btn__orb" aria-hidden="true">
                 ▸
               </span>
-              See all of your actions
+              {t('ClientOverviewScreen.seeAllActions')}
             </Link>
             <Link className="tm-pt-link" href={`/${organizationSlug}/portal/requests/new`}>
-              Ask a question instead
+              {t('ClientOverviewScreen.askQuestionInstead')}
             </Link>
           </div>
         </article>
@@ -474,8 +512,8 @@ function ActionsColumn({
               <h3 className="tm-pt-card__title">{item.title}</h3>
               <p className="tm-pt-quiet">
                 {item.dueAt
-                  ? `${isPast(item.dueAt, now) ? 'Was due' : 'Needed by'} ${longDay(item.dueAt)}`
-                  : 'No date has been set for this.'}
+                  ? `${isPast(item.dueAt, now) ? t('ClientOverviewScreen.wasDue') : t('ClientOverviewScreen.neededBy')} ${longDay(item.dueAt)}`
+                  : t('ClientOverviewScreen.noDateSet')}
               </p>
             </div>
           </div>
@@ -492,15 +530,15 @@ function ActionsColumn({
               <h3 className="tm-pt-card__title">{request.title}</h3>
               <p className="tm-pt-quiet">
                 {request.clarificationQuestion ??
-                  `${providerName} has asked you something about this request.`}
+                  `${providerName}${t('ClientOverviewScreen.askedSomethingSuffix')}`}
               </p>
             </div>
             <Link
               className="tm-pt-btn"
               href={`/${organizationSlug}/portal/requests/${request.id}`}
-              aria-label={`Reply: ${request.title}`}
+              aria-label={`${t('ClientOverviewScreen.replyPrefix')}${request.title}`}
             >
-              Reply
+              {t('ClientOverviewScreen.reply')}
             </Link>
           </div>
         </article>
@@ -513,8 +551,8 @@ function ActionsColumn({
           </span>
           <p className="tm-pt-card__body tm-pt-item__main">
             {nothing
-              ? `Nothing needs you right now. You will see anything that does here first, and ${providerName} will tell you as well.`
-              : 'After that, nothing else is needed from you. We’ll notify you when your review, file, or answer is needed.'}
+              ? `${t('ClientOverviewScreen.nothingNeedsBefore')}${providerName}${t('ClientOverviewScreen.nothingNeedsAfter')}`
+              : t('ClientOverviewScreen.afterThatNote')}
           </p>
         </div>
       </div>
@@ -535,12 +573,13 @@ function LatestUpdateCard({
   isError: boolean;
   error: unknown;
 }) {
+  const t = useT();
   const latest = updates[0];
   return (
     <section className="tm-pt-card" aria-labelledby="tm-portal-updates">
       <div className="tm-pt-card__head">
         <h2 id="tm-portal-updates" className="tm-pt-card__title">
-          Latest update
+          {t('ClientOverviewScreen.latestUpdate')}
         </h2>
         {latest ? (
           <time className="tm-pt-mono" dateTime={latest.createdAt}>
@@ -549,7 +588,7 @@ function LatestUpdateCard({
         ) : null}
       </div>
       {isError ? (
-        <InlineAlert tone="danger" title="Could not load updates" live>
+        <InlineAlert tone="danger" title={t('ClientOverviewScreen.updatesError')} live>
           {describe(error)}
         </InlineAlert>
       ) : latest ? (
@@ -557,13 +596,13 @@ function LatestUpdateCard({
           <p className="tm-pt-item__title">{latest.title}</p>
           <p className="tm-pt-card__body">“{latest.body}”</p>
           <Link className="tm-pt-link" href={`/${organizationSlug}/portal/updates`}>
-            All updates
+            {t('ClientOverviewScreen.allUpdates')}
           </Link>
         </>
       ) : (
         <p className="tm-pt-card__body">
-          {providerName} has not posted an update yet. When they share news about your project, it
-          will appear here, newest first.
+          {providerName}
+          {t('ClientOverviewScreen.noUpdateSuffix')}
         </p>
       )}
     </section>
@@ -579,14 +618,18 @@ function DeliverablesCard({
   providerName: string;
   deliverables: readonly PortalDeliverable[];
 }) {
+  const t = useT();
   const shown = deliverables.slice(0, 3);
   return (
     <section className="tm-pt-card" aria-labelledby="tm-portal-deliverables">
       <h2 id="tm-portal-deliverables" className="tm-pt-card__title">
-        Deliverables
+        {t('ClientOverviewScreen.deliverables')}
       </h2>
       {shown.length === 0 ? (
-        <p className="tm-pt-card__body">{providerName} has not published a deliverable yet.</p>
+        <p className="tm-pt-card__body">
+          {providerName}
+          {t('ClientOverviewScreen.noDeliverableSuffix')}
+        </p>
       ) : (
         <ul className="tm-pt-files">
           {shown.map((deliverable) => {
@@ -610,7 +653,7 @@ function DeliverablesCard({
                       ? humanize(deliverable.decision!)
                       : deliverable.milestoneState
                         ? humanize(deliverable.milestoneState)
-                        : `Shared ${shortDay(deliverable.publishedAt)}`}
+                        : `${t('ClientOverviewScreen.sharedPrefix')}${shortDay(deliverable.publishedAt)}`}
                   </p>
                 </div>
               </li>
@@ -635,6 +678,7 @@ function RequestsCard({
   providerName: string;
   requests: readonly ClientRequest[];
 }) {
+  const t = useT();
   const waiting = requests.filter(isWaitingOnClient);
   const recent = [...waiting, ...requests.filter((request) => !isWaitingOnClient(request))].slice(
     0,
@@ -644,13 +688,14 @@ function RequestsCard({
   return (
     <section className="tm-pt-card" aria-labelledby="tm-portal-requests">
       <h2 id="tm-portal-requests" className="tm-pt-card__title">
-        What you have asked for
+        {t('ClientOverviewScreen.whatAskedFor')}
       </h2>
 
       {requests.length === 0 ? (
         <p className="tm-pt-card__body">
-          You have not asked {providerName} for anything yet. When you need something, ask here —
-          they read it, ask you anything unclear, and either agree a date or tell you why not.
+          {t('ClientOverviewScreen.noRequestsBefore')}
+          {providerName}
+          {t('ClientOverviewScreen.noRequestsAfter')}
         </p>
       ) : (
         <ul className="tm-pt-files">
@@ -670,9 +715,13 @@ function RequestsCard({
       )}
 
       <p className="tm-pt-quiet">
-        <Link href={`/${organizationSlug}/portal/requests/new`}>Ask for something</Link>
+        <Link href={`/${organizationSlug}/portal/requests/new`}>
+          {t('ClientOverviewScreen.askForSomething')}
+        </Link>
         {' · '}
-        <Link href={`/${organizationSlug}/portal/inbox`}>What has changed</Link>
+        <Link href={`/${organizationSlug}/portal/inbox`}>
+          {t('ClientOverviewScreen.whatHasChanged')}
+        </Link>
         {requests.length > recent.length ? (
           <>
             {' · '}
@@ -683,7 +732,9 @@ function RequestsCard({
         ) : requests.length > 0 ? (
           <>
             {' · '}
-            <Link href={`/${organizationSlug}/portal/requests`}>See all of your requests</Link>
+            <Link href={`/${organizationSlug}/portal/requests`}>
+              {t('ClientOverviewScreen.seeAllRequests')}
+            </Link>
           </>
         ) : null}
       </p>
@@ -700,11 +751,13 @@ function TeamCard({
   providerName: string;
   people: readonly PortalPerson[];
 }) {
+  const t = useT();
   if (people.length === 0) return null;
   return (
     <section className="tm-pt-card" aria-labelledby="tm-portal-team">
       <h2 id="tm-portal-team" className="tm-pt-card__title">
-        Your team at {providerName.split(' ')[0]}
+        {t('ClientOverviewScreen.yourTeamAtPrefix')}
+        {providerName.split(' ')[0]}
       </h2>
       <ul className="tm-chip-row">
         {people.slice(0, 4).map((person) => (
@@ -716,7 +769,7 @@ function TeamCard({
       </ul>
       {people.length > 4 ? (
         <Link className="tm-pt-link" href={`/${organizationSlug}/portal/people`}>
-          Everyone on the project
+          {t('ClientOverviewScreen.everyoneOnProject')}
         </Link>
       ) : null}
     </section>

@@ -15,6 +15,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { longDay } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ClientApprovalScreenProps {
   organizationSlug: string;
@@ -59,6 +60,7 @@ export function ClientApprovalScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
   const [note, setNote] = useState('');
   const [noteRequired, setNoteRequired] = useState(false);
@@ -104,23 +106,28 @@ export function ClientApprovalScreen({
         view
           ? decided || result
             ? view.projection.title
-            : 'Does this work for you?'
-          : 'Review and decide'
+            : t('ClientApprovalScreen.worksForYou')
+          : t('ClientApprovalScreen.reviewAndDecide')
       }
-      eyebrow={view ? `Approval · ${view.projection.title}` : 'Approval'}
+      eyebrow={
+        view
+          ? `${t('ClientApprovalScreen.approvalPrefix')}${view.projection.title}`
+          : t('ClientApprovalScreen.approval')
+      }
       description={
-        view?.projection.summary ?? `A version ${providerName} has published for your decision.`
+        view?.projection.summary ??
+        `${t('ClientApprovalScreen.versionPublishedPrefix')}${providerName}${t('ClientApprovalScreen.versionPublishedSuffix')}`
       }
     >
       <div className="tm-pt tm-pt--compact">
         {projection.isError ? (
-          <InlineAlert tone="danger" title="Could not open this deliverable" live>
+          <InlineAlert tone="danger" title={t('ClientApprovalScreen.openError')} live>
             {describe(projection.error)}
           </InlineAlert>
         ) : null}
 
         {projection.isPending ? (
-          <LoadingRegion label="Loading the deliverable.">
+          <LoadingRegion label={t('ClientApprovalScreen.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -128,26 +135,29 @@ export function ClientApprovalScreen({
 
         {view ? (
           <div className="tm-pt-split tm-pt-split--aside">
-            <article className="tm-pt-col" aria-label="Published deliverable">
+            <article
+              className="tm-pt-col"
+              aria-label={t('ClientApprovalScreen.publishedDeliverable')}
+            >
               <div className="tm-pt-preview tm-pt-preview--tall" aria-hidden="true">
-                nothing to show yet
+                {t('ClientApprovalScreen.nothingToShow')}
               </div>
               <ProjectionBody view={view} />
             </article>
 
             <div className="tm-pt-col">
-              <section className="tm-pt-card tm-pt-card--lg" aria-label="Your decision">
-                <p className="tm-pt-eyebrow">What you are deciding on</p>
+              <section
+                className="tm-pt-card tm-pt-card--lg"
+                aria-label={t('ClientApprovalScreen.yourDecision')}
+              >
+                <p className="tm-pt-eyebrow">{t('ClientApprovalScreen.whatDecidingOn')}</p>
                 <p className="tm-pt-item">
                   <span className="tm-pt-mono tm-pt-mono--raw tm-pt-item__main">
                     {shortHash(view.contentHash)}
                   </span>
                   <span className="tm-pt-mono">{stamp(view.publishedAt)}</span>
                 </p>
-                <p className="tm-pt-quiet">
-                  Your decision is recorded against this exact version. If the file changes, the
-                  approval stops being valid and we ask you again.
-                </p>
+                <p className="tm-pt-quiet">{t('ClientApprovalScreen.decisionRecordedNote')}</p>
 
                 {result ? (
                   <Confirmation result={result} />
@@ -161,14 +171,16 @@ export function ClientApprovalScreen({
                 ) : (
                   <>
                     {decide.isError ? (
-                      <InlineAlert tone="danger" title="Could not record your decision" live>
+                      <InlineAlert tone="danger" title={t('ClientApprovalScreen.recordError')} live>
                         {describe(decide.error)}
                       </InlineAlert>
                     ) : null}
 
                     <label className="tm-field tm-pt-form-field" htmlFor="approval-note">
                       <span className="tm-pt-eyebrow">
-                        A note for {providerName} (required to request changes)
+                        {t('ClientApprovalScreen.noteForPrefix')}
+                        {providerName}
+                        {t('ClientApprovalScreen.noteForSuffix')}
                       </span>
                       <textarea
                         id="approval-note"
@@ -181,7 +193,9 @@ export function ClientApprovalScreen({
                       />
                       {noteRequired ? (
                         <span id="approval-note-error" className="tm-field__error" role="alert">
-                          Add a note so {providerName} knows what to change.
+                          {t('ClientApprovalScreen.addNotePrefix')}
+                          {providerName}
+                          {t('ClientApprovalScreen.addNoteSuffix')}
                         </span>
                       ) : null}
                     </label>
@@ -193,7 +207,7 @@ export function ClientApprovalScreen({
                       disabled={decide.isPending}
                       onClick={() => decide.mutate('approve')}
                     >
-                      Approve this version
+                      {t('ClientApprovalScreen.approveVersion')}
                     </Button>
                     <Button
                       tone="outline"
@@ -202,19 +216,17 @@ export function ClientApprovalScreen({
                       disabled={decide.isPending}
                       onClick={onRequestChanges}
                     >
-                      Request changes
+                      {t('ClientApprovalScreen.requestChanges')}
                     </Button>
                     <p className="tm-pt-quiet tm-pt-center">
-                      Requesting changes needs at least one specific point so the team can act on
-                      it.
+                      {t('ClientApprovalScreen.requestChangesNote')}
                     </p>
                   </>
                 )}
               </section>
 
               <p className="tm-pt-card tm-pt-card--dashed tm-pt-quiet">
-                You are seeing the client view of this project. Internal notes and estimates are not
-                part of it.
+                {t('ClientApprovalScreen.clientViewNote')}
               </p>
             </div>
           </div>
@@ -248,30 +260,35 @@ function words(value: string): string {
 }
 
 function ProjectionBody({ view }: { view: ClientApprovalView }) {
+  const t = useT();
   const { projection } = view;
   return (
     <div className="tm-pt-dates">
       <div className="tm-pt-date">
-        <span className="tm-pt-eyebrow">Where it is</span>
+        <span className="tm-pt-eyebrow">{t('ClientApprovalScreen.whereItIs')}</span>
         <p className="tm-pt-date__value">
-          {projection.milestoneState ? words(projection.milestoneState) : 'Shared with you'}
+          {projection.milestoneState
+            ? words(projection.milestoneState)
+            : t('ClientApprovalScreen.sharedWithYou')}
         </p>
       </div>
       <div className="tm-pt-date">
-        <span className="tm-pt-eyebrow">Expected</span>
+        <span className="tm-pt-eyebrow">{t('ClientApprovalScreen.expected')}</span>
         <p className="tm-pt-date__value">
-          {projection.forecastDate ? longDay(projection.forecastDate) : 'No date yet'}
+          {projection.forecastDate
+            ? longDay(projection.forecastDate)
+            : t('ClientApprovalScreen.noDateYet')}
         </p>
       </div>
       {projection.publishedRisk ? (
         <div className="tm-pt-date">
-          <span className="tm-pt-eyebrow">Risk</span>
+          <span className="tm-pt-eyebrow">{t('ClientApprovalScreen.risk')}</span>
           <p className="tm-pt-date__value">{words(projection.publishedRisk)}</p>
         </div>
       ) : null}
       {projection.decision ? (
         <div className="tm-pt-date">
-          <span className="tm-pt-eyebrow">Decision</span>
+          <span className="tm-pt-eyebrow">{t('ClientApprovalScreen.decision')}</span>
           <p className="tm-pt-date__value">{words(projection.decision)}</p>
         </div>
       ) : null}
@@ -280,28 +297,27 @@ function ProjectionBody({ view }: { view: ClientApprovalView }) {
 }
 
 function Confirmation({ result }: { result: ClientDecideResult }) {
+  const t = useT();
   if (result.state === 'approved') {
     return (
-      <InlineAlert tone="success" title="You approved this version" live>
-        <p className="tm-prose">Your approval has been recorded. Nothing further is needed.</p>
+      <InlineAlert tone="success" title={t('ClientApprovalScreen.approvedTitle')} live>
+        <p className="tm-prose">{t('ClientApprovalScreen.approvedBody')}</p>
       </InlineAlert>
     );
   }
   if (result.state === 'changes_requested') {
     return (
-      <InlineAlert tone="warning" title="You requested changes" live>
+      <InlineAlert tone="warning" title={t('ClientApprovalScreen.changesRequestedTitle')} live>
         <p className="tm-prose">
-          Your request has been sent{result.feedback ? `: “${result.feedback}”` : '.'}
+          {t('ClientApprovalScreen.requestSent')}
+          {result.feedback ? `: “${result.feedback}”` : '.'}
         </p>
       </InlineAlert>
     );
   }
   return (
-    <InlineAlert tone="warning" title="This version changed before your decision" live>
-      <p className="tm-prose">
-        The deliverable was updated, so your decision could not be applied to it. Please review the
-        latest version.
-      </p>
+    <InlineAlert tone="warning" title={t('ClientApprovalScreen.versionChangedTitle')} live>
+      <p className="tm-prose">{t('ClientApprovalScreen.versionChangedBody')}</p>
     </InlineAlert>
   );
 }

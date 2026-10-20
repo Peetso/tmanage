@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/connection-health';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ConnectionHealthScreenProps {
   organizationSlug: string;
@@ -40,6 +41,7 @@ export function ConnectionHealthScreen({
   client,
 }: ConnectionHealthScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const health = useQuery({
     queryKey: ['connection-health', organizationSlug],
@@ -52,37 +54,42 @@ export function ConnectionHealthScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Connection health"
-      description="A read-only validity check of your recorded connections. No live probe, no secrets."
+      title={t('ConnectionHealthScreen.title')}
+      description={t('ConnectionHealthScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-health-heading">
         <h2 id="tm-health-heading" className="tm-eyebrow">
-          Recorded connections
+          {t('ConnectionHealthScreen.recordedConnections')}
         </h2>
 
         {health.isError ? (
-          <InlineAlert tone="danger" title="Could not load connection health" live>
+          <InlineAlert tone="danger" title={t('ConnectionHealthScreen.loadError')} live>
             {describeError(health.error)}
           </InlineAlert>
         ) : null}
 
         {health.isPending ? (
-          <LoadingRegion label="Checking connection health.">
+          <LoadingRegion label={t('ConnectionHealthScreen.loadingLabel')}>
             <Skeleton />
           </LoadingRegion>
         ) : rows.length === 0 ? (
-          <p className="tm-muted">No connections have been recorded yet.</p>
+          <p className="tm-muted">{t('ConnectionHealthScreen.emptyList')}</p>
         ) : (
-          <ul className="tm-grid tm-grid--cards" aria-label="Connection health">
+          <ul
+            className="tm-grid tm-grid--cards"
+            aria-label={t('ConnectionHealthScreen.connectionHealthAria')}
+          >
             {rows.map((row) => (
               <li key={row.connectionId} className="tm-card tm-stack">
                 <h3 className="tm-card__title">{row.label}</h3>
                 <p className="tm-muted">{row.appId}</p>
                 <StatusDot tone={healthTone(row)}>
-                  {row.healthy ? 'Healthy' : 'Needs attention'}
+                  {row.healthy
+                    ? t('ConnectionHealthScreen.healthy')
+                    : t('ConnectionHealthScreen.needsAttention')}
                 </StatusDot>
                 {row.issues.length > 0 ? (
-                  <ul className="tm-stack" aria-label="Issues">
+                  <ul className="tm-stack" aria-label={t('ConnectionHealthScreen.issuesAria')}>
                     {row.issues.map((issue) => (
                       <li key={issue} className="tm-prose">
                         {describeIssue(issue, row.missingConfigKeys)}

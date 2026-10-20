@@ -11,6 +11,7 @@ import {
   attachmentProblem,
   formatBytes,
 } from '../../lib/api/uploads';
+import { useT } from '../../lib/i18n/use-t';
 import './capture-extras.css';
 
 /**
@@ -41,6 +42,7 @@ export function CaptureLabelPicker({
   createError,
   disabled = false,
 }: CaptureLabelPickerProps) {
+  const t = useT();
   const headingId = useId();
   const inputId = useId();
   const [adding, setAdding] = useState(false);
@@ -63,7 +65,7 @@ export function CaptureLabelPicker({
   return (
     <div className="tm-capture-extra" role="group" aria-labelledby={headingId}>
       <span className="tm-capture-extra__label" id={headingId}>
-        Labels
+        {t('CaptureExtras.labelsHeading')}
       </span>
       <div className="tm-capture-extra__chips">
         {labels.map((label) => (
@@ -81,7 +83,7 @@ export function CaptureLabelPicker({
         {adding ? (
           <span className="tm-capture-extra__new">
             <label className="tm-visually-hidden" htmlFor={inputId}>
-              New label name
+              {t('CaptureExtras.newLabelNameLabel')}
             </label>
             <input
               ref={newInput}
@@ -89,7 +91,7 @@ export function CaptureLabelPicker({
               className="tm-field__control tm-capture-extra__new-input"
               value={name}
               maxLength={60}
-              placeholder="Label name"
+              placeholder={t('CaptureExtras.labelNamePlaceholder')}
               onChange={(event) => setName(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
@@ -109,7 +111,7 @@ export function CaptureLabelPicker({
               disabled={creating || name.trim() === ''}
               onClick={submitNew}
             >
-              Add
+              {t('CaptureExtras.add')}
             </Button>
           </span>
         ) : (
@@ -119,15 +121,15 @@ export function CaptureLabelPicker({
             disabled={disabled || creating}
             onClick={() => setAdding(true)}
           >
-            {creating ? 'Adding…' : '+ New label'}
+            {creating ? t('CaptureExtras.adding') : t('CaptureExtras.newLabel')}
           </button>
         )}
       </div>
       {labels.length === 0 && !adding ? (
-        <p className="tm-capture-extra__hint">No labels yet. Add one to tag this work.</p>
+        <p className="tm-capture-extra__hint">{t('CaptureExtras.noLabels')}</p>
       ) : null}
       {createError ? (
-        <InlineAlert tone="danger" title="We could not add the label">
+        <InlineAlert tone="danger" title={t('CaptureExtras.addLabelError')}>
           {createError}
         </InlineAlert>
       ) : null}
@@ -152,6 +154,7 @@ export function CaptureAttachmentPicker({
   onRemove,
   disabled = false,
 }: CaptureAttachmentPickerProps) {
+  const t = useT();
   const headingId = useId();
   const hintId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -175,7 +178,7 @@ export function CaptureAttachmentPicker({
   return (
     <div className="tm-capture-extra" role="group" aria-labelledby={headingId}>
       <span className="tm-capture-extra__label" id={headingId}>
-        Attachments
+        {t('CaptureExtras.attachmentsHeading')}
       </span>
       <div className="tm-capture-extra__chips">
         {files.map((file, index) => (
@@ -185,7 +188,7 @@ export function CaptureAttachmentPicker({
             <button
               type="button"
               className="tm-capture-extra__remove"
-              aria-label={`Remove ${file.name}`}
+              aria-label={`${t('CaptureExtras.removeFilePrefix')}${file.name}`}
               disabled={disabled}
               onClick={() => onRemove(index)}
             >
@@ -214,7 +217,7 @@ export function CaptureAttachmentPicker({
           disabled={disabled || files.length >= MAX_ATTACHMENTS}
           onClick={() => inputRef.current?.click()}
         >
-          + Attach files
+          {t('CaptureExtras.attachFiles')}
         </button>
       </div>
       <p className="tm-capture-extra__hint" id={hintId}>
@@ -222,7 +225,7 @@ export function CaptureAttachmentPicker({
         each. Visible to your team only.
       </p>
       {problems.length > 0 ? (
-        <InlineAlert tone="danger" title="Some files were not added">
+        <InlineAlert tone="danger" title={t('CaptureExtras.someFilesError')}>
           {problems.join(' ')}
         </InlineAlert>
       ) : null}

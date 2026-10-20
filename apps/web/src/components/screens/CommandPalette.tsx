@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchCommands } from '../../lib/api/commands';
 import type { Command } from '../../lib/api/commands';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 /**
  * The window event any control may dispatch to open the palette — the search orb in HOME-01's
@@ -135,6 +136,7 @@ type Entry =
  */
 function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPaletteDialogProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const [draft, setDraft] = useState<string>('');
   const [activeIndex, setActiveIndex] = useState<number>(0);
@@ -170,7 +172,7 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
       rows.push({
         kind: 'search',
         id: `${baseId}-search`,
-        label: `Search the workspace for “${query}”`,
+        label: `${t('CommandPalette.searchWorkspacePrefix')}${query}${t('CommandPalette.searchWorkspaceSuffix')}`,
         query,
       });
     }
@@ -178,7 +180,7 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
       rows.push({
         kind: 'recent',
         id: `${baseId}-recent`,
-        label: `Recent search: ${recent}`,
+        label: `${t('CommandPalette.recentSearchPrefix')}${recent}`,
         query: recent,
       });
     }
@@ -191,7 +193,7 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
       });
     }
     return rows;
-  }, [baseId, commands, query, recent]);
+  }, [baseId, commands, query, recent, t]);
 
   useEffect(() => {
     setActiveIndex((index) => (entries.length === 0 ? 0 : Math.min(index, entries.length - 1)));
@@ -280,7 +282,7 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
     <div className="tm-command-palette__backdrop">
       <div role="dialog" aria-modal="true" aria-labelledby={titleId} className="tm-command-palette">
         <h2 id={titleId} className="tm-command-palette__title tm-visually-hidden">
-          Command palette
+          {t('CommandPalette.title')}
         </h2>
         <div className="tm-command-palette__head">
           <span className="tm-command-palette__live" aria-hidden="true" />
@@ -291,9 +293,9 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
             aria-expanded="true"
             aria-controls={listId}
             aria-activedescendant={activeEntry ? activeEntry.id : undefined}
-            aria-label="Search commands and the workspace"
+            aria-label={t('CommandPalette.searchAria')}
             className="tm-command-palette__input"
-            placeholder="Type a command or search…"
+            placeholder={t('CommandPalette.placeholder')}
             value={draft}
             onKeyDown={onKeyDown}
             onChange={(event) => {
@@ -305,7 +307,12 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
             Esc
           </kbd>
         </div>
-        <ul id={listId} role="listbox" aria-label="Commands" className="tm-command-palette__list">
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label={t('CommandPalette.commandsAria')}
+          className="tm-command-palette__list"
+        >
           {entries.length === 0 ? (
             <li
               className="tm-command-palette__empty"
@@ -313,7 +320,7 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
               aria-selected="false"
               aria-disabled="true"
             >
-              No commands match.
+              {t('CommandPalette.noCommands')}
             </li>
           ) : (
             entries.map((entry, index) => (
@@ -341,7 +348,7 @@ function CommandPaletteDialog({ organizationSlug, client, onClose }: CommandPale
             ))
           )}
         </ul>
-        <p className="tm-command-palette__foot">Results are filtered to what you may see</p>
+        <p className="tm-command-palette__foot">{t('CommandPalette.footNote')}</p>
       </div>
     </div>
   );

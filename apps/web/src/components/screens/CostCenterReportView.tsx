@@ -8,6 +8,7 @@ import { getCostCenterReport } from '../../lib/api/cost-center-report';
 import type { CostCenterReportRow } from '../../lib/api/cost-center-report';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface CostCenterReportViewProps {
@@ -35,6 +36,7 @@ export function CostCenterReportView({
   client,
 }: CostCenterReportViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const report = useQuery({
     queryKey: ['cost-center-report', organizationSlug],
@@ -48,47 +50,47 @@ export function CostCenterReportView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Spend by cost center"
-      description="Each cost center with the projects assigned to it and their summed budget."
+      eyebrow={t('CostCenterReportView.eyebrow')}
+      title={t('CostCenterReportView.title')}
+      description={t('CostCenterReportView.description')}
     >
       <div className="tm-bil">
         <section className="tm-panel tm-stack" aria-labelledby="tm-cost-center-report-heading">
           <h2 id="tm-cost-center-report-heading" className="tm-eyebrow">
-            Cost centers
+            {t('CostCenterReportView.costCentersHeading')}
           </h2>
 
           {report.isError ? (
-            <InlineAlert tone="danger" title="Could not load the report" live>
+            <InlineAlert tone="danger" title={t('CostCenterReportView.loadError')} live>
               {describeError(report.error)}
             </InlineAlert>
           ) : null}
 
           {report.isPending ? (
-            <LoadingRegion label="Loading the cost-center report.">
+            <LoadingRegion label={t('CostCenterReportView.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!report.isPending && !report.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No cost centers yet">
-              Define cost centers and assign projects to them to see spend rolled up here.
+            <InlineAlert tone="neutral" title={t('CostCenterReportView.emptyTitle')}>
+              {t('CostCenterReportView.emptyBody')}
             </InlineAlert>
           ) : null}
 
           {rows.length > 0 ? (
             <table className="tm-table">
               <caption className="tm-visually-hidden">
-                Each cost center with its assigned-project count and summed budget.
+                {t('CostCenterReportView.tableCaption')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Code</th>
-                  <th scope="col">Name</th>
-                  <th scope="col">Projects</th>
-                  <th scope="col">Budgeted hours</th>
-                  <th scope="col">Budgeted amount</th>
+                  <th scope="col">{t('CostCenterReportView.colCode')}</th>
+                  <th scope="col">{t('CostCenterReportView.colName')}</th>
+                  <th scope="col">{t('CostCenterReportView.colProjects')}</th>
+                  <th scope="col">{t('CostCenterReportView.colBudgetedHours')}</th>
+                  <th scope="col">{t('CostCenterReportView.colBudgetedAmount')}</th>
                 </tr>
               </thead>
               <tbody>

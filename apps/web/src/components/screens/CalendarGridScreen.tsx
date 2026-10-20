@@ -11,6 +11,8 @@ import type { CalendarGridDayRow, CalendarGridRange } from '../../lib/api/calend
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatDay } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -25,6 +27,17 @@ export interface CalendarGridScreenProps {
 const MS_PER_DAY = 86_400_000;
 /** Weekday column headers, Monday-first, matching the server's Monday-based week. */
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
+
+/** Message key per weekday column header, so the heads translate with the active locale. */
+const WEEKDAY_KEYS: Record<(typeof WEEKDAYS)[number], MessageKey> = {
+  Mon: 'CalendarGridScreen.weekdayMon',
+  Tue: 'CalendarGridScreen.weekdayTue',
+  Wed: 'CalendarGridScreen.weekdayWed',
+  Thu: 'CalendarGridScreen.weekdayThu',
+  Fri: 'CalendarGridScreen.weekdayFri',
+  Sat: 'CalendarGridScreen.weekdaySat',
+  Sun: 'CalendarGridScreen.weekdaySun',
+};
 
 /**
  * **Calendar week/month grid (x212).**
@@ -51,6 +64,7 @@ export function CalendarGridScreen({
   client,
 }: CalendarGridScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const [range] = useState<CalendarGridRange>(initialRange);
   const [anchor, setAnchor] = useState<string>(() => todayUtc());
 
@@ -65,7 +79,7 @@ export function CalendarGridScreen({
   const weeks = useMemo(() => (grid.data ? intoWeeks(grid.data.days) : []), [grid.data]);
   const caption = grid.data
     ? `${formatDay(grid.data.from)} to ${formatDay(grid.data.to)}`
-    : 'Calendar grid';
+    : t('CalendarGridScreen.captionFallback');
   const heading = grid.data ? rangeHeading(grid.data.from, grid.data.to, range) : '';
   const today = todayUtc();
 
@@ -74,8 +88,12 @@ export function CalendarGridScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Calendar"
-      eyebrow={range === 'week' ? 'Calendar · Week' : 'Calendar · Month'}
+      title={t('CalendarGridScreen.title')}
+      eyebrow={
+        range === 'week'
+          ? t('CalendarGridScreen.eyebrowWeek')
+          : t('CalendarGridScreen.eyebrowMonth')
+      }
       actions={<CalendarHeaderActions organizationSlug={organizationSlug} current={range} />}
     >
       <div className="tm-cal">
@@ -84,31 +102,44 @@ export function CalendarGridScreen({
         <section className="tm-cal" aria-labelledby="tm-grid-heading">
           <div className="tm-cal-grid-bar">
             <h2 id="tm-grid-heading" className="tm-cal-grid-bar__range">
-              {heading || (range === 'week' ? 'This week' : 'This month')}
+              {heading ||
+                (range === 'week'
+                  ? t('CalendarGridScreen.thisWeek')
+                  : t('CalendarGridScreen.thisMonth'))}
             </h2>
-            <div className="tm-cal-grid-bar__end" role="group" aria-label="Move the grid">
-              <span className="tm-cal-chip tm-cal-chip--ink">Meetings</span>
-              <span className="tm-cal-chip">Recurring</span>
+            <div
+              className="tm-cal-grid-bar__end"
+              role="group"
+              aria-label={t('CalendarGridScreen.moveGrid')}
+            >
+              <span className="tm-cal-chip tm-cal-chip--ink">
+                {t('CalendarGridScreen.chipMeetings')}
+              </span>
+              <span className="tm-cal-chip">{t('CalendarGridScreen.chipRecurring')}</span>
               <button
                 type="button"
                 className="tm-cal-btn"
                 onClick={() => setAnchor((current) => shiftAnchor(current, range, -1))}
               >
-                Previous {range}
+                {range === 'week'
+                  ? t('CalendarGridScreen.previousWeek')
+                  : t('CalendarGridScreen.previousMonth')}
               </button>
               <button type="button" className="tm-cal-btn" onClick={() => setAnchor(todayUtc())}>
-                Today
+                {t('CalendarGridScreen.today')}
               </button>
               <button
                 type="button"
                 className="tm-cal-btn"
                 onClick={() => setAnchor((current) => shiftAnchor(current, range, 1))}
               >
-                Next {range}
+                {range === 'week'
+                  ? t('CalendarGridScreen.nextWeek')
+                  : t('CalendarGridScreen.nextMonth')}
               </button>
               <span className="tm-cal-grid-bar__anchor">
                 <label className="tm-visually-hidden" htmlFor="tm-grid-anchor">
-                  Anchor date
+                  {t('CalendarGridScreen.anchorDate')}
                 </label>
                 <input
                   id="tm-grid-anchor"
@@ -121,19 +152,19 @@ export function CalendarGridScreen({
           </div>
 
           {!anchorValid ? (
-            <InlineAlert tone="warning" title="Choose an anchor date">
-              Pick a valid date to load the grid.
+            <InlineAlert tone="warning" title={t('CalendarGridScreen.chooseAnchorTitle')}>
+              {t('CalendarGridScreen.chooseAnchorBody')}
             </InlineAlert>
           ) : null}
 
           {grid.isError ? (
-            <InlineAlert tone="danger" title="Could not load the calendar" live>
+            <InlineAlert tone="danger" title={t('CalendarGridScreen.loadErrorTitle')} live>
               {describeError(grid.error)}
             </InlineAlert>
           ) : null}
 
           {anchorValid && grid.isPending ? (
-            <LoadingRegion label="Loading the calendar grid.">
+            <LoadingRegion label={t('CalendarGridScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
@@ -148,11 +179,13 @@ export function CalendarGridScreen({
                 // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                 tabIndex={0}
                 role="region"
-                aria-label={`Calendar grid, ${caption}`}
+                aria-label={`${t('CalendarGridScreen.gridRegionLabelPrefix')}${caption}`}
               >
                 <table>
                   <caption className="tm-visually-hidden">
-                    Meetings and recurring series from {caption}, laid out Monday to Sunday.
+                    {t('CalendarGridScreen.captionTableBefore')}
+                    {caption}
+                    {t('CalendarGridScreen.captionTableAfter')}
                   </caption>
                   <thead>
                     <tr>
@@ -165,7 +198,7 @@ export function CalendarGridScreen({
                             scope="col"
                             {...(cell?.date === today ? { 'data-today': 'true' } : {})}
                           >
-                            {weekday}
+                            {t(WEEKDAY_KEYS[weekday])}
                             {cell ? ` ${Number(cell.date.slice(8, 10))}` : ''}
                           </th>
                         );
@@ -190,7 +223,9 @@ export function CalendarGridScreen({
                               ) : null}
                               <span className="tm-visually-hidden">{formatDay(cell.date)}</span>
                               {cell.meetings.length === 0 && cell.occurrences.length === 0 ? (
-                                <span className="tm-visually-hidden">Nothing scheduled</span>
+                                <span className="tm-visually-hidden">
+                                  {t('CalendarGridScreen.nothingScheduled')}
+                                </span>
                               ) : (
                                 <ul className="tm-cal-week__items">
                                   {cell.meetings.map((meeting) => (
@@ -209,7 +244,9 @@ export function CalendarGridScreen({
                                       className="tm-cal-evt"
                                     >
                                       {occurrence.title}
-                                      <span className="tm-visually-hidden"> (recurring)</span>
+                                      <span className="tm-visually-hidden">
+                                        {t('CalendarGridScreen.recurringSuffix')}
+                                      </span>
                                     </li>
                                   ))}
                                 </ul>

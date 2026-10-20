@@ -9,6 +9,7 @@ import { submitContact } from '../../lib/api/contact';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
+import { useT } from '../../lib/i18n/use-t';
 
 /** Mirrors the column bounds in `0062_marketing_leads.sql`, so the client rejects before the API does. */
 const MAX_NAME = 200;
@@ -35,6 +36,7 @@ export interface ContactScreenProps {
  */
 export function ContactScreen({ client }: ContactScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const hydrated = useHydrated();
   const messageId = useId();
   const messageErrorId = `${messageId}-error`;
@@ -53,7 +55,7 @@ export function ContactScreen({ client }: ContactScreenProps) {
     const trimmedMessage = message.trim();
 
     if (trimmedName === '' || trimmedEmail === '' || trimmedMessage === '') {
-      setFailure('Enter your name, email and a message.');
+      setFailure(t('ContactScreen.missingFields'));
       return;
     }
     if (
@@ -61,7 +63,7 @@ export function ContactScreen({ client }: ContactScreenProps) {
       trimmedEmail.length > MAX_EMAIL ||
       trimmedMessage.length > MAX_MESSAGE
     ) {
-      setFailure('One of the fields is too long. Please shorten it and try again.');
+      setFailure(t('ContactScreen.tooLong'));
       return;
     }
 
@@ -88,25 +90,23 @@ export function ContactScreen({ client }: ContactScreenProps) {
     <PublicPage>
       <div className="tm-pub-columns">
         <div className="tm-pub-aside">
-          <PublicIntro eyebrow="Contact" title="Contact us">
-            <p className="tm-pub-lede tm-pub-lede--md">
-              Tell us a little about what you need and we will get back to you by email.
-            </p>
+          <PublicIntro eyebrow={t('ContactScreen.eyebrow')} title={t('ContactScreen.title')}>
+            <p className="tm-pub-lede tm-pub-lede--md">{t('ContactScreen.lede')}</p>
           </PublicIntro>
           <p className="tm-pub-btn-row">
             <Link className="tm-pub-btn tm-pub-btn--sm tm-pub-btn--quiet" href="/legal/privacy">
-              Privacy
+              {t('ContactScreen.privacy')}
             </Link>
             <Link className="tm-pub-btn tm-pub-btn--sm tm-pub-btn--quiet" href="/support">
-              Support
+              {t('ContactScreen.support')}
             </Link>
           </p>
         </div>
 
         <div className="tm-pub-card tm-pub-card--roomy tm-pub-form">
           {sent ? (
-            <InlineAlert tone="success" title="Thanks — we have your message" live>
-              We will reply to the email address you gave us. You can close this page.
+            <InlineAlert tone="success" title={t('ContactScreen.sentTitle')} live>
+              {t('ContactScreen.sentBody')}
             </InlineAlert>
           ) : null}
 
@@ -117,7 +117,7 @@ export function ContactScreen({ client }: ContactScreenProps) {
           <form className="tm-stack" noValidate onSubmit={submit}>
             <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
               <Field
-                label="Your name"
+                label={t('ContactScreen.nameLabel')}
                 name="name"
                 autoComplete="name"
                 maxLength={MAX_NAME}
@@ -129,7 +129,7 @@ export function ContactScreen({ client }: ContactScreenProps) {
                 required
               />
               <Field
-                label="Work email"
+                label={t('ContactScreen.emailLabel')}
                 type="email"
                 name="email"
                 autoComplete="email"
@@ -146,7 +146,7 @@ export function ContactScreen({ client }: ContactScreenProps) {
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor={messageId}>
-                  Message
+                  {t('ContactScreen.messageLabel')}
                   <span className="tm-field__required" aria-hidden="true">
                     *
                   </span>
@@ -168,7 +168,7 @@ export function ContactScreen({ client }: ContactScreenProps) {
               </div>
 
               {failure ? (
-                <InlineAlert tone="danger" title="Could not send your message" live>
+                <InlineAlert tone="danger" title={t('ContactScreen.sendError')} live>
                   <span id={messageErrorId}>{failure}</span>
                 </InlineAlert>
               ) : null}
@@ -179,9 +179,9 @@ export function ContactScreen({ client }: ContactScreenProps) {
                   tone="ink"
                   size="accessible"
                   loading={sending}
-                  loadingLabel="Sending"
+                  loadingLabel={t('ContactScreen.sending')}
                 >
-                  Send message
+                  {t('ContactScreen.sendMessage')}
                 </Button>
               </div>
             </fieldset>

@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/work-checklist-templates';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ChecklistTemplatesViewProps {
   organizationSlug: string;
@@ -49,6 +50,7 @@ export function ChecklistTemplatesView({
   client,
 }: ChecklistTemplatesViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-checklist-templates', organizationSlug] as const;
 
@@ -92,12 +94,12 @@ export function ChecklistTemplatesView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Checklist templates"
-      description="Define a reusable checklist, then apply it to a work item to seed its checklist."
+      title={t('ChecklistTemplatesView.title')}
+      description={t('ChecklistTemplatesView.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-checklist-template-new-heading">
         <h2 id="tm-checklist-template-new-heading" className="tm-eyebrow">
-          New template
+          {t('ChecklistTemplatesView.newTemplateHeading')}
         </h2>
         <form
           className="tm-stack"
@@ -108,17 +110,17 @@ export function ChecklistTemplatesView({
           }}
         >
           <Field
-            label="Name"
+            label={t('ChecklistTemplatesView.nameLabel')}
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Onboarding or Design review."
+            hint={t('ChecklistTemplatesView.nameHint')}
             required
           />
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-checklist-template-labels">
-              Items
+              {t('ChecklistTemplatesView.itemsLabel')}
             </label>
             <textarea
               id="tm-checklist-template-labels"
@@ -126,13 +128,13 @@ export function ChecklistTemplatesView({
               rows={5}
               value={labelsText}
               onChange={(event) => setLabelsText(event.target.value)}
-              placeholder={'One checklist item per line, in order'}
+              placeholder={t('ChecklistTemplatesView.itemsPlaceholder')}
             />
-            <p className="tm-field__hint">One item per line; blank lines are ignored.</p>
+            <p className="tm-field__hint">{t('ChecklistTemplatesView.itemsHint')}</p>
           </div>
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not save the template" live>
+            <InlineAlert tone="danger" title={t('ChecklistTemplatesView.saveError')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -143,10 +145,10 @@ export function ChecklistTemplatesView({
               tone="ink"
               size="accessible"
               loading={define.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('ChecklistTemplatesView.saving')}
               disabled={!canDefine}
             >
-              Define template
+              {t('ChecklistTemplatesView.defineTemplate')}
             </Button>
           </div>
         </form>
@@ -154,24 +156,24 @@ export function ChecklistTemplatesView({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-checklist-template-list-heading">
         <h2 id="tm-checklist-template-list-heading" className="tm-eyebrow">
-          Templates
+          {t('ChecklistTemplatesView.templatesHeading')}
         </h2>
         {templates.isPending ? (
-          <LoadingRegion label="Loading this studio’s checklist templates.">
+          <LoadingRegion label={t('ChecklistTemplatesView.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {templates.isError ? (
-          <InlineAlert tone="danger" title="Could not load the templates" live>
+          <InlineAlert tone="danger" title={t('ChecklistTemplatesView.loadError')} live>
             {describe(templates.error)}
           </InlineAlert>
         ) : null}
 
         {templates.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">No checklist templates defined yet.</p>
+            <p className="tm-prose">{t('ChecklistTemplatesView.emptyList')}</p>
           ) : (
             <ul className="tm-stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {rows.map((template) => (
@@ -187,10 +189,10 @@ export function ChecklistTemplatesView({
                     tone="text"
                     size="accessible"
                     loading={remove.isPending && remove.variables === template.id}
-                    loadingLabel="Removing"
+                    loadingLabel={t('ChecklistTemplatesView.removing')}
                     onClick={() => remove.mutate(template.id)}
                   >
-                    Remove
+                    {t('ChecklistTemplatesView.remove')}
                   </Button>
                 </li>
               ))}

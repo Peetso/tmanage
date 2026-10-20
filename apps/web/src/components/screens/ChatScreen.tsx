@@ -20,6 +20,7 @@ import {
 } from '../chat/channel-browser';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/chat.css';
 
 export interface ChatScreenProps {
@@ -43,6 +44,7 @@ export interface ChatScreenProps {
  */
 export function ChatScreen({ organizationSlug, organizationName, client }: ChatScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queries = useQueryClient();
 
   const [filter, setFilter] = useState<ChannelFilter>('all');
@@ -109,21 +111,23 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
-      eyebrow="Chat · Browse"
-      title="Channels"
+      eyebrow={t('ChatScreen.eyebrow')}
+      title={t('ChatScreen.title')}
       actions={
         <>
           <label className="tm-chat-browse__search">
             <span aria-hidden="true" className="tm-chat-mono">
               ⌕
             </span>
-            <span className="tm-visually-hidden">Search channels</span>
+            <span className="tm-visually-hidden">{t('ChatScreen.searchLabel')}</span>
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={
-                allRows.length > 0 ? `Search ${allRows.length} channels` : 'Search channels'
+                allRows.length > 0
+                  ? `${t('ChatScreen.searchPrefix')}${allRows.length}${t('ChatScreen.searchChannelsSuffix')}`
+                  : t('ChatScreen.searchPlaceholder')
               }
             />
           </label>
@@ -131,13 +135,17 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
             <span className="tm-chat-new__orb" aria-hidden="true">
               +
             </span>
-            <span className="tm-chat-new__label">New channel</span>
+            <span className="tm-chat-new__label">{t('ChatScreen.newChannel')}</span>
           </a>
         </>
       }
     >
       <div className="tm-chat-browse tm-stack">
-        <div className="tm-chat-browse__filters" role="group" aria-label="Filter channels">
+        <div
+          className="tm-chat-browse__filters"
+          role="group"
+          aria-label={t('ChatScreen.filterChannels')}
+        >
           {CHANNEL_FILTERS.map(({ id, label }) => (
             <button
               key={id}
@@ -150,32 +158,32 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
               {directory.data ? ` · ${counts[id]}` : ''}
             </button>
           ))}
-          <span className="tm-chat-browse__sort">Sort · Most active</span>
+          <span className="tm-chat-browse__sort">{t('ChatScreen.sortMostActive')}</span>
         </div>
 
         {directory.isError ? (
-          <InlineAlert tone="danger" title="Could not load the channels" live>
+          <InlineAlert tone="danger" title={t('ChatScreen.loadError')} live>
             {directory.error instanceof ApiRequestError
               ? directory.error.message
               : directory.error instanceof NetworkError
-                ? 'The API did not answer. Is it running?'
-                : 'Something went wrong. Try again.'}
+                ? t('ChatScreen.apiNoAnswer')
+                : t('ChatScreen.genericError')}
           </InlineAlert>
         ) : null}
 
         <section className="tm-chat-table" aria-labelledby="tm-chat-list">
           <h2 id="tm-chat-list" className="tm-visually-hidden">
-            Channels
+            {t('ChatScreen.channelsHeading')}
           </h2>
           <div className="tm-chat-table__head" aria-hidden="true">
-            <span className="tm-chat-eyebrow">Channel</span>
-            <span className="tm-chat-eyebrow">Members</span>
-            <span className="tm-chat-eyebrow">Audience</span>
-            <span className="tm-chat-eyebrow">Last activity</span>
+            <span className="tm-chat-eyebrow">{t('ChatScreen.colChannel')}</span>
+            <span className="tm-chat-eyebrow">{t('ChatScreen.colMembers')}</span>
+            <span className="tm-chat-eyebrow">{t('ChatScreen.colAudience')}</span>
+            <span className="tm-chat-eyebrow">{t('ChatScreen.colLastActivity')}</span>
           </div>
 
           {directory.isPending ? (
-            <LoadingRegion label="Loading the channels.">
+            <LoadingRegion label={t('ChatScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
@@ -183,15 +191,15 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
 
           {!directory.isPending && !directory.isError && allRows.length === 0 ? (
             <p className="tm-chat-table__empty">
-              <strong>No channels yet.</strong> Create one below. A channel belongs to a project, so
-              pick the project the conversation is about.
+              <strong>{t('ChatScreen.emptyStrong')}</strong>
+              {t('ChatScreen.emptyRest')}
             </p>
           ) : null}
 
           {allRows.length > 0 && rows.length === 0 ? (
             <p className="tm-chat-table__empty">
               {needle === ''
-                ? 'No channel in this view.'
+                ? t('ChatScreen.noChannelInView')
                 : `No channel name contains “${search.trim()}”.`}
             </p>
           ) : null}
@@ -214,7 +222,7 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
 
         <section id="tm-chat-create" className="tm-chat-create" aria-labelledby="tm-chat-create-h">
           <h2 id="tm-chat-create-h" className="tm-chat-eyebrow">
-            New channel
+            {t('ChatScreen.newChannel')}
           </h2>
           <form className="tm-stack" onSubmit={submitCreate}>
             {/*
@@ -226,7 +234,7 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
             <fieldset className="tm-chat-create__fields" disabled={projects.isPending}>
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-chat-new-project">
-                  Project
+                  {t('ChatScreen.projectLabel')}
                 </label>
                 <select
                   id="tm-chat-new-project"
@@ -235,7 +243,7 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
                   onChange={(event) => setNewProjectId(event.target.value)}
                   required
                 >
-                  <option value="">Choose a project</option>
+                  <option value="">{t('ChatScreen.chooseProject')}</option>
                   {(projects.data ?? []).map((project) => (
                     <option key={project.id} value={project.id}>
                       {project.name}
@@ -245,7 +253,7 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
               </div>
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-chat-new-name">
-                  Channel name
+                  {t('ChatScreen.channelNameLabel')}
                 </label>
                 <input
                   id="tm-chat-new-name"
@@ -262,18 +270,18 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
                 tone="ink"
                 size="accessible"
                 loading={create.isPending}
-                loadingLabel="Creating"
+                loadingLabel={t('ChatScreen.creating')}
                 disabled={newProjectId === '' || newName.trim() === ''}
               >
-                Create channel
+                {t('ChatScreen.createChannel')}
               </Button>
             </fieldset>
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="Could not create the channel" live>
+              <InlineAlert tone="danger" title={t('ChatScreen.createError')} live>
                 {create.error instanceof ApiRequestError
                   ? create.error.message
-                  : 'The API did not answer. Try again.'}
+                  : t('ChatScreen.apiNoAnswerRetry')}
               </InlineAlert>
             ) : null}
           </form>
@@ -293,6 +301,7 @@ interface ChannelRowProps {
 
 /** One CH-01 row: name and tags, member avatars, audience, last activity. */
 function ChannelRow({ organizationSlug, entry, projectName, unreadCount, now }: ChannelRowProps) {
+  const t = useT();
   const archived = entry.archivedAt !== null;
   const internalCount = entry.memberCount - entry.clientMemberCount;
   const clientShared = entry.clientMemberCount > 0;
@@ -301,7 +310,9 @@ function ChannelRow({ organizationSlug, entry, projectName, unreadCount, now }: 
     <li className="tm-chat-table__row" {...(archived ? { 'data-archived': 'true' } : {})}>
       <span className="tm-chat-table__name">
         <Link href={`/${organizationSlug}/chat/${entry.id}`}>#{entry.name}</Link>
-        {entry.joined && !archived ? <span className="tm-chat-joined">joined</span> : null}
+        {entry.joined && !archived ? (
+          <span className="tm-chat-joined">{t('ChatScreen.joined')}</span>
+        ) : null}
         {unreadCount > 0 && !archived ? (
           <span
             className="tm-chat-unread"
@@ -341,7 +352,7 @@ function ChannelRow({ organizationSlug, entry, projectName, unreadCount, now }: 
       </span>
       <span className="tm-chat-table__audience">
         {archived ? (
-          <span className="tm-chat-tag">Archived</span>
+          <span className="tm-chat-tag">{t('ChatScreen.archived')}</span>
         ) : (
           <span
             className={`tm-chat-audience tm-chat-audience--compact${
@@ -351,7 +362,7 @@ function ChannelRow({ organizationSlug, entry, projectName, unreadCount, now }: 
             <span className="tm-chat-audience__orb" aria-hidden="true">
               {clientShared ? '◎' : '■'}
             </span>
-            {clientShared ? 'Client visible' : 'Internal'}
+            {clientShared ? t('ChatScreen.clientVisible') : t('ChatScreen.internal')}
           </span>
         )}
       </span>

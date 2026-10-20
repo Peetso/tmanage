@@ -15,6 +15,7 @@ import {
 } from '../../lib/api/billing-cost-centers';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface CostCentersViewProps {
@@ -44,6 +45,7 @@ export function CostCentersView({
   client,
 }: CostCentersViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const costCenters = useQuery({
@@ -75,14 +77,14 @@ export function CostCentersView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Cost centers"
-      description="Name cost centers and assign projects to them, to group usage by cost center."
+      eyebrow={t('CostCentersView.eyebrow')}
+      title={t('CostCentersView.title')}
+      description={t('CostCentersView.description')}
     >
       <div className="tm-bil">
         <section className="tm-panel tm-stack" aria-labelledby="tm-cost-center-new-heading">
           <h2 id="tm-cost-center-new-heading" className="tm-eyebrow">
-            New cost center
+            {t('CostCentersView.newCostCenterHeading')}
           </h2>
           <form
             className="tm-stack"
@@ -93,26 +95,26 @@ export function CostCentersView({
             }}
           >
             <Field
-              label="Code"
+              label={t('CostCentersView.codeLabel')}
               name="code"
               value={code}
               onChange={(event) => setCode(event.target.value)}
-              hint="A short identifier, up to 64 characters."
+              hint={t('CostCentersView.codeHint')}
               maxLength={64}
               required
             />
             <Field
-              label="Name"
+              label={t('CostCentersView.nameLabel')}
               name="name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              hint="The display name for this cost center."
+              hint={t('CostCentersView.nameHint')}
               maxLength={190}
               required
             />
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="Could not create the cost center" live>
+              <InlineAlert tone="danger" title={t('CostCentersView.createError')} live>
                 {describeError(create.error)}
               </InlineAlert>
             ) : null}
@@ -123,10 +125,10 @@ export function CostCentersView({
                 tone="ink"
                 size="accessible"
                 loading={create.isPending}
-                loadingLabel="Creating"
+                loadingLabel={t('CostCentersView.creating')}
                 disabled={!canCreate}
               >
-                Create cost center
+                {t('CostCentersView.createCostCenter')}
               </Button>
             </div>
           </form>
@@ -137,25 +139,25 @@ export function CostCentersView({
           aria-labelledby="tm-cost-center-list-heading"
         >
           <h2 id="tm-cost-center-list-heading" className="tm-eyebrow">
-            Cost centers
+            {t('CostCentersView.costCentersHeading')}
           </h2>
 
           {costCenters.isError ? (
-            <InlineAlert tone="danger" title="Could not load the cost centers" live>
+            <InlineAlert tone="danger" title={t('CostCentersView.loadError')} live>
               {describeError(costCenters.error)}
             </InlineAlert>
           ) : null}
 
           {costCenters.isPending ? (
-            <LoadingRegion label="Loading the cost centers.">
+            <LoadingRegion label={t('CostCentersView.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!costCenters.isPending && !costCenters.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No cost centers yet">
-              Create a cost center with the form, then assign projects to it.
+            <InlineAlert tone="neutral" title={t('CostCentersView.emptyTitle')}>
+              {t('CostCentersView.emptyBody')}
             </InlineAlert>
           ) : null}
 
@@ -183,6 +185,7 @@ interface CostCenterCardProps {
 
 /** One cost center: its code and name, its assigned projects, and the controls to change them. */
 function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenterCardProps) {
+  const t = useT();
   const [projectId, setProjectId] = useState('');
   const inputId = `tm-cost-center-project-${center.id}`;
 
@@ -210,7 +213,10 @@ function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenter
   const canAssign = projectId.trim() !== '' && !assign.isPending;
 
   return (
-    <article className="tm-panel tm-stack" aria-label={`Cost center ${center.name}`}>
+    <article
+      className="tm-panel tm-stack"
+      aria-label={`${t('CostCentersView.costCenterPrefix')}${center.name}`}
+    >
       <div className="tm-row tm-row--between">
         <h3 className="tm-heading-sm">
           {center.name} <span className="tm-muted">({center.code})</span>
@@ -220,15 +226,15 @@ function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenter
           tone="destructive"
           size="accessible"
           loading={remove.isPending}
-          loadingLabel="Deleting"
+          loadingLabel={t('CostCentersView.deleting')}
           onClick={() => remove.mutate()}
         >
-          Delete
+          {t('CostCentersView.delete')}
         </Button>
       </div>
 
       {center.projectIds.length === 0 ? (
-        <p className="tm-muted">No projects assigned.</p>
+        <p className="tm-muted">{t('CostCentersView.noProjects')}</p>
       ) : (
         <ul className="tm-stack">
           {center.projectIds.map((assigned) => (
@@ -239,10 +245,10 @@ function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenter
                 tone="text"
                 size="accessible"
                 loading={unassign.isPending}
-                loadingLabel="Removing"
+                loadingLabel={t('CostCentersView.removing')}
                 onClick={() => unassign.mutate(assigned)}
               >
-                Remove
+                {t('CostCentersView.remove')}
               </Button>
             </li>
           ))}
@@ -250,17 +256,17 @@ function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenter
       )}
 
       {remove.isError ? (
-        <InlineAlert tone="danger" title="Could not delete the cost center" live>
+        <InlineAlert tone="danger" title={t('CostCentersView.deleteError')} live>
           {describeError(remove.error)}
         </InlineAlert>
       ) : null}
       {assign.isError ? (
-        <InlineAlert tone="danger" title="Could not assign the project" live>
+        <InlineAlert tone="danger" title={t('CostCentersView.assignError')} live>
           {describeError(assign.error)}
         </InlineAlert>
       ) : null}
       {unassign.isError ? (
-        <InlineAlert tone="danger" title="Could not remove the assignment" live>
+        <InlineAlert tone="danger" title={t('CostCentersView.unassignError')} live>
           {describeError(unassign.error)}
         </InlineAlert>
       ) : null}
@@ -275,14 +281,14 @@ function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenter
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor={inputId}>
-            Assign a project
+            {t('CostCentersView.assignLabel')}
           </label>
           <input
             id={inputId}
             className="tm-field__control"
             value={projectId}
             onChange={(event) => setProjectId(event.target.value)}
-            placeholder="Project id"
+            placeholder={t('CostCentersView.projectIdPlaceholder')}
           />
         </div>
         <Button
@@ -290,10 +296,10 @@ function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenter
           tone="ink"
           size="accessible"
           loading={assign.isPending}
-          loadingLabel="Assigning"
+          loadingLabel={t('CostCentersView.assigning')}
           disabled={!canAssign}
         >
-          Assign
+          {t('CostCentersView.assign')}
         </Button>
       </form>
     </article>

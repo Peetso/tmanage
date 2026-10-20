@@ -19,6 +19,7 @@ import { requestStatusLabel } from '../../lib/client-request-presentation';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { Segmented, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ClientInboxScreenProps {
   organizationSlug: string;
@@ -66,6 +67,7 @@ export function ClientInboxScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<PortalInboxMode>('all');
 
@@ -106,33 +108,40 @@ export function ClientInboxScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="overview"
-      title="What has changed"
-      eyebrow={project ? `Notifications · ${project.name}` : 'Notifications'}
-      description={`Each time ${providerName} answers one of your requests, it appears here.`}
+      title={t('ClientInboxScreen.title')}
+      eyebrow={
+        project
+          ? `${t('ClientInboxScreen.notificationsPrefix')}${project.name}`
+          : t('ClientInboxScreen.notifications')
+      }
+      description={`${t('ClientInboxScreen.descPrefix')}${providerName}${t('ClientInboxScreen.descSuffix')}`}
       headerAside={
         <Segmented<PortalInboxMode>
-          label="Notification mode"
+          label={t('ClientInboxScreen.notificationMode')}
           value={mode}
           onChange={selectMode}
-          options={MODES}
+          options={[
+            { id: 'all', label: t('ClientInboxScreen.modeAll') },
+            { id: 'unread', label: t('ClientInboxScreen.modeUnread') },
+          ]}
         />
       }
     >
       <div className="tm-pt tm-pt--compact">
         {inbox.isError ? (
-          <InlineAlert tone="danger" title="Could not load your notifications" live>
+          <InlineAlert tone="danger" title={t('ClientInboxScreen.loadError')} live>
             {describe(inbox.error)}
           </InlineAlert>
         ) : null}
 
         {markRead.isError ? (
-          <InlineAlert tone="danger" title="Could not mark that read" live>
+          <InlineAlert tone="danger" title={t('ClientInboxScreen.markReadError')} live>
             {describe(markRead.error)}
           </InlineAlert>
         ) : null}
 
         {inbox.isPending ? (
-          <LoadingRegion label="Loading your notifications.">
+          <LoadingRegion label={t('ClientInboxScreen.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -141,19 +150,33 @@ export function ClientInboxScreen({
         {/* "Nothing" only once the API has said it: a page can be short while a cursor remains. */}
         {!inbox.isPending && !inbox.isError && bundles.length === 0 && !inbox.hasNextPage ? (
           <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
-            <h2 className="tm-pt-card__title">{EMPTY_TITLES[mode]}</h2>
-            <p className="tm-pt-card__body">{EMPTY_BODIES[mode](providerName)}</p>
+            <h2 className="tm-pt-card__title">
+              {mode === 'all'
+                ? t('ClientInboxScreen.emptyAllTitle')
+                : t('ClientInboxScreen.emptyUnreadTitle')}
+            </h2>
+            <p className="tm-pt-card__body">
+              {mode === 'all' ? (
+                <>
+                  {t('ClientInboxScreen.emptyAllBodyBefore')}
+                  {providerName}
+                  {t('ClientInboxScreen.emptyAllBodyAfter')}
+                </>
+              ) : (
+                t('ClientInboxScreen.emptyUnreadBody')
+              )}
+            </p>
           </div>
         ) : null}
 
         {!inbox.isPending && !inbox.isError && bundles.length === 0 && inbox.hasNextPage ? (
           <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-            Nothing you can still see on this page. There are older pages.
+            {t('ClientInboxScreen.olderPages')}
           </p>
         ) : null}
 
         {bundles.length > 0 ? (
-          <ul className="tm-pt-list" aria-label="Your notifications">
+          <ul className="tm-pt-list" aria-label={t('ClientInboxScreen.yourNotifications')}>
             {bundles.map((bundle) => (
               <li
                 key={bundle.bundleId}
@@ -186,11 +209,11 @@ export function ClientInboxScreen({
                       tone="outline"
                       size="accessible"
                       loading={markRead.isPending && markRead.variables === bundle.bundleId}
-                      loadingLabel="Marking read"
-                      aria-label={`Mark read: ${bundle.title}`}
+                      loadingLabel={t('ClientInboxScreen.markingRead')}
+                      aria-label={`${t('ClientInboxScreen.markReadPrefix')}${bundle.title}`}
                       onClick={() => markRead.mutate(bundle.bundleId)}
                     >
-                      Mark read
+                      {t('ClientInboxScreen.markRead')}
                     </Button>
                   </div>
                 ) : null}
@@ -205,10 +228,10 @@ export function ClientInboxScreen({
               tone="outline"
               size="accessible"
               loading={inbox.isFetchingNextPage}
-              loadingLabel="Loading more"
+              loadingLabel={t('ClientInboxScreen.loadingMore')}
               onClick={() => void inbox.fetchNextPage()}
             >
-              Load more
+              {t('ClientInboxScreen.loadMore')}
             </Button>
           </div>
         ) : null}
@@ -228,24 +251,6 @@ export function ClientInboxScreen({
     </ClientPortalShell>
   );
 }
-
-const MODES: readonly { readonly id: PortalInboxMode; readonly label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'unread', label: 'Unread' },
-];
-
-const EMPTY_TITLES: Record<PortalInboxMode, string> = {
-  all: 'Nothing has changed yet',
-  unread: 'Nothing is unread',
-};
-
-// Functions rather than templates: `String.replace` reads `$&` and friends in the replacement,
-// so an organization named "Ford $& Sons" would render its own placeholder.
-const EMPTY_BODIES: Record<PortalInboxMode, (provider: string) => string> = {
-  all: (provider) =>
-    `When ${provider} answers one of your requests — a question back, a date, a decision — it shows up here.`,
-  unread: () => 'You have seen everything that reached you.',
-};
 
 /**
  * The event types the portal is told about, said in words. The API allowlists `types`, so an

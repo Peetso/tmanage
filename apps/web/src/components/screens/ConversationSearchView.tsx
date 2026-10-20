@@ -11,6 +11,7 @@ import type { MessageSearchMatch } from '../../lib/api/conversation-search';
 import type { ApiClient } from '../../lib/api/client';
 import { getConversation } from '../../lib/api/conversations';
 import { useMembers } from '../../lib/use-members';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/chat.css';
 
 /**
@@ -82,6 +83,7 @@ export function ConversationSearchView({
   client,
 }: ConversationSearchViewProps) {
   const api = useMemo(() => client ?? browserApiClient(), [client]);
+  const t = useT();
   const [draft, setDraft] = useState('');
   const [term, setTerm] = useState('');
 
@@ -112,19 +114,24 @@ export function ConversationSearchView({
 
   const results: readonly MessageSearchMatch[] = query.data ?? [];
   const hasSearched = term.trim() !== '';
-  const channel = conversation.data ? `#${conversation.data.name}` : 'this channel';
+  const channel = conversation.data
+    ? `#${conversation.data.name}`
+    : t('ConversationSearchView.thisChannel');
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
-      eyebrow={`Search in ${channel}`}
-      title={hasSearched ? `“${term.trim()}”` : 'Search this conversation'}
+      eyebrow={`${t('ConversationSearchView.searchInPrefix')}${channel}`}
+      title={hasSearched ? `“${term.trim()}”` : t('ConversationSearchView.searchThisConversation')}
       description={
         <>
-          Only messages you can read are searched.{' '}
-          <Link href={`/${organizationSlug}/chat/${conversationId}`}>Back to {channel}</Link>
+          {t('ConversationSearchView.onlyReadable')}{' '}
+          <Link href={`/${organizationSlug}/chat/${conversationId}`}>
+            {t('ConversationSearchView.backToPrefix')}
+            {channel}
+          </Link>
         </>
       }
     >
@@ -134,36 +141,38 @@ export function ConversationSearchView({
             ⌕
           </span>
           <label htmlFor="tm-chat-search-q" className="tm-visually-hidden">
-            Search this conversation
+            {t('ConversationSearchView.searchThisConversation')}
           </label>
           <input
             id="tm-chat-search-q"
             type="search"
             value={draft}
             onChange={(event) => setDraft(event.currentTarget.value)}
-            placeholder="Search messages…"
+            placeholder={t('ConversationSearchView.searchPlaceholder')}
           />
           {hasSearched && query.data ? (
             <span className="tm-chat-search__count" aria-live="polite">
-              {results.length === 1 ? '1 match' : `${results.length} matches`}
+              {results.length === 1
+                ? t('ConversationSearchView.oneMatch')
+                : `${results.length}${t('ConversationSearchView.matchesSuffix')}`}
             </span>
           ) : null}
           <button type="submit" className="tm-chat-send">
             <span className="tm-chat-send__orb" aria-hidden="true">
               ⌕
             </span>
-            Search
+            {t('ConversationSearchView.search')}
           </button>
         </form>
 
         {query.isError ? (
-          <InlineAlert tone="danger" title="That search could not be run" live>
-            Try again, or reload the channel.
+          <InlineAlert tone="danger" title={t('ConversationSearchView.searchError')} live>
+            {t('ConversationSearchView.searchErrorBody')}
           </InlineAlert>
         ) : null}
 
         {hasSearched && query.isPending ? (
-          <LoadingRegion label="Searching this conversation">
+          <LoadingRegion label={t('ConversationSearchView.loadingLabel')}>
             <Skeleton />
             <Skeleton />
           </LoadingRegion>
@@ -172,8 +181,11 @@ export function ConversationSearchView({
         {!hasSearched ? (
           <p className="tm-chat-empty">
             <span>
-              <strong>Search {channel}</strong>
-              Type a word and press Enter. Matches show who said it, when, and the words around it.
+              <strong>
+                {t('ConversationSearchView.searchPrefix')}
+                {channel}
+              </strong>
+              {t('ConversationSearchView.typeWordHint')}
             </span>
           </p>
         ) : null}
@@ -181,14 +193,17 @@ export function ConversationSearchView({
         {hasSearched && !query.isPending && !query.isError && results.length === 0 ? (
           <p className="tm-chat-empty">
             <span>
-              <strong>No messages match that search.</strong>
-              Removed messages are never searched, and nothing outside this channel is.
+              <strong>{t('ConversationSearchView.noMatchTitle')}</strong>
+              {t('ConversationSearchView.noMatchBody')}
             </span>
           </p>
         ) : null}
 
         {results.length > 0 ? (
-          <ul className="tm-chat-search__results" aria-label="Matches">
+          <ul
+            className="tm-chat-search__results"
+            aria-label={t('ConversationSearchView.matchesAria')}
+          >
             {results.map((match) => (
               <li key={match.id} className="tm-chat-result">
                 <div className="tm-chat-result__head">

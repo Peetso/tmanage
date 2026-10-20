@@ -6,6 +6,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { getConversationMute, setConversationMute } from '../../lib/api/conversation-mute';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ConversationMuteViewProps {
   organizationSlug: string;
@@ -28,6 +29,7 @@ export function ConversationMuteView({
   conversationId,
   client = browserApiClient(),
 }: ConversationMuteViewProps) {
+  const t = useT();
   const queryClient = useQueryClient();
   const queryKey = ['conversation-mute', organizationSlug, conversationId] as const;
 
@@ -45,7 +47,7 @@ export function ConversationMuteView({
   });
 
   if (query.isPending) {
-    return <Skeleton aria-label="Loading mute state" />;
+    return <Skeleton aria-label={t('ConversationMuteView.loadingLabel')} />;
   }
 
   if (query.isError) {
@@ -53,7 +55,7 @@ export function ConversationMuteView({
     const message =
       error instanceof ApiRequestError || error instanceof NetworkError
         ? error.message
-        : 'The mute state could not be loaded.';
+        : t('ConversationMuteView.loadError');
     return <InlineAlert tone="danger">{message}</InlineAlert>;
   }
 
@@ -61,16 +63,16 @@ export function ConversationMuteView({
 
   return (
     <div className="tm-conversation-mute">
-      {muted ? <Badge tone="neutral">Muted</Badge> : null}
+      {muted ? <Badge tone="neutral">{t('ConversationMuteView.muted')}</Badge> : null}
       <Switch
-        label="Mute notifications for this channel"
-        hint="Only you are muted. This does not change the channel for anyone else."
+        label={t('ConversationMuteView.switchLabel')}
+        hint={t('ConversationMuteView.switchHint')}
         checked={muted}
         disabled={mutation.isPending}
         onChange={(event) => mutation.mutate(event.currentTarget.checked)}
       />
       {mutation.isError ? (
-        <InlineAlert tone="danger">Your change could not be saved. Try again.</InlineAlert>
+        <InlineAlert tone="danger">{t('ConversationMuteView.saveError')}</InlineAlert>
       ) : null}
     </div>
   );
