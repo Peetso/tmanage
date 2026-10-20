@@ -20,9 +20,19 @@
  * point at a route that does not exist.
  */
 
+import type { MessageKey } from '../../lib/i18n/t';
+
 export interface NavigationItem {
   readonly id: string;
+  /**
+   * The English label — the source of truth for the destination's name, the fallback the
+   * catalog resolves against, and the accessible name a test reads. The rail, dock and portal
+   * render `messageKey` through `t()` so an Arabic member sees the Arabic word; English is
+   * unchanged, so an English member and the audience tests still read this string.
+   */
   readonly label: string;
+  /** The message-catalog key for {@link label}, so every shell can render it in the member's locale. */
+  readonly messageKey: MessageKey;
   readonly href: string;
   readonly glyph: string;
 }
@@ -32,14 +42,14 @@ export interface NavigationItem {
  * HOME-01: Home is "My Day" there, and the glyphs are the rail's own (◉ ✉ ◌ ▤ ◫ ◔).
  */
 export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
-  { id: 'home', label: 'My Day', href: '/home', glyph: '◉' },
-  { id: 'inbox', label: 'Inbox', href: '/inbox', glyph: '✉' },
-  { id: 'chat', label: 'Chat', href: '/chat', glyph: '◌' },
-  { id: 'work', label: 'Work', href: '/work', glyph: '▤' },
-  { id: 'calendar', label: 'Calendar', href: '/calendar', glyph: '◷' },
-  { id: 'docs', label: 'Docs', href: '/docs', glyph: '◫' },
-  { id: 'people', label: 'People', href: '/people', glyph: '◎' },
-  { id: 'insights', label: 'Insights', href: '/insights', glyph: '◔' },
+  { id: 'home', label: 'My Day', messageKey: 'nav.home', href: '/home', glyph: '◉' },
+  { id: 'inbox', label: 'Inbox', messageKey: 'nav.inbox', href: '/inbox', glyph: '✉' },
+  { id: 'chat', label: 'Chat', messageKey: 'nav.chat', href: '/chat', glyph: '◌' },
+  { id: 'work', label: 'Work', messageKey: 'nav.work', href: '/work', glyph: '▤' },
+  { id: 'calendar', label: 'Calendar', messageKey: 'nav.calendar', href: '/calendar', glyph: '◷' },
+  { id: 'docs', label: 'Docs', messageKey: 'nav.docs', href: '/docs', glyph: '◫' },
+  { id: 'people', label: 'People', messageKey: 'nav.people', href: '/people', glyph: '◎' },
+  { id: 'insights', label: 'Insights', messageKey: 'nav.insights', href: '/insights', glyph: '◔' },
 ];
 
 /**
@@ -51,6 +61,7 @@ export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
 export const CONTROL_CENTER_NAVIGATION: NavigationItem = {
   id: 'admin',
   label: 'Control',
+  messageKey: 'nav.control',
   href: '/admin',
   glyph: '⚙',
 };
@@ -86,12 +97,36 @@ export const MOBILE_PRIMARY_NAVIGATION: readonly NavigationItem[] =
 
 /** The client portal. A separate space, not a filtered view of the one above. */
 export const CLIENT_NAVIGATION: readonly NavigationItem[] = [
-  { id: 'overview', label: 'Overview', href: '/portal', glyph: '◉' },
-  { id: 'actions', label: 'My Actions', href: '/portal/actions', glyph: '◍' },
-  { id: 'deliverables', label: 'Deliverables', href: '/portal/deliverables', glyph: '▦' },
-  { id: 'timeline', label: 'Timeline', href: '/portal/timeline', glyph: '▥' },
-  { id: 'updates', label: 'Updates', href: '/portal/updates', glyph: '▤' },
-  { id: 'risks', label: 'Risks', href: '/portal/risks', glyph: '◭' },
-  { id: 'files', label: 'Files', href: '/portal/files', glyph: '▧' },
-  { id: 'people', label: 'People', href: '/portal/people', glyph: '◎' },
+  { id: 'overview', label: 'Overview', messageKey: 'nav.overview', href: '/portal', glyph: '◉' },
+  {
+    id: 'actions',
+    label: 'My Actions',
+    messageKey: 'nav.actions',
+    href: '/portal/actions',
+    glyph: '◍',
+  },
+  {
+    id: 'deliverables',
+    label: 'Deliverables',
+    messageKey: 'nav.deliverables',
+    href: '/portal/deliverables',
+    glyph: '▦',
+  },
+  {
+    id: 'timeline',
+    label: 'Timeline',
+    messageKey: 'nav.timeline',
+    href: '/portal/timeline',
+    glyph: '▥',
+  },
+  {
+    id: 'updates',
+    label: 'Updates',
+    messageKey: 'nav.updates',
+    href: '/portal/updates',
+    glyph: '▤',
+  },
+  { id: 'risks', label: 'Risks', messageKey: 'nav.risks', href: '/portal/risks', glyph: '◭' },
+  { id: 'files', label: 'Files', messageKey: 'nav.files', href: '/portal/files', glyph: '▧' },
+  { id: 'people', label: 'People', messageKey: 'nav.people', href: '/portal/people', glyph: '◎' },
 ];

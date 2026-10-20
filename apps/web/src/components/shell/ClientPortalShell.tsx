@@ -6,6 +6,7 @@ import { Badge, LiveAnnouncer, SkipLink, StatusDot } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { CLIENT_NAVIGATION } from './navigation';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 
 export interface ClientPortalShellProps {
@@ -74,6 +75,7 @@ export function ClientPortalShell({
     passedProviderName,
   );
   const queryClient = useContext(QueryClientContext);
+  const t = useT();
   const shell = (
     <LiveAnnouncer>
       <div className="tm-portal" data-preview={preview ? 'true' : undefined}>
@@ -101,7 +103,7 @@ export function ClientPortalShell({
             </div>
           </div>
 
-          <nav className="tm-portal__nav" aria-label="Primary">
+          <nav className="tm-portal__nav" aria-label={t('shell.rail.primary')}>
             <ul className="tm-portal__nav-list">
               {CLIENT_NAVIGATION.map((item) => {
                 const current = item.id === activeNavigationId;
@@ -115,7 +117,7 @@ export function ClientPortalShell({
                       <span className="tm-portal__nav-glyph" aria-hidden="true">
                         {item.glyph}
                       </span>
-                      {item.label}
+                      {t(item.messageKey)}
                     </Link>
                   </li>
                 );

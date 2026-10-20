@@ -14,6 +14,7 @@ import { InboxNotificationBridge } from '../pwa/InboxNotificationBridge';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations } from '../../lib/api/organizations';
 import { useOrganizationName } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 import { PlatformAdminLink } from '../platform/PlatformAdminLink';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { MembershipGoneGate } from './MembershipGoneGate';
@@ -92,6 +93,7 @@ function ControlCenterOrb({
     queryFn: () => listOrganizations(browserApiClient()),
     staleTime: 5 * 60_000,
   });
+  const t = useT();
   const role = organizations.data?.find((org) => org.slug === organizationSlug)?.role;
   if (!role || !CONTROL_CENTER_ROLES.has(role)) return null;
   return (
@@ -103,7 +105,7 @@ function ControlCenterOrb({
       <span className="tm-rail__orb" aria-hidden="true">
         {CONTROL_CENTER_NAVIGATION.glyph}
       </span>
-      <span className="tm-rail__label">{CONTROL_CENTER_NAVIGATION.label}</span>
+      <span className="tm-rail__label">{t(CONTROL_CENTER_NAVIGATION.messageKey)}</span>
     </Link>
   );
 }
@@ -118,6 +120,7 @@ function RailFoot({
   accountInitials: string | undefined;
 }) {
   const queryClient = useContext(QueryClientContext);
+  const t = useT();
   return (
     <div className="tm-rail__foot">
       {queryClient ? (
@@ -132,7 +135,7 @@ function RailFoot({
         <Link
           href={`/${organizationSlug}/preferences`}
           className="tm-rail__account"
-          aria-label="Your preferences"
+          aria-label={t('shell.account.preferences')}
         >
           {accountInitials}
         </Link>
@@ -178,6 +181,7 @@ export function AppShell({
   // session's own organization list says what this organization is really called.
   const displayedOrganizationName = useOrganizationName(organizationSlug, organizationName);
   const queryClient = useContext(QueryClientContext);
+  const t = useT();
   const shell = (
     <LiveAnnouncer>
       <div className="tm-app">
@@ -192,9 +196,9 @@ export function AppShell({
         <InboxNotificationBridge organizationSlug={organizationSlug} />
 
         <div className="tm-app__frame">
-          <nav className="tm-rail" aria-label="Primary">
+          <nav className="tm-rail" aria-label={t('shell.rail.primary')}>
             <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
-              <Wordmark variant="icon" label="TManage home" />
+              <Wordmark variant="icon" label={t('shell.brand.home')} />
             </Link>
             <span className="tm-rail__rule" aria-hidden="true" />
 
@@ -211,7 +215,7 @@ export function AppShell({
                       <span className="tm-rail__orb" aria-hidden="true">
                         {item.glyph}
                       </span>
-                      <span className="tm-rail__label">{item.label}</span>
+                      <span className="tm-rail__label">{t(item.messageKey)}</span>
                     </Link>
                   </li>
                 );
@@ -257,7 +261,7 @@ export function AppShell({
 
             <div className="tm-app__columns">
               {contextRail ? (
-                <nav className="tm-context-rail" aria-label="Within this section">
+                <nav className="tm-context-rail" aria-label={t('shell.rail.sectionNav')}>
                   {contextRail}
                 </nav>
               ) : null}
@@ -267,7 +271,7 @@ export function AppShell({
               </main>
 
               {lens ? (
-                <aside className="tm-lens" aria-label="Details">
+                <aside className="tm-lens" aria-label={t('shell.lens.details')}>
                   {lens}
                 </aside>
               ) : null}
@@ -340,6 +344,7 @@ export function DayPulseBar({
   nowLabel,
   now: fixed,
 }: DayPulseBarProps) {
+  const t = useT();
   const now = useClock(fixed);
   const day = now ? String(now.getDate()).padStart(2, '0') : '··';
   const date = now
@@ -354,20 +359,24 @@ export function DayPulseBar({
 
   return (
     <div className="tm-day-pulse">
-      <div className="tm-day-pulse__capsule" role="group" aria-label="Today">
+      <div className="tm-day-pulse__capsule" role="group" aria-label={t('shell.dayPulse.today')}>
         <div className="tm-day-pulse__date">
           <span className="tm-day-pulse__day" aria-hidden="true">
             {day}
           </span>
           <span className="tm-day-pulse__date-label">
-            Today{date ? ` · ${date.replace(',', '')}` : ''}
+            {t('shell.dayPulse.today')}
+            {date ? ` · ${date.replace(',', '')}` : ''}
           </span>
         </div>
         {before.map((item) => (
           <DayPulseSlot key={item.id} item={item} />
         ))}
         <div className="tm-day-pulse__now">
-          <span className="tm-day-pulse__now-time">NOW{time ? ` ${time}` : ''}</span>
+          <span className="tm-day-pulse__now-time">
+            {t('shell.dayPulse.now')}
+            {time ? ` ${time}` : ''}
+          </span>
           <span className="tm-day-pulse__now-label">{nowItem ? nowItem.label : nowLabel}</span>
           {nowItem?.people && nowItem.people.length > 0 ? (
             <span className="tm-day-pulse__people" aria-hidden="true">
@@ -385,7 +394,7 @@ export function DayPulseBar({
         <Link
           href={`/${organizationSlug}/calendar`}
           className="tm-day-pulse__out"
-          aria-label="Open the calendar"
+          aria-label={t('shell.dayPulse.openCalendar')}
         >
           <span aria-hidden="true">↗</span>
         </Link>
@@ -393,7 +402,7 @@ export function DayPulseBar({
       <button
         type="button"
         className="tm-day-pulse__search"
-        aria-label="Search and commands"
+        aria-label={t('shell.dayPulse.search')}
         onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))}
       >
         <span aria-hidden="true">⌕</span>
@@ -403,6 +412,7 @@ export function DayPulseBar({
 }
 
 function DayPulseSlot({ item }: { item: DayPulseItem }) {
+  const t = useT();
   const body = (
     <>
       <span className="tm-day-pulse__slot-time">{item.time}</span>
@@ -410,7 +420,7 @@ function DayPulseSlot({ item }: { item: DayPulseItem }) {
       {item.state === 'done' ? (
         <span className="tm-day-pulse__slot-done">
           <span aria-hidden="true">✓</span>
-          <span className="tm-visually-hidden">done</span>
+          <span className="tm-visually-hidden">{t('shell.dayPulse.done')}</span>
         </span>
       ) : null}
     </>

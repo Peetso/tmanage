@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { MOBILE_PRIMARY_NAVIGATION } from './navigation';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MobilePrimaryNavProps {
   /**
@@ -30,8 +31,9 @@ export interface MobilePrimaryNavProps {
  * the document at once and a screen reader announces each by name.
  */
 export function MobilePrimaryNav({ organizationSlug, activeNavigationId }: MobilePrimaryNavProps) {
+  const t = useT();
   return (
-    <nav className="tm-mobile-nav" aria-label="Primary mobile">
+    <nav className="tm-mobile-nav" aria-label={t('shell.rail.mobilePrimary')}>
       <ul className="tm-mobile-nav__list">
         {MOBILE_PRIMARY_NAVIGATION.map((item) => {
           const current = item.id === activeNavigationId;
@@ -45,7 +47,7 @@ export function MobilePrimaryNav({ organizationSlug, activeNavigationId }: Mobil
                 <span className="tm-mobile-nav__orb" aria-hidden="true">
                   {item.glyph}
                 </span>
-                <span className="tm-mobile-nav__label">{item.label}</span>
+                <span className="tm-mobile-nav__label">{t(item.messageKey)}</span>
               </Link>
             </li>
           );
