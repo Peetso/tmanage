@@ -18,25 +18,13 @@ import type {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AdminFeatureFlagsScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
 }
-
-/** Human labels for the optional-module flags, keyed by the id the API validates against. */
-const FLAG_LABELS: Record<OptionalModuleFlag, string> = {
-  chat: 'Chat and collaboration',
-  meetings: 'Calendar and meetings',
-  docs: 'Docs and knowledge',
-  people: 'People and capacity',
-  insights: 'Insights and reporting',
-  automations: 'Automations and integrations',
-  client_portal: 'Client Portal',
-  billing: 'Billing and plan management',
-  copilot: 'AI copilot',
-};
 
 /**
  * **Per-org feature flags (Administration module 18, x278).**
@@ -55,7 +43,31 @@ export function AdminFeatureFlagsScreen({
   const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['admin-feature-flags', organizationSlug];
+
+  /** Human labels for the optional-module flags, keyed by the id the API validates against. */
+  const flagLabels: Record<OptionalModuleFlag, string> = {
+    chat: t('AdminFeatureFlagsScreen.flagChat'),
+    meetings: t('AdminFeatureFlagsScreen.flagMeetings'),
+    docs: t('AdminFeatureFlagsScreen.flagDocs'),
+    people: t('AdminFeatureFlagsScreen.flagPeople'),
+    insights: t('AdminFeatureFlagsScreen.flagInsights'),
+    automations: t('AdminFeatureFlagsScreen.flagAutomations'),
+    client_portal: t('AdminFeatureFlagsScreen.flagClientPortal'),
+    billing: t('AdminFeatureFlagsScreen.flagBilling'),
+    copilot: t('AdminFeatureFlagsScreen.flagCopilot'),
+  };
+
+  /** A short "when last changed" note, or the module's default for a flag never set. */
+  const changedNote = (flag: FeatureFlagAdminView): string => {
+    if (!flag.updatedAt) {
+      return DEFAULT_MODULE_ENABLED[flag.key]
+        ? t('AdminFeatureFlagsScreen.onByDefault')
+        : t('AdminFeatureFlagsScreen.offByDefault');
+    }
+    return `${t('AdminFeatureFlagsScreen.changedPrefix')} ${new Date(flag.updatedAt).toLocaleDateString()}`;
+  };
 
   const flags = useQuery({
     queryKey,
@@ -82,37 +94,41 @@ export function AdminFeatureFlagsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="modules"
-      crumbs={['Modules']}
-      title="What this studio uses"
-      {...(flags.isSuccess ? { titleMeta: `${onCount} of ${ordered.length} modules on` } : {})}
+      crumbs={[t('AdminFeatureFlagsScreen.crumbModules')]}
+      title={t('AdminFeatureFlagsScreen.title')}
+      {...(flags.isSuccess
+        ? {
+            titleMeta: `${onCount} ${t('AdminFeatureFlagsScreen.ofConnector')} ${ordered.length} ${t('AdminFeatureFlagsScreen.modulesOnSuffix')}`,
+          }
+        : {})}
     >
       {flags.isPending ? (
-        <LoadingRegion label="Loading feature flags">
+        <LoadingRegion label={t('AdminFeatureFlagsScreen.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : flags.isError ? (
-        <InlineAlert tone="danger" title="We could not load the feature flags">
+        <InlineAlert tone="danger" title={t('AdminFeatureFlagsScreen.loadError')}>
           {errorMessage(flags.error)}
         </InlineAlert>
       ) : (
         <div className="tm-cc-split tm-cc-split--even">
           <section className="tm-cc-card" aria-labelledby="tm-feature-flags-heading">
             <h2 id="tm-feature-flags-heading" className="tm-cc-eyebrow">
-              Optional modules
+              {t('AdminFeatureFlagsScreen.optionalModulesHeading')}
             </h2>
 
             {toggle.isError ? (
-              <InlineAlert tone="danger" title="We could not save that change">
+              <InlineAlert tone="danger" title={t('AdminFeatureFlagsScreen.saveError')}>
                 {errorMessage(toggle.error)}
               </InlineAlert>
             ) : null}
 
-            <ul className="tm-cc-rows" aria-label="Optional modules">
+            <ul className="tm-cc-rows" aria-label={t('AdminFeatureFlagsScreen.listLabel')}>
               {ordered.map((flag) => (
                 <li key={flag.key}>
                   <div className="tm-cc-rows__text">
                     <label className="tm-cc-rows__title" htmlFor={`tm-flag-${flag.key}`}>
-                      {FLAG_LABELS[flag.key]}
+                      {flagLabels[flag.key]}
                     </label>
                     <span className="tm-cc-rows__sub">{changedNote(flag)}</span>
                   </div>
@@ -136,14 +152,11 @@ export function AdminFeatureFlagsScreen({
             className="tm-cc-card tm-cc-card--quiet tm-cc-card--fill"
             aria-labelledby="tm-feature-flags-effect"
           >
-            <p className="tm-cc-eyebrow">Switching a module</p>
+            <p className="tm-cc-eyebrow">{t('AdminFeatureFlagsScreen.switchingEyebrow')}</p>
             <h2 id="tm-feature-flags-effect" className="tm-cc-card__title">
-              A switch applies to everyone in {organizationName}
+              {t('AdminFeatureFlagsScreen.applyToEveryonePrefix')} {organizationName}
             </h2>
-            <p className="tm-cc-card__body">
-              Each switch saves as soon as it changes. A module you have never changed stays at its
-              default: the everyday modules are on, and the AI copilot starts off.
-            </p>
+            <p className="tm-cc-card__body">{t('AdminFeatureFlagsScreen.effectBody')}</p>
           </section>
         </div>
       )}
@@ -162,14 +175,6 @@ function orderFlags(flags: readonly FeatureFlagAdminView[]): FeatureFlagAdminVie
         updatedAt: null,
       },
   );
-}
-
-/** A short "when last changed" note, or the module's default for a flag never set. */
-function changedNote(flag: FeatureFlagAdminView): string {
-  if (!flag.updatedAt) {
-    return DEFAULT_MODULE_ENABLED[flag.key] ? 'On by default' : 'Off by default';
-  }
-  return `Changed ${new Date(flag.updatedAt).toLocaleDateString()}`;
 }
 
 function errorMessage(error: unknown): string {

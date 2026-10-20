@@ -12,6 +12,7 @@ import {
 import type { SecurityAlertsView as SecurityAlertsViewData } from '../../lib/api/admin-security-alerts';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AdminSecurityAlertsViewProps {
   organizationSlug: string;
@@ -37,6 +38,7 @@ export function AdminSecurityAlertsView({
 }: AdminSecurityAlertsViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = useMemo(() => ['admin-security-alerts', organizationSlug], [organizationSlug]);
 
   const alerts = useQuery<SecurityAlertsViewData>({
@@ -57,7 +59,7 @@ export function AdminSecurityAlertsView({
 
   if (alerts.isLoading) {
     return (
-      <LoadingRegion label="Loading security alerts.">
+      <LoadingRegion label={t('AdminSecurityAlertsView.loading')}>
         <Skeleton height="var(--row)" />
         <Skeleton height="var(--row)" />
       </LoadingRegion>
@@ -69,7 +71,7 @@ export function AdminSecurityAlertsView({
     const message =
       error instanceof ApiRequestError || error instanceof NetworkError
         ? error.message
-        : 'Could not load security alerts.';
+        : t('AdminSecurityAlertsView.loadError');
     return <InlineAlert tone="danger">{message}</InlineAlert>;
   }
 
@@ -80,15 +82,12 @@ export function AdminSecurityAlertsView({
     view.configs.find((c) => c.eventTypeKey === eventTypeKey)?.enabled ?? false;
 
   return (
-    <section aria-label="Security event alerts">
-      <h2>Security event alerts</h2>
-      <p>
-        Choose which security events raise an in-app alert. Matching recent events are previewed
-        below; no email or SMS is sent.
-      </p>
+    <section aria-label={t('AdminSecurityAlertsView.sectionLabel')}>
+      <h2>{t('AdminSecurityAlertsView.heading')}</h2>
+      <p>{t('AdminSecurityAlertsView.intro')}</p>
 
       {toggle.isError || clear.isError ? (
-        <InlineAlert tone="danger">Could not save that change. Try again.</InlineAlert>
+        <InlineAlert tone="danger">{t('AdminSecurityAlertsView.saveError')}</InlineAlert>
       ) : null}
 
       <ul>
@@ -108,7 +107,7 @@ export function AdminSecurityAlertsView({
                   onClick={() => clear.mutate(eventTypeKey)}
                   disabled={clear.isPending}
                 >
-                  Clear
+                  {t('AdminSecurityAlertsView.clear')}
                 </Button>
               ) : null}
             </li>
@@ -116,9 +115,9 @@ export function AdminSecurityAlertsView({
         })}
       </ul>
 
-      <h3>Recent matches</h3>
+      <h3>{t('AdminSecurityAlertsView.recentMatchesHeading')}</h3>
       {view.recentMatches.length === 0 ? (
-        <p>No recent events match the enabled alerts.</p>
+        <p>{t('AdminSecurityAlertsView.noMatches')}</p>
       ) : (
         <ul>
           {view.recentMatches.map((match) => (

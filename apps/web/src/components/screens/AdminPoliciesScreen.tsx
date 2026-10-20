@@ -9,6 +9,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { readOrgPolicy, updateOrgPolicy, type OrgPolicyUpdateInput } from '../../lib/api/policies';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AdminPoliciesScreenProps {
   organizationSlug: string;
@@ -40,6 +41,7 @@ export function AdminPoliciesScreen({
 }: AdminPoliciesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const policy = useQuery({
     queryKey: ['org-policies', organizationSlug],
@@ -84,31 +86,31 @@ export function AdminPoliciesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="policies"
-      crumbs={['Access policy']}
-      title="Who may let someone in"
+      crumbs={[t('AdminPoliciesScreen.crumbAccessPolicy')]}
+      title={t('AdminPoliciesScreen.title')}
       actions={
         <Link
           href={`/${organizationSlug}/policies/simulate`}
           className="tm-button tm-button--outline tm-button--compact"
         >
-          Simulate access
+          {t('AdminPoliciesScreen.simulateAccess')}
         </Link>
       }
     >
       <div className="tm-cc-split tm-cc-split--even">
         <section className="tm-cc-card" aria-labelledby="tm-org-policies-heading">
           <h2 id="tm-org-policies-heading" className="tm-cc-eyebrow">
-            Access policy · applies to everyone
+            {t('AdminPoliciesScreen.policyHeading')}
           </h2>
 
           {policy.isError ? (
-            <InlineAlert tone="danger" title="Could not load the access policy" live>
+            <InlineAlert tone="danger" title={t('AdminPoliciesScreen.loadError')} live>
               {describeError(policy.error)}
             </InlineAlert>
           ) : null}
 
           {policy.isPending ? (
-            <LoadingRegion label="Loading the access policy.">
+            <LoadingRegion label={t('AdminPoliciesScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
@@ -118,7 +120,7 @@ export function AdminPoliciesScreen({
             <form
               className="tm-stack"
               noValidate
-              aria-label="Access policy"
+              aria-label={t('AdminPoliciesScreen.formLabel')}
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 setSaved(false);
@@ -129,18 +131,18 @@ export function AdminPoliciesScreen({
                 <li>
                   <div className="tm-cc-rows__grow">
                     <Field
-                      label="Invite domain allowlist"
+                      label={t('AdminPoliciesScreen.inviteDomainLabel')}
                       name="invite_domain_allowlist"
                       value={domains}
                       onChange={(event) => setDomains(event.target.value)}
-                      hint="Comma-separated email domains an invitation may be addressed to. Leave empty for no restriction."
+                      hint={t('AdminPoliciesScreen.inviteDomainHint')}
                     />
                   </div>
                 </li>
                 <li>
                   <div className="tm-cc-rows__grow">
                     <Field
-                      label="Session lifetime (hours)"
+                      label={t('AdminPoliciesScreen.sessionLifetimeLabel')}
                       name="session_max_hours"
                       type="number"
                       inputMode="numeric"
@@ -148,32 +150,34 @@ export function AdminPoliciesScreen({
                       max={720}
                       value={sessionHours}
                       onChange={(event) => setSessionHours(event.target.value)}
-                      hint="How long a session may live before re-authentication is required. Between 1 and 720 hours."
+                      hint={t('AdminPoliciesScreen.sessionLifetimeHint')}
                     />
                   </div>
                 </li>
                 <li>
                   <Checkbox
-                    label="Allow freelancers and partners"
+                    label={t('AdminPoliciesScreen.guestLabel')}
                     name="guest_access_enabled"
                     checked={guestAccess}
                     onChange={(event) => setGuestAccess(event.target.checked)}
-                    hint="Outside people who are not clients. Clients are not affected."
+                    hint={t('AdminPoliciesScreen.guestHint')}
                   />
                   <span className={guestAccess ? 'tm-cc-pill tm-cc-pill--on' : 'tm-cc-pill'}>
-                    {guestAccess ? 'On' : 'Off'}
+                    {guestAccess
+                      ? t('AdminPoliciesScreen.pillOn')
+                      : t('AdminPoliciesScreen.pillOff')}
                   </span>
                 </li>
               </ul>
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="Could not save the access policy" live>
+                <InlineAlert tone="danger" title={t('AdminPoliciesScreen.saveError')} live>
                   {describeError(save.error)}
                 </InlineAlert>
               ) : null}
               {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Saved" live>
-                  The access policy has been updated for the whole organization.
+                <InlineAlert tone="success" title={t('AdminPoliciesScreen.savedTitle')} live>
+                  {t('AdminPoliciesScreen.savedBody')}
                 </InlineAlert>
               ) : null}
 
@@ -183,9 +187,9 @@ export function AdminPoliciesScreen({
                   tone="ink"
                   size="accessible"
                   loading={save.isPending}
-                  loadingLabel="Saving"
+                  loadingLabel={t('AdminPoliciesScreen.saving')}
                 >
-                  Save
+                  {t('AdminPoliciesScreen.save')}
                 </Button>
               </div>
             </form>
@@ -198,36 +202,42 @@ export function AdminPoliciesScreen({
         >
           <table className="tm-table tm-cc-table" aria-labelledby="tm-org-policies-now">
             <caption id="tm-org-policies-now" className="tm-visually-hidden">
-              The saved access policy
+              {t('AdminPoliciesScreen.tableCaption')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">In force now</th>
+                <th scope="col">{t('AdminPoliciesScreen.colInForce')}</th>
                 <th scope="col" className="tm-cc-end">
-                  Value
+                  {t('AdminPoliciesScreen.colValue')}
                 </th>
               </tr>
             </thead>
             <tbody>
               <tr>
                 <td>
-                  <span className="tm-cc-cell-title">Invitations</span>
-                  <span className="tm-cc-cell-sub">domains an invitation may go to</span>
+                  <span className="tm-cc-cell-title">
+                    {t('AdminPoliciesScreen.rowInvitationsTitle')}
+                  </span>
+                  <span className="tm-cc-cell-sub">
+                    {t('AdminPoliciesScreen.rowInvitationsSub')}
+                  </span>
                 </td>
                 <td className="tm-cc-end">
                   <span className="tm-cc-cell-mono">
                     {current
                       ? current.invite_domain_allowlist.length > 0
                         ? current.invite_domain_allowlist.join(', ')
-                        : 'Any domain'
+                        : t('AdminPoliciesScreen.anyDomain')
                       : '—'}
                   </span>
                 </td>
               </tr>
               <tr>
                 <td>
-                  <span className="tm-cc-cell-title">Session length</span>
-                  <span className="tm-cc-cell-sub">before signing in again</span>
+                  <span className="tm-cc-cell-title">
+                    {t('AdminPoliciesScreen.rowSessionTitle')}
+                  </span>
+                  <span className="tm-cc-cell-sub">{t('AdminPoliciesScreen.rowSessionSub')}</span>
                 </td>
                 <td className="tm-cc-end">
                   <span className="tm-cc-cell-mono">
@@ -237,8 +247,8 @@ export function AdminPoliciesScreen({
               </tr>
               <tr>
                 <td>
-                  <span className="tm-cc-cell-title">Freelancers and partners</span>
-                  <span className="tm-cc-cell-sub">outside people who are not clients</span>
+                  <span className="tm-cc-cell-title">{t('AdminPoliciesScreen.rowGuestTitle')}</span>
+                  <span className="tm-cc-cell-sub">{t('AdminPoliciesScreen.rowGuestSub')}</span>
                 </td>
                 <td className="tm-cc-end">
                   {current ? (
@@ -247,7 +257,9 @@ export function AdminPoliciesScreen({
                         current.guest_access_enabled ? 'tm-cc-pill tm-cc-pill--on' : 'tm-cc-pill'
                       }
                     >
-                      {current.guest_access_enabled ? 'Allowed' : 'Off'}
+                      {current.guest_access_enabled
+                        ? t('AdminPoliciesScreen.guestAllowed')
+                        : t('AdminPoliciesScreen.pillOff')}
                     </span>
                   ) : (
                     '—'

@@ -8,6 +8,7 @@ import { fetchPendingInvitations, revokeInvitation } from '../../lib/api/admin-i
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { describeInternalRole } from '../../lib/roles';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AdminInvitationsViewProps {
   organizationSlug: string;
@@ -36,6 +37,7 @@ export function AdminInvitationsView({
 }: AdminInvitationsViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['admin-invitations', organizationSlug];
 
   const invitations = useQuery({
@@ -57,59 +59,65 @@ export function AdminInvitationsView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      title="Pending invitations"
-      description="The invitations awaiting acceptance. Revoke one to withdraw it. Resending an invitation email is handled separately."
+      title={t('AdminInvitationsView.title')}
+      description={t('AdminInvitationsView.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-admin-invitations-heading">
         <h2 id="tm-admin-invitations-heading" className="tm-eyebrow">
-          Pending invitations
+          {t('AdminInvitationsView.heading')}
         </h2>
 
         {invitations.isError ? (
-          <InlineAlert tone="danger" title="Could not load the invitations" live>
+          <InlineAlert tone="danger" title={t('AdminInvitationsView.loadError')} live>
             {describeError(invitations.error)}
           </InlineAlert>
         ) : null}
 
         {invitations.isPending ? (
-          <LoadingRegion label="Loading the pending invitations.">
+          <LoadingRegion label={t('AdminInvitationsView.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!invitations.isPending && !invitations.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No pending invitations">
-            Everyone invited has either accepted, expired, or been revoked.
+          <InlineAlert tone="neutral" title={t('AdminInvitationsView.emptyTitle')}>
+            {t('AdminInvitationsView.emptyBody')}
           </InlineAlert>
         ) : null}
 
         {revoke.isError ? (
-          <InlineAlert tone="danger" title="Could not revoke the invitation" live>
+          <InlineAlert tone="danger" title={t('AdminInvitationsView.revokeError')} live>
             {describeError(revoke.error)}
           </InlineAlert>
         ) : null}
 
         {rows.length > 0 ? (
-          <ul className="tm-stack" aria-label="Pending invitations">
+          <ul className="tm-stack" aria-label={t('AdminInvitationsView.listLabel')}>
             {rows.map((invitation) => (
               <li key={invitation.id} className="tm-row">
                 <strong>{invitation.email}</strong>
                 <span className="tm-muted">{describeInternalRole(invitation.role).label}</span>
-                <span>Invited by {invitation.invitedByName}</span>
-                <span>Expires {formatMoment(invitation.expiresAt)}</span>
-                {invitation.isExpired ? <Badge>Expired</Badge> : null}
+                <span>
+                  {t('AdminInvitationsView.invitedByPrefix')} {invitation.invitedByName}
+                </span>
+                <span>
+                  {t('AdminInvitationsView.expiresPrefix')} {formatMoment(invitation.expiresAt)}
+                </span>
+                {invitation.isExpired ? (
+                  <Badge>{t('AdminInvitationsView.expiredBadge')}</Badge>
+                ) : null}
                 <Button
                   type="button"
                   tone="ink"
                   size="accessible"
                   loading={revoke.isPending && revoke.variables === invitation.id}
-                  loadingLabel="Revoking"
+                  loadingLabel={t('AdminInvitationsView.revoking')}
                   onClick={() => {
                     if (!revoke.isPending) revoke.mutate(invitation.id);
                   }}
                 >
-                  Revoke
+                  {t('AdminInvitationsView.revoke')}
                 </Button>
               </li>
             ))}

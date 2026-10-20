@@ -10,6 +10,8 @@ import type { AdminOverviewView } from '../../lib/api/admin-overview';
 import { listAuditEvents } from '../../lib/api/admin-audit';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface AdminOverviewScreenProps {
   organizationSlug: string;
@@ -39,6 +41,7 @@ export function AdminOverviewScreen({
   client,
 }: AdminOverviewScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const overview = useQuery({
     queryKey: ['admin-overview', organizationSlug],
@@ -55,26 +58,26 @@ export function AdminOverviewScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="overview"
-      crumbs={['Overview']}
-      title="What needs a decision"
+      crumbs={[t('AdminOverviewScreen.crumbOverview')]}
+      title={t('AdminOverviewScreen.title')}
       actions={
         <Link
           href={`/${organizationSlug}/admin/audit`}
           className="tm-button tm-button--outline tm-button--compact"
         >
-          Everything is logged
+          {t('AdminOverviewScreen.everythingLogged')}
         </Link>
       }
       rail="sections"
     >
       <section aria-labelledby="tm-admin-overview-heading" className="tm-cc-column">
         <h2 id="tm-admin-overview-heading" className="tm-visually-hidden">
-          Organization health
+          {t('AdminOverviewScreen.orgHealthHeading')}
         </h2>
 
         {overview.isPending ? (
           <LoadingRegion
-            label="Loading the organization overview."
+            label={t('AdminOverviewScreen.loadingOverview')}
             className="tm-stack tm-stack--tight"
           >
             <Skeleton height="var(--row)" />
@@ -83,7 +86,7 @@ export function AdminOverviewScreen({
         ) : null}
 
         {overview.isError ? (
-          <InlineAlert tone="danger" title="Could not load the organization overview" live>
+          <InlineAlert tone="danger" title={t('AdminOverviewScreen.loadError')} live>
             {describe(overview.error)}
           </InlineAlert>
         ) : null}
@@ -96,21 +99,26 @@ export function AdminOverviewScreen({
       <section className="tm-cc-card" aria-labelledby="tm-admin-recent-heading">
         <div className="tm-cc-card__head">
           <h2 id="tm-admin-recent-heading" className="tm-cc-card__title">
-            Recent changes to the way this studio works
+            {t('AdminOverviewScreen.recentHeading')}
           </h2>
-          <Link href={`/${organizationSlug}/admin/audit`}>Open audit log</Link>
+          <Link href={`/${organizationSlug}/admin/audit`}>
+            {t('AdminOverviewScreen.openAuditLog')}
+          </Link>
         </div>
         {recent.isPending ? (
-          <LoadingRegion label="Loading recent changes." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('AdminOverviewScreen.loadingRecent')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
         {recent.isError ? <p className="tm-cc-note">{describe(recent.error)}</p> : null}
         {recent.isSuccess && recent.data.length === 0 ? (
-          <p className="tm-cc-note">Nothing has changed yet. Every change will be listed here.</p>
+          <p className="tm-cc-note">{t('AdminOverviewScreen.recentEmpty')}</p>
         ) : null}
         {recent.isSuccess && recent.data.length > 0 ? (
-          <ul className="tm-cc-recent" aria-label="Recent changes">
+          <ul className="tm-cc-recent" aria-label={t('AdminOverviewScreen.recentListLabel')}>
             {recent.data.map((event) => (
               <li key={event.id}>
                 <span className="tm-cc-recent__when">{formatWhen(event.occurredAt)}</span>
@@ -128,19 +136,34 @@ export function AdminOverviewScreen({
 /** The metric cards in the order they are shown, keyed to the fields the API returns. */
 const METRICS: readonly {
   id: Exclude<keyof AdminOverviewView, 'computedAt'>;
-  label: string;
-  source: string;
+  labelKey: MessageKey;
+  sourceKey: MessageKey;
   kind: 'count' | 'bytes';
 }[] = [
-  { id: 'activeMembers', label: 'active members', source: 'Members', kind: 'count' },
-  { id: 'seatsUsed', label: 'seats used', source: 'Billing', kind: 'count' },
   {
-    id: 'auditEventsWindow',
-    label: 'audit events in the window',
-    source: 'Audit log',
+    id: 'activeMembers',
+    labelKey: 'AdminOverviewScreen.metricActiveMembers',
+    sourceKey: 'AdminOverviewScreen.metricSourceMembers',
     kind: 'count',
   },
-  { id: 'storageBytesUsed', label: 'storage used', source: 'Files', kind: 'bytes' },
+  {
+    id: 'seatsUsed',
+    labelKey: 'AdminOverviewScreen.metricSeatsUsed',
+    sourceKey: 'AdminOverviewScreen.metricSourceBilling',
+    kind: 'count',
+  },
+  {
+    id: 'auditEventsWindow',
+    labelKey: 'AdminOverviewScreen.metricAuditEventsWindow',
+    sourceKey: 'AdminOverviewScreen.metricSourceAuditLog',
+    kind: 'count',
+  },
+  {
+    id: 'storageBytesUsed',
+    labelKey: 'AdminOverviewScreen.metricStorageUsed',
+    sourceKey: 'AdminOverviewScreen.metricSourceFiles',
+    kind: 'bytes',
+  },
 ];
 
 function OverviewMetrics({
@@ -150,6 +173,7 @@ function OverviewMetrics({
   organizationSlug: string;
   overview: AdminOverviewView;
 }) {
+  const t = useT();
   const leaving = overview.openOffboardings;
   return (
     <>
@@ -157,17 +181,17 @@ function OverviewMetrics({
         <div className="tm-stack tm-stack--tight">
           <p className="tm-cc-eyebrow">
             <span className="tm-cc-orb" aria-hidden="true" />
-            {leaving > 0 ? 'Act first' : 'All clear'}
+            {leaving > 0 ? t('AdminOverviewScreen.actFirst') : t('AdminOverviewScreen.allClear')}
           </p>
           <p className="tm-cc-card__lead">
             {leaving > 0
-              ? `${leaving} ${leaving === 1 ? 'offboarding is' : 'offboardings are'} in progress — transfer what they own before access ends`
-              : 'Nobody is being offboarded and nothing is waiting on an owner decision'}
+              ? `${leaving} ${leaving === 1 ? t('AdminOverviewScreen.offboardingIs') : t('AdminOverviewScreen.offboardingsAre')} ${t('AdminOverviewScreen.leadInProgressRest')}`
+              : t('AdminOverviewScreen.leadAllClear')}
           </p>
           <p className="tm-cc-card__body">
             {leaving > 0
-              ? 'Review the impact so no work item or milestone lands unowned.'
-              : `Computed ${formatMoment(overview.computedAt)} from live counts.`}
+              ? t('AdminOverviewScreen.bodyReview')
+              : `${t('AdminOverviewScreen.computedPrefix')} ${formatMoment(overview.computedAt)} ${t('AdminOverviewScreen.computedSuffix')}`}
           </p>
         </div>
         {leaving > 0 ? (
@@ -176,24 +200,26 @@ function OverviewMetrics({
               href={`/${organizationSlug}/people/offboarding`}
               className="tm-button tm-button--lime"
             >
-              Review offboarding impact
+              {t('AdminOverviewScreen.reviewOffboardingImpact')}
             </Link>
           </div>
         ) : null}
       </div>
 
-      <ul className="tm-cc-metrics" aria-label="Organization health">
-        {METRICS.map(({ id, label, source, kind }) => (
+      <ul className="tm-cc-metrics" aria-label={t('AdminOverviewScreen.metricsListLabel')}>
+        {METRICS.map(({ id, labelKey, sourceKey, kind }) => (
           <li className="tm-cc-metric" key={id}>
             <p className="tm-cc-metric__value">
               {kind === 'bytes' ? formatBytes(overview.storageBytesUsed) : overview[id]}
             </p>
             <p className="tm-cc-metric__label">
               {id === 'auditEventsWindow'
-                ? `audit events in ${overview.auditWindowDays} days`
-                : label}
+                ? `${t('AdminOverviewScreen.metricAuditEventsInPrefix')} ${overview.auditWindowDays} ${t('AdminOverviewScreen.metricDaysSuffix')}`
+                : t(labelKey)}
             </p>
-            <p className="tm-cc-metric__source">Source · {source}</p>
+            <p className="tm-cc-metric__source">
+              {t('AdminOverviewScreen.sourcePrefix')} {t(sourceKey)}
+            </p>
           </li>
         ))}
       </ul>

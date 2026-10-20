@@ -13,6 +13,7 @@ import {
 import type { A11yFontScale, A11yPreferencesView } from '../../lib/api/a11y-preferences';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import { PreferenceToggle } from './PreferencesScreen';
 import '../../styles/screens/preferences.css';
 
@@ -24,13 +25,6 @@ export interface AccessibilityScreenProps {
 
 /** The default an unsaved account reads by; the same values the API's `DEFAULT_A11Y_PREFERENCES` holds. */
 const DEFAULTS: A11yPreferencesView = { fontScale: 'md', reduceMotion: false, highContrast: false };
-
-const FONT_SCALE_LABELS: Record<A11yFontScale, string> = {
-  sm: 'Small',
-  md: 'Medium',
-  lg: 'Large',
-  xl: 'Extra large',
-};
 
 /** The root font size each step sets (globals.css `data-tm-font-scale`), as the read-out shows it. */
 const FONT_SCALE_PERCENT: Record<A11yFontScale, string> = {
@@ -83,6 +77,14 @@ export function AccessibilityScreen({
 }: AccessibilityScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
+
+  const fontScaleLabels: Record<A11yFontScale, string> = {
+    sm: t('AccessibilityScreen.fontScaleSmall'),
+    md: t('AccessibilityScreen.fontScaleMedium'),
+    lg: t('AccessibilityScreen.fontScaleLarge'),
+    xl: t('AccessibilityScreen.fontScaleExtraLarge'),
+  };
 
   const preferences = useQuery({
     queryKey: ['a11y-preferences', organizationSlug],
@@ -121,15 +123,15 @@ export function AccessibilityScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Preferences · Accessibility"
-      title="Accessibility"
+      eyebrow={t('AccessibilityScreen.eyebrow')}
+      title={t('AccessibilityScreen.title')}
     >
       {preferences.isPending ? (
-        <LoadingRegion label="Loading your accessibility preferences">
+        <LoadingRegion label={t('AccessibilityScreen.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : preferences.isError ? (
-        <InlineAlert tone="danger" title="We could not load your accessibility preferences">
+        <InlineAlert tone="danger" title={t('AccessibilityScreen.loadError')}>
           {errorMessage(preferences.error)}
         </InlineAlert>
       ) : (
@@ -145,11 +147,11 @@ export function AccessibilityScreen({
               }}
             >
               <h2 id="tm-a11y-heading" className="tm-visually-hidden">
-                Display preferences
+                {t('AccessibilityScreen.displayHeading')}
               </h2>
 
               <fieldset className="tm-prefs-section">
-                <legend className="tm-prefs-eyebrow">Text size</legend>
+                <legend className="tm-prefs-eyebrow">{t('AccessibilityScreen.textSize')}</legend>
                 <div className="tm-prefs-scale">
                   <span className="tm-prefs-scale__a" aria-hidden="true">
                     A
@@ -165,7 +167,7 @@ export function AccessibilityScreen({
                           checked={fontScale === scale}
                           onChange={() => setFontScale(scale)}
                         />
-                        {FONT_SCALE_LABELS[scale]}
+                        {fontScaleLabels[scale]}
                       </label>
                     ))}
                   </div>
@@ -179,27 +181,27 @@ export function AccessibilityScreen({
               <hr className="tm-prefs-rule" />
 
               <PreferenceToggle
-                label="High contrast theme"
-                hint="2px borders, no grey-on-grey, lime only for current"
+                label={t('AccessibilityScreen.highContrastLabel')}
+                hint={t('AccessibilityScreen.highContrastHint')}
                 checked={highContrast}
                 onChange={(event) => setHighContrast(event.target.checked)}
               />
               <PreferenceToggle
-                label="Reduce motion"
-                hint="panels appear instead of sliding"
+                label={t('AccessibilityScreen.reduceMotionLabel')}
+                hint={t('AccessibilityScreen.reduceMotionHint')}
                 checked={reduceMotion}
                 onChange={(event) => setReduceMotion(event.target.checked)}
               />
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="We could not save your preferences">
+                <InlineAlert tone="danger" title={t('AccessibilityScreen.saveError')}>
                   {errorMessage(save.error)}
                 </InlineAlert>
               ) : null}
 
               {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Saved">
-                  Your accessibility preferences have been saved.
+                <InlineAlert tone="success" title={t('AccessibilityScreen.savedTitle')}>
+                  {t('AccessibilityScreen.savedBody')}
                 </InlineAlert>
               ) : null}
 
@@ -209,7 +211,7 @@ export function AccessibilityScreen({
                   className="tm-prefs-capsule tm-prefs-capsule--ink"
                   disabled={save.isPending}
                 >
-                  {save.isPending ? 'Saving…' : 'Save preferences'}
+                  {save.isPending ? t('AccessibilityScreen.saving') : t('AccessibilityScreen.save')}
                 </button>
               </div>
             </form>
@@ -217,27 +219,28 @@ export function AccessibilityScreen({
 
           <aside className="tm-prefs__side" aria-labelledby="tm-a11y-sample-heading">
             <h2 id="tm-a11y-sample-heading" className="tm-prefs-eyebrow">
-              Sample with these settings
+              {t('AccessibilityScreen.sampleHeading')}
             </h2>
             <div className="tm-prefs-card tm-prefs-card--grow" aria-hidden="true">
               <div className="tm-prefs-pills">
-                <span className="tm-prefs-pill">Current · in progress</span>
-                <span className="tm-prefs-pill tm-prefs-pill--warn">At risk · blocked</span>
+                <span className="tm-prefs-pill">{t('AccessibilityScreen.sampleCurrent')}</span>
+                <span className="tm-prefs-pill tm-prefs-pill--warn">
+                  {t('AccessibilityScreen.sampleAtRisk')}
+                </span>
               </div>
               <p className="tm-prefs-line">
                 <span className="tm-prefs-line__mark" />
-                Client visible — the client can open this
+                {t('AccessibilityScreen.sampleClientVisible')}
               </p>
               <p className="tm-prefs-line">
                 <span className="tm-prefs-line__bang">!</span>
-                Client action required — waiting 26 hours
+                {t('AccessibilityScreen.sampleClientAction')}
               </p>
               <hr className="tm-prefs-rule" />
-              <span className="tm-prefs-focused">Focused button</span>
+              <span className="tm-prefs-focused">{t('AccessibilityScreen.sampleFocused')}</span>
               <p className="tm-prefs-card__body">
-                Text renders at {FONT_SCALE_PERCENT[fontScale]}. Every status carries a word as well
-                as a colour, and the focus ring is lime over an ink outline so it survives both
-                themes.
+                {t('AccessibilityScreen.sampleBodyPrefix')} {FONT_SCALE_PERCENT[fontScale]}.{' '}
+                {t('AccessibilityScreen.sampleBodyRest')}
               </p>
             </div>
           </aside>

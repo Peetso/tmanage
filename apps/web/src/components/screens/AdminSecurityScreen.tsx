@@ -11,6 +11,7 @@ import { listOrgSessions } from '../../lib/api/admin-sessions';
 import { shortDevice, sinceLabel } from '../admin/format';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AdminSecurityScreenProps {
   organizationSlug: string;
@@ -34,6 +35,7 @@ export function AdminSecurityScreen({
 }: AdminSecurityScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const settings = useQuery({
     queryKey: ['admin-security', organizationSlug],
@@ -78,31 +80,31 @@ export function AdminSecurityScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="security"
-      crumbs={['Security']}
-      title="How people get in"
+      crumbs={[t('AdminSecurityScreen.crumbSecurity')]}
+      title={t('AdminSecurityScreen.title')}
       actions={
         <Link
           href={`/${organizationSlug}/admin/audit`}
           className="tm-button tm-button--outline tm-button--compact"
         >
-          Security events in the audit log
+          {t('AdminSecurityScreen.auditLogLink')}
         </Link>
       }
     >
       <div className="tm-cc-split tm-cc-split--even">
         <section className="tm-cc-card" aria-labelledby="tm-admin-security-heading">
           <h2 id="tm-admin-security-heading" className="tm-visually-hidden">
-            Security
+            {t('AdminSecurityScreen.securityHeading')}
           </h2>
 
           {settings.isError ? (
-            <InlineAlert tone="danger" title="Could not load the security settings" live>
+            <InlineAlert tone="danger" title={t('AdminSecurityScreen.loadError')} live>
               {describeError(settings.error)}
             </InlineAlert>
           ) : null}
 
           {settings.isPending ? (
-            <LoadingRegion label="Loading the security settings.">
+            <LoadingRegion label={t('AdminSecurityScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
@@ -112,7 +114,7 @@ export function AdminSecurityScreen({
             <form
               className="tm-stack"
               noValidate
-              aria-label="Security settings"
+              aria-label={t('AdminSecurityScreen.formLabel')}
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 setSaved(false);
@@ -122,8 +124,8 @@ export function AdminSecurityScreen({
               <ul className="tm-cc-rows">
                 <li>
                   <Switch
-                    label="Require two-factor authentication"
-                    hint="Every member must enrol a second factor to sign in."
+                    label={t('AdminSecurityScreen.require2faLabel')}
+                    hint={t('AdminSecurityScreen.require2faHint')}
                     checked={enforce2fa}
                     disabled={save.isPending}
                     onChange={(event) => {
@@ -132,45 +134,49 @@ export function AdminSecurityScreen({
                     }}
                   />
                   <span className={enforce2fa ? 'tm-cc-pill tm-cc-pill--on' : 'tm-cc-pill'}>
-                    {enforce2fa ? 'On' : 'Off'}
+                    {enforce2fa
+                      ? t('AdminSecurityScreen.pillOn')
+                      : t('AdminSecurityScreen.pillOff')}
                   </span>
                 </li>
                 <li>
                   <div className="tm-cc-rows__text">
-                    <p className="tm-cc-rows__title">Session length</p>
-                    <p className="tm-cc-rows__sub">
-                      How long a sign-in lasts before it is asked again
+                    <p className="tm-cc-rows__title">
+                      {t('AdminSecurityScreen.sessionLengthTitle')}
                     </p>
+                    <p className="tm-cc-rows__sub">{t('AdminSecurityScreen.sessionLengthSub')}</p>
                   </div>
                   <Link
                     href={`/${organizationSlug}/policies`}
                     className="tm-button tm-button--outline tm-button--compact"
                   >
-                    Edit
+                    {t('AdminSecurityScreen.edit')}
                   </Link>
                 </li>
                 <li>
                   <div className="tm-cc-rows__text">
-                    <p className="tm-cc-rows__title">Trusted network ranges</p>
-                    <p className="tm-cc-rows__sub">Record the networks your studio works from</p>
+                    <p className="tm-cc-rows__title">
+                      {t('AdminSecurityScreen.trustedRangesTitle')}
+                    </p>
+                    <p className="tm-cc-rows__sub">{t('AdminSecurityScreen.trustedRangesSub')}</p>
                   </div>
                   <Link
                     href={`/${organizationSlug}/admin/ip-allowlist`}
                     className="tm-button tm-button--outline tm-button--compact"
                   >
-                    Ranges
+                    {t('AdminSecurityScreen.ranges')}
                   </Link>
                 </li>
               </ul>
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="Could not save the security settings" live>
+                <InlineAlert tone="danger" title={t('AdminSecurityScreen.saveError')} live>
                   {describeError(save.error)}
                 </InlineAlert>
               ) : null}
               {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Saved" live>
-                  Security settings have been updated for the whole organization.
+                <InlineAlert tone="success" title={t('AdminSecurityScreen.savedTitle')} live>
+                  {t('AdminSecurityScreen.savedBody')}
                 </InlineAlert>
               ) : null}
 
@@ -180,9 +186,9 @@ export function AdminSecurityScreen({
                   tone="ink"
                   size="accessible"
                   loading={save.isPending}
-                  loadingLabel="Saving"
+                  loadingLabel={t('AdminSecurityScreen.saving')}
                 >
-                  Save
+                  {t('AdminSecurityScreen.save')}
                 </Button>
               </div>
             </form>
@@ -195,29 +201,32 @@ export function AdminSecurityScreen({
               className="tm-cc-card tm-cc-card--attention"
               aria-labelledby="tm-admin-security-look"
             >
-              <p className="tm-cc-eyebrow tm-cc-eyebrow--warning">One thing to look at</p>
-              <h2 id="tm-admin-security-look" className="tm-cc-card__lead">
-                Two-factor sign-in is not required, so one stolen password is enough to get in
-              </h2>
-              <p className="tm-cc-card__body">
-                Turning it on records the policy for everyone in this organization. Members enrol
-                their second factor from their own preferences.
+              <p className="tm-cc-eyebrow tm-cc-eyebrow--warning">
+                {t('AdminSecurityScreen.oneThing')}
               </p>
+              <h2 id="tm-admin-security-look" className="tm-cc-card__lead">
+                {t('AdminSecurityScreen.noTwoFactorLead')}
+              </h2>
+              <p className="tm-cc-card__body">{t('AdminSecurityScreen.noTwoFactorBody')}</p>
             </section>
           ) : null}
 
           <section
             className="tm-cc-card tm-cc-card--flush tm-cc-card--fill"
-            aria-label="Active sessions"
+            aria-label={t('AdminSecurityScreen.activeSessionsLabel')}
           >
-            <table className="tm-table tm-cc-table" aria-label="Active sessions">
+            <table
+              className="tm-table tm-cc-table"
+              aria-label={t('AdminSecurityScreen.sessionsTableLabel')}
+            >
               <thead>
                 <tr>
                   <th scope="col">
-                    Active sessions{sessions.isSuccess ? ` · ${sessionRows.length}` : ''}
+                    {t('AdminSecurityScreen.colActiveSessions')}
+                    {sessions.isSuccess ? ` · ${sessionRows.length}` : ''}
                   </th>
                   <th scope="col" className="tm-cc-end">
-                    Last seen
+                    {t('AdminSecurityScreen.colLastSeen')}
                   </th>
                 </tr>
               </thead>
@@ -229,7 +238,7 @@ export function AdminSecurityScreen({
                         {session.memberName} · {shortDevice(session.deviceLabel)}
                       </span>
                       <span className="tm-cc-cell-sub">
-                        signed in {formatMoment(session.createdAt)}
+                        {t('AdminSecurityScreen.signedInPrefix')} {formatMoment(session.createdAt)}
                       </span>
                     </td>
                     <td className="tm-cc-end">
@@ -240,18 +249,20 @@ export function AdminSecurityScreen({
               </tbody>
             </table>
             <div className="tm-cc-card__inset tm-row tm-row--between">
-              {sessions.isPending ? <p className="tm-cc-note">Loading active sessions…</p> : null}
+              {sessions.isPending ? (
+                <p className="tm-cc-note">{t('AdminSecurityScreen.loadingSessionsNote')}</p>
+              ) : null}
               {sessions.isError ? (
                 <p className="tm-cc-note">{describeError(sessions.error)}</p>
               ) : null}
               {sessions.isSuccess && sessionRows.length === 0 ? (
-                <p className="tm-cc-note">Nobody is signed in right now.</p>
+                <p className="tm-cc-note">{t('AdminSecurityScreen.nobodySignedIn')}</p>
               ) : null}
               <Link
                 href={`/${organizationSlug}/admin/sessions`}
                 className="tm-button tm-button--outline tm-button--compact"
               >
-                See every session
+                {t('AdminSecurityScreen.seeEverySession')}
               </Link>
             </div>
           </section>

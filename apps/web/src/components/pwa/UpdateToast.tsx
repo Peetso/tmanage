@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Toast, ToastRegion } from '@tmanage/ui';
+import { useT } from '../../lib/i18n/use-t';
 import { deriveUpdateToastState, SKIP_WAITING_MESSAGE } from './update-toast-state';
 
 /**
@@ -18,6 +19,7 @@ import { deriveUpdateToastState, SKIP_WAITING_MESSAGE } from './update-toast-sta
  * without service-worker support.
  */
 export function UpdateToast() {
+  const t = useT();
   const [hasWaitingWorker, setHasWaitingWorker] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const waitingWorker = useRef<ServiceWorker | null>(null);
@@ -100,10 +102,10 @@ export function UpdateToast() {
   return (
     <ToastRegion>
       {state === 'available' ? (
-        <Toast tone="neutral" onDismiss={dismiss} dismissLabel="Dismiss update notice">
-          <span className="tm-toast__body">A new version of TManage is available.</span>
+        <Toast tone="neutral" onDismiss={dismiss} dismissLabel={t('UpdateToast.dismissLabel')}>
+          <span className="tm-toast__body">{t('UpdateToast.body')}</span>
           <Button type="button" tone="text" size="compact" onClick={reload}>
-            Reload
+            {t('UpdateToast.reload')}
           </Button>
         </Toast>
       ) : null}

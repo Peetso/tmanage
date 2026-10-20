@@ -9,6 +9,7 @@ import {
 } from '../../lib/api/approval-steps';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ApprovalStepsViewProps {
   organizationSlug: string;
@@ -20,12 +21,6 @@ function describe(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
   return 'Something went wrong. Try again.';
-}
-
-function stateLabel(state: ApprovalStep['state']): string {
-  if (state === 'approved') return 'Approved';
-  if (state === 'rejected') return 'Rejected';
-  return 'Pending';
 }
 
 /**
@@ -41,7 +36,14 @@ function stateLabel(state: ApprovalStep['state']): string {
  */
 export function ApprovalStepsView({ organizationSlug, approvalId, api }: ApprovalStepsViewProps) {
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['approval-steps', organizationSlug, approvalId] as const;
+
+  const stateLabel = (state: ApprovalStep['state']): string => {
+    if (state === 'approved') return t('ApprovalStepsView.stateApproved');
+    if (state === 'rejected') return t('ApprovalStepsView.stateRejected');
+    return t('ApprovalStepsView.statePending');
+  };
 
   const chain = useQuery({
     queryKey,
@@ -63,33 +65,33 @@ export function ApprovalStepsView({ organizationSlug, approvalId, api }: Approva
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-approval-steps">
       <h2 id="tm-approval-steps" className="tm-eyebrow">
-        Approval steps
+        {t('ApprovalStepsView.heading')}
       </h2>
 
       {decide.isError ? (
-        <InlineAlert tone="danger" title="That decision did not go through" live>
+        <InlineAlert tone="danger" title={t('ApprovalStepsView.decisionError')} live>
           {describe(decide.error)}
         </InlineAlert>
       ) : null}
 
       {chain.isPending ? (
-        <LoadingRegion label="Loading the approval chain.">
+        <LoadingRegion label={t('ApprovalStepsView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {chain.isError ? (
-        <InlineAlert tone="danger" title="Could not load the approval chain" live>
+        <InlineAlert tone="danger" title={t('ApprovalStepsView.loadError')} live>
           {describe(chain.error)}
         </InlineAlert>
       ) : null}
 
       {chain.data ? (
         steps.length === 0 ? (
-          <p className="tm-prose">No approval steps have been defined yet.</p>
+          <p className="tm-prose">{t('ApprovalStepsView.empty')}</p>
         ) : (
-          <ol className="tm-list" aria-label="Approval steps in order">
+          <ol className="tm-list" aria-label={t('ApprovalStepsView.listLabel')}>
             {steps.map((step) => {
               const isActive = step.id === activeStepId;
               return (
@@ -100,8 +102,10 @@ export function ApprovalStepsView({ organizationSlug, approvalId, api }: Approva
                   data-active={isActive ? 'true' : undefined}
                 >
                   <p className="tm-prose">
-                    <span className="tm-eyebrow">Step {step.position + 1}</span> —{' '}
-                    {step.approverRole}
+                    <span className="tm-eyebrow">
+                      {t('ApprovalStepsView.stepPrefix')} {step.position + 1}
+                    </span>{' '}
+                    — {step.approverRole}
                   </p>
                   <span className="tm-eyebrow">{stateLabel(step.state)}</span>
                   {isActive ? (
@@ -112,10 +116,10 @@ export function ApprovalStepsView({ organizationSlug, approvalId, api }: Approva
                         size="accessible"
                         disabled={pending}
                         loading={pending}
-                        loadingLabel="Recording"
+                        loadingLabel={t('ApprovalStepsView.recording')}
                         onClick={() => decide.mutate({ stepId: step.id, decision: 'approve' })}
                       >
-                        Approve
+                        {t('ApprovalStepsView.approve')}
                       </Button>
                       <Button
                         type="button"
@@ -124,7 +128,7 @@ export function ApprovalStepsView({ organizationSlug, approvalId, api }: Approva
                         disabled={pending}
                         onClick={() => decide.mutate({ stepId: step.id, decision: 'reject' })}
                       >
-                        Reject
+                        {t('ApprovalStepsView.reject')}
                       </Button>
                     </div>
                   ) : null}

@@ -19,6 +19,8 @@ import type {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
 import '../../styles/screens/ai-assistant.css';
 
@@ -54,7 +56,25 @@ export function AiAssistantScreen({
 }: AiAssistantScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['personal-access-tokens', organizationSlug] as const;
+
+  const statusLabel: Record<ConnectionStatus['kind'], string> = {
+    connected: t('AiAssistantScreen.statusConnected'),
+    waiting: t('AiAssistantScreen.statusWaiting'),
+    off: t('AiAssistantScreen.statusOff'),
+  };
+
+  const statusDetail = (status: ConnectionStatus): string => {
+    switch (status.kind) {
+      case 'connected':
+        return `${t('AiAssistantScreen.statusDetailConnectedPrefix')} ${formatDateTime(status.lastUsedAt)} ${t('AiAssistantScreen.statusDetailConnectedWith')} “${status.tokenName}”.`;
+      case 'waiting':
+        return t('AiAssistantScreen.statusDetailWaiting');
+      case 'off':
+        return t('AiAssistantScreen.statusDetailOff');
+    }
+  };
   // Read after hydration: a same-origin deployment's address is the browser's own origin, which
   // the server render cannot know.
   const hydrated = useHydrated();
@@ -98,16 +118,16 @@ export function AiAssistantScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Settings · AI assistant"
-      title="AI assistant"
-      description="Use the AI assistant you already have (Claude, ChatGPT or another) inside TManage. It can search, read your work, create tasks and comment, always with your permissions and nothing more."
+      eyebrow={t('AiAssistantScreen.eyebrow')}
+      title={t('AiAssistantScreen.title')}
+      description={t('AiAssistantScreen.description')}
       contextRail={<PreferencesNav organizationSlug={organizationSlug} current="ai-assistant" />}
     >
       <div className="tm-prefs tm-ai">
         <div className="tm-prefs__main">
           <section className="tm-prefs-card" aria-labelledby="tm-ai-how-heading">
             <h2 id="tm-ai-how-heading" className="tm-prefs-eyebrow">
-              How it works
+              {t('AiAssistantScreen.howItWorks')}
             </h2>
             <ol className="tm-ai-steps">
               <li className="tm-ai-step">
@@ -115,11 +135,8 @@ export function AiAssistantScreen({
                   1
                 </span>
                 <span className="tm-ai-step__text">
-                  <span className="tm-prefs-card__lead">Create a key</span>
-                  <span className="tm-prefs-card__body">
-                    A key lets your assistant sign in to TManage as you. It can only do what you can
-                    do, and you can switch it off at any time.
-                  </span>
+                  <span className="tm-prefs-card__lead">{t('AiAssistantScreen.step1Lead')}</span>
+                  <span className="tm-prefs-card__body">{t('AiAssistantScreen.step1Body')}</span>
                 </span>
               </li>
               <li className="tm-ai-step">
@@ -127,11 +144,8 @@ export function AiAssistantScreen({
                   2
                 </span>
                 <span className="tm-ai-step__text">
-                  <span className="tm-prefs-card__lead">Add TManage to your assistant</span>
-                  <span className="tm-prefs-card__body">
-                    Copy the settings below into Claude, ChatGPT or any assistant that supports MCP
-                    connectors.
-                  </span>
+                  <span className="tm-prefs-card__lead">{t('AiAssistantScreen.step2Lead')}</span>
+                  <span className="tm-prefs-card__body">{t('AiAssistantScreen.step2Body')}</span>
                 </span>
               </li>
               <li className="tm-ai-step">
@@ -139,38 +153,36 @@ export function AiAssistantScreen({
                   3
                 </span>
                 <span className="tm-ai-step__text">
-                  <span className="tm-prefs-card__lead">Ask it about your work</span>
-                  <span className="tm-prefs-card__body">
-                    For example: “What is overdue for me this week?” or “Create a task to review the
-                    homepage copy.”
-                  </span>
+                  <span className="tm-prefs-card__lead">{t('AiAssistantScreen.step3Lead')}</span>
+                  <span className="tm-prefs-card__body">{t('AiAssistantScreen.step3Body')}</span>
                 </span>
               </li>
             </ol>
-            <p className="tm-prefs-card__note">
-              TManage does not charge for AI and does not send your work to an AI company. Your own
-              assistant does the thinking, under your own account with that company.
-            </p>
+            <p className="tm-prefs-card__note">{t('AiAssistantScreen.noChargeNote')}</p>
           </section>
 
           <section className="tm-prefs-card" aria-labelledby="tm-ai-connect-heading">
             <h2 id="tm-ai-connect-heading" className="tm-prefs-card__title">
-              Connection details
+              {t('AiAssistantScreen.connectionDetails')}
             </h2>
 
             <div className="tm-ai-detail">
               <span className="tm-prefs-field__label" id="tm-ai-address-label">
-                TManage address
+                {t('AiAssistantScreen.addressLabel')}
               </span>
               <span className="tm-ai-detail__row">
                 <code className="tm-prefs-secret" aria-labelledby="tm-ai-address-label">
                   {address}
                 </code>
-                <CopyButton text={address} label="Copy address" />
+                <CopyButton text={address} label={t('AiAssistantScreen.copyAddress')} />
               </span>
             </div>
 
-            <div className="tm-ai-tabs" role="tablist" aria-label="Choose your assistant">
+            <div
+              className="tm-ai-tabs"
+              role="tablist"
+              aria-label={t('AiAssistantScreen.chooseAssistant')}
+            >
               {ASSISTANTS.map((option) => (
                 <button
                   key={option.id}
@@ -190,9 +202,7 @@ export function AiAssistantScreen({
             <AssistantPanel assistant={assistant} address={address} token={tokenForSnippet} />
 
             {created === null ? (
-              <p className="tm-prefs-card__note">
-                When you create a key, it is filled in here for you.
-              </p>
+              <p className="tm-prefs-card__note">{t('AiAssistantScreen.keyFilledNote')}</p>
             ) : null}
           </section>
         </div>
@@ -203,21 +213,21 @@ export function AiAssistantScreen({
             aria-labelledby="tm-ai-status-heading"
           >
             <h2 id="tm-ai-status-heading" className="tm-prefs-eyebrow">
-              Status
+              {t('AiAssistantScreen.statusHeading')}
             </h2>
             {tokens.isPending ? (
-              <LoadingRegion label="Loading the connection status">
+              <LoadingRegion label={t('AiAssistantScreen.loadingStatus')}>
                 <Skeleton />
               </LoadingRegion>
             ) : tokens.isError ? (
-              <InlineAlert tone="danger" title="We could not load your keys">
+              <InlineAlert tone="danger" title={t('AiAssistantScreen.loadKeysError')}>
                 {errorMessage(tokens.error)}
               </InlineAlert>
             ) : (
               <p className="tm-ai-status" data-testid="tm-ai-status">
                 <span className={`tm-prefs-dot ${STATUS_DOT[status.kind]}`} aria-hidden="true" />
                 <span className="tm-ai-status__text">
-                  <span className="tm-prefs-card__lead">{STATUS_LABEL[status.kind]}</span>
+                  <span className="tm-prefs-card__lead">{statusLabel[status.kind]}</span>
                   <span className="tm-prefs-card__body">{statusDetail(status)}</span>
                 </span>
               </p>
@@ -234,11 +244,11 @@ export function AiAssistantScreen({
             }}
           >
             <h2 id="tm-ai-create-heading" className="tm-prefs-card__title">
-              Create a key
+              {t('AiAssistantScreen.createKeyHeading')}
             </h2>
             <div className="tm-prefs-field">
               <label className="tm-prefs-field__label" htmlFor="tm-ai-key-name">
-                Name
+                {t('AiAssistantScreen.nameLabel')}
               </label>
               <input
                 id="tm-ai-key-name"
@@ -246,28 +256,25 @@ export function AiAssistantScreen({
                 type="text"
                 value={name}
                 maxLength={190}
-                placeholder="e.g. Claude on my laptop"
+                placeholder={t('AiAssistantScreen.namePlaceholder')}
                 onChange={(event) => setName(event.target.value)}
                 required
               />
             </div>
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="We could not create the key">
+              <InlineAlert tone="danger" title={t('AiAssistantScreen.createKeyError')}>
                 {errorMessage(create.error)}
               </InlineAlert>
             ) : null}
 
             {created ? (
-              <InlineAlert tone="success" title="Key created. Copy it now">
-                <p>
-                  This is the only time the key is shown. It is already filled in the connection
-                  settings. If you lose it, switch it off and create a new one.
-                </p>
+              <InlineAlert tone="success" title={t('AiAssistantScreen.keyCreatedTitle')}>
+                <p>{t('AiAssistantScreen.keyCreatedBody')}</p>
                 <code className="tm-prefs-secret" data-testid="tm-ai-secret">
                   {created.token}
                 </code>
-                <CopyButton text={created.token} label="Copy key" />
+                <CopyButton text={created.token} label={t('AiAssistantScreen.copyKey')} />
               </InlineAlert>
             ) : null}
 
@@ -277,17 +284,19 @@ export function AiAssistantScreen({
                 className="tm-prefs-capsule tm-prefs-capsule--ink"
                 disabled={create.isPending || name.trim() === ''}
               >
-                {create.isPending ? 'Creating…' : 'Create key'}
+                {create.isPending
+                  ? t('AiAssistantScreen.creating')
+                  : t('AiAssistantScreen.createKey')}
               </button>
             </div>
           </form>
 
           <section className="tm-prefs-card" aria-labelledby="tm-ai-keys-heading">
             <h2 id="tm-ai-keys-heading" className="tm-prefs-card__title">
-              Your keys
+              {t('AiAssistantScreen.yourKeys')}
             </h2>
             {tokens.isSuccess && active.length === 0 ? (
-              <p className="tm-prefs-card__body">You have no active keys.</p>
+              <p className="tm-prefs-card__body">{t('AiAssistantScreen.noActiveKeys')}</p>
             ) : null}
             {active.length > 0 ? (
               <ul className="tm-prefs-tokens">
@@ -297,33 +306,37 @@ export function AiAssistantScreen({
                       <span className="tm-prefs-token__name">{token.name}</span>
                       <span className="tm-prefs-token__meta">
                         {token.lastUsedAt
-                          ? `Last used ${formatDate(token.lastUsedAt)}`
-                          : 'Not used yet'}
-                        {token.expiresAt ? ` · expires ${formatDate(token.expiresAt)}` : ''}
+                          ? `${t('AiAssistantScreen.lastUsedPrefix')} ${formatDate(token.lastUsedAt)}`
+                          : t('AiAssistantScreen.notUsedYet')}
+                        {token.expiresAt
+                          ? ` ${t('AiAssistantScreen.expiresConnector')} ${formatDate(token.expiresAt)}`
+                          : ''}
                       </span>
                     </span>
                     <button
                       type="button"
                       className="tm-prefs-capsule"
-                      aria-label={`Revoke ${token.name}`}
+                      aria-label={`${t('AiAssistantScreen.revokeAria')} ${token.name}`}
                       disabled={revoke.isPending}
                       onClick={() => revoke.mutate(token.id)}
                     >
-                      Revoke
+                      {t('AiAssistantScreen.revoke')}
                     </button>
                   </li>
                 ))}
               </ul>
             ) : null}
             {revoke.isError ? (
-              <InlineAlert tone="danger" title="We could not revoke that key">
+              <InlineAlert tone="danger" title={t('AiAssistantScreen.revokeKeyError')}>
                 {errorMessage(revoke.error)}
               </InlineAlert>
             ) : null}
             <p className="tm-prefs-card__note">
-              Revoking a key disconnects the assistant using it straight away. All your keys,
-              including revoked ones, are listed under{' '}
-              <Link href={`/${organizationSlug}/settings/security`}>Access tokens</Link>.
+              {t('AiAssistantScreen.revokeNotePrefix')}{' '}
+              <Link href={`/${organizationSlug}/settings/security`}>
+                {t('AiAssistantScreen.accessTokensLink')}
+              </Link>
+              .
             </p>
           </section>
         </div>
@@ -359,7 +372,8 @@ function AssistantPanel({
   address: string;
   token: string;
 }) {
-  const panel = assistantPanel(assistant, address, token);
+  const t = useT();
+  const panel = assistantPanel(t, assistant, address, token);
   return (
     <div
       id="tm-ai-panel"
@@ -379,7 +393,7 @@ function AssistantPanel({
           <pre className="tm-ai-snippet" data-testid="tm-ai-snippet">
             <code>{panel.snippet}</code>
           </pre>
-          <CopyButton text={panel.snippet} label="Copy settings" />
+          <CopyButton text={panel.snippet} label={t('AiAssistantScreen.copySettings')} />
         </>
       )}
     </div>
@@ -387,6 +401,7 @@ function AssistantPanel({
 }
 
 function assistantPanel(
+  t: (key: MessageKey) => string,
   assistant: AssistantId,
   address: string,
   token: string,
@@ -396,9 +411,9 @@ function assistantPanel(
     case 'claude-desktop':
       return {
         steps: [
-          'In Claude Desktop open Settings, then Developer, then Edit Config.',
-          'Paste the settings below, save, and restart Claude Desktop. They connect Claude to your TManage address with your key.',
-          'The TManage tools appear under the tools icon in a new chat.',
+          t('AiAssistantScreen.cdStep1'),
+          t('AiAssistantScreen.cdStep2'),
+          t('AiAssistantScreen.cdStep3'),
         ],
         snippet: JSON.stringify(
           {
@@ -415,7 +430,7 @@ function assistantPanel(
       };
     case 'claude-code':
       return {
-        steps: ['Run this once in a terminal. Claude Code then has the TManage tools.'],
+        steps: [t('AiAssistantScreen.ccStep1')],
         snippet: [
           `claude mcp add --transport http tmanage ${address} \\`,
           `  --header "${header}"`,
@@ -424,17 +439,15 @@ function assistantPanel(
     case 'chatgpt':
       return {
         steps: [
-          `ChatGPT connects to your TManage address: ${address}`,
-          'In ChatGPT open Settings, then Connectors, turn on developer mode and add a connector with that address.',
-          'When ChatGPT asks how to sign in, give it your key as a bearer token.',
+          `${t('AiAssistantScreen.cgStep1Prefix')} ${address}`,
+          t('AiAssistantScreen.cgStep2'),
+          t('AiAssistantScreen.cgStep3'),
         ],
         snippet: null,
       };
     case 'other':
       return {
-        steps: [
-          'Any assistant that supports MCP over Streamable HTTP can connect. Give it this address and this header:',
-        ],
+        steps: [t('AiAssistantScreen.otherStep1')],
         snippet: [`URL: ${address}`, header].join('\n'),
       };
   }
@@ -447,28 +460,11 @@ type ConnectionStatus =
   | { kind: 'waiting' }
   | { kind: 'off' };
 
-const STATUS_LABEL: Record<ConnectionStatus['kind'], string> = {
-  connected: 'Connected',
-  waiting: 'Waiting for your assistant',
-  off: 'Not connected',
-};
-
 const STATUS_DOT: Record<ConnectionStatus['kind'], string> = {
   connected: 'tm-prefs-dot--lime',
   waiting: 'tm-prefs-dot--warn',
   off: 'tm-prefs-dot--empty',
 };
-
-function statusDetail(status: ConnectionStatus): string {
-  switch (status.kind) {
-    case 'connected':
-      return `Last used ${formatDateTime(status.lastUsedAt)} with “${status.tokenName}”.`;
-    case 'waiting':
-      return 'You have a key, but no assistant has used it yet.';
-    case 'off':
-      return 'Create a key to connect an assistant.';
-  }
-}
 
 export function isActive(token: PersonalAccessTokenView, now: Date): boolean {
   if (token.revokedAt !== null) return false;
@@ -503,6 +499,7 @@ function deploymentAddress(): string {
 }
 
 function CopyButton({ text, label }: { text: string; label: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <button
@@ -515,7 +512,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
           .catch(() => setCopied(false));
       }}
     >
-      {copied ? 'Copied' : label}
+      {copied ? t('AiAssistantScreen.copied') : label}
     </button>
   );
 }

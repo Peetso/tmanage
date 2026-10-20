@@ -11,6 +11,7 @@ import type { AdminAuditEvent } from '../../lib/api/admin-audit';
 import { listMembers } from '../../lib/api/members';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AdminAuditScreenProps {
   organizationSlug: string;
@@ -49,6 +50,7 @@ export function AdminAuditScreen({
   client,
 }: AdminAuditScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const [actorInput, setActorInput] = useState('');
   const [entityInput, setEntityInput] = useState('');
@@ -106,18 +108,26 @@ export function AdminAuditScreen({
   }
 
   const actorLabel = (actorId: string | null): string =>
-    actorId === null ? 'System' : (actorNames.get(actorId) ?? 'A teammate');
+    actorId === null
+      ? t('AdminAuditScreen.system')
+      : (actorNames.get(actorId) ?? t('AdminAuditScreen.aTeammate'));
+
+  const outcomeWord = (result: AdminAuditEvent['result']): string => {
+    if (result === 'denied') return t('AdminAuditScreen.outcomeRefused');
+    if (result === 'error') return t('AdminAuditScreen.outcomeError');
+    return t('AdminAuditScreen.outcomeChange');
+  };
 
   const title = events.isSuccess
-    ? `${rows.length}${events.hasNextPage ? '+' : ''} ${rows.length === 1 ? 'event' : 'events'}`
-    : 'Audit log';
+    ? `${rows.length}${events.hasNextPage ? '+' : ''} ${rows.length === 1 ? t('AdminAuditScreen.event') : t('AdminAuditScreen.events')}`
+    : t('AdminAuditScreen.title');
 
   return (
     <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="audit"
-      crumbs={['Audit log']}
+      crumbs={[t('AdminAuditScreen.crumbAudit')]}
       title={title}
       {...(events.isSuccess && rows.length > 0 ? { titleMeta: classBreakdown(rows) } : {})}
       actions={
@@ -134,14 +144,17 @@ export function AdminAuditScreen({
           })}
           download="audit-events.csv"
         >
-          Export CSV
+          {t('AdminAuditScreen.exportCsv')}
         </a>
       }
     >
       <div className="tm-cc-split tm-cc-split--stretch">
         <div className="tm-cc-column">
           {events.isPending ? (
-            <LoadingRegion label="Loading the audit log." className="tm-stack tm-stack--tight">
+            <LoadingRegion
+              label={t('AdminAuditScreen.loading')}
+              className="tm-stack tm-stack--tight"
+            >
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
@@ -149,13 +162,13 @@ export function AdminAuditScreen({
           ) : null}
 
           {events.isError ? (
-            <InlineAlert tone="danger" title="Could not load the audit log" live>
+            <InlineAlert tone="danger" title={t('AdminAuditScreen.loadError')} live>
               {describe(events.error)}
             </InlineAlert>
           ) : null}
 
           {!events.isPending && !events.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral">No audit events match this view.</InlineAlert>
+            <InlineAlert tone="neutral">{t('AdminAuditScreen.empty')}</InlineAlert>
           ) : null}
 
           {rows.length > 0 ? (
@@ -164,17 +177,20 @@ export function AdminAuditScreen({
               aria-labelledby="tm-audit-heading"
             >
               <h2 id="tm-audit-heading" className="tm-visually-hidden">
-                Events
+                {t('AdminAuditScreen.eventsHeading')}
               </h2>
               <div className="tm-table-scroll tm-cc-table-plain">
-                <table className="tm-table tm-cc-table" aria-label="Audit events, newest first">
+                <table
+                  className="tm-table tm-cc-table"
+                  aria-label={t('AdminAuditScreen.tableLabel')}
+                >
                   <thead>
                     <tr>
-                      <th scope="col">When</th>
-                      <th scope="col">What happened</th>
-                      <th scope="col">Who</th>
+                      <th scope="col">{t('AdminAuditScreen.colWhen')}</th>
+                      <th scope="col">{t('AdminAuditScreen.colWhat')}</th>
+                      <th scope="col">{t('AdminAuditScreen.colWho')}</th>
                       <th scope="col" className="tm-cc-end">
-                        Class
+                        {t('AdminAuditScreen.colClass')}
                       </th>
                     </tr>
                   </thead>
@@ -213,7 +229,9 @@ export function AdminAuditScreen({
                     onClick={() => void events.fetchNextPage()}
                     disabled={events.isFetchingNextPage}
                   >
-                    {events.isFetchingNextPage ? 'Loading…' : 'Load more'}
+                    {events.isFetchingNextPage
+                      ? t('AdminAuditScreen.loadingMore')
+                      : t('AdminAuditScreen.loadMore')}
                   </Button>
                 </div>
               ) : null}
@@ -221,53 +239,51 @@ export function AdminAuditScreen({
           ) : null}
         </div>
 
-        <aside className="tm-cc-card" aria-label="Event details and filters">
+        <aside className="tm-cc-card" aria-label={t('AdminAuditScreen.asideLabel')}>
           {selected ? (
             <>
               <p className="tm-cc-eyebrow">{outcomeWord(selected.result)}</p>
               <h2 className="tm-cc-card__title">{selected.summary}</h2>
               <dl className="tm-cc-dl">
-                <dt>Who</dt>
+                <dt>{t('AdminAuditScreen.detailWho')}</dt>
                 <dd>{actorLabel(selected.actorId)}</dd>
-                <dt>Type</dt>
+                <dt>{t('AdminAuditScreen.detailType')}</dt>
                 <dd>{humanise(selected.entityType)}</dd>
-                <dt>When</dt>
+                <dt>{t('AdminAuditScreen.detailWhen')}</dt>
                 <dd>{formatMoment(selected.occurredAt)}</dd>
-                <dt>Reference</dt>
+                <dt>{t('AdminAuditScreen.detailReference')}</dt>
                 <dd className="tm-mono">{selected.id}</dd>
               </dl>
               <hr className="tm-cc-rule" />
             </>
           ) : (
             <>
-              <p className="tm-cc-eyebrow">Choose an event</p>
-              <h2 className="tm-cc-card__title">Every change, in order</h2>
+              <p className="tm-cc-eyebrow">{t('AdminAuditScreen.chooseEvent')}</p>
+              <h2 className="tm-cc-card__title">{t('AdminAuditScreen.everyChange')}</h2>
             </>
           )}
-          <p className="tm-cc-card__body">
-            Audit entries cannot be edited or deleted, including by an owner.
-          </p>
+          <p className="tm-cc-card__body">{t('AdminAuditScreen.immutableNote')}</p>
 
           <form
             className="tm-stack tm-stack--tight tm-cc-card__actions--end"
             onSubmit={onApply}
-            aria-label="Filter the audit log"
+            aria-label={t('AdminAuditScreen.filterLabel')}
           >
             <Field
-              label="Actor ID"
+              label={t('AdminAuditScreen.actorIdLabel')}
               value={actorInput}
               onChange={(event) => setActorInput(event.currentTarget.value)}
-              placeholder="Filter by the user who acted"
+              placeholder={t('AdminAuditScreen.actorIdPlaceholder')}
             />
             <Field
-              label="Entity ID"
+              label={t('AdminAuditScreen.entityIdLabel')}
               value={entityInput}
               onChange={(event) => setEntityInput(event.currentTarget.value)}
-              placeholder="Filter by the object acted on"
+              placeholder={t('AdminAuditScreen.entityIdPlaceholder')}
             />
             <div className="tm-row tm-row--wrap">
               <Button type="submit" tone="outline" size="compact">
-                Apply filters
+                {t('AdminAuditScreen.applyFilters')}
               </Button>
             </div>
           </form>
@@ -330,9 +346,11 @@ function RefusedRunRows({
   onSelect: (id: string) => void;
   actorLabel: (actorId: string | null) => string;
 }) {
+  const t = useT();
   const count = run.events.length;
   const actorIds = new Set(run.events.map((event) => event.actorId));
-  const who = actorIds.size === 1 ? actorLabel(run.events[0]!.actorId) : 'various people';
+  const who =
+    actorIds.size === 1 ? actorLabel(run.events[0]!.actorId) : t('AdminAuditScreen.variousPeople');
   return (
     <>
       <tr data-refused-run="true">
@@ -346,13 +364,15 @@ function RefusedRunRows({
             aria-expanded={expanded}
             onClick={onToggle}
           >
-            {count} refused attempts
+            {count} {t('AdminAuditScreen.refusedAttempts')}
           </button>
-          <span className="tm-cc-cell-sub">{expanded ? 'Hide attempts' : 'Show each attempt'}</span>
+          <span className="tm-cc-cell-sub">
+            {expanded ? t('AdminAuditScreen.hideAttempts') : t('AdminAuditScreen.showEachAttempt')}
+          </span>
         </td>
         <td>{who}</td>
         <td className="tm-cc-end">
-          <span className="tm-cc-pill">Refused</span>
+          <span className="tm-cc-pill">{t('AdminAuditScreen.refusedPill')}</span>
         </td>
       </tr>
       {expanded
@@ -434,13 +454,6 @@ export function groupDeniedRuns(rows: readonly AdminAuditEvent[]): readonly Audi
   }
   flush();
   return items;
-}
-
-/** The eyebrow word for the detail panel — the outcome in plain terms. */
-function outcomeWord(result: AdminAuditEvent['result']): string {
-  if (result === 'denied') return 'Refused attempt';
-  if (result === 'error') return 'Did not complete';
-  return 'Change';
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */

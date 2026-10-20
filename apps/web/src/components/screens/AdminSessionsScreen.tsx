@@ -10,6 +10,7 @@ import { listOrgSessions, revokeOrgSession } from '../../lib/api/admin-sessions'
 import type { ActiveSessionView } from '../../lib/api/admin-sessions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AdminSessionsScreenProps {
   organizationSlug: string;
@@ -43,6 +44,7 @@ export function AdminSessionsScreen({
 }: AdminSessionsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const [revokingId, setRevokingId] = useState<string | null>(null);
 
   const sessions = useQuery({
@@ -66,14 +68,19 @@ export function AdminSessionsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="sessions"
-      crumbs={['Security', 'Sessions']}
-      title="Who is signed in"
+      crumbs={[t('AdminSessionsScreen.crumbSecurity'), t('AdminSessionsScreen.crumbSessions')]}
+      title={t('AdminSessionsScreen.title')}
       {...(sessions.isSuccess
-        ? { titleMeta: `${rows.length} active ${rows.length === 1 ? 'session' : 'sessions'}` }
+        ? {
+            titleMeta: `${rows.length} ${rows.length === 1 ? t('AdminSessionsScreen.activeSessionSingular') : t('AdminSessionsScreen.activeSessionPlural')}`,
+          }
         : {})}
     >
       {sessions.isPending ? (
-        <LoadingRegion label="Loading active sessions." className="tm-stack tm-stack--tight">
+        <LoadingRegion
+          label={t('AdminSessionsScreen.loading')}
+          className="tm-stack tm-stack--tight"
+        >
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
@@ -81,37 +88,36 @@ export function AdminSessionsScreen({
       ) : null}
 
       {sessions.isError ? (
-        <InlineAlert tone="danger" title="Could not load active sessions" live>
+        <InlineAlert tone="danger" title={t('AdminSessionsScreen.loadError')} live>
           {describe(sessions.error)}
         </InlineAlert>
       ) : null}
 
       {revoke.isError ? (
-        <InlineAlert tone="danger" title="Could not end that session" live>
+        <InlineAlert tone="danger" title={t('AdminSessionsScreen.revokeError')} live>
           {describe(revoke.error)}
         </InlineAlert>
       ) : null}
 
       {!sessions.isPending && !sessions.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral">No active sessions in this organization.</InlineAlert>
+        <InlineAlert tone="neutral">{t('AdminSessionsScreen.empty')}</InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (
         <section className="tm-cc-card tm-cc-card--flush" aria-labelledby="tm-sessions-heading">
           <h2 id="tm-sessions-heading" className="tm-visually-hidden">
-            Sessions
+            {t('AdminSessionsScreen.sessionsHeading')}
           </h2>
-          <table
-            className="tm-table tm-cc-table"
-            aria-label="Active sessions across the organization"
-          >
+          <table className="tm-table tm-cc-table" aria-label={t('AdminSessionsScreen.tableLabel')}>
             <thead>
               <tr>
-                <th scope="col">Active sessions · {rows.length}</th>
-                <th scope="col">Signed in</th>
-                <th scope="col">Last seen</th>
                 <th scope="col">
-                  <span className="tm-visually-hidden">Actions</span>
+                  {t('AdminSessionsScreen.colActiveSessionsPrefix')} {rows.length}
+                </th>
+                <th scope="col">{t('AdminSessionsScreen.colSignedIn')}</th>
+                <th scope="col">{t('AdminSessionsScreen.colLastSeen')}</th>
+                <th scope="col">
+                  <span className="tm-visually-hidden">{t('AdminSessionsScreen.colActions')}</span>
                 </th>
               </tr>
             </thead>
@@ -141,6 +147,7 @@ function SessionRow({
   busy: boolean;
   onRevoke: () => void;
 }) {
+  const t = useT();
   return (
     <tr>
       <td>
@@ -159,7 +166,7 @@ function SessionRow({
       </td>
       <td className="tm-cc-end">
         <Button type="button" tone="outline" size="compact" onClick={onRevoke} disabled={busy}>
-          {busy ? 'Ending…' : 'End session'}
+          {busy ? t('AdminSessionsScreen.ending') : t('AdminSessionsScreen.endSession')}
         </Button>
       </td>
     </tr>

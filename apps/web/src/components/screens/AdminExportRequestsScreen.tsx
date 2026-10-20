@@ -12,29 +12,13 @@ import {
 } from '../../lib/api/admin-export-requests';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AdminExportRequestsScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
 }
-
-/** Human labels for the fixed export scopes. */
-const SCOPE_LABELS: Record<string, string> = {
-  full: 'Whole organization',
-  members: 'People & memberships',
-  projects: 'Projects',
-  work_items: 'Work items',
-  billing: 'Billing',
-};
-
-/** Human labels for the request lifecycle. */
-const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending',
-  processing: 'Processing',
-  completed: 'Completed',
-  failed: 'Failed',
-};
 
 /**
  * **Admin data-export requests (Administration & governance, module 18, x224).**
@@ -52,6 +36,24 @@ export function AdminExportRequestsScreen({
 }: AdminExportRequestsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
+
+  /** Human labels for the fixed export scopes. */
+  const scopeLabels: Record<string, string> = {
+    full: t('AdminExportRequestsScreen.scopeFull'),
+    members: t('AdminExportRequestsScreen.scopeMembers'),
+    projects: t('AdminExportRequestsScreen.scopeProjects'),
+    work_items: t('AdminExportRequestsScreen.scopeWorkItems'),
+    billing: t('AdminExportRequestsScreen.scopeBilling'),
+  };
+
+  /** Human labels for the request lifecycle. */
+  const statusLabels: Record<string, string> = {
+    pending: t('AdminExportRequestsScreen.statusPending'),
+    processing: t('AdminExportRequestsScreen.statusProcessing'),
+    completed: t('AdminExportRequestsScreen.statusCompleted'),
+    failed: t('AdminExportRequestsScreen.statusFailed'),
+  };
 
   const requests = useQuery({
     queryKey: ['admin-export-requests', organizationSlug],
@@ -79,39 +81,39 @@ export function AdminExportRequestsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      title="Data export requests"
-      description="Request an export of your organization's data and track its status. Preparing the export is handled separately; recording a request here does not produce a file."
+      title={t('AdminExportRequestsScreen.title')}
+      description={t('AdminExportRequestsScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-admin-exports-heading">
         <h2 id="tm-admin-exports-heading" className="tm-eyebrow">
-          Requests
+          {t('AdminExportRequestsScreen.requestsHeading')}
         </h2>
 
         {requests.isError ? (
-          <InlineAlert tone="danger" title="Could not load the requests" live>
+          <InlineAlert tone="danger" title={t('AdminExportRequestsScreen.loadError')} live>
             {describeError(requests.error)}
           </InlineAlert>
         ) : null}
 
         {requests.isPending ? (
-          <LoadingRegion label="Loading the export requests.">
+          <LoadingRegion label={t('AdminExportRequestsScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!requests.isPending && !requests.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No export requests yet">
-            No data-export requests have been made. Create one below.
+          <InlineAlert tone="neutral" title={t('AdminExportRequestsScreen.emptyTitle')}>
+            {t('AdminExportRequestsScreen.emptyBody')}
           </InlineAlert>
         ) : null}
 
         {rows.length > 0 ? (
-          <ul className="tm-stack" aria-label="Data export requests">
+          <ul className="tm-stack" aria-label={t('AdminExportRequestsScreen.listLabel')}>
             {rows.map((request) => (
               <li key={request.id} className="tm-row">
-                <strong>{SCOPE_LABELS[request.scope] ?? request.scope}</strong>
-                <span>{STATUS_LABELS[request.status] ?? request.status}</span>
+                <strong>{scopeLabels[request.scope] ?? request.scope}</strong>
+                <span>{statusLabels[request.status] ?? request.status}</span>
                 <span>{new Date(request.requestedAt).toLocaleString()}</span>
               </li>
             ))}
@@ -121,13 +123,13 @@ export function AdminExportRequestsScreen({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-admin-exports-new-heading">
         <h2 id="tm-admin-exports-new-heading" className="tm-eyebrow">
-          New request
+          {t('AdminExportRequestsScreen.newRequestHeading')}
         </h2>
 
         <form
           className="tm-stack"
           noValidate
-          aria-label="Request a data export"
+          aria-label={t('AdminExportRequestsScreen.formLabel')}
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
             setCreated(false);
@@ -135,27 +137,27 @@ export function AdminExportRequestsScreen({
           }}
         >
           <Select
-            label="What to export"
+            label={t('AdminExportRequestsScreen.scopeSelectLabel')}
             name="export-scope"
             value={scope}
             onChange={(event) => setScope(event.target.value)}
-            hint="Choose the scope of the export. The file is prepared separately once requested."
+            hint={t('AdminExportRequestsScreen.scopeSelectHint')}
           >
             {EXPORT_SCOPES.map((value) => (
               <option key={value} value={value}>
-                {SCOPE_LABELS[value] ?? value}
+                {scopeLabels[value] ?? value}
               </option>
             ))}
           </Select>
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="Could not record the request" live>
+            <InlineAlert tone="danger" title={t('AdminExportRequestsScreen.recordError')} live>
               {describeError(save.error)}
             </InlineAlert>
           ) : null}
           {created && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Request recorded" live>
-              Your data-export request has been recorded and is pending.
+            <InlineAlert tone="success" title={t('AdminExportRequestsScreen.recordedTitle')} live>
+              {t('AdminExportRequestsScreen.recordedBody')}
             </InlineAlert>
           ) : null}
 
@@ -165,9 +167,9 @@ export function AdminExportRequestsScreen({
               tone="ink"
               size="accessible"
               loading={save.isPending}
-              loadingLabel="Recording"
+              loadingLabel={t('AdminExportRequestsScreen.recording')}
             >
-              Request export
+              {t('AdminExportRequestsScreen.requestExport')}
             </Button>
           </div>
         </form>

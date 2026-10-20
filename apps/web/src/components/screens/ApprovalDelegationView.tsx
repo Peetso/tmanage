@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/approval-delegations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface ApprovalDelegationViewProps {
   organizationSlug: string;
@@ -49,6 +50,7 @@ export function ApprovalDelegationView({
 }: ApprovalDelegationViewProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['approval-delegations', organizationSlug] as const;
 
   const [delegateMembershipId, setDelegate] = useState('');
@@ -66,7 +68,7 @@ export function ApprovalDelegationView({
       const starts = toInstant(startsAt);
       const ends = toInstant(endsAt);
       if (starts === null || ends === null) {
-        throw new Error('Enter both a start and an end for the delegation window.');
+        throw new Error(t('ApprovalDelegationView.windowRequired'));
       }
       return createApprovalDelegation(api, organizationSlug, {
         delegateMembershipId: delegateMembershipId.trim(),
@@ -100,12 +102,12 @@ export function ApprovalDelegationView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Delegate my approvals"
-      description="Let another member act on approvals for you during a window."
+      title={t('ApprovalDelegationView.title')}
+      description={t('ApprovalDelegationView.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-delegation-new-heading">
         <h2 id="tm-delegation-new-heading" className="tm-eyebrow">
-          New delegation
+          {t('ApprovalDelegationView.newDelegationHeading')}
         </h2>
         <form
           className="tm-stack"
@@ -116,17 +118,17 @@ export function ApprovalDelegationView({
           }}
         >
           <Field
-            label="Delegate membership id"
+            label={t('ApprovalDelegationView.delegateLabel')}
             name="delegateMembershipId"
             value={delegateMembershipId}
             onChange={(event) => setDelegate(event.target.value)}
-            hint="The member who may act on your approvals during the window."
+            hint={t('ApprovalDelegationView.delegateHint')}
             required
           />
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-delegation-starts">
-              Starts
+              {t('ApprovalDelegationView.startsLabel')}
             </label>
             <input
               id="tm-delegation-starts"
@@ -139,7 +141,7 @@ export function ApprovalDelegationView({
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-delegation-ends">
-              Ends
+              {t('ApprovalDelegationView.endsLabel')}
             </label>
             <input
               id="tm-delegation-ends"
@@ -151,7 +153,7 @@ export function ApprovalDelegationView({
           </div>
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not delegate" live>
+            <InlineAlert tone="danger" title={t('ApprovalDelegationView.delegateError')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -162,10 +164,10 @@ export function ApprovalDelegationView({
               tone="ink"
               size="accessible"
               loading={create.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('ApprovalDelegationView.saving')}
               disabled={!canCreate}
             >
-              Delegate
+              {t('ApprovalDelegationView.delegate')}
             </Button>
           </div>
         </form>
@@ -173,24 +175,24 @@ export function ApprovalDelegationView({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-delegation-list-heading">
         <h2 id="tm-delegation-list-heading" className="tm-eyebrow">
-          Active delegations
+          {t('ApprovalDelegationView.activeDelegationsHeading')}
         </h2>
         {delegations.isPending ? (
-          <LoadingRegion label="Loading your delegations.">
+          <LoadingRegion label={t('ApprovalDelegationView.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {delegations.isError ? (
-          <InlineAlert tone="danger" title="Could not load your delegations" live>
+          <InlineAlert tone="danger" title={t('ApprovalDelegationView.loadError')} live>
             {describe(delegations.error)}
           </InlineAlert>
         ) : null}
 
         {delegations.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">No delegations yet.</p>
+            <p className="tm-prose">{t('ApprovalDelegationView.empty')}</p>
           ) : (
             <ul className="tm-stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {rows.map((delegation) => (
@@ -203,10 +205,10 @@ export function ApprovalDelegationView({
                     tone="text"
                     size="accessible"
                     loading={revoke.isPending}
-                    loadingLabel="Revoking"
+                    loadingLabel={t('ApprovalDelegationView.revoking')}
                     onClick={() => revoke.mutate(delegation.id)}
                   >
-                    Revoke
+                    {t('ApprovalDelegationView.revoke')}
                   </Button>
                 </li>
               ))}

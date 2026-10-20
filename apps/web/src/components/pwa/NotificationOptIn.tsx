@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Button, InlineAlert, Switch } from '@tmanage/ui';
+import { useT } from '../../lib/i18n/use-t';
 import {
   isNotificationSupported,
   readNotificationPermission,
@@ -24,6 +25,7 @@ import {
  * requests nothing — `isNotificationSupported()` guards every browser call.
  */
 export function NotificationOptIn() {
+  const t = useT();
   // Resolved after mount so the server render and the first client render agree (no API on the
   // server); until then the control shows its neutral, not-yet-known state.
   const [supported, setSupported] = useState(false);
@@ -71,11 +73,10 @@ export function NotificationOptIn() {
     return (
       <section className="tm-stack" aria-labelledby="tm-notifications-heading">
         <h2 id="tm-notifications-heading" className="tm-eyebrow">
-          Desktop notifications
+          {t('NotificationOptIn.heading')}
         </h2>
-        <InlineAlert tone="neutral" title="Not available in this browser">
-          This browser does not support desktop notifications, so there is nothing to turn on here.
-          The inbox still shows every notice when the app is open.
+        <InlineAlert tone="neutral" title={t('NotificationOptIn.unsupportedTitle')}>
+          {t('NotificationOptIn.unsupportedBody')}
         </InlineAlert>
       </section>
     );
@@ -84,20 +85,19 @@ export function NotificationOptIn() {
   return (
     <section className="tm-stack" aria-labelledby="tm-notifications-heading">
       <h2 id="tm-notifications-heading" className="tm-eyebrow">
-        Desktop notifications
+        {t('NotificationOptIn.heading')}
       </h2>
 
       {permission === 'denied' ? (
         // The browser will not re-prompt once blocked; the switch cannot change this, so it is
         // disabled and the only honest next step is the browser's own site settings.
         <>
-          <InlineAlert tone="warning" title="Notifications are blocked" live>
-            You blocked notifications for this site in your browser. To turn them on, allow
-            notifications for this site in your browser settings, then come back.
+          <InlineAlert tone="warning" title={t('NotificationOptIn.blockedTitle')} live>
+            {t('NotificationOptIn.blockedBody')}
           </InlineAlert>
           <Switch
-            label="Show new inbox notices on my desktop"
-            hint="Blocked by the browser — change it in your browser's site settings."
+            label={t('NotificationOptIn.switchLabel')}
+            hint={t('NotificationOptIn.blockedHint')}
             checked={false}
             disabled
             readOnly
@@ -105,8 +105,8 @@ export function NotificationOptIn() {
         </>
       ) : (
         <Switch
-          label="Show new inbox notices on my desktop"
-          hint="Only while the app is in the background. We mirror the inbox you already see — nothing new is sent anywhere."
+          label={t('NotificationOptIn.switchLabel')}
+          hint={t('NotificationOptIn.switchHint')}
           checked={optedIn}
           disabled={busy}
           onChange={(event) => onToggle(event.target.checked)}
@@ -114,16 +114,15 @@ export function NotificationOptIn() {
       )}
 
       {optedIn && permission === 'granted' ? (
-        <InlineAlert tone="success" title="Desktop notifications are on" live>
-          When the app is in the background, a new inbox notice will also show as a desktop
-          notification.
+        <InlineAlert tone="success" title={t('NotificationOptIn.onTitle')} live>
+          {t('NotificationOptIn.onBody')}
         </InlineAlert>
       ) : null}
 
       {permission === 'default' && !busy ? (
         <div className="tm-row">
           <Button type="button" tone="outline" size="accessible" onClick={() => void enable()}>
-            Turn on notifications
+            {t('NotificationOptIn.enableButton')}
           </Button>
         </div>
       ) : null}
