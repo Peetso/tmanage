@@ -90,7 +90,7 @@ function fileAsset(over: Partial<FileAssetRow> = {}): FileAssetRow {
 
 /** An in-memory link store standing in for the repository, counting its writes. */
 class FakeLinksRepository {
-  readonly rows: (WorkItemFileRow & { fileName: string })[] = [];
+  readonly rows: (WorkItemFileRow & { fileName: string; status: string })[] = [];
   creates = 0;
   deletes = 0;
 
@@ -121,6 +121,7 @@ class FakeLinksRepository {
       attachedByMembershipId: input.attachedByMembershipId,
       createdAt: new Date(Date.now() + this.rows.length),
       fileName: 'brand-book.pdf',
+      status: 'ready',
     };
     this.rows.push(row);
     return row;
@@ -182,12 +183,14 @@ describe('WorkItemFilesController', () => {
       workItemId: WORK_ID,
       fileAssetId: FILE_ID,
       fileName: 'brand-book.pdf',
+      availability: 'ready',
       attachedByMembershipId: MEMBERSHIP,
     });
 
     const listed = await controller.list(context, related, WORK_ID);
     expect(listed.files).toHaveLength(1);
     expect(listed.files[0]?.id).toBe(attached.id);
+    expect(listed.files[0]?.availability).toBe('ready');
 
     await controller.detach(context, related, WORK_ID, attached.id);
     expect(links.deletes).toBe(1);

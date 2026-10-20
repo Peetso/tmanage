@@ -40,12 +40,32 @@ import type { WorkItemFileListRow } from './item-files.repository.js';
  * caller who may read it but not write it gets a 403 on attach/detach (its existence is not).
  */
 
+/**
+ * A file attachment's availability to a member reading this list — a coarse, typed view of the
+ * asset's upload status (`23-ERD` §10). `ready` is servable; `scanning` is still being checked
+ * for viruses (the "being checked" state the attachment row shows for WRK-04); `unavailable`
+ * covers a rejected, expired or cancelled file.
+ *
+ * This is authorized metadata: listing a work item's files already proves the caller may read
+ * them, so saying which are still being checked leaks nothing. It is deliberately NOT the same
+ * as the download gate, which answers one indistinguishable 404 for a scanning file, a rejected
+ * file and an id the caller has no path to (`26-THREAT-MODELS` §5).
+ */
+export type FileAvailability = 'ready' | 'scanning' | 'unavailable';
+
+export function fileAvailabilityFor(status: string): FileAvailability {
+  if (status === 'ready') return 'ready';
+  if (status === 'rejected' || status === 'expired' || status === 'cancelled') return 'unavailable';
+  return 'scanning';
+}
+
 /** The client-facing projection of one work-item file attachment. Paired in `e2e/contracts`. */
 export interface ItemFileView {
   readonly id: string;
   readonly workItemId: string;
   readonly fileAssetId: string;
   readonly fileName: string;
+  readonly availability: FileAvailability;
   readonly attachedByMembershipId: string;
   readonly createdAt: string;
 }
@@ -96,7 +116,7 @@ export class WorkItemFilesService {
       // failing on the unique key. The membership author is fixed by the first attach.
       const existing = await this.links.findByPair(tx, context, workItemId, file.id);
       if (existing) {
-        return toView({ ...existing, fileName: file.name });
+        return toView({ ...existing, fileName: file.name, status: file.status });
       }
 
       const attachedByMembershipId = principal.membershipId;
@@ -111,7 +131,7 @@ export class WorkItemFilesService {
         fileAssetId: file.id,
         attachedByMembershipId,
       });
-      return toView({ ...row, fileName: file.name });
+      return toView({ ...row, fileName: file.name, status: file.status });
     });
   }
 
@@ -204,6 +224,7 @@ function toView(row: WorkItemFileListRow): ItemFileView {
     workItemId: row.workItemId,
     fileAssetId: row.fileAssetId,
     fileName: row.fileName,
+    availability: fileAvailabilityFor(row.status),
     attachedByMembershipId: row.attachedByMembershipId,
     createdAt: row.createdAt.toISOString(),
   };

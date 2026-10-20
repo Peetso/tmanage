@@ -68,18 +68,35 @@ export function WorkItemTagsAndFiles({
           <p className="tm-capture-extra__hint">No files attached.</p>
         ) : (
           <ul className="tm-capture-extra__chips tm-capture-extra__list">
-            {files.data.map((file) => (
-              <li key={file.id}>
-                <a
-                  className="tm-chip tm-chip--compact"
-                  href={`${base}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(file.fileAssetId)}/content`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <span className="tm-capture-extra__file-name">{file.fileName}</span>
-                </a>
-              </li>
-            ))}
+            {files.data.map((file) =>
+              file.availability === 'ready' ? (
+                // Ready: a download link, as before. A link to the scan route is offered only
+                // once the file is servable, so clicking never lands on a raw-JSON refusal.
+                <li key={file.id}>
+                  <a
+                    className="tm-chip tm-chip--compact"
+                    href={`${base}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(file.fileAssetId)}/content`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <span className="tm-capture-extra__file-name">{file.fileName}</span>
+                  </a>
+                </li>
+              ) : (
+                // Not yet servable: the file's name with the reason, never a dead link — a file
+                // still being checked for viruses, or one that could not be made available.
+                <li key={file.id}>
+                  <span className="tm-chip tm-chip--compact" aria-disabled="true">
+                    <span className="tm-capture-extra__file-name">{file.fileName}</span>
+                  </span>
+                  <span className="tm-capture-extra__hint" role="status">
+                    {file.availability === 'scanning'
+                      ? 'Being checked for viruses…'
+                      : 'This file is not available.'}
+                  </span>
+                </li>
+              ),
+            )}
           </ul>
         )}
         <p className="tm-capture-extra__hint">

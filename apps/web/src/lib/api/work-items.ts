@@ -397,6 +397,12 @@ export interface ItemFile {
   readonly workItemId: string;
   readonly fileAssetId: string;
   readonly fileName: string;
+  /**
+   * The file's availability: `ready` opens through the download route; `scanning` is still
+   * being checked for viruses; `unavailable` is rejected, expired or cancelled. Mirrors the
+   * API's `FileAvailability` (paired `Exact` in `e2e/contracts`).
+   */
+  readonly availability: 'ready' | 'scanning' | 'unavailable';
   readonly attachedByMembershipId: string;
   readonly createdAt: string;
 }

@@ -5,9 +5,11 @@ import { fileAssets, workItemFiles } from '../../common/database/schema.js';
 import type { WorkItemFileRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
-/** A link joined to the display name of the file it points at — the list projection's row. */
+/** A link joined to the display name and upload status of the file it points at. */
 export interface WorkItemFileListRow extends WorkItemFileRow {
   readonly fileName: string;
+  /** The file asset's upload status (`23-ERD` §10), the service maps to a coarse availability. */
+  readonly status: string;
 }
 
 /**
@@ -76,6 +78,7 @@ export class WorkItemFilesRepository {
         attachedByMembershipId: workItemFiles.attachedByMembershipId,
         createdAt: workItemFiles.createdAt,
         fileName: fileAssets.name,
+        status: fileAssets.status,
       })
       .from(workItemFiles)
       .innerJoin(
