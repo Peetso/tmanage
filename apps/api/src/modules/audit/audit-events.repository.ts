@@ -109,8 +109,17 @@ export class AuditEventsRepository {
     context: TenantContext,
     input: AppendAuditEventInput,
   ): Promise<AuditEventRow> {
-    // Before anything else. A statement is never built from metadata that has not passed.
-    assertSafeAuditMetadata(input.metadata);
+    // AUT-08. A request on the AI-assistant / MCP channel (a personal access token) stamps
+    // `actor_channel` onto the row it writes, so a work item's activity feed can mark the move
+    // "via AI assistant". The caller never sets this key, and an ordinary cookie session carries
+    // no channel, so its metadata — and the stored row — are byte-for-byte what they were before.
+    const metadata: AuditMetadata =
+      context.actorChannel !== undefined && !('actor_channel' in input.metadata)
+        ? { ...input.metadata, actor_channel: context.actorChannel }
+        : input.metadata;
+    // Before anything else. A statement is never built from metadata that has not passed — and
+    // the check is on the metadata actually written, the stamped `actor_channel` included.
+    assertSafeAuditMetadata(metadata);
 
     if (input.action === 'security.capability_denied' && input.result !== 'denied') {
       // The action names a refusal. Recording one as `allowed` would put a row in the table
@@ -148,7 +157,7 @@ export class AuditEventsRepository {
         // request that caused it would be worse than one with none: it would point at
         // another request's logs.
         correlationId: context.correlationId,
-        metadataJson: input.metadata,
+        metadataJson: metadata,
         // The server's clock, not this process's. `created_at` already defaults to
         // `CURRENT_TIMESTAMP(3)` in the DDL; the Drizzle description does not carry defaults,
         // so the value is supplied as an expression rather than as a literal — which keeps

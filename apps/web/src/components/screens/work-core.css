@@ -914,6 +914,12 @@ a.tm-wk-chip:hover {
   color: var(--ink-950);
 }
 
+/* AUT-08: the "via AI assistant" marker on a move an assistant made — a quiet aside. */
+.tm-wk-story__via {
+  font-weight: 400;
+  color: var(--ink-650);
+}
+
 /* WK-12 dependencies sit in the aside as their own card. */
 .tm-wk-deps section.tm-panel {
   padding: 0;

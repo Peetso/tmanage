@@ -42,6 +42,17 @@ import { unwrapQueryError } from './query-error.js';
 // TenantContext
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * How the acting request reached the API (AUT-08).
+ *
+ * `'ai_assistant'` means the request authenticated with a personal access token — the key the
+ * AI-assistant page mints, and the only credential the hosted MCP endpoint accepts. It is the
+ * one channel worth recording on the work an action leaves behind, so a member can tell at a
+ * glance which items their assistant created or moved. An ordinary cookie-session request sets
+ * no channel at all (`undefined`), so nothing changes for the web app.
+ */
+export type ActorChannel = 'ai_assistant';
+
 export interface TenantContext {
   readonly organizationId: string;
   readonly userId: string;
@@ -53,6 +64,13 @@ export interface TenantContext {
   /** Cache keys and authorization decisions are invalidated when this changes (section 9). */
   readonly policyVersion: string;
   readonly correlationId: string;
+  /**
+   * AUT-08. Set only when the request authenticated with a personal access token (the AI
+   * assistant / MCP channel); `undefined` for the ordinary cookie session. The audit append
+   * stamps it onto the metadata it writes so the item's activity feed can mark the move
+   * "via AI assistant".
+   */
+  readonly actorChannel?: ActorChannel;
 }
 
 export type TenantContextInput = {
@@ -108,7 +126,26 @@ export function createTenantContext(input: TenantContextInput): TenantContext {
     capabilities: Object.freeze([...input.capabilities]),
     policyVersion: input.policyVersion,
     correlationId: requireUuid('correlationId', input.correlationId),
+    // Omitted entirely when absent, so an ordinary session's context is byte-for-byte what it
+    // was before AUT-08 and nothing downstream (audit metadata, equality in tests) changes.
+    ...(input.actorChannel ? { actorChannel: input.actorChannel } : {}),
   });
+}
+
+/**
+ * The same context, tagged with the channel the request arrived on (AUT-08).
+ *
+ * Returns a fresh frozen context rather than mutating the original — a `TenantContext` is
+ * immutable by construction. The input is already a validated, canonical context (nothing
+ * builds one except {@link createTenantContext}), so this only adds the channel tag and
+ * re-freezes; it does not re-run the identifier checks the input has already passed. Used by
+ * the tenant-context guard once it knows a request authenticated with a personal access token.
+ */
+export function withActorChannel(
+  context: TenantContext,
+  actorChannel: ActorChannel,
+): TenantContext {
+  return Object.freeze({ ...context, actorChannel });
 }
 
 /**

@@ -119,6 +119,9 @@ export function WorkItemActivityFeed({
                         ? `${memberDisplayName(entry.actorId, directory.members, directory.isPending)} — `
                         : 'System — '}
                       {entry.summary}
+                      {entry.via === 'ai_assistant' ? (
+                        <span className="tm-wk-story__via"> · via AI assistant</span>
+                      ) : null}
                     </span>
                   </li>
                 ))}

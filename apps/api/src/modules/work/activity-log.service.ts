@@ -74,6 +74,13 @@ export interface WorkActivityEntryView {
   readonly actorId: string | null;
   readonly summary: string;
   readonly occurredAt: string;
+  /**
+   * AUT-08. `'ai_assistant'` when the move was made through the AI-assistant / MCP channel (a
+   * personal access token), so the timeline can mark it "via AI assistant"; `null` otherwise.
+   * Read back from the audit row's `actor_channel` metadata the audit append stamps; comments
+   * carry no channel and are always `null`.
+   */
+  readonly via: 'ai_assistant' | null;
 }
 
 export interface ActivityFeedOptions {
@@ -162,6 +169,7 @@ function toAuditEntry(row: AuditEventRow): WorkActivityEntryView {
     actorId: row.actorUserId,
     summary: AUDIT_SUMMARIES[row.action] ?? row.action,
     occurredAt: row.createdAt.toISOString(),
+    via: channelFromMetadata(row.metadataJson),
   };
 }
 
@@ -174,5 +182,23 @@ function toCommentEntry(row: WorkItemCommentRow): WorkActivityEntryView {
     actorId: row.authorMembershipId,
     summary: body.length > SUMMARY_MAX ? `${body.slice(0, SUMMARY_MAX)}…` : body,
     occurredAt: row.createdAt.toISOString(),
+    // Comments are read from `work_item_comments`, which carries no channel.
+    via: null,
   };
+}
+
+/**
+ * AUT-08. Read the AI-assistant marker back from an audit row's metadata.
+ *
+ * The audit append stamps `actor_channel: 'ai_assistant'` when the acting request used a
+ * personal access token. The column is free-form JSON, so this reads it defensively: any shape
+ * other than that exact classification is an ordinary move and returns `null`.
+ */
+export function channelFromMetadata(metadata: unknown): 'ai_assistant' | null {
+  if (metadata !== null && typeof metadata === 'object' && !Array.isArray(metadata)) {
+    if ((metadata as Record<string, unknown>)['actor_channel'] === 'ai_assistant') {
+      return 'ai_assistant';
+    }
+  }
+  return null;
 }

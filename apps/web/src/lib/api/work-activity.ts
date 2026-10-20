@@ -16,6 +16,12 @@ export interface WorkActivityEntry {
   readonly actorId: string | null;
   readonly summary: string;
   readonly occurredAt: string;
+  /**
+   * AUT-08. `'ai_assistant'` when the move was made through the member's AI assistant (a
+   * personal access token / the MCP connector), so the timeline can mark it "via AI assistant";
+   * `null` for an ordinary move or a comment.
+   */
+  readonly via: 'ai_assistant' | null;
 }
 
 export async function listWorkActivity(

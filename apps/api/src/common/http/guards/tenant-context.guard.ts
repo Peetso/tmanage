@@ -12,6 +12,7 @@ import {
 import type { MembershipResolver } from '../../../modules/tenancy/membership-resolver.repository.js';
 import type { PrincipalRepository } from '../../../modules/tenancy/principal.repository.js';
 import type { TenantDatabase } from '../../database/tenant-context.js';
+import { withActorChannel } from '../../database/tenant-context.js';
 
 /**
  * Spec §3 steps 2 to 4 — resolve the organization, build the context, load the policy facts.
@@ -129,7 +130,14 @@ export class TenantContextGuard implements CanActivate {
     }
 
     state.membership = resolved;
-    state.tenant = resolved.context;
+    // AUT-08. A personal access token is the AI-assistant / MCP channel, so tag the context the
+    // services will act under; the audit append stamps it onto the metadata it writes, and the
+    // item's activity feed reads that back as "via AI assistant". A cookie session is untagged,
+    // leaving its context — and every audit row it writes — exactly as before.
+    state.tenant =
+      state.authScheme === 'personal_access_token'
+        ? withActorChannel(resolved.context, 'ai_assistant')
+        : resolved.context;
     state.principal = await this.database.read(resolved.context, (runner) =>
       this.principals.load(runner, resolved),
     );
