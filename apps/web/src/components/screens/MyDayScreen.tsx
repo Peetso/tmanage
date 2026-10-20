@@ -492,9 +492,11 @@ function WaitingRow({
   const isApproval = entry.kind === 'approval';
   const title = isApproval ? 'Deliverable review' : entry.title;
   const since = isApproval ? entry.requestedAt : entry.waitingSince;
-  const href = isApproval
-    ? `/${organizationSlug}/projects/${entry.projectId}`
-    : `/${organizationSlug}/work/requests`;
+  // REQ-11: Triage opens the request itself, not the general inbox the person then has to search.
+  const href =
+    entry.kind === 'approval'
+      ? `/${organizationSlug}/projects/${entry.projectId}`
+      : `/${organizationSlug}/work/requests/${entry.clientRequestId}`;
   return (
     <li>
       <span className={`tm-avatar${isApproval ? '' : ' tm-avatar--client'}`} aria-hidden="true">

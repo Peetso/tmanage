@@ -87,6 +87,15 @@ export function ClientActionsScreen({
   const done = all.filter((item) => item.progress === 'done');
 
   const project = projects.data?.[0];
+  // REQ-06: the list spans every shared project, so naming only the first in the heading is
+  // wrong. With more than one project it says "All projects"; with exactly one it keeps its name.
+  const projectCount = (projects.data ?? []).length;
+  const actionsEyebrow =
+    projectCount > 1
+      ? 'What needs you · All projects'
+      : project
+        ? `What needs you · ${project.name}`
+        : 'What needs you';
   const needCount = actions.length + awaitingAnswer.length;
   const settled = !workItems.isPending && !workItems.isError && !requests.isPending;
 
@@ -97,7 +106,7 @@ export function ClientActionsScreen({
       providerName={providerName}
       activeNavigationId="actions"
       title={settled ? headline(needCount) : 'My actions'}
-      eyebrow={project ? `What needs you · ${project.name}` : 'What needs you'}
+      eyebrow={actionsEyebrow}
       headerAside={
         <Segmented<View>
           label="Show"
@@ -217,7 +226,9 @@ export function ClientActionsScreen({
                     <div className="tm-pt-action__end">
                       <Link
                         className="tm-pt-btn"
-                        href={`/${organizationSlug}/portal/requests/new`}
+                        href={`/${organizationSlug}/portal/requests/new?about=${encodeURIComponent(
+                          action.title,
+                        )}&project=${encodeURIComponent(action.projectId)}`}
                         aria-label={`Ask about: ${action.title}`}
                       >
                         Ask about this

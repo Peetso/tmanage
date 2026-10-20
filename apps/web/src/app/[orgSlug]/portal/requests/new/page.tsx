@@ -1,6 +1,7 @@
 'use client';
 
 import { use } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { NewClientRequestScreen } from '../../../../../components/screens/NewClientRequestScreen';
 import { FIXTURE_CLIENT_NAME, FIXTURE_ORGANIZATION_NAME } from '../../../../../lib/fixtures';
 
@@ -14,12 +15,19 @@ import { FIXTURE_CLIENT_NAME, FIXTURE_ORGANIZATION_NAME } from '../../../../../l
  */
 export default function NewClientRequestPage({ params }: { params: Promise<{ orgSlug: string }> }) {
   const { orgSlug } = use(params);
+  // REQ-15: "Ask about this" on an item opens here with the item named in the query, so the form
+  // mentions it and is filed against the item's own project instead of opening blank.
+  const search = useSearchParams();
+  const about = search.get('about');
+  const project = search.get('project');
 
   return (
     <NewClientRequestScreen
       organizationSlug={orgSlug}
       clientName={FIXTURE_CLIENT_NAME}
       providerName={FIXTURE_ORGANIZATION_NAME}
+      {...(about ? { aboutItemTitle: about } : {})}
+      {...(project ? { initialProjectId: project } : {})}
     />
   );
 }

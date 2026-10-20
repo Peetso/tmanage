@@ -105,11 +105,19 @@ export function previewClientSentence(
   scopeSummary: string,
   commitment: { kind: 'committed'; day: string } | { kind: 'unscheduled' },
 ): string {
-  const scope = scopeSummary.trim() === '' ? '…' : scopeSummary.trim();
+  // REQ-09: the scope the manager typed may already end in a full stop; appending another gave
+  // the client "…three plans..". `withStop` adds one only when the text does not already end a
+  // sentence.
+  const scope = scopeSummary.trim() === '' ? '…' : withStop(scopeSummary.trim());
   if (commitment.kind === 'unscheduled') {
-    return `We have accepted this: ${scope}. We have not committed to a date yet, and you will see one here when we do.`;
+    return `We have accepted this: ${scope} We have not committed to a date yet, and you will see one here when we do.`;
   }
-  return `We have accepted this and committed to ${formatDay(commitment.day)}: ${scope}.`;
+  return `We have accepted this and committed to ${formatDay(commitment.day)}: ${scope}`;
+}
+
+/** End a clause with a single full stop, leaving existing terminal punctuation alone. */
+function withStop(text: string): string {
+  return /[.!?…]$/u.test(text) ? text : `${text}.`;
 }
 
 /**

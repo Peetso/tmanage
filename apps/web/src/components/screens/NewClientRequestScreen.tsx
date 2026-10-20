@@ -21,6 +21,13 @@ export interface NewClientRequestScreenProps {
   client?: ApiClient;
   /** Called with the new request's id once it exists, so the route can show its detail. */
   onSubmitted?: (requestId: string) => void;
+  /**
+   * REQ-15: when the form is opened from an item's "Ask about this" control, the item it is about
+   * is carried in so the form is not blank. Its title names the item in a banner and seeds the
+   * description, and `initialProjectId` files the request against that item's own project.
+   */
+  aboutItemTitle?: string;
+  initialProjectId?: string;
 }
 
 /**
@@ -72,6 +79,8 @@ export function NewClientRequestScreen({
   providerName: passedProviderName,
   client,
   onSubmitted,
+  aboutItemTitle,
+  initialProjectId,
 }: NewClientRequestScreenProps) {
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
@@ -81,11 +90,13 @@ export function NewClientRequestScreen({
   const api = client ?? browserApiClient();
 
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [description, setDescription] = useState(() =>
+    aboutItemTitle ? `Regarding “${aboutItemTitle}”.\n\n` : '',
+  );
   const [category, setCategory] = useState('');
   const [urgencyReason, setUrgencyReason] = useState('');
   const [desiredDate, setDesiredDate] = useState('');
-  const [projectId, setProjectId] = useState('');
+  const [projectId, setProjectId] = useState(initialProjectId ?? '');
   const [sending, setSending] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [fieldErrors, setFieldErrors] = useState<ReadonlyMap<string, string>>(new Map());
@@ -97,10 +108,18 @@ export function NewClientRequestScreen({
   });
 
   const available = projects.data ?? [];
+  const projectsLoaded = !projects.isPending && !projects.isError;
+  // Once the projects have loaded and there are none, there is nothing to ask about. The screen
+  // says so up front (REQ-04) rather than letting a person fill the whole form and refusing only
+  // after Send.
+  const noProjectShared = projectsLoaded && available.length === 0;
+  const onlyProject = available.length === 1 ? available[0] : undefined;
+  const singleProject = onlyProject !== undefined;
   // The project is a real choice only when this client has more than one. With exactly one it
   // is stated rather than offered, for the reason `FirstProjectScreen` states an owner: a
-  // select with a single option looks like a decision and is not.
-  const chosenProjectId = projectId !== '' ? projectId : (available[0]?.id ?? '');
+  // select with a single option looks like a decision and is not. With more than one, nothing is
+  // pre-selected (WRK-09): the first project in the list is not a safe default to file against.
+  const chosenProjectId = onlyProject ? onlyProject.id : projectId;
   const chosenProject = available.find((project) => project.id === chosenProjectId);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -116,8 +135,12 @@ export function NewClientRequestScreen({
       setFailure('Tell the studio why it matters, so they can judge it.');
       return;
     }
-    if (chosenProjectId === '') {
+    if (noProjectShared) {
       setFailure('No project has been shared with you yet, so there is nothing to ask about.');
+      return;
+    }
+    if (chosenProjectId === '') {
+      setFailure('Choose which project this is about before you send it.');
       return;
     }
 
@@ -180,6 +203,30 @@ export function NewClientRequestScreen({
               </LoadingRegion>
             ) : null}
 
+            {/*
+              REQ-04: when nothing has been shared there is nothing to ask about, and the person is
+              told so before filling anything in. The form below ships disabled in this case, so
+              Send cannot be reached and then refused.
+            */}
+            {noProjectShared ? (
+              <InlineAlert tone="warning" title="There is nothing to ask about yet" live>
+                {providerName} has not shared a project with you yet. When they do, it appears here
+                and you can send a request about it. Until then there is nothing for a request to be
+                attached to.
+              </InlineAlert>
+            ) : null}
+
+            {/*
+              REQ-15: opened from an item's "Ask about this", so the item it is about is named here
+              and already written into the description — the form is no longer a blank general one
+              that never mentions what the person clicked.
+            */}
+            {aboutItemTitle && !noProjectShared ? (
+              <InlineAlert tone="neutral" title="You are asking about">
+                {aboutItemTitle}
+              </InlineAlert>
+            ) : null}
+
             <form className="tm-pt-split tm-pt-split--aside" noValidate onSubmit={submit}>
               {/*
                 The controls are not editable until this screen's data has arrived: server-rendered
@@ -187,7 +234,10 @@ export function NewClientRequestScreen({
                 only once React is live and the portal-projects query has answered. Otherwise a
                 person could type before hydration and have the words wiped.
               */}
-              <fieldset className="tm-fieldset tm-pt-col" disabled={projects.isPending}>
+              <fieldset
+                className="tm-fieldset tm-pt-col"
+                disabled={projects.isPending || noProjectShared}
+              >
                 <div className="tm-pt-form">
                   <div className="tm-pt-form__title">
                     <Field
@@ -250,31 +300,45 @@ export function NewClientRequestScreen({
                       <div className="tm-field">
                         <label className="tm-field__label" htmlFor="tm-request-project">
                           Which project
+                          <span className="tm-field__required" aria-hidden="true">
+                            {' '}
+                            *
+                          </span>
                         </label>
                         <select
                           id="tm-request-project"
                           className="tm-field__control"
                           value={chosenProjectId}
                           onChange={(event) => setProjectId(event.target.value)}
+                          required
                         >
+                          {/*
+                            Nothing is pre-selected (WRK-09): the first project is not a safe default,
+                            and a silent default is how a request lands against the wrong project.
+                          */}
+                          <option value="" disabled>
+                            Choose a project
+                          </option>
                           {available.map((project) => (
                             <option key={project.id} value={project.id}>
                               {project.name}
                             </option>
                           ))}
                         </select>
+                        <span className="tm-field__hint">
+                          Pick the project this is about. {providerName} has shared more than one
+                          with you.
+                        </span>
                       </div>
-                    ) : (
+                    ) : singleProject ? (
                       <div className="tm-field">
                         <span className="tm-field__label">Which project</span>
-                        <p className="tm-pt-fixed">
-                          {chosenProject?.name ?? 'No project shared with you yet'}
-                        </p>
+                        <p className="tm-pt-fixed">{chosenProject?.name}</p>
                         <span className="tm-field__hint">
                           The only project {providerName} has shared with you.
                         </span>
                       </div>
-                    )}
+                    ) : null}
                   </div>
 
                   <div className="tm-pt-form__pair">
@@ -312,7 +376,7 @@ export function NewClientRequestScreen({
                     size="accessible"
                     loading={sending}
                     loadingLabel="Sending"
-                    disabled={projects.isPending}
+                    disabled={projects.isPending || noProjectShared}
                   >
                     Send request
                   </Button>

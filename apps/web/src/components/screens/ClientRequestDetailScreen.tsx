@@ -355,11 +355,9 @@ export function ClientRequestDetailScreen({
                   </p>
                 ) : (
                   // Said rather than merely hidden: a control that vanished without explanation
-                  // would read as a fault.
-                  <p className="tm-pt-quiet">
-                    {providerName} has this request open, so it is no longer yours to take back. Ask
-                    them to close it if you no longer need it.
-                  </p>
+                  // would read as a fault. REQ-08: a closed request (declined, deferred, delivered)
+                  // is said to be closed, not described as still open.
+                  <p className="tm-pt-quiet">{takeBackMessage(found.status, providerName)}</p>
                 )}
               </section>
             </div>
@@ -368,6 +366,25 @@ export function ClientRequestDetailScreen({
       </div>
     </ClientPortalShell>
   );
+}
+
+/**
+ * REQ-08: why "Take it back" is no longer offered, told truthfully for each state. A declined,
+ * deferred or delivered request is closed — saying the studio "has it open" and asking the client
+ * to get them to close it was wrong, because there was nothing left open.
+ */
+function takeBackMessage(status: ClientRequestStatus, providerName: string): string {
+  switch (status) {
+    case 'declined':
+      return `${providerName} declined this request, so it is closed. There is nothing to take back.`;
+    case 'deferred':
+      return `${providerName} has set this aside for later, so it is no longer open for you to take back. If things change, ask them about it.`;
+    case 'delivered':
+      return `${providerName} has delivered this, so it is closed.`;
+    default:
+      // accepted / planned, and any in-progress state: the studio has started on it.
+      return `${providerName} has started on this, so it is no longer yours to take back. Tell them if you no longer need it.`;
+  }
 }
 
 function journeyLabel(status: ClientRequestStatus, providerName: string): string {

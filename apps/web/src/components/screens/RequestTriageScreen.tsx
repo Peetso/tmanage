@@ -243,7 +243,7 @@ export function RequestTriageScreen({
         <InlineAlert tone="success" title="Accepted, and the work is committed" live>
           <p className="tm-prose">
             {accepted.created
-              ? 'A work item was created in the same transaction as the acceptance.'
+              ? 'A work item was created for this request.'
               : 'The request was linked to work that already existed.'}{' '}
             <Link href={`/${organizationSlug}/work/${accepted.workItemId}`}>
               Open the work item
@@ -797,7 +797,7 @@ function CommitmentReview({
       <section className="wp-review__client" aria-labelledby="tm-triage-preview">
         <h3 id="tm-triage-preview">What the client will read</h3>
         <p>&ldquo;{previewClientSentence(scopeSummary, commitment)}&rdquo;</p>
-        {gap ? <p className="wp-caption">{gap} · The difference is stated, not hidden</p> : null}
+        {gap ? <p className="wp-caption">{gap}</p> : null}
       </section>
     </section>
   );

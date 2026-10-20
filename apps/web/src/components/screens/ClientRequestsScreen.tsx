@@ -59,6 +59,16 @@ export function ClientRequestsScreen({
 
   const ordered = (requests.data ?? []).slice().sort(byAttentionThenAge);
   const project = projects.data?.[0];
+  // REQ-06: this list is every request across every shared project, so heading it with just the
+  // first project's name is misleading. More than one project reads "All projects"; one keeps its
+  // name.
+  const projectCount = (projects.data ?? []).length;
+  const requestsEyebrow =
+    projectCount > 1
+      ? 'Your requests · All projects'
+      : project
+        ? `Your requests · ${project.name}`
+        : 'Your requests';
 
   return (
     <ClientPortalShell
@@ -67,7 +77,7 @@ export function ClientRequestsScreen({
       providerName={providerName}
       activeNavigationId="overview"
       title="Everything you have asked for"
-      eyebrow={project ? `Your requests · ${project.name}` : 'Your requests'}
+      eyebrow={requestsEyebrow}
       headerAside={
         // A link that looks like a button: going somewhere is an anchor, so middle-click and
         // open-in-new-tab keep working.
