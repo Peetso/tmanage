@@ -19,6 +19,10 @@ import type {
 } from '../../lib/api/project-objectives';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectObjectivesScreenProps {
   organizationSlug: string;
@@ -28,10 +32,10 @@ export interface ProjectObjectivesScreenProps {
   client?: ApiClient;
 }
 
-const STATUS_LABELS: Readonly<Record<ProjectObjectiveStatus, string>> = {
-  open: 'Open',
-  met: 'Met',
-  missed: 'Missed',
+const STATUS_LABELS: Readonly<Record<ProjectObjectiveStatus, MessageKey>> = {
+  open: 'ProjectObjectivesScreen.statusOpen',
+  met: 'ProjectObjectivesScreen.statusMet',
+  missed: 'ProjectObjectivesScreen.statusMissed',
 };
 
 /**
@@ -55,6 +59,7 @@ export function ProjectObjectivesScreen({
 }: ProjectObjectivesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -111,9 +116,9 @@ export function ProjectObjectivesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Project objectives"
-      description="What this project is working toward, and whether it was met."
-      eyebrow="Project · Objectives"
+      title={t('ProjectObjectivesScreen.title')}
+      description={t('ProjectObjectivesScreen.description')}
+      eyebrow={t('ProjectObjectivesScreen.eyebrow')}
       topBar={
         <ProjectTabs
           organizationSlug={organizationSlug}
@@ -127,7 +132,7 @@ export function ProjectObjectivesScreen({
           <div className="tm-prj__col tm-prj__col--aside">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-objectives-author">
               <h2 id="tm-objectives-author" className="tm-prj-eyebrow">
-                Set an objective
+                {t('ProjectObjectivesScreen.setObjectiveHeading')}
               </h2>
               <form className="tm-stack" onSubmit={onSubmit} noValidate>
                 <fieldset
@@ -135,17 +140,17 @@ export function ProjectObjectivesScreen({
                   disabled={create.isPending}
                 >
                   <Field
-                    label="Objective"
+                    label={t('ProjectObjectivesScreen.objectiveLabel')}
                     name="name"
                     value={name}
                     onChange={(event) => setName(event.target.value)}
-                    hint="One line. What this project is aiming at."
+                    hint={t('ProjectObjectivesScreen.objectiveHint')}
                     required
                   />
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-objective-description">
-                      Description
+                      {t('ProjectObjectivesScreen.descriptionLabel')}
                     </label>
                     <textarea
                       id="tm-objective-description"
@@ -157,22 +162,22 @@ export function ProjectObjectivesScreen({
                       aria-describedby="tm-objective-description-hint"
                     />
                     <span className="tm-field__hint" id="tm-objective-description-hint">
-                      Optional. The objective in full, and why it matters.
+                      {t('ProjectObjectivesScreen.descriptionHint')}
                     </span>
                   </div>
 
                   <Field
-                    label="Target"
+                    label={t('ProjectObjectivesScreen.targetLabel')}
                     name="target"
                     value={target}
                     onChange={(event) => setTarget(event.target.value)}
-                    hint="Optional. What success looks like, e.g. “≤ 3 days” or “ship by Q3”."
+                    hint={t('ProjectObjectivesScreen.targetHint')}
                   />
                 </fieldset>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not set the objective" live>
-                    {describeError(create.error)}
+                  <InlineAlert tone="danger" title={t('ProjectObjectivesScreen.couldNotSet')} live>
+                    {describeError(create.error, t)}
                   </InlineAlert>
                 ) : null}
 
@@ -182,10 +187,10 @@ export function ProjectObjectivesScreen({
                     tone="ink"
                     size="accessible"
                     loading={create.isPending}
-                    loadingLabel="Saving"
+                    loadingLabel={t('ProjectObjectivesScreen.saving')}
                     disabled={!canSubmit}
                   >
-                    Set objective
+                    {t('ProjectObjectivesScreen.setObjectiveButton')}
                   </Button>
                 </div>
               </form>
@@ -193,34 +198,34 @@ export function ProjectObjectivesScreen({
           </div>
           <div className="tm-prj__col">
             {objectives.isError ? (
-              <InlineAlert tone="danger" title="Could not load the objectives" live>
-                {describeError(objectives.error)}
+              <InlineAlert tone="danger" title={t('ProjectObjectivesScreen.couldNotLoad')} live>
+                {describeError(objectives.error, t)}
               </InlineAlert>
             ) : null}
 
             {objectives.isPending ? (
-              <LoadingRegion label="Loading the project's objectives.">
+              <LoadingRegion label={t('ProjectObjectivesScreen.loading')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {!objectives.isPending && !objectives.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title="No objectives yet">
-                This project has no objectives. Set the first one with the form.
+              <InlineAlert tone="neutral" title={t('ProjectObjectivesScreen.noObjectivesTitle')}>
+                {t('ProjectObjectivesScreen.noObjectivesBody')}
               </InlineAlert>
             ) : null}
 
             {rows.length > 0 && transition.isError ? (
-              <InlineAlert tone="danger" title="Could not update the objective" live>
-                {describeError(transition.error)}
+              <InlineAlert tone="danger" title={t('ProjectObjectivesScreen.couldNotUpdate')} live>
+                {describeError(transition.error, t)}
               </InlineAlert>
             ) : null}
 
             {rows.length > 0 ? (
               <section className="tm-card tm-prj-card" aria-labelledby="tm-objectives-heading">
                 <h2 id="tm-objectives-heading" className="tm-prj-eyebrow">
-                  Objectives
+                  {t('ProjectObjectivesScreen.objectivesHeading')}
                 </h2>
                 <div
                   className="tm-table-scroll"
@@ -229,19 +234,20 @@ export function ProjectObjectivesScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Project objectives"
+                  aria-label={t('ProjectObjectivesScreen.tableAria')}
                 >
                   <table className="tm-table">
                     <caption className="tm-visually-hidden">
-                      Objectives for this project, in creation order, {rows.length} shown.
+                      {t('ProjectObjectivesScreen.captionLead')} {rows.length}{' '}
+                      {t('ProjectObjectivesScreen.captionTail')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Objective</th>
-                        <th scope="col">Target</th>
-                        <th scope="col">Status</th>
-                        <th scope="col">Outcome</th>
-                        <th scope="col">Linked work</th>
+                        <th scope="col">{t('ProjectObjectivesScreen.colObjective')}</th>
+                        <th scope="col">{t('ProjectObjectivesScreen.colTarget')}</th>
+                        <th scope="col">{t('ProjectObjectivesScreen.colStatus')}</th>
+                        <th scope="col">{t('ProjectObjectivesScreen.colOutcome')}</th>
+                        <th scope="col">{t('ProjectObjectivesScreen.colLinkedWork')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -249,6 +255,7 @@ export function ProjectObjectivesScreen({
                         <ObjectiveRow
                           key={objective.id}
                           objective={objective}
+                          t={t}
                           onTransition={(status) =>
                             transition.mutate({ objectiveId: objective.id, status })
                           }
@@ -290,12 +297,14 @@ function ObjectiveRow({
   busy,
   selected,
   onToggleLinks,
+  t,
 }: {
   objective: ProjectObjectiveSummary;
   onTransition: (status: ProjectObjectiveOutcome) => void;
   busy: boolean;
   selected: boolean;
   onToggleLinks: () => void;
+  t: Translate;
 }) {
   return (
     <tr>
@@ -306,7 +315,7 @@ function ObjectiveRow({
         ) : null}
       </th>
       <td>{objective.target ?? <span className="tm-field__hint">—</span>}</td>
-      <td>{STATUS_LABELS[objective.status]}</td>
+      <td>{t(STATUS_LABELS[objective.status])}</td>
       <td>
         {objective.status === 'open' ? (
           <div className="tm-row">
@@ -317,7 +326,7 @@ function ObjectiveRow({
               onClick={() => onTransition('met')}
               disabled={busy}
             >
-              Mark met
+              {t('ProjectObjectivesScreen.markMet')}
             </Button>
             <Button
               type="button"
@@ -326,11 +335,11 @@ function ObjectiveRow({
               onClick={() => onTransition('missed')}
               disabled={busy}
             >
-              Mark missed
+              {t('ProjectObjectivesScreen.markMissed')}
             </Button>
           </div>
         ) : (
-          <span className="tm-field__hint">No further action.</span>
+          <span className="tm-field__hint">{t('ProjectObjectivesScreen.noFurtherAction')}</span>
         )}
       </td>
       <td>
@@ -341,15 +350,17 @@ function ObjectiveRow({
           onClick={onToggleLinks}
           aria-pressed={selected}
         >
-          {selected ? 'Hide linked work' : 'Linked work'}
+          {selected
+            ? t('ProjectObjectivesScreen.hideLinkedWork')
+            : t('ProjectObjectivesScreen.linkedWork')}
         </Button>
       </td>
     </tr>
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectObjectivesScreen.apiError');
+  return t('ProjectObjectivesScreen.genericError');
 }

@@ -11,6 +11,9 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { Avatar, humanize, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface PortalPeopleScreenProps {
   organizationSlug: string;
@@ -43,6 +46,7 @@ export function PortalPeopleScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -68,18 +72,26 @@ export function PortalPeopleScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="people"
-      title={firstName ? `Ask ${firstName} first. They will route it.` : 'People'}
-      eyebrow={project ? `People on ${project.name}` : 'People'}
+      title={
+        firstName
+          ? `${t('PortalPeopleScreen.askPrefix')} ${firstName} ${t('PortalPeopleScreen.askSuffix')}`
+          : t('PortalPeopleScreen.people')
+      }
+      eyebrow={
+        project
+          ? `${t('PortalPeopleScreen.peopleOn')} ${project.name}`
+          : t('PortalPeopleScreen.people')
+      }
     >
       <div className="tm-pt tm-pt--compact">
         {projects.isError ? (
-          <InlineAlert tone="danger" title="Could not load your portal" live>
-            {describe(projects.error)}
+          <InlineAlert tone="danger" title={t('PortalPeopleScreen.couldNotLoadPortal')} live>
+            {describe(projects.error, t)}
           </InlineAlert>
         ) : null}
 
         {projects.isPending ? (
-          <LoadingRegion label="Loading your project.">
+          <LoadingRegion label={t('PortalPeopleScreen.loadingProject')}>
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
@@ -87,25 +99,25 @@ export function PortalPeopleScreen({
         <section className="tm-pt-col tm-pt-people" aria-labelledby="tm-portal-people">
           <h2 id="tm-portal-people" className="tm-pt-eyebrow">
             {project
-              ? `${providerName} · ${roster.length} ${roster.length === 1 ? 'person' : 'people'}`
-              : 'Your team'}
+              ? `${providerName} · ${roster.length} ${roster.length === 1 ? t('PortalPeopleScreen.person') : t('PortalPeopleScreen.people_plural')}`
+              : t('PortalPeopleScreen.yourTeam')}
           </h2>
 
           {!projects.isPending && project == null ? (
             <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-              Nothing has been shared with you yet. {providerName} decides what appears here, and
-              they will tell you when a project is ready to see.
+              {t('PortalPeopleScreen.nothingSharedLead')} {providerName}{' '}
+              {t('PortalPeopleScreen.nothingSharedTail')}
             </p>
           ) : null}
 
           {people.isError ? (
-            <InlineAlert tone="danger" title="Could not load your team" live>
-              {describe(people.error)}
+            <InlineAlert tone="danger" title={t('PortalPeopleScreen.couldNotLoadTeam')} live>
+              {describe(people.error, t)}
             </InlineAlert>
           ) : null}
 
           {people.isPending && firstProjectId != null ? (
-            <LoadingRegion label="Loading your team.">
+            <LoadingRegion label={t('PortalPeopleScreen.loadingTeam')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
@@ -113,22 +125,22 @@ export function PortalPeopleScreen({
 
           {project != null && !people.isPending && !people.isError && roster.length === 0 ? (
             <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-              No contacts have been shared for this project yet. {providerName} chooses who appears
-              here, and will introduce your team as the work starts.
+              {t('PortalPeopleScreen.noContactsLead')} {providerName}{' '}
+              {t('PortalPeopleScreen.noContactsTail')}
             </p>
           ) : null}
 
           {contact ? (
             <ul
               className="tm-pt-list"
-              aria-label={`Your team on ${project?.name ?? 'the project'}`}
+              aria-label={`${t('PortalPeopleScreen.yourTeamOn')} ${project?.name ?? t('PortalPeopleScreen.theProject')}`}
             >
               <li className="tm-pt-person-card tm-pt-person-card--lead">
                 <Avatar name={contact.displayName} tone="soft" size="lg" />
                 <div className="tm-pt-item__main">
                   <div className="tm-pt-action__meta">
                     <p className="tm-pt-person-card__name">{contact.displayName}</p>
-                    <Tag tone="lime">Your contact</Tag>
+                    <Tag tone="lime">{t('PortalPeopleScreen.yourContact')}</Tag>
                   </div>
                   <p className="tm-pt-person-card__role">{roleLabel(contact.role)}</p>
                 </div>
@@ -136,7 +148,7 @@ export function PortalPeopleScreen({
                   className="tm-pt-btn tm-pt-btn--ink"
                   href={`/${organizationSlug}/portal/requests/new`}
                 >
-                  Ask for something
+                  {t('PortalPeopleScreen.askForSomething')}
                 </Link>
               </li>
               {others.length > 0 ? (
@@ -170,8 +182,8 @@ function roleLabel(role: PortalPerson['role']): string {
   return humanize(role);
 }
 
-function describe(error: unknown): string {
+function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('PortalPeopleScreen.portalNotAnswering');
+  return t('PortalPeopleScreen.genericError');
 }

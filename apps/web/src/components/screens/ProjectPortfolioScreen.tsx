@@ -18,10 +18,13 @@ import {
 } from '../../lib/portfolio-presentation';
 import type { PortfolioRow } from '../../lib/portfolio-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import { PortfolioTimeline } from './portfolio/PortfolioTimeline';
 import { PortfolioCapacityPanel } from './portfolio/PortfolioCapacityPanel';
 import '../../styles/screens/portfolio.css';
 import '../../styles/screens/portfolio-planning.css';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectPortfolioScreenProps {
   organizationSlug: string;
@@ -52,6 +55,7 @@ export function ProjectPortfolioScreen({
   client,
 }: ProjectPortfolioScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const portfolio = useQuery({
     queryKey: ['project-portfolio', organizationSlug],
@@ -79,10 +83,10 @@ export function ProjectPortfolioScreen({
       activeNavigationId="work"
       eyebrow={
         hasRows
-          ? `Portfolio · ${rows.length} ${rows.length === 1 ? 'project' : 'projects'}`
-          : 'Portfolio'
+          ? `${t('ProjectPortfolioScreen.portfolio')} · ${rows.length} ${rows.length === 1 ? t('ProjectPortfolioScreen.projectSingular') : t('ProjectPortfolioScreen.projectPlural')}`
+          : t('ProjectPortfolioScreen.portfolio')
       }
-      title={hasRows ? headline(atRisk.length) : 'Portfolio'}
+      title={hasRows ? headline(atRisk.length) : t('ProjectPortfolioScreen.portfolio')}
       actions={
         <NewProjectLink organizationSlug={organizationSlug} {...(client ? { client } : {})} />
       }
@@ -93,59 +97,66 @@ export function ProjectPortfolioScreen({
                 <div className="tm-por-metric">
                   <div className="tm-por-metric__figure">
                     <span className="tm-por-metric__value">{clientAtRisk}</span>
-                    {clientAtRisk > 0 ? <span className="tm-por-metric__flag">act now</span> : null}
+                    {clientAtRisk > 0 ? (
+                      <span className="tm-por-metric__flag">
+                        {t('ProjectPortfolioScreen.actNow')}
+                      </span>
+                    ) : null}
                   </div>
                   <div className="tm-por-metric__label">
-                    {clientAtRisk === 1 ? 'client date at risk' : 'client dates at risk'}
+                    {clientAtRisk === 1
+                      ? t('ProjectPortfolioScreen.clientDateAtRisk')
+                      : t('ProjectPortfolioScreen.clientDatesAtRisk')}
                   </div>
                 </div>
                 <div className="tm-por-metric">
                   <div className="tm-por-metric__figure">
                     <span className="tm-por-metric__value">{holding}</span>
                   </div>
-                  <div className="tm-por-metric__label">holding their commitment</div>
+                  <div className="tm-por-metric__label">
+                    {t('ProjectPortfolioScreen.holdingCommitment')}
+                  </div>
                 </div>
               </div>
             ),
           }
-        : { description: 'Every project you can see, and where each one stands.' })}
+        : { description: t('ProjectPortfolioScreen.description') })}
     >
       {portfolio.isError ? (
-        <InlineAlert tone="danger" title="Could not load the portfolio" live>
-          {describeError(portfolio.error)}
+        <InlineAlert tone="danger" title={t('ProjectPortfolioScreen.couldNotLoad')} live>
+          {describeError(portfolio.error, t)}
         </InlineAlert>
       ) : null}
 
       {portfolio.isPending ? (
-        <LoadingRegion label="Loading the portfolio.">
+        <LoadingRegion label={t('ProjectPortfolioScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!portfolio.isPending && !portfolio.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No projects yet">
-          There are no projects you can see. When one is created and shared with you, it appears
-          here.
+        <InlineAlert tone="neutral" title={t('ProjectPortfolioScreen.noProjectsTitle')}>
+          {t('ProjectPortfolioScreen.noProjectsBody')}
         </InlineAlert>
       ) : null}
 
       {hasRows ? (
         <section className="tm-por" aria-labelledby="tm-portfolio-heading">
           <h2 id="tm-portfolio-heading" className="tm-visually-hidden">
-            Projects
+            {t('ProjectPortfolioScreen.projectsHeading')}
           </h2>
           <div className="tm-por__head" aria-hidden="true">
-            <span>Project</span>
-            <span>Why it is here</span>
-            <span>Committed</span>
-            <span>Forecast</span>
-            <span className="tm-por__end">Client wait</span>
+            <span>{t('ProjectPortfolioScreen.colProject')}</span>
+            <span>{t('ProjectPortfolioScreen.colWhy')}</span>
+            <span>{t('ProjectPortfolioScreen.colCommitted')}</span>
+            <span>{t('ProjectPortfolioScreen.colForecast')}</span>
+            <span className="tm-por__end">{t('ProjectPortfolioScreen.colClientWait')}</span>
           </div>
           <ul className="tm-por__list">
             {rows.map((row) => (
               <li key={row.project.projectId}>
-                <PortfolioRowView organizationSlug={organizationSlug} row={row} />
+                <PortfolioRowView organizationSlug={organizationSlug} row={row} t={t} />
               </li>
             ))}
           </ul>
@@ -159,7 +170,7 @@ export function ProjectPortfolioScreen({
             organizationSlug={organizationSlug}
             capacity={capacity.data}
             pending={capacity.isPending}
-            error={capacity.isError ? describeError(capacity.error) : null}
+            error={capacity.isError ? describeError(capacity.error, t) : null}
           />
         </div>
       ) : null}
@@ -170,9 +181,11 @@ export function ProjectPortfolioScreen({
 function PortfolioRowView({
   organizationSlug,
   row,
+  t,
 }: {
   organizationSlug: string;
   row: PortfolioRow;
+  t: Translate;
 }) {
   const { project } = row;
   // An archived project's dates and waits are history, not commitments: the frame shows dashes.
@@ -180,8 +193,10 @@ function PortfolioRowView({
   const forecast = row.archived ? null : (project.forecastOn ?? null);
   const waitHours = row.archived ? null : row.waitHours;
   const meta = row.archived
-    ? 'Archived · approvals preserved'
-    : [project.clientName ?? 'Internal', project.ownerName].filter(Boolean).join(' · ');
+    ? t('ProjectPortfolioScreen.archivedMeta')
+    : [project.clientName ?? t('ProjectPortfolioScreen.internal'), project.ownerName]
+        .filter(Boolean)
+        .join(' · ');
   const waitTone =
     waitHours === null
       ? 'muted'
@@ -211,7 +226,7 @@ function PortfolioRowView({
         className="tm-por-row__cell tm-por-row__cell--committed"
         data-tone={committed ? undefined : 'muted'}
       >
-        <dt>Committed</dt>
+        <dt>{t('ProjectPortfolioScreen.colCommitted')}</dt>
         <dd>
           <bdi>{committed ? formatDay(committed) : '—'}</bdi>
         </dd>
@@ -221,22 +236,22 @@ function PortfolioRowView({
         className="tm-por-row__cell tm-por-row__cell--forecast"
         data-tone={forecast === null ? 'muted' : row.slipped ? 'danger' : undefined}
       >
-        <dt>Forecast</dt>
+        <dt>{t('ProjectPortfolioScreen.colForecast')}</dt>
         <dd>
           <bdi>{forecast ? formatDay(forecast) : '—'}</bdi>
         </dd>
       </dl>
 
       <dl className="tm-por-row__cell tm-por-row__cell--wait tm-por__end" data-tone={waitTone}>
-        <dt>Client wait</dt>
+        <dt>{t('ProjectPortfolioScreen.colClientWait')}</dt>
         <dd>{waitHours === null ? '—' : formatWait(waitHours)}</dd>
       </dl>
     </article>
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectPortfolioScreen.apiError');
+  return t('ProjectPortfolioScreen.genericError');
 }

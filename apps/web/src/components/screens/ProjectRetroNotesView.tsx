@@ -13,6 +13,10 @@ import {
 } from '../../lib/api/project-retro-notes';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectRetroNotesViewProps {
   organizationSlug: string;
@@ -23,16 +27,16 @@ export interface ProjectRetroNotesViewProps {
 
 const CATEGORIES: readonly ProjectRetroNoteCategory[] = ['went_well', 'to_improve', 'action'];
 
-const CATEGORY_LABELS: Readonly<Record<ProjectRetroNoteCategory, string>> = {
-  went_well: 'Went well',
-  to_improve: 'To improve',
-  action: 'Action',
+const CATEGORY_LABELS: Readonly<Record<ProjectRetroNoteCategory, MessageKey>> = {
+  went_well: 'ProjectRetroNotesView.catWentWell',
+  to_improve: 'ProjectRetroNotesView.catToImprove',
+  action: 'ProjectRetroNotesView.catAction',
 };
 
-function describe(error: unknown): string {
+function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectRetroNotesView.apiError');
+  return t('ProjectRetroNotesView.genericError');
 }
 
 function groupOf(
@@ -63,6 +67,7 @@ export function ProjectRetroNotesView({
   api,
 }: ProjectRetroNotesViewProps) {
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['project-retro-notes', organizationSlug, projectId] as const;
 
   const [category, setCategory] = useState<ProjectRetroNoteCategory>('went_well');
@@ -87,7 +92,7 @@ export function ProjectRetroNotesView({
       setCategory('went_well');
       refresh();
     },
-    onError: (error) => setFailure(describe(error)),
+    onError: (error) => setFailure(describe(error, t)),
   });
 
   const remove = useMutation({
@@ -97,13 +102,13 @@ export function ProjectRetroNotesView({
       setFailure(undefined);
       refresh();
     },
-    onError: (error) => setFailure(describe(error)),
+    onError: (error) => setFailure(describe(error, t)),
   });
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (body.trim() === '') {
-      setFailure('Write the note before adding it.');
+      setFailure(t('ProjectRetroNotesView.writeNoteFirst'));
       return;
     }
     capture.mutate();
@@ -114,11 +119,11 @@ export function ProjectRetroNotesView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-retro-notes">
       <h2 id="tm-retro-notes" className="tm-eyebrow">
-        Retrospective
+        {t('ProjectRetroNotesView.retrospectiveHeading')}
       </h2>
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('ProjectRetroNotesView.didNotGoThrough')} live>
           {failure}
         </InlineAlert>
       ) : null}
@@ -126,7 +131,7 @@ export function ProjectRetroNotesView({
       <form className="tm-stack" onSubmit={submit} noValidate>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-retro-category">
-            Category
+            {t('ProjectRetroNotesView.categoryLabel')}
           </label>
           <select
             id="tm-retro-category"
@@ -138,14 +143,14 @@ export function ProjectRetroNotesView({
           >
             {CATEGORIES.map((value) => (
               <option key={value} value={value}>
-                {CATEGORY_LABELS[value]}
+                {t(CATEGORY_LABELS[value])}
               </option>
             ))}
           </select>
         </div>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-retro-body">
-            Note
+            {t('ProjectRetroNotesView.noteLabel')}
           </label>
           <textarea
             id="tm-retro-body"
@@ -164,23 +169,23 @@ export function ProjectRetroNotesView({
             size="accessible"
             disabled={pending}
             loading={capture.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('ProjectRetroNotesView.adding')}
           >
-            Add note
+            {t('ProjectRetroNotesView.addNote')}
           </Button>
         </div>
       </form>
 
       {board.isPending ? (
-        <LoadingRegion label="Loading the retrospective board.">
+        <LoadingRegion label={t('ProjectRetroNotesView.loadingBoard')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {board.isError ? (
-        <InlineAlert tone="danger" title="Could not load the board" live>
-          {describe(board.error)}
+        <InlineAlert tone="danger" title={t('ProjectRetroNotesView.couldNotLoad')} live>
+          {describe(board.error, t)}
         </InlineAlert>
       ) : null}
 
@@ -189,11 +194,14 @@ export function ProjectRetroNotesView({
             const notes = groupOf(board.data, value);
             return (
               <div key={value} className="tm-stack">
-                <h3 className="tm-eyebrow">{CATEGORY_LABELS[value]}</h3>
+                <h3 className="tm-eyebrow">{t(CATEGORY_LABELS[value])}</h3>
                 {notes.length === 0 ? (
-                  <p className="tm-prose">Nothing here yet.</p>
+                  <p className="tm-prose">{t('ProjectRetroNotesView.nothingHereYet')}</p>
                 ) : (
-                  <ul className="tm-list" aria-label={`${CATEGORY_LABELS[value]} notes`}>
+                  <ul
+                    className="tm-list"
+                    aria-label={`${t(CATEGORY_LABELS[value])} ${t('ProjectRetroNotesView.notesSuffix')}`}
+                  >
                     {notes.map((note) => (
                       <li key={note.id} className="tm-row">
                         <p className="tm-prose">{note.body}</p>
@@ -204,7 +212,7 @@ export function ProjectRetroNotesView({
                           disabled={pending}
                           onClick={() => remove.mutate(note.id)}
                         >
-                          Delete
+                          {t('ProjectRetroNotesView.delete')}
                         </Button>
                       </li>
                     ))}

@@ -26,7 +26,11 @@ import { listFactors } from '../../lib/api/auth';
 import { getQuietHours } from '../../lib/api/quiet-hours';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface PreferencesScreenProps {
   organizationSlug: string;
@@ -34,17 +38,18 @@ export interface PreferencesScreenProps {
   client?: ApiClient;
 }
 
-const THEMES: readonly { id: ThemePreference; label: string }[] = [
-  { id: 'system', label: 'Match my device' },
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
+const THEMES: readonly { id: ThemePreference; labelKey: MessageKey }[] = [
+  { id: 'system', labelKey: 'PreferencesScreen.themeSystem' },
+  { id: 'light', labelKey: 'PreferencesScreen.themeLight' },
+  { id: 'dark', labelKey: 'PreferencesScreen.themeDark' },
 ];
 
-const DENSITIES: readonly { id: DensityPreference; label: string }[] = [
-  { id: 'comfortable', label: 'Comfortable' },
-  { id: 'compact', label: 'Compact' },
+const DENSITIES: readonly { id: DensityPreference; labelKey: MessageKey }[] = [
+  { id: 'comfortable', labelKey: 'PreferencesScreen.densityComfortable' },
+  { id: 'compact', labelKey: 'PreferencesScreen.densityCompact' },
 ];
 
+// Language names are shown as endonyms (each language in its own script), so they are not translated.
 const LOCALES: readonly { id: PreferenceLocale; label: string }[] = [
   { id: 'en', label: 'English (US)' },
   { id: 'en-GB', label: 'English (UK)' },
@@ -53,14 +58,14 @@ const LOCALES: readonly { id: PreferenceLocale; label: string }[] = [
   { id: 'es', label: 'Español' },
 ];
 
-/** How each membership role reads on screen, with what it means for the person holding it. */
-const ROLE_COPY: Readonly<Record<string, string>> = {
-  owner: 'Owner. Only another owner can change this.',
-  org_admin: 'Admin. An owner can change this from People.',
-  admin: 'Admin. An owner can change this from People.',
-  manager: 'Manager. An owner or admin can change this from People.',
-  member: 'Member. An owner or admin can change this from People.',
-  guest: 'Freelancer or partner. An owner or admin can change this from People.',
+/** How each membership role reads on screen; the message key for each role's description. */
+const ROLE_COPY: Readonly<Record<string, MessageKey>> = {
+  owner: 'PreferencesScreen.roleOwner',
+  org_admin: 'PreferencesScreen.roleAdmin',
+  admin: 'PreferencesScreen.roleAdmin',
+  manager: 'PreferencesScreen.roleManager',
+  member: 'PreferencesScreen.roleMember',
+  guest: 'PreferencesScreen.roleGuest',
 };
 
 // ── Shared pieces for the preference screens (PREF-01…05) ─────────────────────────────────────
@@ -69,14 +74,30 @@ const ROLE_COPY: Readonly<Record<string, string>> = {
 export type PreferencesSection =
   'profile' | 'appearance' | 'notifications' | 'accessibility' | 'keyboard' | 'ai-assistant';
 
-const SECTIONS: readonly { id: PreferencesSection; label: string; href: string }[] = [
-  { id: 'profile', label: 'Profile', href: '/preferences' },
-  { id: 'appearance', label: 'Appearance', href: '/settings/display' },
-  { id: 'notifications', label: 'Notifications', href: '/inbox/notification-preferences' },
-  { id: 'accessibility', label: 'Accessibility', href: '/settings/accessibility' },
-  { id: 'keyboard', label: 'Keyboard', href: '/preferences?section=keyboard' },
+const SECTIONS: readonly { id: PreferencesSection; labelKey: MessageKey; href: string }[] = [
+  { id: 'profile', labelKey: 'PreferencesScreen.sectionProfile', href: '/preferences' },
+  { id: 'appearance', labelKey: 'PreferencesScreen.sectionAppearance', href: '/settings/display' },
+  {
+    id: 'notifications',
+    labelKey: 'PreferencesScreen.sectionNotifications',
+    href: '/inbox/notification-preferences',
+  },
+  {
+    id: 'accessibility',
+    labelKey: 'PreferencesScreen.sectionAccessibility',
+    href: '/settings/accessibility',
+  },
+  {
+    id: 'keyboard',
+    labelKey: 'PreferencesScreen.sectionKeyboard',
+    href: '/preferences?section=keyboard',
+  },
   // Every member's own keys, so it sits under the account orb, not under Control.
-  { id: 'ai-assistant', label: 'AI assistant', href: '/settings/ai-assistant' },
+  {
+    id: 'ai-assistant',
+    labelKey: 'PreferencesScreen.sectionAiAssistant',
+    href: '/settings/ai-assistant',
+  },
 ];
 
 /** PREF-01's left column: the person's own settings, one link per section. */
@@ -88,10 +109,11 @@ export function PreferencesNav({
   current: PreferencesSection;
 }) {
   const headingId = useId();
+  const t = useT();
   return (
     <div>
       <h2 id={headingId} className="tm-prefs-nav__heading">
-        Yours only
+        {t('PreferencesScreen.yoursOnly')}
       </h2>
       <ul className="tm-prefs-nav" aria-labelledby={headingId}>
         {SECTIONS.map((section) => (
@@ -101,7 +123,7 @@ export function PreferencesNav({
               className="tm-prefs-nav__link"
               {...(section.id === current ? { 'aria-current': 'page' as const } : {})}
             >
-              {section.label}
+              {t(section.labelKey)}
             </Link>
           </li>
         ))}
@@ -206,6 +228,7 @@ export function PreferencesScreen({
 }: PreferencesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['preferences', organizationSlug];
 
   const preferences = useQuery({
@@ -259,7 +282,8 @@ export function PreferencesScreen({
   const formReady = !preferences.isPending && !preferences.isError;
   const orgList = Array.isArray(organizations.data) ? organizations.data : [];
   const role = orgList.find((org) => org.slug === organizationSlug)?.role;
-  const roleCopy = role ? (ROLE_COPY[role] ?? role.replace(/_/g, ' ')) : undefined;
+  const roleKey = role ? ROLE_COPY[role] : undefined;
+  const roleCopy = roleKey ? t(roleKey) : role ? role.replace(/_/g, ' ') : undefined;
   const confirmedFactors = Array.isArray(factors.data?.factors)
     ? factors.data.factors.filter((factor) => factor.confirmedAt !== null)
     : undefined;
@@ -270,18 +294,18 @@ export function PreferencesScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Preferences · Profile"
-      title="How the app reads for you"
+      eyebrow={t('PreferencesScreen.eyebrow')}
+      title={t('PreferencesScreen.title')}
       actions={
         formReady ? (
           <button
             type="submit"
             form="tm-preferences-form"
             className="tm-prefs-capsule tm-prefs-capsule--ink"
-            aria-label="Save preferences"
+            aria-label={t('PreferencesScreen.saveAria')}
             disabled={save.isPending}
           >
-            {save.isPending ? 'Saving…' : 'Save'}
+            {save.isPending ? t('PreferencesScreen.saving') : t('PreferencesScreen.save')}
           </button>
         ) : null
       }
@@ -291,17 +315,17 @@ export function PreferencesScreen({
         <div className="tm-prefs__main">
           <section className="tm-prefs-card" aria-labelledby="tm-preferences-heading">
             <h2 id="tm-preferences-heading" className="tm-prefs-eyebrow">
-              Language and appearance
+              {t('PreferencesScreen.langAppearanceHeading')}
             </h2>
 
             {preferences.isError ? (
-              <InlineAlert tone="danger" title="Could not load your preferences" live>
-                {describeError(preferences.error)}
+              <InlineAlert tone="danger" title={t('PreferencesScreen.couldNotLoad')} live>
+                {describeError(preferences.error, t)}
               </InlineAlert>
             ) : null}
 
             {preferences.isPending ? (
-              <LoadingRegion label="Loading your preferences.">
+              <LoadingRegion label={t('PreferencesScreen.loading')}>
                 <Skeleton height="46px" />
                 <Skeleton height="46px" />
                 <Skeleton height="46px" />
@@ -313,10 +337,10 @@ export function PreferencesScreen({
                 id="tm-preferences-form"
                 className="tm-prefs-fields"
                 onSubmit={onSubmit}
-                aria-label="Appearance and language"
+                aria-label={t('PreferencesScreen.formAria')}
               >
                 <PreferenceSelect
-                  label="Language"
+                  label={t('PreferencesScreen.labelLanguage')}
                   name="locale"
                   value={locale}
                   onChange={(event) => setLocale(event.target.value as PreferenceLocale)}
@@ -329,57 +353,59 @@ export function PreferencesScreen({
                 </PreferenceSelect>
 
                 <PreferenceSelect
-                  label="Theme"
+                  label={t('PreferencesScreen.labelTheme')}
                   name="theme"
                   value={theme}
                   onChange={(event) => setTheme(event.target.value as ThemePreference)}
                 >
                   {THEMES.map((option) => (
                     <option key={option.id} value={option.id}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </PreferenceSelect>
 
                 <PreferenceSelect
-                  label="Density"
+                  label={t('PreferencesScreen.labelDensity')}
                   name="density"
                   value={density}
                   onChange={(event) => setDensity(event.target.value as DensityPreference)}
                 >
                   {DENSITIES.map((option) => (
                     <option key={option.id} value={option.id}>
-                      {option.label}
+                      {t(option.labelKey)}
                     </option>
                   ))}
                 </PreferenceSelect>
 
                 <div className="tm-prefs-field">
-                  <span className="tm-prefs-field__label">Quiet hours</span>
+                  <span className="tm-prefs-field__label">{t('PreferencesScreen.quietHours')}</span>
                   <span className="tm-prefs-field__readout">
                     <span>
                       {quiet
                         ? quiet.enabled
                           ? `${quiet.startTime} – ${quiet.endTime} ${quiet.timezone}`
-                          : 'Off'
+                          : t('PreferencesScreen.off')
                         : '—'}
                     </span>
-                    <Link href={`/${organizationSlug}/settings/quiet-hours`}>Change</Link>
+                    <Link href={`/${organizationSlug}/settings/quiet-hours`}>
+                      {t('PreferencesScreen.change')}
+                    </Link>
                   </span>
                 </div>
 
                 {save.isError ? (
                   <div className="tm-prefs-field--wide">
-                    <InlineAlert tone="danger" title="Could not save your preferences" live>
-                      {describeError(save.error)}
+                    <InlineAlert tone="danger" title={t('PreferencesScreen.couldNotSave')} live>
+                      {describeError(save.error, t)}
                     </InlineAlert>
                   </div>
                 ) : null}
 
                 {save.isSuccess ? (
                   <div className="tm-prefs-field--wide">
-                    <InlineAlert tone="success" title="Preferences saved" live>
-                      Your appearance and language settings are up to date.
+                    <InlineAlert tone="success" title={t('PreferencesScreen.savedTitle')} live>
+                      {t('PreferencesScreen.savedBody')}
                     </InlineAlert>
                   </div>
                 ) : null}
@@ -391,19 +417,21 @@ export function PreferencesScreen({
         <div className="tm-prefs__side">
           <section className="tm-prefs-card tm-prefs-card--tight" aria-labelledby="tm-role-heading">
             <h2 id="tm-role-heading" className="tm-prefs-card__title">
-              Your role
+              {t('PreferencesScreen.yourRole')}
             </h2>
             <p className="tm-prefs-card__body">{roleCopy ?? organizationName}</p>
             <hr className="tm-prefs-rule" />
-            <h3 className="tm-prefs-eyebrow">Sign-in</h3>
+            <h3 className="tm-prefs-eyebrow">{t('PreferencesScreen.signIn')}</h3>
             <p className="tm-prefs-card__body">
               {confirmedFactors === undefined
-                ? 'Two-factor status unavailable'
+                ? t('PreferencesScreen.twoFactorUnavailable')
                 : confirmedFactors.length > 0
-                  ? 'Two-factor on'
-                  : 'Two-factor off'}
+                  ? t('PreferencesScreen.twoFactorOn')
+                  : t('PreferencesScreen.twoFactorOff')}
               {' · '}
-              <Link href={`/${organizationSlug}/settings/security`}>Access tokens</Link>
+              <Link href={`/${organizationSlug}/settings/security`}>
+                {t('PreferencesScreen.accessTokens')}
+              </Link>
             </p>
           </section>
 
@@ -418,8 +446,8 @@ export function PreferencesScreen({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped before your preferences loaded.';
-  return 'Something went wrong with your preferences.';
+  if (error instanceof NetworkError) return t('PreferencesScreen.networkError');
+  return t('PreferencesScreen.genericError');
 }

@@ -11,6 +11,9 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { longDay, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface PortalUpdatesScreenProps {
   organizationSlug: string;
@@ -44,6 +47,7 @@ export function PortalUpdatesScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -73,36 +77,38 @@ export function PortalUpdatesScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="updates"
-      title="Every update, in plain words"
-      eyebrow={`Updates · written by ${providerName}`}
+      title={t('PortalUpdatesScreen.title')}
+      eyebrow={`${t('PortalUpdatesScreen.updatesWrittenBy')} ${providerName}`}
     >
       <div className="tm-pt tm-pt--compact">
         {projects.isError || updates.isError ? (
-          <InlineAlert tone="danger" title="Could not load updates" live>
-            {describe(projects.error ?? updates.error)}
+          <InlineAlert tone="danger" title={t('PortalUpdatesScreen.couldNotLoadUpdates')} live>
+            {describe(projects.error ?? updates.error, t)}
           </InlineAlert>
         ) : null}
 
         {projects.isPending || (updates.isPending && projectId != null) ? (
-          <LoadingRegion label="Loading updates.">
+          <LoadingRegion label={t('PortalUpdatesScreen.loadingUpdates')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         <div className="tm-pt-split tm-pt-split--aside">
-          <section className="tm-pt-col" aria-label={`Updates from ${providerName}`}>
+          <section
+            className="tm-pt-col"
+            aria-label={`${t('PortalUpdatesScreen.updatesFrom')} ${providerName}`}
+          >
             {!projects.isPending && project == null ? (
               <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-                There is no project shared with you yet. When {providerName} shares one, their
-                updates will appear here.
+                {t('PortalUpdatesScreen.noProjectLead')} {providerName}{' '}
+                {t('PortalUpdatesScreen.noProjectTail')}
               </p>
             ) : null}
 
             {updates.isSuccess && rows.length === 0 ? (
               <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-                {providerName} has not posted an update yet. When they share news about your
-                project, it will appear here, newest first.
+                {providerName} {t('PortalUpdatesScreen.noUpdatesTail')}
               </p>
             ) : null}
 
@@ -118,7 +124,9 @@ export function PortalUpdatesScreen({
                     }
                   >
                     <div className="tm-pt-action__meta">
-                      {index === 0 ? <Tag tone="lime">Latest</Tag> : null}
+                      {index === 0 ? (
+                        <Tag tone="lime">{t('PortalUpdatesScreen.latest')}</Tag>
+                      ) : null}
                       <time className="tm-pt-mono" dateTime={update.createdAt}>
                         {weekday(update.createdAt)} · {providerName}
                       </time>
@@ -135,13 +143,13 @@ export function PortalUpdatesScreen({
                           className="tm-pt-btn tm-pt-btn--lime"
                           href={`/${organizationSlug}/portal/actions`}
                         >
-                          See what needs you
+                          {t('PortalUpdatesScreen.seeWhatNeedsYou')}
                         </Link>
                         <Link
                           className="tm-pt-btn"
                           href={`/${organizationSlug}/portal/requests/new`}
                         >
-                          Ask a question
+                          {t('PortalUpdatesScreen.askAQuestion')}
                         </Link>
                       </div>
                     ) : null}
@@ -153,8 +161,8 @@ export function PortalUpdatesScreen({
 
           {project ? (
             <div className="tm-pt-col">
-              <ProjectStands project={project} />
-              <ComingUp milestones={milestones.data ?? []} />
+              <ProjectStands project={project} t={t} />
+              <ComingUp milestones={milestones.data ?? []} t={t} />
             </div>
           ) : null}
         </div>
@@ -163,17 +171,19 @@ export function PortalUpdatesScreen({
   );
 }
 
-function ProjectStands({ project }: { project: PortalProject }) {
+function ProjectStands({ project, t }: { project: PortalProject; t: Translate }) {
   return (
     <section className="tm-pt-ink" aria-labelledby="tm-updates-stands">
       <h2 id="tm-updates-stands" className="tm-pt-eyebrow">
-        Where the project stands
+        {t('PortalUpdatesScreen.whereStands')}
       </h2>
       <p className="tm-pt-ink__big">
-        {project.committedAt ? shortDay(project.committedAt) : 'No date yet'}
+        {project.committedAt ? shortDay(project.committedAt) : t('PortalUpdatesScreen.noDateYet')}
       </p>
       <p className="tm-pt-quiet">
-        {project.committedAt ? 'the date agreed with you' : 'no date has been agreed yet'}
+        {project.committedAt
+          ? t('PortalUpdatesScreen.dateAgreed')
+          : t('PortalUpdatesScreen.noDateAgreed')}
       </p>
       <hr className="tm-pt-ink__rule" />
       <p className="tm-pt-ink__big tm-pt-ink__big--lime">
@@ -181,14 +191,14 @@ function ProjectStands({ project }: { project: PortalProject }) {
       </p>
       <p className="tm-pt-quiet">
         {project.forecastAt
-          ? 'the current estimate, which can move'
-          : 'no estimate has been shared yet'}
+          ? t('PortalUpdatesScreen.currentEstimate')
+          : t('PortalUpdatesScreen.noEstimate')}
       </p>
     </section>
   );
 }
 
-function ComingUp({ milestones }: { milestones: readonly ClientMilestone[] }) {
+function ComingUp({ milestones, t }: { milestones: readonly ClientMilestone[]; t: Translate }) {
   const ahead = milestones
     .filter((milestone) => milestone.status !== 'met')
     .sort((a, b) => (a.dueOn ?? '9999').localeCompare(b.dueOn ?? '9999'))
@@ -197,7 +207,7 @@ function ComingUp({ milestones }: { milestones: readonly ClientMilestone[] }) {
   return (
     <section className="tm-pt-card" aria-labelledby="tm-updates-dates">
       <h2 id="tm-updates-dates" className="tm-pt-eyebrow">
-        Dates ahead
+        {t('PortalUpdatesScreen.datesAhead')}
       </h2>
       <ul className="tm-pt-rows">
         {ahead.map((milestone) => (
@@ -206,8 +216,8 @@ function ComingUp({ milestones }: { milestones: readonly ClientMilestone[] }) {
               <p className="tm-pt-rows__title">{milestone.title}</p>
               <p className="tm-pt-quiet">
                 {milestone.dueOn
-                  ? `${milestone.status === 'missed' ? 'was due' : 'committed'} ${longDay(milestone.dueOn)}`
-                  : 'no date yet'}
+                  ? `${milestone.status === 'missed' ? t('PortalUpdatesScreen.wasDue') : t('PortalUpdatesScreen.committed')} ${longDay(milestone.dueOn)}`
+                  : t('PortalUpdatesScreen.noDateYetLower')}
               </p>
             </div>
           </li>
@@ -227,8 +237,8 @@ function weekday(value: string): string {
   }).format(parsed);
 }
 
-function describe(error: unknown): string {
+function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('PortalUpdatesScreen.portalNotAnswering');
+  return t('PortalUpdatesScreen.genericError');
 }

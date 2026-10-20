@@ -13,6 +13,9 @@ import {
 import type { PortalSettingsView } from '../../lib/api/portal-settings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface PortalSettingsScreenProps {
   organizationSlug: string;
@@ -46,6 +49,7 @@ export function PortalSettingsScreen({
 }: PortalSettingsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const settings = useQuery({
     queryKey: ['portal-settings', organizationSlug, projectId],
@@ -84,16 +88,16 @@ export function PortalSettingsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Client portal settings"
-      description="Configure how this project's client portal presents itself: the welcome message, the accent colour, and what is shown."
+      title={t('PortalSettingsScreen.title')}
+      description={t('PortalSettingsScreen.description')}
     >
       {settings.isPending ? (
-        <LoadingRegion label="Loading portal settings">
+        <LoadingRegion label={t('PortalSettingsScreen.loadingSettings')}>
           <Skeleton />
         </LoadingRegion>
       ) : settings.isError ? (
-        <InlineAlert tone="danger" title="We could not load the portal settings">
-          {errorMessage(settings.error)}
+        <InlineAlert tone="danger" title={t('PortalSettingsScreen.couldNotLoad')}>
+          {errorMessage(settings.error, t)}
         </InlineAlert>
       ) : (
         <form
@@ -106,12 +110,12 @@ export function PortalSettingsScreen({
           }}
         >
           <h2 id="tm-portal-settings-heading" className="tm-eyebrow">
-            Portal branding
+            {t('PortalSettingsScreen.brandingHeading')}
           </h2>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-portal-welcome">
-              Welcome message
+              {t('PortalSettingsScreen.welcomeLabel')}
             </label>
             <textarea
               id="tm-portal-welcome"
@@ -119,14 +123,14 @@ export function PortalSettingsScreen({
               rows={3}
               maxLength={2000}
               value={welcomeMessage}
-              placeholder="Shown at the top of the client portal"
+              placeholder={t('PortalSettingsScreen.welcomePlaceholder')}
               onChange={(event) => setWelcomeMessage(event.target.value)}
             />
           </div>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-portal-accent">
-              Accent colour
+              {t('PortalSettingsScreen.accentLabel')}
             </label>
             <select
               id="tm-portal-accent"
@@ -151,7 +155,7 @@ export function PortalSettingsScreen({
               onChange={(event) => setShowTeam(event.target.checked)}
             />
             <label className="tm-field__label" htmlFor="tm-portal-show-team">
-              Show the project team
+              {t('PortalSettingsScreen.showTeamLabel')}
             </label>
           </div>
 
@@ -164,25 +168,27 @@ export function PortalSettingsScreen({
               onChange={(event) => setShowTimeline(event.target.checked)}
             />
             <label className="tm-field__label" htmlFor="tm-portal-show-timeline">
-              Show the timeline
+              {t('PortalSettingsScreen.showTimelineLabel')}
             </label>
           </div>
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="We could not save the portal settings">
-              {errorMessage(save.error)}
+            <InlineAlert tone="danger" title={t('PortalSettingsScreen.couldNotSave')}>
+              {errorMessage(save.error, t)}
             </InlineAlert>
           ) : null}
 
           {saved && !save.isPending && !save.isError ? (
-            <InlineAlert tone="success" title="Saved">
-              The client portal settings have been saved.
+            <InlineAlert tone="success" title={t('PortalSettingsScreen.saved')}>
+              {t('PortalSettingsScreen.savedBody')}
             </InlineAlert>
           ) : null}
 
           <div>
             <Button type="submit" disabled={save.isPending}>
-              {save.isPending ? 'Saving…' : 'Save portal settings'}
+              {save.isPending
+                ? t('PortalSettingsScreen.saving')
+                : t('PortalSettingsScreen.saveButton')}
             </Button>
           </div>
         </form>
@@ -191,7 +197,7 @@ export function PortalSettingsScreen({
   );
 }
 
-function errorMessage(error: unknown): string {
+function errorMessage(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
+  return t('PortalSettingsScreen.genericError');
 }

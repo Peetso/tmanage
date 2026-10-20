@@ -10,6 +10,9 @@ import { listPublicPlans } from '../../lib/api/public-plans';
 import type { PublicPlanView } from '../../lib/api/public-plans';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface PricingScreenProps {
   /** Injected in tests. Defaults to the browser client. */
@@ -41,6 +44,7 @@ export interface PricingScreenProps {
  */
 export function PricingScreen({ client }: PricingScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const plans = useQuery({
     queryKey: ['public-plans'],
@@ -59,27 +63,27 @@ export function PricingScreen({ client }: PricingScreenProps) {
       <section className="tm-pub-section" aria-labelledby="tm-pricing-title">
         <div className="tm-pub-head">
           <PublicIntro
-            eyebrow="Pricing"
+            eyebrow={t('PricingScreen.eyebrow')}
             titleId="tm-pricing-title"
             size="md"
             title={
               <>
-                Priced per internal seat.
+                {t('PricingScreen.titleLine1')}
                 <br />
-                Client users are free.
+                {t('PricingScreen.titleLine2')}
               </>
             }
           />
         </div>
 
         {plans.isError ? (
-          <InlineAlert tone="danger" title="Could not load pricing" live>
-            {describeError(plans.error)}
+          <InlineAlert tone="danger" title={t('PricingScreen.couldNotLoad')} live>
+            {describeError(plans.error, t)}
           </InlineAlert>
         ) : null}
 
         {plans.isPending ? (
-          <LoadingRegion label="Loading pricing.">
+          <LoadingRegion label={t('PricingScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -88,7 +92,7 @@ export function PricingScreen({ client }: PricingScreenProps) {
         {!plans.isPending && !plans.isError && rows.length > 0 ? (
           <div className="tm-pub-plans" style={{ '--plan-count': rows.length } as CSSProperties}>
             <h2 id="tm-pricing-heading" className="tm-visually-hidden">
-              Plans
+              {t('PricingScreen.plansHeading')}
             </h2>
             {rows.map((tier) => (
               <PlanCard
@@ -96,28 +100,21 @@ export function PricingScreen({ client }: PricingScreenProps) {
                 tier={tier}
                 chosen={tier.id === effectiveChoice}
                 onChoose={() => setChosenId(tier.id)}
+                t={t}
               />
             ))}
 
             <aside className="tm-pub-usage" aria-labelledby="tm-usage-title">
               <h2 id="tm-usage-title" className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">
-                How usage works
+                {t('PricingScreen.howUsageWorks')}
               </h2>
-              <p>
-                A seat is an internal person who creates or owns work. Client reviewers, sponsors
-                and viewers never consume a seat.
-              </p>
-              <p>
-                Pick the plan that fits, then create your account. You can change plan later —
-                nothing here charges a card.
-              </p>
+              <p>{t('PricingScreen.usageBody1')}</p>
+              <p>{t('PricingScreen.usageBody2')}</p>
               {effectiveChoice !== null ? (
                 <>
-                  <p>
-                    No payment is taken here. You will set up billing after your account exists.
-                  </p>
+                  <p>{t('PricingScreen.usageBody3')}</p>
                   <OrbLink href={`/sign-in?plan=${encodeURIComponent(effectiveChoice)}`}>
-                    Continue to sign up
+                    {t('PricingScreen.continueToSignUp')}
                   </OrbLink>
                 </>
               ) : null}
@@ -133,10 +130,12 @@ function PlanCard({
   tier,
   chosen,
   onChoose,
+  t,
 }: {
   tier: PublicPlanView;
   chosen: boolean;
   onChoose: () => void;
+  t: Translate;
 }) {
   return (
     <article
@@ -147,12 +146,14 @@ function PlanCard({
         <h3 id={`tm-plan-${tier.id}`} className="tm-pub-plan__name">
           {tier.name}
         </h3>
-        {tier.featured ? <span className="tm-pub-plan__badge">Most teams start here</span> : null}
+        {tier.featured ? (
+          <span className="tm-pub-plan__badge">{t('PricingScreen.mostTeamsStart')}</span>
+        ) : null}
       </div>
 
       <p className="tm-pub-plan__price">
         <span className="tm-pub-plan__amount">
-          {formatPrice(tier.monthlyPriceCents, tier.currency)}
+          {formatPrice(tier.monthlyPriceCents, tier.currency, t)}
         </span>
         <span className="tm-pub-plan__unit">{tier.seatRule}</span>
       </p>
@@ -166,14 +167,16 @@ function PlanCard({
       </ul>
 
       <button type="button" className="tm-pub-btn" aria-pressed={chosen} onClick={onChoose}>
-        {chosen ? `${tier.name} selected` : `Choose ${tier.name}`}
+        {chosen
+          ? `${tier.name} ${t('PricingScreen.selected')}`
+          : `${t('PricingScreen.choose')} ${tier.name}`}
       </button>
     </article>
   );
 }
 
-function formatPrice(monthlyPriceCents: number, currency: string): string {
-  if (monthlyPriceCents === 0) return 'Free';
+function formatPrice(monthlyPriceCents: number, currency: string, t: Translate): string {
+  if (monthlyPriceCents === 0) return t('PricingScreen.free');
   try {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
@@ -186,8 +189,8 @@ function formatPrice(monthlyPriceCents: number, currency: string): string {
   }
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('PricingScreen.apiError');
+  return t('PricingScreen.genericError');
 }

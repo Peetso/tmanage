@@ -14,6 +14,10 @@ import {
 import type { ProjectCustomFieldType } from '../../lib/api/project-custom-fields';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectCustomFieldsViewProps {
   organizationSlug: string;
@@ -22,10 +26,10 @@ export interface ProjectCustomFieldsViewProps {
   client?: ApiClient | undefined;
 }
 
-const TYPE_LABELS: Readonly<Record<ProjectCustomFieldType, string>> = {
-  text: 'Text',
-  number: 'Number',
-  select: 'Select (choose one)',
+const TYPE_LABELS: Readonly<Record<ProjectCustomFieldType, MessageKey>> = {
+  text: 'ProjectCustomFieldsView.typeText',
+  number: 'ProjectCustomFieldsView.typeNumber',
+  select: 'ProjectCustomFieldsView.typeSelect',
 };
 
 /**
@@ -45,6 +49,7 @@ export function ProjectCustomFieldsView({
 }: ProjectCustomFieldsViewProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const [message, setMessage] = useState<string | null>(null);
 
   const [key, setKey] = useState('');
@@ -92,18 +97,18 @@ export function ProjectCustomFieldsView({
       setName('');
       setType('text');
       setOptions('');
-      setMessage(`Defined "${created.name}".`);
+      setMessage(`${t('ProjectCustomFieldsView.definedPrefix')} "${created.name}".`);
     },
-    onError: (error) => setMessage(describeError(error)),
+    onError: (error) => setMessage(describeError(error, t)),
   });
 
   const remove = useMutation({
     mutationFn: (fieldKey: string) => deleteField(api, organizationSlug, fieldKey),
     onSuccess: () => {
       invalidate();
-      setMessage('Field removed.');
+      setMessage(t('ProjectCustomFieldsView.fieldRemoved'));
     },
-    onError: (error) => setMessage(describeError(error)),
+    onError: (error) => setMessage(describeError(error, t)),
   });
 
   const save = useMutation({
@@ -117,9 +122,9 @@ export function ProjectCustomFieldsView({
       ),
     onSuccess: (saved) => {
       invalidate();
-      setMessage(`Saved "${saved.name}".`);
+      setMessage(`${t('ProjectCustomFieldsView.savedPrefix')} "${saved.name}".`);
     },
-    onError: (error) => setMessage(describeError(error)),
+    onError: (error) => setMessage(describeError(error, t)),
   });
 
   const onDefine = (event: FormEvent) => {
@@ -137,65 +142,73 @@ export function ProjectCustomFieldsView({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-pcf-define">
         <h2 id="tm-pcf-define" className="tm-eyebrow">
-          Custom field definitions
+          {t('ProjectCustomFieldsView.definitionsHeading')}
         </h2>
 
         <form className="tm-stack" onSubmit={onDefine}>
           <Field
-            label="Key"
-            hint="Lower_snake_case; how the field is addressed."
+            label={t('ProjectCustomFieldsView.keyLabel')}
+            hint={t('ProjectCustomFieldsView.keyHint')}
             value={key}
             onChange={(event) => setKey(event.target.value)}
           />
-          <Field label="Name" value={name} onChange={(event) => setName(event.target.value)} />
+          <Field
+            label={t('ProjectCustomFieldsView.nameLabel')}
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
           <Select
-            label="Type"
+            label={t('ProjectCustomFieldsView.typeLabel')}
             value={type}
             onChange={(event) => setType(event.target.value as ProjectCustomFieldType)}
           >
             {(Object.keys(TYPE_LABELS) as ProjectCustomFieldType[]).map((option) => (
               <option key={option} value={option}>
-                {TYPE_LABELS[option]}
+                {t(TYPE_LABELS[option])}
               </option>
             ))}
           </Select>
           {type === 'select' ? (
             <Field
-              label="Options"
-              hint="Comma-separated choices."
+              label={t('ProjectCustomFieldsView.optionsLabel')}
+              hint={t('ProjectCustomFieldsView.optionsHint')}
               value={options}
               onChange={(event) => setOptions(event.target.value)}
             />
           ) : null}
           <Button type="submit" disabled={define.isPending}>
-            Define field
+            {t('ProjectCustomFieldsView.defineButton')}
           </Button>
         </form>
 
         {definitions.isError ? (
-          <InlineAlert tone="danger" title="Could not load field definitions" live>
-            {describeError(definitions.error)}
+          <InlineAlert
+            tone="danger"
+            title={t('ProjectCustomFieldsView.couldNotLoadDefinitions')}
+            live
+          >
+            {describeError(definitions.error, t)}
           </InlineAlert>
         ) : null}
 
         {definitions.isPending ? (
-          <LoadingRegion label="Loading field definitions.">
+          <LoadingRegion label={t('ProjectCustomFieldsView.loadingDefinitions')}>
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!definitions.isPending && !definitions.isError && (definitions.data?.length ?? 0) === 0 ? (
-          <InlineAlert tone="neutral" title="No custom fields yet">
-            Define a field above; it becomes editable on every project.
+          <InlineAlert tone="neutral" title={t('ProjectCustomFieldsView.noFieldsTitle')}>
+            {t('ProjectCustomFieldsView.noFieldsBody')}
           </InlineAlert>
         ) : null}
 
         {definitions.data && definitions.data.length > 0 ? (
-          <ul className="tm-list" aria-label="Custom field definitions">
+          <ul className="tm-list" aria-label={t('ProjectCustomFieldsView.definitionsHeading')}>
             {definitions.data.map((definition) => (
               <li key={definition.fieldKey} className="tm-row">
                 <span>
-                  {definition.name} ({TYPE_LABELS[definition.fieldType]})
+                  {definition.name} ({t(TYPE_LABELS[definition.fieldType])})
                 </span>
                 <Button
                   type="button"
@@ -203,7 +216,7 @@ export function ProjectCustomFieldsView({
                   disabled={remove.isPending}
                   onClick={() => remove.mutate(definition.fieldKey)}
                 >
-                  Remove
+                  {t('ProjectCustomFieldsView.remove')}
                 </Button>
               </li>
             ))}
@@ -213,23 +226,23 @@ export function ProjectCustomFieldsView({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-pcf-values">
         <h2 id="tm-pcf-values" className="tm-eyebrow">
-          This project&rsquo;s values
+          {t('ProjectCustomFieldsView.valuesHeading')}
         </h2>
 
         {values.isError ? (
-          <InlineAlert tone="danger" title="Could not load this project's values" live>
-            {describeError(values.error)}
+          <InlineAlert tone="danger" title={t('ProjectCustomFieldsView.couldNotLoadValues')} live>
+            {describeError(values.error, t)}
           </InlineAlert>
         ) : null}
 
         {values.isPending ? (
-          <LoadingRegion label="Loading this project's values.">
+          <LoadingRegion label={t('ProjectCustomFieldsView.loadingValues')}>
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {values.data && values.data.length > 0 ? (
-          <ul className="tm-list" aria-label="Project custom field values">
+          <ul className="tm-list" aria-label={t('ProjectCustomFieldsView.valuesListAria')}>
             {values.data.map((entry) => (
               <li key={entry.fieldKey} className="tm-row">
                 {entry.fieldType === 'select' ? (
@@ -263,7 +276,7 @@ export function ProjectCustomFieldsView({
                   disabled={save.isPending}
                   onClick={() => save.mutate(entry.fieldKey)}
                 >
-                  Save
+                  {t('ProjectCustomFieldsView.save')}
                 </Button>
               </li>
             ))}
@@ -274,7 +287,7 @@ export function ProjectCustomFieldsView({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
+  return t('ProjectCustomFieldsView.genericError');
 }

@@ -11,6 +11,9 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { longDay, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface PortalMilestonesScreenProps {
   organizationSlug: string;
@@ -41,6 +44,7 @@ export function PortalMilestonesScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -72,19 +76,23 @@ export function PortalMilestonesScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="timeline"
-      title={target ? `How the project reaches ${longDay(target)}` : 'Timeline'}
-      eyebrow={eyebrowFor(dated)}
-      headerAside={ordered.length > 0 ? <Legend /> : undefined}
+      title={
+        target
+          ? `${t('PortalMilestonesScreen.reaches')} ${longDay(target)}`
+          : t('PortalMilestonesScreen.timeline')
+      }
+      eyebrow={eyebrowFor(dated, t)}
+      headerAside={ordered.length > 0 ? <Legend t={t} /> : undefined}
     >
       <div className="tm-pt tm-pt--compact">
         {projects.isError ? (
-          <InlineAlert tone="danger" title="Could not load your portal" live>
-            {describe(projects.error)}
+          <InlineAlert tone="danger" title={t('PortalMilestonesScreen.couldNotLoadPortal')} live>
+            {describe(projects.error, t)}
           </InlineAlert>
         ) : null}
 
         {projects.isPending ? (
-          <LoadingRegion label="Loading your project">
+          <LoadingRegion label={t('PortalMilestonesScreen.loadingProject')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -98,6 +106,7 @@ export function PortalMilestonesScreen({
             isError={milestones.isError}
             error={milestones.error}
             hasProject={projectId != null}
+            t={t}
           />
         )}
       </div>
@@ -105,33 +114,35 @@ export function PortalMilestonesScreen({
   );
 }
 
-function eyebrowFor(dated: readonly ClientMilestone[]): string {
-  if (dated.length === 0) return 'Timeline';
+function eyebrowFor(dated: readonly ClientMilestone[], t: Translate): string {
+  if (dated.length === 0) return t('PortalMilestonesScreen.timeline');
   const month = (value: string | null) =>
     value ? new Intl.DateTimeFormat('en-GB', { month: 'long' }).format(new Date(value)) : '';
   const first = month(dated[0]!.dueOn);
   const last = month(dated[dated.length - 1]!.dueOn);
-  return first === last ? `Timeline · ${first}` : `Timeline · ${first} to ${last}`;
+  return first === last
+    ? `${t('PortalMilestonesScreen.timeline')} · ${first}`
+    : `${t('PortalMilestonesScreen.timeline')} · ${first} ${t('PortalMilestonesScreen.rangeTo')} ${last}`;
 }
 
-function Legend() {
+function Legend({ t }: { t: Translate }) {
   return (
-    <ul className="tm-pt-legend" aria-label="Key">
+    <ul className="tm-pt-legend" aria-label={t('PortalMilestonesScreen.legendKey')}>
       <li>
         <span className="tm-pt-legend__dot tm-pt-legend__dot--done" aria-hidden="true" />
-        done
+        {t('PortalMilestonesScreen.legendDone')}
       </li>
       <li>
         <span className="tm-pt-legend__dot tm-pt-legend__dot--now" aria-hidden="true" />
-        now
+        {t('PortalMilestonesScreen.legendNow')}
       </li>
       <li>
         <span className="tm-pt-legend__dot" aria-hidden="true" />
-        committed date
+        {t('PortalMilestonesScreen.legendCommitted')}
       </li>
       <li>
         <span className="tm-pt-legend__dot tm-pt-legend__dot--none" aria-hidden="true" />
-        no date yet
+        {t('PortalMilestonesScreen.legendNoDate')}
       </li>
     </ul>
   );
@@ -146,6 +157,7 @@ interface MilestonesSectionProps {
   isError: boolean;
   error: unknown;
   hasProject: boolean;
+  t: Translate;
 }
 
 function MilestonesSection({
@@ -157,25 +169,26 @@ function MilestonesSection({
   isError,
   error,
   hasProject,
+  t,
 }: MilestonesSectionProps) {
   if (!hasProject) {
     return (
       <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-        There is no project shared with you yet. When {providerName} shares one, its milestones will
-        appear here.
+        {t('PortalMilestonesScreen.noProjectLead')} {providerName}{' '}
+        {t('PortalMilestonesScreen.noProjectTail')}
       </p>
     );
   }
   if (isError) {
     return (
-      <InlineAlert tone="danger" title="Could not load milestones" live>
-        {describe(error)}
+      <InlineAlert tone="danger" title={t('PortalMilestonesScreen.couldNotLoadMilestones')} live>
+        {describe(error, t)}
       </InlineAlert>
     );
   }
   if (isPending) {
     return (
-      <LoadingRegion label="Loading milestones">
+      <LoadingRegion label={t('PortalMilestonesScreen.loadingMilestones')}>
         <Skeleton height="var(--row)" />
         <Skeleton height="var(--row)" />
       </LoadingRegion>
@@ -184,8 +197,7 @@ function MilestonesSection({
   if (milestones.length === 0) {
     return (
       <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-        {providerName} has not published a milestone yet. When they set the dates for your project,
-        they will appear here in order.
+        {providerName} {t('PortalMilestonesScreen.noMilestonesTail')}
       </p>
     );
   }
@@ -197,7 +209,7 @@ function MilestonesSection({
     <>
       <section aria-labelledby="tm-portal-milestones">
         <h2 id="tm-portal-milestones" className="tm-pt-visually-hidden">
-          Milestones
+          {t('PortalMilestonesScreen.milestonesHeading')}
         </h2>
         <ol className="tm-pt-track tm-pt-track--blocks">
           {milestones.map((milestone, index) => {
@@ -219,14 +231,14 @@ function MilestonesSection({
                 {...(isNow ? { 'aria-current': 'step' as const } : {})}
               >
                 <span className="tm-pt-step__date">
-                  {isNow ? 'Now · ' : ''}
+                  {isNow ? `${t('PortalMilestonesScreen.now')} · ` : ''}
                   {milestone.dueOn === null
-                    ? 'no date'
-                    : `${isNow ? 'due ' : ''}${shortDay(milestone.dueOn)}`}
+                    ? t('PortalMilestonesScreen.noDateLower')
+                    : `${isNow ? `${t('PortalMilestonesScreen.due')} ` : ''}${shortDay(milestone.dueOn)}`}
                 </span>
                 <span className="tm-pt-step__name">{milestone.title}</span>
                 <span className="tm-pt-step__date tm-pt-step__date--after">
-                  {statusLabel(milestone.status)}
+                  {statusLabel(milestone.status, t)}
                 </span>
               </li>
             );
@@ -237,17 +249,17 @@ function MilestonesSection({
       <div className="tm-pt-split tm-pt-split--aside tm-pt-split--wide">
         <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-portal-dates">
           <h2 id="tm-portal-dates" className="tm-pt-eyebrow">
-            Every date, in order
+            {t('PortalMilestonesScreen.everyDateInOrder')}
           </h2>
           <ol className="tm-pt-rows">
             {milestones.map((milestone) => (
               <li key={milestone.id}>
                 <span className="tm-pt-mono tm-pt-rows__date">
-                  {milestone.dueOn ? shortDay(milestone.dueOn) : 'No date'}
+                  {milestone.dueOn ? shortDay(milestone.dueOn) : t('PortalMilestonesScreen.noDate')}
                 </span>
                 <div className="tm-pt-item__main">
                   <p className="tm-pt-rows__title">{milestone.title}</p>
-                  <p className="tm-pt-quiet">{describeDue(milestone)}</p>
+                  <p className="tm-pt-quiet">{describeDue(milestone, t)}</p>
                 </div>
                 <Tag
                   tone={
@@ -258,7 +270,7 @@ function MilestonesSection({
                         : undefined
                   }
                 >
-                  {statusLabel(milestone.status)}
+                  {statusLabel(milestone.status, t)}
                 </Tag>
               </li>
             ))}
@@ -267,19 +279,21 @@ function MilestonesSection({
 
         <section className="tm-pt-ink tm-pt-ink--tall" aria-labelledby="tm-portal-risk">
           <h2 id="tm-portal-risk" className="tm-pt-eyebrow">
-            What would put the launch at risk
+            {t('PortalMilestonesScreen.launchRiskHeading')}
           </h2>
-          <p className="tm-pt-ink__title">{topRisk ? topRisk.clientSummary : 'Nothing today.'}</p>
+          <p className="tm-pt-ink__title">
+            {topRisk ? topRisk.clientSummary : t('PortalMilestonesScreen.nothingToday')}
+          </p>
           <p className="tm-pt-quiet">
             {topRisk
-              ? `${risks.length === 1 ? 'One open risk' : `${risks.length} open risks`} shared by ${providerName}. You would hear from them the same day if a date had to move.`
-              : `${providerName} has not flagged anything that threatens a date. You would hear from them the same day if that changed.`}
+              ? `${risks.length === 1 ? t('PortalMilestonesScreen.oneOpenRisk') : `${risks.length} ${t('PortalMilestonesScreen.openRisksSuffix')}`} ${t('PortalMilestonesScreen.sharedBy')} ${providerName}. ${t('PortalMilestonesScreen.hearSameDayMove')}`
+              : `${providerName} ${t('PortalMilestonesScreen.notFlaggedThreat')}`}
           </p>
           <Link
             className="tm-pt-btn tm-pt-btn--lime tm-pt-ink__cta"
             href={`/${organizationSlug}/portal/risks`}
           >
-            See every risk
+            {t('PortalMilestonesScreen.seeEveryRisk')}
           </Link>
         </section>
       </div>
@@ -291,22 +305,24 @@ function weight(severity: ClientRisk['severity']): number {
   return severity === 'high' ? 3 : severity === 'medium' ? 2 : 1;
 }
 
-function statusLabel(status: MilestoneStatus): string {
+function statusLabel(status: MilestoneStatus, t: Translate): string {
   switch (status) {
     case 'met':
-      return 'Done';
+      return t('PortalMilestonesScreen.statusDone');
     case 'missed':
-      return 'Missed';
+      return t('PortalMilestonesScreen.statusMissed');
     default:
-      return 'Planned';
+      return t('PortalMilestonesScreen.statusPlanned');
   }
 }
 
-function describeDue(milestone: ClientMilestone): string {
-  if (milestone.dueOn === null) return 'No date committed yet';
-  if (milestone.status === 'met') return `Done · was due ${longDay(milestone.dueOn)}`;
-  if (milestone.status === 'missed') return `Missed · was due ${longDay(milestone.dueOn)}`;
-  return `Committed for ${longDay(milestone.dueOn)}`;
+function describeDue(milestone: ClientMilestone, t: Translate): string {
+  if (milestone.dueOn === null) return t('PortalMilestonesScreen.noDateCommitted');
+  if (milestone.status === 'met')
+    return `${t('PortalMilestonesScreen.doneWasDue')} ${longDay(milestone.dueOn)}`;
+  if (milestone.status === 'missed')
+    return `${t('PortalMilestonesScreen.missedWasDue')} ${longDay(milestone.dueOn)}`;
+  return `${t('PortalMilestonesScreen.committedFor')} ${longDay(milestone.dueOn)}`;
 }
 
 function byDueOn(left: ClientMilestone, right: ClientMilestone): number {
@@ -316,8 +332,8 @@ function byDueOn(left: ClientMilestone, right: ClientMilestone): number {
   return left.dueOn < right.dueOn ? -1 : 1;
 }
 
-function describe(error: unknown): string {
+function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('PortalMilestonesScreen.portalNotAnswering');
+  return t('PortalMilestonesScreen.genericError');
 }

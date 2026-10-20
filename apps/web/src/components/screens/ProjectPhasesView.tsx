@@ -14,6 +14,9 @@ import {
 import type { ProjectPhaseSummary } from '../../lib/api/project-phases';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectPhasesViewProps {
   organizationSlug: string;
@@ -44,6 +47,7 @@ export function ProjectPhasesView({
 }: ProjectPhasesViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [name, setName] = useState('');
   const [milestoneId, setMilestoneId] = useState('');
@@ -108,28 +112,28 @@ export function ProjectPhasesView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Timeline phases"
-      description="Group this project's milestones into named, ordered phases so the timeline reads as phases."
+      title={t('ProjectPhasesView.title')}
+      description={t('ProjectPhasesView.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-phase-author">
         <h2 id="tm-phase-author" className="tm-eyebrow">
-          Add a phase
+          {t('ProjectPhasesView.addPhaseHeading')}
         </h2>
         <form className="tm-stack" onSubmit={onDefine} noValidate>
           <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={create.isPending}>
             <Field
-              label="Phase name"
+              label={t('ProjectPhasesView.phaseNameLabel')}
               name="name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              hint="One label. For example, Discovery, Build, or Launch."
+              hint={t('ProjectPhasesView.phaseNameHint')}
               required
             />
           </fieldset>
 
           {create.isError ? (
-            <InlineAlert tone="danger" title="Could not add the phase" live>
-              {describeError(create.error)}
+            <InlineAlert tone="danger" title={t('ProjectPhasesView.couldNotAdd')} live>
+              {describeError(create.error, t)}
             </InlineAlert>
           ) : null}
 
@@ -139,60 +143,61 @@ export function ProjectPhasesView({
               tone="ink"
               size="accessible"
               loading={create.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('ProjectPhasesView.saving')}
               disabled={!canDefine}
             >
-              Add phase
+              {t('ProjectPhasesView.addPhaseButton')}
             </Button>
           </div>
         </form>
       </section>
 
       {phases.isError ? (
-        <InlineAlert tone="danger" title="Could not load the phases" live>
-          {describeError(phases.error)}
+        <InlineAlert tone="danger" title={t('ProjectPhasesView.couldNotLoad')} live>
+          {describeError(phases.error, t)}
         </InlineAlert>
       ) : null}
 
       {phases.isPending ? (
-        <LoadingRegion label="Loading the project's phases.">
+        <LoadingRegion label={t('ProjectPhasesView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!phases.isPending && !phases.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No phases yet">
-          This project has no phases. Add the first one above.
+        <InlineAlert tone="neutral" title={t('ProjectPhasesView.noPhasesTitle')}>
+          {t('ProjectPhasesView.noPhasesBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (
         <section className="tm-panel tm-stack" aria-labelledby="tm-phases-heading">
           <h2 id="tm-phases-heading" className="tm-eyebrow">
-            Phases
+            {t('ProjectPhasesView.phasesHeading')}
           </h2>
           <div
             className="tm-table-scroll"
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Project timeline phases"
+            aria-label={t('ProjectPhasesView.regionAria')}
           >
-            <ol className="tm-row" aria-label="Phase columns">
+            <ol className="tm-row" aria-label={t('ProjectPhasesView.phaseColumnsAria')}>
               {rows.map((phase) => (
                 <PhaseColumn
                   key={phase.id}
                   phase={phase}
                   onDelete={() => remove.mutate(phase.id)}
                   busy={remove.isPending}
+                  t={t}
                 />
               ))}
             </ol>
           </div>
           {remove.isError ? (
-            <InlineAlert tone="danger" title="Could not delete the phase" live>
-              {describeError(remove.error)}
+            <InlineAlert tone="danger" title={t('ProjectPhasesView.couldNotDelete')} live>
+              {describeError(remove.error, t)}
             </InlineAlert>
           ) : null}
         </section>
@@ -201,21 +206,21 @@ export function ProjectPhasesView({
       {rows.length > 0 ? (
         <section className="tm-panel tm-stack" aria-labelledby="tm-assign-heading">
           <h2 id="tm-assign-heading" className="tm-eyebrow">
-            Assign a milestone
+            {t('ProjectPhasesView.assignHeading')}
           </h2>
           <form className="tm-stack" onSubmit={onAssign} noValidate>
             <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={assign.isPending}>
               <Field
-                label="Milestone id"
+                label={t('ProjectPhasesView.milestoneIdLabel')}
                 name="milestoneId"
                 value={milestoneId}
                 onChange={(event) => setMilestoneId(event.target.value)}
-                hint="The milestone to place into a phase."
+                hint={t('ProjectPhasesView.milestoneIdHint')}
                 required
               />
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-assign-phase">
-                  Phase
+                  {t('ProjectPhasesView.phaseLabel')}
                 </label>
                 <select
                   id="tm-assign-phase"
@@ -224,7 +229,7 @@ export function ProjectPhasesView({
                   value={targetPhaseId}
                   onChange={(event) => setTargetPhaseId(event.target.value)}
                 >
-                  <option value="">Choose a phase…</option>
+                  <option value="">{t('ProjectPhasesView.choosePhase')}</option>
                   {rows.map((phase) => (
                     <option key={phase.id} value={phase.id}>
                       {phase.name}
@@ -235,8 +240,8 @@ export function ProjectPhasesView({
             </fieldset>
 
             {assign.isError ? (
-              <InlineAlert tone="danger" title="Could not assign the milestone" live>
-                {describeError(assign.error)}
+              <InlineAlert tone="danger" title={t('ProjectPhasesView.couldNotAssign')} live>
+                {describeError(assign.error, t)}
               </InlineAlert>
             ) : null}
 
@@ -246,10 +251,10 @@ export function ProjectPhasesView({
                 tone="ink"
                 size="accessible"
                 loading={assign.isPending}
-                loadingLabel="Assigning"
+                loadingLabel={t('ProjectPhasesView.assigning')}
                 disabled={!canAssign}
               >
-                Assign to phase
+                {t('ProjectPhasesView.assignButton')}
               </Button>
             </div>
           </form>
@@ -264,21 +269,23 @@ function PhaseColumn({
   phase,
   onDelete,
   busy,
+  t,
 }: {
   phase: ProjectPhaseSummary;
   onDelete: () => void;
   busy: boolean;
+  t: Translate;
 }) {
   return (
     <li className="tm-stat tm-stack">
       <div className="tm-row">
         <span className="tm-stat__value">{phase.name}</span>
         <Button tone="destructive" size="compact" onClick={onDelete} disabled={busy}>
-          Delete
+          {t('ProjectPhasesView.delete')}
         </Button>
       </div>
       {phase.milestoneIds.length === 0 ? (
-        <span className="tm-field__hint">No milestones yet.</span>
+        <span className="tm-field__hint">{t('ProjectPhasesView.noMilestonesYet')}</span>
       ) : (
         <ul className="tm-stack">
           {phase.milestoneIds.map((id) => (
@@ -292,8 +299,8 @@ function PhaseColumn({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectPhasesView.apiError');
+  return t('ProjectPhasesView.genericError');
 }

@@ -10,6 +10,10 @@ import { listProjectHealth } from '../../lib/api/project-health';
 import type { ProjectHealthBand, ProjectHealthSummary } from '../../lib/api/project-health';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectHealthScreenProps {
   organizationSlug: string;
@@ -42,6 +46,7 @@ export function ProjectHealthScreen({
   client,
 }: ProjectHealthScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const health = useQuery({
     queryKey: ['project-health', organizationSlug],
@@ -55,47 +60,43 @@ export function ProjectHealthScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow="Insights"
-      title="Project health"
-      description="Every project you can see, banded from its overdue milestones, open risks, and missed objectives."
+      eyebrow={t('ProjectHealthScreen.eyebrow')}
+      title={t('ProjectHealthScreen.title')}
+      description={t('ProjectHealthScreen.description')}
     >
       <div className="tm-ins tm-ins-tool">
         {health.isError ? (
-          <InlineAlert tone="danger" title="Could not load project health" live>
-            {describeError(health.error)}
+          <InlineAlert tone="danger" title={t('ProjectHealthScreen.couldNotLoad')} live>
+            {describeError(health.error, t)}
           </InlineAlert>
         ) : null}
 
         {health.isPending ? (
-          <LoadingRegion label="Loading project health.">
+          <LoadingRegion label={t('ProjectHealthScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!health.isPending && !health.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No projects yet">
-            There are no projects you can see. When one is created and shared with you, it appears
-            here.
+          <InlineAlert tone="neutral" title={t('ProjectHealthScreen.noProjectsTitle')}>
+            {t('ProjectHealthScreen.noProjectsBody')}
           </InlineAlert>
         ) : null}
 
         {rows.length > 0 ? (
           <section className="tm-stack" aria-labelledby="tm-health-heading">
             <h2 id="tm-health-heading" className="tm-eyebrow">
-              Projects
+              {t('ProjectHealthScreen.projectsHeading')}
             </h2>
             <ul className="tm-list">
               {rows.map((project) => (
                 <li key={project.projectId}>
-                  <HealthCard organizationSlug={organizationSlug} project={project} />
+                  <HealthCard organizationSlug={organizationSlug} project={project} t={t} />
                 </li>
               ))}
             </ul>
-            <p className="tm-field__hint">
-              Each band is computed from fixed weights on the server, so two people see the same
-              project in the same colour. The signals below are the ones it came from.
-            </p>
+            <p className="tm-field__hint">{t('ProjectHealthScreen.bandExplain')}</p>
           </section>
         ) : null}
       </div>
@@ -103,19 +104,21 @@ export function ProjectHealthScreen({
   );
 }
 
-const BAND_LABEL: Record<ProjectHealthBand, string> = {
-  green: 'On track',
-  amber: 'Needs attention',
-  red: 'At risk',
-  neutral: 'Not yet assessed',
+const BAND_LABEL: Record<ProjectHealthBand, MessageKey> = {
+  green: 'ProjectHealthScreen.bandGreen',
+  amber: 'ProjectHealthScreen.bandAmber',
+  red: 'ProjectHealthScreen.bandRed',
+  neutral: 'ProjectHealthScreen.bandNeutral',
 };
 
 function HealthCard({
   organizationSlug,
   project,
+  t,
 }: {
   organizationSlug: string;
   project: ProjectHealthSummary;
+  t: Translate;
 }) {
   const { signals } = project;
 
@@ -125,30 +128,36 @@ function HealthCard({
         <h3 id={`tm-health-${project.projectId}`}>
           <Link href={`/${organizationSlug}/projects/${project.projectId}`}>{project.name}</Link>
         </h3>
-        <StateCapsule state={bandState(project.band)}>{BAND_LABEL[project.band]}</StateCapsule>
+        <StateCapsule state={bandState(project.band)}>{t(BAND_LABEL[project.band])}</StateCapsule>
       </div>
 
       <dl className="tm-detail-list">
         <div className="tm-detail-list__pair">
-          <dt>Score</dt>
-          <dd>{project.band === 'neutral' ? 'Not yet assessed' : `${project.score} / 100`}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Overdue milestones</dt>
-          <dd>{signals.overdueMilestones}</dd>
-        </div>
-        <div className="tm-detail-list__pair">
-          <dt>Open risks</dt>
+          <dt>{t('ProjectHealthScreen.score')}</dt>
           <dd>
-            {signals.openRisks === 0 ? 'None' : `${signals.openRisks} (${signals.highRisks} high)`}
+            {project.band === 'neutral'
+              ? t('ProjectHealthScreen.bandNeutral')
+              : `${project.score} / 100`}
           </dd>
         </div>
         <div className="tm-detail-list__pair">
-          <dt>Objectives</dt>
+          <dt>{t('ProjectHealthScreen.overdueMilestones')}</dt>
+          <dd>{signals.overdueMilestones}</dd>
+        </div>
+        <div className="tm-detail-list__pair">
+          <dt>{t('ProjectHealthScreen.openRisks')}</dt>
+          <dd>
+            {signals.openRisks === 0
+              ? t('ProjectHealthScreen.none')
+              : `${signals.openRisks} (${signals.highRisks} ${t('ProjectHealthScreen.high')})`}
+          </dd>
+        </div>
+        <div className="tm-detail-list__pair">
+          <dt>{t('ProjectHealthScreen.objectives')}</dt>
           <dd>
             {signals.objectivesTotal === 0
-              ? 'None set'
-              : `${signals.objectivesMissed} missed of ${signals.objectivesTotal}`}
+              ? t('ProjectHealthScreen.noneSet')
+              : `${signals.objectivesMissed} ${t('ProjectHealthScreen.missedOf')} ${signals.objectivesTotal}`}
           </dd>
         </div>
       </dl>
@@ -170,8 +179,8 @@ function bandState(band: ProjectHealthBand): 'current' | 'waiting' | 'blocked' |
   }
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectHealthScreen.apiError');
+  return t('ProjectHealthScreen.genericError');
 }

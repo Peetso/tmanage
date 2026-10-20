@@ -9,6 +9,9 @@ import { getProjectBudget, saveProjectBudget } from '../../lib/api/project-budge
 import type { ProjectBudgetSummary } from '../../lib/api/project-budget';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectBudgetViewProps {
   organizationSlug: string;
@@ -38,6 +41,7 @@ export function ProjectBudgetView({
 }: ProjectBudgetViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [hours, setHours] = useState('');
   const [amount, setAmount] = useState('');
@@ -90,63 +94,63 @@ export function ProjectBudgetView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Budget"
-      description="This project's budgeted effort and amount, against the effort already tracked."
+      title={t('ProjectBudgetView.title')}
+      description={t('ProjectBudgetView.description')}
     >
       {budget.isError ? (
-        <InlineAlert tone="danger" title="Could not load the budget" live>
-          {describeError(budget.error)}
+        <InlineAlert tone="danger" title={t('ProjectBudgetView.couldNotLoad')} live>
+          {describeError(budget.error, t)}
         </InlineAlert>
       ) : null}
 
       {budget.isPending ? (
-        <LoadingRegion label="Loading the project's budget.">
+        <LoadingRegion label={t('ProjectBudgetView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
-      {budget.data ? <BudgetSummary summary={budget.data} /> : null}
+      {budget.data ? <BudgetSummary summary={budget.data} t={t} /> : null}
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-budget-author">
         <h2 id="tm-budget-author" className="tm-eyebrow">
-          Set the budget
+          {t('ProjectBudgetView.setBudgetHeading')}
         </h2>
         <form className="tm-stack" onSubmit={onSubmit} noValidate>
           <fieldset className="tm-fieldset tm-stack tm-stack--loose" disabled={save.isPending}>
             <Field
-              label="Budgeted hours"
+              label={t('ProjectBudgetView.budgetedHoursLabel')}
               name="budgetHours"
               type="number"
               inputMode="decimal"
               min={0}
               value={hours}
               onChange={(event) => setHours(event.target.value)}
-              hint="Planned effort in hours. Leave blank to budget only an amount."
+              hint={t('ProjectBudgetView.budgetedHoursHint')}
             />
             <Field
-              label="Budgeted amount"
+              label={t('ProjectBudgetView.budgetedAmountLabel')}
               name="budgetAmount"
               type="number"
               inputMode="decimal"
               min={0}
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              hint="Planning figure in the currency's major unit. Leave blank to budget only hours."
+              hint={t('ProjectBudgetView.budgetedAmountHint')}
             />
             <Field
-              label="Currency"
+              label={t('ProjectBudgetView.currencyLabel')}
               name="currency"
               value={currency}
               onChange={(event) => setCurrency(event.target.value)}
-              hint="Three-letter code (e.g. USD). Required with an amount."
+              hint={t('ProjectBudgetView.currencyHint')}
               maxLength={3}
             />
           </fieldset>
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save the budget" live>
-              {describeError(save.error)}
+            <InlineAlert tone="danger" title={t('ProjectBudgetView.couldNotSave')} live>
+              {describeError(save.error, t)}
             </InlineAlert>
           ) : null}
 
@@ -156,10 +160,10 @@ export function ProjectBudgetView({
               tone="ink"
               size="accessible"
               loading={save.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('ProjectBudgetView.saving')}
               disabled={!hasDimension}
             >
-              Save budget
+              {t('ProjectBudgetView.saveButton')}
             </Button>
           </div>
         </form>
@@ -169,31 +173,31 @@ export function ProjectBudgetView({
 }
 
 /** The budget-vs-tracked headline: budgeted vs tracked hours, and what remains. */
-function BudgetSummary({ summary }: { summary: ProjectBudgetSummary }) {
+function BudgetSummary({ summary, t }: { summary: ProjectBudgetSummary; t: Translate }) {
   const hasEffortBudget = summary.budgetHours !== null;
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-budget-summary-heading">
       <h2 id="tm-budget-summary-heading" className="tm-eyebrow">
-        Budget vs tracked
+        {t('ProjectBudgetView.budgetVsTracked')}
       </h2>
       <dl className="tm-row">
         <div className="tm-stat">
-          <dt className="tm-stat__label">Budgeted hours</dt>
+          <dt className="tm-stat__label">{t('ProjectBudgetView.statBudgetedHours')}</dt>
           <dd className="tm-stat__value">{hasEffortBudget ? summary.budgetHours : '—'}</dd>
         </div>
         <div className="tm-stat">
-          <dt className="tm-stat__label">Tracked hours</dt>
+          <dt className="tm-stat__label">{t('ProjectBudgetView.statTrackedHours')}</dt>
           <dd className="tm-stat__value">{summary.trackedHours}</dd>
         </div>
         <div className="tm-stat">
-          <dt className="tm-stat__label">Remaining hours</dt>
+          <dt className="tm-stat__label">{t('ProjectBudgetView.statRemainingHours')}</dt>
           <dd className="tm-stat__value">
             {summary.remainingHours === null ? '—' : summary.remainingHours}
           </dd>
         </div>
         {summary.budgetAmountMinor !== null ? (
           <div className="tm-stat">
-            <dt className="tm-stat__label">Budgeted amount</dt>
+            <dt className="tm-stat__label">{t('ProjectBudgetView.statBudgetedAmount')}</dt>
             <dd className="tm-stat__value">
               {(summary.budgetAmountMinor / 100).toFixed(2)} {summary.currency}
             </dd>
@@ -201,16 +205,17 @@ function BudgetSummary({ summary }: { summary: ProjectBudgetSummary }) {
         ) : null}
       </dl>
       {hasEffortBudget && summary.varianceHours !== null && summary.varianceHours > 0 ? (
-        <InlineAlert tone="warning" title="Over budget">
-          Tracked effort is {summary.varianceHours} hours over the budgeted effort.
+        <InlineAlert tone="warning" title={t('ProjectBudgetView.overBudget')}>
+          {t('ProjectBudgetView.overBudgetLead')} {summary.varianceHours}{' '}
+          {t('ProjectBudgetView.overBudgetTail')}
         </InlineAlert>
       ) : null}
     </section>
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectBudgetView.apiError');
+  return t('ProjectBudgetView.genericError');
 }

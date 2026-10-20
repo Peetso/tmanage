@@ -18,6 +18,9 @@ import type {
 } from '../../lib/api/project-baseline';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectBaselineViewProps {
   organizationSlug: string;
@@ -48,6 +51,7 @@ export function ProjectBaselineView({
 }: ProjectBaselineViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [label, setLabel] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -105,9 +109,9 @@ export function ProjectBaselineView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow="Project · Plan"
-      title="Milestone baselines"
-      description="Snapshot the milestone plan, then compare today's dates against a saved baseline."
+      eyebrow={t('ProjectBaselineView.eyebrow')}
+      title={t('ProjectBaselineView.title')}
+      description={t('ProjectBaselineView.description')}
       topBar={
         <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="plan" />
       }
@@ -118,10 +122,10 @@ export function ProjectBaselineView({
               <div className="tm-metric__value-row">
                 <span className="tm-metric__value">{slip}d</span>
                 <span className={`tm-pill ${slip > 0 ? 'tm-pill--warning' : 'tm-pill--current'}`}>
-                  {slip > 0 ? 'slip' : 'on track'}
+                  {slip > 0 ? t('ProjectBaselineView.slip') : t('ProjectBaselineView.onTrack')}
                 </span>
               </div>
-              <span className="tm-metric__label">largest movement against baseline</span>
+              <span className="tm-metric__label">{t('ProjectBaselineView.largestMovement')}</span>
               <span className="tm-metric__source">{variance.data.label}</span>
             </div>
           </div>
@@ -130,14 +134,14 @@ export function ProjectBaselineView({
     >
       <div className="tm-prj tm-prj--plan">
         {baselines.isError ? (
-          <InlineAlert tone="danger" title="Could not load the baselines" live>
-            {describeError(baselines.error)}
+          <InlineAlert tone="danger" title={t('ProjectBaselineView.couldNotLoadBaselines')} live>
+            {describeError(baselines.error, t)}
           </InlineAlert>
         ) : null}
 
         {rows.length > 0 && discard.isError ? (
-          <InlineAlert tone="danger" title="Could not discard the baseline" live>
-            {describeError(discard.error)}
+          <InlineAlert tone="danger" title={t('ProjectBaselineView.couldNotDiscard')} live>
+            {describeError(discard.error, t)}
           </InlineAlert>
         ) : null}
 
@@ -147,7 +151,7 @@ export function ProjectBaselineView({
               <section className="tm-prj-sheet" aria-labelledby="tm-variance-heading">
                 <div className="tm-prj-sheet__head">
                   <h2 id="tm-variance-heading" className="tm-prj-eyebrow">
-                    Variance
+                    {t('ProjectBaselineView.variance')}
                   </h2>
                   {variance.data ? (
                     <span className="tm-meta-mono">{variance.data.label}</span>
@@ -155,13 +159,17 @@ export function ProjectBaselineView({
                 </div>
 
                 {variance.isError ? (
-                  <InlineAlert tone="danger" title="Could not load the variance view" live>
-                    {describeError(variance.error)}
+                  <InlineAlert
+                    tone="danger"
+                    title={t('ProjectBaselineView.couldNotLoadVariance')}
+                    live
+                  >
+                    {describeError(variance.error, t)}
                   </InlineAlert>
                 ) : null}
 
                 {variance.isPending ? (
-                  <LoadingRegion label="Computing the variance against the baseline.">
+                  <LoadingRegion label={t('ProjectBaselineView.computingVariance')}>
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
                 ) : null}
@@ -174,32 +182,30 @@ export function ProjectBaselineView({
                     // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                     tabIndex={0}
                     role="region"
-                    aria-label={`Variance for ${variance.data.label}`}
+                    aria-label={`${t('ProjectBaselineView.varianceForPrefix')} ${variance.data.label}`}
                   >
                     <table className="tm-table">
                       <caption className="tm-visually-hidden">
-                        Milestone dates today against the baseline “{variance.data.label}”,{' '}
-                        {variance.data.rows.length} shown.
+                        {t('ProjectBaselineView.captionLead')} “{variance.data.label}”,{' '}
+                        {variance.data.rows.length} {t('ProjectBaselineView.captionTail')}
                       </caption>
                       <thead>
                         <tr>
-                          <th scope="col">Milestone</th>
-                          <th scope="col">Baseline date</th>
-                          <th scope="col">Current date</th>
-                          <th scope="col">Delta (days)</th>
+                          <th scope="col">{t('ProjectBaselineView.colMilestone')}</th>
+                          <th scope="col">{t('ProjectBaselineView.colBaselineDate')}</th>
+                          <th scope="col">{t('ProjectBaselineView.colCurrentDate')}</th>
+                          <th scope="col">{t('ProjectBaselineView.colDelta')}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {variance.data.rows.map((row) => (
-                          <VarianceRow key={row.milestoneId} row={row} />
+                          <VarianceRow key={row.milestoneId} row={row} t={t} />
                         ))}
                       </tbody>
                     </table>
                   </div>
                 ) : null}
-                <p className="tm-prj-sheet__foot">
-                  Dates are recomputed each time this view opens, so the slip shown is today’s.
-                </p>
+                <p className="tm-prj-sheet__foot">{t('ProjectBaselineView.recomputedNote')}</p>
               </section>
             ) : (
               <section
@@ -207,12 +213,12 @@ export function ProjectBaselineView({
                 aria-labelledby="tm-variance-empty"
               >
                 <h2 id="tm-variance-empty" className="tm-prj-eyebrow">
-                  Variance
+                  {t('ProjectBaselineView.variance')}
                 </h2>
                 <p className="tm-card__meta">
                   {rows.length === 0
-                    ? 'Snapshot the plan first. A baseline freezes today’s milestone dates so later movement can be measured against it.'
-                    : 'Choose a baseline to compare today’s milestone dates against it.'}
+                    ? t('ProjectBaselineView.emptySnapshotFirst')
+                    : t('ProjectBaselineView.emptyChoose')}
                 </p>
               </section>
             )}
@@ -221,17 +227,17 @@ export function ProjectBaselineView({
           <div className="tm-prj__col">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-baselines-heading">
               <h2 id="tm-baselines-heading" className="tm-prj-eyebrow">
-                Baselines · {rows.length}
+                {t('ProjectBaselineView.baselinesHeading')} · {rows.length}
               </h2>
               {baselines.isPending ? (
-                <LoadingRegion label="Loading the project's baselines.">
+                <LoadingRegion label={t('ProjectBaselineView.loadingBaselines')}>
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
               ) : null}
               {!baselines.isPending && !baselines.isError && rows.length === 0 ? (
-                <InlineAlert tone="neutral" title="No baselines yet">
-                  This project has no saved baselines. Snapshot the current plan below.
+                <InlineAlert tone="neutral" title={t('ProjectBaselineView.noBaselinesTitle')}>
+                  {t('ProjectBaselineView.noBaselinesBody')}
                 </InlineAlert>
               ) : null}
               {rows.length > 0 ? (
@@ -244,6 +250,7 @@ export function ProjectBaselineView({
                       busy={discard.isPending}
                       onView={() => setSelectedId(baseline.id)}
                       onDiscard={() => discard.mutate(baseline.id)}
+                      t={t}
                     />
                   ))}
                 </ul>
@@ -252,7 +259,7 @@ export function ProjectBaselineView({
 
             <section className="tm-card tm-prj-card" aria-labelledby="tm-baseline-author">
               <h2 id="tm-baseline-author" className="tm-prj-eyebrow">
-                Snapshot the plan
+                {t('ProjectBaselineView.snapshotHeading')}
               </h2>
               <form className="tm-prj-form" onSubmit={onSubmit} noValidate>
                 <fieldset
@@ -260,18 +267,18 @@ export function ProjectBaselineView({
                   disabled={create.isPending}
                 >
                   <Field
-                    label="Baseline name"
+                    label={t('ProjectBaselineView.baselineNameLabel')}
                     name="label"
                     value={label}
                     onChange={(event) => setLabel(event.target.value)}
-                    hint="A name for this snapshot, e.g. “Kickoff plan” or “Q3 re-baseline”."
+                    hint={t('ProjectBaselineView.baselineNameHint')}
                     required
                   />
                 </fieldset>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not snapshot the plan" live>
-                    {describeError(create.error)}
+                  <InlineAlert tone="danger" title={t('ProjectBaselineView.couldNotSnapshot')} live>
+                    {describeError(create.error, t)}
                   </InlineAlert>
                 ) : null}
 
@@ -281,10 +288,10 @@ export function ProjectBaselineView({
                     tone="ink"
                     size="accessible"
                     loading={create.isPending}
-                    loadingLabel="Saving"
+                    loadingLabel={t('ProjectBaselineView.saving')}
                     disabled={!canSubmit}
                   >
-                    Snapshot now
+                    {t('ProjectBaselineView.snapshotNow')}
                   </Button>
                 </div>
               </form>
@@ -302,25 +309,30 @@ function BaselineRow({
   busy,
   onView,
   onDiscard,
+  t,
 }: {
   baseline: ProjectBaselineSummary;
   selected: boolean;
   busy: boolean;
   onView: () => void;
   onDiscard: () => void;
+  t: Translate;
 }) {
   return (
     <li>
       <div className="tm-prj-people__who">
         <span className="tm-prj-people__name">{baseline.label}</span>
         <span className="tm-prj-people__role">
-          {baseline.milestoneCount} milestone{baseline.milestoneCount === 1 ? '' : 's'} frozen ·{' '}
-          {formatDate(baseline.createdAt)}
+          {baseline.milestoneCount}{' '}
+          {baseline.milestoneCount === 1
+            ? t('ProjectBaselineView.frozenSingular')
+            : t('ProjectBaselineView.frozenPlural')}{' '}
+          · {formatDate(baseline.createdAt)}
         </span>
       </div>
       <div className="tm-prj-people__end">
         <Button type="button" tone="ink" size="accessible" onClick={onView} disabled={selected}>
-          {selected ? 'Viewing' : 'View variance'}
+          {selected ? t('ProjectBaselineView.viewing') : t('ProjectBaselineView.viewVariance')}
         </Button>
         <Button
           type="button"
@@ -329,30 +341,30 @@ function BaselineRow({
           onClick={onDiscard}
           disabled={busy}
         >
-          Discard
+          {t('ProjectBaselineView.discard')}
         </Button>
       </div>
     </li>
   );
 }
 
-function VarianceRow({ row }: { row: ProjectBaselineVarianceRow }) {
+function VarianceRow({ row, t }: { row: ProjectBaselineVarianceRow; t: Translate }) {
   return (
     <tr>
       <th scope="row" className="tm-table__title">
-        {row.title ?? 'Removed milestone'}
+        {row.title ?? t('ProjectBaselineView.removedMilestone')}
       </th>
       <td>{row.baselineDate ?? '—'}</td>
       <td>{row.currentDate ?? '—'}</td>
-      <td>{formatDelta(row.deltaDays)}</td>
+      <td>{formatDelta(row.deltaDays, t)}</td>
     </tr>
   );
 }
 
 /** A signed day count: `+7` slipped later, `-3` pulled earlier, `On track` for zero, `—` unknown. */
-function formatDelta(deltaDays: number | null): string {
+function formatDelta(deltaDays: number | null, t: Translate): string {
   if (deltaDays === null) return '—';
-  if (deltaDays === 0) return 'On track';
+  if (deltaDays === 0) return t('ProjectBaselineView.onTrackDelta');
   return deltaDays > 0 ? `+${deltaDays}` : String(deltaDays);
 }
 
@@ -361,8 +373,8 @@ function formatDate(iso: string): string {
   return Number.isNaN(parsed.getTime()) ? iso : parsed.toLocaleDateString();
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectBaselineView.apiError');
+  return t('ProjectBaselineView.genericError');
 }

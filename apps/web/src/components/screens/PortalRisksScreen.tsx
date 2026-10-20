@@ -11,6 +11,9 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface PortalRisksScreenProps {
   organizationSlug: string;
@@ -41,6 +44,7 @@ export function PortalRisksScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const projects = useQuery({
     queryKey: ['portal-projects', organizationSlug],
@@ -68,23 +72,25 @@ export function PortalRisksScreen({
       title={
         risks.isSuccess
           ? open.length === 0
-            ? 'Nothing threatens a date today'
+            ? t('PortalRisksScreen.nothingThreatens')
             : open.length === 1
-              ? 'One thing to keep an eye on'
-              : `${open.length} things to keep an eye on`
-          : 'Risks'
+              ? t('PortalRisksScreen.oneThingToWatch')
+              : `${open.length} ${t('PortalRisksScreen.thingsToWatchSuffix')}`
+          : t('PortalRisksScreen.risks')
       }
-      eyebrow={project ? `Risks · ${project.name}` : 'Risks'}
+      eyebrow={
+        project ? `${t('PortalRisksScreen.risks')} · ${project.name}` : t('PortalRisksScreen.risks')
+      }
     >
       <div className="tm-pt tm-pt--compact">
         {projects.isError ? (
-          <InlineAlert tone="danger" title="Could not load your portal" live>
-            {describe(projects.error)}
+          <InlineAlert tone="danger" title={t('PortalRisksScreen.couldNotLoadPortal')} live>
+            {describe(projects.error, t)}
           </InlineAlert>
         ) : null}
 
         {projects.isPending ? (
-          <LoadingRegion label="Loading your project">
+          <LoadingRegion label={t('PortalRisksScreen.loadingProject')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -97,6 +103,7 @@ export function PortalRisksScreen({
             isError={risks.isError}
             error={risks.error}
             hasProject={projectId != null}
+            t={t}
           />
         )}
       </div>
@@ -112,6 +119,7 @@ interface RisksSectionProps {
   isError: boolean;
   error: unknown;
   hasProject: boolean;
+  t: Translate;
 }
 
 function RisksSection({
@@ -122,25 +130,25 @@ function RisksSection({
   isError,
   error,
   hasProject,
+  t,
 }: RisksSectionProps) {
   if (!hasProject) {
     return (
       <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-        There is no project shared with you yet. When {providerName} shares one, anything that could
-        affect it will appear here.
+        {t('PortalRisksScreen.noProjectLead')} {providerName} {t('PortalRisksScreen.noProjectTail')}
       </p>
     );
   }
   if (isError) {
     return (
-      <InlineAlert tone="danger" title="Could not load risks" live>
-        {describe(error)}
+      <InlineAlert tone="danger" title={t('PortalRisksScreen.couldNotLoadRisks')} live>
+        {describe(error, t)}
       </InlineAlert>
     );
   }
   if (isPending) {
     return (
-      <LoadingRegion label="Loading risks">
+      <LoadingRegion label={t('PortalRisksScreen.loadingRisks')}>
         <Skeleton height="var(--row)" />
       </LoadingRegion>
     );
@@ -156,12 +164,14 @@ function RisksSection({
     <div className="tm-pt-split tm-pt-split--aside tm-pt-split--wide">
       <section className="tm-pt-col" aria-labelledby="tm-portal-risks">
         <h2 id="tm-portal-risks" className="tm-pt-eyebrow">
-          Shared by {providerName} · {risks.length} {risks.length === 1 ? 'risk' : 'risks'}
+          {t('PortalRisksScreen.sharedByHeading')} {providerName} · {risks.length}{' '}
+          {risks.length === 1
+            ? t('PortalRisksScreen.riskSingular')
+            : t('PortalRisksScreen.riskPlural')}
         </h2>
         {risks.length === 0 ? (
           <p className="tm-pt-card tm-pt-card--dashed tm-pt-card__body">
-            {providerName} has not flagged a risk on your project. If something could affect a date,
-            it will appear here and they will tell you.
+            {providerName} {t('PortalRisksScreen.notFlaggedTail')}
           </p>
         ) : (
           <ul className="tm-pt-list">
@@ -176,12 +186,14 @@ function RisksSection({
                 <div className="tm-pt-action__body">
                   <div className="tm-pt-action__meta">
                     <Tag tone={severityTone(risk.severity)}>
-                      {severityLabel(risk.severity)} severity
+                      {severityLabel(risk.severity, t)} {t('PortalRisksScreen.severityWord')}
                     </Tag>
                     <Tag tone={risk.status === 'open' ? undefined : 'done'}>
-                      {statusLabel(risk.status)}
+                      {statusLabel(risk.status, t)}
                     </Tag>
-                    <span className="tm-pt-mono">Shared {shortDay(risk.createdAt)}</span>
+                    <span className="tm-pt-mono">
+                      {t('PortalRisksScreen.sharedWord')} {shortDay(risk.createdAt)}
+                    </span>
                   </div>
                   <p className="tm-pt-action__title">{risk.clientSummary}</p>
                 </div>
@@ -193,17 +205,19 @@ function RisksSection({
 
       <section className="tm-pt-ink tm-pt-ink--tall" aria-labelledby="tm-portal-risk-lead">
         <h2 id="tm-portal-risk-lead" className="tm-pt-eyebrow">
-          What would put the launch at risk
+          {t('PortalRisksScreen.launchRiskHeading')}
         </h2>
-        <p className="tm-pt-ink__title">{lead ? lead.clientSummary : 'Nothing today.'}</p>
+        <p className="tm-pt-ink__title">
+          {lead ? lead.clientSummary : t('PortalRisksScreen.nothingToday')}
+        </p>
         <p className="tm-pt-quiet">
-          You would hear from {providerName} the same day if a date had to move.
+          {t('PortalRisksScreen.hearLead')} {providerName} {t('PortalRisksScreen.hearTail')}
         </p>
         <Link
           className="tm-pt-btn tm-pt-btn--lime tm-pt-ink__cta"
           href={`/${organizationSlug}/portal/timeline`}
         >
-          See the timeline
+          {t('PortalRisksScreen.seeTheTimeline')}
         </Link>
       </section>
     </div>
@@ -218,14 +232,14 @@ function statusWeight(status: RiskStatus): number {
   return status === 'open' ? 0 : status === 'mitigated' ? 1 : 2;
 }
 
-function severityLabel(severity: RiskSeverity): string {
+function severityLabel(severity: RiskSeverity, t: Translate): string {
   switch (severity) {
     case 'high':
-      return 'High';
+      return t('PortalRisksScreen.severityHigh');
     case 'low':
-      return 'Low';
+      return t('PortalRisksScreen.severityLow');
     default:
-      return 'Medium';
+      return t('PortalRisksScreen.severityMedium');
   }
 }
 
@@ -240,19 +254,19 @@ function severityTone(severity: RiskSeverity): 'danger' | 'warning' | undefined 
   }
 }
 
-function statusLabel(status: RiskStatus): string {
+function statusLabel(status: RiskStatus, t: Translate): string {
   switch (status) {
     case 'mitigated':
-      return 'Mitigated';
+      return t('PortalRisksScreen.statusMitigated');
     case 'closed':
-      return 'Closed';
+      return t('PortalRisksScreen.statusClosed');
     default:
-      return 'Open';
+      return t('PortalRisksScreen.statusOpen');
   }
 }
 
-function describe(error: unknown): string {
+function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('PortalRisksScreen.portalNotAnswering');
+  return t('PortalRisksScreen.genericError');
 }

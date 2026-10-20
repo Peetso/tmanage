@@ -12,6 +12,9 @@ import {
 } from '../../lib/api/project-dependencies';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectDependenciesViewProps {
   organizationSlug: string;
@@ -45,6 +48,7 @@ export function ProjectDependenciesView({
 }: ProjectDependenciesViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [blockedProjectId, setBlockedProjectId] = useState('');
   const [note, setNote] = useState('');
@@ -94,7 +98,7 @@ export function ProjectDependenciesView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby={headingId}>
       <h3 id={headingId} className="tm-eyebrow">
-        Dependencies — {projectName}
+        {t('ProjectDependenciesView.depsHeading')} — {projectName}
       </h3>
 
       <form className="tm-stack" onSubmit={onSubmit} noValidate>
@@ -103,25 +107,25 @@ export function ProjectDependenciesView({
           disabled={createMutation.isPending}
         >
           <Field
-            label="Blocked project ID"
+            label={t('ProjectDependenciesView.blockedIdLabel')}
             name="blockedProjectId"
             value={blockedProjectId}
             onChange={(event) => setBlockedProjectId(event.target.value)}
-            hint="The ID of a project that is blocked by this one (it depends on this project)."
+            hint={t('ProjectDependenciesView.blockedIdHint')}
             required
           />
           <Field
-            label="Note (optional)"
+            label={t('ProjectDependenciesView.noteLabel')}
             name="note"
             value={note}
             onChange={(event) => setNote(event.target.value)}
-            hint="Why this project blocks the other. Up to 500 characters."
+            hint={t('ProjectDependenciesView.noteHint')}
           />
         </fieldset>
 
         {createMutation.isError ? (
-          <InlineAlert tone="danger" title="Could not add the dependency" live>
-            {describeError(createMutation.error)}
+          <InlineAlert tone="danger" title={t('ProjectDependenciesView.couldNotAdd')} live>
+            {describeError(createMutation.error, t)}
           </InlineAlert>
         ) : null}
 
@@ -131,51 +135,53 @@ export function ProjectDependenciesView({
             tone="ink"
             size="accessible"
             loading={createMutation.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('ProjectDependenciesView.adding')}
             disabled={!canSubmit}
           >
-            Add dependency
+            {t('ProjectDependenciesView.addButton')}
           </Button>
         </div>
       </form>
 
       {graph.isError ? (
-        <InlineAlert tone="danger" title="Could not load the dependencies" live>
-          {describeError(graph.error)}
+        <InlineAlert tone="danger" title={t('ProjectDependenciesView.couldNotLoad')} live>
+          {describeError(graph.error, t)}
         </InlineAlert>
       ) : null}
 
       {graph.isPending ? (
-        <LoadingRegion label="Loading the project's dependencies.">
+        <LoadingRegion label={t('ProjectDependenciesView.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {removeMutation.isError ? (
-        <InlineAlert tone="danger" title="Could not remove the dependency" live>
-          {describeError(removeMutation.error)}
+        <InlineAlert tone="danger" title={t('ProjectDependenciesView.couldNotRemove')} live>
+          {describeError(removeMutation.error, t)}
         </InlineAlert>
       ) : null}
 
       {!graph.isPending && !graph.isError ? (
         <>
           <DependencyTable
-            caption={`Projects ${projectName} blocks`}
-            emptyTitle="Blocks nothing yet"
-            emptyBody="This project does not block any other yet. Add the first above."
-            farLabel="Blocked project"
+            caption={`${t('ProjectDependenciesView.projectsBlocksLead')} ${projectName} ${t('ProjectDependenciesView.blocksWord')}`}
+            emptyTitle={t('ProjectDependenciesView.blocksNothingTitle')}
+            emptyBody={t('ProjectDependenciesView.blocksNothingBody')}
+            farLabel={t('ProjectDependenciesView.farBlockedProject')}
             rows={blocking}
             onRemove={(row) => removeMutation.mutate(row.blockedProjectId)}
             removing={removeMutation.isPending}
             removable
+            t={t}
           />
           <DependencyTable
-            caption={`Projects that block ${projectName}`}
-            emptyTitle="Not blocked by anything"
-            emptyBody="No other project blocks this one."
-            farLabel="Blocking project"
+            caption={`${t('ProjectDependenciesView.projectsThatBlockLead')} ${projectName}`}
+            emptyTitle={t('ProjectDependenciesView.notBlockedTitle')}
+            emptyBody={t('ProjectDependenciesView.notBlockedBody')}
+            farLabel={t('ProjectDependenciesView.farBlockingProject')}
             rows={blockedBy}
             removable={false}
+            t={t}
           />
         </>
       ) : null}
@@ -192,6 +198,7 @@ interface DependencyTableProps {
   removable: boolean;
   onRemove?: (row: ProjectDependency) => void;
   removing?: boolean;
+  t: Translate;
 }
 
 function DependencyTable({
@@ -203,6 +210,7 @@ function DependencyTable({
   removable,
   onRemove,
   removing,
+  t,
 }: DependencyTableProps) {
   if (rows.length === 0) {
     return (
@@ -224,14 +232,14 @@ function DependencyTable({
     >
       <table className="tm-table">
         <caption className="tm-visually-hidden">
-          {caption}, {rows.length} shown.
+          {caption}, {rows.length} {t('ProjectDependenciesView.shown')}
         </caption>
         <thead>
           <tr>
             <th scope="col">{farLabel}</th>
-            <th scope="col">Status</th>
-            <th scope="col">Note</th>
-            {removable ? <th scope="col">Action</th> : null}
+            <th scope="col">{t('ProjectDependenciesView.colStatus')}</th>
+            <th scope="col">{t('ProjectDependenciesView.colNote')}</th>
+            {removable ? <th scope="col">{t('ProjectDependenciesView.colAction')}</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -251,7 +259,7 @@ function DependencyTable({
                     onClick={() => onRemove?.(row)}
                     disabled={removing}
                   >
-                    Remove
+                    {t('ProjectDependenciesView.remove')}
                   </Button>
                 </td>
               ) : null}
@@ -263,8 +271,8 @@ function DependencyTable({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectDependenciesView.apiError');
+  return t('ProjectDependenciesView.genericError');
 }

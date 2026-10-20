@@ -41,6 +41,10 @@ import { useMembers } from '../../lib/use-members';
 import { useHydrated } from '../../lib/use-hydrated';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectOverviewScreenProps {
   organizationSlug: string;
@@ -85,6 +89,7 @@ export function ProjectOverviewScreen({
   now = new Date(),
 }: ProjectOverviewScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const project = useQuery({
     queryKey: ['project', organizationSlug, projectId],
@@ -146,9 +151,9 @@ export function ProjectOverviewScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title={project.data?.name ?? 'Project'}
-      eyebrow="Project"
-      description="Progress is measured by milestone evidence, not by counting finished tasks."
+      title={project.data?.name ?? t('ProjectOverviewScreen.projectFallback')}
+      eyebrow={t('ProjectOverviewScreen.eyebrow')}
+      description={t('ProjectOverviewScreen.description')}
       topBar={
         <ProjectTabs
           organizationSlug={organizationSlug}
@@ -160,7 +165,7 @@ export function ProjectOverviewScreen({
                 className="tm-button tm-button--outline tm-button--accessible"
                 href={`/${organizationSlug}/work?project=${encodeURIComponent(projectId)}`}
               >
-                Update work
+                {t('ProjectOverviewScreen.updateWork')}
               </Link>
               <a
                 className="tm-button tm-button--ink tm-button--accessible"
@@ -169,7 +174,7 @@ export function ProjectOverviewScreen({
                 <span className="tm-button__orb" aria-hidden="true">
                   ✎
                 </span>
-                Post update
+                {t('ProjectOverviewScreen.postUpdate')}
               </a>
             </>
           }
@@ -179,7 +184,7 @@ export function ProjectOverviewScreen({
         workItems.data ? (
           <div className="tm-prj-metrics">
             {currentMilestone?.milestone.dueOn ? (
-              <MilestoneMetric milestone={currentMilestone.milestone} now={now} />
+              <MilestoneMetric milestone={currentMilestone.milestone} now={now} t={t} />
             ) : null}
             <div className="tm-metric">
               <div className="tm-metric__value-row">
@@ -187,23 +192,31 @@ export function ProjectOverviewScreen({
                 <span
                   className={`tm-pill ${blocked.length > 0 ? 'tm-pill--danger' : 'tm-pill--current'}`}
                 >
-                  {blocked.length > 0 ? 'blocked' : 'clear'}
+                  {blocked.length > 0
+                    ? t('ProjectOverviewScreen.metricBlocked')
+                    : t('ProjectOverviewScreen.metricClear')}
                 </span>
               </div>
-              <span className="tm-metric__label">items blocked</span>
+              <span className="tm-metric__label">{t('ProjectOverviewScreen.itemsBlocked')}</span>
               <span className="tm-metric__source">
-                {done.length} of {items.length} finished
+                {done.length} {t('ProjectOverviewScreen.ofWord')} {items.length}{' '}
+                {t('ProjectOverviewScreen.finished')}
               </span>
             </div>
             <div className="tm-metric">
               <div className="tm-metric__value-row">
                 <span className="tm-metric__value">{String(overdue.length)}</span>
                 <span className={`tm-pill ${overdue.length > 0 ? 'tm-pill--warning' : ''}`}>
-                  {overdue.length > 0 ? 'late' : 'on time'}
+                  {overdue.length > 0
+                    ? t('ProjectOverviewScreen.metricLate')
+                    : t('ProjectOverviewScreen.metricOnTime')}
                 </span>
               </div>
-              <span className="tm-metric__label">past their due date</span>
-              <span className="tm-metric__source">across {items.length} work items</span>
+              <span className="tm-metric__label">{t('ProjectOverviewScreen.pastDueLabel')}</span>
+              <span className="tm-metric__source">
+                {t('ProjectOverviewScreen.across')} {items.length}{' '}
+                {t('ProjectOverviewScreen.workItems')}
+              </span>
             </div>
           </div>
         ) : undefined
@@ -211,13 +224,13 @@ export function ProjectOverviewScreen({
     >
       <div className="tm-prj">
         {project.isError || workItems.isError ? (
-          <InlineAlert tone="danger" title="Could not load this project" live>
-            {describe(project.error ?? workItems.error)}
+          <InlineAlert tone="danger" title={t('ProjectOverviewScreen.couldNotLoadProject')} live>
+            {describe(project.error ?? workItems.error, t)}
           </InlineAlert>
         ) : null}
 
         {project.isPending ? (
-          <LoadingRegion label="Loading this project.">
+          <LoadingRegion label={t('ProjectOverviewScreen.loadingProject')}>
             <Skeleton height="56px" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -227,7 +240,7 @@ export function ProjectOverviewScreen({
           <section className="tm-prj-strip" aria-labelledby="tm-project-header">
             <div className="tm-prj-strip__head">
               <h2 id="tm-project-header" className="tm-prj-eyebrow">
-                This project
+                {t('ProjectOverviewScreen.thisProject')}
               </h2>
               {/*
                 The badge states what `project_clients` actually holds, or nothing. "Internal"
@@ -238,33 +251,35 @@ export function ProjectOverviewScreen({
               */}
               {shares.data !== undefined ? (
                 shares.data.length > 0 ? (
-                  <Badge tone="client">Shared with a client</Badge>
+                  <Badge tone="client">{t('ProjectOverviewScreen.sharedWithClient')}</Badge>
                 ) : (
-                  <Badge>Internal</Badge>
+                  <Badge>{t('ProjectOverviewScreen.internal')}</Badge>
                 )
               ) : null}
               <StateCapsule state={project.data.status === 'active' ? 'current' : 'archived'}>
-                {project.data.status === 'active' ? 'Active' : project.data.status}
+                {project.data.status === 'active'
+                  ? t('ProjectOverviewScreen.activeStatus')
+                  : project.data.status}
               </StateCapsule>
               {/* D16: the owner by name; committed and forecast stay two dates (PROJ-001). */}
               <dl className="tm-prj-strip__facts">
                 <div>
-                  <dt>Owner</dt>
+                  <dt>{t('ProjectOverviewScreen.ownerLabel')}</dt>
                   <dd>{nameOf(project.data.ownerUserId)}</dd>
                 </div>
                 <div>
-                  <dt>Committed</dt>
+                  <dt>{t('ProjectOverviewScreen.committedLabel')}</dt>
                   <dd>
                     {project.data.committedAt === null
-                      ? 'Nothing committed yet'
+                      ? t('ProjectOverviewScreen.nothingCommitted')
                       : formatDay(project.data.committedAt)}
                   </dd>
                 </div>
                 <div>
-                  <dt>Forecast</dt>
+                  <dt>{t('ProjectOverviewScreen.forecastLabel')}</dt>
                   <dd>
                     {project.data.forecastAt === null
-                      ? 'No forecast yet'
+                      ? t('ProjectOverviewScreen.noForecast')
                       : formatDay(project.data.forecastAt)}
                   </dd>
                 </div>
@@ -274,30 +289,36 @@ export function ProjectOverviewScreen({
             {track.length === 0 ? (
               <ol
                 className="tm-pulse-track tm-pulse-track--bare tm-prj-track"
-                aria-label="Milestones"
+                aria-label={t('ProjectOverviewScreen.milestones')}
               >
                 <li data-state="uncertain">
-                  <span className="tm-prj-track__title">No milestones yet</span>
-                  <span className="tm-prj-track__meta">add the first one below</span>
+                  <span className="tm-prj-track__title">
+                    {t('ProjectOverviewScreen.noMilestonesTitle')}
+                  </span>
+                  <span className="tm-prj-track__meta">
+                    {t('ProjectOverviewScreen.addFirstBelow')}
+                  </span>
                 </li>
               </ol>
             ) : (
               <ol
                 className="tm-pulse-track tm-pulse-track--bare tm-prj-track"
-                aria-label="Milestones"
+                aria-label={t('ProjectOverviewScreen.milestones')}
               >
                 {track.map(({ milestone, state }) => (
                   <li key={milestone.id} data-state={state}>
                     {state === 'current' ? (
                       <>
                         <span className="tm-stack tm-stack--tight">
-                          <span className="tm-prj-track__kicker">Current</span>
+                          <span className="tm-prj-track__kicker">
+                            {t('ProjectOverviewScreen.currentKicker')}
+                          </span>
                           <span className="tm-prj-track__title">{milestone.title}</span>
                         </span>
                         <span className="tm-pulse-track__meta">
                           {milestone.dueOn === null
-                            ? 'no date'
-                            : `due ${formatDay(milestone.dueOn)}`}
+                            ? t('ProjectOverviewScreen.noDateLower')
+                            : `${t('ProjectOverviewScreen.dueWord')} ${formatDay(milestone.dueOn)}`}
                         </span>
                       </>
                     ) : (
@@ -308,9 +329,9 @@ export function ProjectOverviewScreen({
                         </span>
                         <span className="tm-prj-track__meta">
                           {milestone.status === 'missed'
-                            ? 'missed'
+                            ? t('ProjectOverviewScreen.missedLower')
                             : milestone.dueOn === null
-                              ? 'no date'
+                              ? t('ProjectOverviewScreen.noDateLower')
                               : formatDay(milestone.dueOn)}
                         </span>
                       </>
@@ -327,22 +348,27 @@ export function ProjectOverviewScreen({
             <section className="tm-stack" aria-labelledby="tm-project-blockers">
               <div className="tm-section-head">
                 <h2 id="tm-project-blockers" className="tm-section-head__title">
-                  Blockers
+                  {t('ProjectOverviewScreen.blockersHeading')}
                 </h2>
                 <span className="tm-section-head__meta">
-                  {blocked.length === 1 ? '1 item' : `${blocked.length} items`}
+                  {blocked.length === 1
+                    ? t('ProjectOverviewScreen.oneItem')
+                    : `${blocked.length} ${t('ProjectOverviewScreen.itemsSuffix')}`}
                 </span>
               </div>
               {blocked.length === 0 ? (
                 <div className="tm-card tm-card--empty tm-prj-card">
-                  <p className="tm-card__meta">Nothing is blocked.</p>
+                  <p className="tm-card__meta">{t('ProjectOverviewScreen.nothingBlocked')}</p>
                 </div>
               ) : (
                 <ul className="tm-card-grid">
                   {blocked.map((item) => (
                     <li key={item.id} className="tm-card tm-prj-card">
                       <span className="tm-card__eyebrow">
-                        Blocked · {item.dueAt === null ? 'no date' : `due ${formatDay(item.dueAt)}`}
+                        {t('ProjectOverviewScreen.blockedWord')} ·{' '}
+                        {item.dueAt === null
+                          ? t('ProjectOverviewScreen.noDateLower')
+                          : `${t('ProjectOverviewScreen.dueWord')} ${formatDay(item.dueAt)}`}
                       </span>
                       <h3 className="tm-prj-card__title">
                         <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>
@@ -351,7 +377,9 @@ export function ProjectOverviewScreen({
                         {stateLabel(item.state)} · {nameOf(item.ownerUserId)}
                       </span>
                       {isOverdue(item, now) ? (
-                        <StateCapsule state="blocked">Overdue</StateCapsule>
+                        <StateCapsule state="blocked">
+                          {t('ProjectOverviewScreen.overdue')}
+                        </StateCapsule>
                       ) : null}
                     </li>
                   ))}
@@ -361,19 +389,21 @@ export function ProjectOverviewScreen({
 
             <WorkSection
               id="tm-project-next"
-              title="Next actions"
-              empty="Nothing is ready or in progress. Everything is either in the backlog or finished."
+              title={t('ProjectOverviewScreen.nextActionsTitle')}
+              empty={t('ProjectOverviewScreen.nextActionsEmpty')}
               items={nextActions}
               organizationSlug={organizationSlug}
               now={now}
               nameOf={nameOf}
               workHref={`/${organizationSlug}/work?project=${encodeURIComponent(projectId)}`}
+              t={t}
             />
 
             <MilestoneComposer
               api={api}
               organizationSlug={organizationSlug}
               projectId={projectId}
+              t={t}
             />
           </div>
 
@@ -383,14 +413,14 @@ export function ProjectOverviewScreen({
               aria-labelledby="tm-project-client"
             >
               <h2 id="tm-project-client" className="tm-prj-eyebrow">
-                What the client can see
+                {t('ProjectOverviewScreen.whatClientSees')}
               </h2>
               <div className="tm-prj-client__figure">
                 <span className="tm-prj-client__value">{clientFacing.length}</span>
                 <span>
                   {clientFacing.length === 1
-                    ? 'item is visible in the client portal'
-                    : 'items are visible in the client portal'}
+                    ? t('ProjectOverviewScreen.itemVisibleSingular')
+                    : t('ProjectOverviewScreen.itemsVisiblePlural')}
                 </span>
               </div>
               {clientFacing.length > 0 ? (
@@ -413,39 +443,41 @@ export function ProjectOverviewScreen({
               <hr className="tm-prj-client__rule" />
               <p className="tm-prj-client__prose">
                 {clientFacing.length === 0
-                  ? 'Nothing in this project is shared with a client. Every item is internal, which is what a new item starts as.'
-                  : 'This is what a client member reading the portal right now would see. Internal work, risks and comments stay internal.'}
+                  ? t('ProjectOverviewScreen.clientProseNone')
+                  : t('ProjectOverviewScreen.clientProseSome')}
               </p>
             </section>
 
             <section className="tm-card tm-prj-card" aria-labelledby="tm-project-health">
               <h2 id="tm-project-health" className="tm-section-head__title">
-                How it is going
+                {t('ProjectOverviewScreen.howItIsGoing')}
               </h2>
               {workItems.isPending ? (
-                <LoadingRegion label="Counting the work.">
+                <LoadingRegion label={t('ProjectOverviewScreen.countingWork')}>
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
               ) : (
                 <>
                   <p className="tm-prose">
-                    {healthSentence(items.length, blocked.length, overdue.length)}
+                    {healthSentence(items.length, blocked.length, overdue.length, t)}
                   </p>
-                  <p className="tm-card__meta">
-                    These are counts, not a score. Every one of them is a number you can check in
-                    the work list.
-                  </p>
+                  <p className="tm-card__meta">{t('ProjectOverviewScreen.countsNote')}</p>
                   {items.length >= MAX_WORK_ITEM_PAGE ? (
-                    <InlineAlert tone="warning" title="These counts are a page, not a total">
-                      This project has at least {MAX_WORK_ITEM_PAGE} work items, which is a full
-                      page. The counts above describe what was loaded, not the whole project.
+                    <InlineAlert tone="warning" title={t('ProjectOverviewScreen.countsPageTitle')}>
+                      {t('ProjectOverviewScreen.countsPageLead')} {MAX_WORK_ITEM_PAGE}{' '}
+                      {t('ProjectOverviewScreen.countsPageTail')}
                     </InlineAlert>
                   ) : null}
                 </>
               )}
             </section>
 
-            <UpdateComposer api={api} organizationSlug={organizationSlug} projectId={projectId} />
+            <UpdateComposer
+              api={api}
+              organizationSlug={organizationSlug}
+              projectId={projectId}
+              t={t}
+            />
           </div>
         </div>
       </div>
@@ -480,7 +512,15 @@ function pulseTrack(
   });
 }
 
-function MilestoneMetric({ milestone, now }: { milestone: ProjectMilestone; now: Date }) {
+function MilestoneMetric({
+  milestone,
+  now,
+  t,
+}: {
+  milestone: ProjectMilestone;
+  now: Date;
+  t: Translate;
+}) {
   const due =
     milestone.dueOn === null ? null : Date.parse(`${milestone.dueOn.slice(0, 10)}T00:00:00Z`);
   if (due === null || Number.isNaN(due)) return null;
@@ -491,13 +531,16 @@ function MilestoneMetric({ milestone, now }: { milestone: ProjectMilestone; now:
       <div className="tm-metric__value-row">
         <span className="tm-metric__value">{String(Math.abs(days))}</span>
         <span className={`tm-pill ${days < 0 ? 'tm-pill--warning' : 'tm-pill--current'}`}>
-          {days < 0 ? 'late' : 'next'}
+          {days < 0 ? t('ProjectOverviewScreen.metricLate') : t('ProjectOverviewScreen.metricNext')}
         </span>
       </div>
       <span className="tm-metric__label">
-        {days < 0 ? 'days past' : 'days to'} {milestone.title}
+        {days < 0 ? t('ProjectOverviewScreen.daysPast') : t('ProjectOverviewScreen.daysTo')}{' '}
+        {milestone.title}
       </span>
-      <span className="tm-metric__source">milestone due {formatDay(milestone.dueOn)}</span>
+      <span className="tm-metric__source">
+        {t('ProjectOverviewScreen.milestoneDue')} {formatDay(milestone.dueOn)}
+      </span>
     </div>
   );
 }
@@ -511,6 +554,7 @@ interface WorkSectionProps {
   now: Date;
   nameOf: (userId: string | null) => string;
   workHref: string;
+  t: Translate;
 }
 
 /**
@@ -526,6 +570,7 @@ function WorkSection({
   now,
   nameOf,
   workHref,
+  t,
 }: WorkSectionProps) {
   const [lead, ...rest] = items;
   return (
@@ -535,11 +580,13 @@ function WorkSection({
           {title}
         </h2>
         <span className="tm-section-head__meta">
-          {items.length === 1 ? '1 item' : `${items.length} items`}
+          {items.length === 1
+            ? t('ProjectOverviewScreen.oneItem')
+            : `${items.length} ${t('ProjectOverviewScreen.itemsSuffix')}`}
         </span>
         <span className="tm-section-head__end">
           <Link className="tm-meta-mono" href={workHref}>
-            Open all
+            {t('ProjectOverviewScreen.openAll')}
           </Link>
         </span>
       </div>
@@ -550,7 +597,9 @@ function WorkSection({
       ) : (
         <>
           <article className="tm-card tm-card--lime tm-prj-card">
-            <span className="tm-card__eyebrow">Next · {audienceLabel(lead.audience)}</span>
+            <span className="tm-card__eyebrow">
+              {t('ProjectOverviewScreen.nextWord')} · {audienceLabel(lead.audience)}
+            </span>
             <h3 className="tm-prj-card__title">
               <Link href={`/${organizationSlug}/work/${lead.id}`}>{lead.title}</Link>
             </h3>
@@ -561,8 +610,10 @@ function WorkSection({
               {stateLabel(lead.state)} · {nameOf(lead.ownerUserId)}
             </span>
             <span className="tm-meta-mono">
-              {lead.dueAt === null ? 'no due date' : `due ${formatInstant(lead.dueAt)}`}
-              {isOverdue(lead, now) ? ' · overdue' : ''}
+              {lead.dueAt === null
+                ? t('ProjectOverviewScreen.noDueDate')
+                : `${t('ProjectOverviewScreen.dueWord')} ${formatInstant(lead.dueAt)}`}
+              {isOverdue(lead, now) ? ` · ${t('ProjectOverviewScreen.overdueLower')}` : ''}
             </span>
           </article>
           {rest.length > 0 ? (
@@ -576,7 +627,9 @@ function WorkSection({
                       {stateLabel(item.state)}
                     </StateCapsule>
                     {isOverdue(item, now) ? (
-                      <StateCapsule state="blocked">Overdue</StateCapsule>
+                      <StateCapsule state="blocked">
+                        {t('ProjectOverviewScreen.overdue')}
+                      </StateCapsule>
                     ) : null}
                     <span className="tm-meta-mono">{formatInstant(item.dueAt)}</span>
                   </span>
@@ -599,10 +652,10 @@ interface ComposerProps {
 /** `project_milestones.title` is VARCHAR(300). */
 const MAX_MILESTONE_TITLE_LENGTH = 300;
 
-const MILESTONE_STATUS_OPTIONS: readonly { value: MilestoneStatus; label: string }[] = [
-  { value: 'planned', label: 'Planned' },
-  { value: 'met', label: 'Met' },
-  { value: 'missed', label: 'Missed' },
+const MILESTONE_STATUS_OPTIONS: readonly { value: MilestoneStatus; labelKey: MessageKey }[] = [
+  { value: 'planned', labelKey: 'ProjectOverviewScreen.msPlanned' },
+  { value: 'met', labelKey: 'ProjectOverviewScreen.msMet' },
+  { value: 'missed', labelKey: 'ProjectOverviewScreen.msMissed' },
 ];
 
 function milestoneCapsuleState(status: MilestoneStatus): 'done' | 'blocked' | 'future' {
@@ -624,7 +677,12 @@ function milestoneCapsuleState(status: MilestoneStatus): 'done' | 'blocked' | 'f
  * successful create the client-facing portal query is invalidated so an open portal tab picks the
  * new milestone up, and the internal list refetches.
  */
-function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) {
+function MilestoneComposer({
+  api,
+  organizationSlug,
+  projectId,
+  t,
+}: ComposerProps & { t: Translate }) {
   const queries = useQueryClient();
   // Controls ship disabled until React hydrates, so nothing typed into the server HTML is wiped.
   const hydrated = useHydrated();
@@ -665,15 +723,15 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
   return (
     <section className="tm-card tm-prj-card" aria-labelledby="tm-project-milestones">
       <h2 id="tm-project-milestones" className="tm-section-head__title">
-        Milestones
+        {t('ProjectOverviewScreen.milestones')}
       </h2>
 
       {milestones.isError ? (
-        <InlineAlert tone="danger" title="Could not load milestones" live>
-          {describe(milestones.error)}
+        <InlineAlert tone="danger" title={t('ProjectOverviewScreen.couldNotLoadMilestones')} live>
+          {describe(milestones.error, t)}
         </InlineAlert>
       ) : rows.length === 0 ? (
-        <p className="tm-prose">No milestones yet. Add the first below.</p>
+        <p className="tm-prose">{t('ProjectOverviewScreen.noMilestonesBody')}</p>
       ) : (
         <ol className="tm-prj-milestones">
           {rows.map((milestone) => (
@@ -681,13 +739,15 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
               <h3 className="tm-prj-milestones__title">{milestone.title}</h3>
               <span className="tm-meta-mono">
                 {milestone.dueOn === null
-                  ? 'No date committed'
-                  : `Due ${formatDay(milestone.dueOn)}`}
+                  ? t('ProjectOverviewScreen.noDateCommitted')
+                  : `${t('ProjectOverviewScreen.dueCap')} ${formatDay(milestone.dueOn)}`}
               </span>
               <StateCapsule state={milestoneCapsuleState(milestone.status)} className="tm-push-end">
                 {milestone.status}
               </StateCapsule>
-              {!milestone.published ? <StateCapsule state="neutral">Draft</StateCapsule> : null}
+              {!milestone.published ? (
+                <StateCapsule state="neutral">{t('ProjectOverviewScreen.draft')}</StateCapsule>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -709,7 +769,7 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
         <div className="tm-prj-form__row">
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-project-milestone-title">
-              Title
+              {t('ProjectOverviewScreen.titleLabel')}
             </label>
             <input
               id="tm-project-milestone-title"
@@ -724,7 +784,7 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-project-milestone-due">
-              Target date
+              {t('ProjectOverviewScreen.targetDateLabel')}
             </label>
             <input
               id="tm-project-milestone-due"
@@ -738,7 +798,7 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-project-milestone-status">
-              Status
+              {t('ProjectOverviewScreen.statusLabel')}
             </label>
             <select
               id="tm-project-milestone-status"
@@ -749,7 +809,7 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
             >
               {MILESTONE_STATUS_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
-                  {option.label}
+                  {t(option.labelKey)}
                 </option>
               ))}
             </select>
@@ -768,26 +828,22 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
             disabled={!hydrated}
             onChange={(event) => setPublishNow(event.target.checked)}
           />
-          <span>Publish to the client now</span>
+          <span>{t('ProjectOverviewScreen.publishNow')}</span>
         </label>
-        <span className="tm-field__hint">
-          A published milestone is visible in the client portal straight away. Leave this unchecked
-          to keep it a draft only your studio can see. Add it the way you mean it: a milestone
-          cannot be edited or unpublished afterwards.
-        </span>
+        <span className="tm-field__hint">{t('ProjectOverviewScreen.milestonePublishHint')}</span>
 
         {create.isError ? (
-          <InlineAlert tone="danger" title="Could not add the milestone" live>
-            {describe(create.error)}
+          <InlineAlert tone="danger" title={t('ProjectOverviewScreen.couldNotAddMilestone')} live>
+            {describe(create.error, t)}
           </InlineAlert>
         ) : null}
         {create.isSuccess ? (
-          <InlineAlert tone="success" title="Milestone added" live>
+          <InlineAlert tone="success" title={t('ProjectOverviewScreen.milestoneAdded')} live>
             {/* Report what was actually added, not the live form state: `onSuccess` resets
                 `publishNow` to true, so reading it here would call a draft "live". */}
             {create.variables.published
-              ? 'Your milestone is live in the client portal.'
-              : 'Your draft is saved. It is not visible to the client.'}
+              ? t('ProjectOverviewScreen.milestoneLive')
+              : t('ProjectOverviewScreen.draftSaved')}
           </InlineAlert>
         ) : null}
 
@@ -798,9 +854,9 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
             size="accessible"
             disabled={!canCreate}
             loading={create.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('ProjectOverviewScreen.adding')}
           >
-            Add milestone
+            {t('ProjectOverviewScreen.addMilestone')}
           </Button>
         </div>
       </form>
@@ -830,7 +886,12 @@ const MAX_UPDATE_TITLE_LENGTH = 300;
  * On success the client-facing portal-updates query is invalidated so a portal tab already open
  * picks the new update up, and the form clears.
  */
-function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProps) {
+function UpdateComposer({
+  api,
+  organizationSlug,
+  projectId,
+  t,
+}: UpdateComposerProps & { t: Translate }) {
   const queries = useQueryClient();
   // Controls ship disabled until React hydrates, so nothing typed into the server HTML is wiped.
   const hydrated = useHydrated();
@@ -858,7 +919,7 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
       aria-labelledby="tm-project-update-composer"
     >
       <h2 id="tm-project-update-composer" className="tm-section-head__title" tabIndex={-1}>
-        Post an update
+        {t('ProjectOverviewScreen.postAnUpdate')}
       </h2>
 
       <form
@@ -871,7 +932,7 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-project-update-title">
-            Title
+            {t('ProjectOverviewScreen.titleLabel')}
           </label>
           <input
             id="tm-project-update-title"
@@ -886,7 +947,7 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
 
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-project-update-body">
-            Update
+            {t('ProjectOverviewScreen.updateLabel')}
           </label>
           <textarea
             id="tm-project-update-body"
@@ -911,28 +972,24 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
             disabled={!hydrated}
             onChange={(event) => setPublishNow(event.target.checked)}
           />
-          <span>Publish to the client now</span>
+          <span>{t('ProjectOverviewScreen.publishNow')}</span>
         </label>
-        <span className="tm-field__hint">
-          A published update is visible in the client portal straight away. Leave this unchecked to
-          keep it a draft only your studio can see. Post it the way you mean it: an update cannot be
-          edited or unpublished afterwards.
-        </span>
+        <span className="tm-field__hint">{t('ProjectOverviewScreen.updatePublishHint')}</span>
 
         {post.isError ? (
-          <InlineAlert tone="danger" title="Could not post the update" live>
-            {describe(post.error)}
+          <InlineAlert tone="danger" title={t('ProjectOverviewScreen.couldNotPost')} live>
+            {describe(post.error, t)}
           </InlineAlert>
         ) : null}
         {post.isSuccess ? (
-          <InlineAlert tone="success" title="Update posted" live>
+          <InlineAlert tone="success" title={t('ProjectOverviewScreen.updatePosted')} live>
             {/* The banner must report what was actually posted, not the live form state: the form
                 (including `publishNow`) resets to its defaults on success, so deriving the copy from
                 `publishNow` here would always say "live" — even for a draft. `post.variables` holds
                 the values the last `mutate` carried and persists through the success state. */}
             {post.variables.published
-              ? 'Your update is live in the client portal.'
-              : 'Your draft is saved. It is not visible to the client.'}
+              ? t('ProjectOverviewScreen.updateLive')
+              : t('ProjectOverviewScreen.draftSaved')}
           </InlineAlert>
         ) : null}
 
@@ -943,9 +1000,9 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
             size="accessible"
             disabled={!canPost}
             loading={post.isPending}
-            loadingLabel="Posting"
+            loadingLabel={t('ProjectOverviewScreen.posting')}
           >
-            Post update
+            {t('ProjectOverviewScreen.postUpdate')}
           </Button>
         </div>
       </form>
@@ -960,22 +1017,28 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
  * anyone can verify; "this project is at risk" is a claim that would need a definition of risk
  * this system has not agreed on.
  */
-function healthSentence(total: number, blocked: number, overdue: number): string {
-  if (total === 0) return 'There is no work in this project yet, so there is nothing to report.';
+function healthSentence(total: number, blocked: number, overdue: number, t: Translate): string {
+  if (total === 0) return t('ProjectOverviewScreen.healthNoWork');
 
   const parts: string[] = [];
   if (blocked > 0)
-    parts.push(blocked === 1 ? 'one item is blocked' : `${blocked} items are blocked`);
+    parts.push(
+      blocked === 1
+        ? t('ProjectOverviewScreen.healthOneBlocked')
+        : `${blocked} ${t('ProjectOverviewScreen.healthItemsBlocked')}`,
+    );
   if (overdue > 0) {
     parts.push(
-      overdue === 1 ? 'one item is past its due date' : `${overdue} items are past their due date`,
+      overdue === 1
+        ? t('ProjectOverviewScreen.healthOnePastDue')
+        : `${overdue} ${t('ProjectOverviewScreen.healthItemsPastDue')}`,
     );
   }
 
   if (parts.length === 0) {
-    return 'Nothing is blocked and nothing is past its due date.';
+    return t('ProjectOverviewScreen.healthAllClear');
   }
-  return `${capitalise(parts.join(', and '))}.`;
+  return `${capitalise(parts.join(t('ProjectOverviewScreen.healthJoiner')))}.`;
 }
 
 function capitalise(value: string): string {
@@ -990,8 +1053,8 @@ function byDueDate(left: WorkItemSummary, right: WorkItemSummary): number {
   return left.dueAt < right.dueAt ? -1 : 1;
 }
 
-function describe(error: unknown): string {
+function describe(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectOverviewScreen.apiError');
+  return t('ProjectOverviewScreen.genericError');
 }

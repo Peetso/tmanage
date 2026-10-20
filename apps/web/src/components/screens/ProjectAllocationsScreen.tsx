@@ -10,6 +10,9 @@ import { createPersonAllocation, listPersonAllocations } from '../../lib/api/per
 import type { PersonAllocationSummary } from '../../lib/api/person-allocations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectAllocationsScreenProps {
   organizationSlug: string;
@@ -39,6 +42,7 @@ export function ProjectAllocationsScreen({
 }: ProjectAllocationsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [membershipId, setMembershipId] = useState('');
   const [percent, setPercent] = useState('');
@@ -93,9 +97,9 @@ export function ProjectAllocationsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Project allocations"
-      description="Who is allocated to this project, and for what share of their time."
-      eyebrow="Project · Team"
+      title={t('ProjectAllocationsScreen.title')}
+      description={t('ProjectAllocationsScreen.description')}
+      eyebrow={t('ProjectAllocationsScreen.eyebrow')}
       topBar={
         <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="team" />
       }
@@ -105,7 +109,7 @@ export function ProjectAllocationsScreen({
           <div className="tm-prj__col tm-prj__col--aside">
             <section className="tm-card tm-prj-card" aria-labelledby="tm-allocations-author">
               <h2 id="tm-allocations-author" className="tm-prj-eyebrow">
-                Assign a member
+                {t('ProjectAllocationsScreen.assignMemberHeading')}
               </h2>
               <form className="tm-stack" onSubmit={onSubmit} noValidate>
                 <fieldset
@@ -113,17 +117,17 @@ export function ProjectAllocationsScreen({
                   disabled={create.isPending}
                 >
                   <Field
-                    label="Membership ID"
+                    label={t('ProjectAllocationsScreen.membershipLabel')}
                     name="membershipId"
                     value={membershipId}
                     onChange={(event) => setMembershipId(event.target.value)}
-                    hint="The member's membership id in this organization."
+                    hint={t('ProjectAllocationsScreen.membershipHint')}
                     required
                   />
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-allocation-percent">
-                      Percent
+                      {t('ProjectAllocationsScreen.percentLabel')}
                     </label>
                     <input
                       id="tm-allocation-percent"
@@ -140,13 +144,13 @@ export function ProjectAllocationsScreen({
                       required
                     />
                     <span className="tm-field__hint" id="tm-allocation-percent-hint">
-                      The share of the member's time, from 1 to 100.
+                      {t('ProjectAllocationsScreen.percentHint')}
                     </span>
                   </div>
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-allocation-start">
-                      Start date
+                      {t('ProjectAllocationsScreen.startDateLabel')}
                     </label>
                     <input
                       id="tm-allocation-start"
@@ -158,13 +162,13 @@ export function ProjectAllocationsScreen({
                       aria-describedby="tm-allocation-start-hint"
                     />
                     <span className="tm-field__hint" id="tm-allocation-start-hint">
-                      Optional. When the allocation begins.
+                      {t('ProjectAllocationsScreen.startDateHint')}
                     </span>
                   </div>
 
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-allocation-end">
-                      End date
+                      {t('ProjectAllocationsScreen.endDateLabel')}
                     </label>
                     <input
                       id="tm-allocation-end"
@@ -176,14 +180,18 @@ export function ProjectAllocationsScreen({
                       aria-describedby="tm-allocation-end-hint"
                     />
                     <span className="tm-field__hint" id="tm-allocation-end-hint">
-                      Optional. Leave blank for an ongoing allocation.
+                      {t('ProjectAllocationsScreen.endDateHint')}
                     </span>
                   </div>
                 </fieldset>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not assign the member" live>
-                    {describeError(create.error)}
+                  <InlineAlert
+                    tone="danger"
+                    title={t('ProjectAllocationsScreen.couldNotAssign')}
+                    live
+                  >
+                    {describeError(create.error, t)}
                   </InlineAlert>
                 ) : null}
 
@@ -193,10 +201,10 @@ export function ProjectAllocationsScreen({
                     tone="ink"
                     size="accessible"
                     loading={create.isPending}
-                    loadingLabel="Saving"
+                    loadingLabel={t('ProjectAllocationsScreen.saving')}
                     disabled={!canSubmit}
                   >
-                    Assign
+                    {t('ProjectAllocationsScreen.assignButton')}
                   </Button>
                 </div>
               </form>
@@ -204,28 +212,28 @@ export function ProjectAllocationsScreen({
           </div>
           <div className="tm-prj__col">
             {allocations.isError ? (
-              <InlineAlert tone="danger" title="Could not load the allocations" live>
-                {describeError(allocations.error)}
+              <InlineAlert tone="danger" title={t('ProjectAllocationsScreen.couldNotLoad')} live>
+                {describeError(allocations.error, t)}
               </InlineAlert>
             ) : null}
 
             {allocations.isPending ? (
-              <LoadingRegion label="Loading the project's allocations.">
+              <LoadingRegion label={t('ProjectAllocationsScreen.loading')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {!allocations.isPending && !allocations.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title="No allocations yet">
-                No one is allocated to this project. Assign the first member with the form.
+              <InlineAlert tone="neutral" title={t('ProjectAllocationsScreen.noAllocationsTitle')}>
+                {t('ProjectAllocationsScreen.noAllocationsBody')}
               </InlineAlert>
             ) : null}
 
             {rows.length > 0 ? (
               <section className="tm-card tm-prj-card" aria-labelledby="tm-allocations-heading">
                 <h2 id="tm-allocations-heading" className="tm-prj-eyebrow">
-                  Allocations
+                  {t('ProjectAllocationsScreen.allocationsHeading')}
                 </h2>
                 <div
                   className="tm-table-scroll"
@@ -234,23 +242,24 @@ export function ProjectAllocationsScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Project allocations"
+                  aria-label={t('ProjectAllocationsScreen.tableAria')}
                 >
                   <table className="tm-table">
                     <caption className="tm-visually-hidden">
-                      Allocations for this project, in creation order, {rows.length} shown.
+                      {t('ProjectAllocationsScreen.captionLead')} {rows.length}{' '}
+                      {t('ProjectAllocationsScreen.captionTail')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Membership</th>
-                        <th scope="col">Percent</th>
-                        <th scope="col">Start</th>
-                        <th scope="col">End</th>
+                        <th scope="col">{t('ProjectAllocationsScreen.colMembership')}</th>
+                        <th scope="col">{t('ProjectAllocationsScreen.colPercent')}</th>
+                        <th scope="col">{t('ProjectAllocationsScreen.colStart')}</th>
+                        <th scope="col">{t('ProjectAllocationsScreen.colEnd')}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {rows.map((allocation) => (
-                        <AllocationRow key={allocation.id} allocation={allocation} />
+                        <AllocationRow key={allocation.id} allocation={allocation} t={t} />
                       ))}
                     </tbody>
                   </table>
@@ -264,7 +273,7 @@ export function ProjectAllocationsScreen({
   );
 }
 
-function AllocationRow({ allocation }: { allocation: PersonAllocationSummary }) {
+function AllocationRow({ allocation, t }: { allocation: PersonAllocationSummary; t: Translate }) {
   return (
     <tr>
       <th scope="row" className="tm-table__title">
@@ -272,13 +281,17 @@ function AllocationRow({ allocation }: { allocation: PersonAllocationSummary }) 
       </th>
       <td>{allocation.percent}%</td>
       <td>{allocation.startDate ?? <span className="tm-field__hint">—</span>}</td>
-      <td>{allocation.endDate ?? <span className="tm-field__hint">Ongoing</span>}</td>
+      <td>
+        {allocation.endDate ?? (
+          <span className="tm-field__hint">{t('ProjectAllocationsScreen.ongoing')}</span>
+        )}
+      </td>
     </tr>
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectAllocationsScreen.apiError');
+  return t('ProjectAllocationsScreen.genericError');
 }

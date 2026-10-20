@@ -36,7 +36,11 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { audienceLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { workItemKeys } from '../../lib/query-keys';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/chat.css';
+
+type Translate = ReturnType<typeof useT>;
 
 export interface ProjectChannelScreenProps {
   organizationSlug: string;
@@ -102,6 +106,7 @@ export function ProjectChannelScreen({
 }: ProjectChannelScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const [threadRootId, setThreadRootId] = useState<string | undefined>(undefined);
   const [convertTargetId, setConvertTargetId] = useState<string | undefined>(undefined);
@@ -230,7 +235,9 @@ export function ProjectChannelScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
-      title={channelName === undefined ? 'Channel' : `#${channelName}`}
+      title={
+        channelName === undefined ? t('ProjectChannelScreen.channelFallback') : `#${channelName}`
+      }
       actionsPlacement="inline"
       actions={
         <div className="tm-chat-header-tools">
@@ -238,7 +245,7 @@ export function ProjectChannelScreen({
             <span className="tm-chat-audience__orb" aria-hidden="true">
               ■
             </span>
-            Internal — only your team reads this channel
+            {t('ProjectChannelScreen.internalNotice')}
           </span>
         </div>
       }
@@ -247,16 +254,16 @@ export function ProjectChannelScreen({
           <Link
             className="tm-chat-icon"
             href={`/${organizationSlug}/chat/${conversationId}/search`}
-            aria-label="Search this channel"
-            title="Search this channel"
+            aria-label={t('ProjectChannelScreen.searchChannel')}
+            title={t('ProjectChannelScreen.searchChannel')}
           >
             <span aria-hidden="true">⌕</span>
           </Link>
           <Link
             className="tm-chat-icon"
             href={`/${organizationSlug}/chat/mentions`}
-            aria-label="Your mentions"
-            title="Your mentions"
+            aria-label={t('ProjectChannelScreen.yourMentions')}
+            title={t('ProjectChannelScreen.yourMentions')}
           >
             <span aria-hidden="true">@</span>
           </Link>
@@ -264,10 +271,12 @@ export function ProjectChannelScreen({
       }
       description={
         <>
-          Project channel
+          {t('ProjectChannelScreen.projectChannelDesc')}
           {project.data ? <> · {project.data.name}</> : null}
-          {archived ? <> · Archived</> : null} ·{' '}
-          <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
+          {archived ? <> · {t('ProjectChannelScreen.archived')}</> : null} ·{' '}
+          <Link href={`/${organizationSlug}/chat`}>
+            {t('ProjectChannelScreen.backToAllChannels')}
+          </Link>
           {/*
            * The separator belongs only before a status that actually renders text. Keying it off
            * `!== 'off'` left a dangling " · " while the socket was `'connecting'` or `'revoked'`,
@@ -287,13 +296,13 @@ export function ProjectChannelScreen({
           <span role="status">
             {liveStatus === 'live' ? (
               <>
-                <span aria-hidden="true">Live</span>
-                <VisuallyHidden>Live updates connected</VisuallyHidden>
+                <span aria-hidden="true">{t('ProjectChannelScreen.liveShort')}</span>
+                <VisuallyHidden>{t('ProjectChannelScreen.liveConnected')}</VisuallyHidden>
               </>
             ) : liveStatus === 'retrying' ? (
               <>
-                <span aria-hidden="true">Reconnecting…</span>
-                <VisuallyHidden>Reconnecting to live updates</VisuallyHidden>
+                <span aria-hidden="true">{t('ProjectChannelScreen.reconnectingShort')}</span>
+                <VisuallyHidden>{t('ProjectChannelScreen.reconnectingFull')}</VisuallyHidden>
               </>
             ) : null}
           </span>
@@ -346,23 +355,22 @@ export function ProjectChannelScreen({
     >
       <div className="tm-chat-channel">
         {channelRevoked ? (
-          <InlineAlert tone="warning" title="You no longer have access to this channel" live>
-            <p className="tm-prose">
-              Live updates have stopped and the transcript is no longer shown here. You are still
-              signed in and your other channels are unaffected.
-            </p>
-            <Link href={`/${organizationSlug}/chat`}>Back to all channels</Link>
+          <InlineAlert tone="warning" title={t('ProjectChannelScreen.noAccessTitle')} live>
+            <p className="tm-prose">{t('ProjectChannelScreen.noAccessBody')}</p>
+            <Link href={`/${organizationSlug}/chat`}>
+              {t('ProjectChannelScreen.backToAllChannels')}
+            </Link>
           </InlineAlert>
         ) : null}
 
         {conversation.isError ? (
-          <InlineAlert tone="danger" title="Could not load this channel" live>
-            {describeError(conversation.error)}
+          <InlineAlert tone="danger" title={t('ProjectChannelScreen.couldNotLoadChannel')} live>
+            {describeError(conversation.error, t)}
           </InlineAlert>
         ) : null}
 
         {messages.isPending ? (
-          <LoadingRegion label="Loading the conversation.">
+          <LoadingRegion label={t('ProjectChannelScreen.loadingConversation')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
@@ -370,24 +378,22 @@ export function ProjectChannelScreen({
         ) : null}
 
         {messages.isError ? (
-          <InlineAlert tone="danger" title="Could not load the messages" live>
-            {describeError(messages.error)}
+          <InlineAlert tone="danger" title={t('ProjectChannelScreen.couldNotLoadMessages')} live>
+            {describeError(messages.error, t)}
           </InlineAlert>
         ) : null}
 
         {messages.hasNextPage && !channelRevoked ? (
-          <InlineAlert tone="warning" title="This is not the whole transcript">
-            {rows.length} messages loaded — there are more. &ldquo;Load more&rdquo; below the
-            transcript continues it.
+          <InlineAlert tone="warning" title={t('ProjectChannelScreen.notWholeTranscript')}>
+            {rows.length} {t('ProjectChannelScreen.messagesLoadedMore')}
           </InlineAlert>
         ) : null}
 
         {!messages.isPending && !messages.isError && rows.length === 0 && !channelRevoked ? (
           <p className="tm-chat-empty">
             <span>
-              <strong>Nothing said yet</strong>
-              The first message starts the channel&rsquo;s record. Everything said here stays with
-              the project.
+              <strong>{t('ProjectChannelScreen.nothingSaidYet')}</strong>
+              {t('ProjectChannelScreen.nothingSaidBody')}
             </span>
           </p>
         ) : null}
@@ -395,7 +401,7 @@ export function ProjectChannelScreen({
         {rows.length > 0 && !channelRevoked ? (
           <ol
             className="tm-chat-transcript"
-            aria-label="Messages, oldest first"
+            aria-label={t('ProjectChannelScreen.messagesListAria')}
             aria-live={announceMessages ? 'polite' : 'off'}
             aria-relevant="additions"
           >
@@ -422,7 +428,7 @@ export function ProjectChannelScreen({
                       aria-expanded={threadRootId === message.id}
                       onClick={(event) => openThread(message.id, event.currentTarget)}
                     >
-                      Reply in thread
+                      {t('ProjectChannelScreen.replyInThread')}
                     </button>
                     {message.deletedAt === null ? (
                       <>
@@ -436,7 +442,7 @@ export function ProjectChannelScreen({
                             )
                           }
                         >
-                          Create work from this
+                          {t('ProjectChannelScreen.createWorkFromThis')}
                         </button>
                         <button
                           type="button"
@@ -448,7 +454,7 @@ export function ProjectChannelScreen({
                             )
                           }
                         >
-                          Remove
+                          {t('ProjectChannelScreen.remove')}
                         </button>
                       </>
                     ) : null}
@@ -463,38 +469,38 @@ export function ProjectChannelScreen({
                           )
                         }
                       >
-                        Edit history
+                        {t('ProjectChannelScreen.editHistory')}
                       </button>
                     ) : null}
                   </div>
 
                   {removeTargetId === message.id ? (
-                    <InlineAlert tone="warning" title="Remove this message?" live>
-                      <p className="tm-prose">
-                        The body is withheld from everyone and a tombstone stays in the transcript.
-                        The record of who removed it, and when, is kept. This is moderation, not
-                        deletion.
-                      </p>
+                    <InlineAlert
+                      tone="warning"
+                      title={t('ProjectChannelScreen.removeConfirmTitle')}
+                      live
+                    >
+                      <p className="tm-prose">{t('ProjectChannelScreen.removeConfirmBody')}</p>
                       <div className="tm-row">
                         <Button
                           tone="destructive"
                           size="accessible"
                           loading={moderate.isPending}
-                          loadingLabel="Removing"
+                          loadingLabel={t('ProjectChannelScreen.removing')}
                           onClick={() => moderate.mutate(message.id)}
                         >
-                          Remove it
+                          {t('ProjectChannelScreen.removeIt')}
                         </Button>
                         <Button
                           tone="outline"
                           size="accessible"
                           onClick={() => setRemoveTargetId(undefined)}
                         >
-                          Leave it
+                          {t('ProjectChannelScreen.leaveIt')}
                         </Button>
                       </div>
                       {moderate.isError ? (
-                        <p className="tm-prose">{describeError(moderate.error)}</p>
+                        <p className="tm-prose">{describeError(moderate.error, t)}</p>
                       ) : null}
                     </InlineAlert>
                   ) : null}
@@ -519,10 +525,10 @@ export function ProjectChannelScreen({
               tone="outline"
               size="accessible"
               loading={messages.isFetchingNextPage}
-              loadingLabel="Loading more"
+              loadingLabel={t('ProjectChannelScreen.loadingMore')}
               onClick={() => void messages.fetchNextPage()}
             >
-              Load more
+              {t('ProjectChannelScreen.loadMore')}
             </Button>
           </div>
         ) : null}
@@ -540,7 +546,7 @@ export function ProjectChannelScreen({
                 <span className="tm-chat-audience__orb" aria-hidden="true">
                   ■
                 </span>
-                Anything you send here is visible to your team only
+                {t('ProjectChannelScreen.sendVisibleNotice')}
               </span>
             ) : null}
             <Composer
@@ -548,8 +554,8 @@ export function ProjectChannelScreen({
               organizationSlug={organizationSlug}
               conversationId={conversationId}
               archived={archived}
-              label="Message the channel"
-              placeholder={`Message #${conversation.data.name}…`}
+              label={t('ProjectChannelScreen.messageChannelLabel')}
+              placeholder={`${t('ProjectChannelScreen.messagePrefix')} #${conversation.data.name}…`}
             />
           </div>
         ) : null}
@@ -573,6 +579,7 @@ function ChannelRail({
   conversationId: string;
 }) {
   const [find, setFind] = useState('');
+  const t = useT();
   const channels = useQuery({
     queryKey: ['conversations', organizationSlug, '', false],
     queryFn: () => listConversations(api, organizationSlug, {}),
@@ -587,19 +594,20 @@ function ChannelRail({
     <div className="tm-chat-rail">
       <label className="tm-chat-rail__find">
         <span aria-hidden="true">⌕</span>
-        <span className="tm-visually-hidden">Find a channel</span>
+        <span className="tm-visually-hidden">{t('ProjectChannelScreen.findChannel')}</span>
         <input
           type="search"
           value={find}
           onChange={(event) => setFind(event.target.value)}
-          placeholder="Find a channel"
+          placeholder={t('ProjectChannelScreen.findChannel')}
         />
       </label>
       <div className="tm-chat-rail__group">
         <h2 className="tm-chat-eyebrow">
-          Project channels{channels.data ? ` · ${all.length}` : ''}
+          {t('ProjectChannelScreen.projectChannels')}
+          {channels.data ? ` · ${all.length}` : ''}
         </h2>
-        <ul className="tm-chat-rail__list" aria-label="Project channels">
+        <ul className="tm-chat-rail__list" aria-label={t('ProjectChannelScreen.projectChannels')}>
           {shown.map((channel) => {
             const current = channel.id === conversationId;
             return (
@@ -622,7 +630,7 @@ function ChannelRail({
         </ul>
         {all.length > shown.length ? (
           <Link className="tm-chat-rail__more" href={`/${organizationSlug}/chat`}>
-            + {all.length - shown.length} more
+            + {all.length - shown.length} {t('ProjectChannelScreen.more')}
           </Link>
         ) : null}
       </div>
@@ -630,10 +638,10 @@ function ChannelRail({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: Translate): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectChannelScreen.apiError');
+  return t('ProjectChannelScreen.genericError');
 }
 
 /** The first eight characters of an author id — see the screen comment on the directory gap. */
@@ -671,13 +679,16 @@ function MessageHeader({
   author: string;
   selected?: boolean;
 }) {
+  const t = useT();
   return (
     <div className="tm-chat-message__head">
       <span className="tm-chat-message__author">{author}</span>
       <span className="tm-chat-mono">
         <time dateTime={message.createdAt}>{formatStamp(message.createdAt)}</time>
-        {message.editedAt !== null && message.deletedAt === null ? <> · edited</> : null}
-        {selected ? <> · selected message</> : null}
+        {message.editedAt !== null && message.deletedAt === null ? (
+          <> · {t('ProjectChannelScreen.edited')}</>
+        ) : null}
+        {selected ? <> · {t('ProjectChannelScreen.selectedMessage')}</> : null}
       </span>
     </div>
   );
@@ -706,12 +717,13 @@ function formatWhen(value: string): string {
 }
 
 function MessageBody({ message }: { message: MessageSummary }) {
+  const t = useT();
   if (message.deletedAt !== null) {
     return (
       <p className="tm-chat-message__tombstone">
-        Removed by a moderator{' '}
-        <time dateTime={message.deletedAt}>{formatWhen(message.deletedAt)}</time>. The record of the
-        removal is kept.
+        {t('ProjectChannelScreen.removedByModerator')}{' '}
+        <time dateTime={message.deletedAt}>{formatWhen(message.deletedAt)}</time>
+        {t('ProjectChannelScreen.removalKept')}
       </p>
     );
   }
@@ -737,16 +749,48 @@ type ToolbarEdit =
   | { readonly kind: 'prefix'; readonly marker: string }
   | { readonly kind: 'fence' };
 
-const TOOLBAR: readonly { label: string; glyph: string; edit: ToolbarEdit }[] = [
-  { label: 'Bold', glyph: 'B', edit: { kind: 'wrap', before: '**', after: '**' } },
-  { label: 'Italic', glyph: 'I', edit: { kind: 'wrap', before: '_', after: '_' } },
-  { label: 'Strikethrough', glyph: 'S', edit: { kind: 'wrap', before: '~~', after: '~~' } },
-  { label: 'Code', glyph: '`', edit: { kind: 'wrap', before: '`', after: '`' } },
-  { label: 'Link', glyph: '↗', edit: { kind: 'wrap', before: '[', after: '](https://)' } },
-  { label: 'Quote', glyph: '❝', edit: { kind: 'prefix', marker: '> ' } },
-  { label: 'Bulleted list', glyph: '•', edit: { kind: 'prefix', marker: '- ' } },
-  { label: 'Numbered list', glyph: '1.', edit: { kind: 'prefix', marker: '1. ' } },
-  { label: 'Code block', glyph: '{}', edit: { kind: 'fence' } },
+const TOOLBAR: readonly { labelKey: MessageKey; glyph: string; edit: ToolbarEdit }[] = [
+  {
+    labelKey: 'ProjectChannelScreen.toolbarBold',
+    glyph: 'B',
+    edit: { kind: 'wrap', before: '**', after: '**' },
+  },
+  {
+    labelKey: 'ProjectChannelScreen.toolbarItalic',
+    glyph: 'I',
+    edit: { kind: 'wrap', before: '_', after: '_' },
+  },
+  {
+    labelKey: 'ProjectChannelScreen.toolbarStrikethrough',
+    glyph: 'S',
+    edit: { kind: 'wrap', before: '~~', after: '~~' },
+  },
+  {
+    labelKey: 'ProjectChannelScreen.toolbarCode',
+    glyph: '`',
+    edit: { kind: 'wrap', before: '`', after: '`' },
+  },
+  {
+    labelKey: 'ProjectChannelScreen.toolbarLink',
+    glyph: '↗',
+    edit: { kind: 'wrap', before: '[', after: '](https://)' },
+  },
+  {
+    labelKey: 'ProjectChannelScreen.toolbarQuote',
+    glyph: '❝',
+    edit: { kind: 'prefix', marker: '> ' },
+  },
+  {
+    labelKey: 'ProjectChannelScreen.toolbarBulletedList',
+    glyph: '•',
+    edit: { kind: 'prefix', marker: '- ' },
+  },
+  {
+    labelKey: 'ProjectChannelScreen.toolbarNumberedList',
+    glyph: '1.',
+    edit: { kind: 'prefix', marker: '1. ' },
+  },
+  { labelKey: 'ProjectChannelScreen.toolbarCodeBlock', glyph: '{}', edit: { kind: 'fence' } },
 ];
 
 /** Apply one toolbar edit to the draft at the current selection. Returns the new draft. */
@@ -812,6 +856,7 @@ function Composer({
   parentMessageId?: string;
 }) {
   const queries = useQueryClient();
+  const t = useT();
   const [draft, setDraft] = useState('');
   const [attemptId, setAttemptId] = useState<string | undefined>(undefined);
   const [inadmissible, setInadmissible] = useState<string | undefined>(undefined);
@@ -922,7 +967,7 @@ function Composer({
         setInadmissible(
           error instanceof InadmissibleRichTextError
             ? error.message
-            : 'This message cannot be formatted as written.',
+            : t('ProjectChannelScreen.cannotFormat'),
         );
         return;
       }
@@ -945,11 +990,7 @@ function Composer({
   const controlId = parentMessageId === undefined ? 'tm-composer' : 'tm-thread-composer';
 
   if (archived) {
-    return (
-      <p className="tm-chat-archived">
-        This channel is archived. What was said stays readable; nothing new can be said here.
-      </p>
-    );
+    return <p className="tm-chat-archived">{t('ProjectChannelScreen.channelArchived')}</p>;
   }
 
   return (
@@ -970,36 +1011,38 @@ function Composer({
       />
 
       {composed?.kind === 'rich' ? (
-        <section className="tm-chat-preview" aria-label="Preview">
-          <h3 className="tm-chat-eyebrow">Preview — what will be sent</h3>
+        <section className="tm-chat-preview" aria-label={t('ProjectChannelScreen.previewAria')}>
+          <h3 className="tm-chat-eyebrow">{t('ProjectChannelScreen.previewHeading')}</h3>
           <RichTextBody document={composed.document} />
         </section>
       ) : null}
 
       {inadmissible !== undefined ? (
-        <InlineAlert tone="danger" title="This formatting cannot be sent" live>
+        <InlineAlert tone="danger" title={t('ProjectChannelScreen.formattingCannotSend')} live>
           {inadmissible}
         </InlineAlert>
       ) : null}
 
       {send.isError ? (
-        <InlineAlert tone="danger" title="Not sent" live>
-          {describeError(send.error)}{' '}
-          {send.error instanceof NetworkError
-            ? 'Your text is still here — sending again cannot post it twice.'
-            : ''}
+        <InlineAlert tone="danger" title={t('ProjectChannelScreen.notSent')} live>
+          {describeError(send.error, t)}{' '}
+          {send.error instanceof NetworkError ? t('ProjectChannelScreen.textStillHere') : ''}
         </InlineAlert>
       ) : null}
 
       <div className="tm-chat-composer__bar">
-        <div className="tm-chat-composer__tools" role="group" aria-label="Formatting">
+        <div
+          className="tm-chat-composer__tools"
+          role="group"
+          aria-label={t('ProjectChannelScreen.formattingGroup')}
+        >
           {TOOLBAR.map((tool) => (
             <button
-              key={tool.label}
+              key={tool.labelKey}
               type="button"
               className="tm-chat-composer__tool"
-              aria-label={tool.label}
-              title={tool.label}
+              aria-label={t(tool.labelKey)}
+              title={t(tool.labelKey)}
               onClick={() => applyEdit(tool.edit)}
             >
               <span aria-hidden="true">{tool.glyph}</span>
@@ -1015,7 +1058,7 @@ function Composer({
           <span className="tm-chat-send__orb" aria-hidden="true">
             ↑
           </span>
-          {send.isPending ? 'Sending' : 'Send'}
+          {send.isPending ? t('ProjectChannelScreen.sending') : t('ProjectChannelScreen.send')}
         </button>
       </div>
     </form>
@@ -1044,6 +1087,7 @@ function ThreadPane({
   nameOf: (userId: string) => string;
   onClose: () => void;
 }) {
+  const t = useT();
   // The transcript's paging, applied to a thread: same cursor, same accumulation.
   const replies = useInfiniteQuery({
     queryKey: ['messages', organizationSlug, conversationId, 'thread', root.id],
@@ -1086,9 +1130,14 @@ function ThreadPane({
     <div className="tm-chat-thread">
       <div className="tm-chat-thread__head">
         <h2 tabIndex={-1} ref={headingRef}>
-          Thread
+          {t('ProjectChannelScreen.thread')}
         </h2>
-        <button type="button" className="tm-chat-close" aria-label="Close thread" onClick={onClose}>
+        <button
+          type="button"
+          className="tm-chat-close"
+          aria-label={t('ProjectChannelScreen.closeThread')}
+          onClick={onClose}
+        >
           <span aria-hidden="true">✕</span>
         </button>
       </div>
@@ -1097,7 +1146,7 @@ function ThreadPane({
         <div className="tm-chat-source__head">
           <AuthorOrb name={nameOf(root.authorUserId)} size="md" />
           <span>
-            Source message · {nameOf(root.authorUserId)} ·{' '}
+            {t('ProjectChannelScreen.sourceMessage')} · {nameOf(root.authorUserId)} ·{' '}
             <time dateTime={root.createdAt}>{formatStamp(root.createdAt)}</time>
           </span>
         </div>
@@ -1105,25 +1154,25 @@ function ThreadPane({
       </div>
 
       {replies.isPending ? (
-        <LoadingRegion label="Loading the replies.">
+        <LoadingRegion label={t('ProjectChannelScreen.loadingReplies')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {replies.isError ? (
-        <InlineAlert tone="danger" title="Could not load the replies" live>
-          {describeError(replies.error)}
+        <InlineAlert tone="danger" title={t('ProjectChannelScreen.couldNotLoadReplies')} live>
+          {describeError(replies.error, t)}
         </InlineAlert>
       ) : null}
 
       {replies.data && replyRows.length === 0 ? (
-        <p className="tm-chat-mono">No replies yet.</p>
+        <p className="tm-chat-mono">{t('ProjectChannelScreen.noRepliesYet')}</p>
       ) : null}
 
       {replyRows.length > 0 ? (
         <ol
           className="tm-chat-replies"
-          aria-label="Replies, oldest first"
+          aria-label={t('ProjectChannelScreen.repliesListAria')}
           aria-live={announceReplies ? 'polite' : 'off'}
           aria-relevant="additions"
         >
@@ -1145,10 +1194,10 @@ function ThreadPane({
             tone="outline"
             size="compact"
             loading={replies.isFetchingNextPage}
-            loadingLabel="Loading more"
+            loadingLabel={t('ProjectChannelScreen.loadingMore')}
             onClick={() => void replies.fetchNextPage()}
           >
-            Load more replies
+            {t('ProjectChannelScreen.loadMoreReplies')}
           </Button>
         </div>
       ) : null}
@@ -1158,8 +1207,8 @@ function ThreadPane({
         organizationSlug={organizationSlug}
         conversationId={conversationId}
         archived={archived}
-        label="Reply in this thread"
-        placeholder="Reply in thread…"
+        label={t('ProjectChannelScreen.replyInThisThread')}
+        placeholder={t('ProjectChannelScreen.replyInThreadPlaceholder')}
         parentMessageId={root.id}
       />
     </div>
@@ -1178,6 +1227,7 @@ function RevisionHistory({
   conversationId: string;
   messageId: string;
 }) {
+  const t = useT();
   const revisions = useQuery({
     queryKey: ['revisions', organizationSlug, conversationId, messageId],
     queryFn: () => listRevisions(api, organizationSlug, conversationId, messageId),
@@ -1185,35 +1235,38 @@ function RevisionHistory({
 
   if (revisions.isPending) {
     return (
-      <LoadingRegion label="Loading the edit history.">
+      <LoadingRegion label={t('ProjectChannelScreen.loadingEditHistory')}>
         <Skeleton height="var(--row)" />
       </LoadingRegion>
     );
   }
   if (revisions.isError) {
     return (
-      <InlineAlert tone="danger" title="Could not load the edit history" live>
-        {describeError(revisions.error)}
+      <InlineAlert tone="danger" title={t('ProjectChannelScreen.couldNotLoadEditHistory')} live>
+        {describeError(revisions.error, t)}
       </InlineAlert>
     );
   }
 
   return (
-    <section className="tm-chat-history" aria-label="Edit history">
-      <h3 className="tm-chat-eyebrow">Before it was edited · {revisions.data.length}</h3>
+    <section className="tm-chat-history" aria-label={t('ProjectChannelScreen.editHistoryAria')}>
+      <h3 className="tm-chat-eyebrow">
+        {t('ProjectChannelScreen.beforeEdited')} · {revisions.data.length}
+      </h3>
       {revisions.data.length === 0 ? (
-        <p className="tm-prose">No earlier versions.</p>
+        <p className="tm-prose">{t('ProjectChannelScreen.noEarlierVersions')}</p>
       ) : (
         <ol className="tm-chat-history__list">
           {revisions.data.map((revision) => (
             <li key={revision.revisionNo}>
               <span className="tm-chat-mono">
-                Version {revision.revisionNo}, replaced{' '}
+                {t('ProjectChannelScreen.version')} {revision.revisionNo}
+                {t('ProjectChannelScreen.replacedComma')}{' '}
                 <time dateTime={revision.replacedAt}>{formatWhen(revision.replacedAt)}</time>
               </span>
               {revision.body === null && revision.bodyRich === null ? (
                 <p className="tm-prose">
-                  <em>Withheld — this message was removed by a moderator.</em>
+                  <em>{t('ProjectChannelScreen.withheldRemoved')}</em>
                 </p>
               ) : revision.bodyRich !== null ? (
                 <RichTextBody document={revision.bodyRich} />
@@ -1259,6 +1312,7 @@ function ConvertDialog({
   onDone: () => void;
   onClose: () => void;
 }) {
+  const t = useT();
   const defaultTitle = (message.body ?? '').split('\n')[0]?.trim() ?? '';
   const [title, setTitle] = useState(defaultTitle);
   const [type, setType] = useState('task');
@@ -1291,7 +1345,7 @@ function ConvertDialog({
       <div className="tm-chat-source__head">
         <AuthorOrb name={authorName} size="md" />
         <span>
-          Source message · {authorName} ·{' '}
+          {t('ProjectChannelScreen.sourceMessage')} · {authorName} ·{' '}
           <time dateTime={message.createdAt}>{formatStamp(message.createdAt)}</time>
         </span>
       </div>
@@ -1303,18 +1357,22 @@ function ConvertDialog({
     return (
       <div className="tm-chat-thread">
         <div className="tm-chat-thread__head">
-          <h2>Convert to work</h2>
+          <h2>{t('ProjectChannelScreen.convertToWork')}</h2>
         </div>
         {source}
         <InlineAlert
           tone={result.created ? 'neutral' : 'warning'}
-          title={result.created ? 'Work item created' : 'Already converted'}
+          title={
+            result.created
+              ? t('ProjectChannelScreen.workItemCreated')
+              : t('ProjectChannelScreen.alreadyConverted')
+          }
           live
         >
           <p className="tm-prose">
             {result.created
-              ? 'The message is now linked to the work item, and the link cannot be rewritten.'
-              : 'This message was converted before. A message becomes work exactly once; here is the existing item.'}
+              ? t('ProjectChannelScreen.nowLinked')
+              : t('ProjectChannelScreen.convertedBefore')}
           </p>
         </InlineAlert>
         <div className="tm-chat-work">
@@ -1327,7 +1385,7 @@ function ConvertDialog({
         </div>
         <div className="tm-chat-convert__actions">
           <Button tone="outline" size="accessible" onClick={onClose}>
-            Close
+            {t('ProjectChannelScreen.close')}
           </Button>
         </div>
       </div>
@@ -1335,10 +1393,19 @@ function ConvertDialog({
   }
 
   return (
-    <form className="tm-chat-thread" onSubmit={submit} aria-label="Create work from this message">
+    <form
+      className="tm-chat-thread"
+      onSubmit={submit}
+      aria-label={t('ProjectChannelScreen.createWorkFormAria')}
+    >
       <div className="tm-chat-thread__head">
-        <h2>Convert to work</h2>
-        <button type="button" className="tm-chat-close" aria-label="Dismiss" onClick={onClose}>
+        <h2>{t('ProjectChannelScreen.convertToWork')}</h2>
+        <button
+          type="button"
+          className="tm-chat-close"
+          aria-label={t('ProjectChannelScreen.dismiss')}
+          onClick={onClose}
+        >
           <span aria-hidden="true">✕</span>
         </button>
       </div>
@@ -1347,7 +1414,7 @@ function ConvertDialog({
 
       <div className="tm-field tm-chat-convert__title">
         <label className="tm-field__label" htmlFor="tm-convert-title">
-          Title
+          {t('ProjectChannelScreen.titleLabel')}
         </label>
         <input
           id="tm-convert-title"
@@ -1356,16 +1423,13 @@ function ConvertDialog({
           onChange={(event) => setTitle(event.target.value)}
           maxLength={300}
         />
-        <span className="tm-field__hint">
-          Defaults to the message&rsquo;s first line. If the audience is widened later, this title
-          is what a client reads.
-        </span>
+        <span className="tm-field__hint">{t('ProjectChannelScreen.titleHint')}</span>
       </div>
 
       <div className="tm-chat-convert__pair">
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-convert-type">
-            Type
+            {t('ProjectChannelScreen.typeLabel')}
           </label>
           <input
             id="tm-convert-type"
@@ -1378,7 +1442,7 @@ function ConvertDialog({
 
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-convert-due">
-            Due (optional)
+            {t('ProjectChannelScreen.dueLabel')}
           </label>
           <input
             id="tm-convert-due"
@@ -1391,7 +1455,7 @@ function ConvertDialog({
       </div>
 
       <fieldset className="tm-chat-audience-picker">
-        <legend>Audience</legend>
+        <legend>{t('ProjectChannelScreen.audienceLegend')}</legend>
         {(['internal', 'client_visible', 'client_action_required'] as const).map((option) => (
           <label key={option} className="tm-chat-audience-option">
             <input
@@ -1411,25 +1475,25 @@ function ConvertDialog({
           !
         </span>
         <p>
-          <strong>Filed on {projectName ?? 'this channel’s project'}</strong>
-          The channel&rsquo;s project, not a choice. No owner is set, and a due date is only set if
-          you set one.
+          <strong>
+            {t('ProjectChannelScreen.filedOn')}{' '}
+            {projectName ?? t('ProjectChannelScreen.thisChannelsProject')}
+          </strong>
+          {t('ProjectChannelScreen.filedNote')}
         </p>
       </div>
 
       {audience !== 'internal' ? (
-        <InlineAlert tone="client" title="This work item will be visible to the client" live>
-          The message stays internal — a client can never read the channel — but the work item, its
-          title and its state become part of the client portal the moment it is created. Check the
-          title says what you mean a client to read.
+        <InlineAlert tone="client" title={t('ProjectChannelScreen.visibleToClientTitle')} live>
+          {t('ProjectChannelScreen.visibleToClientBody')}
         </InlineAlert>
       ) : null}
 
       {convert.isError ? (
-        <InlineAlert tone="danger" title="Could not create the work item" live>
-          {describeError(convert.error)}
+        <InlineAlert tone="danger" title={t('ProjectChannelScreen.couldNotCreateWork')} live>
+          {describeError(convert.error, t)}
           {convert.error instanceof ApiRequestError && convert.error.status === 409
-            ? ' A removed message cannot become work: its content is withheld.'
+            ? ` ${t('ProjectChannelScreen.removedCannotConvert')}`
             : ''}
         </InlineAlert>
       ) : null}
@@ -1440,12 +1504,12 @@ function ConvertDialog({
           tone="ink"
           size="accessible"
           loading={convert.isPending}
-          loadingLabel="Creating"
+          loadingLabel={t('ProjectChannelScreen.creating')}
         >
-          Create work item
+          {t('ProjectChannelScreen.createWorkItem')}
         </Button>
         <Button tone="outline" size="accessible" onClick={onClose}>
-          Cancel
+          {t('ProjectChannelScreen.cancel')}
         </Button>
       </div>
     </form>
