@@ -85,6 +85,14 @@ export function WorkWorkloadScreen({
             >
               Timeline
             </Link>
+            {/* CQ-07 (WRK-08): the switcher was missing Calendar; the four views now match. */}
+            <Link
+              href={`/${organizationSlug}/work/calendar${
+                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
+              }`}
+            >
+              Calendar
+            </Link>
             <span aria-current="page">Workload</span>
           </nav>
           <label className="tm-visually-hidden" htmlFor="tm-workload-project">

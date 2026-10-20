@@ -183,7 +183,7 @@ export function ProjectOverviewScreen({
             ) : null}
             <div className="tm-metric">
               <div className="tm-metric__value-row">
-                <span className="tm-metric__value">{pad(blocked.length)}</span>
+                <span className="tm-metric__value">{String(blocked.length)}</span>
                 <span
                   className={`tm-pill ${blocked.length > 0 ? 'tm-pill--danger' : 'tm-pill--current'}`}
                 >
@@ -197,7 +197,7 @@ export function ProjectOverviewScreen({
             </div>
             <div className="tm-metric">
               <div className="tm-metric__value-row">
-                <span className="tm-metric__value">{pad(overdue.length)}</span>
+                <span className="tm-metric__value">{String(overdue.length)}</span>
                 <span className={`tm-pill ${overdue.length > 0 ? 'tm-pill--warning' : ''}`}>
                   {overdue.length > 0 ? 'late' : 'on time'}
                 </span>
@@ -489,7 +489,7 @@ function MilestoneMetric({ milestone, now }: { milestone: ProjectMilestone; now:
   return (
     <div className="tm-metric">
       <div className="tm-metric__value-row">
-        <span className="tm-metric__value">{pad(Math.abs(days))}</span>
+        <span className="tm-metric__value">{String(Math.abs(days))}</span>
         <span className={`tm-pill ${days < 0 ? 'tm-pill--warning' : 'tm-pill--current'}`}>
           {days < 0 ? 'late' : 'next'}
         </span>
@@ -500,10 +500,6 @@ function MilestoneMetric({ milestone, now }: { milestone: ProjectMilestone; now:
       <span className="tm-metric__source">milestone due {formatDay(milestone.dueOn)}</span>
     </div>
   );
-}
-
-function pad(value: number): string {
-  return value < 10 ? `0${value}` : String(value);
 }
 
 interface WorkSectionProps {
@@ -760,15 +756,19 @@ function MilestoneComposer({ api, organizationSlug, projectId }: ComposerProps) 
           </div>
         </div>
 
-        <label className="tm-choice tm-choice--inline">
+        {/*
+          CQ-07 (PRJ-05): a real, visible checkbox. The shared `.tm-choice--inline` hid the input
+          and inked the whole capsule when checked, which read as a black bar rather than a
+          control a person could tell was ticked.
+        */}
+        <label className="tm-prj-publish">
           <input
-            className="tm-choice__input"
             type="checkbox"
             checked={publishNow}
             disabled={!hydrated}
             onChange={(event) => setPublishNow(event.target.checked)}
           />
-          <span className="tm-choice__name">Publish to the client now</span>
+          <span>Publish to the client now</span>
         </label>
         <span className="tm-field__hint">
           A published milestone is visible in the client portal straight away. Leave this unchecked
@@ -899,15 +899,19 @@ function UpdateComposer({ api, organizationSlug, projectId }: UpdateComposerProp
           />
         </div>
 
-        <label className="tm-choice tm-choice--inline">
+        {/*
+          CQ-07 (PRJ-05): a real, visible checkbox. The shared `.tm-choice--inline` hid the input
+          and inked the whole capsule when checked, which read as a black bar rather than a
+          control a person could tell was ticked.
+        */}
+        <label className="tm-prj-publish">
           <input
-            className="tm-choice__input"
             type="checkbox"
             checked={publishNow}
             disabled={!hydrated}
             onChange={(event) => setPublishNow(event.target.checked)}
           />
-          <span className="tm-choice__name">Publish to the client now</span>
+          <span>Publish to the client now</span>
         </label>
         <span className="tm-field__hint">
           A published update is visible in the client portal straight away. Leave this unchecked to

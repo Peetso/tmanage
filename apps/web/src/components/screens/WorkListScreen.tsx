@@ -232,6 +232,13 @@ export function WorkListScreen({
     (row) => row.audience === 'client_action_required',
   ).length;
   const countLabel = `${loadedRows.length}${workItems.hasNextPage ? '+' : ''}`;
+  // CQ-07 (WRK-10): "1 items" reads wrong; a single loaded row with no further page is one item.
+  const itemWord = loadedRows.length === 1 && !workItems.hasNextPage ? 'item' : 'items';
+  // CQ-07 (WRK-10): when the list is filtered to one project, name that project in the heading
+  // rather than the state view's label ("All work"), which described the whole organization.
+  const selectedProjectName = projectId === '' ? undefined : projectNames.get(projectId);
+  // CQ-07 (WRK-08): the project, as a query string the sibling views read from the URL.
+  const viewQuery = projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`;
 
   /*
    * WK-02 groups the rows under a heading per milestone. Milestones are not on the list
@@ -269,11 +276,11 @@ export function WorkListScreen({
       organizationName={organizationName}
       activeNavigationId="work"
       eyebrow="Work"
-      title={activeView?.label ?? 'Filtered work'}
+      title={selectedProjectName ?? activeView?.label ?? 'Filtered work'}
       titleMeta={
         workItems.isPending
           ? undefined
-          : `${countLabel} items · ${blockedCount} blocked · ${clientWaitingCount} client waiting`
+          : `${countLabel} ${itemWord} · ${blockedCount} blocked · ${clientWaitingCount} client waiting`
       }
       actions={
         <>
@@ -281,9 +288,14 @@ export function WorkListScreen({
             <Link href={`/${organizationSlug}/work`} aria-current="page">
               List
             </Link>
-            <Link href={`/${organizationSlug}/work/timeline`}>Timeline</Link>
-            <Link href={`/${organizationSlug}/work/calendar`}>Calendar</Link>
-            <Link href={`/${organizationSlug}/work/workload`}>Workload</Link>
+            {/*
+              CQ-07 (WRK-08): carry the chosen project across the switch, so moving from a
+              project-filtered list to the timeline / calendar / workload keeps that project
+              rather than dropping the reader onto the first one.
+            */}
+            <Link href={`/${organizationSlug}/work/timeline${viewQuery}`}>Timeline</Link>
+            <Link href={`/${organizationSlug}/work/calendar${viewQuery}`}>Calendar</Link>
+            <Link href={`/${organizationSlug}/work/workload${viewQuery}`}>Workload</Link>
           </nav>
           <Link
             href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}

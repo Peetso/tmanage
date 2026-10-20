@@ -126,6 +126,29 @@ export function WorkCalendarScreen({
       eyebrow="Calendar"
       actions={
         <div className="wp-toolbar">
+          {/*
+            CQ-07 (WRK-08): the same view switcher the other work views carry, so the calendar is
+            not the one view with no way back to the list / timeline / workload. Each link keeps
+            the chosen project.
+          */}
+          <nav className="wp-segmented" aria-label="Work views">
+            <Link href={`/${organizationSlug}/work`}>List</Link>
+            <Link
+              href={`/${organizationSlug}/work/timeline${
+                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
+              }`}
+            >
+              Timeline
+            </Link>
+            <span aria-current="page">Calendar</span>
+            <Link
+              href={`/${organizationSlug}/work/workload${
+                chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
+              }`}
+            >
+              Workload
+            </Link>
+          </nav>
           <label className="tm-visually-hidden" htmlFor="tm-calendar-project">
             Show the calendar for
           </label>

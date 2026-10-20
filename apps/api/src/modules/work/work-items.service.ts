@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { logUnrecognisedRowState } from '../../common/observability/logger.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { ProjectClientsRepository } from '../clients/project-clients.repository.js';
 import {
   effectivePageSize,
   MAX_PAGE_SIZE,
@@ -243,6 +244,46 @@ const COMPLETION_CLOCK_SKEW_MS = 5 * 60 * 1000;
  */
 const LIST_PAGE_BUDGET = 25;
 
+/**
+ * CQ-07 (WRK-07): the lifecycle states in plain words, for the refusal a person reads. The
+ * stored values are machine tokens (`internal_review`), and a refusal that quotes them reads as
+ * a leak of the schema rather than an instruction. The web has its own `stateLabel`; this is the
+ * API's copy for the one place the refusal sentence is built, so an API-only caller is told the
+ * same plain thing.
+ */
+const WORK_ITEM_STATE_LABELS: Record<WorkItemState, string> = {
+  backlog: 'backlog',
+  ready: 'ready',
+  in_progress: 'in progress',
+  blocked: 'blocked',
+  internal_review: 'internal review',
+  done: 'done',
+  archived: 'archived',
+};
+
+function stateLabel(state: WorkItemState): string {
+  return WORK_ITEM_STATE_LABELS[state] ?? state.replace(/_/g, ' ');
+}
+
+/**
+ * CQ-07 (WRK-07): a field-specific message for each fact a transition can require, so the refusal
+ * names what is missing in plain words rather than repeating a generic "is required". The web
+ * leads each line with its own human label for the field; this message completes it, and stands
+ * on its own for an API-only caller. An unrecognised fact falls back to the generic phrase.
+ */
+const TRANSITION_FACT_MESSAGES: Record<string, string> = {
+  ownerId: 'name who owned it to completion',
+  completedAt: 'give the date it was completed',
+  blockerReason: 'give the reason it is blocked',
+  blockerAsk: 'say what you need, and from whom',
+  blockerResolution: 'say how the block was resolved',
+  reopenReason: 'give the reason for reopening it',
+};
+
+function transitionFactMessage(fact: string): string {
+  return TRANSITION_FACT_MESSAGES[fact] ?? 'is required for this transition';
+}
+
 export class WorkItemsService {
   constructor(
     private readonly database: TenantDatabase,
@@ -267,6 +308,12 @@ export class WorkItemsService {
     private readonly outbox?: OutboxEventsRepository,
     /** WORK-003: the edges and the blocker ledger. Stateless, so a default is safe. */
     private readonly graph: WorkGraphRepository = new WorkGraphRepository(),
+    /**
+     * CQ-07 (WRK-14): read-only, and used for exactly one thing — proving a project has a client
+     * linked before a work item may be moved into the `client_action_required` audience. Stateless,
+     * so a default is safe, and appended last so existing call sites keep working.
+     */
+    private readonly projectClients: ProjectClientsRepository = new ProjectClientsRepository(),
   ) {}
 
   /**
@@ -448,6 +495,24 @@ export class WorkItemsService {
     input: UpdateWorkItemInput,
   ): Promise<WorkItemView> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.update');
+
+    // CQ-07 (WRK-14): "client action needed" is a request to a client, and the worker emails the
+    // client people who can act on it. On a project with no client linked that request reaches
+    // nobody, so refuse the move rather than set an audience that promises a reader who cannot
+    // exist. Checked before the transaction opens; `client_visible` and `internal` are unaffected.
+    if (input.audience === 'client_action_required') {
+      const linked = await this.database.read(context, (runner) =>
+        this.projectClients.list(runner, context, { projectId: before.projectId, limit: 1 }),
+      );
+      if (linked.length === 0) {
+        throw new ApiError(
+          422,
+          'validation_failed',
+          'This project has no client linked, so a client cannot be asked to act on its work',
+          [{ field: 'audience', message: 'link a client to this project first' }],
+        );
+      }
+    }
 
     const widening =
       input.audience !== undefined &&
@@ -640,13 +705,16 @@ export class WorkItemsService {
       return toView(row, context.correlationId);
     } catch (error) {
       if (error instanceof WorkItemTransitionError) {
+        // CQ-07 (WRK-07): plain state names in the sentence, and a field-specific message per
+        // missing fact, so the refusal says which field is missing in plain words rather than
+        // quoting the schema's tokens.
         throw new ApiError(
           422,
           'validation_failed',
-          `A work item cannot move from ${error.from} to ${error.to}`,
+          `This item cannot move from ${stateLabel(error.from)} to ${stateLabel(error.to)} yet`,
           error.missing.map((fact) => ({
             field: fact,
-            message: 'is required for this transition',
+            message: transitionFactMessage(fact),
           })),
           error.reason,
         );

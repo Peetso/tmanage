@@ -156,9 +156,11 @@ describe('New work capsule', () => {
     expect(project).toBeRequired();
   });
 
-  it('falls back to the first project when the handed-over one is not the person’s', async () => {
+  it('does not preselect a project when the handed-over one is not the person’s (WRK-09)', async () => {
+    // CQ-07 (WRK-09): a project the caller cannot see is ignored, and nothing stands in for it —
+    // the field opens on the "Choose a project…" prompt rather than the first project in the org.
     renderCapture(world(), 'proj-elsewhere');
-    expect(await screen.findByLabelText(/^Project/)).toHaveValue('proj-a');
+    expect(await screen.findByLabelText(/^Project/)).toHaveValue('');
   });
 
   it('files the item in the chosen project, then labels it and uploads and attaches the file', async () => {
@@ -240,7 +242,7 @@ describe('New work capsule', () => {
   it('keeps the filed item and names the file that could not be attached', async () => {
     const user = userEvent.setup();
     const w = world({ failAttach: true });
-    renderCapture(w);
+    renderCapture(w, 'proj-b');
     await user.type(await screen.findByLabelText(/^Title/), 'Brief');
     const input = document.querySelector<HTMLInputElement>(
       'input[type="file"]',

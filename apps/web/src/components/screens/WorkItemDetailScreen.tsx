@@ -280,10 +280,15 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
       return;
     }
     if (error instanceof ApiRequestError && error.status === 422) {
-      // The machine's own refusal, which names what it wanted. It is shown verbatim rather
-      // than reworded: the server's list is authoritative and this screen's guess was not.
+      // The machine's own refusal, which names what it wanted. CQ-07 (WRK-07): a known
+      // transition fact is shown by its human label (`FACT_LABEL`) rather than its schema
+      // token, so the list says which field is missing in plain words. The server stays
+      // authoritative about *which* facts are missing; only the word a person reads is the
+      // screen's. An unrecognised field keeps the server's `field: message`.
       setMissing(
-        [...error.fieldErrors().entries()].map(([field, message]) => `${field}: ${message}`),
+        [...error.fieldErrors().entries()].map(
+          ([field, message]) => FACT_LABEL[field] ?? `${field}: ${message}`,
+        ),
       );
       setFailure(error.message);
       return;

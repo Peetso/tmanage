@@ -36,7 +36,8 @@ import '../../styles/screens/home.css';
  * The destination is a project the caller can write to. Nothing returns a single "default inbox
  * project", so the destination is an explicit, required pick from the caller's projects. It opens
  * on the project the caller came from (`?project=` — the work list hands over its chosen project),
- * and otherwise on the first project, so the common case is one keystroke, not a decision.
+ * and otherwise on no project at all (CQ-07 / WRK-09): the first project is never preselected to
+ * stand in for a choice the person has not made.
  *
  * **Labels and attachments** (Peter, 2026-10-18: "no attachment feature or tag it in project").
  * The organization's work labels (x233) toggle as capsules, and a new one can be defined in place;
@@ -90,6 +91,23 @@ export function buildCapturePayload(input: {
   return { projectId: input.projectId, title: input.title.trim() };
 }
 
+/**
+ * Which project the capture opens on — CQ-07 (WRK-09).
+ *
+ * The project the caller was handed (`?project=`, when it is one of theirs) is an explicit
+ * choice and is honoured. With nothing handed over there is **no preselection**: the capture
+ * opens on no project so the destination is a decision the person makes, not the first project
+ * in the organization silently standing in for one.
+ */
+export function initialCaptureProjectId(
+  available: readonly { readonly id: string }[],
+  initialProjectId?: string,
+): string {
+  return available.some((project) => project.id === initialProjectId)
+    ? (initialProjectId ?? '')
+    : '';
+}
+
 export interface QuickCaptureScreenProps {
   readonly organizationSlug: string;
   readonly organizationName: string;
@@ -141,12 +159,11 @@ export function QuickCaptureScreen({
   const [formError, setFormError] = useState<string | null>(null);
   const [captured, setCaptured] = useState<CaptureResult | null>(null);
 
-  // The project the caller came from, else the first project, once the list arrives — unless the
-  // caller has already chosen one. A capture into the obvious place is then a title and Enter.
+  // The project the caller came from (`?project=`), when it is one of theirs — otherwise no
+  // preselection (CQ-07 / WRK-09), so the destination is an explicit pick rather than the first
+  // project standing in for one. A caller's own choice always wins once made.
   const available = projects.data ?? [];
-  const preferred = available.some((project) => project.id === initialProjectId)
-    ? (initialProjectId ?? '')
-    : (available[0]?.id ?? '');
+  const preferred = initialCaptureProjectId(available, initialProjectId);
   const effectiveProjectId = projectId !== '' ? projectId : preferred;
 
   const toggleLabel = (labelId: string): void => {
@@ -305,6 +322,9 @@ export function QuickCaptureScreen({
                 value={effectiveProjectId}
                 onChange={(event) => setProjectId(event.target.value)}
               >
+                {/* CQ-07 (WRK-09): no project is preselected, so the field opens on a prompt
+                    rather than silently on the first project. */}
+                {effectiveProjectId === '' ? <option value="">Choose a project…</option> : null}
                 {available.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}

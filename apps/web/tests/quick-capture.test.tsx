@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildCaptureDraft,
   buildCapturePayload,
+  initialCaptureProjectId,
 } from '../src/components/screens/QuickCaptureScreen';
 
 /**
@@ -47,5 +48,21 @@ describe('buildCapturePayload', () => {
       projectId: 'proj-1',
       title: 'Draft the brief',
     });
+  });
+});
+
+describe('initialCaptureProjectId (WRK-09)', () => {
+  const available = [{ id: 'proj-a' }, { id: 'proj-b' }];
+
+  it('opens on the handed-over project when it is one of the caller’s', () => {
+    expect(initialCaptureProjectId(available, 'proj-b')).toBe('proj-b');
+  });
+
+  it('does not preselect the first project when nothing was handed over', () => {
+    expect(initialCaptureProjectId(available)).toBe('');
+  });
+
+  it('ignores a handed-over project the caller cannot see', () => {
+    expect(initialCaptureProjectId(available, 'proj-elsewhere')).toBe('');
   });
 });
