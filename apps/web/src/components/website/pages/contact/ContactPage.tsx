@@ -2,51 +2,53 @@
 
 import { Avatar, StateCapsule } from '@tmanage/ui';
 import type { ApiClient } from '../../../../lib/api/client';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import { ArrowLink, IconOrb } from '../../primitives';
-import { FaqRow, SectionHeader, WebSection, type FaqItem } from '../../sections';
+import { FaqRow, SectionHeader, WebSection } from '../../sections';
 import type { WebIconName } from '../../WebIcon';
 import { DemoRequestForm } from './DemoRequestForm';
 import './contact.css';
 
-const CHECKLIST: readonly string[] = [
-  'Your request-to-approval flow, mapped',
-  'Client portal set up for your next project',
-  'Pricing for your team size',
-  'Answers for your security team',
+const CHECKLIST: readonly MessageKey[] = [
+  'ContactPage.checklistFlow',
+  'ContactPage.checklistPortal',
+  'ContactPage.checklistPricing',
+  'ContactPage.checklistSecurity',
 ];
 
 interface OtherWay {
   icon: WebIconName;
-  title: string;
-  body: string;
-  link: { label: string; href: string };
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
+  link: { label?: string; labelKey?: MessageKey; href: string };
 }
 
 const OTHER_WAYS: readonly OtherWay[] = [
   {
     icon: 'briefcase',
-    title: 'Talk to sales',
-    body: 'Plans, seats and rollout for a larger team. Write to sales and we reply within one business day.',
+    titleKey: 'ContactPage.salesTitle',
+    bodyKey: 'ContactPage.salesBody',
     link: { label: 'sales@tmanage.app', href: 'mailto:sales@tmanage.app' },
   },
   {
     icon: 'help',
-    title: 'Get support',
-    body: 'Already using TManage? Answers, setup guides and how-tos live in the Help center.',
-    link: { label: 'Open the Help center', href: '/faq' },
+    titleKey: 'ContactPage.supportTitle',
+    bodyKey: 'ContactPage.supportBody',
+    link: { labelKey: 'ContactPage.supportLink', href: '/faq' },
   },
   {
     icon: 'shield',
-    title: 'Security questions',
-    body: 'Tenancy, client access, files and audit — how isolation is enforced, in plain words.',
-    link: { label: 'Read the Security page', href: '/security' },
+    titleKey: 'ContactPage.securityTitle',
+    bodyKey: 'ContactPage.securityBody',
+    link: { labelKey: 'ContactPage.securityLink', href: '/security' },
   },
 ];
 
-const FAQ: readonly FaqItem[] = [
-  { question: 'Is the demo recorded?', answer: 'Only if you ask.' },
-  { question: 'Can I try it first?', answer: 'Yes, the Free plan needs no card.' },
-  { question: 'Do you support Arabic?', answer: 'Yes, the full product and portal.' },
+const FAQ: readonly { questionKey: MessageKey; answerKey: MessageKey }[] = [
+  { questionKey: 'ContactPage.faqRecordedQ', answerKey: 'ContactPage.faqRecordedA' },
+  { questionKey: 'ContactPage.faqTryQ', answerKey: 'ContactPage.faqTryA' },
+  { questionKey: 'ContactPage.faqArabicQ', answerKey: 'ContactPage.faqArabicA' },
 ];
 
 /**
@@ -56,6 +58,7 @@ const FAQ: readonly FaqItem[] = [
  * limit. No CTA band on this page, by spec.
  */
 export function ContactPage({ client }: { client?: ApiClient }) {
+  const t = useT();
   return (
     <div className="tm-web-contact">
       {/* 2 · Two-column hero: copy + checklist + quote, form card */}
@@ -66,15 +69,15 @@ export function ContactPage({ client }: { client?: ApiClient }) {
               as="h1"
               size="page"
               id="contact-hero-title"
-              eyebrow="BOOK A DEMO"
-              title="See your own workflow in TManage."
-              lede="A 30-minute walkthrough with someone who has run client delivery. Bring a real project; we'll map it live."
+              eyebrow={t('ContactPage.heroEyebrow')}
+              title={t('ContactPage.heroTitle')}
+              lede={t('ContactPage.heroLede')}
             />
             <ul className="tm-web-contact-checklist">
               {CHECKLIST.map((item) => (
                 <li key={item} className="tm-web-contact-checklist__item">
                   <IconOrb icon="check" tone="lime" size="compact" />
-                  <span>{item}</span>
+                  <span>{t(item)}</span>
                 </li>
               ))}
             </ul>
@@ -90,17 +93,17 @@ export function ContactPage({ client }: { client?: ApiClient }) {
       <WebSection tone="sunken" aria-labelledby="contact-ways-title">
         <SectionHeader
           id="contact-ways-title"
-          eyebrow="OTHER WAYS"
-          title="Not ready for a demo? Reach the right person."
+          eyebrow={t('ContactPage.waysEyebrow')}
+          title={t('ContactPage.waysTitle')}
         />
         <ul className="tm-web-contact-ways">
           {OTHER_WAYS.map((way) => (
-            <li key={way.title} className="tm-web-contact-way">
+            <li key={way.titleKey} className="tm-web-contact-way">
               <IconOrb icon={way.icon} tone="lime" />
-              <h3 className="tm-web-contact-way__title">{way.title}</h3>
-              <p className="tm-web-contact-way__body">{way.body}</p>
+              <h3 className="tm-web-contact-way__title">{t(way.titleKey)}</h3>
+              <p className="tm-web-contact-way__body">{t(way.bodyKey)}</p>
               <ArrowLink href={way.link.href} underline={false}>
-                {way.link.label}
+                {way.link.labelKey ? t(way.link.labelKey) : way.link.label}
               </ArrowLink>
             </li>
           ))}
@@ -112,13 +115,17 @@ export function ContactPage({ client }: { client?: ApiClient }) {
         <SectionHeader
           align="center"
           id="contact-faq-title"
-          eyebrow="FAQ"
-          title="Before you book."
-          lede="Three things people ask us first."
+          eyebrow={t('ContactPage.faqEyebrow')}
+          title={t('ContactPage.faqTitle')}
+          lede={t('ContactPage.faqLede')}
         />
         <div className="tm-web-faq-list tm-web-contact-faq">
           {FAQ.map((item) => (
-            <FaqRow key={item.question} {...item} />
+            <FaqRow
+              key={item.questionKey}
+              question={t(item.questionKey)}
+              answer={t(item.answerKey)}
+            />
           ))}
         </div>
       </WebSection>
@@ -128,21 +135,19 @@ export function ContactPage({ client }: { client?: ApiClient }) {
 
 /** The spec's small quote card — a design-partner quote, shown without any working note. */
 function QuoteCard() {
+  const t = useT();
   return (
     <figure className="tm-web-contact-quote">
       <blockquote className="tm-web-contact-quote__text">
-        <p>
-          “We brought a live client project to the call and left with the approval flow already
-          mapped.”
-        </p>
+        <p>{t('ContactPage.quoteText')}</p>
       </blockquote>
       <figcaption className="tm-web-contact-quote__by">
         <Avatar name="D P" audience="client" decorative />
         <span className="tm-web-contact-quote__who">
-          <span className="tm-web-contact-quote__role">Delivery lead</span>
-          <span className="tm-web-contact-quote__org">Design partner · Agency</span>
+          <span className="tm-web-contact-quote__role">{t('ContactPage.quoteRole')}</span>
+          <span className="tm-web-contact-quote__org">{t('ContactPage.quoteOrg')}</span>
         </span>
-        <StateCapsule state="client">Demo call</StateCapsule>
+        <StateCapsule state="client">{t('ContactPage.quoteCapsule')}</StateCapsule>
       </figcaption>
     </figure>
   );

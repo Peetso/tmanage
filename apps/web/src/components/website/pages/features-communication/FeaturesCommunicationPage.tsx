@@ -13,6 +13,8 @@ import {
   WebSection,
 } from '../../index';
 import { cx } from '../../primitives';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import {
   CalendarScene,
   ChannelScene,
@@ -30,31 +32,35 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
  * Features · Docs page, from the shared website layer and packages/ui parts only.
  */
 
-const ANCHORS = [
-  { label: 'Channels', href: '#channels' },
-  { label: 'Threads', href: '#threads' },
-  { label: 'Message to work', href: '#message-to-work' },
-  { label: 'Calendar', href: '#calendar' },
-  { label: 'Meetings', href: '#meetings' },
-] as const;
+const ANCHORS: readonly { labelKey: MessageKey; href: string }[] = [
+  { labelKey: 'FeaturesCommunicationPage.anchorChannels', href: '#channels' },
+  { labelKey: 'FeaturesCommunicationPage.anchorThreads', href: '#threads' },
+  { labelKey: 'FeaturesCommunicationPage.anchorMessageToWork', href: '#message-to-work' },
+  { labelKey: 'FeaturesCommunicationPage.anchorCalendar', href: '#calendar' },
+  { labelKey: 'FeaturesCommunicationPage.anchorMeetings', href: '#meetings' },
+];
 
-const QUIET = [
+const QUIET: readonly {
+  icon: 'layers' | 'shield' | 'list';
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
+}[] = [
   {
     icon: 'layers',
-    title: 'Bundled notifications',
-    body: 'One update per object, not ten pings.',
+    titleKey: 'FeaturesCommunicationPage.quietBundledTitle',
+    bodyKey: 'FeaturesCommunicationPage.quietBundledBody',
   },
   {
     icon: 'shield',
-    title: 'Quiet hours',
-    body: 'Respected unless something is security-critical.',
+    titleKey: 'FeaturesCommunicationPage.quietHoursTitle',
+    bodyKey: 'FeaturesCommunicationPage.quietHoursBody',
   },
   {
     icon: 'list',
-    title: 'Daily digest',
-    body: 'Everything you missed, ranked by consequence.',
+    titleKey: 'FeaturesCommunicationPage.quietDigestTitle',
+    bodyKey: 'FeaturesCommunicationPage.quietDigestBody',
   },
-] as const;
+];
 
 /**
  * A feature row in the designed pages' form: mono eyebrow with the lime dot, Heading/Page title,
@@ -100,6 +106,7 @@ function Row({
 }
 
 export function FeaturesCommunicationPage() {
+  const t = useT();
   return (
     <div className="tm-wc-page">
       {/* 2 · Hero */}
@@ -109,26 +116,26 @@ export function FeaturesCommunicationPage() {
             as="h1"
             size="page"
             id="wc-hero-title"
-            eyebrow="Features · Talk & meet"
-            title="Conversations that end in commitments."
-            lede="Channels, threads and meetings that produce tasks, decisions and owners — not more scrolling."
+            eyebrow={t('FeaturesCommunicationPage.heroEyebrow')}
+            title={t('FeaturesCommunicationPage.heroTitle')}
+            lede={t('FeaturesCommunicationPage.heroLede')}
           >
             <div className="tm-wc-hero__actions">
               <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                Start free
+                {t('FeaturesCommunicationPage.startFree')}
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">
-                Book a demo
+                {t('FeaturesCommunicationPage.bookDemo')}
               </ButtonLink>
             </div>
-            <nav className="tm-wc-anchors" aria-label="On this page">
+            <nav className="tm-wc-anchors" aria-label={t('FeaturesCommunicationPage.anchorsAria')}>
               {ANCHORS.map((anchor, index) => (
                 <Link
                   key={anchor.href}
                   href={anchor.href}
                   className={cx('tm-web-chip', 'tm-wc-anchor', index === 0 && 'tm-web-chip--on')}
                 >
-                  {anchor.label}
+                  {t(anchor.labelKey)}
                 </Link>
               ))}
             </nav>
@@ -143,10 +150,10 @@ export function FeaturesCommunicationPage() {
       <WebSection id="channels" aria-labelledby="wc-channels-title">
         <Row
           id="threads"
-          eyebrow="Channels & DMs"
+          eyebrow={t('FeaturesCommunicationPage.channelsEyebrow')}
           titleId="wc-channels-title"
-          title="Project channels with the context built in."
-          body="Every project gets its channel. Mentions, reactions, files and edit history work the way your team expects."
+          title={t('FeaturesCommunicationPage.channelsTitle')}
+          body={t('FeaturesCommunicationPage.channelsBody')}
           visual={<ChannelsScene />}
         />
       </WebSection>
@@ -156,10 +163,10 @@ export function FeaturesCommunicationPage() {
         <Row
           reverse
           backdrop="lime"
-          eyebrow="Message to work"
+          eyebrow={t('FeaturesCommunicationPage.m2wEyebrow')}
           titleId="wc-m2w-title"
-          title="Turn a message into a task in one move."
-          body="Choose task, request or decision. Confirm owner, date and audience. The original message stays linked forever."
+          title={t('FeaturesCommunicationPage.m2wTitle')}
+          body={t('FeaturesCommunicationPage.m2wBody')}
           visual={<MessageToWorkScene />}
         />
       </WebSection>
@@ -169,13 +176,18 @@ export function FeaturesCommunicationPage() {
         <SectionHeader
           align="center"
           id="wc-quiet-title"
-          eyebrow="Quiet by design"
-          title="Fewer pings. Nothing that matters missed."
-          lede="Notifications follow the work, not the chatter — so people can focus and still trust they will hear about what counts."
+          eyebrow={t('FeaturesCommunicationPage.quietEyebrow')}
+          title={t('FeaturesCommunicationPage.quietTitle')}
+          lede={t('FeaturesCommunicationPage.quietLede')}
         />
         <div className="tm-wc-grid3">
           {QUIET.map((card) => (
-            <GraphCard key={card.title} icon={card.icon} title={card.title} body={card.body} />
+            <GraphCard
+              key={card.titleKey}
+              icon={card.icon}
+              title={t(card.titleKey)}
+              body={t(card.bodyKey)}
+            />
           ))}
         </div>
       </WebSection>
@@ -184,10 +196,10 @@ export function FeaturesCommunicationPage() {
       <WebSection id="calendar" aria-labelledby="wc-calendar-title">
         <Row
           className="tm-wc-row-cal"
-          eyebrow="Calendar"
+          eyebrow={t('FeaturesCommunicationPage.calendarEyebrow')}
           titleId="wc-calendar-title"
-          title="Your time and your commitments on one calendar."
-          body="Personal and project calendars with milestones, reviews and focus blocks."
+          title={t('FeaturesCommunicationPage.calendarTitle')}
+          body={t('FeaturesCommunicationPage.calendarBody')}
           visual={<CalendarScene />}
         />
       </WebSection>
@@ -196,32 +208,29 @@ export function FeaturesCommunicationPage() {
       <WebSection id="meetings" spacing="flush" aria-labelledby="wc-meetings-title">
         <Row
           reverse
-          eyebrow="Meetings"
+          eyebrow={t('FeaturesCommunicationPage.meetingsEyebrow')}
           titleId="wc-meetings-title"
-          title="A meeting closes with owners, not loose notes."
-          body="Agenda, notes, decisions and actions are linked objects. Every action lands in someone's work."
+          title={t('FeaturesCommunicationPage.meetingsTitle')}
+          body={t('FeaturesCommunicationPage.meetingsBody')}
           visual={<MeetingScene />}
         />
       </WebSection>
 
       {/* 8 · Testimonial band */}
-      <WebSection spacing="compact" aria-label="What a design partner says">
+      <WebSection spacing="compact" aria-label={t('FeaturesCommunicationPage.testimonialAria')}>
         <div className="tm-wc-quote">
           <TestimonialCard
             tone="ink"
-            quote="We used to lose half our decisions in chat. Now they have a home."
-            author="Studio lead"
-            org="Design partner · Agency"
+            quote={t('FeaturesCommunicationPage.testimonialQuote')}
+            author={t('FeaturesCommunicationPage.testimonialAuthor')}
+            org={t('FeaturesCommunicationPage.testimonialOrg')}
             note=""
           />
         </div>
       </WebSection>
 
       {/* 9 · CTA band */}
-      <CtaBand
-        title="Let the next conversation end with an owner and a date."
-        visual={<DigestScene />}
-      />
+      <CtaBand title={t('FeaturesCommunicationPage.ctaTitle')} visual={<DigestScene />} />
     </div>
   );
 }

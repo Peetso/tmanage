@@ -2,6 +2,8 @@
 
 import { Badge, StateCapsule } from '@tmanage/ui';
 import type { ReactNode } from 'react';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import { ArrowLink, ButtonLink, Eyebrow, IconOrb, cx } from '../../primitives';
 import { CtaBand, ProductVisualFrame, SectionHeader, Stat, WebSection } from '../../sections';
 import type { WebIconName } from '../../WebIcon';
@@ -27,26 +29,26 @@ import './client-portal.css';
 
 const THIRTY_SECONDS: readonly {
   icon: WebIconName;
-  title: string;
-  body: string;
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
   peek: ReactNode;
 }[] = [
   {
     icon: 'flag',
-    title: 'One stage track',
-    body: 'Where the project is, in plain words.',
+    titleKey: 'ClientPortalPage.thirtyStageTitle',
+    bodyKey: 'ClientPortalPage.thirtyStageBody',
     peek: <MiniStagePeek />,
   },
   {
     icon: 'pulse',
-    title: 'One number that matters',
-    body: 'Days to launch, or whatever you agree.',
+    titleKey: 'ClientPortalPage.thirtyMetricTitle',
+    bodyKey: 'ClientPortalPage.thirtyMetricBody',
     peek: <MiniMetricPeek />,
   },
   {
     icon: 'check',
-    title: 'Only their actions',
-    body: 'Reviews, files and answers they owe.',
+    titleKey: 'ClientPortalPage.thirtyActionsTitle',
+    bodyKey: 'ClientPortalPage.thirtyActionsBody',
     peek: <MiniActionPeek />,
   },
 ];
@@ -87,32 +89,40 @@ function PortalFeatureRow({
 
 const AUDIENCES: readonly {
   icon: WebIconName;
-  title: string;
-  body: string;
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
   marker: 'internal' | 'client' | 'action';
 }[] = [
-  { icon: 'lock', title: 'Internal', body: 'Only your team can see this.', marker: 'internal' },
+  {
+    icon: 'lock',
+    titleKey: 'ClientPortalPage.audienceInternalTitle',
+    bodyKey: 'ClientPortalPage.audienceInternalBody',
+    marker: 'internal',
+  },
   {
     icon: 'portal',
-    title: 'Client visible',
-    body: 'Related client members can see this after publication.',
+    titleKey: 'ClientPortalPage.audienceClientTitle',
+    bodyKey: 'ClientPortalPage.audienceClientBody',
     marker: 'client',
   },
   {
     icon: 'bolt',
-    title: 'Client action required',
-    body: 'Selected client members will be asked to act.',
+    titleKey: 'ClientPortalPage.audienceActionTitle',
+    bodyKey: 'ClientPortalPage.audienceActionBody',
     marker: 'action',
   },
 ];
 
 function AudienceMarker({ marker }: { marker: 'internal' | 'client' | 'action' }) {
-  if (marker === 'internal') return <Badge>Internal</Badge>;
-  if (marker === 'client') return <StateCapsule state="client">Client visible</StateCapsule>;
-  return <StateCapsule state="waiting">Action required</StateCapsule>;
+  const t = useT();
+  if (marker === 'internal') return <Badge>{t('ClientPortalPage.markerInternal')}</Badge>;
+  if (marker === 'client')
+    return <StateCapsule state="client">{t('ClientPortalPage.markerClientVisible')}</StateCapsule>;
+  return <StateCapsule state="waiting">{t('ClientPortalPage.markerActionRequired')}</StateCapsule>;
 }
 
 export function ClientPortalPage() {
+  const t = useT();
   return (
     <>
       {/* 2 · Hero (ink) */}
@@ -123,17 +133,17 @@ export function ClientPortalPage() {
             size="page"
             tone="ink"
             id="cp-hero-title"
-            eyebrow="The client portal"
-            title="Know what's moving, what's due, and what needs your approval."
-            lede="Give clients one calm place for progress, reviews and files — generated from your work, never copied into it."
+            eyebrow={t('ClientPortalPage.heroEyebrow')}
+            title={t('ClientPortalPage.heroTitle')}
+            lede={t('ClientPortalPage.heroLede')}
           >
             <div className="tm-cp-hero__actions">
               {/* No public demo portal route exists yet; the demo is booked from /contact. */}
               <ButtonLink href="/contact" tone="lime">
-                See a live demo portal
+                {t('ClientPortalPage.heroDemoCta')}
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline-ink">
-                Book a demo
+                {t('ClientPortalPage.heroBookCta')}
               </ButtonLink>
             </div>
           </SectionHeader>
@@ -148,16 +158,16 @@ export function ClientPortalPage() {
         <SectionHeader
           align="center"
           id="cp-thirty-title"
-          eyebrow="Thirty seconds"
-          title="A view your client understands at a glance."
-          lede="Every client portal opens the same way, so nobody has to learn it twice."
+          eyebrow={t('ClientPortalPage.thirtyEyebrow')}
+          title={t('ClientPortalPage.thirtyTitle')}
+          lede={t('ClientPortalPage.thirtyLede')}
         />
         <div className="tm-cp-three">
           {THIRTY_SECONDS.map((item) => (
-            <div key={item.title} className="tm-web-graph-card tm-cp-glance">
+            <div key={item.titleKey} className="tm-web-graph-card tm-cp-glance">
               <IconOrb icon={item.icon} tone="lime" />
-              <h3 className="tm-web-graph-card__title">{item.title}</h3>
-              <p className="tm-web-graph-card__body">{item.body}</p>
+              <h3 className="tm-web-graph-card__title">{t(item.titleKey)}</h3>
+              <p className="tm-web-graph-card__body">{t(item.bodyKey)}</p>
               <div className="tm-cp-glance__peek">{item.peek}</div>
             </div>
           ))}
@@ -165,20 +175,20 @@ export function ClientPortalPage() {
       </WebSection>
 
       {/* 4 · Approvals · 5 · Requests */}
-      <WebSection spacing="compact" aria-label="Approvals and requests">
+      <WebSection spacing="compact" aria-label={t('ClientPortalPage.approvalsRequestsAria')}>
         <PortalFeatureRow
-          eyebrow="Approvals"
-          title="Approve in about ten minutes, on any device."
-          body="Reviewers see the version, the criteria and earlier feedback. Approve, or request changes with a reason."
-          link={{ label: 'How approvals work', href: '/features/knowledge' }}
+          eyebrow={t('ClientPortalPage.approvalsEyebrow')}
+          title={t('ClientPortalPage.approvalsTitle')}
+          body={t('ClientPortalPage.approvalsBody')}
+          link={{ label: t('ClientPortalPage.approvalsLink'), href: '/features/knowledge' }}
           visual={<ApprovalScene />}
         />
         <PortalFeatureRow
           reverse
-          eyebrow="Requests"
-          title="Clients ask in the portal, not in five email threads."
-          body="Every request gets a clear status. A desired date is recorded as a wish until your team commits."
-          link={{ label: 'See work and requests', href: '/features/work' }}
+          eyebrow={t('ClientPortalPage.requestsEyebrow')}
+          title={t('ClientPortalPage.requestsTitle')}
+          body={t('ClientPortalPage.requestsBody')}
+          link={{ label: t('ClientPortalPage.requestsLink'), href: '/features/work' }}
           visual={<RequestsScene />}
         />
       </WebSection>
@@ -188,21 +198,21 @@ export function ClientPortalPage() {
         <div className="tm-cp-split">
           <SectionHeader
             id="cp-invisible-title"
-            eyebrow="Invisible, not hidden"
-            title={'Internal work is invisible to clients\u00a0— by construction.'}
-            lede="The portal reads an allowlisted projection of your work. Internal comments, costs and other clients do not exist there."
-            link={{ label: 'Security for clients', href: '/security' }}
+            eyebrow={t('ClientPortalPage.invisibleEyebrow')}
+            title={t('ClientPortalPage.invisibleTitle')}
+            lede={t('ClientPortalPage.invisibleLede')}
+            link={{ label: t('ClientPortalPage.invisibleLink'), href: '/security' }}
           />
           <ul className="tm-cp-audiences">
             {AUDIENCES.map((audience) => (
-              <li key={audience.title} className="tm-cp-audience">
+              <li key={audience.titleKey} className="tm-cp-audience">
                 <IconOrb
                   icon={audience.icon}
                   tone={audience.marker === 'internal' ? 'outline' : 'lime'}
                 />
                 <span className="tm-cp-audience__text">
-                  <span className="tm-cp-audience__title">{audience.title}</span>
-                  <span className="tm-cp-audience__body">{audience.body}</span>
+                  <span className="tm-cp-audience__title">{t(audience.titleKey)}</span>
+                  <span className="tm-cp-audience__body">{t(audience.bodyKey)}</span>
                 </span>
                 <AudienceMarker marker={audience.marker} />
               </li>
@@ -215,14 +225,14 @@ export function ClientPortalPage() {
       <WebSection aria-labelledby="cp-free-title">
         <div className="tm-cp-free">
           <div className="tm-cp-free__text">
-            <Eyebrow>Free for clients</Eyebrow>
+            <Eyebrow>{t('ClientPortalPage.freeEyebrow')}</Eyebrow>
             <h2 id="cp-free-title" className="tm-web-feature__title">
-              Bring the whole client team, not just one contact.
+              {t('ClientPortalPage.freeTitle')}
             </h2>
             <Stat
               value="0"
-              label="seats used by client users, on every plan"
-              note="Invite sponsors, reviewers and viewers without counting seats."
+              label={t('ClientPortalPage.freeStatLabel')}
+              note={t('ClientPortalPage.freeStatNote')}
             />
           </div>
           <ProductVisualFrame>
@@ -236,17 +246,14 @@ export function ClientPortalPage() {
         <div className="tm-cp-arabic">
           <div className="tm-cp-arabic__text">
             <Eyebrow>
-              <span>English</span>
+              <span>{t('ClientPortalPage.arabicEyebrowEnglish')}</span>
               <span aria-hidden="true">·</span>
               <span lang="ar">العربية</span>
             </Eyebrow>
             <h2 id="cp-arabic-title" className="tm-web-header__title tm-cp-arabic__title">
-              Your client can use it in Arabic.
+              {t('ClientPortalPage.arabicTitle')}
             </h2>
-            <p className="tm-cp-arabic__body">
-              Each client member picks their language. Stages, dates, actions and files mirror
-              right-to-left properly — the same portal, not a translated copy.
-            </p>
+            <p className="tm-cp-arabic__body">{t('ClientPortalPage.arabicBody')}</p>
           </div>
           <div className="tm-cp-arabic__visual">
             <ArabicPortalScene />
@@ -255,10 +262,7 @@ export function ClientPortalPage() {
       </WebSection>
 
       {/* 9 · CTA band */}
-      <CtaBand
-        title="Show your next client a portal they'll actually open."
-        visual={<PortalCtaScene />}
-      />
+      <CtaBand title={t('ClientPortalPage.ctaTitle')} visual={<PortalCtaScene />} />
     </>
   );
 }

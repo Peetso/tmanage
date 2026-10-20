@@ -1,6 +1,8 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import { ArrowLink, ButtonLink, Eyebrow, cx } from '../../primitives';
 import { CtaBand, ProductVisualFrame, SectionHeader, WebSection } from '../../sections';
 import {
@@ -26,18 +28,18 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
  * feature, then the CTA band. Every pill points at a section of the same name.
  */
 
-const PILLS = [
-  { id: 'health', label: 'Project health' },
-  { id: 'portfolio', label: 'Portfolio' },
-  { id: 'approval-cycle', label: 'Approval cycle' },
-  { id: 'automations', label: 'Automations' },
-  { id: 'assistant', label: 'AI assistant' },
-] as const;
+const PILLS: readonly { id: string; labelKey: MessageKey }[] = [
+  { id: 'health', labelKey: 'FeaturesInsightsPage.pillHealth' },
+  { id: 'portfolio', labelKey: 'FeaturesInsightsPage.pillPortfolio' },
+  { id: 'approval-cycle', labelKey: 'FeaturesInsightsPage.pillApprovalCycle' },
+  { id: 'automations', labelKey: 'FeaturesInsightsPage.pillAutomations' },
+  { id: 'assistant', labelKey: 'FeaturesInsightsPage.pillAssistant' },
+];
 
-const TEMPLATES: readonly string[] = [
-  'Remind a reviewer',
-  'Move a milestone',
-  'Notify the client channel',
+const TEMPLATES: readonly MessageKey[] = [
+  'FeaturesInsightsPage.templateRemind',
+  'FeaturesInsightsPage.templateMove',
+  'FeaturesInsightsPage.templateNotify',
 ];
 
 function InsightsRow({
@@ -116,6 +118,7 @@ function InsightsCard({
 }
 
 export function FeaturesInsightsPage() {
+  const t = useT();
   return (
     <div className="tm-web-fi">
       {/* 2 · Hero */}
@@ -123,29 +126,29 @@ export function FeaturesInsightsPage() {
         <div className="tm-web-fi-hero__grid">
           <div className="tm-web-fi-hero__text">
             <SectionHeader
-              eyebrow="Features · See & automate"
-              title="Health you can explain. Automation you can trust."
-              lede="Every score drills into the work behind it. Every automation shows what it will do before it runs."
+              eyebrow={t('FeaturesInsightsPage.heroEyebrow')}
+              title={t('FeaturesInsightsPage.heroTitle')}
+              lede={t('FeaturesInsightsPage.heroLede')}
               as="h1"
               size="page"
               id="fi-hero-title"
             />
             <div className="tm-web-fi-hero__actions">
               <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                Start free
+                {t('FeaturesInsightsPage.startFree')}
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">
-                Book a demo
+                {t('FeaturesInsightsPage.bookDemo')}
               </ButtonLink>
             </div>
-            <nav className="tm-web-fi-pills" aria-label="On this page">
+            <nav className="tm-web-fi-pills" aria-label={t('FeaturesInsightsPage.pillsAria')}>
               {PILLS.map((pill, index) => (
                 <a
                   key={pill.id}
                   href={`#${pill.id}`}
                   className={cx('tm-web-chip', 'tm-web-fi-pill', index === 0 && 'tm-web-chip--on')}
                 >
-                  {pill.label}
+                  {t(pill.labelKey)}
                 </a>
               ))}
             </nav>
@@ -160,44 +163,44 @@ export function FeaturesInsightsPage() {
       <WebSection className="tm-web-fi-stack">
         <InsightsRow
           id="health"
-          eyebrow="Explainable health"
-          title="Scores that show their working."
-          body="Health, risk and forecast link to the tasks, approvals and dates that produced them."
+          eyebrow={t('FeaturesInsightsPage.healthEyebrow')}
+          title={t('FeaturesInsightsPage.healthTitle')}
+          body={t('FeaturesInsightsPage.healthBody')}
           visual={<ScoreWorkingScene />}
         >
           <ArrowLink href="/product" underline={false}>
-            See project health in the product
+            {t('FeaturesInsightsPage.healthLink')}
           </ArrowLink>
         </InsightsRow>
 
         <div className="tm-web-fi-pair">
           <InsightsCard
             id="portfolio"
-            eyebrow="Portfolio"
-            title="Every project, exceptions first."
-            body="Blocked work and returned approvals rise to the top, and every row opens the evidence behind it."
+            eyebrow={t('FeaturesInsightsPage.portfolioEyebrow')}
+            title={t('FeaturesInsightsPage.portfolioTitle')}
+            body={t('FeaturesInsightsPage.portfolioBody')}
             visual={<StagesScene />}
           />
           <InsightsCard
             id="approval-cycle"
-            eyebrow="Approval cycle"
-            title="See where approvals wait."
-            body="Time to a client decision, per project and per deliverable, with the item that is holding it."
+            eyebrow={t('FeaturesInsightsPage.approvalCycleEyebrow')}
+            title={t('FeaturesInsightsPage.approvalCycleTitle')}
+            body={t('FeaturesInsightsPage.approvalCycleBody')}
             visual={<ApprovalCycleScene />}
           />
         </div>
 
         <InsightsRow
           id="pulse"
-          eyebrow="Pulse"
-          title="A weekly update drafted for you, published by a person."
-          body="Pulse drafts the client update from current work. A manager edits and publishes — never automatically."
+          eyebrow={t('FeaturesInsightsPage.pulseEyebrow')}
+          title={t('FeaturesInsightsPage.pulseTitle')}
+          body={t('FeaturesInsightsPage.pulseBody')}
           visual={<PulseScene />}
           reverse
           tone="lime"
         >
           <ArrowLink href="/client-portal" underline={false}>
-            How clients see it
+            {t('FeaturesInsightsPage.pulseLink')}
           </ArrowLink>
         </InsightsRow>
       </WebSection>
@@ -206,9 +209,9 @@ export function FeaturesInsightsPage() {
       <WebSection tone="sunken" aria-labelledby="fi-fair-title">
         <div className="tm-web-fi-fair">
           <SectionHeader
-            eyebrow="Workload"
-            title="Capacity is about commitments, not people scores."
-            lede="TManage never ranks individual productivity. Workload shows commitments and constraints so managers can plan fairly."
+            eyebrow={t('FeaturesInsightsPage.workloadEyebrow')}
+            title={t('FeaturesInsightsPage.workloadTitle')}
+            lede={t('FeaturesInsightsPage.workloadLede')}
             id="fi-fair-title"
           />
           <div className="tm-web-fi-fair__visual">
@@ -225,19 +228,22 @@ export function FeaturesInsightsPage() {
               tone="ink"
               size="page"
               id="fi-auto-title"
-              eyebrow="Automations"
-              title="Remove the repeat coordination."
-              lede="Start from templates: remind a reviewer, move a milestone, notify the client channel. Test with a dry run and see which identity will act before you switch it on."
+              eyebrow={t('FeaturesInsightsPage.automationsEyebrow')}
+              title={t('FeaturesInsightsPage.automationsTitle')}
+              lede={t('FeaturesInsightsPage.automationsLede')}
             />
-            <ul className="tm-web-fi-panel__templates" aria-label="Automation templates">
-              {TEMPLATES.map((t) => (
-                <li key={t} className="tm-web-fi-panel__template">
-                  {t}
+            <ul
+              className="tm-web-fi-panel__templates"
+              aria-label={t('FeaturesInsightsPage.templatesAria')}
+            >
+              {TEMPLATES.map((templateKey) => (
+                <li key={templateKey} className="tm-web-fi-panel__template">
+                  {t(templateKey)}
                 </li>
               ))}
             </ul>
             <ButtonLink href={SIGN_UP_HREF} tone="lime">
-              Try a template
+              {t('FeaturesInsightsPage.automationsTry')}
             </ButtonLink>
           </div>
           <div className="tm-web-fi-panel__visual">
@@ -250,21 +256,21 @@ export function FeaturesInsightsPage() {
       <WebSection className="tm-web-fi-last">
         <InsightsRow
           id="assistant"
-          eyebrow="AI assistant"
-          title="An assistant that cites, never acts alone."
-          body="Ask about your projects and get answers with sources. It cannot publish, approve, invite or delete."
+          eyebrow={t('FeaturesInsightsPage.assistantEyebrow')}
+          title={t('FeaturesInsightsPage.assistantTitle')}
+          body={t('FeaturesInsightsPage.assistantBody')}
           visual={<AssistantScene />}
         >
           <ArrowLink href="/security" underline={false}>
-            How we handle your data
+            {t('FeaturesInsightsPage.assistantLink')}
           </ArrowLink>
         </InsightsRow>
       </WebSection>
 
       {/* 8 · CTA band (9 · Footer comes from the layout) */}
       <CtaBand
-        title="Know why a project slips before your client asks."
-        lede="Start free with your team. Health, Pulse and automation templates are there from day one."
+        title={t('FeaturesInsightsPage.ctaTitle')}
+        lede={t('FeaturesInsightsPage.ctaLede')}
         visual={<HealthCropScene />}
       />
     </div>

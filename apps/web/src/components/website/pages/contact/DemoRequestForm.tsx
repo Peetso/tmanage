@@ -6,6 +6,8 @@ import { browserApiClient } from '../../../../lib/api/browser-client';
 import { submitContact } from '../../../../lib/api/contact';
 import { ApiRequestError, NetworkError } from '../../../../lib/api/errors';
 import type { ApiClient } from '../../../../lib/api/client';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import { useHydrated } from '../../../../lib/use-hydrated';
 import { WebIcon } from '../../WebIcon';
 
@@ -70,6 +72,7 @@ export function composeDemoMessage(draft: Draft): string {
  * `POST /public/site/contact` through `submitContact`.
  */
 export function DemoRequestForm({ client }: DemoRequestFormProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const hydrated = useHydrated();
   const noteId = useId();
@@ -92,15 +95,15 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
     const company = draft.company.trim();
 
     if (name === '' || email === '' || company === '' || draft.teamSize === '') {
-      setFailure('Enter your name, work email, company and team size.');
+      setFailure(t('DemoRequestForm.errorRequired'));
       return;
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setFailure('Enter a work email like name@company.com.');
+      setFailure(t('DemoRequestForm.errorEmail'));
       return;
     }
     if (name.length > MAX_NAME || email.length > MAX_EMAIL) {
-      setFailure('One of the fields is too long. Please shorten it and try again.');
+      setFailure(t('DemoRequestForm.errorTooLong'));
       return;
     }
 
@@ -111,7 +114,7 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
       setSent(true);
       setDraft(EMPTY);
     } catch (error) {
-      setFailure(describe(error));
+      setFailure(describe(error, t));
     } finally {
       setSending(false);
     }
@@ -123,16 +126,12 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
         <span className="tm-web-contact-form__done-orb" aria-hidden="true">
           <WebIcon name="check" size={24} />
         </span>
-        <InlineAlert
-          tone="success"
-          title="Thanks — we'll be in touch within one business day."
-          live
-        >
-          We will reply to your work email to confirm a time. Hold a slot for the call now.
+        <InlineAlert tone="success" title={t('DemoRequestForm.doneTitle')} live>
+          {t('DemoRequestForm.doneBody')}
         </InlineAlert>
         <div className="tm-web-contact-form__done-actions">
           <Button type="button" tone="outline" onClick={downloadCalendarHold}>
-            Add to calendar
+            {t('DemoRequestForm.doneAddCalendar')}
           </Button>
         </div>
       </div>
@@ -142,15 +141,15 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
   return (
     <div className="tm-web-contact-form" id="book-demo-form">
       <div className="tm-web-contact-form__head">
-        <h2 className="tm-web-contact-form__title">Book your demo</h2>
-        <p className="tm-web-contact-form__sub">30 minutes · video call · English or Arabic</p>
+        <h2 className="tm-web-contact-form__title">{t('DemoRequestForm.title')}</h2>
+        <p className="tm-web-contact-form__sub">{t('DemoRequestForm.sub')}</p>
       </div>
 
       {/* `noValidate` for the reason `SignInScreen` gives: errors use the design system. */}
       <form noValidate onSubmit={submit}>
         <fieldset className="tm-fieldset tm-web-contact-form__fields" disabled={!hydrated}>
           <Field
-            label="Full name"
+            label={t('DemoRequestForm.fieldName')}
             name="name"
             autoComplete="name"
             maxLength={MAX_NAME}
@@ -159,7 +158,7 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
             required
           />
           <Field
-            label="Work email"
+            label={t('DemoRequestForm.fieldEmail')}
             type="email"
             name="email"
             autoComplete="email"
@@ -171,7 +170,7 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
             required
           />
           <Field
-            label="Company"
+            label={t('DemoRequestForm.fieldCompany')}
             name="company"
             autoComplete="organization"
             maxLength={MAX_SHORT}
@@ -180,7 +179,7 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
             required
           />
           <Select
-            label="Team size"
+            label={t('DemoRequestForm.fieldTeamSize')}
             name="teamSize"
             className="tm-web-contact-form__select"
             value={draft.teamSize}
@@ -188,16 +187,16 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
             required
           >
             <option value="" disabled>
-              Select your team size
+              {t('DemoRequestForm.teamSizePlaceholder')}
             </option>
             {TEAM_SIZES.map((size) => (
               <option key={size} value={size}>
-                {size} people
+                {size} {t('DemoRequestForm.people')}
               </option>
             ))}
           </Select>
           <Field
-            label="Role"
+            label={t('DemoRequestForm.fieldRole')}
             name="role"
             autoComplete="organization-title"
             maxLength={MAX_SHORT}
@@ -206,7 +205,7 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
           />
           <div className="tm-field">
             <label className="tm-field__label" htmlFor={noteId}>
-              What would you like to see?
+              {t('DemoRequestForm.noteLabel')}
             </label>
             <textarea
               id={noteId}
@@ -221,14 +220,14 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
           </div>
           <Checkbox
             className="tm-web-contact-form__choice"
-            label="Send me product updates (optional)"
+            label={t('DemoRequestForm.updatesLabel')}
             name="updates"
             checked={draft.updates}
             onChange={(event) => set('updates', event.target.checked)}
           />
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not send your request" live>
+            <InlineAlert tone="danger" title={t('DemoRequestForm.failureTitle')} live>
               <span id={errorId}>{failure}</span>
             </InlineAlert>
           ) : null}
@@ -239,13 +238,11 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
             size="feature"
             className="tm-web-contact-form__submit"
             loading={sending}
-            loadingLabel="Sending"
+            loadingLabel={t('DemoRequestForm.submitting')}
           >
-            Book my demo
+            {t('DemoRequestForm.submit')}
           </Button>
-          <p className="tm-web-contact-form__caption">
-            We reply within one business day. We never share your details.
-          </p>
+          <p className="tm-web-contact-form__caption">{t('DemoRequestForm.caption')}</p>
         </fieldset>
       </form>
     </div>
@@ -253,13 +250,13 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
 }
 
 /** Turn a thrown value into a sentence. The contact 400/429 messages carry no stored data. */
-function describe(error: unknown): string {
+function describe(error: unknown, t: (key: MessageKey) => string): string {
   if (error instanceof ApiRequestError) {
-    if (error.status === 429) return 'Too many requests from this network. Please try again later.';
+    if (error.status === 429) return t('DemoRequestForm.errorRateLimited');
     return error.message;
   }
-  if (error instanceof NetworkError) return 'We could not reach the server. Please try again.';
-  return 'Something went wrong. Please try again.';
+  if (error instanceof NetworkError) return t('DemoRequestForm.errorNetwork');
+  return t('DemoRequestForm.errorGeneric');
 }
 
 /**

@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule, type CapsuleState } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon, type WebIconName } from '../../WebIcon';
 import { cx } from '../../primitives';
 
@@ -168,11 +169,9 @@ const IN_REVIEW: readonly BoardCardData[] = [
 ];
 
 export function WorkBoardScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The Work board for Atlas Website Relaunch: a card is being moved by keyboard into In progress, which is at its work-in-progress limit."
-      className="tm-fw-scene--board"
-    >
+    <Scene label={t('WorkBoardScene.label')} className="tm-fw-scene--board">
       <div className="tm-fw-shell">
         <nav className="tm-fw-rail">
           <span className="tm-fw-rail__logo">
@@ -221,11 +220,9 @@ export function WorkBoardScene() {
 /* ── Requests: a client request waiting with a manager ───────────────────────── */
 
 export function RequestScene() {
+  const t = useT();
   return (
-    <Scene
-      label="A client request from Salma Riad, waiting with a manager, with Accept, Defer and Decline, and her reply from the client portal."
-      className="tm-fw-scene--request"
-    >
+    <Scene label={t('RequestScene.label')} className="tm-fw-scene--request">
       <div className="tm-fw-request">
         <div className="tm-fw-request__card">
           <p className="tm-fw-request__ids">
@@ -280,11 +277,9 @@ const SUBTASKS: readonly { title: string; done?: boolean; blocked?: boolean; who
 ];
 
 export function WorkItemScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The work item Prepare mobile booking flow concepts: blocked, owned by Lina Samir, with its next action, dates, subtasks, work story and dependencies."
-      className="tm-fw-scene--item"
-    >
+    <Scene label={t('WorkItemScene.label')} className="tm-fw-scene--item">
       <div className="tm-fw-item">
         <div className="tm-fw-item__main">
           <div className="tm-fw-panel">
@@ -500,11 +495,9 @@ const LIST_ROWS: readonly {
 ];
 
 export function ListViewScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The list view: work items grouped under the current milestone, with owner, state and committed and forecast dates."
-      className="tm-fw-scene--mini"
-    >
+    <Scene label={t('ListViewScene.label')} className="tm-fw-scene--mini">
       <div className="tm-fw-list">
         <div className="tm-fw-list__row tm-fw-list__row--head">
           <span className="tm-fw-box tm-fw-box--ghost" />
@@ -542,11 +535,9 @@ export function ListViewScene() {
 }
 
 export function BoardViewScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The board view: cards in Not started and In progress, with a blocked card explaining why it cannot move."
-      className="tm-fw-scene--mini"
-    >
+    <Scene label={t('BoardViewScene.label')} className="tm-fw-scene--mini">
       <div className="tm-fw-board__cols tm-fw-board__cols--mini">
         <BoardColumn title="Not started" count="10" cards={NOT_STARTED} />
         <BoardColumn title="In progress" count="9 / WIP 6" flag="At limit" cards={IN_PROGRESS} />
@@ -578,11 +569,9 @@ const TIMELINE_ROWS: readonly {
 ];
 
 export function TimelineViewScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The timeline view: bars for each work item against the milestone date, with forecasts that run past their commitment outlined."
-      className="tm-fw-scene--mini"
-    >
+    <Scene label={t('TimelineViewScene.label')} className="tm-fw-scene--mini">
       <div className="tm-fw-timeline">
         <div className="tm-fw-timeline__row tm-fw-timeline__row--head">
           <Mono className="tm-fw-timeline__name">Work</Mono>
@@ -685,11 +674,9 @@ const MILESTONES: readonly {
 const PULSE_TABS = ['Overview', 'Plan', 'Work', 'Story', 'Team', 'Settings'];
 
 export function ProjectPulseScene() {
+  const t = useT();
   return (
-    <Scene
-      label="Project Pulse for Atlas Website Relaunch: five milestones with baseline, committed and forecast dates and the evidence behind each."
-      className="tm-fw-scene--pulse"
-    >
+    <Scene label={t('ProjectPulseScene.label')} className="tm-fw-scene--pulse">
       <div className="tm-fw-pulse">
         <span className="tm-fw-seg tm-fw-seg--tabs">
           {PULSE_TABS.map((tab) => (

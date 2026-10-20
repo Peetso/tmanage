@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule, StatusDot } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon } from '../../WebIcon';
 import { cx } from '../../primitives';
 
@@ -55,11 +56,9 @@ const HERO_STEPS: readonly {
 ];
 
 export function HeroStoryScene() {
+  const t = useT();
   return (
-    <HomeScene
-      label="One work story in TManage: a request from chat moves through clarify, commit and plan to review, with the client waiting on Homepage Concept v2 and an approval stamped for version 2."
-      className="tm-home-hero-scene"
-    >
+    <HomeScene label={t('HomeScenes.heroStoryLabel')} className="tm-home-hero-scene">
       <div className="tm-home-float-row tm-home-float-row--top">
         <div className="tm-home-float tm-home-float--client">
           <StateCapsule state="client">Client</StateCapsule>
@@ -116,11 +115,9 @@ export function HeroStoryScene() {
 /* ── Team row A: a chat thread where a message becomes work ─────────────────── */
 
 export function ChatThreadScene() {
+  const t = useT();
   return (
-    <HomeScene
-      label="A chat thread in Atlas Website Relaunch where a client question is turned into a request, with the source message linked and the audience kept internal."
-      className="tm-home-panel-scene"
-    >
+    <HomeScene label={t('HomeScenes.chatThreadLabel')} className="tm-home-panel-scene">
       <div className="tm-home-panel">
         <div className="tm-home-panel__bar">
           <span className="tm-home-panel__title">
@@ -204,11 +201,9 @@ const MY_DAY: readonly {
 ];
 
 export function MyDayScene() {
+  const t = useT();
   return (
-    <HomeScene
-      label="My Day for Omar Adel: four items ranked by consequence, each with the reason it is there — a client waiting, a blocker, a commitment and a review."
-      className="tm-home-panel-scene"
-    >
+    <HomeScene label={t('HomeScenes.myDayLabel')} className="tm-home-panel-scene">
       <div className="tm-home-panel">
         <div className="tm-home-panel__bar">
           <span className="tm-home-panel__title">
@@ -237,14 +232,9 @@ export function MyDayScene() {
 /* ── Clients: the portal overview your client sees ──────────────────────────── */
 
 export function PortalScene({ label }: { label?: string }) {
+  const t = useT();
   return (
-    <HomeScene
-      label={
-        label ??
-        'The Atlas Hospitality client portal: the website relaunch is on track, the homepage direction milestone is current, and one action waits for the client — approve Homepage Concept v2.'
-      }
-      className="tm-home-panel-scene"
-    >
+    <HomeScene label={label ?? t('HomeScenes.portalLabel')} className="tm-home-panel-scene">
       <div className="tm-home-panel tm-home-portal">
         <div className="tm-home-panel__bar">
           <span className="tm-home-portal__org">
@@ -305,11 +295,9 @@ export function PortalScene({ label }: { label?: string }) {
 /* ── Knowledge: the decision register beside the work ───────────────────────── */
 
 export function DecisionScene() {
+  const t = useT();
   return (
-    <HomeScene
-      label="The decision register for Atlas Website Relaunch: a photography-led homepage decision with its owner, date, linked brief and the work it explains."
-      className="tm-home-panel-scene"
-    >
+    <HomeScene label={t('HomeScenes.decisionLabel')} className="tm-home-panel-scene">
       <div className="tm-home-panel">
         <div className="tm-home-panel__bar">
           <span className="tm-home-panel__title">
@@ -353,11 +341,9 @@ export function DecisionScene() {
 /* ── Control: access with an impact preview and an append-only log ──────────── */
 
 export function AccessScene() {
+  const t = useT();
   return (
-    <HomeScene
-      label="Access settings for Atlas Hospitality: a client user whose access expires on 30 September, an impact preview before a role change, and the latest audit events."
-      className="tm-home-panel-scene"
-    >
+    <HomeScene label={t('HomeScenes.accessLabel')} className="tm-home-panel-scene">
       <div className="tm-home-panel">
         <div className="tm-home-panel__bar">
           <span className="tm-home-panel__title">

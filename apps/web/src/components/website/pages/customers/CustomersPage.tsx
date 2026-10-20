@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Avatar, Badge, StateCapsule } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import {
   ArrowLink,
   ButtonLink,
@@ -41,13 +42,14 @@ const APPLY_HREF = '/contact?topic=design-partner';
  * Limeframe tokens.
  */
 export function CustomersPage() {
+  const t = useT();
   return (
     <div className="tm-web-customers">
       <Hero />
       <WebSection spacing="flush" className="tm-web-customers__partners">
         <LogoStrip
           variant="detailed"
-          label="Design partners · logos appear only with written consent"
+          label={t('CustomersPage.partnersLabel')}
           partners={PARTNERS}
         />
       </WebSection>
@@ -63,6 +65,7 @@ export function CustomersPage() {
 /* ── 2 · Hero ─────────────────────────────────────────────────────────────── */
 
 function Hero() {
+  const t = useT();
   return (
     <WebSection className="tm-web-customers__hero" aria-labelledby="customers-title">
       <div className="tm-web-customers__hero-grid">
@@ -70,22 +73,24 @@ function Hero() {
           as="h1"
           size="page"
           id="customers-title"
-          eyebrow="Customers"
-          title="Built with the teams who deliver for clients every day."
-          lede="Stories from our design-partner programme — what changed when the work became one story."
+          eyebrow={t('CustomersPage.heroEyebrow')}
+          title={t('CustomersPage.heroTitle')}
+          lede={t('CustomersPage.heroLede')}
         >
           <div className="tm-web-customers__actions">
             <ButtonLink href={APPLY_HREF} tone="ink">
-              Join the design-partner programme
+              {t('CustomersPage.heroJoinCta')}
             </ButtonLink>
             <Link href="#featured-story" className="tm-web-arrow-link tm-web-arrow-link--plain">
-              <span className="tm-web-arrow-link__label">Read the featured story</span>
+              <span className="tm-web-arrow-link__label">
+                {t('CustomersPage.heroReadFeatured')}
+              </span>
               <WebIcon name="arrow-down" size={14} />
             </Link>
           </div>
         </SectionHeader>
         <ObjectCardStack
-          label="Two client deliverables: Homepage Concept v2, approved, and the Arabic FAQ page, in progress."
+          label={t('CustomersPage.heroStackLabel')}
           cards={[
             {
               title: 'Homepage Concept v2',
@@ -125,6 +130,7 @@ function PartnerPill({ line1, line2 }: { line1: string; line2?: string }) {
 }
 
 function FeaturedStory() {
+  const t = useT();
   return (
     <WebSection
       spacing="compact"
@@ -134,10 +140,13 @@ function FeaturedStory() {
     >
       <div className="tm-web-customers__featured">
         <div className="tm-web-customers__featured-text">
-          <PartnerPill line1="Design partner · studio" line2="Logo shown with consent" />
-          <Eyebrow tone="ink">Featured story · Agencies &amp; studios</Eyebrow>
+          <PartnerPill
+            line1={t('CustomersPage.partnerStudio')}
+            line2={t('CustomersPage.partnerLogoConsent')}
+          />
+          <Eyebrow tone="ink">{t('CustomersPage.featuredEyebrow')}</Eyebrow>
           <h2 id="featured-story-title" className="tm-web-customers__featured-title">
-            How a 12-person studio replaced its Friday status calls
+            {t('CustomersPage.featuredTitle')}
           </h2>
           <ul className="tm-web-customers__outcomes">
             {FEATURED_OUTCOMES.map((line) => (
@@ -148,11 +157,11 @@ function FeaturedStory() {
             ))}
           </ul>
           <ButtonLink href="#stories" tone="lime">
-            Read the story
+            {t('CustomersPage.featuredReadStory')}
             <WebIcon name="arrow-right" size={14} className="tm-web-icon--flip" />
           </ButtonLink>
           <p className="tm-web-customers__caption tm-web-customers__caption--ink">
-            Customer story · coming soon
+            {t('CustomersPage.featuredCaption')}
           </p>
         </div>
         <PortalScene />
@@ -163,12 +172,10 @@ function FeaturedStory() {
 
 /** The client portal home as Atlas Hospitality sees it — a mini product scene, inert. */
 function PortalScene() {
+  const t = useT();
   return (
     <figure className="tm-web-scene tm-web-customers__portal">
-      <figcaption className="tm-visually-hidden">
-        Atlas Hospitality’s client portal: the website relaunch is on track, and one approval — the
-        homepage direction — is waiting on the client.
-      </figcaption>
+      <figcaption className="tm-visually-hidden">{t('CustomersPage.portalSceneLabel')}</figcaption>
       <div className="tm-web-scene__body" aria-hidden="true" inert>
         <div className="tm-web-customers__portal-head">
           <Avatar name="Atlas Hospitality" audience="client" decorative />
@@ -214,18 +221,23 @@ function PortalScene() {
 /* ── 4–5 · Filter row and story grid ──────────────────────────────────────── */
 
 function Stories() {
+  const t = useT();
   const [filter, setFilter] = useState<Segment | 'all'>('all');
   const shown = filter === 'all' ? STORIES : STORIES.filter((story) => story.segment === filter);
   return (
     <WebSection id="stories" aria-labelledby="stories-title">
       <SectionHeader
         id="stories-title"
-        eyebrow="Stories"
-        title="What changed, team by team."
-        lede="Draft stories from our design-partner programme. Each one is published only with the partner’s consent."
+        eyebrow={t('CustomersPage.storiesEyebrow')}
+        title={t('CustomersPage.storiesTitle')}
+        lede={t('CustomersPage.storiesLede')}
       />
       <div className="tm-web-customers__filters">
-        <div className="tm-web-customers__chips" role="group" aria-label="Filter stories by team">
+        <div
+          className="tm-web-customers__chips"
+          role="group"
+          aria-label={t('CustomersPage.filterAria')}
+        >
           {FILTERS.map((option) => (
             <button
               key={option.id}
@@ -239,8 +251,11 @@ function Stories() {
           ))}
         </div>
         <p className="tm-web-customers__count" aria-live="polite">
-          {shown.length} draft {shown.length === 1 ? 'story' : 'stories'} · each published only with
-          partner consent
+          {shown.length} {t('CustomersPage.countDraft')}{' '}
+          {shown.length === 1
+            ? t('CustomersPage.countStoryOne')
+            : t('CustomersPage.countStoryMany')}{' '}
+          {t('CustomersPage.countSuffix')}
         </p>
       </div>
       <ul className="tm-web-customers__grid">
@@ -261,6 +276,7 @@ const STORY_TONE: Record<Segment, 'lime' | 'sunken' | 'ink'> = {
 };
 
 function StoryCard({ story }: { story: Story }) {
+  const t = useT();
   const titleId = `story-${story.id}`;
   return (
     <article className="tm-web-customers__story" aria-labelledby={titleId}>
@@ -269,7 +285,7 @@ function StoryCard({ story }: { story: Story }) {
         aria-hidden="true"
       >
         <div className="tm-web-customers__story-row">
-          <PartnerPill line1="Design partner" />
+          <PartnerPill line1={t('CustomersPage.partnerDesignPartner')} />
           <Badge>{SEGMENT_LABEL[story.segment]}</Badge>
         </div>
         <div className="tm-web-customers__story-row tm-web-customers__story-change">
@@ -284,10 +300,10 @@ function StoryCard({ story }: { story: Story }) {
       <p className="tm-web-customers__story-summary">{story.summary}</p>
       <div className="tm-web-customers__story-foot">
         <ArrowLink href={APPLY_HREF} underline={false}>
-          Read
+          {t('CustomersPage.storyRead')}
           <span className="tm-visually-hidden">: {story.title}</span>
         </ArrowLink>
-        <span className="tm-web-customers__caption">Coming soon</span>
+        <span className="tm-web-customers__caption">{t('CustomersPage.storyComingSoon')}</span>
       </div>
     </article>
   );
@@ -296,13 +312,14 @@ function StoryCard({ story }: { story: Story }) {
 /* ── 6 · Quote wall ───────────────────────────────────────────────────────── */
 
 function QuoteWall() {
+  const t = useT();
   return (
     <WebSection spacing="flush" className="tm-web-customers__quotes" aria-labelledby="quotes-title">
       <SectionHeader
         id="quotes-title"
-        eyebrow="In their words"
-        title="What partners tell us after a few weeks."
-        lede="Draft wording from design-partner sessions. Shown here only once each partner approves it."
+        eyebrow={t('CustomersPage.quotesEyebrow')}
+        title={t('CustomersPage.quotesTitle')}
+        lede={t('CustomersPage.quotesLede')}
       />
       <div className="tm-web-customers__quote-grid">
         {QUOTES.map(({ id, ...quote }) => (
@@ -316,6 +333,7 @@ function QuoteWall() {
 /* ── 7 · Programme band (paper/150) ───────────────────────────────────────── */
 
 function Programme() {
+  const t = useT();
   return (
     <WebSection
       tone="sunken"
@@ -325,16 +343,16 @@ function Programme() {
       <div className="tm-web-customers__programme-grid">
         <SectionHeader
           id="programme-title"
-          eyebrow="Design-partner programme"
-          title="Become a design partner."
-          lede="Shape the product, get early access and direct support. We publish your story only if you want us to."
+          eyebrow={t('CustomersPage.programmeEyebrow')}
+          title={t('CustomersPage.programmeTitle')}
+          lede={t('CustomersPage.programmeLede')}
         >
           <div className="tm-web-customers__actions">
             <ButtonLink href={APPLY_HREF} tone="ink">
-              Apply
+              {t('CustomersPage.programmeApply')}
             </ButtonLink>
             <ArrowLink href="/legal/privacy" underline={false}>
-              How we publish stories
+              {t('CustomersPage.programmePublish')}
             </ArrowLink>
           </div>
         </SectionHeader>

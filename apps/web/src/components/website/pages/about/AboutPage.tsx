@@ -1,6 +1,7 @@
 'use client';
 
 import { Avatar, Badge, StateCapsule, StatusDot } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon } from '../../WebIcon';
 import { ArrowLink, IconOrb } from '../../primitives';
 import { CtaBand, GraphCard, ProductVisualFrame, SectionHeader, WebSection } from '../../sections';
@@ -36,6 +37,7 @@ export function AboutPage() {
 /* ── 2 · Hero (editorial) ─────────────────────────────────────────────────── */
 
 function Hero() {
+  const t = useT();
   return (
     <WebSection className="tm-web-about__hero" aria-labelledby="about-title">
       <div className="tm-web-about__hero-grid">
@@ -43,9 +45,9 @@ function Hero() {
           as="h1"
           size="hero"
           id="about-title"
-          eyebrow="About TManage"
-          title="We think delivery should feel connected, not chased."
-          lede="TManage is built for the teams who do the work and the clients who wait on it."
+          eyebrow={t('AboutPage.heroEyebrow')}
+          title={t('AboutPage.heroTitle')}
+          lede={t('AboutPage.heroLede')}
         />
         <ThreadScene />
       </div>
@@ -55,13 +57,10 @@ function Hero() {
 
 /** One thread: the client's ask, the committed work and the version waiting for sign-off. */
 function ThreadScene() {
+  const t = useT();
   return (
     <ProductVisualFrame className="tm-web-about__thread-frame">
-      <div
-        className="tm-web-about__thread"
-        role="img"
-        aria-label="One thread in Atlas Website Relaunch: Salma's request became Omar's task, and Homepage Concept v2 waits for Youssef's approval."
-      >
+      <div className="tm-web-about__thread" role="img" aria-label={t('AboutPage.threadSceneLabel')}>
         <p className="tm-web-scene__mono">One thread · Atlas Website Relaunch</p>
 
         <div className="tm-web-about__thread-row">
@@ -109,12 +108,13 @@ function ThreadScene() {
 /* ── 3 · Why we exist (2 columns text, then the before / after) ───────────── */
 
 function WhyWeExist() {
+  const t = useT();
   return (
     <WebSection tone="surface" aria-labelledby="about-why-title">
       <SectionHeader
         id="about-why-title"
-        eyebrow="Why we exist"
-        title="Service work deserves one story, not five tools."
+        eyebrow={t('AboutPage.whyEyebrow')}
+        title={t('AboutPage.whyTitle')}
       />
       <div className="tm-web-about__why-text">
         {WHY_PARAGRAPHS.map((paragraph) => (
@@ -124,11 +124,7 @@ function WhyWeExist() {
         ))}
       </div>
       <ProductVisualFrame className="tm-web-about__why-visual">
-        <div
-          className="tm-web-about__scatter"
-          role="img"
-          aria-label="Before: the request in email, the plan in a spreadsheet, the file in a drive, the approval in a call. With TManage: request, work, version and approval in one thread."
-        >
+        <div className="tm-web-about__scatter" role="img" aria-label={t('AboutPage.whySceneLabel')}>
           <div className="tm-web-about__scatter-side">
             <p className="tm-web-scene__mono">Before · five tools</p>
             <ul className="tm-web-about__scatter-list">
@@ -166,14 +162,15 @@ function WhyWeExist() {
 /* ── 4 · Principles ───────────────────────────────────────────────────────── */
 
 function Principles() {
+  const t = useT();
   return (
     <WebSection tone="sunken" aria-labelledby="about-principles-title">
       <SectionHeader
         id="about-principles-title"
         align="center"
-        eyebrow="Principles"
-        title="Four things we will not trade away."
-        lede="They decide what we build, and just as often what we leave out."
+        eyebrow={t('AboutPage.principlesEyebrow')}
+        title={t('AboutPage.principlesTitle')}
+        lede={t('AboutPage.principlesLede')}
       />
       <ul className="tm-web-about__principles">
         {PRINCIPLES.map((principle) => (
@@ -189,6 +186,7 @@ function Principles() {
 /* ── 5 · How we build (ink panel, bilingual visual) ───────────────────────── */
 
 function HowWeBuild() {
+  const t = useT();
   return (
     <WebSection aria-labelledby="about-build-title">
       <div className="tm-web-about__build">
@@ -196,8 +194,8 @@ function HowWeBuild() {
           <SectionHeader
             id="about-build-title"
             tone="ink"
-            eyebrow="How we build"
-            title="Built carefully, in two languages, for everyone."
+            eyebrow={t('AboutPage.buildEyebrow')}
+            title={t('AboutPage.buildTitle')}
           />
           <ul className="tm-web-about__build-list">
             {HOW_WE_BUILD.map((item) => (
@@ -219,12 +217,9 @@ function HowWeBuild() {
 
 /** The same approval card in English and mirrored Arabic. */
 function BilingualScene() {
+  const t = useT();
   return (
-    <div
-      className="tm-web-about__lang"
-      aria-label="The same approval card in English and in Arabic, mirrored right to left."
-      role="img"
-    >
+    <div className="tm-web-about__lang" aria-label={t('AboutPage.bilingualSceneLabel')} role="img">
       <div className="tm-web-about__lang-card" lang="en" dir="ltr">
         <p className="tm-web-scene__mono">English · LTR</p>
         <p className="tm-web-about__lang-title">Homepage Concept v2</p>
@@ -250,13 +245,14 @@ function BilingualScene() {
 /* ── 6 · Team (placeholder: roles, one "photos coming soon" line) ──────────── */
 
 function Team() {
+  const t = useT();
   return (
     <WebSection spacing="compact" aria-labelledby="about-team-title">
       <SectionHeader
         id="about-team-title"
-        eyebrow="Team"
-        title="The people behind TManage."
-        lede="A small team that has run client delivery from both sides of the table."
+        eyebrow={t('AboutPage.teamEyebrow')}
+        title={t('AboutPage.teamTitle')}
+        lede={t('AboutPage.teamLede')}
       />
       <ul className="tm-web-about__team">
         {TEAM_ROLES.map((member) => (
@@ -271,7 +267,7 @@ function Team() {
         ))}
       </ul>
       <p className="tm-web-about__team-note">
-        <StatusDot tone="neutral">Team photos coming soon.</StatusDot>
+        <StatusDot tone="neutral">{t('AboutPage.teamNote')}</StatusDot>
       </p>
     </WebSection>
   );
@@ -280,29 +276,29 @@ function Team() {
 /* ── 7 · Careers / press ──────────────────────────────────────────────────── */
 
 function CompanyCards() {
+  const t = useT();
   return (
-    <WebSection spacing="flush" className="tm-web-about__company" aria-label="Careers and press">
+    <WebSection
+      spacing="flush"
+      className="tm-web-about__company"
+      aria-label={t('AboutPage.companyAriaLabel')}
+    >
       <div className="tm-web-about__cards">
         <article id="careers" className="tm-web-about__card">
           <IconOrb icon="briefcase" tone="lime" />
           <div className="tm-web-about__card-text">
-            <h2 className="tm-web-about__card-title">Work with us</h2>
-            <p className="tm-web-about__card-body">
-              We hire people who care how work feels for the team and for the client. Tell us what
-              you would build.
-            </p>
+            <h2 className="tm-web-about__card-title">{t('AboutPage.careersTitle')}</h2>
+            <p className="tm-web-about__card-body">{t('AboutPage.careersBody')}</p>
           </div>
-          <ArrowLink href="/contact?topic=careers">Careers</ArrowLink>
+          <ArrowLink href="/contact?topic=careers">{t('AboutPage.careersLink')}</ArrowLink>
         </article>
         <article id="press" className="tm-web-about__card">
           <IconOrb icon="pencil" tone="lime" />
           <div className="tm-web-about__card-text">
-            <h2 className="tm-web-about__card-title">Press &amp; brand</h2>
-            <p className="tm-web-about__card-body">
-              The TManage mark, product views and the story in brief. Ask, and we will send the kit.
-            </p>
+            <h2 className="tm-web-about__card-title">{t('AboutPage.pressTitle')}</h2>
+            <p className="tm-web-about__card-body">{t('AboutPage.pressBody')}</p>
           </div>
-          <ArrowLink href="/contact?topic=press">Press kit</ArrowLink>
+          <ArrowLink href="/contact?topic=press">{t('AboutPage.pressLink')}</ArrowLink>
         </article>
       </div>
     </WebSection>
@@ -312,11 +308,12 @@ function CompanyCards() {
 /* ── 8 · CTA visual: the thread, signed off (fits its card, never clipped) ── */
 
 function ApprovedScene() {
+  const t = useT();
   return (
     <div
       className="tm-web-scene tm-web-about__cta-scene"
       role="img"
-      aria-label="Homepage Concept v2 approved by Youssef Kamal; the Arabic FAQ page is in progress for 24 Aug."
+      aria-label={t('AboutPage.ctaSceneLabel')}
     >
       <div className="tm-web-about__cta-card">
         <p className="tm-web-scene__mono">Client portal · Atlas Hospitality</p>

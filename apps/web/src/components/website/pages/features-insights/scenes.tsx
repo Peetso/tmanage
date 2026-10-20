@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule, StatusDot, type CapsuleState } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon } from '../../WebIcon';
 import { cx } from '../../primitives';
 
@@ -59,11 +60,9 @@ const PORTFOLIO: readonly {
 ];
 
 export function PortfolioScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--hero"
-      label="The Insights portfolio: mean approval wait, blocked work and returned approvals across three client projects, with the exceptions listed first."
-    >
+    <Scene className="tm-web-fi-scene--hero" label={t('PortfolioScene.label')}>
       <div className="tm-web-fi-scene__head">
         <p className="tm-web-scene__mono">Insights · Client delivery</p>
         <Badge>3 projects</Badge>
@@ -133,11 +132,9 @@ const FACTORS: readonly { name: string; weight: string; detail: string; tone: 'o
 ];
 
 export function ScoreWorkingScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--working"
-      label="A risk score opened to show its working: schedule, approvals, freshness and scope, each linked to the item behind it."
-    >
+    <Scene className="tm-web-fi-scene--working" label={t('ScoreWorkingScene.label')}>
       <div className="tm-web-fi-scene__head">
         <p className="tm-web-scene__mono">Risk · Atlas Website Relaunch</p>
         <Badge mono>Rule set v3</Badge>
@@ -178,11 +175,9 @@ const STAGES: readonly { label: string; count: number; tone?: 'lime' | 'danger' 
 ];
 
 export function StagesScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--stages"
-      label="Work items by stage across all projects: 38 in progress, 14 in internal review, 9 in client review and 3 blocked."
-    >
+    <Scene className="tm-web-fi-scene--stages" label={t('StagesScene.label')}>
       <div className="tm-web-fi-scene__head">
         <p className="tm-web-fi-section-title">Where the work sits</p>
         <span className="tm-web-scene__mono">Items · all projects</span>
@@ -218,11 +213,9 @@ const CYCLE: readonly { label: string; days: number }[] = [
 ];
 
 export function ApprovalCycleScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--cycle"
-      label="Approval cycle for Atlas Website Relaunch: six days to a client decision in September, up from two in June, driven by Homepage Concept v2."
-    >
+    <Scene className="tm-web-fi-scene--cycle" label={t('ApprovalCycleScene.label')}>
       <div className="tm-web-fi-scene__head">
         <p className="tm-web-fi-section-title">Time to a client decision</p>
         <span className="tm-web-scene__mono">Atlas · days</span>
@@ -258,11 +251,9 @@ export function ApprovalCycleScene() {
 /* ── Pulse: drafted for you, published by a person ──────────────────────────── */
 
 export function PulseScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--pulse"
-      label="A weekly client update drafted by Pulse from current work, being edited by Maya Hassan before she publishes it."
-    >
+    <Scene className="tm-web-fi-scene--pulse" label={t('PulseScene.label')}>
       <div className="tm-web-fi-scene__head">
         <p className="tm-web-scene__mono">Pulse · Week 36</p>
         <StatusDot tone="warning">Draft — not published</StatusDot>
@@ -327,11 +318,9 @@ const AT_RISK: readonly { kind: string; title: string; why: string }[] = [
 ];
 
 export function WorkloadScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--workload"
-      label="Team workload for week 36 shown as commitments due each day and the constraints behind them, with no score for any person."
-    >
+    <Scene className="tm-web-fi-scene--workload" label={t('WorkloadScene.label')}>
       <div className="tm-web-fi-scene__head">
         <p className="tm-web-scene__mono">Workload · Design team · Week 36</p>
         <Badge>No scores</Badge>
@@ -374,11 +363,9 @@ export function WorkloadScene() {
 /* ── Automations: a rule, its identity and a dry run ────────────────────────── */
 
 export function AutomationScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--automation"
-      label="An automation that reminds a client reviewer after three days, showing which identity acts and a dry-run result before it is switched on."
-    >
+    <Scene className="tm-web-fi-scene--automation" label={t('AutomationScene.label')}>
       <div className="tm-web-fi-scene__head">
         <p className="tm-web-scene__mono">Automation · Template</p>
         <StatusDot tone="neutral">Off</StatusDot>
@@ -437,11 +424,9 @@ const SOURCES: readonly { n: number; kind: string; title: string; meta: string }
 ];
 
 export function AssistantScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--assistant"
-      label="The assistant answers what is blocking the Atlas launch, citing three work items, and states that it cannot publish, approve, invite or delete."
-    >
+    <Scene className="tm-web-fi-scene--assistant" label={t('AssistantScene.label')}>
       <div className="tm-web-fi-ask">
         <WebIcon name="search" size={14} />
         <span className="tm-web-fi-ask__text">What is holding up the Atlas launch?</span>
@@ -484,11 +469,9 @@ const DRIVERS: readonly { kind: string; title: string; state: CapsuleState; tag:
 ];
 
 export function HealthCropScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-fi-scene--crop"
-      label="Project health for Atlas Website Relaunch: Watch, the launch forecast moved four days, with the two work items behind it."
-    >
+    <Scene className="tm-web-fi-scene--crop" label={t('HealthCropScene.label')}>
       <div className="tm-web-fi-scene__head">
         <p className="tm-web-scene__mono">Project health · Atlas</p>
         <StateCapsule state="waiting">Watch</StateCapsule>

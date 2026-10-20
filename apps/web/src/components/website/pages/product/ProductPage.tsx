@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import {
   ButtonLink,
   CalloutPin,
@@ -29,84 +31,116 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
  * the shared website layer; the product visuals are mini TManage screens, not screenshots.
  */
 
-const MODES = [
+const MODES: readonly { id: string; labelKey: MessageKey; captionKey: MessageKey }[] = [
   {
     id: 'team-workspace',
-    label: 'Team workspace',
-    caption: 'Team workspace — lists, boards, chat and approvals on one model.',
+    labelKey: 'ProductPage.modeTeamLabel',
+    captionKey: 'ProductPage.modeTeamCaption',
   },
   {
     id: 'focus-space',
-    label: 'Focus space',
-    caption: 'Focus space — My Day and an inbox that only holds what needs you.',
+    labelKey: 'ProductPage.modeFocusLabel',
+    captionKey: 'ProductPage.modeFocusCaption',
   },
   {
     id: 'client-portal',
-    label: 'Client portal',
-    caption: 'Client portal — the client-visible slice, generated from an allowlist.',
+    labelKey: 'ProductPage.modeClientLabel',
+    captionKey: 'ProductPage.modeClientCaption',
   },
   {
     id: 'control-center',
-    label: 'Control center',
-    caption: 'Control center — roles, templates and policy with an impact preview.',
+    labelKey: 'ProductPage.modeControlLabel',
+    captionKey: 'ProductPage.modeControlCaption',
   },
-] as const;
-
-const GRAPH: readonly { icon: WebIconName; title: string; body: string }[] = [
-  { icon: 'id', title: 'Identity', body: 'A stable ID and a home project.' },
-  {
-    icon: 'person',
-    title: 'Responsibility',
-    body: 'One owner, named collaborators, clear authority.',
-  },
-  { icon: 'calendar', title: 'Time', body: 'Desired, committed and forecast dates kept apart.' },
-  {
-    icon: 'globe',
-    title: 'Audience',
-    body: 'Internal, client visible, or client action required.',
-  },
-  { icon: 'link', title: 'Context', body: 'Linked messages, docs and meetings.' },
-  { icon: 'check', title: 'Evidence', body: 'Versions, approvals and audit events.' },
 ];
 
-const REPLACED = [
-  'Status meetings',
-  'Screenshots pasted into email',
-  '‘Which version did they approve?’',
-  'Re-typing requests into tasks',
-] as const;
-
-const FEATURE_INDEX = [
-  { title: 'Work & requests', hint: 'Every ask becomes owned work', href: '/features/work' },
+const GRAPH: readonly { icon: WebIconName; titleKey: MessageKey; bodyKey: MessageKey }[] = [
   {
-    title: 'Projects & portfolio',
-    hint: 'Milestones that move on evidence',
+    icon: 'id',
+    titleKey: 'ProductPage.graphIdentityTitle',
+    bodyKey: 'ProductPage.graphIdentityBody',
+  },
+  {
+    icon: 'person',
+    titleKey: 'ProductPage.graphResponsibilityTitle',
+    bodyKey: 'ProductPage.graphResponsibilityBody',
+  },
+  {
+    icon: 'calendar',
+    titleKey: 'ProductPage.graphTimeTitle',
+    bodyKey: 'ProductPage.graphTimeBody',
+  },
+  {
+    icon: 'globe',
+    titleKey: 'ProductPage.graphAudienceTitle',
+    bodyKey: 'ProductPage.graphAudienceBody',
+  },
+  {
+    icon: 'link',
+    titleKey: 'ProductPage.graphContextTitle',
+    bodyKey: 'ProductPage.graphContextBody',
+  },
+  {
+    icon: 'check',
+    titleKey: 'ProductPage.graphEvidenceTitle',
+    bodyKey: 'ProductPage.graphEvidenceBody',
+  },
+];
+
+const REPLACED: readonly MessageKey[] = [
+  'ProductPage.replacedMeetings',
+  'ProductPage.replacedScreenshots',
+  'ProductPage.replacedVersion',
+  'ProductPage.replacedRetyping',
+];
+
+const FEATURE_INDEX: readonly { titleKey: MessageKey; hintKey: MessageKey; href: string }[] = [
+  {
+    titleKey: 'ProductPage.fiWorkTitle',
+    hintKey: 'ProductPage.fiWorkHint',
+    href: '/features/work',
+  },
+  {
+    titleKey: 'ProductPage.fiProjectsTitle',
+    hintKey: 'ProductPage.fiProjectsHint',
     href: '/features/work#projects',
   },
-  { title: 'Chat', hint: 'Threads that turn into tasks', href: '/features/communication' },
   {
-    title: 'Calendar & meetings',
-    hint: 'Meetings that end with owners',
+    titleKey: 'ProductPage.fiChatTitle',
+    hintKey: 'ProductPage.fiChatHint',
+    href: '/features/communication',
+  },
+  {
+    titleKey: 'ProductPage.fiCalendarTitle',
+    hintKey: 'ProductPage.fiCalendarHint',
     href: '/features/communication#calendar',
   },
-  { title: 'Docs & decisions', hint: 'Context beside the work', href: '/features/knowledge' },
   {
-    title: 'Approvals',
-    hint: 'One decision, one exact version',
+    titleKey: 'ProductPage.fiDocsTitle',
+    hintKey: 'ProductPage.fiDocsHint',
+    href: '/features/knowledge',
+  },
+  {
+    titleKey: 'ProductPage.fiApprovalsTitle',
+    hintKey: 'ProductPage.fiApprovalsHint',
     href: '/features/knowledge#approvals',
   },
   {
-    title: 'Client portal',
-    hint: 'A view clients understand in 30 seconds',
+    titleKey: 'ProductPage.fiPortalTitle',
+    hintKey: 'ProductPage.fiPortalHint',
     href: '/client-portal',
   },
-  { title: 'Insights', hint: 'Health you can explain', href: '/features/insights' },
   {
-    title: 'Automations',
-    hint: 'Remove repeat coordination safely',
+    titleKey: 'ProductPage.fiInsightsTitle',
+    hintKey: 'ProductPage.fiInsightsHint',
+    href: '/features/insights',
+  },
+  {
+    titleKey: 'ProductPage.fiAutomationsTitle',
+    hintKey: 'ProductPage.fiAutomationsHint',
     href: '/features/insights#automations',
   },
-] as const;
+];
 
 /**
  * Web/CTA band as specified (SITE-SPEC "Web/CTA band", 02-product): the centred text-only ink
@@ -114,26 +148,25 @@ const FEATURE_INDEX = [
  * band classes and ButtonLink, because the shared CtaBand's secondary slot is a play capsule.
  */
 function ProductCtaBand() {
+  const t = useT();
   return (
     <section className="tm-web-cta-section tm-pp-cta" aria-labelledby="pp-cta-title">
       <div className="tm-web-container">
         <div className="tm-web-cta tm-web-cta--text">
           <div className="tm-web-cta__text">
             <h2 id="pp-cta-title" className="tm-web-cta__title">
-              Bring the next client project into one story.
+              {t('ProductPage.ctaTitle')}
             </h2>
-            <p className="tm-web-cta__lede">
-              Start free with your team. Invite your client when the first deliverable is ready.
-            </p>
+            <p className="tm-web-cta__lede">{t('ProductPage.ctaLede')}</p>
             <div className="tm-web-cta__actions">
               <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                Start free
+                {t('ProductPage.startFree')}
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline-ink">
-                Book a demo
+                {t('ProductPage.bookDemo')}
               </ButtonLink>
             </div>
-            <p className="tm-web-cta__note">No credit card · Client users are always free</p>
+            <p className="tm-web-cta__note">{t('ProductPage.ctaNote')}</p>
           </div>
         </div>
       </div>
@@ -142,6 +175,7 @@ function ProductCtaBand() {
 }
 
 export function ProductPage() {
+  const t = useT();
   return (
     <div className="tm-pp">
       {/* 2–3 · Hero and the big product visual */}
@@ -151,26 +185,26 @@ export function ProductPage() {
           size="page"
           align="center"
           id="pp-hero-title"
-          eyebrow="The product"
-          title="One work graph. Four ways to use it."
-          lede="TManage is one system with a dense team workspace, a quiet focus space, a simple client portal and a control center for the people who run it."
+          eyebrow={t('ProductPage.heroEyebrow')}
+          title={t('ProductPage.heroTitle')}
+          lede={t('ProductPage.heroLede')}
         >
           <div className="tm-pp-hero__actions">
             <ButtonLink href={SIGN_UP_HREF} tone="lime">
-              Start free
+              {t('ProductPage.startFree')}
             </ButtonLink>
             <ButtonLink href="/contact" tone="outline">
-              Book a demo
+              {t('ProductPage.bookDemo')}
             </ButtonLink>
           </div>
         </SectionHeader>
-        <nav className="tm-pp-anchors" aria-label="Four ways to use TManage">
+        <nav className="tm-pp-anchors" aria-label={t('ProductPage.anchorsAria')}>
           <ul className="tm-pp-anchors__list">
             {MODES.map((mode, index) => (
               <li key={mode.id}>
                 <Link href={`#${mode.id}`} className="tm-pp-anchor">
                   <CalloutPin n={index + 1} />
-                  <span>{mode.label}</span>
+                  <span>{t(mode.labelKey)}</span>
                 </Link>
               </li>
             ))}
@@ -183,7 +217,7 @@ export function ProductPage() {
           {MODES.map((mode, index) => (
             <li key={mode.id} className="tm-pp-caption">
               <CalloutPin n={index + 1} />
-              <span>{mode.caption}</span>
+              <span>{t(mode.captionKey)}</span>
             </li>
           ))}
         </ol>
@@ -193,13 +227,18 @@ export function ProductPage() {
       <WebSection aria-labelledby="pp-graph-title">
         <SectionHeader
           id="pp-graph-title"
-          eyebrow="The work graph"
-          title="Every object knows where it came from."
-          lede="Requests, tasks, decisions, deliverables and approvals share one core: owner, state, dates, audience, context and evidence."
+          eyebrow={t('ProductPage.graphEyebrow')}
+          title={t('ProductPage.graphTitle')}
+          lede={t('ProductPage.graphLede')}
         />
         <div className="tm-pp-graph">
           {GRAPH.map((item) => (
-            <GraphCard key={item.title} {...item} />
+            <GraphCard
+              key={item.titleKey}
+              icon={item.icon}
+              title={t(item.titleKey)}
+              body={t(item.bodyKey)}
+            />
           ))}
         </div>
       </WebSection>
@@ -209,45 +248,45 @@ export function ProductPage() {
         <SectionHeader
           id="pp-modes-title"
           align="center"
-          eyebrow="Four modes"
-          title="Same work. The view each person needs."
-          lede="Every mode reads the same objects, so nothing is copied from one place to another."
+          eyebrow={t('ProductPage.modesEyebrow')}
+          title={t('ProductPage.modesTitle')}
+          lede={t('ProductPage.modesLede')}
         />
         <FeatureRow
           id="team-workspace"
           step={1}
-          label="Team workspace"
-          title="Dense enough to actually run delivery."
-          body="Chat, work, docs, files and approvals on one model, with lists, boards and timelines over the same items."
-          link={{ label: 'Explore work & requests', href: '/features/work' }}
+          label={t('ProductPage.modeTeamLabel')}
+          title={t('ProductPage.teamTitle')}
+          body={t('ProductPage.teamBody')}
+          link={{ label: t('ProductPage.teamLink'), href: '/features/work' }}
           visual={<WorkListScene />}
         />
         <FeatureRow
           id="focus-space"
           step={2}
-          label="Focus space"
-          title="A quieter place to do the work."
-          body="My Day, an actionable inbox and bundled notifications that respect quiet hours."
-          link={{ label: 'See My Day and the inbox', href: '/features/communication' }}
+          label={t('ProductPage.modeFocusLabel')}
+          title={t('ProductPage.focusTitle')}
+          body={t('ProductPage.focusBody')}
+          link={{ label: t('ProductPage.focusLink'), href: '/features/communication' }}
           visual={<InboxScene />}
           reverse
         />
         <FeatureRow
           id="client-portal"
           step={3}
-          label="Client portal"
-          title="Simpler, warmer, action-first."
-          body="Clients see overview, their actions, timeline, deliverables, updates, files and people. Nothing else."
-          link={{ label: 'Explore the client portal', href: '/client-portal' }}
+          label={t('ProductPage.modeClientLabel')}
+          title={t('ProductPage.clientTitle')}
+          body={t('ProductPage.clientBody')}
+          link={{ label: t('ProductPage.clientLink'), href: '/client-portal' }}
           visual={<PortalScene />}
         />
         <FeatureRow
           id="control-center"
           step={4}
-          label="Control center"
-          title="Governance with an impact preview."
-          body="Roles, templates, automations, security, data and billing — every tenant-wide change shows what it will affect first."
-          link={{ label: 'See security & control', href: '/security' }}
+          label={t('ProductPage.modeControlLabel')}
+          title={t('ProductPage.controlTitle')}
+          body={t('ProductPage.controlBody')}
+          link={{ label: t('ProductPage.controlLink'), href: '/security' }}
           visual={<AdminScene />}
           reverse
         />
@@ -258,13 +297,13 @@ export function ProductPage() {
         <SectionHeader
           id="pp-replaces-title"
           align="center"
-          title="What disappears when the story is connected."
-          lede="Each of these is replaced by a link to the same object everyone already sees."
+          title={t('ProductPage.replacesTitle')}
+          lede={t('ProductPage.replacesLede')}
         />
         <ul className="tm-pp-replaced">
           {REPLACED.map((item) => (
             <li key={item} className="tm-web-chip tm-pp-replaced__chip">
-              <s>{item}</s>
+              <s>{t(item)}</s>
             </li>
           ))}
         </ul>
@@ -274,13 +313,18 @@ export function ProductPage() {
       <WebSection aria-labelledby="pp-index-title">
         <SectionHeader
           id="pp-index-title"
-          eyebrow="Feature index"
-          title="Go deeper on any part of the work."
-          lede="Each page shows one part of the product in detail, with the same seed project throughout."
+          eyebrow={t('ProductPage.indexEyebrow')}
+          title={t('ProductPage.indexTitle')}
+          lede={t('ProductPage.indexLede')}
         />
         <div className="tm-pp-index">
           {FEATURE_INDEX.map((item) => (
-            <LinkCard key={item.title} {...item} />
+            <LinkCard
+              key={item.titleKey}
+              title={t(item.titleKey)}
+              hint={t(item.hintKey)}
+              href={item.href}
+            />
           ))}
         </div>
       </WebSection>
@@ -288,9 +332,9 @@ export function ProductPage() {
       {/* 8 · Bilingual band */}
       <WebSection spacing="flush" className="tm-pp-bilingual-section">
         <FeatureRow
-          label="English and Arabic"
-          title="Built for English and Arabic from day one."
-          body="Every screen is mirrored for right-to-left, with Arabic written as product language — not literal translation."
+          label={t('ProductPage.bilingualLabel')}
+          title={t('ProductPage.bilingualTitle')}
+          body={t('ProductPage.bilingualBody')}
           visual={<BilingualScene />}
         />
       </WebSection>

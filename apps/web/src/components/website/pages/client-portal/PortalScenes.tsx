@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule, type CapsuleState } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon } from '../../WebIcon';
 import { cx } from '../../primitives';
 
@@ -92,11 +93,9 @@ const STAGES_EN: readonly Stage[] = [
 
 /** Portal overview (product §15/16): stage track, one number, the client's own actions. */
 export function PortalOverviewScene() {
+  const t = useT();
   return (
-    <PortalScene
-      label="The Atlas Hospitality client portal: the project is in Design, 12 days to launch, and two actions wait for the client."
-      className="tm-cp-scene--overview"
-    >
+    <PortalScene label={t('PortalScenes.overviewLabel')} className="tm-cp-scene--overview">
       <div className="tm-cp-bar">
         <span className="tm-cp-url">atlas.tmanage.app/portal</span>
         <StateCapsule state="client">Client</StateCapsule>
@@ -143,11 +142,9 @@ export function PortalOverviewScene() {
 
 /** Client approval (product §13): one exact version, the criteria, earlier feedback. */
 export function ApprovalScene() {
+  const t = useT();
   return (
-    <PortalScene
-      label="A client approval of Homepage Concept v2, showing three review criteria, Youssef Kamal's feedback on v1, and Request changes and Approve v2 actions."
-      className="tm-cp-scene--approval"
-    >
+    <PortalScene label={t('PortalScenes.approvalLabel')} className="tm-cp-scene--approval">
       <div className="tm-cp-pad">
         <div className="tm-cp-head">
           <Badge mono>Deliverable</Badge>
@@ -195,11 +192,9 @@ export function ApprovalScene() {
 
 /** Client requests: each with a clear status; a desired date stays a wish until committed. */
 export function RequestsScene() {
+  const t = useT();
   return (
-    <PortalScene
-      label="The client's request list: one request under review with a desired date marked as a wish, one committed for 9 October, one delivered."
-      className="tm-cp-scene--requests"
-    >
+    <PortalScene label={t('PortalScenes.requestsLabel')} className="tm-cp-scene--requests">
       <div className="tm-cp-pad">
         <div className="tm-cp-head">
           <span className="tm-cp-title tm-cp-title--small">Requests</span>
@@ -247,11 +242,9 @@ export function RequestsScene() {
 
 /** Client members on the people screen — none of them uses a seat. */
 export function ClientSeatsScene() {
+  const t = useT();
   return (
-    <PortalScene
-      label="Atlas Hospitality's client members: Salma Riad as sponsor and Youssef Kamal as reviewer, both free, with an invite row for a viewer."
-      className="tm-cp-scene--seats"
-    >
+    <PortalScene label={t('PortalScenes.seatsLabel')} className="tm-cp-scene--seats">
       <div className="tm-cp-pad">
         <div className="tm-cp-head">
           <span className="tm-cp-title tm-cp-title--small">People · Atlas Hospitality</span>
@@ -299,12 +292,9 @@ const STAGES_AR: readonly Stage[] = [
 
 /** The same overview, in Arabic and mirrored right-to-left. */
 export function ArabicPortalScene() {
+  const t = useT();
   return (
-    <PortalScene
-      label="The same client portal in Arabic, mirrored right to left: the project is in Design, 12 days to launch, and one review waits for the client."
-      className="tm-cp-scene--arabic"
-      lang="ar"
-    >
+    <PortalScene label={t('PortalScenes.arabicLabel')} className="tm-cp-scene--arabic" lang="ar">
       <div className="tm-cp-bar">
         <span className="tm-cp-url">atlas.tmanage.app/portal</span>
         <StateCapsule state="client">عميل</StateCapsule>
@@ -393,11 +383,9 @@ export function MiniActionPeek() {
 
 /** The CTA band's crop: the client's view of one project, with the one action they owe. */
 export function PortalCtaScene() {
+  const t = useT();
   return (
-    <PortalScene
-      label="A client portal with the project in Design and one review waiting for the client."
-      className="tm-cp-scene--cta"
-    >
+    <PortalScene label={t('PortalScenes.ctaLabel')} className="tm-cp-scene--cta">
       <div className="tm-cp-bar">
         <span className="tm-cp-url">atlas.tmanage.app/portal</span>
         <StateCapsule state="client">Client</StateCapsule>

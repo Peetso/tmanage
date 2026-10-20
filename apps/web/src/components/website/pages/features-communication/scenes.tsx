@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon, type WebIconName } from '../../WebIcon';
 import { ObjectCard } from '../../ProductScenes';
 import { cx } from '../../primitives';
@@ -92,11 +93,12 @@ function Message({
 /* ── Hero: the project channel (chat screen, section 07) ───────────────────── */
 
 export function ChannelScene() {
+  const t = useT();
   return (
     <CommScene
       address="tmanage.app / northstar / chat / atlas-website-relaunch"
       className="tm-wc-scene--hero"
-      label="The Atlas Website Relaunch project channel: Maya relays a client ask, Lina offers to take it, and the message is turned into a task owned by Lina, due 20 Aug."
+      label={t('ChannelScene.label')}
     >
       <div className="tm-wc-chat">
         <div className="tm-wc-chat__head">
@@ -168,11 +170,9 @@ const CHANNELS = [
 ] as const;
 
 export function ChannelsScene() {
+  const t = useT();
   return (
-    <CommScene
-      className="tm-wc-scene--card"
-      label="A channel list beside a message that mentions Maya, carries an attached file and shows it was edited."
-    >
+    <CommScene className="tm-wc-scene--card" label={t('ChannelsScene.label')}>
       <div className="tm-wc-split">
         <div className="tm-wc-side">
           <Mono>Channels</Mono>
@@ -230,11 +230,9 @@ export function ChannelsScene() {
 /* ── Message to work (signature) ───────────────────────────────────────────── */
 
 export function MessageToWorkScene() {
+  const t = useT();
   return (
-    <CommScene
-      className="tm-wc-scene--flow"
-      label="A client message from Salma is turned into a task: Task is chosen over Request and Decision, owner Lina Samir, due 20 Aug, internal audience. The result is a work card that keeps the message linked."
-    >
+    <CommScene className="tm-wc-scene--flow" label={t('MessageToWorkScene.label')}>
       <div className="tm-wc-flow">
         <div className="tm-wc-bubble">
           <Message name="Salma Riad" time="09:41" audience="client" org="Atlas">
@@ -333,11 +331,9 @@ const WEEK: readonly { day: string; date: string; events: readonly CalEvent[] }[
 ];
 
 export function CalendarScene() {
+  const t = useT();
   return (
-    <CommScene
-      className="tm-wc-scene--card"
-      label="A week calendar for 18 to 22 Aug combining focus blocks, team meetings, client reviews with Atlas and the mobile concepts milestone on Wednesday."
-    >
+    <CommScene className="tm-wc-scene--card" label={t('CalendarScene.label')}>
       <div className="tm-wc-cal">
         <div className="tm-wc-cal__head">
           <div>
@@ -379,11 +375,9 @@ export function CalendarScene() {
 /* ── Meetings ──────────────────────────────────────────────────────────────── */
 
 export function MeetingScene() {
+  const t = useT();
   return (
-    <CommScene
-      className="tm-wc-scene--card"
-      label="Notes for the Homepage review with Atlas: two agenda points covered, one decision recorded, and two actions now owned by Lina and Omar."
-    >
+    <CommScene className="tm-wc-scene--card" label={t('MeetingScene.label')}>
       <div className="tm-wc-meet">
         <Mono>Meeting · Tue 19 Aug · 14:00 · 30 min</Mono>
         <div className="tm-wc-meet__title-row">
@@ -463,11 +457,9 @@ export function MeetingScene() {
 /* ── CTA visual: the daily digest ──────────────────────────────────────────── */
 
 export function DigestScene() {
+  const t = useT();
   return (
-    <CommScene
-      className="tm-wc-scene--card tm-wc-scene--digest"
-      label="A daily digest ranked by consequence: a deliverable waiting on the client, concepts due tomorrow, and new channel messages."
-    >
+    <CommScene className="tm-wc-scene--card tm-wc-scene--digest" label={t('DigestScene.label')}>
       <div className="tm-wc-digest">
         <Mono>Daily digest · Tue 19 Aug</Mono>
         <p className="tm-wc-digest__title">3 things, ranked by consequence</p>

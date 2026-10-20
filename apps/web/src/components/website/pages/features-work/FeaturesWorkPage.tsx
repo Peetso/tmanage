@@ -1,8 +1,10 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { Badge, Button, StatusDot, type StatusTone } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import {
   ButtonLink,
   CtaBand,
@@ -12,7 +14,6 @@ import {
   SectionHeader,
   StatBand,
   WebSection,
-  type FaqItem,
   type StatProps,
 } from '../../index';
 import {
@@ -36,70 +37,73 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
  * Every product visual is a mini scene from `./scenes`, composed from packages/ui parts.
  */
 
-const ANCHORS = [
-  { label: 'Requests', href: '#requests' },
-  { label: 'Work items', href: '#work-items' },
-  { label: 'Views', href: '#views' },
-  { label: 'Projects', href: '#projects' },
-  { label: 'Templates', href: '#templates' },
-] as const;
+const ANCHORS: readonly { labelKey: MessageKey; href: string }[] = [
+  { labelKey: 'FeaturesWorkPage.anchorRequests', href: '#requests' },
+  { labelKey: 'FeaturesWorkPage.anchorWorkItems', href: '#work-items' },
+  { labelKey: 'FeaturesWorkPage.anchorViews', href: '#views' },
+  { labelKey: 'FeaturesWorkPage.anchorProjects', href: '#projects' },
+  { labelKey: 'FeaturesWorkPage.anchorTemplates', href: '#templates' },
+];
 
-const VIEWS = [
+const VIEWS: readonly {
+  key: string;
+  labelKey: MessageKey;
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
+  scene: ReactNode;
+}[] = [
   {
     key: 'list',
-    label: 'List',
-    title: '200 rows, keyboard-fast.',
-    body: 'Sort, filter and edit in place. Every action has a shortcut.',
+    labelKey: 'FeaturesWorkPage.viewListLabel',
+    titleKey: 'FeaturesWorkPage.viewListTitle',
+    bodyKey: 'FeaturesWorkPage.viewListBody',
     scene: <ListViewScene />,
   },
   {
     key: 'board',
-    label: 'Board',
-    title: 'Drag, or move without a mouse.',
-    body: 'Move cards with the keyboard; blocked moves explain why.',
+    labelKey: 'FeaturesWorkPage.viewBoardLabel',
+    titleKey: 'FeaturesWorkPage.viewBoardTitle',
+    bodyKey: 'FeaturesWorkPage.viewBoardBody',
     scene: <BoardViewScene />,
   },
   {
     key: 'timeline',
-    label: 'Timeline',
-    title: 'Dependencies you can see.',
-    body: 'Bars, links and the critical path, against committed dates.',
+    labelKey: 'FeaturesWorkPage.viewTimelineLabel',
+    titleKey: 'FeaturesWorkPage.viewTimelineTitle',
+    bodyKey: 'FeaturesWorkPage.viewTimelineBody',
     scene: <TimelineViewScene />,
   },
-] as const;
-
-const PULSE_POINTS: readonly { tone: StatusTone; term: string; detail: string }[] = [
-  { tone: 'live', term: 'Forecast', detail: 'when it will really land' },
-  { tone: 'success', term: 'Commitment', detail: 'the date you promised' },
-  { tone: 'warning', term: 'Risk', detail: 'what could move it' },
-  { tone: 'neutral', term: 'Freshness', detail: 'how recent the evidence is' },
 ];
 
-const WORK_STATS: readonly StatProps[] = [
+const PULSE_POINTS: readonly { tone: StatusTone; termKey: MessageKey; detailKey: MessageKey }[] = [
   {
-    value: '3',
-    unit: 'views',
-    label: 'list, board and timeline',
-    note: 'Every view reads the same items, so nothing is copied.',
+    tone: 'live',
+    termKey: 'FeaturesWorkPage.pulseForecastTerm',
+    detailKey: 'FeaturesWorkPage.pulseForecastDetail',
   },
   {
-    value: '1',
-    unit: 'owner',
-    label: 'per work item, always',
-    note: 'Collaborators help; one person answers for the date.',
+    tone: 'success',
+    termKey: 'FeaturesWorkPage.pulseCommitmentTerm',
+    detailKey: 'FeaturesWorkPage.pulseCommitmentDetail',
   },
   {
-    value: '0',
-    unit: 'promises',
-    label: 'before a manager accepts',
-    note: 'A request stays a request until someone owns it.',
+    tone: 'warning',
+    termKey: 'FeaturesWorkPage.pulseRiskTerm',
+    detailKey: 'FeaturesWorkPage.pulseRiskDetail',
   },
   {
-    value: '2',
-    unit: 'languages',
-    label: 'English and Arabic, right-to-left ready',
-    note: 'One product, mirrored properly — not translated later.',
+    tone: 'neutral',
+    termKey: 'FeaturesWorkPage.pulseFreshnessTerm',
+    detailKey: 'FeaturesWorkPage.pulseFreshnessDetail',
   },
+];
+
+const WORK_ITEM_FIELDS: readonly MessageKey[] = [
+  'FeaturesWorkPage.fieldOwner',
+  'FeaturesWorkPage.fieldCollaborators',
+  'FeaturesWorkPage.fieldDependencies',
+  'FeaturesWorkPage.fieldChecklist',
+  'FeaturesWorkPage.fieldAudience',
 ];
 
 /** "See it in a demo" (SITE-SPEC) — the demo request form on the contact page. */
@@ -175,22 +179,22 @@ const TEMPLATES: readonly TemplateData[] = [
   },
 ];
 
-const FAQS: readonly FaqItem[] = [
+const FAQS: readonly { questionKey: MessageKey; answerKey: MessageKey }[] = [
   {
-    question: 'Can clients see our tasks?',
-    answer: 'Only what you publish to them. Tasks are internal by default.',
+    questionKey: 'FeaturesWorkPage.faqClientsQ',
+    answerKey: 'FeaturesWorkPage.faqClientsA',
   },
   {
-    question: 'Can one task belong to several projects?',
-    answer: 'No. One home project keeps permissions predictable; link related work instead.',
+    questionKey: 'FeaturesWorkPage.faqMultiProjectQ',
+    answerKey: 'FeaturesWorkPage.faqMultiProjectA',
   },
   {
-    question: 'Do you support recurring work?',
-    answer: 'Yes, through templates and automations.',
+    questionKey: 'FeaturesWorkPage.faqRecurringQ',
+    answerKey: 'FeaturesWorkPage.faqRecurringA',
   },
   {
-    question: 'Can we import from spreadsheets?',
-    answer: 'Yes, CSV import maps columns to fields before anything is created.',
+    questionKey: 'FeaturesWorkPage.faqImportQ',
+    answerKey: 'FeaturesWorkPage.faqImportA',
   },
 ];
 
@@ -199,6 +203,7 @@ const FAQS: readonly FaqItem[] = [
  * "Use template" starts from it, which needs a signed-in workspace.
  */
 function TemplateCard({ tpl }: { tpl: TemplateData }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const previewId = useId();
   const shown = open ? tpl.plan : tpl.steps;
@@ -224,10 +229,12 @@ function TemplateCard({ tpl }: { tpl: TemplateData }) {
             aria-controls={previewId}
             onClick={() => setOpen((value) => !value)}
           >
-            {open ? 'Close preview' : 'Preview'}
+            {open
+              ? t('FeaturesWorkPage.templateClosePreview')
+              : t('FeaturesWorkPage.templatePreview')}
           </Button>
           <ButtonLink href={SIGN_UP_HREF} tone="ink" size="default">
-            Use template
+            {t('FeaturesWorkPage.templateUse')}
           </ButtonLink>
         </span>
       </div>
@@ -236,6 +243,33 @@ function TemplateCard({ tpl }: { tpl: TemplateData }) {
 }
 
 export function FeaturesWorkPage() {
+  const t = useT();
+  const workStats: readonly StatProps[] = [
+    {
+      value: '3',
+      unit: t('FeaturesWorkPage.statViewsUnit'),
+      label: t('FeaturesWorkPage.statViewsLabel'),
+      note: t('FeaturesWorkPage.statViewsNote'),
+    },
+    {
+      value: '1',
+      unit: t('FeaturesWorkPage.statOwnerUnit'),
+      label: t('FeaturesWorkPage.statOwnerLabel'),
+      note: t('FeaturesWorkPage.statOwnerNote'),
+    },
+    {
+      value: '0',
+      unit: t('FeaturesWorkPage.statPromisesUnit'),
+      label: t('FeaturesWorkPage.statPromisesLabel'),
+      note: t('FeaturesWorkPage.statPromisesNote'),
+    },
+    {
+      value: '2',
+      unit: t('FeaturesWorkPage.statLanguagesUnit'),
+      label: t('FeaturesWorkPage.statLanguagesLabel'),
+      note: t('FeaturesWorkPage.statLanguagesNote'),
+    },
+  ];
   return (
     <div className="tm-fw">
       {/* 2 · Hero */}
@@ -246,22 +280,22 @@ export function FeaturesWorkPage() {
               as="h1"
               size="page"
               id="fw-hero-title"
-              eyebrow="Features · Plan & deliver"
-              title="Every ask becomes owned, dated, visible work."
-              lede="Requests, tasks, milestones and projects in one model — viewed as a list, a board or a timeline without losing a thing."
+              eyebrow={t('FeaturesWorkPage.heroEyebrow')}
+              title={t('FeaturesWorkPage.heroTitle')}
+              lede={t('FeaturesWorkPage.heroLede')}
             />
             <div className="tm-fw-hero__actions">
               <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                Start free
+                {t('FeaturesWorkPage.startFree')}
               </ButtonLink>
               <ButtonLink href={DEMO_HREF} tone="outline">
-                See it in a demo
+                {t('FeaturesWorkPage.seeDemo')}
               </ButtonLink>
             </div>
-            <nav className="tm-fw-anchors" aria-label="On this page">
+            <nav className="tm-fw-anchors" aria-label={t('FeaturesWorkPage.anchorsAria')}>
               {ANCHORS.map((anchor) => (
                 <Link key={anchor.href} href={anchor.href} className="tm-web-chip tm-fw-anchor">
-                  {anchor.label}
+                  {t(anchor.labelKey)}
                 </Link>
               ))}
             </nav>
@@ -276,23 +310,23 @@ export function FeaturesWorkPage() {
       <WebSection className="tm-fw-rows" aria-labelledby="requests-title">
         <FeatureRow
           id="requests"
-          label="Requests"
-          title={<span id="requests-title">Client requests with a real intake.</span>}
-          body="Title, reason, desired date and files. Nothing is promised until a manager accepts, defers or declines — with a reason the client can read."
+          label={t('FeaturesWorkPage.requestsLabel')}
+          title={<span id="requests-title">{t('FeaturesWorkPage.requestsTitle')}</span>}
+          body={t('FeaturesWorkPage.requestsBody')}
           visual={<RequestScene />}
         />
         <FeatureRow
           id="work-items"
-          label="Work items"
+          label={t('FeaturesWorkPage.workItemsLabel')}
           reverse
-          title="One work item, every detail."
-          body="Owner, collaborators, status, priority, dependencies, checklist, files and audience. Required fields appear only when a status needs them."
+          title={t('FeaturesWorkPage.workItemsTitle')}
+          body={t('FeaturesWorkPage.workItemsBody')}
           visual={<WorkItemScene />}
         >
-          <ul className="tm-fw-chips" aria-label="Work item fields">
-            {['Owner', 'Collaborators', 'Dependencies', 'Checklist', 'Audience'].map((field) => (
-              <li key={field} className="tm-web-chip">
-                {field}
+          <ul className="tm-fw-chips" aria-label={t('FeaturesWorkPage.fieldsAria')}>
+            {WORK_ITEM_FIELDS.map((fieldKey) => (
+              <li key={fieldKey} className="tm-web-chip">
+                {t(fieldKey)}
               </li>
             ))}
           </ul>
@@ -304,17 +338,17 @@ export function FeaturesWorkPage() {
         <SectionHeader
           align="center"
           id="views-title"
-          eyebrow="Views"
-          title="One set of work. Three ways to see it."
-          lede="Switch between a list, a board and a timeline. Every view reads the same items, so nothing is copied or out of sync."
+          eyebrow={t('FeaturesWorkPage.viewsEyebrow')}
+          title={t('FeaturesWorkPage.viewsTitle')}
+          lede={t('FeaturesWorkPage.viewsLede')}
         />
         <ul className="tm-fw-views">
           {VIEWS.map((view) => (
             <li key={view.key} className="tm-fw-view">
               <div className="tm-fw-view__visual">{view.scene}</div>
-              <p className="tm-web-eyebrow tm-fw-view__label">{view.label}</p>
-              <h3 className="tm-fw-view__title">{view.title}</h3>
-              <p className="tm-fw-view__body">{view.body}</p>
+              <p className="tm-web-eyebrow tm-fw-view__label">{t(view.labelKey)}</p>
+              <h3 className="tm-fw-view__title">{t(view.titleKey)}</h3>
+              <p className="tm-fw-view__body">{t(view.bodyKey)}</p>
             </li>
           ))}
         </ul>
@@ -324,19 +358,16 @@ export function FeaturesWorkPage() {
       <WebSection id="projects" className="tm-fw-projects" aria-labelledby="projects-title">
         <div className="tm-fw-ink">
           <div className="tm-fw-ink__copy">
-            <Eyebrow tone="ink">Projects & portfolio</Eyebrow>
+            <Eyebrow tone="ink">{t('FeaturesWorkPage.projectsEyebrow')}</Eyebrow>
             <h2 id="projects-title" className="tm-web-header__title tm-fw-ink__title">
-              Milestones move on evidence, not percentages.
+              {t('FeaturesWorkPage.projectsTitle')}
             </h2>
-            <p className="tm-fw-ink__body">
-              Project Pulse shows forecast, commitment, risk and freshness. Portfolio shows the
-              exceptions, not every task.
-            </p>
+            <p className="tm-fw-ink__body">{t('FeaturesWorkPage.projectsBody')}</p>
             <ul className="tm-fw-ink__points">
               {PULSE_POINTS.map((point) => (
-                <li key={point.term}>
+                <li key={point.termKey}>
                   <StatusDot tone={point.tone}>
-                    {point.term} — {point.detail}
+                    {t(point.termKey)} — {t(point.detailKey)}
                   </StatusDot>
                 </li>
               ))}
@@ -349,17 +380,21 @@ export function FeaturesWorkPage() {
       </WebSection>
 
       {/* Product facts */}
-      <WebSection spacing="compact" className="tm-fw-facts-band" aria-label="Product facts">
-        <StatBand stats={WORK_STATS} />
+      <WebSection
+        spacing="compact"
+        className="tm-fw-facts-band"
+        aria-label={t('FeaturesWorkPage.factsAria')}
+      >
+        <StatBand stats={workStats} />
       </WebSection>
 
       {/* 7 · Templates */}
       <WebSection id="templates" className="tm-fw-templates-band" aria-labelledby="templates-title">
         <SectionHeader
           id="templates-title"
-          eyebrow="Templates"
-          title="Start from a plan that already works."
-          lede="Milestones, work items, review steps and client touchpoints, ready to adjust before anything is created."
+          eyebrow={t('FeaturesWorkPage.templatesEyebrow')}
+          title={t('FeaturesWorkPage.templatesTitle')}
+          lede={t('FeaturesWorkPage.templatesLede')}
         />
         <ul className="tm-fw-templates">
           {TEMPLATES.map((tpl) => (
@@ -373,23 +408,28 @@ export function FeaturesWorkPage() {
         <SectionHeader
           align="center"
           id="fw-faq-title"
-          eyebrow="FAQ"
-          title="Questions teams ask first."
-          lede="Short answers about visibility, structure and moving your work in."
+          eyebrow={t('FeaturesWorkPage.faqEyebrow')}
+          title={t('FeaturesWorkPage.faqTitle')}
+          lede={t('FeaturesWorkPage.faqLede')}
         />
         <div className="tm-web-faq-list tm-fw-faq__list">
           {FAQS.map((item, index) => (
-            <FaqRow key={item.question} {...item} defaultOpen={index === 0} />
+            <FaqRow
+              key={item.questionKey}
+              question={t(item.questionKey)}
+              answer={t(item.answerKey)}
+              defaultOpen={index === 0}
+            />
           ))}
         </div>
       </WebSection>
 
       {/* 9 · CTA band (footer comes from the website chrome) */}
       <CtaBand
-        title="Turn your next request into owned work."
-        lede="Start free with your team, invite clients at no cost, and watch one request travel all the way to approval."
-        note="Free for 2 people · Client users always free · No credit card"
-        secondary={{ label: 'See it in a demo', href: DEMO_HREF }}
+        title={t('FeaturesWorkPage.ctaTitle')}
+        lede={t('FeaturesWorkPage.ctaLede')}
+        note={t('FeaturesWorkPage.ctaNote')}
+        secondary={{ label: t('FeaturesWorkPage.ctaSecondary'), href: DEMO_HREF }}
       />
     </div>
   );

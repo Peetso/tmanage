@@ -19,6 +19,8 @@ import {
   type WebIconName,
 } from '../../index';
 import { cx } from '../../primitives';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import {
   AccessScene,
   ChatThreadScene,
@@ -39,29 +41,25 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 /* ── 2. Hero ──────────────────────────────────────────────────────────────── */
 
 function Hero() {
+  const t = useT();
   return (
     <section className="tm-home-hero" aria-labelledby="home-hero-title">
       <div className="tm-web-container tm-home-hero__grid">
         <div className="tm-home-hero__copy">
-          <Eyebrow>Work operating system for service teams</Eyebrow>
+          <Eyebrow>{t('HomePage.heroEyebrow')}</Eyebrow>
           <h1 id="home-hero-title" className="tm-home-hero__title">
-            All the work. One connected story.
+            {t('HomePage.heroTitle')}
           </h1>
-          <p className="tm-home-hero__lede">
-            Plan, talk, deliver and get client approval in one place — without rebuilding context
-            across five tools.
-          </p>
+          <p className="tm-home-hero__lede">{t('HomePage.heroLede')}</p>
           <div className="tm-home-hero__actions">
             <ButtonLink href={SIGN_UP_HREF} tone="lime">
-              Start free
+              {t('HomePage.startFree')}
             </ButtonLink>
             <ButtonLink href="/contact" tone="outline">
-              Book a demo
+              {t('HomePage.bookDemo')}
             </ButtonLink>
           </div>
-          <p className="tm-home-hero__micro">
-            Free for 2 people · Client users always free · No credit card
-          </p>
+          <p className="tm-home-hero__micro">{t('HomePage.heroMicro')}</p>
         </div>
         <div className="tm-home-hero__visual">
           <HeroStoryScene />
@@ -73,30 +71,31 @@ function Hero() {
 
 /* ── 4. Work-story band ───────────────────────────────────────────────────── */
 
-const STORY_STEPS = [
-  'Request',
-  'Clarify',
-  'Commit',
-  'Plan',
-  'Review',
-  'Publish',
-  'Approve',
-  'Deliver',
-] as const;
+const STORY_STEPS: readonly MessageKey[] = [
+  'HomePage.stepRequest',
+  'HomePage.stepClarify',
+  'HomePage.stepCommit',
+  'HomePage.stepPlan',
+  'HomePage.stepReview',
+  'HomePage.stepPublish',
+  'HomePage.stepApprove',
+  'HomePage.stepDeliver',
+];
 const CURRENT_STEP = 4;
 
 function WorkStory() {
+  const t = useT();
   return (
     <WebSection aria-labelledby="home-story-title" id="work-story">
       <SectionHeader
         id="home-story-title"
         align="center"
-        eyebrow="How work moves"
-        title="From the first ask to the signed-off file, nothing is retyped."
-        lede="Every step is the same object, so the context travels with it."
+        eyebrow={t('HomePage.storyEyebrow')}
+        title={t('HomePage.storyTitle')}
+        lede={t('HomePage.storyLede')}
       />
       <div className="tm-home-track">
-        <ol className="tm-home-track__list" aria-label="The eight steps of one work story">
+        <ol className="tm-home-track__list" aria-label={t('HomePage.storyStepsAria')}>
           {STORY_STEPS.map((step, i) => {
             const state = i < CURRENT_STEP ? 'done' : i === CURRENT_STEP ? 'current' : 'future';
             return (
@@ -106,14 +105,12 @@ function WorkStory() {
                 aria-current={i === CURRENT_STEP ? 'step' : undefined}
               >
                 <span className="tm-home-track__n">{String(i + 1).padStart(2, '0')}</span>
-                <StateCapsule state={state}>{step}</StateCapsule>
+                <StateCapsule state={state}>{t(step)}</StateCapsule>
               </li>
             );
           })}
         </ol>
-        <p className="tm-home-track__caption">
-          A desired date stays a wish until someone commits to it.
-        </p>
+        <p className="tm-home-track__caption">{t('HomePage.storyCaption')}</p>
       </div>
     </WebSection>
   );
@@ -122,63 +119,63 @@ function WorkStory() {
 /* ── 5. Pillar tabs ───────────────────────────────────────────────────────── */
 
 interface PillarRow {
-  title: string;
-  body: string;
-  link: { label: string; href: string };
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
+  link: { labelKey: MessageKey; href: string };
   visual: ReactNode;
 }
 
-const PILLARS: readonly { id: string; label: string; rows: readonly PillarRow[] }[] = [
+const PILLARS: readonly { id: string; labelKey: MessageKey; rows: readonly PillarRow[] }[] = [
   {
     id: 'team',
-    label: 'Team',
+    labelKey: 'HomePage.pillarTeam',
     rows: [
       {
-        title: 'Turn a message into work in one move.',
-        body: 'Convert any chat message into a task, request or decision. The source thread stays linked, and the audience never widens by accident.',
-        link: { label: 'Explore chat', href: '/features/communication' },
+        titleKey: 'HomePage.pillarTeamRow1Title',
+        bodyKey: 'HomePage.pillarTeamRow1Body',
+        link: { labelKey: 'HomePage.pillarTeamRow1Link', href: '/features/communication' },
         visual: <ChatThreadScene />,
       },
       {
-        title: 'Know what matters next.',
-        body: 'My Day ranks your work by consequence and explains why each item is there.',
-        link: { label: 'See Home', href: '/product#focus-space' },
+        titleKey: 'HomePage.pillarTeamRow2Title',
+        bodyKey: 'HomePage.pillarTeamRow2Body',
+        link: { labelKey: 'HomePage.pillarTeamRow2Link', href: '/product#focus-space' },
         visual: <MyDayScene />,
       },
     ],
   },
   {
     id: 'clients',
-    label: 'Clients',
+    labelKey: 'HomePage.pillarClients',
     rows: [
       {
-        title: 'A portal your client can use without training.',
-        body: 'Progress, their actions and the exact versions to review — generated from an allowlist, so internal work stays invisible.',
-        link: { label: 'Explore the client portal', href: '/client-portal' },
+        titleKey: 'HomePage.pillarClientsRow1Title',
+        bodyKey: 'HomePage.pillarClientsRow1Body',
+        link: { labelKey: 'HomePage.pillarClientsRow1Link', href: '/client-portal' },
         visual: <PortalScene />,
       },
     ],
   },
   {
     id: 'knowledge',
-    label: 'Knowledge',
+    labelKey: 'HomePage.pillarKnowledge',
     rows: [
       {
-        title: 'Decisions you can find six months later.',
-        body: 'Docs, briefs and the decision register live beside the work they explain, with links that stay current.',
-        link: { label: 'Explore docs', href: '/features/knowledge' },
+        titleKey: 'HomePage.pillarKnowledgeRow1Title',
+        bodyKey: 'HomePage.pillarKnowledgeRow1Body',
+        link: { labelKey: 'HomePage.pillarKnowledgeRow1Link', href: '/features/knowledge' },
         visual: <DecisionScene />,
       },
     ],
   },
   {
     id: 'control',
-    label: 'Control',
+    labelKey: 'HomePage.pillarControl',
     rows: [
       {
-        title: 'Access you can explain to an auditor.',
-        body: 'Roles, client access expiry, offboarding and an append-only audit log — with an impact preview before every change.',
-        link: { label: 'See security', href: '/security' },
+        titleKey: 'HomePage.pillarControlRow1Title',
+        bodyKey: 'HomePage.pillarControlRow1Body',
+        link: { labelKey: 'HomePage.pillarControlRow1Link', href: '/security' },
         visual: <AccessScene />,
       },
     ],
@@ -186,6 +183,7 @@ const PILLARS: readonly { id: string; label: string; rows: readonly PillarRow[] 
 ];
 
 function PillarTabs() {
+  const t = useT();
   const base = useId();
   const [active, setActive] = useState(0);
   const tabId = (i: number) => `${base}-tab-${i}`;
@@ -210,13 +208,13 @@ function PillarTabs() {
   return (
     <WebSection aria-labelledby="home-pillars-title" className="tm-home-pillars">
       <h2 id="home-pillars-title" className="tm-visually-hidden">
-        What TManage does for each part of the work
+        {t('HomePage.pillarsHeading')}
       </h2>
       <div className="tm-home-tabs">
         <div
           className="tm-segmented tm-home-tabs__list"
           role="tablist"
-          aria-label="Product pillars"
+          aria-label={t('HomePage.pillarsTablistAria')}
         >
           {PILLARS.map((pillar, i) => (
             <button
@@ -230,7 +228,7 @@ function PillarTabs() {
               onClick={() => setActive(i)}
               onKeyDown={onKeyDown}
             >
-              {pillar.label}
+              {t(pillar.labelKey)}
             </button>
           ))}
         </div>
@@ -246,10 +244,10 @@ function PillarTabs() {
         >
           {pillar.rows.map((row, r) => (
             <FeatureRow
-              key={row.title}
-              title={row.title}
-              body={row.body}
-              link={row.link}
+              key={row.titleKey}
+              title={t(row.titleKey)}
+              body={t(row.bodyKey)}
+              link={{ label: t(row.link.labelKey), href: row.link.href }}
               visual={row.visual}
               reverse={r % 2 === 1}
             />
@@ -262,34 +260,34 @@ function PillarTabs() {
 
 /* ── 6. Stats band ────────────────────────────────────────────────────────── */
 
-const HOME_STATS: readonly StatProps[] = [
-  {
-    value: '1',
-    unit: 'version',
-    label: 'governed version per approval',
-    note: 'Change the file and the approval is invalidated, not overwritten.',
-  },
-  {
-    value: '3',
-    unit: 'dates',
-    label: 'separate dates: desired, committed, forecast',
-    note: 'So a wish is never mistaken for a promise.',
-  },
-  {
-    value: '0',
-    unit: 'comments',
-    label: 'internal comments shared by default',
-    note: 'Client visibility is always an explicit choice.',
-  },
-  {
-    value: '2',
-    unit: 'languages',
-    label: 'languages, fully mirrored',
-    note: 'English and Arabic, left-to-right and right-to-left.',
-  },
-];
-
 function Stats() {
+  const t = useT();
+  const stats: readonly StatProps[] = [
+    {
+      value: '1',
+      unit: t('HomePage.statVersionUnit'),
+      label: t('HomePage.statVersionLabel'),
+      note: t('HomePage.statVersionNote'),
+    },
+    {
+      value: '3',
+      unit: t('HomePage.statDatesUnit'),
+      label: t('HomePage.statDatesLabel'),
+      note: t('HomePage.statDatesNote'),
+    },
+    {
+      value: '0',
+      unit: t('HomePage.statCommentsUnit'),
+      label: t('HomePage.statCommentsLabel'),
+      note: t('HomePage.statCommentsNote'),
+    },
+    {
+      value: '2',
+      unit: t('HomePage.statLanguagesUnit'),
+      label: t('HomePage.statLanguagesLabel'),
+      note: t('HomePage.statLanguagesNote'),
+    },
+  ];
   return (
     <WebSection
       tone="sunken"
@@ -298,12 +296,12 @@ function Stats() {
       className="tm-home-stats"
     >
       <h2 id="home-stats-title" className="tm-visually-hidden">
-        Product facts
+        {t('HomePage.statsHeading')}
       </h2>
-      <StatBand stats={HOME_STATS} />
+      <StatBand stats={stats} />
       <p className="tm-home-stats__foot">
         <span className="tm-web-eyebrow__dot" aria-hidden="true" />
-        <span className="tm-web-scene__mono">Product facts, not usage claims.</span>
+        <span className="tm-web-scene__mono">{t('HomePage.statsFoot')}</span>
       </p>
     </WebSection>
   );
@@ -311,44 +309,50 @@ function Stats() {
 
 /* ── 7. Who it's for ──────────────────────────────────────────────────────── */
 
-const AUDIENCES: readonly { title: string; body: string; href: string; icon: WebIconName }[] = [
+const AUDIENCES: readonly {
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
+  href: string;
+  icon: WebIconName;
+}[] = [
   {
-    title: 'Agencies & studios',
-    body: 'Run many clients without losing the thread.',
+    titleKey: 'HomePage.audienceAgenciesTitle',
+    bodyKey: 'HomePage.audienceAgenciesBody',
     href: '/solutions/agencies',
     icon: 'grid',
   },
   {
-    title: 'Consultancies',
-    body: 'Make every recommendation traceable to a decision.',
+    titleKey: 'HomePage.audienceConsultanciesTitle',
+    bodyKey: 'HomePage.audienceConsultanciesBody',
     href: '/solutions/consultancies',
     icon: 'briefcase',
   },
   {
-    title: 'In-house teams',
-    body: 'Treat internal stakeholders like clients, with the same clarity.',
+    titleKey: 'HomePage.audienceInhouseTitle',
+    bodyKey: 'HomePage.audienceInhouseBody',
     href: '/solutions/in-house',
     icon: 'building',
   },
 ];
 
 function WhoItsFor() {
+  const t = useT();
   return (
     <WebSection aria-labelledby="home-who-title" className="tm-home-who">
       <SectionHeader
         id="home-who-title"
-        eyebrow="Who it's for"
-        title="Built for teams who deliver work to someone else."
+        eyebrow={t('HomePage.whoEyebrow')}
+        title={t('HomePage.whoTitle')}
       />
       <ul className="tm-home-cards tm-home-cards--3">
         {AUDIENCES.map((a) => (
           <li key={a.href}>
             <Link href={a.href} className="tm-home-card">
               <IconOrb icon={a.icon} tone="lime" />
-              <span className="tm-home-card__title">{a.title}</span>
-              <span className="tm-home-card__body">{a.body}</span>
+              <span className="tm-home-card__title">{t(a.titleKey)}</span>
+              <span className="tm-home-card__body">{t(a.bodyKey)}</span>
               <span className="tm-home-card__foot">
-                <span className="tm-home-card__more">See the solution</span>
+                <span className="tm-home-card__more">{t('HomePage.seeSolution')}</span>
                 <span className="tm-web-orb tm-web-orb--outline tm-web-orb--default">
                   <WebIcon name="arrow-right" size={14} />
                 </span>
@@ -363,13 +367,14 @@ function WhoItsFor() {
 
 /* ── 8. Client portal spotlight ───────────────────────────────────────────── */
 
-const PORTAL_POINTS = [
-  'Progress from milestone evidence, not task counts',
-  'Approvals bound to the exact version reviewed',
-  'Client users are free on every plan',
-] as const;
+const PORTAL_POINTS: readonly MessageKey[] = [
+  'HomePage.portalPoint1',
+  'HomePage.portalPoint2',
+  'HomePage.portalPoint3',
+];
 
 function PortalSpotlight() {
+  const t = useT();
   return (
     <WebSection
       spacing="flush"
@@ -378,20 +383,20 @@ function PortalSpotlight() {
     >
       <div className="tm-home-spot">
         <div className="tm-home-spot__text">
-          <Eyebrow tone="ink">Outside, with the client</Eyebrow>
+          <Eyebrow tone="ink">{t('HomePage.portalEyebrow')}</Eyebrow>
           <h2 id="home-portal-title" className="tm-home-spot__title">
-            Your client knows where things stand in thirty seconds.
+            {t('HomePage.portalTitle')}
           </h2>
           <ul className="tm-home-spot__points">
             {PORTAL_POINTS.map((point) => (
               <li key={point}>
                 <IconOrb icon="check" tone="lime" size="compact" />
-                <span>{point}</span>
+                <span>{t(point)}</span>
               </li>
             ))}
           </ul>
           <ButtonLink href="/client-portal" tone="lime">
-            See a live demo portal
+            {t('HomePage.portalCta')}
           </ButtonLink>
         </div>
         <div className="tm-home-spot__visual">
@@ -405,61 +410,62 @@ function PortalSpotlight() {
 /* ── 9. Design-partner stories ────────────────────────────────────────────── */
 
 const STORIES: readonly {
-  quote: string;
-  author: string;
-  team: string;
-  org: string;
+  quoteKey: MessageKey;
+  authorKey: MessageKey;
+  teamKey: MessageKey;
+  orgKey: MessageKey;
   icon: WebIconName;
 }[] = [
   {
-    quote: 'We stopped running status calls. The client opens the portal instead.',
-    author: 'Studio lead',
-    team: 'Agency',
-    org: 'Brand & web agency · Design partner',
+    quoteKey: 'HomePage.story1Quote',
+    authorKey: 'HomePage.story1Author',
+    teamKey: 'HomePage.story1Team',
+    orgKey: 'HomePage.story1Org',
     icon: 'grid',
   },
   {
-    quote: 'Approvals finally point at one file.',
-    author: 'Delivery director',
-    team: 'Consultancy',
-    org: 'Management consultancy · Design partner',
+    quoteKey: 'HomePage.story2Quote',
+    authorKey: 'HomePage.story2Author',
+    teamKey: 'HomePage.story2Team',
+    orgKey: 'HomePage.story2Org',
     icon: 'briefcase',
   },
   {
-    quote: 'Our Arabic-speaking clients use it in Arabic, properly.',
-    author: 'Operations manager',
-    team: 'In-house team',
-    org: 'Hospitality group · Design partner',
+    quoteKey: 'HomePage.story3Quote',
+    authorKey: 'HomePage.story3Author',
+    teamKey: 'HomePage.story3Team',
+    orgKey: 'HomePage.story3Org',
     icon: 'building',
   },
 ];
 
 function Stories() {
+  const t = useT();
   return (
     <WebSection aria-labelledby="home-stories-title" className="tm-home-stories">
       <SectionHeader
         id="home-stories-title"
-        eyebrow="Design partners"
-        title="Built alongside the teams who will use it."
+        eyebrow={t('HomePage.storiesEyebrow')}
+        title={t('HomePage.storiesTitle')}
       />
       <ul className="tm-home-cards tm-home-cards--3 tm-home-stories__list">
         {STORIES.map((s, i) => (
-          <li key={s.quote}>
+          <li key={s.quoteKey}>
             <figure
               className={cx('tm-web-quote', 'tm-home-story-card', i === 1 && 'tm-web-quote--ink')}
             >
               <span className="tm-home-story-card__logo">
                 <IconOrb icon={s.icon} tone="lime" size="compact" />
-                <span className="tm-home-story-card__team">{s.team}</span>
+                <span className="tm-home-story-card__team">{t(s.teamKey)}</span>
               </span>
               <blockquote className="tm-web-quote__text">
-                <p>“{s.quote}”</p>
+                <p>“{t(s.quoteKey)}”</p>
               </blockquote>
               <figcaption className="tm-web-quote__by">
-                <Avatar name={s.author} audience="client" decorative />
+                <Avatar name={t(s.authorKey)} audience="client" decorative />
                 <span className="tm-web-quote__who">
-                  <span className="tm-web-quote__role">{s.author}</span>
-                  <span className="tm-web-quote__org">{s.org}</span>
+                  <span className="tm-web-quote__role">{t(s.authorKey)}</span>
+                  <span className="tm-web-quote__org">{t(s.orgKey)}</span>
                 </span>
               </figcaption>
             </figure>
@@ -479,62 +485,63 @@ function Stories() {
 
 /** Each card opens the place on the site where that item lives today. */
 const RESOURCES: readonly {
-  kind: string;
-  title: string;
-  meta: string;
+  kindKey: MessageKey;
+  titleKey: MessageKey;
+  metaKey: MessageKey;
   icon: WebIconName;
   href: string;
 }[] = [
   {
-    kind: 'Guide',
-    title: 'The client approval playbook',
-    meta: '12 min read',
+    kindKey: 'HomePage.resourceGuideKind',
+    titleKey: 'HomePage.resourceGuideTitle',
+    metaKey: 'HomePage.resourceGuideMeta',
     icon: 'book',
     href: '/resources#res-feat-title',
   },
   {
-    kind: 'Template',
-    title: 'Website relaunch project template',
-    meta: '8 milestones · 46 work items',
+    kindKey: 'HomePage.resourceTemplateKind',
+    titleKey: 'HomePage.resourceTemplateTitle',
+    metaKey: 'HomePage.resourceTemplateMeta',
     icon: 'layers',
     href: '/features/work#templates',
   },
   {
-    kind: 'Blog',
-    title: 'Why desired, committed and forecast dates are different',
-    meta: '6 min read',
+    kindKey: 'HomePage.resourceBlogKind',
+    titleKey: 'HomePage.resourceBlogTitle',
+    metaKey: 'HomePage.resourceBlogMeta',
     icon: 'pencil',
     href: '/resources#res-library',
   },
   {
-    kind: 'Walkthrough',
-    title: 'One request, start to finish (4 min)',
-    meta: 'Video · 4 min',
+    kindKey: 'HomePage.resourceWalkthroughKind',
+    titleKey: 'HomePage.resourceWalkthroughTitle',
+    metaKey: 'HomePage.resourceWalkthroughMeta',
     icon: 'video',
     href: '/features/work#requests',
   },
 ];
 
 function Resources() {
+  const t = useT();
   return (
     <WebSection aria-labelledby="home-resources-title" className="tm-home-resources">
       <SectionHeader
         id="home-resources-title"
-        eyebrow="Resources"
-        title="Learn the way connected teams work."
-        link={{ label: 'All resources', href: '/resources' }}
+        eyebrow={t('HomePage.resourcesEyebrow')}
+        title={t('HomePage.resourcesTitle')}
+        link={{ label: t('HomePage.resourcesLink'), href: '/resources' }}
       />
       <ul className="tm-home-cards tm-home-cards--4">
         {RESOURCES.map((r) => (
-          <li key={r.title}>
+          <li key={r.titleKey}>
             <Link href={r.href} className="tm-home-card tm-home-card--resource">
               <span className="tm-home-card__top">
-                <Badge mono>{r.kind.toUpperCase()}</Badge>
+                <Badge mono>{t(r.kindKey).toUpperCase()}</Badge>
                 <IconOrb icon={r.icon} tone="tint" size="compact" />
               </span>
-              <span className="tm-home-card__title">{r.title}</span>
+              <span className="tm-home-card__title">{t(r.titleKey)}</span>
               <span className="tm-home-card__foot">
-                <span className="tm-home-card__more">{r.meta}</span>
+                <span className="tm-home-card__more">{t(r.metaKey)}</span>
                 <span className="tm-web-orb tm-web-orb--outline tm-web-orb--default">
                   <WebIcon name="arrow-right" size={14} />
                 </span>
@@ -549,13 +556,14 @@ function Resources() {
 
 /* ── 3. Logo strip: the kinds of teams in the design-partner programme ─────── */
 
-const PARTNER_TEAMS: readonly LogoStripPartner[] = [
-  { name: 'Web agency', kind: 'Design partner', icon: 'grid' },
-  { name: 'Design studio', kind: 'Design partner', icon: 'pencil' },
-  { name: 'Consultancy', kind: 'Design partner', icon: 'briefcase' },
-  { name: 'In-house team', kind: 'Design partner', icon: 'person' },
-  { name: 'Brand studio', kind: 'Design partner', icon: 'layers' },
-  { name: 'Ops team', kind: 'Design partner', icon: 'trend' },
+/** Logo-strip partner teams; names are resolved to the active locale by `usePartnerTeams`. */
+const PARTNER_TEAMS: readonly { nameKey: MessageKey; kindKey: MessageKey; icon: WebIconName }[] = [
+  { nameKey: 'HomePage.partnerWebAgency', kindKey: 'HomePage.partnerKind', icon: 'grid' },
+  { nameKey: 'HomePage.partnerDesignStudio', kindKey: 'HomePage.partnerKind', icon: 'pencil' },
+  { nameKey: 'HomePage.partnerConsultancy', kindKey: 'HomePage.partnerKind', icon: 'briefcase' },
+  { nameKey: 'HomePage.partnerInhouse', kindKey: 'HomePage.partnerKind', icon: 'person' },
+  { nameKey: 'HomePage.partnerBrandStudio', kindKey: 'HomePage.partnerKind', icon: 'layers' },
+  { nameKey: 'HomePage.partnerOpsTeam', kindKey: 'HomePage.partnerKind', icon: 'trend' },
 ];
 
 /* ── 11. CTA band ─────────────────────────────────────────────────────────────
@@ -563,26 +571,25 @@ const PARTNER_TEAMS: readonly LogoStripPartner[] = [
  * button the hero uses) and the Delivery risk view shown whole (see home.css). */
 
 function HomeCta() {
+  const t = useT();
   return (
     <section className="tm-web-cta-section tm-home-cta" aria-labelledby="home-cta-title">
       <div className="tm-web-container">
         <div className="tm-web-cta">
           <div className="tm-web-cta__text">
             <h2 id="home-cta-title" className="tm-web-cta__title">
-              Bring the next client project into one story.
+              {t('HomePage.ctaTitle')}
             </h2>
-            <p className="tm-web-cta__lede">
-              Start free with your team. Invite your client when the first deliverable is ready.
-            </p>
+            <p className="tm-web-cta__lede">{t('HomePage.ctaLede')}</p>
             <div className="tm-web-cta__actions">
               <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                Start free
+                {t('HomePage.startFree')}
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline-ink">
-                Book a demo
+                {t('HomePage.bookDemo')}
               </ButtonLink>
             </div>
-            <p className="tm-web-cta__note">No credit card · Client users are always free</p>
+            <p className="tm-web-cta__note">{t('HomePage.ctaNote')}</p>
           </div>
           <div className="tm-web-cta__visual">
             <DeliveryRiskScene />
@@ -596,11 +603,17 @@ function HomeCta() {
 /* ── The page ─────────────────────────────────────────────────────────────── */
 
 export function HomePage() {
+  const t = useT();
+  const partners: readonly LogoStripPartner[] = PARTNER_TEAMS.map((team) => ({
+    name: t(team.nameKey),
+    kind: t(team.kindKey),
+    icon: team.icon,
+  }));
   return (
     <div className="tm-home">
       <Hero />
       <WebSection spacing="flush" className="tm-home-logos">
-        <LogoStrip variant="detailed" partners={PARTNER_TEAMS} />
+        <LogoStrip variant="detailed" partners={partners} />
       </WebSection>
       <WorkStory />
       <PillarTabs />

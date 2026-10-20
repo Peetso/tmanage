@@ -2,6 +2,7 @@
 
 import { useMemo, useState, type ReactNode } from 'react';
 import { Avatar, Badge, Button, SearchField, StateCapsule, StatusDot } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon } from '../../WebIcon';
 import { ArrowLink, IconOrb, cx } from '../../primitives';
 import { ObjectCardStack } from '../../ProductScenes';
@@ -23,6 +24,7 @@ import './integrations.css';
  * the ink band). Every value is a Limeframe token; product visuals are packages/ui compositions.
  */
 export function IntegrationsPage() {
+  const t = useT();
   const [filter, setFilter] = useState<IntegrationFilter['id']>('all');
   const [query, setQuery] = useState('');
 
@@ -48,9 +50,9 @@ export function IntegrationsPage() {
               as="h1"
               size="page"
               id="int-hero-title"
-              eyebrow="INTEGRATIONS"
-              title="Connect the tools you keep. Retire the ones you don't need."
-              lede="Calendars, storage, sign-in and developer tools — each connection shows exactly what it can read and do."
+              eyebrow={t('IntegrationsPage.heroEyebrow')}
+              title={t('IntegrationsPage.heroTitle')}
+              lede={t('IntegrationsPage.heroLede')}
             />
             <form
               className="tm-web-int-search"
@@ -58,8 +60,8 @@ export function IntegrationsPage() {
               onSubmit={(event) => event.preventDefault()}
             >
               <SearchField
-                label="Search integrations"
-                placeholder="Search integrations"
+                label={t('IntegrationsPage.searchLabel')}
+                placeholder={t('IntegrationsPage.searchPlaceholder')}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-controls="int-grid"
@@ -68,7 +70,7 @@ export function IntegrationsPage() {
               <p className="tm-web-int-search__hint" id="int-search-hint" aria-live="polite">
                 {typed === '' ? (
                   <>
-                    <span>Try</span>
+                    <span>{t('IntegrationsPage.searchTry')}</span>
                     {SEARCH_HINTS.map((hint) => (
                       <button
                         key={hint}
@@ -83,14 +85,17 @@ export function IntegrationsPage() {
                 ) : (
                   <>
                     <span>
-                      {visible.length === 1 ? '1 match' : `${visible.length} matches`} for “{typed}”
+                      {visible.length === 1
+                        ? t('IntegrationsPage.matchOne')
+                        : `${visible.length} ${t('IntegrationsPage.matchMany')}`}{' '}
+                      {t('IntegrationsPage.matchFor')} “{typed}”
                     </span>
                     <button
                       type="button"
                       className="tm-web-chip tm-web-int-chip"
                       onClick={() => setQuery('')}
                     >
-                      Clear
+                      {t('IntegrationsPage.searchClear')}
                     </button>
                   </>
                 )}
@@ -103,10 +108,14 @@ export function IntegrationsPage() {
 
       <WebSection spacing="flush" className="tm-web-int-catalogue" aria-labelledby="int-grid-title">
         <h2 id="int-grid-title" className="tm-visually-hidden">
-          All integrations
+          {t('IntegrationsPage.gridHeading')}
         </h2>
         <div className="tm-web-int-filters">
-          <div className="tm-web-int-filters__chips" role="group" aria-label="Filter by category">
+          <div
+            className="tm-web-int-filters__chips"
+            role="group"
+            aria-label={t('IntegrationsPage.filterAria')}
+          >
             {INTEGRATION_FILTERS.map((item) => (
               <button
                 key={item.id}
@@ -126,11 +135,11 @@ export function IntegrationsPage() {
           <p className="tm-web-int-filters__meta">
             <span className="tm-web-int-filters__count" aria-live="polite">
               {visible.length === INTEGRATIONS.length
-                ? `${INTEGRATIONS.length} integrations`
-                : `${visible.length} of ${INTEGRATIONS.length} integrations`}
+                ? `${INTEGRATIONS.length} ${t('IntegrationsPage.integrationsWord')}`
+                : `${visible.length} ${t('IntegrationsPage.ofWord')} ${INTEGRATIONS.length} ${t('IntegrationsPage.integrationsWord')}`}
             </span>
             <ArrowLink href="/contact" underline={false}>
-              Suggest an integration
+              {t('IntegrationsPage.suggestLink')}
             </ArrowLink>
           </p>
         </div>
@@ -146,11 +155,11 @@ export function IntegrationsPage() {
         ) : (
           <div className="tm-web-int-empty" id="int-grid">
             <IconOrb icon="search" tone="tint" />
-            <p className="tm-web-int-empty__title">No integration matches “{query.trim()}”.</p>
-            <p className="tm-web-int-empty__body">
-              Try another word, or tell us what you would connect — the list follows real requests.
+            <p className="tm-web-int-empty__title">
+              {t('IntegrationsPage.emptyTitlePre')} “{query.trim()}”.
             </p>
-            <ArrowLink href="/contact">Suggest an integration</ArrowLink>
+            <p className="tm-web-int-empty__body">{t('IntegrationsPage.emptyBody')}</p>
+            <ArrowLink href="/contact">{t('IntegrationsPage.suggestLink')}</ArrowLink>
           </div>
         )}
       </WebSection>
@@ -161,12 +170,12 @@ export function IntegrationsPage() {
             <SectionHeader
               tone="ink"
               id="int-how-title"
-              eyebrow="HOW CONNECTIONS WORK"
-              title="Nothing connects without showing its work."
-              lede="Each connection is reviewed before it starts, acts as someone you chose, and leaves a record you can read."
+              eyebrow={t('IntegrationsPage.howEyebrow')}
+              title={t('IntegrationsPage.howTitle')}
+              lede={t('IntegrationsPage.howLede')}
             />
             <ArrowLink href="/security" tone="ink" underline={false}>
-              How we handle your data
+              {t('IntegrationsPage.howDataLink')}
             </ArrowLink>
           </div>
           <ol className="tm-web-int-steps">
@@ -191,10 +200,10 @@ export function IntegrationsPage() {
           <div className="tm-web-feature__text">
             <SectionHeader
               id="int-build-title"
-              eyebrow="BUILD YOUR OWN"
-              title="Webhooks and an API for your own workflows."
-              lede="Send events to the systems you already run, and act on requests and work items from your own scripts — with the same permissions a person would have."
-              link={{ label: 'Read the developer guide', href: '/resources' }}
+              eyebrow={t('IntegrationsPage.buildEyebrow')}
+              title={t('IntegrationsPage.buildTitle')}
+              lede={t('IntegrationsPage.buildLede')}
+              link={{ label: t('IntegrationsPage.buildLink'), href: '/resources' }}
             />
           </div>
           <ProductVisualFrame>
@@ -215,12 +224,15 @@ export function IntegrationsPage() {
 }
 
 function IntegrationCard({ item }: { item: Integration }) {
+  const t = useT();
   return (
     <article className="tm-web-int-card">
       <div className="tm-web-int-card__head">
         <IconOrb icon={item.icon} tone="tint" />
         <StateCapsule state={item.status === 'available' ? 'done' : 'future'}>
-          {item.status === 'available' ? 'Available' : 'Planned'}
+          {item.status === 'available'
+            ? t('IntegrationsPage.cardAvailable')
+            : t('IntegrationsPage.cardPlanned')}
         </StateCapsule>
       </div>
       <h3 className="tm-web-int-card__name">{item.name}</h3>
@@ -258,11 +270,9 @@ const PREVIEW_ROWS: readonly { verb: 'Read' | 'Do'; text: string }[] = [
 
 /** Connection preview — the permission sheet a person sees before connecting Google Calendar. */
 function ConnectionPreviewScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-int-preview-scene"
-      label="A connection preview for Google Calendar: what it can read, what it can do, the person it acts as, and Cancel and Connect actions."
-    >
+    <Scene className="tm-web-int-preview-scene" label={t('IntegrationsPage.connectionSceneLabel')}>
       <div className="tm-web-int-preview">
         <div className="tm-web-int-preview__head">
           <IconOrb icon="calendar" tone="tint" />
@@ -346,11 +356,9 @@ const WEBHOOK_EVENTS: readonly {
 
 /** Webhook delivery history — the developer row's product visual. */
 function WebhookLogScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-int-log-scene"
-      label="A webhook delivery history: four events sent to an endpoint, three delivered and one retrying."
-    >
+    <Scene className="tm-web-int-log-scene" label={t('IntegrationsPage.webhookSceneLabel')}>
       <div className="tm-web-int-log">
         <p className="tm-web-scene__mono">Webhook · Delivery history</p>
         <p className="tm-web-int-log__title">studio.example/hooks</p>

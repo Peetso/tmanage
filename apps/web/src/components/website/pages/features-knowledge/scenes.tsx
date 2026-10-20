@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, InlineAlert, StateCapsule } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { IconOrb, cx } from '../../primitives';
 import { WebIcon } from '../../WebIcon';
 
@@ -37,11 +38,9 @@ function Mono({ children, className }: { children: ReactNode; className?: string
 /* ── Hero: the "Homepage direction" decision record ─────────────────────────── */
 
 export function DecisionRecordScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The Homepage direction decision record, decided by Maya Hassan, linked live to a deliverable in client review and the launch milestone."
-      className="tm-fk-scene--hero"
-    >
+    <Scene label={t('DecisionRecordScene.label')} className="tm-fk-scene--hero">
       <div className="tm-fk-window">
         <div className="tm-fk-window__bar">
           <span className="tm-fk-window__url">
@@ -114,11 +113,9 @@ const BRIEF_TASKS: readonly {
 ];
 
 export function ProjectBriefScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The Atlas project brief, with three tasks and the launch milestone embedded live from the work."
-      className="tm-fk-scene--card"
-    >
+    <Scene label={t('ProjectBriefScene.label')} className="tm-fk-scene--card">
       <div className="tm-fk-card">
         <div className="tm-fk-card__head">
           <IconOrb icon="doc" tone="outline" className="tm-fk-card__orb" />
@@ -169,11 +166,9 @@ export function ProjectBriefScene() {
 /* ── Decision register: DEC-41 ─────────────────────────────────────────────── */
 
 export function DecisionScene() {
+  const t = useT();
   return (
-    <Scene
-      label="Decision DEC-41, Offers strip moves below the room grid: who decided, why, the two options rejected and the three work items it affects."
-      className="tm-fk-scene--card"
-    >
+    <Scene label={t('DecisionScene.label')} className="tm-fk-scene--card">
       <div className="tm-fk-card">
         <div className="tm-fk-card__row">
           <span className="tm-fk-inline">
@@ -225,11 +220,9 @@ export function DecisionScene() {
 /* ── Governed versions: the approval invalidated by a new upload ─────────────── */
 
 export function GovernedVersionScene() {
+  const t = useT();
   return (
-    <Scene
-      label="Homepage Concept: version 3 uploaded after version 2 was approved, so the approval is no longer valid and a new review is needed."
-      className="tm-fk-scene--card"
-    >
+    <Scene label={t('GovernedVersionScene.label')} className="tm-fk-scene--card">
       <div className="tm-fk-card tm-fk-card--governed">
         <div className="tm-fk-card__row">
           <span className="tm-fk-card__title">Homepage Concept</span>
@@ -281,11 +274,9 @@ const PREVIEW_CHECKS = [
 ] as const;
 
 export function PublicationPreviewScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The publication warning: Homepage Concept v2 is about to go to two client reviewers, with internal comments and cost fields hidden."
-      className="tm-fk-scene--card"
-    >
+    <Scene label={t('PublicationPreviewScene.label')} className="tm-fk-scene--card">
       <div className="tm-fk-card">
         <span>
           <Badge tone="client">Client preview</Badge>
@@ -350,11 +341,9 @@ const RESULTS: readonly {
 ];
 
 export function PermissionSearchScene() {
+  const t = useT();
   return (
-    <Scene
-      label="Search for homepage approval: three results you may see, and a note that six matches in projects you are not on stay hidden."
-      className="tm-fk-scene--search"
-    >
+    <Scene label={t('PermissionSearchScene.label')} className="tm-fk-scene--search">
       <div className="tm-fk-search">
         <div className="tm-fk-search__field">
           <WebIcon name="search" size={16} />
@@ -394,11 +383,9 @@ const CONFIRMING = [
 ] as const;
 
 export function ClientApprovalScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The client approval sheet: the exact version hash being decided on, four things to confirm, and Approve version 2."
-      className="tm-fk-scene--approve"
-    >
+    <Scene label={t('ClientApprovalScene.label')} className="tm-fk-scene--approve">
       <div className="tm-fk-approve">
         <div className="tm-fk-approve__inner">
           <Mono>What you are deciding on</Mono>

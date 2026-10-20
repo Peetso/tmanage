@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Avatar, Badge, Select, StatusDot, VisuallyHidden } from '@tmanage/ui';
+import { useT } from '../../../../lib/i18n/use-t';
 import { ButtonLink, SectionHeader, WebIcon, WebSection } from '../..';
 import { cx } from '../../primitives';
 import {
@@ -24,12 +25,17 @@ function BillingToggle({
   period: BillingPeriod;
   onChange: (next: BillingPeriod) => void;
 }) {
+  const t = useT();
   const options: readonly { id: BillingPeriod; label: string }[] = [
-    { id: 'monthly', label: 'Monthly' },
-    { id: 'yearly', label: 'Yearly' },
+    { id: 'monthly', label: t('PricingPage.toggleMonthly') },
+    { id: 'yearly', label: t('PricingPage.toggleYearly') },
   ];
   return (
-    <div className="tm-segmented tm-pricing-toggle" role="group" aria-label="Billing period">
+    <div
+      className="tm-segmented tm-pricing-toggle"
+      role="group"
+      aria-label={t('PricingPage.billingPeriodAria')}
+    >
       {options.map((option) => (
         <button
           key={option.id}
@@ -58,9 +64,10 @@ function PlanPicker({
   onChange: (next: PlanId) => void;
   className: string;
 }) {
+  const t = useT();
   return (
     <Select
-      label="Show plan"
+      label={t('PricingPage.showPlan')}
       className={cx('tm-pricing-picker', className)}
       value={plan}
       onChange={(event) => onChange(event.target.value as PlanId)}
@@ -85,6 +92,7 @@ function PlanCard({
   period: BillingPeriod;
   active: boolean;
 }) {
+  const t = useT();
   const headingId = `plan-${plan.id}`;
   return (
     <article
@@ -97,7 +105,7 @@ function PlanCard({
       aria-labelledby={headingId}
     >
       {plan.featured ? (
-        <Badge className="tm-pricing-plan__flag">Most teams start here</Badge>
+        <Badge className="tm-pricing-plan__flag">{t('PricingPage.planFlag')}</Badge>
       ) : null}
       <h3 id={headingId} className="tm-pricing-plan__name">
         {plan.name}
@@ -105,14 +113,15 @@ function PlanCard({
       <p className="tm-pricing-plan__positioning">{plan.positioning}</p>
       <div className="tm-pricing-plan__price">
         <p className="tm-pricing-plan__figure">
-          <span className="tm-pricing-plan__amount" aria-label="Price not set yet">
+          <span className="tm-pricing-plan__amount" aria-label={t('PricingPage.priceAria')}>
             $ —
           </span>
           <span className="tm-pricing-plan__unit">
-            / seat / {period === 'monthly' ? 'mo' : 'yr'}
+            / {t('PricingPage.seatWord')} /{' '}
+            {period === 'monthly' ? t('PricingPage.moWord') : t('PricingPage.yrWord')}
           </span>
         </p>
-        <p className="tm-pricing-plan__note">Launch price at paid beta</p>
+        <p className="tm-pricing-plan__note">{t('PricingPage.launchNote')}</p>
       </div>
       <ButtonLink
         href={plan.cta.href}
@@ -137,6 +146,7 @@ function PlanCard({
 /* ── "How it's counted" — three mini product scenes ──────────────────────────── */
 
 function CountedCards() {
+  const t = useT();
   return (
     <div className="tm-pricing-rules">
       <article className="tm-pricing-rule">
@@ -146,11 +156,8 @@ function CountedCards() {
           <Avatar name="Sara Rashed" decorative className="tm-pricing-rule__avatar" />
           <Badge mono>3 seats</Badge>
         </div>
-        <h3 className="tm-pricing-rule__title">Internal seats</h3>
-        <p className="tm-pricing-rule__body">
-          You pay for the people on your team who plan, run and deliver the work. Add or remove
-          seats any month.
-        </p>
+        <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleSeatsTitle')}</h3>
+        <p className="tm-pricing-rule__body">{t('PricingPage.ruleSeatsBody')}</p>
       </article>
       <article className="tm-pricing-rule">
         <div className="tm-pricing-rule__scene" aria-hidden="true">
@@ -161,21 +168,16 @@ function CountedCards() {
             <span className="tm-pricing-rule__ink">Free, always</span>
           </Badge>
         </div>
-        <h3 className="tm-pricing-rule__title">Clients are free</h3>
-        <p className="tm-pricing-rule__body">
-          Invite every client to their portal. They comment, approve and upload files without using
-          a seat.
-        </p>
+        <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleClientsTitle')}</h3>
+        <p className="tm-pricing-rule__body">{t('PricingPage.ruleClientsBody')}</p>
       </article>
       <article className="tm-pricing-rule">
         <div className="tm-pricing-rule__scene tm-pricing-rule__scene--compact" aria-hidden="true">
           <StatusDot tone="success">Counted once</StatusDot>
           <Badge mono>Pooled per workspace</Badge>
         </div>
-        <h3 className="tm-pricing-rule__title">Storage is pooled</h3>
-        <p className="tm-pricing-rule__body">
-          Files count once for the whole workspace, not per seat and not per client.
-        </p>
+        <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleStorageTitle')}</h3>
+        <p className="tm-pricing-rule__body">{t('PricingPage.ruleStorageBody')}</p>
       </article>
     </div>
   );
@@ -184,11 +186,12 @@ function CountedCards() {
 /* ── Comparison table ─────────────────────────────────────────────────────────── */
 
 function Cell({ value }: { value: CompareCell }) {
+  const t = useT();
   if (value === true) {
     return (
       <>
         <WebIcon name="check" size={16} className="tm-pricing-compare__check" />
-        <VisuallyHidden>Included</VisuallyHidden>
+        <VisuallyHidden>{t('PricingPage.cellIncluded')}</VisuallyHidden>
       </>
     );
   }
@@ -198,7 +201,7 @@ function Cell({ value }: { value: CompareCell }) {
         <span className="tm-pricing-compare__none" aria-hidden="true">
           –
         </span>
-        <VisuallyHidden>Not included</VisuallyHidden>
+        <VisuallyHidden>{t('PricingPage.cellNotIncluded')}</VisuallyHidden>
       </>
     );
   }
@@ -206,14 +209,15 @@ function Cell({ value }: { value: CompareCell }) {
 }
 
 function CompareTable({ active }: { active: PlanId }) {
+  const t = useT();
   const on = (id: PlanId) => (id === active ? 'is-active' : undefined);
   return (
-    <div className="tm-pricing-compare" role="region" aria-label="Plan comparison">
+    <div className="tm-pricing-compare" role="region" aria-label={t('PricingPage.compareAria')}>
       <table className="tm-pricing-compare__table">
         <thead>
           <tr>
             <th scope="col" className="tm-pricing-compare__corner">
-              Features
+              {t('PricingPage.compareFeatures')}
             </th>
             {PRICING_PLANS.map((plan) => (
               <th key={plan.id} scope="col" className={cx('tm-pricing-compare__plan', on(plan.id))}>
@@ -257,6 +261,7 @@ function CompareTable({ active }: { active: PlanId }) {
 /* ── Page ─────────────────────────────────────────────────────────────────────── */
 
 export function PricingPage() {
+  const t = useT();
   const [period, setPeriod] = useState<BillingPeriod>('monthly');
   const [plan, setPlan] = useState<PlanId>('studio');
 
@@ -268,15 +273,13 @@ export function PricingPage() {
           size="page"
           align="center"
           id="pricing-title"
-          eyebrow="Pricing"
-          title="Priced per internal seat. Clients are always free."
-          lede="Pay only for the people on your team who plan and deliver the work. Clients and their approvers join their portal at no cost, on every plan."
+          eyebrow={t('PricingPage.heroEyebrow')}
+          title={t('PricingPage.heroTitle')}
+          lede={t('PricingPage.heroLede')}
         >
           <div className="tm-pricing-hero__toggle">
             <BillingToggle period={period} onChange={setPeriod} />
-            <p className="tm-pricing-hero__note">
-              Yearly billing will cost less than twelve monthly payments.
-            </p>
+            <p className="tm-pricing-hero__note">{t('PricingPage.heroNote')}</p>
           </div>
         </SectionHeader>
         <PlanPicker plan={plan} onChange={setPlan} className="tm-pricing-picker--plans" />
@@ -291,9 +294,9 @@ export function PricingPage() {
         <SectionHeader
           align="center"
           id="pricing-counted"
-          eyebrow="How it's counted"
-          title="Three rules. No surprises on the invoice."
-          lede="Seats are the only thing you pay for. Everything that touches your clients stays free."
+          eyebrow={t('PricingPage.countedEyebrow')}
+          title={t('PricingPage.countedTitle')}
+          lede={t('PricingPage.countedLede')}
         />
         <CountedCards />
       </WebSection>
@@ -302,9 +305,9 @@ export function PricingPage() {
         <SectionHeader
           align="center"
           id="pricing-compare"
-          eyebrow="Compare plans"
-          title="Every plan, side by side."
-          lede="See exactly what each plan includes before you choose."
+          eyebrow={t('PricingPage.compareEyebrow')}
+          title={t('PricingPage.compareTitle')}
+          lede={t('PricingPage.compareLede')}
         />
         <PlanPicker plan={plan} onChange={setPlan} className="tm-pricing-picker--compare" />
         <CompareTable active={plan} />
@@ -313,10 +316,10 @@ export function PricingPage() {
       <WebSection tone="sunken" aria-labelledby="pricing-faq">
         <SectionHeader
           id="pricing-faq"
-          eyebrow="FAQ"
-          title="Questions teams ask before they choose."
-          lede="Still unsure? Book a demo and we will walk through your setup with you."
-          link={{ label: 'Book a demo', href: '/contact' }}
+          eyebrow={t('PricingPage.faqEyebrow')}
+          title={t('PricingPage.faqTitle')}
+          lede={t('PricingPage.faqLede')}
+          link={{ label: t('PricingPage.faqLink'), href: '/contact' }}
         />
         <dl className="tm-pricing-faq">
           {PRICING_FAQ.map((item) => (
@@ -333,20 +336,18 @@ export function PricingPage() {
           <div className="tm-web-cta tm-web-cta--text tm-pricing-cta">
             <div className="tm-web-cta__text">
               <h2 id="pricing-cta" className="tm-web-cta__title">
-                Bring the next client project into one story.
+                {t('PricingPage.ctaTitle')}
               </h2>
-              <p className="tm-web-cta__lede">
-                Start free with your team. Invite your client when the first deliverable is ready.
-              </p>
+              <p className="tm-web-cta__lede">{t('PricingPage.ctaLede')}</p>
               <div className="tm-web-cta__actions">
                 <ButtonLink href={SIGN_UP_HREF} tone="lime" size="default">
-                  Start free
+                  {t('PricingPage.startFree')}
                 </ButtonLink>
                 <ButtonLink href="/contact" tone="outline-ink" size="default">
-                  Book a demo
+                  {t('PricingPage.bookDemo')}
                 </ButtonLink>
               </div>
-              <p className="tm-web-cta__note">No credit card · Client users are always free</p>
+              <p className="tm-web-cta__note">{t('PricingPage.ctaNote')}</p>
             </div>
           </div>
         </div>

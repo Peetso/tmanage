@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, type ReactNode } from 'react';
+import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import { ButtonLink, Eyebrow, cx } from '../../primitives';
 import { WebIcon } from '../../WebIcon';
 import {
@@ -32,46 +34,25 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
  */
 
 const ANCHORS = [
-  { id: 'docs', label: 'Docs' },
-  { id: 'decisions', label: 'Decisions' },
-  { id: 'versions', label: 'Files & versions' },
-  { id: 'approvals', label: 'Approvals' },
-  { id: 'search', label: 'Search' },
-] as const;
+  { id: 'docs', labelKey: 'FeaturesKnowledgePage.anchorDocs' },
+  { id: 'decisions', labelKey: 'FeaturesKnowledgePage.anchorDecisions' },
+  { id: 'versions', labelKey: 'FeaturesKnowledgePage.anchorVersions' },
+  { id: 'approvals', labelKey: 'FeaturesKnowledgePage.anchorApprovals' },
+  { id: 'search', labelKey: 'FeaturesKnowledgePage.anchorSearch' },
+] as const satisfies readonly { id: string; labelKey: MessageKey }[];
 
-const STATS: readonly StatProps[] = [
+const FAQ: readonly { questionKey: MessageKey; answerKey: MessageKey }[] = [
   {
-    value: '1',
-    unit: 'version',
-    label: 'approved per sign-off',
-    note: 'Change the file and the approval resets to the new version.',
+    questionKey: 'FeaturesKnowledgePage.faqCoeditQ',
+    answerKey: 'FeaturesKnowledgePage.faqCoeditA',
   },
   {
-    value: '0',
-    unit: 'pasted tables',
-    label: 'status tables to keep current',
-    note: 'Embedded tasks and milestones update themselves.',
+    questionKey: 'FeaturesKnowledgePage.faqDownloadQ',
+    answerKey: 'FeaturesKnowledgePage.faqDownloadA',
   },
   {
-    value: '3',
-    unit: 'audiences',
-    label: 'team, client or private, per block',
-    note: 'Every block says who can read it before you publish.',
-  },
-];
-
-const FAQ: readonly FaqItem[] = [
-  {
-    question: 'Is there real-time co-editing?',
-    answer: 'Docs support comments and versions today; live co-editing is on the roadmap.',
-  },
-  {
-    question: 'Which files can clients download?',
-    answer: 'Only published, scanned versions, through short-lived links.',
-  },
-  {
-    question: 'Can an author approve their own work?',
-    answer: 'No. Internal review requires someone else.',
+    questionKey: 'FeaturesKnowledgePage.faqSelfApproveQ',
+    answerKey: 'FeaturesKnowledgePage.faqSelfApproveA',
   },
 ];
 
@@ -163,7 +144,28 @@ function KnowledgeRow({
 }
 
 export function FeaturesKnowledgePage() {
+  const t = useT();
   const activeAnchor = useActiveAnchor();
+  const stats: readonly StatProps[] = [
+    {
+      value: '1',
+      unit: t('FeaturesKnowledgePage.statVersionUnit'),
+      label: t('FeaturesKnowledgePage.statVersionLabel'),
+      note: t('FeaturesKnowledgePage.statVersionNote'),
+    },
+    {
+      value: '0',
+      unit: t('FeaturesKnowledgePage.statTablesUnit'),
+      label: t('FeaturesKnowledgePage.statTablesLabel'),
+      note: t('FeaturesKnowledgePage.statTablesNote'),
+    },
+    {
+      value: '3',
+      unit: t('FeaturesKnowledgePage.statAudiencesUnit'),
+      label: t('FeaturesKnowledgePage.statAudiencesLabel'),
+      note: t('FeaturesKnowledgePage.statAudiencesNote'),
+    },
+  ];
   return (
     <div className="tm-fk">
       {/* 2 · Hero */}
@@ -174,19 +176,19 @@ export function FeaturesKnowledgePage() {
               as="h1"
               size="page"
               id="fk-hero-title"
-              eyebrow="Features · Know & approve"
-              title="Context beside the work. Approval on the exact version."
-              lede="Docs, a decision register and governed deliverables — so you can always answer who agreed to what, and when."
+              eyebrow={t('FeaturesKnowledgePage.heroEyebrow')}
+              title={t('FeaturesKnowledgePage.heroTitle')}
+              lede={t('FeaturesKnowledgePage.heroLede')}
             />
             <div className="tm-fk-hero__actions">
               <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                Start free
+                {t('FeaturesKnowledgePage.startFree')}
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">
-                Book a demo
+                {t('FeaturesKnowledgePage.bookDemo')}
               </ButtonLink>
             </div>
-            <nav className="tm-fk-anchors" aria-label="On this page">
+            <nav className="tm-fk-anchors" aria-label={t('FeaturesKnowledgePage.anchorsAria')}>
               {ANCHORS.map((anchor) => (
                 <a
                   key={anchor.id}
@@ -198,7 +200,7 @@ export function FeaturesKnowledgePage() {
                     activeAnchor === anchor.id && 'tm-web-chip--on',
                   )}
                 >
-                  {anchor.label}
+                  {t(anchor.labelKey)}
                 </a>
               ))}
             </nav>
@@ -213,22 +215,22 @@ export function FeaturesKnowledgePage() {
       <WebSection className="tm-fk-stack">
         <KnowledgeRow
           id="docs"
-          eyebrow="Docs"
-          title="Docs with live links to the work."
-          body="Briefs, wikis and templates embed tasks and milestones that stay current. No pasted status tables."
+          eyebrow={t('FeaturesKnowledgePage.docsEyebrow')}
+          title={t('FeaturesKnowledgePage.docsTitle')}
+          body={t('FeaturesKnowledgePage.docsBody')}
           visual={<ProjectBriefScene />}
         />
         <KnowledgeRow
           id="decisions"
-          eyebrow="Decision register"
-          title="Every decision, with who made it and why."
-          body="Turn a message or meeting note into a decision with an owner, a date and the options you rejected."
+          eyebrow={t('FeaturesKnowledgePage.decisionsEyebrow')}
+          title={t('FeaturesKnowledgePage.decisionsTitle')}
+          body={t('FeaturesKnowledgePage.decisionsBody')}
           visual={<DecisionScene />}
           reverse
           tone="lime"
         />
         <div className="tm-fk-stats">
-          <StatBand stats={STATS} />
+          <StatBand stats={stats} />
         </div>
       </WebSection>
 
@@ -240,12 +242,12 @@ export function FeaturesKnowledgePage() {
               tone="ink"
               size="page"
               id="versions-title"
-              eyebrow="Governed versions"
-              title="Approval means approval."
-              lede="A reviewer approves one exact version. Change the file and the approval is invalidated — never silently carried over."
+              eyebrow={t('FeaturesKnowledgePage.versionsEyebrow')}
+              title={t('FeaturesKnowledgePage.versionsTitle')}
+              lede={t('FeaturesKnowledgePage.versionsLede')}
             />
             <ButtonLink href="/client-portal" tone="lime" className="tm-fk-ink__cta">
-              See how approvals work
+              {t('FeaturesKnowledgePage.versionsCta')}
             </ButtonLink>
           </div>
           <div className="tm-fk-ink__visual">
@@ -258,16 +260,16 @@ export function FeaturesKnowledgePage() {
       <WebSection className="tm-fk-stack">
         <KnowledgeRow
           id="approvals"
-          eyebrow="Client preview"
-          title="See exactly what your client will see before you send it."
-          body="Preview the client projection. Internal comments and cost fields are never shared."
+          eyebrow={t('FeaturesKnowledgePage.previewEyebrow')}
+          title={t('FeaturesKnowledgePage.previewTitle')}
+          body={t('FeaturesKnowledgePage.previewBody')}
           visual={<PublicationPreviewScene />}
         />
         <KnowledgeRow
           id="search"
-          eyebrow="Search"
-          title="Search that respects permissions."
-          body="Results cite the objects you are allowed to see — nothing more."
+          eyebrow={t('FeaturesKnowledgePage.searchEyebrow')}
+          title={t('FeaturesKnowledgePage.searchTitle')}
+          body={t('FeaturesKnowledgePage.searchBody')}
           visual={<PermissionSearchScene />}
           reverse
         />
@@ -278,13 +280,18 @@ export function FeaturesKnowledgePage() {
         <SectionHeader
           align="center"
           id="fk-faq-title"
-          eyebrow="FAQ"
-          title="Questions, answered plainly."
-          lede="What teams ask before they move documents, decisions and approvals into TManage."
+          eyebrow={t('FeaturesKnowledgePage.faqEyebrow')}
+          title={t('FeaturesKnowledgePage.faqTitle')}
+          lede={t('FeaturesKnowledgePage.faqLede')}
         />
         <div className="tm-web-faq-list tm-fk-faq__list">
           {FAQ.map((item, index) => (
-            <KnowledgeFaqRow key={item.question} {...item} defaultOpen={index === 0} />
+            <KnowledgeFaqRow
+              key={item.questionKey}
+              question={t(item.questionKey)}
+              answer={t(item.answerKey)}
+              defaultOpen={index === 0}
+            />
           ))}
         </div>
       </WebSection>
@@ -293,8 +300,9 @@ export function FeaturesKnowledgePage() {
       <CtaBand
         title={
           <>
-            Give every approval a name, a date
-            <br className="tm-fk-cta-break" /> and a version.
+            {t('FeaturesKnowledgePage.ctaTitlePart1')}
+            <br className="tm-fk-cta-break" />
+            {t('FeaturesKnowledgePage.ctaTitlePart2')}
           </>
         }
         visual={<ClientApprovalScene />}
