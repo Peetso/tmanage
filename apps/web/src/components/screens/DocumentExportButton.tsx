@@ -1,6 +1,7 @@
 'use client';
 
 import { apiBaseUrl } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocumentExportButtonProps {
   organizationSlug: string;
@@ -37,10 +38,11 @@ export function DocumentExportButton({
 }: DocumentExportButtonProps) {
   const origin = apiOrigin ?? apiBaseUrl();
   const href = `${origin}/v1/organizations/${encodeURIComponent(organizationSlug)}/documents/${encodeURIComponent(documentId)}/export.md`;
+  const t = useT();
 
   return (
     <a className="tm-button tm-button--outline" href={href} download={`${documentId}.md`}>
-      Export Markdown
+      {t('DocumentExportButton.exportMarkdown')}
     </a>
   );
 }

@@ -14,6 +14,8 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface DocReviewsViewProps {
   organizationSlug: string;
@@ -21,10 +23,11 @@ export interface DocReviewsViewProps {
   client?: ApiClient;
 }
 
-const STATE_LABEL: Record<DocReviewState, string> = {
-  pending: 'Pending',
-  approved: 'Approved',
-  changes_requested: 'Changes requested',
+/** The message key for each review state's label; resolved through `t()` at each render site. */
+const STATE_LABEL_KEY: Record<DocReviewState, MessageKey> = {
+  pending: 'DocReviewsView.statePending',
+  approved: 'DocReviewsView.stateApproved',
+  changes_requested: 'DocReviewsView.stateChangesRequested',
 };
 
 /**
@@ -49,6 +52,7 @@ const STATE_LABEL: Record<DocReviewState, string> = {
 export function DocReviewsView({ organizationSlug, documentId, client }: DocReviewsViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const reviews = useQuery({
     queryKey: ['doc-reviews', organizationSlug, documentId],
@@ -85,33 +89,33 @@ export function DocReviewsView({ organizationSlug, documentId, client }: DocRevi
     <section className="tm-panel tm-stack" aria-labelledby="tm-doc-reviews">
       <div className="tm-row">
         <h2 id="tm-doc-reviews" className="tm-eyebrow">
-          Reviews
+          {t('DocReviewsView.reviews')}
         </h2>
-        {latest ? <Badge>{STATE_LABEL[latest.state]}</Badge> : null}
+        {latest ? <Badge>{t(STATE_LABEL_KEY[latest.state])}</Badge> : null}
       </div>
 
       {reviews.isPending ? (
-        <LoadingRegion label="Loading reviews.">
+        <LoadingRegion label={t('DocReviewsView.loadingReviews')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {notAvailable ? (
-        <InlineAlert tone="neutral" title="Reviews unavailable" live>
-          Reviews are not available for this document.
+        <InlineAlert tone="neutral" title={t('DocReviewsView.unavailableTitle')} live>
+          {t('DocReviewsView.unavailableBody')}
         </InlineAlert>
       ) : null}
 
       {reviews.isError && !notAvailable ? (
-        <InlineAlert tone="danger" title="Could not load reviews" live>
+        <InlineAlert tone="danger" title={t('DocReviewsView.loadError')} live>
           {describeError(reviews.error)}
         </InlineAlert>
       ) : null}
 
       {!reviews.isPending && !reviews.isError ? (
         rows.length > 0 ? (
-          <ol className="tm-stack" aria-label="Reviews of this document">
+          <ol className="tm-stack" aria-label={t('DocReviewsView.listAria')}>
             {rows.map((review) => (
               <ReviewRow
                 key={review.id}
@@ -124,7 +128,7 @@ export function DocReviewsView({ organizationSlug, documentId, client }: DocRevi
             ))}
           </ol>
         ) : (
-          <p className="tm-prose">No reviews requested yet.</p>
+          <p className="tm-prose">{t('DocReviewsView.emptyReviews')}</p>
         )
       ) : null}
 
@@ -138,7 +142,7 @@ export function DocReviewsView({ organizationSlug, documentId, client }: DocRevi
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-doc-review-reviewer">
-            Request a review from (user id)
+            {t('DocReviewsView.requestFromLabel')}
           </label>
           <input
             id="tm-doc-review-reviewer"
@@ -151,7 +155,7 @@ export function DocReviewsView({ organizationSlug, documentId, client }: DocRevi
 
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-doc-review-note">
-            Note (optional)
+            {t('DocReviewsView.noteOptionalLabel')}
           </label>
           <textarea
             id="tm-doc-review-note"
@@ -164,7 +168,7 @@ export function DocReviewsView({ organizationSlug, documentId, client }: DocRevi
         </div>
 
         {request.isError ? (
-          <InlineAlert tone="danger" title="Could not request the review" live>
+          <InlineAlert tone="danger" title={t('DocReviewsView.requestError')} live>
             {describeError(request.error)}
           </InlineAlert>
         ) : null}
@@ -175,10 +179,10 @@ export function DocReviewsView({ organizationSlug, documentId, client }: DocRevi
             tone="ink"
             size="accessible"
             loading={request.isPending}
-            loadingLabel="Requesting"
+            loadingLabel={t('DocReviewsView.requesting')}
             disabled={!canRequest}
           >
-            Request review
+            {t('DocReviewsView.requestReview')}
           </Button>
         </div>
       </form>
@@ -196,6 +200,7 @@ interface ReviewRowProps {
 
 /** One review row: the state chip, who/when, and — while pending — a decision panel. */
 function ReviewRow({ review, api, organizationSlug, documentId, onDecided }: ReviewRowProps) {
+  const t = useT();
   const [state, setState] = useState<'approved' | 'changes_requested'>('approved');
   const [note, setNote] = useState('');
 
@@ -216,7 +221,7 @@ function ReviewRow({ review, api, organizationSlug, documentId, onDecided }: Rev
   return (
     <li className="tm-stack">
       <div className="tm-row">
-        <Badge>{STATE_LABEL[review.state]}</Badge>
+        <Badge>{t(STATE_LABEL_KEY[review.state])}</Badge>
         <span className="tm-field__hint">
           {review.reviewerUserId} · {formatInstant(review.createdAt)}
         </span>
@@ -233,17 +238,18 @@ function ReviewRow({ review, api, organizationSlug, documentId, onDecided }: Rev
           }}
         >
           <Select
-            label="Decision"
+            label={t('DocReviewsView.decision')}
             value={state}
             onChange={(event) => setState(event.target.value as 'approved' | 'changes_requested')}
           >
-            <option value="approved">Approve</option>
-            <option value="changes_requested">Request changes</option>
+            <option value="approved">{t('DocReviewsView.approve')}</option>
+            <option value="changes_requested">{t('DocReviewsView.requestChanges')}</option>
           </Select>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor={`tm-doc-review-decide-note-${review.id}`}>
-              Note{state === 'changes_requested' ? '' : ' (optional)'}
+              {t('DocReviewsView.note')}
+              {state === 'changes_requested' ? '' : t('DocReviewsView.optionalSuffix')}
             </label>
             <textarea
               id={`tm-doc-review-decide-note-${review.id}`}
@@ -256,7 +262,7 @@ function ReviewRow({ review, api, organizationSlug, documentId, onDecided }: Rev
           </div>
 
           {decide.isError ? (
-            <InlineAlert tone="danger" title="Could not record the decision" live>
+            <InlineAlert tone="danger" title={t('DocReviewsView.decisionError')} live>
               {describeError(decide.error)}
             </InlineAlert>
           ) : null}
@@ -267,16 +273,16 @@ function ReviewRow({ review, api, organizationSlug, documentId, onDecided }: Rev
               tone="ink"
               size="accessible"
               loading={decide.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('DocReviewsView.saving')}
               disabled={needsNote}
             >
-              Save decision
+              {t('DocReviewsView.saveDecision')}
             </Button>
           </div>
         </form>
       ) : (
         <p className="tm-field__hint">
-          Decided {review.decidedAt ? formatInstant(review.decidedAt) : ''}
+          {t('DocReviewsView.decided')} {review.decidedAt ? formatInstant(review.decidedAt) : ''}
         </p>
       )}
     </li>

@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/doc-revisions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocRevisionsScreenProps {
   organizationSlug: string;
@@ -44,6 +45,7 @@ export function DocRevisionsScreen({
 }: DocRevisionsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const document = useQuery({
     queryKey: ['document', organizationSlug, documentId],
@@ -84,12 +86,12 @@ export function DocRevisionsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      title="Revision history"
-      description="Every saved snapshot of this document. Restore a prior revision to bring its text back — the history is kept intact."
+      title={t('DocRevisionsScreen.title')}
+      description={t('DocRevisionsScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-rev-new-heading">
         <h2 id="tm-rev-new-heading" className="tm-eyebrow">
-          Capture a revision
+          {t('DocRevisionsScreen.captureHeading')}
         </h2>
         <form
           className="tm-stack"
@@ -101,7 +103,7 @@ export function DocRevisionsScreen({
         >
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-rev-body">
-              Snapshot text
+              {t('DocRevisionsScreen.snapshotLabel')}
               <span className="tm-field__required" aria-hidden="true">
                 *
               </span>
@@ -117,12 +119,12 @@ export function DocRevisionsScreen({
               required
             />
             <span className="tm-field__hint" id="tm-rev-body-hint">
-              Captures this text as a new revision and updates the document&rsquo;s current body.
+              {t('DocRevisionsScreen.snapshotHint')}
             </span>
           </div>
 
           {capture.isError ? (
-            <InlineAlert tone="danger" title="Could not capture the revision" live>
+            <InlineAlert tone="danger" title={t('DocRevisionsScreen.captureError')} live>
               {describeError(capture.error)}
             </InlineAlert>
           ) : null}
@@ -133,10 +135,10 @@ export function DocRevisionsScreen({
               tone="ink"
               size="accessible"
               loading={capture.isPending}
-              loadingLabel="Capturing"
+              loadingLabel={t('DocRevisionsScreen.capturing')}
               disabled={!canCapture}
             >
-              Capture revision
+              {t('DocRevisionsScreen.captureButton')}
             </Button>
           </div>
         </form>
@@ -147,32 +149,31 @@ export function DocRevisionsScreen({
         aria-labelledby="tm-rev-history-heading"
       >
         <h2 id="tm-rev-history-heading" className="tm-eyebrow">
-          {document.data ? document.data.title : 'History'}
+          {document.data ? document.data.title : t('DocRevisionsScreen.historyHeading')}
         </h2>
 
         {restore.isError ? (
-          <InlineAlert tone="danger" title="Could not restore that revision" live>
+          <InlineAlert tone="danger" title={t('DocRevisionsScreen.restoreError')} live>
             {describeError(restore.error)}
           </InlineAlert>
         ) : null}
 
         {revisions.isError ? (
-          <InlineAlert tone="danger" title="Could not load the revisions" live>
+          <InlineAlert tone="danger" title={t('DocRevisionsScreen.loadError')} live>
             {describeError(revisions.error)}
           </InlineAlert>
         ) : null}
 
         {revisions.isPending ? (
-          <LoadingRegion label="Loading the revision history.">
+          <LoadingRegion label={t('DocRevisionsScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!revisions.isPending && !revisions.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No revisions yet">
-            Capture a revision above. Each capture snapshots the document&rsquo;s body so you can
-            restore it later.
+          <InlineAlert tone="neutral" title={t('DocRevisionsScreen.emptyTitle')}>
+            {t('DocRevisionsScreen.emptyBody')}
           </InlineAlert>
         ) : null}
 
@@ -184,18 +185,19 @@ export function DocRevisionsScreen({
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Document revisions"
+            aria-label={t('DocRevisionsScreen.tableAria')}
           >
             <table className="tm-table">
               <caption className="tm-visually-hidden">
-                This document&rsquo;s revisions, newest first, {rows.length} shown.
+                {t('DocRevisionsScreen.captionPrefix')} {rows.length}{' '}
+                {t('DocRevisionsScreen.captionSuffix')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Revision</th>
-                  <th scope="col">Saved by</th>
-                  <th scope="col">Saved at</th>
-                  <th scope="col">Actions</th>
+                  <th scope="col">{t('DocRevisionsScreen.thRevision')}</th>
+                  <th scope="col">{t('DocRevisionsScreen.thSavedBy')}</th>
+                  <th scope="col">{t('DocRevisionsScreen.thSavedAt')}</th>
+                  <th scope="col">{t('DocRevisionsScreen.thActions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -212,10 +214,10 @@ export function DocRevisionsScreen({
                         tone="outline"
                         size="accessible"
                         loading={restore.isPending && restore.variables === revision.id}
-                        loadingLabel="Restoring"
+                        loadingLabel={t('DocRevisionsScreen.restoring')}
                         onClick={() => restore.mutate(revision.id)}
                       >
-                        Restore
+                        {t('DocRevisionsScreen.restore')}
                       </Button>
                     </td>
                   </tr>

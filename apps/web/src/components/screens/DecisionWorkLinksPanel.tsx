@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/decision-work-links';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DecisionWorkLinksPanelProps {
   organizationSlug: string;
@@ -41,6 +42,7 @@ export function DecisionWorkLinksPanel({
 }: DecisionWorkLinksPanelProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [workItemId, setWorkItemId] = useState('');
 
@@ -83,7 +85,8 @@ export function DecisionWorkLinksPanel({
   return (
     <section className="tm-dx-card" aria-labelledby={headingId}>
       <h3 id={headingId} className="tm-dx-caption">
-        Linked work{rows.length > 0 ? ` · ${rows.length}` : ''}
+        {t('DecisionWorkLinksPanel.linkedWork')}
+        {rows.length > 0 ? ` · ${rows.length}` : ''}
         <span className="tm-visually-hidden"> — {decisionTitle}</span>
       </h3>
       <p className="tm-dx-card__title" aria-hidden="true">
@@ -93,17 +96,17 @@ export function DecisionWorkLinksPanel({
       <form className="tm-dx-form" onSubmit={onSubmit} noValidate>
         <fieldset className="tm-fieldset" disabled={linkMutation.isPending}>
           <Field
-            label="Work item ID"
+            label={t('DecisionWorkLinksPanel.workItemId')}
             name="workItemId"
             value={workItemId}
             onChange={(event) => setWorkItemId(event.target.value)}
-            hint="The ID of a work item in this project to link to the decision."
+            hint={t('DecisionWorkLinksPanel.workItemIdHint')}
             required
           />
         </fieldset>
 
         {linkMutation.isError ? (
-          <InlineAlert tone="danger" title="Could not link the work item" live>
+          <InlineAlert tone="danger" title={t('DecisionWorkLinksPanel.linkError')} live>
             {describeError(linkMutation.error)}
           </InlineAlert>
         ) : null}
@@ -113,36 +116,34 @@ export function DecisionWorkLinksPanel({
           tone="ink"
           size="compact"
           loading={linkMutation.isPending}
-          loadingLabel="Linking"
+          loadingLabel={t('DecisionWorkLinksPanel.linking')}
           disabled={!canSubmit}
         >
-          Link work item
+          {t('DecisionWorkLinksPanel.linkWorkItem')}
         </Button>
       </form>
 
       {links.isError ? (
-        <InlineAlert tone="danger" title="Could not load the linked work" live>
+        <InlineAlert tone="danger" title={t('DecisionWorkLinksPanel.loadError')} live>
           {describeError(links.error)}
         </InlineAlert>
       ) : null}
 
       {links.isPending ? (
-        <LoadingRegion label="Loading the decision's linked work.">
+        <LoadingRegion label={t('DecisionWorkLinksPanel.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!links.isPending && !links.isError && rows.length === 0 ? (
         <div className="tm-dx-empty">
-          <p className="tm-dx-empty__title">No linked work yet</p>
-          <p className="tm-dx-empty__body">
-            No work is linked to this decision. Link the first item above.
-          </p>
+          <p className="tm-dx-empty__title">{t('DecisionWorkLinksPanel.emptyTitle')}</p>
+          <p className="tm-dx-empty__body">{t('DecisionWorkLinksPanel.emptyBody')}</p>
         </div>
       ) : null}
 
       {rows.length > 0 && unlinkMutation.isError ? (
-        <InlineAlert tone="danger" title="Could not unlink the work item" live>
+        <InlineAlert tone="danger" title={t('DecisionWorkLinksPanel.unlinkError')} live>
           {describeError(unlinkMutation.error)}
         </InlineAlert>
       ) : null}
@@ -155,17 +156,18 @@ export function DecisionWorkLinksPanel({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
-          aria-label={`Work linked to ${decisionTitle}`}
+          aria-label={`${t('DecisionWorkLinksPanel.ariaLinkedToPrefix')}${decisionTitle}`}
         >
           <table className="tm-dx-table">
             <caption className="tm-visually-hidden">
-              Work linked to this decision, in link order, {rows.length} shown.
+              {t('DecisionWorkLinksPanel.captionPrefix')} {rows.length}{' '}
+              {t('DecisionWorkLinksPanel.captionSuffix')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Work item</th>
-                <th scope="col">State</th>
-                <th scope="col">Action</th>
+                <th scope="col">{t('DecisionWorkLinksPanel.thWorkItem')}</th>
+                <th scope="col">{t('DecisionWorkLinksPanel.thState')}</th>
+                <th scope="col">{t('DecisionWorkLinksPanel.thAction')}</th>
               </tr>
             </thead>
             <tbody>
@@ -183,7 +185,7 @@ export function DecisionWorkLinksPanel({
                       onClick={() => unlinkMutation.mutate(row.linkId)}
                       disabled={unlinkMutation.isPending}
                     >
-                      Unlink
+                      {t('DecisionWorkLinksPanel.unlink')}
                     </Button>
                   </td>
                 </tr>

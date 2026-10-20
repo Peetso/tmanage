@@ -9,6 +9,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { initialsOf } from '../docs/DocumentAudience';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocumentCommentsPanelProps {
   organizationSlug: string;
@@ -46,6 +47,7 @@ export function DocumentCommentsPanel({
 }: DocumentCommentsPanelProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const comments = useQuery({
     queryKey: ['document-comments', organizationSlug, documentId],
@@ -73,32 +75,33 @@ export function DocumentCommentsPanel({
   return (
     <section className="tm-dx-edge" aria-labelledby="tm-document-comments">
       <h2 id="tm-document-comments" className="tm-dx-edge__caption">
-        Comments
-        {!comments.isPending && !comments.isError ? ` · ${rows.length}` : ''} · Internal only
+        {t('DocumentCommentsPanel.comments')}
+        {!comments.isPending && !comments.isError ? ` · ${rows.length}` : ''} ·{' '}
+        {t('DocumentCommentsPanel.internalOnly')}
       </h2>
 
       {comments.isPending ? (
-        <LoadingRegion label="Loading comments.">
+        <LoadingRegion label={t('DocumentCommentsPanel.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {notAvailable ? (
-        <InlineAlert tone="neutral" title="Comments unavailable" live>
-          Comments are not available for this document.
+        <InlineAlert tone="neutral" title={t('DocumentCommentsPanel.unavailableTitle')} live>
+          {t('DocumentCommentsPanel.unavailableBody')}
         </InlineAlert>
       ) : null}
 
       {comments.isError && !notAvailable ? (
-        <InlineAlert tone="danger" title="Could not load comments" live>
+        <InlineAlert tone="danger" title={t('DocumentCommentsPanel.loadError')} live>
           {describeError(comments.error)}
         </InlineAlert>
       ) : null}
 
       {!comments.isPending && !comments.isError ? (
         rows.length > 0 ? (
-          <ol className="tm-dx-comments" aria-label="Comments on this document">
+          <ol className="tm-dx-comments" aria-label={t('DocumentCommentsPanel.listAria')}>
             {rows.map((comment) => (
               <li key={comment.id} className="tm-dx-comment">
                 <div className="tm-dx-comment__head">
@@ -106,7 +109,7 @@ export function DocumentCommentsPanel({
                     {comment.authorName ? initialsOf(comment.authorName) : '◌'}
                   </span>
                   <span className="tm-dx-comment__who">
-                    {comment.authorName ?? 'A former member'}
+                    {comment.authorName ?? t('DocumentCommentsPanel.formerMember')}
                   </span>
                   <time
                     className="tm-dx-comment__when"
@@ -121,7 +124,7 @@ export function DocumentCommentsPanel({
             ))}
           </ol>
         ) : (
-          <p className="tm-dx-quiet">No comments yet.</p>
+          <p className="tm-dx-quiet">{t('DocumentCommentsPanel.empty')}</p>
         )
       ) : null}
 
@@ -129,8 +132,7 @@ export function DocumentCommentsPanel({
         <span className="tm-dx-edge__note-orb" aria-hidden="true">
           ◎
         </span>
-        Comments stay with your team — they are never shared. Publishing shares the document itself
-        only.
+        {t('DocumentCommentsPanel.footNote')}
       </p>
 
       <form
@@ -143,7 +145,7 @@ export function DocumentCommentsPanel({
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-document-comment-body">
-            Add a comment
+            {t('DocumentCommentsPanel.addLabel')}
           </label>
           <textarea
             id="tm-document-comment-body"
@@ -156,7 +158,7 @@ export function DocumentCommentsPanel({
         </div>
 
         {add.isError ? (
-          <InlineAlert tone="danger" title="Could not add the comment" live>
+          <InlineAlert tone="danger" title={t('DocumentCommentsPanel.addError')} live>
             {describeError(add.error)}
           </InlineAlert>
         ) : null}
@@ -166,10 +168,10 @@ export function DocumentCommentsPanel({
           tone="ink"
           size="compact"
           loading={add.isPending}
-          loadingLabel="Adding"
+          loadingLabel={t('DocumentCommentsPanel.adding')}
           disabled={!canAdd}
         >
-          Add comment
+          {t('DocumentCommentsPanel.addComment')}
         </Button>
       </form>
     </section>

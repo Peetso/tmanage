@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { defineDocTag, listDocTags } from '../../lib/api/doc-tags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocTagsScreenProps {
   organizationSlug: string;
@@ -35,6 +36,7 @@ function describe(error: unknown): string {
 export function DocTagsScreen({ organizationSlug, organizationName, client }: DocTagsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['doc-tags', organizationSlug] as const;
 
   const [name, setName] = useState('');
@@ -69,12 +71,12 @@ export function DocTagsScreen({ organizationSlug, organizationName, client }: Do
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Document tags"
-      description="Define reusable tags, then tag documents and filter the hub by them."
+      title={t('DocTagsScreen.title')}
+      description={t('DocTagsScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-doc-tag-new-heading">
         <h2 id="tm-doc-tag-new-heading" className="tm-eyebrow">
-          New tag
+          {t('DocTagsScreen.newTag')}
         </h2>
         <form
           className="tm-stack"
@@ -85,16 +87,16 @@ export function DocTagsScreen({ organizationSlug, organizationName, client }: Do
           }}
         >
           <Field
-            label="Name"
+            label={t('DocTagsScreen.name')}
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Runbook or Onboarding."
+            hint={t('DocTagsScreen.nameHint')}
             required
           />
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not define the tag" live>
+            <InlineAlert tone="danger" title={t('DocTagsScreen.defineError')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -105,10 +107,10 @@ export function DocTagsScreen({ organizationSlug, organizationName, client }: Do
               tone="ink"
               size="accessible"
               loading={define.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('DocTagsScreen.saving')}
               disabled={!canDefine}
             >
-              Define tag
+              {t('DocTagsScreen.defineTag')}
             </Button>
           </div>
         </form>
@@ -116,24 +118,24 @@ export function DocTagsScreen({ organizationSlug, organizationName, client }: Do
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-doc-tag-filter-heading">
         <h2 id="tm-doc-tag-filter-heading" className="tm-eyebrow">
-          Filter documents by tag
+          {t('DocTagsScreen.filterHeading')}
         </h2>
         {tags.isPending ? (
-          <LoadingRegion label="Loading this studio’s tags.">
+          <LoadingRegion label={t('DocTagsScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {tags.isError ? (
-          <InlineAlert tone="danger" title="Could not load the tags" live>
+          <InlineAlert tone="danger" title={t('DocTagsScreen.loadError')} live>
             {describe(tags.error)}
           </InlineAlert>
         ) : null}
 
         {tags.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">No tags defined yet.</p>
+            <p className="tm-prose">{t('DocTagsScreen.empty')}</p>
           ) : (
             <ul
               className="tm-row tm-row--wrap"

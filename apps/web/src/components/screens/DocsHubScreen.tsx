@@ -14,6 +14,7 @@ import type { DocumentListScope } from '../../lib/api/documents';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocsHubScreenProps {
   organizationSlug: string;
@@ -47,6 +48,7 @@ export function DocsHubScreen({
   client,
 }: DocsHubScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const [tab, setTab] = useState<HubTab>(initialProjectId ? 'project' : 'recent');
   const [chosenId, setProjectId] = useState<string>(initialProjectId ?? '');
 
@@ -88,36 +90,36 @@ export function DocsHubScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      eyebrow="Docs · Hub"
-      title="Knowledge"
+      eyebrow={t('DocsHubScreen.eyebrow')}
+      title={t('DocsHubScreen.title')}
       actions={
         <Link className="tm-dx-new" href={`/${organizationSlug}/docs/templates`}>
           <span className="tm-dx-new__orb" aria-hidden="true">
             +
           </span>
-          New doc
+          {t('DocsHubScreen.newDoc')}
         </Link>
       }
     >
       <div className="tm-dx">
-        <div className="tm-dx-chips" role="group" aria-label="Documents">
-          {tabButton('recent', 'Recent')}
-          {tabButton('project', 'Project knowledge')}
+        <div className="tm-dx-chips" role="group" aria-label={t('DocsHubScreen.documentsAria')}>
+          {tabButton('recent', t('DocsHubScreen.tabRecent'))}
+          {tabButton('project', t('DocsHubScreen.tabProject'))}
           <Link className="tm-chip" href={`/${organizationSlug}/docs/templates`}>
-            Templates
+            {t('DocsHubScreen.templates')}
           </Link>
-          {tabButton('favourites', 'Favourites')}
+          {tabButton('favourites', t('DocsHubScreen.tabFavourites'))}
           <span className="tm-dx-chips__sep" aria-hidden="true" />
           <Link className="tm-chip" href={`/${organizationSlug}/docs/collections`}>
-            Collections
+            {t('DocsHubScreen.collections')}
           </Link>
           <Link className="tm-chip" href={`/${organizationSlug}/decisions`}>
-            Decisions
+            {t('DocsHubScreen.decisions')}
           </Link>
         </div>
 
         {tab === 'project' && available.length > 0 ? (
-          <div className="tm-dx-chips" role="group" aria-label="Project">
+          <div className="tm-dx-chips" role="group" aria-label={t('DocsHubScreen.projectAria')}>
             {available.map((candidate) => (
               <button
                 key={candidate.id}
@@ -133,28 +135,26 @@ export function DocsHubScreen({
         ) : null}
 
         {tab === 'project' && projects.isError ? (
-          <InlineAlert tone="danger" title="Could not load your projects" live>
+          <InlineAlert tone="danger" title={t('DocsHubScreen.loadProjectsError')} live>
             {describeError(projects.error)}
           </InlineAlert>
         ) : null}
 
         {tab === 'project' && projects.isSuccess && available.length === 0 && chosenId === '' ? (
           <div className="tm-dx-empty">
-            <p className="tm-dx-empty__title">No projects yet</p>
-            <p className="tm-dx-empty__body">
-              Documents belong to a project. Once a project exists, its knowledge appears here.
-            </p>
+            <p className="tm-dx-empty__title">{t('DocsHubScreen.emptyProjectsTitle')}</p>
+            <p className="tm-dx-empty__body">{t('DocsHubScreen.emptyProjectsBody')}</p>
           </div>
         ) : null}
 
         {documents.isError ? (
-          <InlineAlert tone="danger" title="Could not load the documents" live>
+          <InlineAlert tone="danger" title={t('DocsHubScreen.loadDocsError')} live>
             {describeError(documents.error)}
           </InlineAlert>
         ) : null}
 
         {scope !== null && documents.isPending ? (
-          <LoadingRegion label="Loading the documents.">
+          <LoadingRegion label={t('DocsHubScreen.loadingDocs')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
@@ -164,12 +164,14 @@ export function DocsHubScreen({
         {documents.isSuccess && rows.length === 0 && hidden === 0 ? (
           <div className="tm-dx-empty">
             <p className="tm-dx-empty__title">
-              {tab === 'favourites' ? 'No favourites yet' : 'No documents yet'}
+              {tab === 'favourites'
+                ? t('DocsHubScreen.noFavouritesTitle')
+                : t('DocsHubScreen.noDocsTitle')}
             </p>
             <p className="tm-dx-empty__body">
               {tab === 'favourites'
-                ? 'Bookmark a document to keep it here.'
-                : 'There are no documents you can see here. Start one from a template.'}
+                ? t('DocsHubScreen.noFavouritesBody')
+                : t('DocsHubScreen.noDocsBody')}
             </p>
           </div>
         ) : null}
@@ -182,19 +184,19 @@ export function DocsHubScreen({
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Documents"
+            aria-label={t('DocsHubScreen.tableAria')}
           >
             <table className="tm-dx-table">
               <caption className="tm-visually-hidden">
-                Documents, most recently updated first, {rows.length} shown.
+                {t('DocsHubScreen.captionPrefix')} {rows.length} {t('DocsHubScreen.captionSuffix')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">Project</th>
-                  <th scope="col">Audience</th>
+                  <th scope="col">{t('DocsHubScreen.thDocument')}</th>
+                  <th scope="col">{t('DocsHubScreen.thProject')}</th>
+                  <th scope="col">{t('DocsHubScreen.thAudience')}</th>
                   <th scope="col" className="tm-dx-table__end">
-                    Updated
+                    {t('DocsHubScreen.thUpdated')}
                   </th>
                 </tr>
               </thead>
@@ -229,8 +231,8 @@ export function DocsHubScreen({
                     <th scope="row" className="tm-dx-table__hidden">
                       <span className="tm-dx-table__hidden-orb" aria-hidden="true" />
                       {hidden === 1
-                        ? '1 document in a space you cannot read'
-                        : `${hidden} documents in spaces you cannot read`}
+                        ? t('DocsHubScreen.hiddenOne')
+                        : `${hidden} ${t('DocsHubScreen.hiddenManySuffix')}`}
                     </th>
                     <td className="tm-dx-table__quiet">—</td>
                     <td className="tm-dx-table__quiet">—</td>

@@ -8,6 +8,7 @@ import { addFileComment, listFileComments, removeFileComment } from '../../lib/a
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface FileCommentsViewProps {
   organizationSlug: string;
@@ -47,6 +48,7 @@ export function FileCommentsView({
 }: FileCommentsViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['file-comments', organizationSlug, fileId] as const;
 
   const comments = useQuery({
@@ -80,37 +82,37 @@ export function FileCommentsView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-file-comments">
       <h2 id="tm-file-comments" className="tm-eyebrow">
-        Comments
+        {t('FileCommentsView.comments')}
       </h2>
 
       {comments.isPending ? (
-        <LoadingRegion label="Loading comments.">
+        <LoadingRegion label={t('FileCommentsView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {notAvailable ? (
-        <InlineAlert tone="neutral" title="Comments unavailable" live>
-          Comments are not available for this file.
+        <InlineAlert tone="neutral" title={t('FileCommentsView.unavailableTitle')} live>
+          {t('FileCommentsView.unavailableBody')}
         </InlineAlert>
       ) : null}
 
       {comments.isError && !notAvailable ? (
-        <InlineAlert tone="danger" title="Could not load comments" live>
+        <InlineAlert tone="danger" title={t('FileCommentsView.loadError')} live>
           {describeError(comments.error)}
         </InlineAlert>
       ) : null}
 
       {remove.isError ? (
-        <InlineAlert tone="danger" title="Could not delete the comment" live>
+        <InlineAlert tone="danger" title={t('FileCommentsView.deleteError')} live>
           {describeError(remove.error)}
         </InlineAlert>
       ) : null}
 
       {!comments.isPending && !comments.isError ? (
         rows.length > 0 ? (
-          <ol className="tm-stack" aria-label="Comments on this file">
+          <ol className="tm-stack" aria-label={t('FileCommentsView.listAria')}>
             {rows.map((comment) => (
               <li key={comment.id} className="tm-stack">
                 <p className="tm-prose">{comment.body}</p>
@@ -124,10 +126,10 @@ export function FileCommentsView({
                       tone="destructive"
                       size="compact"
                       loading={remove.isPending && remove.variables === comment.id}
-                      loadingLabel="Deleting"
+                      loadingLabel={t('FileCommentsView.deleting')}
                       onClick={() => remove.mutate(comment.id)}
                     >
-                      Delete
+                      {t('FileCommentsView.delete')}
                     </Button>
                   ) : null}
                 </div>
@@ -135,7 +137,7 @@ export function FileCommentsView({
             ))}
           </ol>
         ) : (
-          <p className="tm-prose">No comments yet.</p>
+          <p className="tm-prose">{t('FileCommentsView.empty')}</p>
         )
       ) : null}
 
@@ -149,7 +151,7 @@ export function FileCommentsView({
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-file-comment-body">
-            Add a comment
+            {t('FileCommentsView.addLabel')}
           </label>
           <textarea
             id="tm-file-comment-body"
@@ -162,7 +164,7 @@ export function FileCommentsView({
         </div>
 
         {add.isError ? (
-          <InlineAlert tone="danger" title="Could not add the comment" live>
+          <InlineAlert tone="danger" title={t('FileCommentsView.addError')} live>
             {describeError(add.error)}
           </InlineAlert>
         ) : null}
@@ -173,10 +175,10 @@ export function FileCommentsView({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('FileCommentsView.adding')}
             disabled={!canAdd}
           >
-            Add comment
+            {t('FileCommentsView.addComment')}
           </Button>
         </div>
       </form>

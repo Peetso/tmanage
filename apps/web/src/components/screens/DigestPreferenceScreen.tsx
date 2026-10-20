@@ -10,6 +10,8 @@ import { getDigestPreference, updateDigestPreference } from '../../lib/api/diges
 import type { DigestCadence, DigestPrefView } from '../../lib/api/digest';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/preferences.css';
 
 export interface DigestPreferenceScreenProps {
@@ -25,24 +27,36 @@ const DEFAULTS: DigestPrefView = {
   dayOfWeek: 1,
 };
 
-const CADENCE_OPTIONS: readonly { value: DigestCadence; label: string; hint: string }[] = [
-  { value: 'immediate', label: 'Immediately', hint: 'Send each notification as it happens.' },
-  { value: 'daily', label: 'Daily', hint: 'One digest per day, at the hour you choose.' },
+const CADENCE_OPTIONS: readonly {
+  value: DigestCadence;
+  labelKey: MessageKey;
+  hintKey: MessageKey;
+}[] = [
+  {
+    value: 'immediate',
+    labelKey: 'DigestPreferenceScreen.cadenceImmediate',
+    hintKey: 'DigestPreferenceScreen.cadenceImmediateHint',
+  },
+  {
+    value: 'daily',
+    labelKey: 'DigestPreferenceScreen.cadenceDaily',
+    hintKey: 'DigestPreferenceScreen.cadenceDailyHint',
+  },
   {
     value: 'weekly',
-    label: 'Weekly',
-    hint: 'One digest per week, on the day and hour you choose.',
+    labelKey: 'DigestPreferenceScreen.cadenceWeekly',
+    hintKey: 'DigestPreferenceScreen.cadenceWeeklyHint',
   },
 ];
 
-const DAY_LABELS: readonly { value: number; label: string }[] = [
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' },
-  { value: 6, label: 'Saturday' },
-  { value: 0, label: 'Sunday' },
+const DAY_LABELS: readonly { value: number; labelKey: MessageKey }[] = [
+  { value: 1, labelKey: 'DigestPreferenceScreen.dayMonday' },
+  { value: 2, labelKey: 'DigestPreferenceScreen.dayTuesday' },
+  { value: 3, labelKey: 'DigestPreferenceScreen.dayWednesday' },
+  { value: 4, labelKey: 'DigestPreferenceScreen.dayThursday' },
+  { value: 5, labelKey: 'DigestPreferenceScreen.dayFriday' },
+  { value: 6, labelKey: 'DigestPreferenceScreen.daySaturday' },
+  { value: 0, labelKey: 'DigestPreferenceScreen.daySunday' },
 ];
 
 /**
@@ -63,6 +77,7 @@ export function DigestPreferenceScreen({
 }: DigestPreferenceScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const preference = useQuery({
     queryKey: ['digest-preference', organizationSlug],
@@ -95,21 +110,22 @@ export function DigestPreferenceScreen({
 
   const chosen = CADENCE_OPTIONS.find((option) => option.value === cadence);
   const hourLabel = `${String(sendHour).padStart(2, '0')}:00`;
-  const dayLabel = DAY_LABELS.find((day) => day.value === dayOfWeek)?.label ?? '';
+  const dayLabelKey = DAY_LABELS.find((day) => day.value === dayOfWeek)?.labelKey;
+  const dayLabel = dayLabelKey ? t(dayLabelKey) : '';
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow="Preferences · Notifications"
-      title="Summary email"
+      eyebrow={t('DigestPreferenceScreen.eyebrow')}
+      title={t('DigestPreferenceScreen.title')}
     >
       {preference.isPending ? (
-        <LoadingRegion label="Loading your digest preference">
+        <LoadingRegion label={t('DigestPreferenceScreen.loading')}>
           <Skeleton />
         </LoadingRegion>
       ) : preference.isError ? (
-        <InlineAlert tone="danger" title="We could not load your digest preference">
+        <InlineAlert tone="danger" title={t('DigestPreferenceScreen.loadError')}>
           {errorMessage(preference.error)}
         </InlineAlert>
       ) : (
@@ -125,13 +141,13 @@ export function DigestPreferenceScreen({
               }}
             >
               <h2 id="tm-digest-heading" className="tm-visually-hidden">
-                Digest frequency
+                {t('DigestPreferenceScreen.digestFrequency')}
               </h2>
 
               <fieldset className="tm-prefs-section">
-                <legend className="tm-prefs-eyebrow">How often</legend>
+                <legend className="tm-prefs-eyebrow">{t('DigestPreferenceScreen.howOften')}</legend>
                 <div className="tm-prefs-choices">
-                  {CADENCE_OPTIONS.map(({ value, label }) => (
+                  {CADENCE_OPTIONS.map(({ value, labelKey }) => (
                     <label className="tm-prefs-choice" key={value}>
                       <input
                         id={`tm-digest-cadence-${value}`}
@@ -140,11 +156,11 @@ export function DigestPreferenceScreen({
                         checked={cadence === value}
                         onChange={() => setCadence(value)}
                       />
-                      {label}
+                      {t(labelKey)}
                     </label>
                   ))}
                 </div>
-                {chosen ? <p className="tm-prefs-card__note">{chosen.hint}</p> : null}
+                {chosen ? <p className="tm-prefs-card__note">{t(chosen.hintKey)}</p> : null}
               </fieldset>
 
               {cadence !== 'immediate' ? (
@@ -153,7 +169,7 @@ export function DigestPreferenceScreen({
                   <div className="tm-prefs-fields">
                     <div className="tm-prefs-field">
                       <label className="tm-prefs-field__label" htmlFor="tm-digest-hour">
-                        Send at
+                        {t('DigestPreferenceScreen.sendAt')}
                       </label>
                       <select
                         id="tm-digest-hour"
@@ -172,7 +188,7 @@ export function DigestPreferenceScreen({
                     {cadence === 'weekly' ? (
                       <div className="tm-prefs-field">
                         <label className="tm-prefs-field__label" htmlFor="tm-digest-day">
-                          Send on
+                          {t('DigestPreferenceScreen.sendOn')}
                         </label>
                         <select
                           id="tm-digest-day"
@@ -180,9 +196,9 @@ export function DigestPreferenceScreen({
                           value={dayOfWeek}
                           onChange={(event) => setDayOfWeek(Number(event.target.value))}
                         >
-                          {DAY_LABELS.map(({ value, label }) => (
+                          {DAY_LABELS.map(({ value, labelKey }) => (
                             <option key={value} value={value}>
-                              {label}
+                              {t(labelKey)}
                             </option>
                           ))}
                         </select>
@@ -193,14 +209,14 @@ export function DigestPreferenceScreen({
               ) : null}
 
               {save.isError ? (
-                <InlineAlert tone="danger" title="We could not save your digest preference">
+                <InlineAlert tone="danger" title={t('DigestPreferenceScreen.saveError')}>
                   {errorMessage(save.error)}
                 </InlineAlert>
               ) : null}
 
               {saved && !save.isPending && !save.isError ? (
-                <InlineAlert tone="success" title="Saved">
-                  Your digest preference has been saved.
+                <InlineAlert tone="success" title={t('DigestPreferenceScreen.savedTitle')}>
+                  {t('DigestPreferenceScreen.savedBody')}
                 </InlineAlert>
               ) : null}
 
@@ -210,7 +226,9 @@ export function DigestPreferenceScreen({
                   className="tm-prefs-capsule tm-prefs-capsule--ink"
                   disabled={save.isPending}
                 >
-                  {save.isPending ? 'Saving…' : 'Save digest preference'}
+                  {save.isPending
+                    ? t('DigestPreferenceScreen.saving')
+                    : t('DigestPreferenceScreen.saveButton')}
                 </button>
               </div>
             </form>
@@ -219,30 +237,28 @@ export function DigestPreferenceScreen({
           <aside className="tm-prefs__side" aria-labelledby="tm-digest-summary">
             <div className="tm-prefs-card tm-prefs-card--paper tm-prefs-card--grow">
               <h2 id="tm-digest-summary" className="tm-prefs-eyebrow">
-                What you will get
+                {t('DigestPreferenceScreen.whatYouWillGet')}
               </h2>
               <p className="tm-prefs-card__lead">
                 {cadence === 'immediate'
-                  ? 'Each notification, as it happens'
+                  ? t('DigestPreferenceScreen.leadImmediate')
                   : cadence === 'weekly'
-                    ? `One email every ${dayLabel} at ${hourLabel}`
-                    : `One email a day at ${hourLabel}`}
+                    ? `${t('DigestPreferenceScreen.leadWeeklyPrefix')}${dayLabel}${t('DigestPreferenceScreen.leadWeeklyMid')}${hourLabel}`
+                    : `${t('DigestPreferenceScreen.leadDailyPrefix')}${hourLabel}`}
               </p>
-              <p className="tm-prefs-card__note">
-                Which kinds of notification you get is set in Notifications.
-              </p>
+              <p className="tm-prefs-card__note">{t('DigestPreferenceScreen.kindsNote')}</p>
               <div className="tm-prefs-card__foot">
                 <Link
                   className="tm-prefs-capsule"
                   href={`/${organizationSlug}/inbox/notification-preferences`}
                 >
-                  Notifications
+                  {t('DigestPreferenceScreen.notificationsLink')}
                 </Link>
                 <Link
                   className="tm-prefs-capsule"
                   href={`/${organizationSlug}/settings/quiet-hours`}
                 >
-                  Quiet hours
+                  {t('DigestPreferenceScreen.quietHoursLink')}
                 </Link>
               </div>
             </div>

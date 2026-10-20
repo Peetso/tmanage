@@ -16,6 +16,8 @@ import {
   workspaceLinkHint,
 } from '../../lib/slug';
 import { useHydrated } from '../../lib/use-hydrated';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 /**
  * The timezone list.
@@ -59,12 +61,12 @@ const LOCALES = [
 export const AVAILABILITY_DEBOUNCE_MS = 400;
 
 /** ON-02's working weeks — the API's `org_settings.working_week` values. */
-const WORKING_WEEKS = [
-  { value: 'mon-fri', label: 'Mon – Fri' },
-  { value: 'sun-thu', label: 'Sun – Thu' },
-  { value: 'sat-wed', label: 'Sat – Wed' },
-  { value: 'mon-sat', label: 'Mon – Sat' },
-] as const;
+const WORKING_WEEKS: readonly { value: string; labelKey: MessageKey }[] = [
+  { value: 'mon-fri', labelKey: 'CreateOrganizationScreen.weekMonFri' },
+  { value: 'sun-thu', labelKey: 'CreateOrganizationScreen.weekSunThu' },
+  { value: 'sat-wed', labelKey: 'CreateOrganizationScreen.weekSatWed' },
+  { value: 'mon-sat', labelKey: 'CreateOrganizationScreen.weekMonSat' },
+];
 
 /** Zones whose weekend is Friday–Saturday, so the default week starts on Sunday. */
 const SUNDAY_WEEK_ZONES = new Set([
@@ -89,32 +91,36 @@ type Availability =
 const WORK_TYPES = [
   {
     value: 'client-projects',
-    name: 'Client projects with approvals',
-    detail:
-      'Design, build or campaign work delivered to external clients who review and approve versions.',
-    vocabulary: 'Deliverable · Milestone · Approval · Portal',
-    workflow: 'delivery with client review',
+    nameKey: 'CreateOrganizationScreen.workTypeClientName',
+    detailKey: 'CreateOrganizationScreen.workTypeClientDetail',
+    vocabularyKey: 'CreateOrganizationScreen.workTypeClientVocabulary',
+    workflowKey: 'CreateOrganizationScreen.workTypeClientWorkflow',
     template: 'delivery-client-review',
   },
   {
     value: 'retainer',
-    name: 'Retainer and support work',
-    detail:
-      'Continuous requests from the same clients, with commitments made per cycle rather than per project.',
-    vocabulary: 'Request · Cycle · Commitment · Portal',
-    workflow: 'intake and commitment',
+    nameKey: 'CreateOrganizationScreen.workTypeRetainerName',
+    detailKey: 'CreateOrganizationScreen.workTypeRetainerDetail',
+    vocabularyKey: 'CreateOrganizationScreen.workTypeRetainerVocabulary',
+    workflowKey: 'CreateOrganizationScreen.workTypeRetainerWorkflow',
     template: 'intake-commitment',
   },
   {
     value: 'internal',
-    name: 'Internal programmes only',
-    detail:
-      'No external clients yet. Everything stays internal, and the portal can be switched on later.',
-    vocabulary: 'Work · Milestone · Decision',
-    workflow: 'internal delivery',
+    nameKey: 'CreateOrganizationScreen.workTypeInternalName',
+    detailKey: 'CreateOrganizationScreen.workTypeInternalDetail',
+    vocabularyKey: 'CreateOrganizationScreen.workTypeInternalVocabulary',
+    workflowKey: 'CreateOrganizationScreen.workTypeInternalWorkflow',
     template: 'internal-delivery',
   },
-] as const;
+] as const satisfies readonly {
+  value: string;
+  nameKey: MessageKey;
+  detailKey: MessageKey;
+  vocabularyKey: MessageKey;
+  workflowKey: MessageKey;
+  template: string;
+}[];
 
 export interface CreateOrganizationScreenProps {
   signedInAs: string;
@@ -155,6 +161,7 @@ export function CreateOrganizationScreen({
   onCreated,
 }: CreateOrganizationScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   // No query gates this form — nothing is fetched before it is shown — so the controls hang on
   // the hydration signal instead: disabled in the server render, enabled once React is live, so
@@ -213,7 +220,7 @@ export function CreateOrganizationScreen({
             setAvailability({
               state: 'unavailable',
               slug: slugToCheck,
-              message: answer.message ?? 'That web link is taken. Choose a different one.',
+              message: answer.message ?? t('CreateOrganizationScreen.linkTaken'),
             });
           } else {
             setAvailability({ state: 'idle' });
@@ -240,11 +247,11 @@ export function CreateOrganizationScreen({
     setServerSlugError(undefined);
 
     if (name.trim() === '') {
-      setFailure('Enter an organization name.');
+      setFailure(t('CreateOrganizationScreen.nameRequired'));
       return;
     }
     if (localSlugError !== undefined || effectiveSlug === '' || takenError !== undefined) {
-      setFailure('Fix the workspace web link first.');
+      setFailure(t('CreateOrganizationScreen.fixLink'));
       return;
     }
     // Submitting answers the question the pending check was going to ask.
@@ -291,21 +298,24 @@ export function CreateOrganizationScreen({
     <OnboardingShell
       current="ON-01"
       signedInAs={signedInAs}
-      title={trimmedName === '' ? 'Set up your organization' : `Set up ${trimmedName}`}
+      title={
+        trimmedName === ''
+          ? t('CreateOrganizationScreen.setupTitle')
+          : `${t('CreateOrganizationScreen.setupPrefix')}${trimmedName}`
+      }
     >
       <OnboardingScreenStyles />
       <form className="tm-ob-flow-form" noValidate onSubmit={submit}>
         <fieldset className="tm-fieldset tm-ob-flow-form" disabled={!hydrated}>
           <section className="tm-ob-section" aria-labelledby="tm-ob-deliver-title">
             <h2 id="tm-ob-deliver-title" className="tm-ob-section__title">
-              What does your team deliver?
+              {t('CreateOrganizationScreen.deliverQuestion')}
             </h2>
-            <p className="tm-ob-lede">
-              This sets the vocabulary, the default workflow and the client experience. You can
-              change all of it later — nothing here is locked.
-            </p>
+            <p className="tm-ob-lede">{t('CreateOrganizationScreen.deliverLede')}</p>
             <fieldset className="tm-fieldset tm-ob-options">
-              <legend className="tm-visually-hidden">What does your team deliver?</legend>
+              <legend className="tm-visually-hidden">
+                {t('CreateOrganizationScreen.deliverQuestion')}
+              </legend>
               {WORK_TYPES.map((option) => {
                 const selected = workType === option.value;
                 return (
@@ -318,14 +328,21 @@ export function CreateOrganizationScreen({
                       onChange={() => setWorkType(option.value)}
                     />
                     <span className="tm-ob-option__head" aria-hidden="true">
-                      <span className="tm-ob-eyebrow">{selected ? 'Selected' : 'Option'}</span>
+                      <span className="tm-ob-eyebrow">
+                        {selected
+                          ? t('CreateOrganizationScreen.selected')
+                          : t('CreateOrganizationScreen.option')}
+                      </span>
                       {selected ? <span className="tm-ob-option__check">✓</span> : null}
                     </span>
-                    <span className="tm-ob-option__name">{option.name}</span>
-                    <span className="tm-ob-option__detail">{option.detail}</span>
+                    <span className="tm-ob-option__name">{t(option.nameKey)}</span>
+                    <span className="tm-ob-option__detail">{t(option.detailKey)}</span>
                     <span className="tm-ob-option__foot">
-                      <span className="tm-ob-option__vocab">{option.vocabulary}</span>
-                      <span className="tm-ob-option__workflow">workflow: {option.workflow}</span>
+                      <span className="tm-ob-option__vocab">{t(option.vocabularyKey)}</span>
+                      <span className="tm-ob-option__workflow">
+                        {t('CreateOrganizationScreen.workflowPrefix')}
+                        {t(option.workflowKey)}
+                      </span>
                     </span>
                   </label>
                 );
@@ -335,11 +352,11 @@ export function CreateOrganizationScreen({
 
           <section className="tm-ob-sheet" aria-labelledby="tm-ob-org-title">
             <h2 id="tm-ob-org-title" className="tm-ob-eyebrow">
-              Your organization
+              {t('CreateOrganizationScreen.yourOrganization')}
             </h2>
             <div className="tm-ob-grid-2">
               <Field
-                label="Organization name"
+                label={t('CreateOrganizationScreen.orgNameLabel')}
                 name="name"
                 value={name}
                 maxLength={MAX_ORGANIZATION_NAME_LENGTH}
@@ -395,11 +412,11 @@ export function CreateOrganizationScreen({
                         <span className="tm-ob-address__tick" aria-hidden="true">
                           ✓
                         </span>
-                        available
+                        {t('CreateOrganizationScreen.available')}
                       </>
                     ) : null}
                     {slugError === undefined && availability.state === 'checking'
-                      ? 'checking…'
+                      ? t('CreateOrganizationScreen.checking')
                       : null}
                   </span>
                 </div>
@@ -421,7 +438,7 @@ export function CreateOrganizationScreen({
             <div className="tm-ob-grid-2">
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-timezone">
-                  Timezone
+                  {t('CreateOrganizationScreen.timezoneLabel')}
                 </label>
                 <select
                   id="tm-timezone"
@@ -439,7 +456,7 @@ export function CreateOrganizationScreen({
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-working-week">
-                  Working week
+                  {t('CreateOrganizationScreen.workingWeekLabel')}
                 </label>
                 <select
                   id="tm-working-week"
@@ -449,7 +466,7 @@ export function CreateOrganizationScreen({
                 >
                   {WORKING_WEEKS.map((week) => (
                     <option key={week.value} value={week.value}>
-                      {week.label}
+                      {t(week.labelKey)}
                     </option>
                   ))}
                 </select>
@@ -458,7 +475,7 @@ export function CreateOrganizationScreen({
 
             <fieldset className="tm-fieldset tm-field">
               <legend className="tm-field__label tm-ob-legend">
-                Interface language and direction
+                {t('CreateOrganizationScreen.languageLegend')}
               </legend>
               <div className="tm-ob-pills">
                 {LOCALES.map((option) => (
@@ -480,14 +497,15 @@ export function CreateOrganizationScreen({
               <span className="tm-ob-glyph" aria-hidden="true">
                 i
               </span>
-              <p>
-                Dates and deadlines are stored with a timezone. When a client is in another zone,
-                both are shown on the deadline.
-              </p>
+              <p>{t('CreateOrganizationScreen.timezoneNote')}</p>
             </div>
 
             {failure ? (
-              <InlineAlert tone="danger" title="Could not create the organization" live>
+              <InlineAlert
+                tone="danger"
+                title={t('CreateOrganizationScreen.createErrorTitle')}
+                live
+              >
                 {failure}
               </InlineAlert>
             ) : null}
@@ -499,15 +517,15 @@ export function CreateOrganizationScreen({
                 size="feature"
                 className="tm-ob-go"
                 loading={creating}
-                loadingLabel="Creating"
+                loadingLabel={t('CreateOrganizationScreen.creating')}
               >
                 <span className="tm-ob-go__orb" aria-hidden="true">
                   ▸
                 </span>
-                Create organization
+                {t('CreateOrganizationScreen.createOrg')}
               </Button>
               <span className="tm-ob-keys" aria-hidden="true">
-                ↑ ↓ to choose · Enter to create
+                {t('CreateOrganizationScreen.keysHint')}
               </span>
             </div>
           </section>

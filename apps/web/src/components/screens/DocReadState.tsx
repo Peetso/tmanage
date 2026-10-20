@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { getDocReadState, markDocRead, markDocUnread } from '../../lib/api/doc-read-state';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 /** One document the screen shows a read/unread state for. The caller supplies the list it can read. */
 export interface DocReadStateRowInput {
@@ -46,6 +47,7 @@ export function DocReadStateScreen({
 }: DocReadStateScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const documentIds = useMemo(() => documents.map((doc) => doc.id), [documents]);
 
@@ -95,49 +97,49 @@ export function DocReadStateScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      title="Document read state"
-      description="Which documents are new since you last looked. Mark documents read or unread; this state is only yours."
+      title={t('DocReadState.title')}
+      description={t('DocReadState.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-read-state-heading">
         <div className="tm-row tm-row--between">
           <h2 id="tm-read-state-heading" className="tm-eyebrow">
-            Your read state
+            {t('DocReadState.yourReadState')}
           </h2>
           <Button
             type="button"
             tone="ink"
             size="accessible"
             loading={markAll.isPending}
-            loadingLabel="Marking"
+            loadingLabel={t('DocReadState.marking')}
             disabled={readState.isPending || unreadCount === 0}
             onClick={() => markAll.mutate()}
           >
-            Mark all read
+            {t('DocReadState.markAllRead')}
           </Button>
         </div>
 
         {readState.isError ? (
-          <InlineAlert tone="danger" title="Could not load your read state" live>
+          <InlineAlert tone="danger" title={t('DocReadState.loadError')} live>
             {describeError(readState.error)}
           </InlineAlert>
         ) : null}
 
         {toggle.isError || markAll.isError ? (
-          <InlineAlert tone="danger" title="Could not update read state" live>
+          <InlineAlert tone="danger" title={t('DocReadState.updateError')} live>
             {describeError(toggle.error ?? markAll.error)}
           </InlineAlert>
         ) : null}
 
         {readState.isPending && documentIds.length > 0 ? (
-          <LoadingRegion label="Loading your read state.">
+          <LoadingRegion label={t('DocReadState.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {documents.length === 0 ? (
-          <InlineAlert tone="neutral" title="No documents">
-            There are no documents to show read state for.
+          <InlineAlert tone="neutral" title={t('DocReadState.noDocsTitle')}>
+            {t('DocReadState.noDocsBody')}
           </InlineAlert>
         ) : null}
 
@@ -149,17 +151,17 @@ export function DocReadStateScreen({
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Documents and read state"
+            aria-label={t('DocReadState.tableAria')}
           >
             <table className="tm-table">
               <caption className="tm-visually-hidden">
-                Your documents and whether you have read them, {unreadCount} unread.
+                {t('DocReadState.captionPrefix')} {unreadCount} {t('DocReadState.captionSuffix')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">State</th>
-                  <th scope="col">Action</th>
+                  <th scope="col">{t('DocReadState.thDocument')}</th>
+                  <th scope="col">{t('DocReadState.thState')}</th>
+                  <th scope="col">{t('DocReadState.thAction')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -172,9 +174,9 @@ export function DocReadStateScreen({
                       </th>
                       <td>
                         {read ? (
-                          <Badge tone="neutral">Read</Badge>
+                          <Badge tone="neutral">{t('DocReadState.badgeRead')}</Badge>
                         ) : (
-                          <Badge tone="client">New</Badge>
+                          <Badge tone="client">{t('DocReadState.badgeNew')}</Badge>
                         )}
                       </td>
                       <td>
@@ -184,10 +186,10 @@ export function DocReadStateScreen({
                           size="accessible"
                           aria-pressed={read}
                           loading={toggle.isPending && toggle.variables?.documentId === doc.id}
-                          loadingLabel={read ? 'Updating' : 'Updating'}
+                          loadingLabel={t('DocReadState.updating')}
                           onClick={() => toggle.mutate({ documentId: doc.id, read })}
                         >
-                          {read ? 'Mark unread' : 'Mark read'}
+                          {read ? t('DocReadState.markUnread') : t('DocReadState.markRead')}
                         </Button>
                       </td>
                     </tr>

@@ -15,6 +15,8 @@ import {
 } from '../../lib/api/document-template-variables';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface DocumentTemplateVariablesScreenProps {
   organizationSlug: string;
@@ -23,10 +25,10 @@ export interface DocumentTemplateVariablesScreenProps {
   client?: ApiClient;
 }
 
-const TYPES: readonly { value: DocumentTemplateVariableType; label: string }[] = [
-  { value: 'text', label: 'Text' },
-  { value: 'date', label: 'Date' },
-  { value: 'number', label: 'Number' },
+const TYPES: readonly { value: DocumentTemplateVariableType; labelKey: MessageKey }[] = [
+  { value: 'text', labelKey: 'DocumentTemplateVariablesScreen.typeText' },
+  { value: 'date', labelKey: 'DocumentTemplateVariablesScreen.typeDate' },
+  { value: 'number', labelKey: 'DocumentTemplateVariablesScreen.typeNumber' },
 ];
 
 /**
@@ -52,6 +54,7 @@ export function DocumentTemplateVariablesScreen({
 }: DocumentTemplateVariablesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['document-template-variables', organizationSlug, templateId];
 
   const variables = useQuery({
@@ -97,38 +100,43 @@ export function DocumentTemplateVariablesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      eyebrow="Docs · Templates"
-      title="Template variables"
-      description="The named placeholders this template declares. Adding a variable does not change the template body yet."
+      eyebrow={t('DocumentTemplateVariablesScreen.eyebrow')}
+      title={t('DocumentTemplateVariablesScreen.title')}
+      description={t('DocumentTemplateVariablesScreen.description')}
       actions={
         <Link className="tm-dx-back" href={`/${organizationSlug}/docs/templates`}>
           <span className="tm-dx-back__orb" aria-hidden="true">
             ←
           </span>
-          Back to templates
+          {t('DocumentTemplateVariablesScreen.backToTemplates')}
         </Link>
       }
     >
       <div className="tm-dx tm-dx-split">
         <section className="tm-dx-split__main" aria-labelledby="tm-var-list-heading">
           <h2 id="tm-var-list-heading" className="tm-dx-caption">
-            Declared variables{rows.length > 0 ? ` · ${rows.length}` : ''}
+            {t('DocumentTemplateVariablesScreen.declaredVariables')}
+            {rows.length > 0 ? ` · ${rows.length}` : ''}
           </h2>
 
           {variables.isError ? (
-            <InlineAlert tone="danger" title="Could not load the variables" live>
+            <InlineAlert tone="danger" title={t('DocumentTemplateVariablesScreen.loadError')} live>
               {describeError(variables.error)}
             </InlineAlert>
           ) : null}
 
           {remove.isError ? (
-            <InlineAlert tone="danger" title="Could not remove that variable" live>
+            <InlineAlert
+              tone="danger"
+              title={t('DocumentTemplateVariablesScreen.removeError')}
+              live
+            >
               {describeError(remove.error)}
             </InlineAlert>
           ) : null}
 
           {variables.isPending ? (
-            <LoadingRegion label="Loading the variables.">
+            <LoadingRegion label={t('DocumentTemplateVariablesScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
@@ -136,11 +144,10 @@ export function DocumentTemplateVariablesScreen({
 
           {!variables.isPending && !variables.isError && rows.length === 0 ? (
             <div className="tm-dx-empty">
-              <p className="tm-dx-empty__title">No variables yet</p>
-              <p className="tm-dx-empty__body">
-                Add a variable with the form beside this list. Each one is a placeholder this
-                template declares.
+              <p className="tm-dx-empty__title">
+                {t('DocumentTemplateVariablesScreen.emptyTitle')}
               </p>
+              <p className="tm-dx-empty__body">{t('DocumentTemplateVariablesScreen.emptyBody')}</p>
             </div>
           ) : null}
 
@@ -152,20 +159,21 @@ export function DocumentTemplateVariablesScreen({
               // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
               tabIndex={0}
               role="region"
-              aria-label="Template variables"
+              aria-label={t('DocumentTemplateVariablesScreen.tableAria')}
             >
               <table className="tm-dx-table">
                 <caption className="tm-visually-hidden">
-                  This template&rsquo;s declared variables, {rows.length} shown.
+                  {t('DocumentTemplateVariablesScreen.captionPrefix')} {rows.length}{' '}
+                  {t('DocumentTemplateVariablesScreen.captionSuffix')}
                 </caption>
                 <thead>
                   <tr>
-                    <th scope="col">Key</th>
-                    <th scope="col">Label</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Required</th>
+                    <th scope="col">{t('DocumentTemplateVariablesScreen.thKey')}</th>
+                    <th scope="col">{t('DocumentTemplateVariablesScreen.thLabel')}</th>
+                    <th scope="col">{t('DocumentTemplateVariablesScreen.thType')}</th>
+                    <th scope="col">{t('DocumentTemplateVariablesScreen.thRequired')}</th>
                     <th scope="col" className="tm-dx-table__end">
-                      Actions
+                      {t('DocumentTemplateVariablesScreen.thActions')}
                     </th>
                   </tr>
                 </thead>
@@ -179,9 +187,13 @@ export function DocumentTemplateVariablesScreen({
                       <td className="tm-dx-table__mono">{variable.type}</td>
                       <td>
                         {variable.required ? (
-                          <span className="tm-dx-pill tm-dx-pill--proposed">Yes</span>
+                          <span className="tm-dx-pill tm-dx-pill--proposed">
+                            {t('DocumentTemplateVariablesScreen.requiredYes')}
+                          </span>
                         ) : (
-                          <span className="tm-dx-table__quiet">No</span>
+                          <span className="tm-dx-table__quiet">
+                            {t('DocumentTemplateVariablesScreen.requiredNo')}
+                          </span>
                         )}
                       </td>
                       <td className="tm-dx-table__end">
@@ -191,10 +203,10 @@ export function DocumentTemplateVariablesScreen({
                             tone="outline"
                             size="compact"
                             loading={remove.isPending && remove.variables === variable.id}
-                            loadingLabel="Removing"
+                            loadingLabel={t('DocumentTemplateVariablesScreen.removing')}
                             onClick={() => remove.mutate(variable.id)}
                           >
-                            Remove
+                            {t('DocumentTemplateVariablesScreen.remove')}
                           </Button>
                         </span>
                       </td>
@@ -206,10 +218,13 @@ export function DocumentTemplateVariablesScreen({
           ) : null}
         </section>
 
-        <aside className="tm-dx-split__side" aria-label="Add a variable">
+        <aside
+          className="tm-dx-split__side"
+          aria-label={t('DocumentTemplateVariablesScreen.addAsideAria')}
+        >
           <section className="tm-dx-card tm-dx-card--dashed" aria-labelledby="tm-var-new-heading">
             <h2 id="tm-var-new-heading" className="tm-dx-card__title">
-              New variable
+              {t('DocumentTemplateVariablesScreen.newVariable')}
             </h2>
             <form
               className="tm-dx-form"
@@ -220,44 +235,48 @@ export function DocumentTemplateVariablesScreen({
               }}
             >
               <Field
-                label="Key"
+                label={t('DocumentTemplateVariablesScreen.keyLabel')}
                 name="key"
                 value={key}
                 onChange={(event) => setKey(event.target.value)}
-                hint="The token a document is filled by, such as client_name. Unique within the template."
+                hint={t('DocumentTemplateVariablesScreen.keyHint')}
                 required
               />
               <Field
-                label="Label"
+                label={t('DocumentTemplateVariablesScreen.labelLabel')}
                 name="label"
                 value={label}
                 onChange={(event) => setLabel(event.target.value)}
-                hint="What a person filling the variable in sees, such as Client name."
+                hint={t('DocumentTemplateVariablesScreen.labelHint')}
                 required
               />
               <Select
-                label="Type"
+                label={t('DocumentTemplateVariablesScreen.typeLabel')}
                 name="type"
                 value={type}
                 onChange={(event) => setType(event.target.value as DocumentTemplateVariableType)}
-                hint="The kind of value this variable holds."
+                hint={t('DocumentTemplateVariablesScreen.typeHint')}
               >
                 {TYPES.map((option) => (
                   <option key={option.value} value={option.value}>
-                    {option.label}
+                    {t(option.labelKey)}
                   </option>
                 ))}
               </Select>
               <Checkbox
-                label="Required"
+                label={t('DocumentTemplateVariablesScreen.requiredLabel')}
                 name="required"
                 checked={required}
                 onChange={(event) => setRequired(event.target.checked)}
-                hint="A required variable must be given a value before the template is applied."
+                hint={t('DocumentTemplateVariablesScreen.requiredHint')}
               />
 
               {add.isError ? (
-                <InlineAlert tone="danger" title="Could not add the variable" live>
+                <InlineAlert
+                  tone="danger"
+                  title={t('DocumentTemplateVariablesScreen.addError')}
+                  live
+                >
                   {describeError(add.error)}
                 </InlineAlert>
               ) : null}
@@ -267,10 +286,10 @@ export function DocumentTemplateVariablesScreen({
                 tone="ink"
                 size="default"
                 loading={add.isPending}
-                loadingLabel="Adding"
+                loadingLabel={t('DocumentTemplateVariablesScreen.adding')}
                 disabled={!canAdd}
               >
-                Add variable
+                {t('DocumentTemplateVariablesScreen.addVariable')}
               </Button>
             </form>
           </section>

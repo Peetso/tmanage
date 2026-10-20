@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/decision-comments';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DecisionCommentsViewProps {
   organizationSlug: string;
@@ -51,6 +52,7 @@ export function DecisionCommentsView({
   api,
 }: DecisionCommentsViewProps) {
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['decision-comments', organizationSlug, decisionId] as const;
   const bodyId = useId();
   const [body, setBody] = useState('');
@@ -98,33 +100,33 @@ export function DecisionCommentsView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-decision-comments">
       <h2 id="tm-decision-comments" className="tm-eyebrow">
-        Discussion
+        {t('DecisionCommentsView.discussion')}
       </h2>
 
       {comments.isPending ? (
-        <LoadingRegion label="Loading this decision’s discussion.">
+        <LoadingRegion label={t('DecisionCommentsView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {comments.isError ? (
-        <InlineAlert tone="danger" title="Could not load the discussion" live>
+        <InlineAlert tone="danger" title={t('DecisionCommentsView.loadError')} live>
           {describe(comments.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('DecisionCommentsView.actionFailed')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {comments.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No comments yet. Add the first one below.</p>
+          <p className="tm-prose">{t('DecisionCommentsView.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Comments">
+          <ul className="tm-list" aria-label={t('DecisionCommentsView.commentsAria')}>
             {items.map((comment) => (
               <li key={comment.id} className="tm-stack">
                 <p className="tm-prose">{comment.body}</p>
@@ -138,10 +140,10 @@ export function DecisionCommentsView({
                       tone="text"
                       size="accessible"
                       loading={remove.isPending && remove.variables === comment.id}
-                      loadingLabel="Removing"
+                      loadingLabel={t('DecisionCommentsView.removing')}
                       onClick={() => remove.mutate(comment.id)}
                     >
-                      Delete
+                      {t('DecisionCommentsView.delete')}
                     </Button>
                   ) : null}
                 </div>
@@ -154,7 +156,7 @@ export function DecisionCommentsView({
       <form className="tm-stack" noValidate onSubmit={submit}>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor={bodyId}>
-            Add a comment
+            {t('DecisionCommentsView.addLabel')}
           </label>
           <textarea
             id={bodyId}
@@ -164,9 +166,7 @@ export function DecisionCommentsView({
             maxLength={MAX_BODY_LENGTH}
             onChange={(event) => setBody(event.target.value)}
           />
-          <span className="tm-field__hint">
-            An internal note on this decision. It is added to the end of the discussion.
-          </span>
+          <span className="tm-field__hint">{t('DecisionCommentsView.hint')}</span>
         </div>
         <div className="tm-row">
           <Button
@@ -174,10 +174,10 @@ export function DecisionCommentsView({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('DecisionCommentsView.adding')}
             disabled={body.trim() === ''}
           >
-            Add comment
+            {t('DecisionCommentsView.addComment')}
           </Button>
         </div>
       </form>

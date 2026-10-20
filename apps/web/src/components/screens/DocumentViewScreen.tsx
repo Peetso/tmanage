@@ -16,6 +16,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocumentViewScreenProps {
   organizationSlug: string;
@@ -48,6 +49,7 @@ export function DocumentViewScreen({
   client,
 }: DocumentViewScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const document = useQuery({
     queryKey: ['document', organizationSlug, documentId],
@@ -98,17 +100,21 @@ export function DocumentViewScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      eyebrow="Docs"
-      title={data ? data.title : 'Document'}
+      eyebrow={t('DocumentViewScreen.eyebrow')}
+      title={data ? data.title : t('DocumentViewScreen.titleFallback')}
       actions={
         <div className="tm-dx-topbar">
           <Link className="tm-dx-back" href={`/${organizationSlug}/docs`}>
             <span className="tm-dx-back__orb" aria-hidden="true">
               ←
             </span>
-            Back to Docs
+            {t('DocumentViewScreen.backToDocs')}
           </Link>
-          {data ? <span className="tm-dx-stamp">Saved {formatClock(data.updatedAt)}</span> : null}
+          {data ? (
+            <span className="tm-dx-stamp">
+              {t('DocumentViewScreen.saved')} {formatClock(data.updatedAt)}
+            </span>
+          ) : null}
           {data ? (
             <div className="tm-dx-topbar__end">
               <DocumentPublishBar
@@ -116,11 +122,13 @@ export function DocumentViewScreen({
                 documentId={documentId}
                 client={api}
               />
-              <nav className="tm-segmented" aria-label="Document views">
+              <nav className="tm-segmented" aria-label={t('DocumentViewScreen.documentViewsAria')}>
                 <Link href={`/${organizationSlug}/docs/${documentId}`} aria-current="page">
-                  Read
+                  {t('DocumentViewScreen.read')}
                 </Link>
-                <Link href={`/${organizationSlug}/docs/${documentId}/edit`}>Edit & history</Link>
+                <Link href={`/${organizationSlug}/docs/${documentId}/edit`}>
+                  {t('DocumentViewScreen.editAndHistory')}
+                </Link>
               </nav>
               {/* DOC export (x131): a Markdown download of the current version, shown once the
                   document has loaded so the control never links to an id the caller cannot read. */}
@@ -129,7 +137,7 @@ export function DocumentViewScreen({
                 className="tm-button tm-button--ink tm-button--default"
                 href={`/${organizationSlug}/docs/${documentId}/edit`}
               >
-                Edit
+                {t('DocumentViewScreen.edit')}
               </Link>
             </div>
           ) : null}
@@ -137,7 +145,7 @@ export function DocumentViewScreen({
       }
     >
       {document.isPending ? (
-        <LoadingRegion label="Loading the document.">
+        <LoadingRegion label={t('DocumentViewScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
@@ -145,13 +153,13 @@ export function DocumentViewScreen({
       ) : null}
 
       {notFound ? (
-        <InlineAlert tone="neutral" title="Document not found" live>
-          This document does not exist, or you do not have access to it.
+        <InlineAlert tone="neutral" title={t('DocumentViewScreen.notFoundTitle')} live>
+          {t('DocumentViewScreen.notFoundBody')}
         </InlineAlert>
       ) : null}
 
       {document.isError && !notFound ? (
-        <InlineAlert tone="danger" title="Could not load the document" live>
+        <InlineAlert tone="danger" title={t('DocumentViewScreen.loadError')} live>
           {describeError(document.error)}
         </InlineAlert>
       ) : null}
@@ -162,7 +170,9 @@ export function DocumentViewScreen({
             <article className="tm-dx-sheet" aria-labelledby="tm-document-body">
               <header className="tm-dx-sheet__head">
                 <p className="tm-dx-sheet__eyebrow" id="tm-document-body">
-                  {projectName ? `Document · ${projectName}` : 'Document'}
+                  {projectName
+                    ? `${t('DocumentViewScreen.docProjectPrefix')}${projectName}`
+                    : t('DocumentViewScreen.docFallback')}
                 </p>
                 {/* The shell's h1 carries the title for assistive technology; this is its
                     on-paper rendering, so it is hidden from the accessibility tree. */}
@@ -170,12 +180,17 @@ export function DocumentViewScreen({
                   {data.title}
                 </p>
                 <p className="tm-dx-sheet__meta">
-                  {people[0] ? `${people[0].displayName} · ` : ''}updated{' '}
+                  {people[0] ? `${people[0].displayName} · ` : ''}
+                  {t('DocumentViewScreen.updated')}{' '}
                   <time dateTime={data.updatedAt} title={formatInstant(data.updatedAt)}>
                     {formatRelative(data.updatedAt)}
                   </time>
                   {people.length > 0
-                    ? ` · ${people.length} ${people.length === 1 ? 'collaborator' : 'collaborators'}`
+                    ? ` · ${people.length} ${
+                        people.length === 1
+                          ? t('DocumentViewScreen.collaborator')
+                          : t('DocumentViewScreen.collaborators')
+                      }`
                     : ''}
                 </p>
               </header>

@@ -15,6 +15,7 @@ import {
 } from '../../lib/api/doc-collections';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocCollectionsScreenProps {
   organizationSlug: string;
@@ -45,6 +46,7 @@ export function DocCollectionsScreen({
 }: DocCollectionsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const collections = useQuery({
     queryKey: ['doc-collections', organizationSlug],
@@ -83,14 +85,14 @@ export function DocCollectionsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      eyebrow="Docs · Collections"
-      title="Collections"
+      eyebrow={t('DocCollectionsScreen.eyebrow')}
+      title={t('DocCollectionsScreen.title')}
       actions={
         <Link className="tm-dx-back" href={`/${organizationSlug}/docs`}>
           <span className="tm-dx-back__orb" aria-hidden="true">
             ←
           </span>
-          Back to Docs
+          {t('DocCollectionsScreen.backToDocs')}
         </Link>
       }
     >
@@ -98,32 +100,43 @@ export function DocCollectionsScreen({
         <div className="tm-dx-split__main">
           <section className="tm-dx" aria-labelledby="tm-collection-pick-heading">
             <h2 id="tm-collection-pick-heading" className="tm-dx-caption">
-              Collection{rows.length > 0 ? ` · ${rows.length}` : ''}
+              {t('DocCollectionsScreen.collectionHeading')}
+              {rows.length > 0 ? ` · ${rows.length}` : ''}
             </h2>
 
             {collections.isError ? (
-              <InlineAlert tone="danger" title="Could not load your collections" live>
+              <InlineAlert
+                tone="danger"
+                title={t('DocCollectionsScreen.loadCollectionsError')}
+                live
+              >
                 {describeError(collections.error)}
               </InlineAlert>
             ) : null}
 
             {collections.isPending ? (
-              <LoadingRegion label="Loading collections.">
+              <LoadingRegion label={t('DocCollectionsScreen.loadingCollections')}>
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {!collections.isPending && !collections.isError && rows.length === 0 ? (
               <div className="tm-dx-empty">
-                <p className="tm-dx-empty__title">No collections yet</p>
+                <p className="tm-dx-empty__title">
+                  {t('DocCollectionsScreen.emptyCollectionsTitle')}
+                </p>
                 <p className="tm-dx-empty__body">
-                  Create a collection with the form beside this list to start grouping documents.
+                  {t('DocCollectionsScreen.emptyCollectionsBody')}
                 </p>
               </div>
             ) : null}
 
             {rows.length > 0 ? (
-              <div className="tm-dx-chips" role="group" aria-label="Show the documents in">
+              <div
+                className="tm-dx-chips"
+                role="group"
+                aria-label={t('DocCollectionsScreen.showDocsAria')}
+              >
                 {rows.map((collection) => (
                   <button
                     key={collection.id}
@@ -142,28 +155,30 @@ export function DocCollectionsScreen({
           {selectedId !== '' ? (
             <section className="tm-dx" aria-labelledby="tm-collection-detail-heading">
               <h2 id="tm-collection-detail-heading" className="tm-dx-caption">
-                {selected ? selected.name : 'Documents'}
+                {selected ? selected.name : t('DocCollectionsScreen.documentsHeading')}
                 {memberRows.length > 0 ? ` · ${memberRows.length}` : ''}
               </h2>
 
               {documents.isError ? (
-                <InlineAlert tone="danger" title="Could not load this collection" live>
+                <InlineAlert
+                  tone="danger"
+                  title={t('DocCollectionsScreen.loadCollectionError')}
+                  live
+                >
                   {describeError(documents.error)}
                 </InlineAlert>
               ) : null}
 
               {documents.isPending ? (
-                <LoadingRegion label="Loading documents.">
+                <LoadingRegion label={t('DocCollectionsScreen.loadingDocuments')}>
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
               ) : null}
 
               {!documents.isPending && !documents.isError && memberRows.length === 0 ? (
                 <div className="tm-dx-empty">
-                  <p className="tm-dx-empty__title">No documents in this collection</p>
-                  <p className="tm-dx-empty__body">
-                    Add a document from the document itself to see it here.
-                  </p>
+                  <p className="tm-dx-empty__title">{t('DocCollectionsScreen.emptyDocsTitle')}</p>
+                  <p className="tm-dx-empty__body">{t('DocCollectionsScreen.emptyDocsBody')}</p>
                 </div>
               ) : null}
 
@@ -175,17 +190,18 @@ export function DocCollectionsScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label={`Documents in ${selected?.name ?? 'the collection'}`}
+                  aria-label={`${t('DocCollectionsScreen.documentsInAria')}${selected?.name ?? t('DocCollectionsScreen.theCollection')}`}
                 >
                   <table className="tm-dx-table">
                     <caption className="tm-visually-hidden">
-                      Documents in this collection, {memberRows.length} shown.
+                      {t('DocCollectionsScreen.captionPrefix')} {memberRows.length}{' '}
+                      {t('DocCollectionsScreen.captionSuffix')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Document</th>
+                        <th scope="col">{t('DocCollectionsScreen.thDocument')}</th>
                         <th scope="col" className="tm-dx-table__end">
-                          Added
+                          {t('DocCollectionsScreen.thAdded')}
                         </th>
                       </tr>
                     </thead>
@@ -210,13 +226,13 @@ export function DocCollectionsScreen({
           ) : null}
         </div>
 
-        <aside className="tm-dx-split__side" aria-label="Create a collection">
+        <aside className="tm-dx-split__side" aria-label={t('DocCollectionsScreen.createAsideAria')}>
           <section
             className="tm-dx-card tm-dx-card--dashed"
             aria-labelledby="tm-collection-new-heading"
           >
             <h2 id="tm-collection-new-heading" className="tm-dx-card__title">
-              New collection
+              {t('DocCollectionsScreen.newCollection')}
             </h2>
             <form
               className="tm-dx-form"
@@ -227,15 +243,15 @@ export function DocCollectionsScreen({
               }}
             >
               <Field
-                label="Name"
+                label={t('DocCollectionsScreen.name')}
                 name="name"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
-                hint="A short name, such as Onboarding or Runbooks."
+                hint={t('DocCollectionsScreen.nameHint')}
                 required
               />
               {create.isError ? (
-                <InlineAlert tone="danger" title="Could not create the collection" live>
+                <InlineAlert tone="danger" title={t('DocCollectionsScreen.createError')} live>
                   {describeError(create.error)}
                 </InlineAlert>
               ) : null}
@@ -244,10 +260,10 @@ export function DocCollectionsScreen({
                 tone="ink"
                 size="default"
                 loading={create.isPending}
-                loadingLabel="Creating"
+                loadingLabel={t('DocCollectionsScreen.creating')}
                 disabled={!canCreate}
               >
-                Create collection
+                {t('DocCollectionsScreen.createCollection')}
               </Button>
             </form>
           </section>
@@ -256,10 +272,7 @@ export function DocCollectionsScreen({
             <span className="tm-dx-info__orb" aria-hidden="true">
               i
             </span>
-            <p>
-              A collection only lists the documents you can still read. Documents are added from the
-              document itself.
-            </p>
+            <p>{t('DocCollectionsScreen.infoNote')}</p>
           </div>
         </aside>
       </div>

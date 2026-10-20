@@ -18,6 +18,8 @@ import {
 import type { DecisionStatus, DecisionSummary } from '../../lib/api/decisions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface DecisionRegisterScreenProps {
   organizationSlug: string;
@@ -27,10 +29,10 @@ export interface DecisionRegisterScreenProps {
   client?: ApiClient;
 }
 
-const STATUSES: readonly { id: DecisionStatus; label: string }[] = [
-  { id: 'proposed', label: 'Proposed' },
-  { id: 'accepted', label: 'Accepted' },
-  { id: 'superseded', label: 'Superseded' },
+const STATUSES: readonly { id: DecisionStatus; labelKey: MessageKey }[] = [
+  { id: 'proposed', labelKey: 'DecisionRegisterScreen.statusProposed' },
+  { id: 'accepted', labelKey: 'DecisionRegisterScreen.statusAccepted' },
+  { id: 'superseded', labelKey: 'DecisionRegisterScreen.statusSuperseded' },
 ];
 
 /**
@@ -62,6 +64,7 @@ export function DecisionRegisterScreen({
 }: DecisionRegisterScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [chosenId, setProjectId] = useState<string>(initialProjectId ?? '');
   // DEC-01's filter capsules. "All" is the default so a decision just superseded stays in view.
@@ -167,14 +170,17 @@ export function DecisionRegisterScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      eyebrow="Decisions · Register"
-      title="What has been decided"
+      eyebrow={t('DecisionRegisterScreen.eyebrow')}
+      title={t('DecisionRegisterScreen.title')}
       {...(rows.length > 0
         ? {
             headerAside: (
               <p className="tm-dx-register-count">
-                {rows.length} {rows.length === 1 ? 'decision' : 'decisions'} · {supersededCount}{' '}
-                superseded
+                {rows.length}{' '}
+                {rows.length === 1
+                  ? t('DecisionRegisterScreen.decisionSingular')
+                  : t('DecisionRegisterScreen.decisionPlural')}{' '}
+                · {supersededCount} {t('DecisionRegisterScreen.supersededWord')}
               </p>
             ),
           }
@@ -183,12 +189,22 @@ export function DecisionRegisterScreen({
       <div className="tm-dx">
         <div className="tm-dx-chips">
           {rows.length > 0 ? (
-            <div className="tm-dx-chips" role="group" aria-label="Filter the register">
+            <div
+              className="tm-dx-chips"
+              role="group"
+              aria-label={t('DecisionRegisterScreen.filterAria')}
+            >
               {(
                 [
-                  { id: 'all', label: `All · ${rows.length}` },
-                  { id: 'active', label: `Active · ${activeCount}` },
-                  { id: 'superseded', label: `Superseded · ${supersededCount}` },
+                  { id: 'all', label: `${t('DecisionRegisterScreen.filterAll')} · ${rows.length}` },
+                  {
+                    id: 'active',
+                    label: `${t('DecisionRegisterScreen.filterActive')} · ${activeCount}`,
+                  },
+                  {
+                    id: 'superseded',
+                    label: `${t('DecisionRegisterScreen.filterSuperseded')} · ${supersededCount}`,
+                  },
                 ] as const
               ).map((option) => (
                 <button
@@ -205,7 +221,7 @@ export function DecisionRegisterScreen({
           ) : null}
           <div className="tm-dx-select tm-push-end">
             <label className="tm-dx-select__label" htmlFor="tm-decisions-project">
-              Show the register for
+              {t('DecisionRegisterScreen.showRegisterFor')}
             </label>
             <select
               id="tm-decisions-project"
@@ -215,7 +231,9 @@ export function DecisionRegisterScreen({
               onChange={(event) => setProjectId(event.target.value)}
               aria-describedby="tm-decisions-project-hint"
             >
-              {available.length === 0 ? <option value="">Choose a project…</option> : null}
+              {available.length === 0 ? (
+                <option value="">{t('DecisionRegisterScreen.chooseProject')}</option>
+              ) : null}
               {available.map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
@@ -223,23 +241,21 @@ export function DecisionRegisterScreen({
               ))}
             </select>
             <span id="tm-decisions-project-hint" className="tm-visually-hidden">
-              A register is per project. Choose one to see and record its decisions.
+              {t('DecisionRegisterScreen.registerPerProjectHint')}
             </span>
           </div>
         </div>
 
         {projects.isError ? (
-          <InlineAlert tone="danger" title="Could not load your projects" live>
+          <InlineAlert tone="danger" title={t('DecisionRegisterScreen.loadProjectsError')} live>
             {describeError(projects.error)}
           </InlineAlert>
         ) : null}
 
         {!projects.isPending && projectId === '' ? (
           <div className="tm-dx-empty">
-            <p className="tm-dx-empty__title">Choose a project</p>
-            <p className="tm-dx-empty__body">
-              A register is per project. Once a project exists, its decisions appear here.
-            </p>
+            <p className="tm-dx-empty__title">{t('DecisionRegisterScreen.chooseProjectTitle')}</p>
+            <p className="tm-dx-empty__body">{t('DecisionRegisterScreen.chooseProjectBody')}</p>
           </div>
         ) : null}
 
@@ -247,13 +263,17 @@ export function DecisionRegisterScreen({
           <div className="tm-dx-split">
             <div className="tm-dx-split__main">
               {register.isError ? (
-                <InlineAlert tone="danger" title="Could not load the register" live>
+                <InlineAlert
+                  tone="danger"
+                  title={t('DecisionRegisterScreen.loadRegisterError')}
+                  live
+                >
                   {describeError(register.error)}
                 </InlineAlert>
               ) : null}
 
               {register.isPending ? (
-                <LoadingRegion label="Loading the decision register.">
+                <LoadingRegion label={t('DecisionRegisterScreen.loadingRegister')}>
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
@@ -261,16 +281,13 @@ export function DecisionRegisterScreen({
 
               {!register.isPending && !register.isError && rows.length === 0 ? (
                 <div className="tm-dx-empty">
-                  <p className="tm-dx-empty__title">No decisions yet</p>
-                  <p className="tm-dx-empty__body">
-                    This project has no recorded decisions. Record the first one with the form
-                    beside the register.
-                  </p>
+                  <p className="tm-dx-empty__title">{t('DecisionRegisterScreen.emptyTitle')}</p>
+                  <p className="tm-dx-empty__body">{t('DecisionRegisterScreen.emptyBody')}</p>
                 </div>
               ) : null}
 
               {rows.length > 0 && lifecycleError ? (
-                <InlineAlert tone="danger" title="Could not update the decision" live>
+                <InlineAlert tone="danger" title={t('DecisionRegisterScreen.updateError')} live>
                   {describeError(lifecycleError)}
                 </InlineAlert>
               ) : null}
@@ -278,7 +295,7 @@ export function DecisionRegisterScreen({
               {rows.length > 0 ? (
                 <section className="tm-dx" aria-labelledby="tm-decisions-heading">
                   <h2 id="tm-decisions-heading" className="tm-visually-hidden">
-                    Register
+                    {t('DecisionRegisterScreen.registerHeading')}
                   </h2>
                   <div
                     className="tm-dx-table-card"
@@ -287,21 +304,21 @@ export function DecisionRegisterScreen({
                     // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                     tabIndex={0}
                     role="region"
-                    aria-label="Decision register"
+                    aria-label={t('DecisionRegisterScreen.registerTableAria')}
                   >
                     <table className="tm-dx-table">
                       <caption className="tm-visually-hidden">
-                        Decisions on this project, most recently decided first, {visibleRows.length}{' '}
-                        shown.
+                        {t('DecisionRegisterScreen.captionPrefix')} {visibleRows.length}{' '}
+                        {t('DecisionRegisterScreen.captionSuffix')}
                       </caption>
                       <thead>
                         <tr>
-                          <th scope="col">Statement</th>
-                          <th scope="col">Status</th>
-                          <th scope="col">Effective</th>
-                          <th scope="col">Lifecycle</th>
+                          <th scope="col">{t('DecisionRegisterScreen.thStatement')}</th>
+                          <th scope="col">{t('DecisionRegisterScreen.thStatus')}</th>
+                          <th scope="col">{t('DecisionRegisterScreen.thEffective')}</th>
+                          <th scope="col">{t('DecisionRegisterScreen.thLifecycle')}</th>
                           <th scope="col" className="tm-dx-table__end">
-                            Affects
+                            {t('DecisionRegisterScreen.thAffects')}
                           </th>
                         </tr>
                       </thead>
@@ -335,7 +352,10 @@ export function DecisionRegisterScreen({
               ) : null}
             </div>
 
-            <aside className="tm-dx-split__side" aria-label="Record and link">
+            <aside
+              className="tm-dx-split__side"
+              aria-label={t('DecisionRegisterScreen.recordLinkAria')}
+            >
               {selectedDecision ? (
                 <DecisionWorkLinksPanel
                   organizationSlug={organizationSlug}
@@ -350,22 +370,22 @@ export function DecisionRegisterScreen({
                 aria-labelledby="tm-decisions-author"
               >
                 <h2 id="tm-decisions-author" className="tm-dx-card__title">
-                  Record a decision
+                  {t('DecisionRegisterScreen.recordHeading')}
                 </h2>
                 <form className="tm-dx-form" onSubmit={onSubmit} noValidate>
                   <fieldset className="tm-fieldset" disabled={create.isPending}>
                     <Field
-                      label="Decision"
+                      label={t('DecisionRegisterScreen.decisionLabel')}
                       name="title"
                       value={title}
                       onChange={(event) => setTitle(event.target.value)}
-                      hint="One line. What was decided."
+                      hint={t('DecisionRegisterScreen.decisionHint')}
                       required
                     />
 
                     <div className="tm-field">
                       <label className="tm-field__label" htmlFor="tm-decision-statement">
-                        In words
+                        {t('DecisionRegisterScreen.inWords')}
                         <span className="tm-field__required" aria-hidden="true">
                           *
                         </span>
@@ -381,27 +401,27 @@ export function DecisionRegisterScreen({
                         required
                       />
                       <span className="tm-field__hint" id="tm-decision-statement-hint">
-                        The decision in full, and why. This is the register&rsquo;s record.
+                        {t('DecisionRegisterScreen.statementHint')}
                       </span>
                     </div>
 
                     <Select
-                      label="Status"
+                      label={t('DecisionRegisterScreen.statusSelectLabel')}
                       name="status"
                       value={status}
                       onChange={(event) => setStatus(event.target.value as DecisionStatus)}
-                      hint="Where the decision stands now."
+                      hint={t('DecisionRegisterScreen.statusSelectHint')}
                     >
                       {STATUSES.map((option) => (
                         <option key={option.id} value={option.id}>
-                          {option.label}
+                          {t(option.labelKey)}
                         </option>
                       ))}
                     </Select>
                   </fieldset>
 
                   {create.isError ? (
-                    <InlineAlert tone="danger" title="Could not record the decision" live>
+                    <InlineAlert tone="danger" title={t('DecisionRegisterScreen.recordError')} live>
                       {describeError(create.error)}
                     </InlineAlert>
                   ) : null}
@@ -411,10 +431,10 @@ export function DecisionRegisterScreen({
                     tone="ink"
                     size="default"
                     loading={create.isPending}
-                    loadingLabel="Recording"
+                    loadingLabel={t('DecisionRegisterScreen.recording')}
                     disabled={!canSubmit}
                   >
-                    Record decision
+                    {t('DecisionRegisterScreen.recordButton')}
                   </Button>
                 </form>
               </section>
@@ -423,10 +443,7 @@ export function DecisionRegisterScreen({
                 <span className="tm-dx-info__orb" aria-hidden="true">
                   i
                 </span>
-                <p>
-                  A decision is never edited in place. Changing it means recording a new decision
-                  that supersedes this one.
-                </p>
+                <p>{t('DecisionRegisterScreen.infoNote')}</p>
               </div>
             </aside>
           </div>
@@ -458,6 +475,7 @@ function DecisionRow({
   linksSelected: boolean;
   onToggleLinks: () => void;
 }) {
+  const t = useT();
   const [supersededById, setSupersededById] = useState('');
   // A decision may be superseded by another of the same register, never by itself, and a decision
   // already superseded is a dead end.
@@ -474,7 +492,7 @@ function DecisionRow({
       </th>
       <td>
         <span className={`tm-dx-pill ${statusTone(decision.status)}`}>
-          {statusLabel(decision.status)}
+          {t(statusLabelKey(decision.status))}
         </span>
       </td>
       <td>
@@ -484,10 +502,10 @@ function DecisionRow({
       </td>
       <td>
         {decision.status === 'superseded' ? (
-          <span className="tm-dx-note">No further action.</span>
+          <span className="tm-dx-note">{t('DecisionRegisterScreen.noFurtherAction')}</span>
         ) : locked ? (
           // Sealed: the lifecycle controls are gone, and the row states the seal (x150).
-          <span className="tm-dx-note">Locked. No further changes.</span>
+          <span className="tm-dx-note">{t('DecisionRegisterScreen.lockedNote')}</span>
         ) : (
           <div className="tm-dx-actions">
             {decision.status === 'proposed' ? (
@@ -498,11 +516,11 @@ function DecisionRow({
                 onClick={() => onAccept(decision.id)}
                 disabled={busy}
               >
-                Accept
+                {t('DecisionRegisterScreen.accept')}
               </Button>
             ) : null}
             <label className="tm-visually-hidden" htmlFor={superseder}>
-              Supersede with
+              {t('DecisionRegisterScreen.supersedeWith')}
             </label>
             <select
               id={superseder}
@@ -511,7 +529,7 @@ function DecisionRow({
               onChange={(event) => setSupersededById(event.target.value)}
               disabled={busy || options.length === 0}
             >
-              <option value="">Supersede with…</option>
+              <option value="">{t('DecisionRegisterScreen.supersedeWithOption')}</option>
               {options.map((other) => (
                 <option key={other.id} value={other.id}>
                   {other.title}
@@ -527,7 +545,7 @@ function DecisionRow({
               }}
               disabled={busy || supersededById === ''}
             >
-              Supersede
+              {t('DecisionRegisterScreen.supersede')}
             </Button>
             <Button
               type="button"
@@ -536,7 +554,7 @@ function DecisionRow({
               onClick={() => onLock(decision.id)}
               disabled={busy}
             >
-              Lock
+              {t('DecisionRegisterScreen.lock')}
             </Button>
           </div>
         )}
@@ -550,7 +568,9 @@ function DecisionRow({
             onClick={onToggleLinks}
             aria-pressed={linksSelected}
           >
-            {linksSelected ? 'Hide linked work' : 'Linked work'}
+            {linksSelected
+              ? t('DecisionRegisterScreen.hideLinkedWork')
+              : t('DecisionRegisterScreen.linkedWork')}
           </Button>
         </span>
       </td>
@@ -558,8 +578,11 @@ function DecisionRow({
   );
 }
 
-function statusLabel(status: DecisionStatus): string {
-  return STATUSES.find((option) => option.id === status)?.label ?? status;
+function statusLabelKey(status: DecisionStatus): MessageKey {
+  return (
+    STATUSES.find((option) => option.id === status)?.labelKey ??
+    'DecisionRegisterScreen.statusProposed'
+  );
 }
 
 function statusTone(status: DecisionStatus): string {

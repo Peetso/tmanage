@@ -17,6 +17,7 @@ import {
 } from '../../lib/api/documents';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocumentEditorScreenProps {
   organizationSlug: string;
@@ -56,6 +57,7 @@ export function DocumentEditorScreen({
 }: DocumentEditorScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const document = useQuery({
     queryKey: ['document', organizationSlug, documentId],
@@ -74,7 +76,7 @@ export function DocumentEditorScreen({
   });
   const nameOf = (userId: string): string =>
     sharing.data?.collaborators?.find((person) => person.userId === userId)?.displayName ??
-    (sharing.isPending ? '…' : 'A former member');
+    (sharing.isPending ? '…' : t('DocumentEditorScreen.formerMember'));
 
   // `null` means "not yet edited" — the textarea then shows the document's current body. Once the
   // person types, the draft is what they typed; a restore clears it back to `null` so the restored
@@ -127,26 +129,33 @@ export function DocumentEditorScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      eyebrow="Docs · Editor"
-      title={data ? `Edit ${data.title}` : 'Edit document'}
+      eyebrow={t('DocumentEditorScreen.eyebrow')}
+      title={
+        data
+          ? `${t('DocumentEditorScreen.editPrefix')}${data.title}`
+          : t('DocumentEditorScreen.editFallback')
+      }
       actions={
         <div className="tm-dx-topbar">
           <Link className="tm-dx-back" href={`/${organizationSlug}/docs/${documentId}`}>
             <span className="tm-dx-back__orb" aria-hidden="true">
               ←
             </span>
-            Back to the document
+            {t('DocumentEditorScreen.backToDocument')}
           </Link>
           {data ? (
             <span className="tm-dx-stamp">
-              {latest ? `Version ${latest.versionNo} · ` : ''}Saved {formatWhen(data.updatedAt)}
+              {latest ? `${t('DocumentEditorScreen.versionPrefix')}${latest.versionNo} · ` : ''}
+              {t('DocumentEditorScreen.saved')} {formatWhen(data.updatedAt)}
             </span>
           ) : null}
           <div className="tm-dx-topbar__end">
-            <nav className="tm-segmented" aria-label="Document views">
-              <Link href={`/${organizationSlug}/docs/${documentId}`}>Read</Link>
+            <nav className="tm-segmented" aria-label={t('DocumentEditorScreen.documentViewsAria')}>
+              <Link href={`/${organizationSlug}/docs/${documentId}`}>
+                {t('DocumentEditorScreen.read')}
+              </Link>
               <Link href={`/${organizationSlug}/docs/${documentId}/edit`} aria-current="page">
-                Edit &amp; history
+                {t('DocumentEditorScreen.editAndHistory')}
               </Link>
             </nav>
             {data ? (
@@ -156,10 +165,10 @@ export function DocumentEditorScreen({
                 tone="ink"
                 size="default"
                 loading={save.isPending}
-                loadingLabel="Saving"
+                loadingLabel={t('DocumentEditorScreen.saving')}
                 disabled={!canSave}
               >
-                Save new version
+                {t('DocumentEditorScreen.saveNewVersion')}
               </Button>
             ) : null}
           </div>
@@ -167,13 +176,13 @@ export function DocumentEditorScreen({
       }
     >
       {document.isError ? (
-        <InlineAlert tone="danger" title="Could not load the document" live>
+        <InlineAlert tone="danger" title={t('DocumentEditorScreen.loadError')} live>
           {describeError(document.error)}
         </InlineAlert>
       ) : null}
 
       {document.isPending ? (
-        <LoadingRegion label="Loading the document.">
+        <LoadingRegion label={t('DocumentEditorScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
@@ -185,7 +194,8 @@ export function DocumentEditorScreen({
             <section className="tm-dx-sheet" aria-labelledby="tm-doc-editor-heading">
               <header className="tm-dx-sheet__head">
                 <h2 id="tm-doc-editor-heading" className="tm-dx-sheet__eyebrow">
-                  Editing · {data.title}
+                  {t('DocumentEditorScreen.editingPrefix')}
+                  {data.title}
                 </h2>
                 {/* The shell's h1 names the screen for assistive technology; this is the title
                     on paper, hidden from the accessibility tree so it is not read twice. */}
@@ -204,7 +214,7 @@ export function DocumentEditorScreen({
                 }}
               >
                 <label className="tm-visually-hidden" htmlFor="tm-doc-body">
-                  Document body
+                  {t('DocumentEditorScreen.documentBody')}
                 </label>
                 <textarea
                   id="tm-doc-body"
@@ -216,11 +226,11 @@ export function DocumentEditorScreen({
                   aria-describedby="tm-doc-body-hint"
                 />
                 <span className="tm-dx-sheet__hint" id="tm-doc-body-hint">
-                  Saving keeps the previous text as a version you can always return to.
+                  {t('DocumentEditorScreen.bodyHint')}
                 </span>
 
                 {save.isError ? (
-                  <InlineAlert tone="danger" title="Could not save this version" live>
+                  <InlineAlert tone="danger" title={t('DocumentEditorScreen.saveError')} live>
                     {describeError(save.error)}
                   </InlineAlert>
                 ) : null}
@@ -231,34 +241,33 @@ export function DocumentEditorScreen({
 
         <section className="tm-dx-edge" aria-labelledby="tm-doc-history-heading">
           <h2 id="tm-doc-history-heading" className="tm-dx-edge__caption">
-            Version history{rows.length > 0 ? ` · ${rows.length}` : ''}
+            {t('DocumentEditorScreen.versionHistory')}
+            {rows.length > 0 ? ` · ${rows.length}` : ''}
           </h2>
 
           {versions.isError ? (
-            <InlineAlert tone="danger" title="Could not load the version history" live>
+            <InlineAlert tone="danger" title={t('DocumentEditorScreen.loadHistoryError')} live>
               {describeError(versions.error)}
             </InlineAlert>
           ) : null}
 
           {versions.isPending ? (
-            <LoadingRegion label="Loading the version history.">
+            <LoadingRegion label={t('DocumentEditorScreen.loadingHistory')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {restore.isError ? (
-            <InlineAlert tone="danger" title="Could not restore that version" live>
+            <InlineAlert tone="danger" title={t('DocumentEditorScreen.restoreError')} live>
               {describeError(restore.error)}
             </InlineAlert>
           ) : null}
 
           {!versions.isPending && !versions.isError && rows.length === 0 ? (
             <div className="tm-dx-empty">
-              <p className="tm-dx-empty__title">No versions yet</p>
-              <p className="tm-dx-empty__body">
-                Save an edit to create the first version. Every save you make appears here.
-              </p>
+              <p className="tm-dx-empty__title">{t('DocumentEditorScreen.emptyTitle')}</p>
+              <p className="tm-dx-empty__body">{t('DocumentEditorScreen.emptyBody')}</p>
             </div>
           ) : null}
 
@@ -269,28 +278,29 @@ export function DocumentEditorScreen({
               // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
               tabIndex={0}
               role="region"
-              aria-label="Saved versions"
+              aria-label={t('DocumentEditorScreen.savedVersionsAria')}
             >
               {/* Explicit roles keep the table's semantics while it is drawn as DOC-03's stack of
                   version cards. */}
               {/* eslint-disable jsx-a11y/no-redundant-roles */}
               <table className="tm-dx-versions" role="table">
                 <caption className="tm-visually-hidden">
-                  This document&rsquo;s versions, newest first, {rows.length} shown.
+                  {t('DocumentEditorScreen.captionPrefix')} {rows.length}{' '}
+                  {t('DocumentEditorScreen.captionSuffix')}
                 </caption>
                 <thead role="rowgroup">
                   <tr role="row">
                     <th scope="col" role="columnheader">
-                      Version
+                      {t('DocumentEditorScreen.thVersion')}
                     </th>
                     <th scope="col" role="columnheader">
-                      Saved by
+                      {t('DocumentEditorScreen.thSavedBy')}
                     </th>
                     <th scope="col" role="columnheader">
-                      When
+                      {t('DocumentEditorScreen.thWhen')}
                     </th>
                     <th scope="col" role="columnheader">
-                      Actions
+                      {t('DocumentEditorScreen.thActions')}
                     </th>
                   </tr>
                 </thead>
@@ -311,17 +321,17 @@ export function DocumentEditorScreen({
                             aria-pressed={selectedVersion === version.versionNo}
                             onClick={() => setSelectedVersion(version.versionNo)}
                           >
-                            Compare
+                            {t('DocumentEditorScreen.compare')}
                           </Button>
                           <Button
                             type="button"
                             tone="outline"
                             size="compact"
                             loading={restore.isPending && restore.variables === version.versionNo}
-                            loadingLabel="Restoring"
+                            loadingLabel={t('DocumentEditorScreen.restoring')}
                             onClick={() => restore.mutate(version.versionNo)}
                           >
-                            Restore
+                            {t('DocumentEditorScreen.restore')}
                           </Button>
                         </div>
                       </td>
@@ -336,15 +346,17 @@ export function DocumentEditorScreen({
           {selectedVersion !== null ? (
             <section className="tm-dx-compare" aria-labelledby="tm-doc-compare-heading">
               <h3 id="tm-doc-compare-heading" className="tm-dx-edge__caption">
-                Compare · version {selectedVersion} → current
+                {t('DocumentEditorScreen.comparePrefix')}
+                {selectedVersion}
+                {t('DocumentEditorScreen.compareSuffix')}
               </h3>
               {comparison.isPending ? (
-                <LoadingRegion label="Loading the version.">
+                <LoadingRegion label={t('DocumentEditorScreen.loadingVersion')}>
                   <Skeleton height="var(--row)" />
                 </LoadingRegion>
               ) : null}
               {comparison.isError ? (
-                <InlineAlert tone="danger" title="Could not load that version" live>
+                <InlineAlert tone="danger" title={t('DocumentEditorScreen.loadVersionError')} live>
                   {describeError(comparison.error)}
                 </InlineAlert>
               ) : null}
@@ -352,13 +364,11 @@ export function DocumentEditorScreen({
                 <>
                   <pre
                     className="tm-doc-snapshot tm-dx-compare__block"
-                    aria-label={`Body of version ${selectedVersion}`}
+                    aria-label={`${t('DocumentEditorScreen.bodyOfVersionPrefix')}${selectedVersion}`}
                   >
                     {comparison.data.body}
                   </pre>
-                  <p className="tm-dx-note">
-                    Restoring creates a new version. Nothing is overwritten.
-                  </p>
+                  <p className="tm-dx-note">{t('DocumentEditorScreen.restoreNote')}</p>
                 </>
               ) : null}
             </section>

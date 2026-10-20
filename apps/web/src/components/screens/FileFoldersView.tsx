@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/file-folders';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface FileFoldersViewProps {
   organizationSlug: string;
@@ -48,6 +49,7 @@ export function FileFoldersView({
 }: FileFoldersViewProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['file-folders', organizationSlug, projectId] as const;
 
   const [name, setName] = useState('');
@@ -85,12 +87,12 @@ export function FileFoldersView({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Folders"
-      description={`Group ${projectName}'s files into named folders. Moving no bytes — a folder is an overlay.`}
+      title={t('FileFoldersView.title')}
+      description={`${t('FileFoldersView.descPrefix')} ${projectName}${t('FileFoldersView.descSuffix')}`}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-file-folder-new-heading">
         <h2 id="tm-file-folder-new-heading" className="tm-eyebrow">
-          New folder
+          {t('FileFoldersView.newFolder')}
         </h2>
         <form
           className="tm-stack"
@@ -101,16 +103,16 @@ export function FileFoldersView({
           }}
         >
           <Field
-            label="Name"
+            label={t('FileFoldersView.name')}
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Contracts or Final deliverables."
+            hint={t('FileFoldersView.nameHint')}
             required
           />
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not update the folder" live>
+            <InlineAlert tone="danger" title={t('FileFoldersView.saveError')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -121,10 +123,10 @@ export function FileFoldersView({
               tone="ink"
               size="accessible"
               loading={create.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('FileFoldersView.saving')}
               disabled={!canCreate}
             >
-              Create folder
+              {t('FileFoldersView.createFolder')}
             </Button>
           </div>
         </form>
@@ -132,24 +134,24 @@ export function FileFoldersView({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-file-folder-list-heading">
         <h2 id="tm-file-folder-list-heading" className="tm-eyebrow">
-          Folders
+          {t('FileFoldersView.foldersHeading')}
         </h2>
         {folders.isPending ? (
-          <LoadingRegion label="Loading this project’s folders.">
+          <LoadingRegion label={t('FileFoldersView.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {folders.isError ? (
-          <InlineAlert tone="danger" title="Could not load the folders" live>
+          <InlineAlert tone="danger" title={t('FileFoldersView.loadError')} live>
             {describe(folders.error)}
           </InlineAlert>
         ) : null}
 
         {folders.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">No folders yet.</p>
+            <p className="tm-prose">{t('FileFoldersView.empty')}</p>
           ) : (
             <ul className="tm-stack" style={{ listStyle: 'none', padding: 0, margin: 0 }}>
               {rows.map((folder) => (
@@ -160,10 +162,10 @@ export function FileFoldersView({
                     tone="text"
                     size="accessible"
                     loading={remove.isPending}
-                    loadingLabel="Removing"
+                    loadingLabel={t('FileFoldersView.removing')}
                     onClick={() => remove.mutate(folder)}
                   >
-                    Delete
+                    {t('FileFoldersView.delete')}
                   </Button>
                 </li>
               ))}

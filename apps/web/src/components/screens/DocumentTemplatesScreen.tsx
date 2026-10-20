@@ -16,6 +16,7 @@ import { listProjects } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface DocumentTemplatesScreenProps {
   organizationSlug: string;
@@ -50,6 +51,7 @@ export function DocumentTemplatesScreen({
 }: DocumentTemplatesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const templates = useQuery({
     queryKey: ['document-templates', organizationSlug],
@@ -109,14 +111,14 @@ export function DocumentTemplatesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      eyebrow="Docs · Templates"
-      title="Start from a purpose"
+      eyebrow={t('DocumentTemplatesScreen.eyebrow')}
+      title={t('DocumentTemplatesScreen.title')}
       actions={
         <Link className="tm-dx-back" href={`/${organizationSlug}/docs`}>
           <span className="tm-dx-back__orb" aria-hidden="true">
             ←
           </span>
-          Back to Docs
+          {t('DocumentTemplatesScreen.backToDocs')}
         </Link>
       }
     >
@@ -124,12 +126,13 @@ export function DocumentTemplatesScreen({
         <section className="tm-dx-split__main" aria-labelledby="tm-tpl-gallery-heading">
           <div className="tm-dx-chips">
             <h2 id="tm-tpl-gallery-heading" className="tm-dx-caption">
-              Template gallery{rows.length > 0 ? ` · ${rows.length}` : ''}
+              {t('DocumentTemplatesScreen.templateGallery')}
+              {rows.length > 0 ? ` · ${rows.length}` : ''}
             </h2>
             {available.length > 0 ? (
               <div className="tm-dx-select tm-push-end">
                 <label className="tm-dx-select__label" htmlFor="tm-tpl-project">
-                  Apply to project
+                  {t('DocumentTemplatesScreen.applyToProject')}
                 </label>
                 <select
                   id="tm-tpl-project"
@@ -145,37 +148,37 @@ export function DocumentTemplatesScreen({
                   ))}
                 </select>
                 <span id="tm-tpl-project-hint" className="tm-visually-hidden">
-                  Applying a template creates a new document in this project.
+                  {t('DocumentTemplatesScreen.applyHint')}
                 </span>
               </div>
             ) : null}
           </div>
 
           {applied ? (
-            <InlineAlert tone="success" title="Document created from the template" live>
+            <InlineAlert tone="success" title={t('DocumentTemplatesScreen.createdTitle')} live>
               <p className="tm-prose">
                 <Link href={`/${organizationSlug}/docs/${applied.id}/edit`}>
-                  Open &ldquo;{applied.title}&rdquo;
+                  {t('DocumentTemplatesScreen.openPrefix')}&ldquo;{applied.title}&rdquo;
                 </Link>{' '}
-                to edit the new document. The template is unchanged.
+                {t('DocumentTemplatesScreen.editSuffix')}
               </p>
             </InlineAlert>
           ) : null}
 
           {templates.isError ? (
-            <InlineAlert tone="danger" title="Could not load the templates" live>
+            <InlineAlert tone="danger" title={t('DocumentTemplatesScreen.loadError')} live>
               {describeError(templates.error)}
             </InlineAlert>
           ) : null}
 
           {apply.isError ? (
-            <InlineAlert tone="danger" title="Could not apply that template" live>
+            <InlineAlert tone="danger" title={t('DocumentTemplatesScreen.applyError')} live>
               {describeError(apply.error)}
             </InlineAlert>
           ) : null}
 
           {templates.isPending ? (
-            <LoadingRegion label="Loading the templates.">
+            <LoadingRegion label={t('DocumentTemplatesScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
@@ -183,11 +186,8 @@ export function DocumentTemplatesScreen({
 
           {!templates.isPending && !templates.isError && rows.length === 0 ? (
             <div className="tm-dx-empty">
-              <p className="tm-dx-empty__title">No templates yet</p>
-              <p className="tm-dx-empty__body">
-                Create a template with the form beside this list. Once you have one, you can apply
-                it to a project to start a new document from it.
-              </p>
+              <p className="tm-dx-empty__title">{t('DocumentTemplatesScreen.emptyTitle')}</p>
+              <p className="tm-dx-empty__body">{t('DocumentTemplatesScreen.emptyBody')}</p>
             </div>
           ) : null}
 
@@ -198,25 +198,26 @@ export function DocumentTemplatesScreen({
               // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
               tabIndex={0}
               role="region"
-              aria-label="Document templates"
+              aria-label={t('DocumentTemplatesScreen.tableAria')}
             >
               {/* Explicit roles keep the table's semantics while it is drawn as DOC-04's stack of
                   purpose cards. */}
               {/* eslint-disable jsx-a11y/no-redundant-roles */}
               <table className="tm-dx-cards" role="table">
                 <caption className="tm-visually-hidden">
-                  Your organization&rsquo;s document templates, {rows.length} shown.
+                  {t('DocumentTemplatesScreen.captionPrefix')} {rows.length}{' '}
+                  {t('DocumentTemplatesScreen.captionSuffix')}
                 </caption>
                 <thead role="rowgroup">
                   <tr role="row">
                     <th scope="col" role="columnheader">
-                      Name
+                      {t('DocumentTemplatesScreen.thName')}
                     </th>
                     <th scope="col" role="columnheader">
-                      Purpose
+                      {t('DocumentTemplatesScreen.thPurpose')}
                     </th>
                     <th scope="col" role="columnheader">
-                      Actions
+                      {t('DocumentTemplatesScreen.thActions')}
                     </th>
                   </tr>
                 </thead>
@@ -233,18 +234,18 @@ export function DocumentTemplatesScreen({
                             className="tm-dx-link-capsule"
                             href={`/${organizationSlug}/docs/templates/${template.id}/variables`}
                           >
-                            Variables
+                            {t('DocumentTemplatesScreen.variables')}
                           </Link>
                           <Button
                             type="button"
                             tone="ink"
                             size="compact"
                             loading={apply.isPending && apply.variables === template.id}
-                            loadingLabel="Applying"
+                            loadingLabel={t('DocumentTemplatesScreen.applying')}
                             disabled={!canApply}
                             onClick={() => apply.mutate(template.id)}
                           >
-                            Apply
+                            {t('DocumentTemplatesScreen.apply')}
                           </Button>
                         </div>
                       </td>
@@ -257,17 +258,19 @@ export function DocumentTemplatesScreen({
           ) : null}
 
           {!projects.isPending && available.length === 0 ? (
-            <InlineAlert tone="neutral" title="No projects yet">
-              A template is applied to a project. Once a project exists, an Apply button appears on
-              each template.
+            <InlineAlert tone="neutral" title={t('DocumentTemplatesScreen.noProjectsTitle')}>
+              {t('DocumentTemplatesScreen.noProjectsBody')}
             </InlineAlert>
           ) : null}
         </section>
 
-        <aside className="tm-dx-split__side" aria-label="Create a template">
+        <aside
+          className="tm-dx-split__side"
+          aria-label={t('DocumentTemplatesScreen.createAsideAria')}
+        >
           <section className="tm-dx-card tm-dx-card--dashed" aria-labelledby="tm-tpl-new-heading">
             <h2 id="tm-tpl-new-heading" className="tm-dx-card__title">
-              New template
+              {t('DocumentTemplatesScreen.newTemplate')}
             </h2>
             <form
               className="tm-dx-form"
@@ -279,24 +282,24 @@ export function DocumentTemplatesScreen({
             >
               <fieldset className="tm-fieldset" disabled={!hydrated}>
                 <Field
-                  label="Name"
+                  label={t('DocumentTemplatesScreen.nameLabel')}
                   name="name"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
-                  hint="A short handle, such as Project kickoff brief."
+                  hint={t('DocumentTemplatesScreen.nameHint')}
                   required
                 />
                 <Field
-                  label="Purpose"
+                  label={t('DocumentTemplatesScreen.purposeLabel')}
                   name="purpose"
                   value={purpose}
                   onChange={(event) => setPurpose(event.target.value)}
-                  hint="One line saying what this template is for. Shown in the gallery."
+                  hint={t('DocumentTemplatesScreen.purposeHint')}
                   required
                 />
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-tpl-body">
-                    Template body
+                    {t('DocumentTemplatesScreen.bodyLabel')}
                     <span className="tm-field__required" aria-hidden="true">
                       *
                     </span>
@@ -312,12 +315,12 @@ export function DocumentTemplatesScreen({
                     required
                   />
                   <span className="tm-field__hint" id="tm-tpl-body-hint">
-                    The text a new document starts from.
+                    {t('DocumentTemplatesScreen.bodyHint')}
                   </span>
                 </div>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not create the template" live>
+                  <InlineAlert tone="danger" title={t('DocumentTemplatesScreen.createError')} live>
                     {describeError(create.error)}
                   </InlineAlert>
                 ) : null}
@@ -327,10 +330,10 @@ export function DocumentTemplatesScreen({
                   tone="ink"
                   size="default"
                   loading={create.isPending}
-                  loadingLabel="Creating"
+                  loadingLabel={t('DocumentTemplatesScreen.creating')}
                   disabled={!canCreate}
                 >
-                  Create template
+                  {t('DocumentTemplatesScreen.createTemplate')}
                 </Button>
               </fieldset>
             </form>
@@ -340,10 +343,7 @@ export function DocumentTemplatesScreen({
             <span className="tm-dx-info__orb" aria-hidden="true">
               i
             </span>
-            <p>
-              Applying a template copies its body into a fresh document in the chosen project. The
-              template itself is never changed and can be applied again.
-            </p>
+            <p>{t('DocumentTemplatesScreen.infoNote')}</p>
           </div>
         </aside>
       </div>
