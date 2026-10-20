@@ -144,11 +144,11 @@ export function IpAllowlistView({
           >
             <p className="tm-cc-eyebrow tm-cc-eyebrow--warning">Advisory list</p>
             <h2 id="tm-allowlist-advisory" className="tm-cc-card__title">
-              Not yet enforced
+              For reference only
             </h2>
             <p className="tm-cc-card__body">
-              These ranges are recorded for reference only. Requests are not yet refused by source
-              IP; enforcement in the sign-in path is a later change.
+              These ranges are recorded for your reference. Sign-in is not restricted by network, so
+              a range here does not block anyone on its own.
             </p>
           </section>
         </div>

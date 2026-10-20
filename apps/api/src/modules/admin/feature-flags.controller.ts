@@ -19,6 +19,7 @@ import type { OrgFeatureFlagRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { FeatureFlagsRepository } from './feature-flags.repository.js';
 import {
+  DEFAULT_MODULE_ENABLED,
   OPTIONAL_MODULE_FLAGS,
   isOptionalModuleFlag,
   resolveFlags,
@@ -37,7 +38,8 @@ import type { OptionalModuleFlag } from './feature-flags.service.js';
  *     upsert); `enabled` must be a boolean. The set is one idempotent upsert.
  *   - **Resolved read (`work.read`)** — `GET …/feature-flags` returns the resolved flag map for the
  *     caller's own org: every known key with its resolved state, an absent or unknown key resolving
- *     to the default (off). No id is ever echoed, so nothing about another studio can leak.
+ *     to that module's default (on for the live modules, off for the copilot). No id is ever echoed,
+ *     so nothing about another studio can leak.
  *
  * ## The capability is the boundary, and it is re-asserted where the write is
  *
@@ -180,7 +182,9 @@ function foldAdmin(rows: readonly OrgFeatureFlagRow[]): FeatureFlagAdminView[] {
   for (const row of rows) byKey.set(row.flagKey, row);
   return OPTIONAL_MODULE_FLAGS.map((key) => {
     const row = byKey.get(key);
-    return row ? toAdminView(key, row) : { key, enabled: false, updatedBy: null, updatedAt: null };
+    return row
+      ? toAdminView(key, row)
+      : { key, enabled: DEFAULT_MODULE_ENABLED[key], updatedBy: null, updatedAt: null };
   });
 }
 

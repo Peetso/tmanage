@@ -28,6 +28,24 @@ export const OPTIONAL_MODULE_FLAGS = [
 ] as const;
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
 
+/**
+ * Each module's default state when an org has never toggled it — mirrored Exact with the API's
+ * `DEFAULT_MODULE_ENABLED`. The live modules are on by default (they are in the app and work), so
+ * the admin switch reflects reality; the AI copilot is the one default-off module, because its flag
+ * genuinely gates the copilot route.
+ */
+export const DEFAULT_MODULE_ENABLED: Record<OptionalModuleFlag, boolean> = {
+  chat: true,
+  meetings: true,
+  docs: true,
+  people: true,
+  insights: true,
+  automations: true,
+  client_portal: true,
+  billing: true,
+  copilot: false,
+};
+
 /** One flag's admin projection: its key, enabled state, and who/when last changed it. */
 export interface FeatureFlagAdminView {
   readonly key: OptionalModuleFlag;

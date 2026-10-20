@@ -5,6 +5,7 @@ import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
+  DEFAULT_MODULE_ENABLED,
   OPTIONAL_MODULE_FLAGS,
   listFeatureFlags,
   setFeatureFlag,
@@ -140,8 +141,8 @@ export function AdminFeatureFlagsScreen({
               A switch applies to everyone in {organizationName}
             </h2>
             <p className="tm-cc-card__body">
-              Each switch saves as soon as it changes. Modules that were never changed are off by
-              default.
+              Each switch saves as soon as it changes. A module you have never changed stays at its
+              default: the everyday modules are on, and the AI copilot starts off.
             </p>
           </section>
         </div>
@@ -153,13 +154,21 @@ export function AdminFeatureFlagsScreen({
 function orderFlags(flags: readonly FeatureFlagAdminView[]): FeatureFlagAdminView[] {
   const byKey = new Map(flags.map((f) => [f.key, f]));
   return OPTIONAL_MODULE_FLAGS.map(
-    (key) => byKey.get(key) ?? { key, enabled: false, updatedBy: null, updatedAt: null },
+    (key) =>
+      byKey.get(key) ?? {
+        key,
+        enabled: DEFAULT_MODULE_ENABLED[key],
+        updatedBy: null,
+        updatedAt: null,
+      },
   );
 }
 
-/** A short "when last changed" note, or a neutral default for a flag never set. */
+/** A short "when last changed" note, or the module's default for a flag never set. */
 function changedNote(flag: FeatureFlagAdminView): string {
-  if (!flag.updatedAt) return 'Never changed (default off)';
+  if (!flag.updatedAt) {
+    return DEFAULT_MODULE_ENABLED[flag.key] ? 'On by default' : 'Off by default';
+  }
   return `Changed ${new Date(flag.updatedAt).toLocaleDateString()}`;
 }
 

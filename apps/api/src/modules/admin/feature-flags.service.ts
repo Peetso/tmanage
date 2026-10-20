@@ -31,8 +31,24 @@ export const OPTIONAL_MODULE_FLAGS = [
 
 export type OptionalModuleFlag = (typeof OPTIONAL_MODULE_FLAGS)[number];
 
-/** Every optional-module flag defaults to off until an org admin turns it on. */
-const DEFAULT_ENABLED = false;
+/**
+ * Each optional module's default state until an org admin sets it explicitly. The live product
+ * modules ship **on** — they are in the app and work today — so a never-touched flag reports the
+ * module as on rather than falsely as off (ADM-12: the switches must match reality). The AI copilot
+ * is the one default-**off** module: its flag genuinely gates the copilot `ask` route (NS-13), whose
+ * only provider today is the local stub, so it must stay off until an admin opts in.
+ */
+export const DEFAULT_MODULE_ENABLED: Record<OptionalModuleFlag, boolean> = {
+  chat: true,
+  meetings: true,
+  docs: true,
+  people: true,
+  insights: true,
+  automations: true,
+  client_portal: true,
+  billing: true,
+  copilot: false,
+};
 
 const KNOWN_FLAGS: ReadonlySet<string> = new Set(OPTIONAL_MODULE_FLAGS);
 
@@ -43,7 +59,8 @@ export function isOptionalModuleFlag(value: unknown): value is OptionalModuleFla
 
 /**
  * Fold stored rows into a resolved map over every known flag: a key with a row takes that row's
- * `enabled`, a key with no row (or any unknown stored key, ignored) resolves to the default (off).
+ * `enabled`, a key with no row (or any unknown stored key, ignored) resolves to the module's own
+ * default ({@link DEFAULT_MODULE_ENABLED} — on for the live modules, off for the copilot).
  * The map is keyed only by allowlisted keys, so the resolved read never leaks a stale or unknown key.
  */
 export function resolveFlags(
@@ -53,7 +70,7 @@ export function resolveFlags(
   for (const row of rows) byKey.set(row.flagKey, row.enabled);
   const resolved = {} as Record<OptionalModuleFlag, boolean>;
   for (const key of OPTIONAL_MODULE_FLAGS) {
-    resolved[key] = byKey.get(key) ?? DEFAULT_ENABLED;
+    resolved[key] = byKey.get(key) ?? DEFAULT_MODULE_ENABLED[key];
   }
   return resolved;
 }

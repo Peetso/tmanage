@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readSecuritySettings, setSecuritySettings } from '../../lib/api/admin-security';
@@ -21,16 +21,11 @@ export interface AdminSecurityScreenProps {
 /**
  * **Organization security settings** — ADM-08 "How people get in" (Administration module 18, x176).
  *
- * The left card is the sign-in posture the API stores — whether a second factor is enforced and an
- * IP allowlist of permitted source networks — and saves it. It is the config surface only: refusing
- * a login by IP or requiring a second factor is a later identity slice (NEXT-SCOPES-13), so nothing
- * here can lock an administrator out while they are still choosing the values. The right column is
- * ADM-08's "one thing to look at" (drawn only when the posture gives a reason) and the live list of
- * active sessions from `GET …/admin/sessions`.
- *
- * The allowlist editor validates every entry as an IP/CIDR before it lets the form save, and surfaces
- * the API's refusal if the server rejects one besides — the server is the authoritative boundary
- * (`cidr.ts`), so a malformed entry never persists even if the client check were bypassed.
+ * The left card is the sign-in posture the API stores — whether a second factor is required — and
+ * saves it, carrying the stored IP allowlist through unchanged. Trusted network ranges have their
+ * own screen (`/admin/ip-allowlist`), linked here, so the ranges are edited in one place rather than
+ * duplicated on this form. The right column is ADM-08's "one thing to look at" (drawn only when the
+ * posture gives a reason) and the live list of active sessions from `GET …/admin/sessions`.
  */
 export function AdminSecurityScreen({
   organizationSlug,
@@ -51,7 +46,6 @@ export function AdminSecurityScreen({
   });
 
   const [enforce2fa, setEnforce2fa] = useState(false);
-  const [allowlistText, setAllowlistText] = useState('');
   const [saved, setSaved] = useState(false);
   const [seeded, setSeeded] = useState(false);
 
@@ -59,18 +53,17 @@ export function AdminSecurityScreen({
   useEffect(() => {
     if (!settings.data || seeded) return;
     setEnforce2fa(settings.data.enforce2fa);
-    setAllowlistText(settings.data.ipAllowlist.join(', '));
     setSeeded(true);
   }, [settings.data, seeded]);
 
-  const entries = splitEntries(allowlistText);
-  const invalid = entries.filter((entry) => !isPlausibleEntry(entry));
-  const allowlistError =
-    invalid.length > 0 ? `Not a valid IP address or CIDR range: ${invalid.join(', ')}` : undefined;
-
   const save = useMutation({
+    // Trusted network ranges are managed on their own screen; this save carries the stored list
+    // through unchanged so saving the 2FA posture never clears it.
     mutationFn: () =>
-      setSecuritySettings(api, organizationSlug, { enforce2fa, ipAllowlist: entries }),
+      setSecuritySettings(api, organizationSlug, {
+        enforce2fa,
+        ipAllowlist: settings.data?.ipAllowlist ?? [],
+      }),
     onSuccess: async () => {
       setSaved(true);
       await queryClient.invalidateQueries({ queryKey: ['admin-security', organizationSlug] });
@@ -123,14 +116,14 @@ export function AdminSecurityScreen({
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 setSaved(false);
-                if (!allowlistError && !save.isPending) save.mutate();
+                if (!save.isPending) save.mutate();
               }}
             >
               <ul className="tm-cc-rows">
                 <li>
                   <Switch
                     label="Require two-factor authentication"
-                    hint="Every member must enrol a second factor. Enforcement in the sign-in path is coming in a later release; this records the policy now."
+                    hint="Every member must enrol a second factor to sign in."
                     checked={enforce2fa}
                     disabled={save.isPending}
                     onChange={(event) => {
@@ -141,22 +134,6 @@ export function AdminSecurityScreen({
                   <span className={enforce2fa ? 'tm-cc-pill tm-cc-pill--on' : 'tm-cc-pill'}>
                     {enforce2fa ? 'On' : 'Off'}
                   </span>
-                </li>
-                <li>
-                  <div className="tm-cc-rows__text tm-cc-rows__grow">
-                    <Field
-                      label="IP allowlist"
-                      name="ip-allowlist"
-                      value={allowlistText}
-                      onChange={(event) => {
-                        setSaved(false);
-                        setAllowlistText(event.target.value);
-                      }}
-                      hint="IP addresses or CIDR ranges, comma-separated, e.g. 203.0.113.0/24, 2001:db8::/32. Leave empty for no restriction."
-                      error={allowlistError}
-                      disabled={save.isPending}
-                    />
-                  </div>
                 </li>
                 <li>
                   <div className="tm-cc-rows__text">
@@ -175,11 +152,7 @@ export function AdminSecurityScreen({
                 <li>
                   <div className="tm-cc-rows__text">
                     <p className="tm-cc-rows__title">Trusted network ranges</p>
-                    <p className="tm-cc-rows__sub">
-                      {loaded && entries.length > 0
-                        ? `${entries.length} ${entries.length === 1 ? 'range' : 'ranges'} recorded`
-                        : 'off — the studio works from anywhere'}
-                    </p>
+                    <p className="tm-cc-rows__sub">Record the networks your studio works from</p>
                   </div>
                   <Link
                     href={`/${organizationSlug}/admin/ip-allowlist`}
@@ -206,7 +179,6 @@ export function AdminSecurityScreen({
                   type="submit"
                   tone="ink"
                   size="accessible"
-                  disabled={Boolean(allowlistError)}
                   loading={save.isPending}
                   loadingLabel="Saving"
                 >
@@ -293,47 +265,6 @@ function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
-}
-
-/** Split the editor text into entries on newlines and commas, trimmed, blanks dropped. */
-function splitEntries(text: string): string[] {
-  return text
-    .split(/[\n,]/)
-    .map((entry) => entry.trim())
-    .filter((entry) => entry !== '');
-}
-
-/**
- * A light client-side plausibility check for immediate feedback — a valid IPv4/IPv6 address or CIDR.
- * The API's `cidr.ts` is the authoritative boundary; this only spares the round trip for an obvious
- * typo and never has the last word on what persists.
- */
-function isPlausibleEntry(entry: string): boolean {
-  const slash = entry.indexOf('/');
-  const address = slash === -1 ? entry : entry.slice(0, slash);
-  if (slash !== -1) {
-    const prefix = entry.slice(slash + 1);
-    if (!/^\d{1,3}$/.test(prefix)) return false;
-    const max = address.includes(':') ? 128 : 32;
-    if (Number(prefix) > max) return false;
-  }
-  return isPlausibleIpv4(address) || isPlausibleIpv6(address);
-}
-
-function isPlausibleIpv4(address: string): boolean {
-  const parts = address.split('.');
-  if (parts.length !== 4) return false;
-  return parts.every((part) => {
-    if (!/^\d{1,3}$/.test(part)) return false;
-    if (part.length > 1 && part.startsWith('0')) return false;
-    return Number(part) <= 255;
-  });
-}
-
-function isPlausibleIpv6(address: string): boolean {
-  if (!address.includes(':')) return false;
-  if ((address.match(/::/g) ?? []).length > 1) return false;
-  return /^[0-9a-fA-F:.]+$/.test(address);
 }
 
 function describeError(error: unknown): string {

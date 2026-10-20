@@ -131,12 +131,13 @@ describe('AdminFeatureFlagsController (ADM per-org feature flags, x278)', () => 
 });
 
 describe('FeatureFlagsController (resolved read, x278)', () => {
-  it('resolves every known flag, unset keys defaulting to off, behind work.read', async () => {
+  it('resolves every known flag by its default, a stored row overriding it, behind work.read', async () => {
+    // A live module explicitly turned off — the stored value must win over its default-on.
     const stored: OrgFeatureFlagRow = {
       id: 'f-1',
       organizationId: ORG,
       flagKey: 'meetings',
-      enabled: true,
+      enabled: false,
       updatedBy: MEMBERSHIP,
       updatedAt: new Date('2026-09-27T00:00:00.000Z'),
     };
@@ -146,8 +147,12 @@ describe('FeatureFlagsController (resolved read, x278)', () => {
       repo as unknown as FeatureFlagsRepository,
     );
     const result = await controller.resolved(context);
-    expect(result.flags.meetings).toBe(true);
-    expect(result.flags.chat).toBe(false);
+    // Stored row wins over the module default.
+    expect(result.flags.meetings).toBe(false);
+    // An untouched live module defaults on (ADM-12: switches match a module that works).
+    expect(result.flags.chat).toBe(true);
+    // The copilot is the one default-off module (it gates the copilot route).
+    expect(result.flags.copilot).toBe(false);
     expect(
       Reflect.getMetadata(REQUIRED_CAPABILITY, FeatureFlagsController.prototype.resolved),
     ).toBe('work.read');
