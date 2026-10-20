@@ -15,6 +15,8 @@ import {
 import type { MeetingSeriesFreq } from '../../lib/api/meeting-series';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -25,10 +27,24 @@ export interface MeetingSeriesScreenProps {
 }
 
 /** How each frequency reads in the picker and the list. */
-const FREQ_LABEL: Record<MeetingSeriesFreq, string> = {
-  daily: 'Daily',
-  weekly: 'Weekly',
-  monthly: 'Monthly',
+const FREQ_LABEL_KEYS: Record<MeetingSeriesFreq, MessageKey> = {
+  daily: 'MeetingSeriesScreen.freqDaily',
+  weekly: 'MeetingSeriesScreen.freqWeekly',
+  monthly: 'MeetingSeriesScreen.freqMonthly',
+};
+
+/** The unit a frequency counts in, singular, for "Every week". */
+const UNIT_SINGULAR_KEYS: Record<MeetingSeriesFreq, MessageKey> = {
+  daily: 'MeetingSeriesScreen.unitDay',
+  weekly: 'MeetingSeriesScreen.unitWeek',
+  monthly: 'MeetingSeriesScreen.unitMonth',
+};
+
+/** The unit a frequency counts in, plural, for "Every 2 weeks". */
+const UNIT_PLURAL_KEYS: Record<MeetingSeriesFreq, MessageKey> = {
+  daily: 'MeetingSeriesScreen.unitDays',
+  weekly: 'MeetingSeriesScreen.unitWeeks',
+  monthly: 'MeetingSeriesScreen.unitMonths',
 };
 
 /**
@@ -58,6 +74,7 @@ export function MeetingSeriesScreen({
 }: MeetingSeriesScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const [title, setTitle] = useState('');
   const [freq, setFreq] = useState<MeetingSeriesFreq>('weekly');
@@ -112,8 +129,8 @@ export function MeetingSeriesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Recurring meetings"
-      eyebrow="Calendar · Series"
+      title={t('MeetingSeriesScreen.title')}
+      eyebrow={t('MeetingSeriesScreen.eyebrow')}
       actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="none" />}
     >
       <div className="tm-cal">
@@ -122,21 +139,21 @@ export function MeetingSeriesScreen({
         <div className="tm-cal-body">
           <div className="tm-cal-main">
             {series.isError ? (
-              <InlineAlert tone="danger" title="Could not load the series" live>
-                {describeError(series.error)}
+              <InlineAlert tone="danger" title={t('MeetingSeriesScreen.loadErrorTitle')} live>
+                {describeError(t, series.error)}
               </InlineAlert>
             ) : null}
 
             {series.isPending ? (
-              <LoadingRegion label="Loading the series.">
+              <LoadingRegion label={t('MeetingSeriesScreen.loadingLabel')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {!series.isPending && !series.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title="No series yet">
-                You have no recurring meeting series. Create one beside the list.
+              <InlineAlert tone="neutral" title={t('MeetingSeriesScreen.emptyTitle')}>
+                {t('MeetingSeriesScreen.emptyBody')}
               </InlineAlert>
             ) : null}
 
@@ -149,18 +166,19 @@ export function MeetingSeriesScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Meeting series"
+                  aria-label={t('MeetingSeriesScreen.regionAria')}
                 >
                   <table>
                     <caption className="tm-visually-hidden">
-                      Recurring meeting series, {rows.length} shown.
+                      {t('MeetingSeriesScreen.captionBefore')} {rows.length}{' '}
+                      {t('MeetingSeriesScreen.captionAfter')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Title</th>
-                        <th scope="col">Repeats</th>
-                        <th scope="col">Every</th>
-                        <th scope="col">Ends</th>
+                        <th scope="col">{t('MeetingSeriesScreen.colTitle')}</th>
+                        <th scope="col">{t('MeetingSeriesScreen.colRepeats')}</th>
+                        <th scope="col">{t('MeetingSeriesScreen.colEvery')}</th>
+                        <th scope="col">{t('MeetingSeriesScreen.colEnds')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -171,17 +189,19 @@ export function MeetingSeriesScreen({
                           </th>
                           <td>
                             <span className="tm-cal-chip tm-cal-chip--ink">
-                              {FREQ_LABEL[row.freq]}
+                              {t(FREQ_LABEL_KEYS[row.freq])}
                             </span>
                           </td>
                           <td className="tm-cal-sheet__kind">
                             {row.interval === 1
-                              ? `Every ${UNIT[row.freq]}`
-                              : `Every ${row.interval} ${UNIT[row.freq]}s`}
+                              ? `${t('MeetingSeriesScreen.everyLabel')} ${t(UNIT_SINGULAR_KEYS[row.freq])}`
+                              : `${t('MeetingSeriesScreen.everyLabel')} ${row.interval} ${t(UNIT_PLURAL_KEYS[row.freq])}`}
                           </td>
                           <td>
                             <span className="tm-cal-chip">
-                              {row.until ? `Until ${row.until}` : 'Open-ended'}
+                              {row.until
+                                ? `${t('MeetingSeriesScreen.untilPrefix')} ${row.until}`
+                                : t('MeetingSeriesScreen.openEnded')}
                             </span>
                           </td>
                         </tr>
@@ -195,12 +215,12 @@ export function MeetingSeriesScreen({
             {rows.length > 0 ? (
               <section className="tm-cal-card" aria-labelledby="tm-series-preview">
                 <h2 id="tm-series-preview" className="tm-cal-eyebrow">
-                  Preview occurrences
+                  {t('MeetingSeriesScreen.previewHeading')}
                 </h2>
                 <div className="tm-cal-form-row">
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-series-preview-series">
-                      Series
+                      {t('MeetingSeriesScreen.seriesLabel')}
                     </label>
                     <select
                       id="tm-series-preview-series"
@@ -208,7 +228,7 @@ export function MeetingSeriesScreen({
                       value={previewSeriesId}
                       onChange={(event) => setPreviewSeriesId(event.target.value)}
                     >
-                      <option value="">Choose a series…</option>
+                      <option value="">{t('MeetingSeriesScreen.seriesPlaceholder')}</option>
                       {rows.map((row) => (
                         <option key={row.id} value={row.id}>
                           {row.title}
@@ -218,7 +238,7 @@ export function MeetingSeriesScreen({
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-series-preview-from">
-                      From
+                      {t('MeetingSeriesScreen.fromLabel')}
                     </label>
                     <input
                       id="tm-series-preview-from"
@@ -230,7 +250,7 @@ export function MeetingSeriesScreen({
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-series-preview-to">
-                      To
+                      {t('MeetingSeriesScreen.toLabel')}
                     </label>
                     <input
                       id="tm-series-preview-to"
@@ -241,21 +261,24 @@ export function MeetingSeriesScreen({
                     />
                   </div>
                 </div>
-                <span className="tm-field__hint">The window is capped at 90 days.</span>
+                <span className="tm-field__hint">{t('MeetingSeriesScreen.windowHint')}</span>
 
                 {occurrences.isError ? (
-                  <InlineAlert tone="danger" title="Could not expand the series" live>
-                    {describeError(occurrences.error)}
+                  <InlineAlert tone="danger" title={t('MeetingSeriesScreen.expandErrorTitle')} live>
+                    {describeError(t, occurrences.error)}
                   </InlineAlert>
                 ) : null}
 
                 {occurrences.data ? (
                   occurrences.data.occurrences.length === 0 ? (
-                    <InlineAlert tone="neutral" title="No occurrences">
-                      This series falls on no dates in that window.
+                    <InlineAlert tone="neutral" title={t('MeetingSeriesScreen.noOccurrencesTitle')}>
+                      {t('MeetingSeriesScreen.noOccurrencesBody')}
                     </InlineAlert>
                   ) : (
-                    <ul className="tm-chip-row" aria-label="Occurrences">
+                    <ul
+                      className="tm-chip-row"
+                      aria-label={t('MeetingSeriesScreen.occurrencesAria')}
+                    >
                       {occurrences.data.occurrences.map((date) => (
                         <li key={date} className="tm-cal-chip">
                           {date}
@@ -271,12 +294,12 @@ export function MeetingSeriesScreen({
           <div className="tm-cal-side">
             <section className="tm-cal-card" aria-labelledby="tm-series-create">
               <h2 id="tm-series-create" className="tm-cal-eyebrow">
-                Create a series
+                {t('MeetingSeriesScreen.createHeading')}
               </h2>
               <form className="tm-cal-form" onSubmit={submitCreate}>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-series-title">
-                    Title
+                    {t('MeetingSeriesScreen.titleLabel')}
                   </label>
                   <input
                     id="tm-series-title"
@@ -290,7 +313,7 @@ export function MeetingSeriesScreen({
                 <div className="tm-cal-form-row">
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-series-freq">
-                      Repeats
+                      {t('MeetingSeriesScreen.repeatsLabel')}
                     </label>
                     <select
                       id="tm-series-freq"
@@ -300,14 +323,14 @@ export function MeetingSeriesScreen({
                     >
                       {MEETING_SERIES_FREQS.map((value) => (
                         <option key={value} value={value}>
-                          {FREQ_LABEL[value]}
+                          {t(FREQ_LABEL_KEYS[value])}
                         </option>
                       ))}
                     </select>
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-series-interval">
-                      Every
+                      {t('MeetingSeriesScreen.everyLabel')}
                     </label>
                     <input
                       id="tm-series-interval"
@@ -321,11 +344,12 @@ export function MeetingSeriesScreen({
                   </div>
                 </div>
                 <span className="tm-field__hint">
-                  1 = every {UNIT[freq]}, 2 = every other, and so on.
+                  {t('MeetingSeriesScreen.freqHintBefore')} {t(UNIT_SINGULAR_KEYS[freq])}
+                  {t('MeetingSeriesScreen.freqHintAfter')}
                 </span>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-series-until">
-                    Ends (optional)
+                    {t('MeetingSeriesScreen.endsLabel')}
                   </label>
                   <input
                     id="tm-series-until"
@@ -334,14 +358,14 @@ export function MeetingSeriesScreen({
                     value={until}
                     onChange={(event) => setUntil(event.target.value)}
                   />
-                  <span className="tm-field__hint">Leave empty for an open-ended series.</span>
+                  <span className="tm-field__hint">{t('MeetingSeriesScreen.endsHint')}</span>
                 </div>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not create the series" live>
+                  <InlineAlert tone="danger" title={t('MeetingSeriesScreen.createErrorTitle')} live>
                     {create.error instanceof ApiRequestError
                       ? create.error.message
-                      : 'The API did not answer. Try again.'}
+                      : t('MeetingSeriesScreen.apiNoAnswer')}
                   </InlineAlert>
                 ) : null}
 
@@ -350,10 +374,10 @@ export function MeetingSeriesScreen({
                   tone="ink"
                   size="accessible"
                   loading={create.isPending}
-                  loadingLabel="Creating"
+                  loadingLabel={t('MeetingSeriesScreen.creatingLabel')}
                   disabled={!canCreate}
                 >
-                  Create series
+                  {t('MeetingSeriesScreen.createSubmit')}
                 </Button>
               </form>
             </section>
@@ -364,15 +388,8 @@ export function MeetingSeriesScreen({
   );
 }
 
-/** The unit a frequency counts in, for "Every 2 weeks". */
-const UNIT: Record<MeetingSeriesFreq, string> = {
-  daily: 'day',
-  weekly: 'week',
-  monthly: 'month',
-};
-
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingSeriesScreen.errorNetwork');
+  return t('MeetingSeriesScreen.errorGeneric');
 }

@@ -8,6 +8,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicResources } from '../../lib/api/public-resources';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MarketingResourcesScreenProps {
   /** Injected in tests. Defaults to the browser client. */
@@ -29,6 +31,7 @@ export interface MarketingResourcesScreenProps {
  */
 export function MarketingResourcesScreen({ client }: MarketingResourcesScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const resources = useQuery({
     queryKey: ['public-resources'],
@@ -38,15 +41,17 @@ export function MarketingResourcesScreen({ client }: MarketingResourcesScreenPro
   return (
     <PublicPage>
       <section className="tm-pub-columns" aria-labelledby="tm-resources-title">
-        <PublicIntro eyebrow="Resources" titleId="tm-resources-title" title="Resources & guides">
-          <p className="tm-pub-lede tm-pub-lede--md">
-            Guides and reference for getting the most out of TManage.
-          </p>
+        <PublicIntro
+          eyebrow={t('MarketingResourcesScreen.eyebrow')}
+          titleId="tm-resources-title"
+          title={t('MarketingResourcesScreen.title')}
+        >
+          <p className="tm-pub-lede tm-pub-lede--md">{t('MarketingResourcesScreen.lede')}</p>
         </PublicIntro>
 
         <div className="tm-pub-stack">
           {resources.isPending ? (
-            <LoadingRegion label="Loading resources">
+            <LoadingRegion label={t('MarketingResourcesScreen.loadingLabel')}>
               <div className="tm-stack">
                 <Skeleton />
                 <Skeleton />
@@ -54,13 +59,13 @@ export function MarketingResourcesScreen({ client }: MarketingResourcesScreenPro
               </div>
             </LoadingRegion>
           ) : resources.isError ? (
-            <InlineAlert tone="danger" title="These resources could not load">
-              {describeError(resources.error)}
+            <InlineAlert tone="danger" title={t('MarketingResourcesScreen.errorTitle')}>
+              {describeError(t, resources.error)}
             </InlineAlert>
           ) : resources.data.resources.length === 0 ? (
             <div className="tm-pub-card tm-pub-card--roomy tm-pub-card--dashed">
-              <p className="tm-pub-card__title">No resources yet</p>
-              <p className="tm-pub-card__body">Check back soon — guides are on the way.</p>
+              <p className="tm-pub-card__title">{t('MarketingResourcesScreen.emptyTitle')}</p>
+              <p className="tm-pub-card__body">{t('MarketingResourcesScreen.emptyBody')}</p>
             </div>
           ) : (
             <ul className="tm-pub-grid">
@@ -84,9 +89,8 @@ export function MarketingResourcesScreen({ client }: MarketingResourcesScreenPro
 }
 
 /** The same honest error copy the authed screens use: a refusal reads differently from an outage. */
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError)
-    return 'We could not reach TManage. Check your connection and try again.';
-  return 'Something went wrong loading this page. Please try again.';
+  if (error instanceof NetworkError) return t('MarketingResourcesScreen.errorNetwork');
+  return t('MarketingResourcesScreen.errorGeneric');
 }

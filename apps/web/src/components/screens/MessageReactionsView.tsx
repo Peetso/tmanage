@@ -12,6 +12,8 @@ import {
 } from '../../lib/api/message-reactions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface MessageReactionsViewProps {
   organizationSlug: string;
@@ -39,20 +41,20 @@ export interface MessageReactionsViewProps {
  * authoritatively and refuses anything outside it, so this list is presentation, not a trust
  * decision.
  */
-const ALLOWED_REACTIONS: readonly { emoji: string; label: string }[] = [
-  { emoji: '\u{1F44D}', label: 'Thumbs up' },
-  { emoji: '\u{1F44E}', label: 'Thumbs down' },
-  { emoji: '❤️', label: 'Heart' },
-  { emoji: '\u{1F389}', label: 'Celebrate' },
-  { emoji: '\u{1F604}', label: 'Smile' },
-  { emoji: '\u{1F615}', label: 'Confused' },
-  { emoji: '\u{1F680}', label: 'Rocket' },
-  { emoji: '\u{1F440}', label: 'Eyes' },
+const ALLOWED_REACTIONS: readonly { emoji: string; labelKey: MessageKey }[] = [
+  { emoji: '\u{1F44D}', labelKey: 'MessageReactionsView.thumbsUp' },
+  { emoji: '\u{1F44E}', labelKey: 'MessageReactionsView.thumbsDown' },
+  { emoji: '❤️', labelKey: 'MessageReactionsView.heart' },
+  { emoji: '\u{1F389}', labelKey: 'MessageReactionsView.celebrate' },
+  { emoji: '\u{1F604}', labelKey: 'MessageReactionsView.smile' },
+  { emoji: '\u{1F615}', labelKey: 'MessageReactionsView.confused' },
+  { emoji: '\u{1F680}', labelKey: 'MessageReactionsView.rocket' },
+  { emoji: '\u{1F440}', labelKey: 'MessageReactionsView.eyes' },
 ];
 
-function messageOf(error: unknown): string {
+function messageOf(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Try again.';
+  return t('MessageReactionsView.errorGeneric');
 }
 
 export function MessageReactionsView({
@@ -62,6 +64,7 @@ export function MessageReactionsView({
   client,
 }: MessageReactionsViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['message-reactions', organizationSlug, conversationId, messageId] as const;
 
@@ -92,18 +95,28 @@ export function MessageReactionsView({
 
   if (tally.isLoading) {
     return (
-      <div className="tm-message-reactions" role="group" aria-label="Reactions" aria-busy="true">
+      <div
+        className="tm-message-reactions"
+        role="group"
+        aria-label={t('MessageReactionsView.reactionsGroup')}
+        aria-busy="true"
+      >
         <Skeleton width="12rem" />
       </div>
     );
   }
   if (tally.isError) {
-    return <InlineAlert tone="danger">{messageOf(tally.error)}</InlineAlert>;
+    return <InlineAlert tone="danger">{messageOf(t, tally.error)}</InlineAlert>;
   }
 
   return (
-    <div className="tm-message-reactions" role="group" aria-label="Reactions">
-      {ALLOWED_REACTIONS.map(({ emoji, label }) => {
+    <div
+      className="tm-message-reactions"
+      role="group"
+      aria-label={t('MessageReactionsView.reactionsGroup')}
+    >
+      {ALLOWED_REACTIONS.map(({ emoji, labelKey }) => {
+        const label = t(labelKey);
         const state = counts.get(emoji);
         const reacted = state?.reacted ?? false;
         const count = state?.count ?? 0;
@@ -122,7 +135,9 @@ export function MessageReactionsView({
           </Button>
         );
       })}
-      {toggle.isError ? <InlineAlert tone="danger">{messageOf(toggle.error)}</InlineAlert> : null}
+      {toggle.isError ? (
+        <InlineAlert tone="danger">{messageOf(t, toggle.error)}</InlineAlert>
+      ) : null}
     </div>
   );
 }

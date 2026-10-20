@@ -9,6 +9,8 @@ import { getMeetingRsvp, setMeetingRsvp } from '../../lib/api/meeting-rsvp';
 import type { MeetingRsvpResponse } from '../../lib/api/meeting-rsvp';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -20,10 +22,10 @@ export interface MeetingRsvpScreenProps {
   client?: ApiClient;
 }
 
-const RESPONSE_LABELS: Readonly<Record<MeetingRsvpResponse, string>> = {
-  accepted: 'Going',
-  declined: 'Not going',
-  tentative: 'Maybe',
+const RESPONSE_LABEL_KEYS: Readonly<Record<MeetingRsvpResponse, MessageKey>> = {
+  accepted: 'MeetingRsvpScreen.responseGoing',
+  declined: 'MeetingRsvpScreen.responseNotGoing',
+  tentative: 'MeetingRsvpScreen.responseMaybe',
 };
 
 const RESPONSE_ORDER: readonly MeetingRsvpResponse[] = ['accepted', 'tentative', 'declined'];
@@ -54,6 +56,7 @@ export function MeetingRsvpScreen({
 }: MeetingRsvpScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const summary = useQuery({
     queryKey: ['meeting-rsvp', organizationSlug, meetingId],
@@ -80,8 +83,8 @@ export function MeetingRsvpScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Meeting RSVP"
-      eyebrow="Calendar · Meeting"
+      title={t('MeetingRsvpScreen.title')}
+      eyebrow={t('MeetingRsvpScreen.eyebrow')}
       actions={
         <MeetingHeaderActions
           organizationSlug={organizationSlug}
@@ -95,25 +98,25 @@ export function MeetingRsvpScreen({
 
         <div className="tm-cal-narrow">
           {meetingId === '' ? (
-            <InlineAlert tone="neutral" title="No meeting chosen">
-              Open a meeting to respond to it.
+            <InlineAlert tone="neutral" title={t('MeetingRsvpScreen.noMeetingTitle')}>
+              {t('MeetingRsvpScreen.noMeetingBody')}
             </InlineAlert>
           ) : null}
 
           {notFound ? (
-            <InlineAlert tone="neutral" title="Meeting not found" live>
-              This meeting does not exist or you do not have access to it.
+            <InlineAlert tone="neutral" title={t('MeetingRsvpScreen.notFoundTitle')} live>
+              {t('MeetingRsvpScreen.notFoundBody')}
             </InlineAlert>
           ) : null}
 
           {summary.isError && !notFound ? (
-            <InlineAlert tone="danger" title="Could not load the RSVP" live>
-              {describeError(summary.error)}
+            <InlineAlert tone="danger" title={t('MeetingRsvpScreen.loadErrorTitle')} live>
+              {describeError(t, summary.error)}
             </InlineAlert>
           ) : null}
 
           {meetingId !== '' && summary.isPending ? (
-            <LoadingRegion label="Loading the RSVP.">
+            <LoadingRegion label={t('MeetingRsvpScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
@@ -121,7 +124,7 @@ export function MeetingRsvpScreen({
           {meetingId !== '' && !notFound && !summary.isError && !summary.isPending ? (
             <section className="tm-cal-card" aria-labelledby="tm-rsvp-heading">
               <h2 id="tm-rsvp-heading" className="tm-cal-eyebrow">
-                Your response
+                {t('MeetingRsvpScreen.yourResponseHeading')}
               </h2>
 
               <div className="tm-cal-item" aria-live="polite">
@@ -129,24 +132,32 @@ export function MeetingRsvpScreen({
                   {own === 'accepted' ? '✓' : own === 'declined' ? '×' : '?'}
                 </span>
                 <span className="tm-cal-item__body">
-                  <span className="tm-cal-item__title">You are:</span>
+                  <span className="tm-cal-item__title">{t('MeetingRsvpScreen.youAre')}</span>
                 </span>
                 <span className="tm-cal-item__end">
                   {own === null ? (
-                    <StateCapsule state="waiting">No answer yet</StateCapsule>
+                    <StateCapsule state="waiting">
+                      {t('MeetingRsvpScreen.noAnswerYet')}
+                    </StateCapsule>
                   ) : (
-                    <StateCapsule state={responseCapsule(own)}>{RESPONSE_LABELS[own]}</StateCapsule>
+                    <StateCapsule state={responseCapsule(own)}>
+                      {t(RESPONSE_LABEL_KEYS[own])}
+                    </StateCapsule>
                   )}
                 </span>
               </div>
 
               {respond.isError ? (
-                <InlineAlert tone="danger" title="Could not save your response" live>
-                  {describeError(respond.error)}
+                <InlineAlert tone="danger" title={t('MeetingRsvpScreen.saveErrorTitle')} live>
+                  {describeError(t, respond.error)}
                 </InlineAlert>
               ) : null}
 
-              <div className="tm-cal-btn-row" role="group" aria-label="Set your response">
+              <div
+                className="tm-cal-btn-row"
+                role="group"
+                aria-label={t('MeetingRsvpScreen.setResponseAria')}
+              >
                 {RESPONSE_ORDER.map((value) => (
                   <Button
                     key={value}
@@ -154,27 +165,27 @@ export function MeetingRsvpScreen({
                     tone={value === own ? 'ink' : 'outline'}
                     size="default"
                     loading={respond.isPending && respond.variables === value}
-                    loadingLabel="Saving"
+                    loadingLabel={t('MeetingRsvpScreen.savingLabel')}
                     disabled={respond.isPending}
                     onClick={() => respond.mutate(value)}
                   >
-                    {RESPONSE_LABELS[value]}
+                    {t(RESPONSE_LABEL_KEYS[value])}
                   </Button>
                 ))}
               </div>
 
-              <p className="tm-cal-eyebrow">Who else is coming</p>
-              <dl className="tm-cal-counts" aria-label="Response counts">
+              <p className="tm-cal-eyebrow">{t('MeetingRsvpScreen.whoElse')}</p>
+              <dl className="tm-cal-counts" aria-label={t('MeetingRsvpScreen.countsAria')}>
                 <div>
-                  <dt>Going</dt>
+                  <dt>{t('MeetingRsvpScreen.responseGoing')}</dt>
                   <dd>{counts.accepted}</dd>
                 </div>
                 <div>
-                  <dt>Maybe</dt>
+                  <dt>{t('MeetingRsvpScreen.responseMaybe')}</dt>
                   <dd>{counts.tentative}</dd>
                 </div>
                 <div>
-                  <dt>Not going</dt>
+                  <dt>{t('MeetingRsvpScreen.responseNotGoing')}</dt>
                   <dd>{counts.declined}</dd>
                 </div>
               </dl>
@@ -192,8 +203,8 @@ function responseCapsule(response: MeetingRsvpResponse): CapsuleState {
   return 'waiting';
 }
 
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingRsvpScreen.errorNetwork');
+  return t('MeetingRsvpScreen.errorGeneric');
 }

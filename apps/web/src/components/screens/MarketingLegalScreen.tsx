@@ -8,6 +8,7 @@ import { fetchPublicLegal } from '../../lib/api/public-legal';
 import type { LegalDoc, PublicLegalView } from '../../lib/api/public-legal';
 import { NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MarketingLegalScreenProps {
   /** Which legal document to render — `terms` or `privacy`. Set by the thin route wrapper. */
@@ -36,6 +37,7 @@ export interface MarketingLegalScreenProps {
  */
 export function MarketingLegalScreen({ doc, client, document }: MarketingLegalScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const legal = useQuery({
     queryKey: ['public-legal', doc],
     queryFn: () => fetchPublicLegal(api, doc),
@@ -48,18 +50,21 @@ export function MarketingLegalScreen({ doc, client, document }: MarketingLegalSc
       {document ? (
         <Content legal={document} />
       ) : legal.isPending ? (
-        <LoadingRegion label="Loading the document.">
+        <LoadingRegion label={t('MarketingLegalScreen.loadingLabel')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : legal.isError || !legal.data ? (
         <div className="tm-pub-columns">
-          <PublicIntro eyebrow="Legal" title="Legal" />
-          <InlineAlert tone="danger" title="This document could not be loaded" live>
+          <PublicIntro
+            eyebrow={t('MarketingLegalScreen.legalLabel')}
+            title={t('MarketingLegalScreen.legalLabel')}
+          />
+          <InlineAlert tone="danger" title={t('MarketingLegalScreen.errorTitle')} live>
             {legal.error instanceof NetworkError
-              ? 'The API did not answer. Please try again shortly.'
-              : 'Something went wrong loading this page. Please try again shortly.'}
+              ? t('MarketingLegalScreen.errorNetwork')
+              : t('MarketingLegalScreen.errorGeneric')}
           </InlineAlert>
         </div>
       ) : (
@@ -70,18 +75,25 @@ export function MarketingLegalScreen({ doc, client, document }: MarketingLegalSc
 }
 
 function Content({ legal }: { legal: PublicLegalView }) {
+  const t = useT();
   return (
     <div className="tm-pub-columns">
       <div className="tm-pub-aside">
-        <PublicIntro eyebrow="Legal" title={legal.title}>
+        <PublicIntro eyebrow={t('MarketingLegalScreen.legalLabel')} title={legal.title}>
           <p className="tm-pub-eyebrow">
-            Effective <time dateTime={legal.effectiveDate}>{legal.effectiveDate}</time>
+            {t('MarketingLegalScreen.effectivePrefix')}{' '}
+            <time dateTime={legal.effectiveDate}>{legal.effectiveDate}</time>
           </p>
           <p className="tm-pub-lede tm-pub-lede--md">{legal.intro}</p>
         </PublicIntro>
 
-        <nav className="tm-pub-card tm-pub-toc" aria-label={`${legal.title} sections`}>
-          <p className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">On this page</p>
+        <nav
+          className="tm-pub-card tm-pub-toc"
+          aria-label={`${legal.title} ${t('MarketingLegalScreen.tocAriaSuffix')}`}
+        >
+          <p className="tm-pub-card__eyebrow tm-pub-card__eyebrow--wide">
+            {t('MarketingLegalScreen.tocHeading')}
+          </p>
           <ul>
             {legal.sections.map((section) => (
               <li key={section.id}>

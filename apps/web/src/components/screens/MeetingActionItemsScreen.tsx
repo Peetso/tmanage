@@ -16,6 +16,8 @@ import {
 import type { ActionItemStatus } from '../../lib/api/meeting-action-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -27,9 +29,9 @@ export interface MeetingActionItemsScreenProps {
   client?: ApiClient;
 }
 
-const STATUS_LABELS: Readonly<Record<ActionItemStatus, string>> = {
-  open: 'Open',
-  done: 'Done',
+const STATUS_LABEL_KEYS: Readonly<Record<ActionItemStatus, MessageKey>> = {
+  open: 'MeetingActionItemsScreen.statusOpen',
+  done: 'MeetingActionItemsScreen.statusDone',
 };
 
 /**
@@ -63,6 +65,7 @@ export function MeetingActionItemsScreen({
 }: MeetingActionItemsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const [title, setTitle] = useState('');
   const [dueOn, setDueOn] = useState('');
@@ -123,8 +126,8 @@ export function MeetingActionItemsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Meeting action items"
-      eyebrow="Calendar · Meeting"
+      title={t('MeetingActionItemsScreen.title')}
+      eyebrow={t('MeetingActionItemsScreen.eyebrow')}
       actions={
         <MeetingHeaderActions
           organizationSlug={organizationSlug}
@@ -137,20 +140,20 @@ export function MeetingActionItemsScreen({
         <MeetingBackLink organizationSlug={organizationSlug} />
 
         {meetingId === '' ? (
-          <InlineAlert tone="neutral" title="No meeting chosen">
-            Open a meeting to see and manage its action items.
+          <InlineAlert tone="neutral" title={t('MeetingActionItemsScreen.noMeetingTitle')}>
+            {t('MeetingActionItemsScreen.noMeetingBody')}
           </InlineAlert>
         ) : null}
 
         {notFound ? (
-          <InlineAlert tone="neutral" title="Meeting not found" live>
-            This meeting does not exist or you do not have access to it.
+          <InlineAlert tone="neutral" title={t('MeetingActionItemsScreen.notFoundTitle')} live>
+            {t('MeetingActionItemsScreen.notFoundBody')}
           </InlineAlert>
         ) : null}
 
         {actionItems.isError && !notFound ? (
-          <InlineAlert tone="danger" title="Could not load the action items" live>
-            {describeError(actionItems.error)}
+          <InlineAlert tone="danger" title={t('MeetingActionItemsScreen.loadErrorTitle')} live>
+            {describeError(t, actionItems.error)}
           </InlineAlert>
         ) : null}
 
@@ -158,7 +161,7 @@ export function MeetingActionItemsScreen({
           <div className="tm-cal-body">
             <div className="tm-cal-main">
               {actionItems.isPending ? (
-                <LoadingRegion label="Loading the action items.">
+                <LoadingRegion label={t('MeetingActionItemsScreen.loadingLabel')}>
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
@@ -166,28 +169,40 @@ export function MeetingActionItemsScreen({
               ) : null}
 
               {toggle.isError ? (
-                <InlineAlert tone="danger" title="Could not update the action" live>
-                  {describeError(toggle.error)}
+                <InlineAlert
+                  tone="danger"
+                  title={t('MeetingActionItemsScreen.toggleErrorTitle')}
+                  live
+                >
+                  {describeError(t, toggle.error)}
                 </InlineAlert>
               ) : null}
 
               {remove.isError ? (
-                <InlineAlert tone="danger" title="Could not remove the action" live>
-                  {describeError(remove.error)}
+                <InlineAlert
+                  tone="danger"
+                  title={t('MeetingActionItemsScreen.removeErrorTitle')}
+                  live
+                >
+                  {describeError(t, remove.error)}
                 </InlineAlert>
               ) : null}
 
               {!actionItems.isPending && !actionItems.isError && rows.length === 0 ? (
-                <InlineAlert tone="neutral" title="No action items yet">
-                  Nothing has been captured for this meeting yet. Capture an action beside the list.
+                <InlineAlert tone="neutral" title={t('MeetingActionItemsScreen.emptyTitle')}>
+                  {t('MeetingActionItemsScreen.emptyBody')}
                 </InlineAlert>
               ) : null}
 
               {rows.length > 0 ? (
-                <section className="tm-cal-card" aria-label="Meeting action items">
+                <section
+                  className="tm-cal-card"
+                  aria-label={t('MeetingActionItemsScreen.listAria')}
+                >
                   <p className="tm-cal-eyebrow">
-                    Actions · {rows.length} · {rows.filter((item) => item.status === 'open').length}{' '}
-                    open
+                    {t('MeetingActionItemsScreen.actionsLabel')} · {rows.length} ·{' '}
+                    {rows.filter((item) => item.status === 'open').length}{' '}
+                    {t('MeetingActionItemsScreen.openCountLabel')}
                   </p>
                   <ul className="tm-cal-items">
                     {rows.map((item) => (
@@ -203,13 +218,17 @@ export function MeetingActionItemsScreen({
                         <span className="tm-cal-item__body">
                           <span className="tm-cal-item__title">{item.title}</span>
                           <span className="tm-cal-item__meta">
-                            {item.dueOn ? `Due ${item.dueOn}` : 'No date yet'}
-                            {item.ownerMembershipId ? ' · Owner assigned' : ''}
+                            {item.dueOn
+                              ? `${t('MeetingActionItemsScreen.due')} ${item.dueOn}`
+                              : t('MeetingActionItemsScreen.noDateYet')}
+                            {item.ownerMembershipId
+                              ? ` · ${t('MeetingActionItemsScreen.ownerAssigned')}`
+                              : ''}
                           </span>
                         </span>
                         <span className="tm-cal-item__end">
                           <StateCapsule state={statusCapsule(item.status)}>
-                            {STATUS_LABELS[item.status]}
+                            {t(STATUS_LABEL_KEYS[item.status])}
                           </StateCapsule>
                           <Button
                             type="button"
@@ -223,7 +242,9 @@ export function MeetingActionItemsScreen({
                               })
                             }
                           >
-                            {item.status === 'open' ? 'Mark done' : 'Reopen'}
+                            {item.status === 'open'
+                              ? t('MeetingActionItemsScreen.markDone')
+                              : t('MeetingActionItemsScreen.reopen')}
                           </Button>
                           <Button
                             type="button"
@@ -232,7 +253,7 @@ export function MeetingActionItemsScreen({
                             disabled={remove.isPending}
                             onClick={() => remove.mutate(item.id)}
                           >
-                            Remove
+                            {t('MeetingActionItemsScreen.remove')}
                           </Button>
                         </span>
                       </li>
@@ -245,12 +266,12 @@ export function MeetingActionItemsScreen({
             <div className="tm-cal-side">
               <section className="tm-cal-card" aria-labelledby="tm-action-items-capture">
                 <h2 id="tm-action-items-capture" className="tm-cal-eyebrow">
-                  Capture an action
+                  {t('MeetingActionItemsScreen.captureHeading')}
                 </h2>
                 <form className="tm-cal-form" onSubmit={submitCapture}>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-action-item-title">
-                      What will be done
+                      {t('MeetingActionItemsScreen.captureTitleLabel')}
                     </label>
                     <input
                       id="tm-action-item-title"
@@ -259,12 +280,12 @@ export function MeetingActionItemsScreen({
                       value={title}
                       maxLength={500}
                       onChange={(event) => setTitle(event.target.value)}
-                      placeholder="e.g. Send the revised deck to the client"
+                      placeholder={t('MeetingActionItemsScreen.captureTitlePlaceholder')}
                     />
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-action-item-due">
-                      Due date (optional)
+                      {t('MeetingActionItemsScreen.captureDueLabel')}
                     </label>
                     <input
                       id="tm-action-item-due"
@@ -276,10 +297,14 @@ export function MeetingActionItemsScreen({
                   </div>
 
                   {capture.isError ? (
-                    <InlineAlert tone="danger" title="Could not capture the action" live>
+                    <InlineAlert
+                      tone="danger"
+                      title={t('MeetingActionItemsScreen.captureErrorTitle')}
+                      live
+                    >
                       {capture.error instanceof ApiRequestError
                         ? capture.error.message
-                        : 'The API did not answer. Try again.'}
+                        : t('MeetingActionItemsScreen.apiNoAnswer')}
                     </InlineAlert>
                   ) : null}
 
@@ -288,10 +313,10 @@ export function MeetingActionItemsScreen({
                     tone="ink"
                     size="accessible"
                     loading={capture.isPending}
-                    loadingLabel="Capturing"
+                    loadingLabel={t('MeetingActionItemsScreen.capturingLabel')}
                     disabled={title.trim() === ''}
                   >
-                    Capture action
+                    {t('MeetingActionItemsScreen.captureSubmit')}
                   </Button>
                 </form>
               </section>
@@ -307,8 +332,8 @@ function statusCapsule(status: ActionItemStatus): CapsuleState {
   return status === 'done' ? 'done' : 'waiting';
 }
 
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingActionItemsScreen.errorNetwork');
+  return t('MeetingActionItemsScreen.errorGeneric');
 }

@@ -12,6 +12,8 @@ import {
 import type { MessageAttachmentSummary } from '../../lib/api/message-attachments';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 
 /** A file the caller may attach — an already-uploaded, ready file drawn from the project's store. */
 export interface PickableFile {
@@ -44,10 +46,10 @@ function formatBytes(bytes: number | null): string {
   return `${value.toFixed(1)} ${units[unit]}`;
 }
 
-function message(error: unknown): string {
-  if (error instanceof ApiRequestError) return 'That file could not be changed on this message.';
-  if (error instanceof NetworkError) return 'Could not reach the server. Try again.';
-  return 'Something went wrong.';
+function message(t: (key: MessageKey) => string, error: unknown): string {
+  if (error instanceof ApiRequestError) return t('MessageAttachmentsView.errorChange');
+  if (error instanceof NetworkError) return t('MessageAttachmentsView.errorNetwork');
+  return t('MessageAttachmentsView.errorGeneric');
 }
 
 /**
@@ -68,6 +70,7 @@ export function MessageAttachmentsView({
 }: MessageAttachmentsViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const [selected, setSelected] = useState('');
 
   const queryKey = ['message-attachments', organizationSlug, conversationId, messageId] as const;
@@ -113,26 +116,26 @@ export function MessageAttachmentsView({
                   disabled={detach.isPending}
                   onClick={() => detach.mutate(row.fileAssetId)}
                 >
-                  Remove
+                  {t('MessageAttachmentsView.remove')}
                 </DestructiveButton>
               ) : null}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="tm-message-attachments__empty">No attachments.</p>
+        <p className="tm-message-attachments__empty">{t('MessageAttachmentsView.empty')}</p>
       )}
 
       {isAuthor && available.length > 0 ? (
         <div className="tm-message-attachments__picker">
           <label>
-            <span className="tm-visually-hidden">Attach an existing file</span>
+            <span className="tm-visually-hidden">{t('MessageAttachmentsView.pickerLabel')}</span>
             <select
               value={selected}
               disabled={attach.isPending}
               onChange={(event) => setSelected(event.target.value)}
             >
-              <option value="">Attach a file…</option>
+              <option value="">{t('MessageAttachmentsView.pickerPlaceholder')}</option>
               {available.map((file) => (
                 <option key={file.fileId} value={file.fileId}>
                   {file.name}
@@ -145,14 +148,14 @@ export function MessageAttachmentsView({
             disabled={attach.isPending || selected === ''}
             onClick={() => attach.mutate(selected)}
           >
-            Attach
+            {t('MessageAttachmentsView.attach')}
           </TextButton>
         </div>
       ) : null}
 
       {error ? (
         <InlineAlert tone="danger" live>
-          {message(error)}
+          {message(t, error)}
         </InlineAlert>
       ) : null}
     </div>

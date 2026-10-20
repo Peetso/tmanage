@@ -9,6 +9,8 @@ import { getMeetingTimePoll, voteMeetingTimePollOption } from '../../lib/api/mee
 import type { MeetingTimePollVoteChoice } from '../../lib/api/meeting-time-poll';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import { MeetingBackLink, MeetingHeaderActions, clockLabel, whenLabel } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -20,10 +22,10 @@ export interface MeetingTimePollViewProps {
   client?: ApiClient;
 }
 
-const CHOICE_LABELS: Readonly<Record<MeetingTimePollVoteChoice, string>> = {
-  yes: 'Yes',
-  maybe: 'Maybe',
-  no: 'No',
+const CHOICE_LABEL_KEYS: Readonly<Record<MeetingTimePollVoteChoice, MessageKey>> = {
+  yes: 'MeetingTimePollView.choiceYes',
+  maybe: 'MeetingTimePollView.choiceMaybe',
+  no: 'MeetingTimePollView.choiceNo',
 };
 
 const CHOICE_ORDER: readonly MeetingTimePollVoteChoice[] = ['yes', 'maybe', 'no'];
@@ -48,6 +50,7 @@ export function MeetingTimePollView({
 }: MeetingTimePollViewProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const poll = useQuery({
     queryKey: ['meeting-time-poll', organizationSlug, meetingId],
@@ -75,8 +78,8 @@ export function MeetingTimePollView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Meeting time poll"
-      eyebrow="Calendar · Meeting"
+      title={t('MeetingTimePollView.title')}
+      eyebrow={t('MeetingTimePollView.eyebrow')}
       actions={
         <MeetingHeaderActions
           organizationSlug={organizationSlug}
@@ -90,25 +93,25 @@ export function MeetingTimePollView({
 
         <div className="tm-cal-narrow">
           {meetingId === '' ? (
-            <InlineAlert tone="neutral" title="No meeting chosen">
-              Open a meeting to vote on its proposed times.
+            <InlineAlert tone="neutral" title={t('MeetingTimePollView.noMeetingTitle')}>
+              {t('MeetingTimePollView.noMeetingBody')}
             </InlineAlert>
           ) : null}
 
           {notFound ? (
-            <InlineAlert tone="neutral" title="Meeting not found" live>
-              This meeting does not exist or you do not have access to it.
+            <InlineAlert tone="neutral" title={t('MeetingTimePollView.notFoundTitle')} live>
+              {t('MeetingTimePollView.notFoundBody')}
             </InlineAlert>
           ) : null}
 
           {poll.isError && !notFound ? (
-            <InlineAlert tone="danger" title="Could not load the poll" live>
-              {describeError(poll.error)}
+            <InlineAlert tone="danger" title={t('MeetingTimePollView.loadErrorTitle')} live>
+              {describeError(t, poll.error)}
             </InlineAlert>
           ) : null}
 
           {meetingId !== '' && poll.isPending ? (
-            <LoadingRegion label="Loading the time poll.">
+            <LoadingRegion label={t('MeetingTimePollView.loadingLabel')}>
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
@@ -116,21 +119,24 @@ export function MeetingTimePollView({
           {meetingId !== '' && !notFound && !poll.isError && !poll.isPending ? (
             <section className="tm-cal-card" aria-labelledby="tm-time-poll-heading">
               <h2 id="tm-time-poll-heading" className="tm-cal-eyebrow">
-                Proposed times · {options.length}
+                {t('MeetingTimePollView.proposedTimesHeading')} · {options.length}
               </h2>
 
               {vote.isError ? (
-                <InlineAlert tone="danger" title="Could not save your vote" live>
-                  {describeError(vote.error)}
+                <InlineAlert tone="danger" title={t('MeetingTimePollView.voteErrorTitle')} live>
+                  {describeError(t, vote.error)}
                 </InlineAlert>
               ) : null}
 
               {options.length === 0 ? (
-                <InlineAlert tone="neutral" title="No times proposed yet">
-                  The organiser has not proposed any candidate times for this meeting.
+                <InlineAlert tone="neutral" title={t('MeetingTimePollView.emptyTitle')}>
+                  {t('MeetingTimePollView.emptyBody')}
                 </InlineAlert>
               ) : (
-                <ul className="tm-cal-items" aria-label="Candidate times">
+                <ul
+                  className="tm-cal-items"
+                  aria-label={t('MeetingTimePollView.candidateTimesAria')}
+                >
                   {options.map((option, index) => (
                     <li key={option.id} className="tm-cal-item tm-cal-poll" aria-live="polite">
                       <div className="tm-cal-poll__head">
@@ -142,16 +148,20 @@ export function MeetingTimePollView({
                             {formatSlot(option.startsAt, option.endsAt)}
                           </span>
                           <span className="tm-cal-item__meta" aria-hidden="true">
-                            Yes {option.tally.yes} · Maybe {option.tally.maybe} · No{' '}
-                            {option.tally.no}
+                            {t('MeetingTimePollView.choiceYes')} {option.tally.yes} ·{' '}
+                            {t('MeetingTimePollView.choiceMaybe')} {option.tally.maybe} ·{' '}
+                            {t('MeetingTimePollView.choiceNo')} {option.tally.no}
                           </span>
                         </span>
                         <span className="tm-cal-item__end">
                           {option.ownVote === null ? (
-                            <StateCapsule state="waiting">Not voted</StateCapsule>
+                            <StateCapsule state="waiting">
+                              {t('MeetingTimePollView.notVoted')}
+                            </StateCapsule>
                           ) : (
                             <StateCapsule state={choiceCapsule(option.ownVote)}>
-                              You: {CHOICE_LABELS[option.ownVote]}
+                              {t('MeetingTimePollView.youPrefix')}{' '}
+                              {t(CHOICE_LABEL_KEYS[option.ownVote])}
                             </StateCapsule>
                           )}
                         </span>
@@ -160,7 +170,10 @@ export function MeetingTimePollView({
                       <div
                         className="tm-cal-btn-row"
                         role="group"
-                        aria-label={`Vote on ${formatSlot(option.startsAt, option.endsAt)}`}
+                        aria-label={`${t('MeetingTimePollView.voteOnAria')} ${formatSlot(
+                          option.startsAt,
+                          option.endsAt,
+                        )}`}
                       >
                         {CHOICE_ORDER.map((choice) => (
                           <Button
@@ -173,26 +186,29 @@ export function MeetingTimePollView({
                               vote.variables?.optionId === option.id &&
                               vote.variables?.choice === choice
                             }
-                            loadingLabel="Saving"
+                            loadingLabel={t('MeetingTimePollView.savingLabel')}
                             disabled={vote.isPending}
                             onClick={() => vote.mutate({ optionId: option.id, choice })}
                           >
-                            {CHOICE_LABELS[choice]}
+                            {t(CHOICE_LABEL_KEYS[choice])}
                           </Button>
                         ))}
                       </div>
 
-                      <dl className="tm-visually-hidden" aria-label="Vote tally">
+                      <dl
+                        className="tm-visually-hidden"
+                        aria-label={t('MeetingTimePollView.tallyAria')}
+                      >
                         <div>
-                          <dt>Yes</dt>
+                          <dt>{t('MeetingTimePollView.choiceYes')}</dt>
                           <dd>{option.tally.yes}</dd>
                         </div>
                         <div>
-                          <dt>Maybe</dt>
+                          <dt>{t('MeetingTimePollView.choiceMaybe')}</dt>
                           <dd>{option.tally.maybe}</dd>
                         </div>
                         <div>
-                          <dt>No</dt>
+                          <dt>{t('MeetingTimePollView.choiceNo')}</dt>
                           <dd>{option.tally.no}</dd>
                         </div>
                       </dl>
@@ -227,8 +243,8 @@ function formatSlot(startsAt: string, endsAt: string): string {
     : `${whenLabel(startsAt)} – ${whenLabel(endsAt)}`;
 }
 
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingTimePollView.errorNetwork');
+  return t('MeetingTimePollView.errorGeneric');
 }

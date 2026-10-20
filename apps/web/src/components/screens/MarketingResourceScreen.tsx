@@ -8,6 +8,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPublicResource } from '../../lib/api/public-resources';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MarketingResourceScreenProps {
   /** The resource slug from the route. Looked up against the API's fixed catalog; unknown → 404. */
@@ -28,6 +30,7 @@ export interface MarketingResourceScreenProps {
  */
 export function MarketingResourceScreen({ slug, client }: MarketingResourceScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const resource = useQuery({
     queryKey: ['public-resource', slug],
@@ -42,7 +45,7 @@ export function MarketingResourceScreen({ slug, client }: MarketingResourceScree
   return (
     <PublicPage>
       {resource.isPending ? (
-        <LoadingRegion label="Loading the article">
+        <LoadingRegion label={t('MarketingResourceScreen.loadingLabel')}>
           <div className="tm-stack">
             <Skeleton />
             <Skeleton />
@@ -55,16 +58,16 @@ export function MarketingResourceScreen({ slug, client }: MarketingResourceScree
             <div className="tm-pub-aside">
               <BackLink />
               <PublicIntro
-                eyebrow="Resources"
+                eyebrow={t('MarketingResourceScreen.eyebrowResources')}
                 titleId="tm-resource-title"
-                title="Resource not found"
+                title={t('MarketingResourceScreen.notFoundTitle')}
               />
             </div>
             <div className="tm-pub-card tm-pub-card--roomy tm-pub-card--dashed">
               <p className="tm-pub-card__body tm-pub-card__body--md">
-                We could not find that resource. It may have moved. Browse the{' '}
+                {t('MarketingResourceScreen.notFoundBodyBefore')}{' '}
                 <Link className="tm-pub-link" href="/resources">
-                  full list of resources
+                  {t('MarketingResourceScreen.notFoundLink')}
                 </Link>
                 .
               </p>
@@ -73,8 +76,8 @@ export function MarketingResourceScreen({ slug, client }: MarketingResourceScree
         ) : (
           <div className="tm-pub-stack">
             <BackLink />
-            <InlineAlert tone="danger" title="This resource could not load">
-              {describeError(resource.error)}
+            <InlineAlert tone="danger" title={t('MarketingResourceScreen.errorTitle')}>
+              {describeError(t, resource.error)}
             </InlineAlert>
           </div>
         )
@@ -100,19 +103,19 @@ export function MarketingResourceScreen({ slug, client }: MarketingResourceScree
 }
 
 function BackLink() {
+  const t = useT();
   return (
     <p>
       <Link className="tm-pub-btn tm-pub-btn--sm tm-pub-btn--quiet" href="/resources">
-        &larr; All resources
+        {t('MarketingResourceScreen.backLink')}
       </Link>
     </p>
   );
 }
 
 /** The same honest error copy the authed screens use: a refusal reads differently from an outage. */
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError)
-    return 'We could not reach TManage. Check your connection and try again.';
-  return 'Something went wrong loading this page. Please try again.';
+  if (error instanceof NetworkError) return t('MarketingResourceScreen.errorNetwork');
+  return t('MarketingResourceScreen.errorGeneric');
 }

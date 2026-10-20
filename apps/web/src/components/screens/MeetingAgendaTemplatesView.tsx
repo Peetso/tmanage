@@ -15,6 +15,8 @@ import {
 import type { ApplyAgendaTemplateResult } from '../../lib/api/agenda-templates';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -53,6 +55,7 @@ export function MeetingAgendaTemplatesView({
 }: MeetingAgendaTemplatesViewProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const [name, setName] = useState('');
   const [itemsText, setItemsText] = useState('');
@@ -118,8 +121,8 @@ export function MeetingAgendaTemplatesView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Agenda templates"
-      eyebrow="Calendar · Meeting templates"
+      title={t('MeetingAgendaTemplatesView.title')}
+      eyebrow={t('MeetingAgendaTemplatesView.eyebrow')}
       actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="none" />}
     >
       <div className="tm-cal">
@@ -128,26 +131,33 @@ export function MeetingAgendaTemplatesView({
         <div className="tm-cal-body">
           <div className="tm-cal-main">
             {templates.isError ? (
-              <InlineAlert tone="danger" title="Could not load the templates" live>
-                {describeError(templates.error)}
+              <InlineAlert
+                tone="danger"
+                title={t('MeetingAgendaTemplatesView.loadErrorTitle')}
+                live
+              >
+                {describeError(t, templates.error)}
               </InlineAlert>
             ) : null}
 
             {templates.isPending ? (
-              <LoadingRegion label="Loading the templates.">
+              <LoadingRegion label={t('MeetingAgendaTemplatesView.loadingLabel')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {!templates.isPending && !templates.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title="No templates yet">
-                You have no agenda templates. Create one beside the list.
+              <InlineAlert tone="neutral" title={t('MeetingAgendaTemplatesView.emptyTitle')}>
+                {t('MeetingAgendaTemplatesView.emptyBody')}
               </InlineAlert>
             ) : null}
 
             {rows.length > 0 ? (
-              <ul className="tm-cal-templates" aria-label="Agenda templates">
+              <ul
+                className="tm-cal-templates"
+                aria-label={t('MeetingAgendaTemplatesView.listAria')}
+              >
                 {rows.map((row) => (
                   <li key={row.id} className="tm-cal-card">
                     <div className="tm-cal-template__head">
@@ -157,14 +167,16 @@ export function MeetingAgendaTemplatesView({
                         tone="destructive"
                         size="compact"
                         loading={remove.isPending && remove.variables === row.id}
-                        loadingLabel="Removing"
+                        loadingLabel={t('MeetingAgendaTemplatesView.removingLabel')}
                         onClick={() => remove.mutate(row.id)}
-                        aria-label={`Delete ${row.name}`}
+                        aria-label={`${t('MeetingAgendaTemplatesView.delete')} ${row.name}`}
                       >
-                        Delete
+                        {t('MeetingAgendaTemplatesView.delete')}
                       </Button>
                     </div>
-                    <p className="tm-cal-eyebrow">Agenda sections · {row.items.length}</p>
+                    <p className="tm-cal-eyebrow">
+                      {t('MeetingAgendaTemplatesView.agendaSectionsLabel')} · {row.items.length}
+                    </p>
                     <ol className="tm-cal-items">
                       {row.items.map((item, index) => (
                         <li key={`${row.id}-${index}`} className="tm-cal-item">
@@ -186,12 +198,12 @@ export function MeetingAgendaTemplatesView({
           <div className="tm-cal-side">
             <section className="tm-cal-card" aria-labelledby="tm-agenda-template-create">
               <h2 id="tm-agenda-template-create" className="tm-cal-eyebrow">
-                Create a template
+                {t('MeetingAgendaTemplatesView.createHeading')}
               </h2>
               <form className="tm-cal-form" onSubmit={submitCreate}>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-agenda-template-name">
-                    Name
+                    {t('MeetingAgendaTemplatesView.nameLabel')}
                   </label>
                   <input
                     id="tm-agenda-template-name"
@@ -204,7 +216,7 @@ export function MeetingAgendaTemplatesView({
                 </div>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-agenda-template-items">
-                    Agenda items
+                    {t('MeetingAgendaTemplatesView.itemsLabel')}
                   </label>
                   <textarea
                     id="tm-agenda-template-items"
@@ -214,15 +226,19 @@ export function MeetingAgendaTemplatesView({
                     rows={5}
                   />
                   <span className="tm-field__hint">
-                    One item per line, in order. Blank lines are ignored.
+                    {t('MeetingAgendaTemplatesView.itemsHint')}
                   </span>
                 </div>
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not create the template" live>
+                  <InlineAlert
+                    tone="danger"
+                    title={t('MeetingAgendaTemplatesView.createErrorTitle')}
+                    live
+                  >
                     {create.error instanceof ApiRequestError
                       ? create.error.message
-                      : 'The API did not answer. Try again.'}
+                      : t('MeetingAgendaTemplatesView.apiNoAnswer')}
                   </InlineAlert>
                 ) : null}
 
@@ -231,10 +247,10 @@ export function MeetingAgendaTemplatesView({
                   tone="ink"
                   size="accessible"
                   loading={create.isPending}
-                  loadingLabel="Creating"
+                  loadingLabel={t('MeetingAgendaTemplatesView.creatingLabel')}
                   disabled={!canCreate}
                 >
-                  Create template
+                  {t('MeetingAgendaTemplatesView.createSubmit')}
                 </Button>
               </form>
             </section>
@@ -242,12 +258,12 @@ export function MeetingAgendaTemplatesView({
             {rows.length > 0 ? (
               <section className="tm-cal-card" aria-labelledby="tm-agenda-template-apply">
                 <h2 id="tm-agenda-template-apply" className="tm-cal-eyebrow">
-                  Apply to a meeting
+                  {t('MeetingAgendaTemplatesView.applyHeading')}
                 </h2>
                 <form className="tm-cal-form" onSubmit={submitApply}>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-agenda-template-apply-template">
-                      Template
+                      {t('MeetingAgendaTemplatesView.templateLabel')}
                     </label>
                     <select
                       id="tm-agenda-template-apply-template"
@@ -255,7 +271,9 @@ export function MeetingAgendaTemplatesView({
                       value={applyTemplateId}
                       onChange={(event) => setApplyTemplateId(event.target.value)}
                     >
-                      <option value="">Choose a template…</option>
+                      <option value="">
+                        {t('MeetingAgendaTemplatesView.templatePlaceholder')}
+                      </option>
                       {rows.map((row) => (
                         <option key={row.id} value={row.id}>
                           {row.name}
@@ -265,7 +283,7 @@ export function MeetingAgendaTemplatesView({
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-agenda-template-apply-meeting">
-                      Meeting ID
+                      {t('MeetingAgendaTemplatesView.meetingIdLabel')}
                     </label>
                     <input
                       id="tm-agenda-template-apply-meeting"
@@ -274,21 +292,32 @@ export function MeetingAgendaTemplatesView({
                       onChange={(event) => setApplyMeetingId(event.target.value)}
                     />
                     <span className="tm-field__hint">
-                      Applying seeds the meeting&rsquo;s agenda items. Items already present are
-                      skipped.
+                      {t('MeetingAgendaTemplatesView.applyHint')}
                     </span>
                   </div>
 
                   {apply.isError ? (
-                    <InlineAlert tone="danger" title="Could not apply the template" live>
-                      {describeError(apply.error)}
+                    <InlineAlert
+                      tone="danger"
+                      title={t('MeetingAgendaTemplatesView.applyErrorTitle')}
+                      live
+                    >
+                      {describeError(t, apply.error)}
                     </InlineAlert>
                   ) : null}
 
                   {applyResult ? (
-                    <InlineAlert tone="success" title="Template applied" live>
-                      Seeded {applyResult.seeded} new item{applyResult.seeded === 1 ? '' : 's'};
-                      skipped {applyResult.skipped} already present.
+                    <InlineAlert
+                      tone="success"
+                      title={t('MeetingAgendaTemplatesView.applySuccessTitle')}
+                      live
+                    >
+                      {t('MeetingAgendaTemplatesView.applyResultSeeded')} {applyResult.seeded}{' '}
+                      {applyResult.seeded === 1
+                        ? t('MeetingAgendaTemplatesView.applyResultItemSingular')
+                        : t('MeetingAgendaTemplatesView.applyResultItemPlural')}
+                      ; {t('MeetingAgendaTemplatesView.applyResultSkipped')} {applyResult.skipped}{' '}
+                      {t('MeetingAgendaTemplatesView.applyResultSuffix')}
                     </InlineAlert>
                   ) : null}
 
@@ -297,10 +326,10 @@ export function MeetingAgendaTemplatesView({
                     tone="ink"
                     size="accessible"
                     loading={apply.isPending}
-                    loadingLabel="Applying"
+                    loadingLabel={t('MeetingAgendaTemplatesView.applyingLabel')}
                     disabled={!canApply}
                   >
-                    Apply template
+                    {t('MeetingAgendaTemplatesView.applySubmit')}
                   </Button>
                 </form>
               </section>
@@ -319,8 +348,8 @@ function parseItems(text: string): string[] {
     .filter((line) => line !== '');
 }
 
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingAgendaTemplatesView.errorNetwork');
+  return t('MeetingAgendaTemplatesView.errorGeneric');
 }

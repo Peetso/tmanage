@@ -12,6 +12,8 @@ import { createMeeting, listMeetings } from '../../lib/api/meetings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/calendar.css';
 
 export interface MeetingsScreenProps {
@@ -57,6 +59,7 @@ export function MeetingsScreen({
 }: MeetingsScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
   const [title, setTitle] = useState('');
@@ -124,8 +127,8 @@ export function MeetingsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Calendar"
-      eyebrow="Calendar · Meetings"
+      title={t('MeetingsScreen.title')}
+      eyebrow={t('MeetingsScreen.eyebrow')}
       actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="meetings" />}
     >
       <div className="tm-cal">
@@ -134,7 +137,7 @@ export function MeetingsScreen({
         {rows.length > 0 ? (
           <MeetingTrack
             organizationSlug={organizationSlug}
-            label="Meeting track"
+            label={t('MeetingsScreen.trackLabel')}
             meetings={rows}
             nextId={nextId}
             now={now}
@@ -144,19 +147,19 @@ export function MeetingsScreen({
         <div className="tm-cal-body">
           <div className="tm-cal-main">
             {projectId === '' ? (
-              <InlineAlert tone="neutral" title="Choose a project">
-                Pick a project to see its meetings.
+              <InlineAlert tone="neutral" title={t('MeetingsScreen.chooseProjectTitle')}>
+                {t('MeetingsScreen.chooseProjectBody')}
               </InlineAlert>
             ) : null}
 
             {meetings.isError ? (
-              <InlineAlert tone="danger" title="Could not load the meetings" live>
-                {describeError(meetings.error)}
+              <InlineAlert tone="danger" title={t('MeetingsScreen.loadErrorTitle')} live>
+                {describeError(t, meetings.error)}
               </InlineAlert>
             ) : null}
 
             {projectId !== '' && meetings.isPending ? (
-              <LoadingRegion label="Loading the meetings.">
+              <LoadingRegion label={t('MeetingsScreen.loadingLabel')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
@@ -164,8 +167,8 @@ export function MeetingsScreen({
             ) : null}
 
             {projectId !== '' && !meetings.isPending && !meetings.isError && rows.length === 0 ? (
-              <InlineAlert tone="neutral" title="No meetings yet">
-                This project has no meetings you can see. Schedule one beside the list.
+              <InlineAlert tone="neutral" title={t('MeetingsScreen.emptyTitle')}>
+                {t('MeetingsScreen.emptyBody')}
               </InlineAlert>
             ) : null}
 
@@ -178,17 +181,18 @@ export function MeetingsScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Project meetings"
+                  aria-label={t('MeetingsScreen.regionAria')}
                 >
                   <table>
                     <caption className="tm-visually-hidden">
-                      Meetings in this project, newest first, {rows.length} shown.
+                      {t('MeetingsScreen.captionBefore')} {rows.length}{' '}
+                      {t('MeetingsScreen.captionAfter')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Time</th>
-                        <th scope="col">What</th>
-                        <th scope="col">Kind</th>
+                        <th scope="col">{t('MeetingsScreen.colTime')}</th>
+                        <th scope="col">{t('MeetingsScreen.colWhat')}</th>
+                        <th scope="col">{t('MeetingsScreen.colKind')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -205,18 +209,19 @@ export function MeetingsScreen({
                               </Link>
                               <span className="tm-cal-sheet__sub">
                                 {meeting.agendaNote ? `${meeting.agendaNote} · ` : ''}
-                                Created {formatInstant(meeting.createdAt)}
+                                {t('MeetingsScreen.createdPrefix')}{' '}
+                                {formatInstant(meeting.createdAt)}
                               </span>
                             </th>
                             <td className="tm-cal-sheet__kind">
                               {state === 'next' ? (
                                 <span className="tm-cal-pill tm-cal-pill--lime">
-                                  Meeting · next
+                                  {t('MeetingsScreen.kindNext')}
                                 </span>
                               ) : state === 'done' ? (
-                                'Meeting · done'
+                                t('MeetingsScreen.kindDone')
                               ) : (
-                                'Meeting'
+                                t('MeetingsScreen.kindMeeting')
                               )}
                             </td>
                           </tr>
@@ -232,7 +237,7 @@ export function MeetingsScreen({
           <div className="tm-cal-side">
             <section className="tm-cal-card" aria-labelledby="tm-meetings-filter">
               <h2 id="tm-meetings-filter" className="tm-cal-eyebrow">
-                Project
+                {t('MeetingsScreen.projectHeading')}
               </h2>
               {/*
                 Inert until the projects query has answered — both controlled inputs are rendered in
@@ -243,7 +248,7 @@ export function MeetingsScreen({
               <fieldset className="tm-fieldset tm-stack" disabled={projects.isPending}>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-meetings-project">
-                    Show the meetings for
+                    {t('MeetingsScreen.showMeetingsForLabel')}
                   </label>
                   <select
                     id="tm-meetings-project"
@@ -251,7 +256,7 @@ export function MeetingsScreen({
                     value={projectId}
                     onChange={(event) => setProjectId(event.target.value)}
                   >
-                    <option value="">Choose a project…</option>
+                    <option value="">{t('MeetingsScreen.projectPlaceholder')}</option>
                     {(projects.data ?? []).map((project) => (
                       <option key={project.id} value={project.id}>
                         {project.name}
@@ -259,22 +264,19 @@ export function MeetingsScreen({
                     ))}
                   </select>
                 </div>
-                <span className="tm-field__hint">
-                  Meetings belong to a project. Choose one to see its meetings and schedule a new
-                  one.
-                </span>
+                <span className="tm-field__hint">{t('MeetingsScreen.projectHint')}</span>
               </fieldset>
             </section>
 
             {projectId !== '' ? (
               <section className="tm-cal-card" aria-labelledby="tm-meetings-create">
                 <h2 id="tm-meetings-create" className="tm-cal-eyebrow">
-                  Schedule a meeting
+                  {t('MeetingsScreen.createHeading')}
                 </h2>
                 <form className="tm-cal-form" onSubmit={submitCreate}>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-meetings-title">
-                      Title
+                      {t('MeetingsScreen.titleLabel')}
                     </label>
                     <input
                       id="tm-meetings-title"
@@ -287,7 +289,7 @@ export function MeetingsScreen({
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-meetings-starts">
-                      Starts
+                      {t('MeetingsScreen.startsLabel')}
                     </label>
                     <input
                       id="tm-meetings-starts"
@@ -297,13 +299,11 @@ export function MeetingsScreen({
                       onChange={(event) => setStartsAtLocal(event.target.value)}
                       required
                     />
-                    <span className="tm-field__hint">
-                      The start time, read in your own time zone.
-                    </span>
+                    <span className="tm-field__hint">{t('MeetingsScreen.startsHint')}</span>
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-meetings-agenda">
-                      Agenda note (optional)
+                      {t('MeetingsScreen.agendaLabel')}
                     </label>
                     <textarea
                       id="tm-meetings-agenda"
@@ -316,10 +316,10 @@ export function MeetingsScreen({
                   </div>
 
                   {create.isError ? (
-                    <InlineAlert tone="danger" title="Could not schedule the meeting" live>
+                    <InlineAlert tone="danger" title={t('MeetingsScreen.createErrorTitle')} live>
                       {create.error instanceof ApiRequestError
                         ? create.error.message
-                        : 'The API did not answer. Try again.'}
+                        : t('MeetingsScreen.apiNoAnswer')}
                     </InlineAlert>
                   ) : null}
 
@@ -328,10 +328,10 @@ export function MeetingsScreen({
                     tone="ink"
                     size="accessible"
                     loading={create.isPending}
-                    loadingLabel="Scheduling"
+                    loadingLabel={t('MeetingsScreen.schedulingLabel')}
                     disabled={!canCreate}
                   >
-                    Schedule meeting
+                    {t('MeetingsScreen.createSubmit')}
                   </Button>
                 </form>
               </section>
@@ -368,6 +368,7 @@ export function MeetingTrack({
   nextId: string | null;
   now: number;
 }) {
+  const t = useT();
   const ordered = [...meetings].sort((a, b) => Date.parse(a.startsAt) - Date.parse(b.startsAt));
   const nextIndex = nextId === null ? ordered.length : ordered.findIndex((m) => m.id === nextId);
   const start = Math.max(0, Math.min(nextIndex - 2, ordered.length - 6));
@@ -381,8 +382,13 @@ export function MeetingTrack({
           {label}
         </span>
         <span>
-          {meetings.length} {meetings.length === 1 ? 'meeting' : 'meetings'}
-          {next ? ` · next ${whenLabel(next.startsAt)}` : ' · none ahead'}
+          {meetings.length}{' '}
+          {meetings.length === 1
+            ? t('MeetingsScreen.meetingSingular')
+            : t('MeetingsScreen.meetingPlural')}
+          {next
+            ? ` · ${t('MeetingsScreen.nextLabel')} ${whenLabel(next.startsAt)}`
+            : ` · ${t('MeetingsScreen.noneAhead')}`}
         </span>
       </p>
       <ol className="tm-cal-track" aria-labelledby="tm-cal-track-label">
@@ -390,7 +396,7 @@ export function MeetingTrack({
           <span className="tm-cal-track__day" aria-hidden="true">
             {String(today.getDate()).padStart(2, '0')}
           </span>
-          <span>Today</span>
+          <span>{t('MeetingsScreen.today')}</span>
         </li>
         {slots.map((meeting) => {
           const state = meetingState(meeting.startsAt, meeting.id === nextId, now);
@@ -400,7 +406,7 @@ export function MeetingTrack({
                   name would make "the link called <title>" ambiguous. */}
               <span className="tm-cal-track__slot" data-state={state}>
                 <span className="tm-cal-track__time">
-                  {state === 'next' ? 'Next · ' : ''}
+                  {state === 'next' ? t('MeetingsScreen.nextSlotPrefix') : ''}
                   {whenLabel(meeting.startsAt)}
                 </span>
                 <span className="tm-cal-track__label">{meeting.title}</span>
@@ -409,7 +415,7 @@ export function MeetingTrack({
                     <span className="tm-cal-track__tick" aria-hidden="true">
                       ✓
                     </span>
-                    <span className="tm-visually-hidden">, done</span>
+                    <span className="tm-visually-hidden">{t('MeetingsScreen.doneHidden')}</span>
                   </>
                 ) : null}
               </span>
@@ -420,7 +426,7 @@ export function MeetingTrack({
           <Link
             href={`/${organizationSlug}/calendar/agenda`}
             className="tm-cal-track__out"
-            aria-label="Open the agenda"
+            aria-label={t('MeetingsScreen.openAgendaAria')}
           >
             ↗
           </Link>
@@ -444,16 +450,17 @@ export function CalendarHeaderActions({
   organizationSlug: string;
   current: CalendarView;
 }) {
+  const t = useT();
   const base = `/${organizationSlug}/calendar`;
   const views: readonly { id: CalendarView; label: string; href: string }[] = [
-    { id: 'meetings', label: 'Meetings', href: base },
-    { id: 'week', label: 'Week', href: `${base}/grid?range=week` },
-    { id: 'month', label: 'Month', href: `${base}/grid?range=month` },
-    { id: 'agenda', label: 'Agenda', href: `${base}/agenda` },
+    { id: 'meetings', label: t('MeetingsScreen.viewMeetings'), href: base },
+    { id: 'week', label: t('MeetingsScreen.viewWeek'), href: `${base}/grid?range=week` },
+    { id: 'month', label: t('MeetingsScreen.viewMonth'), href: `${base}/grid?range=month` },
+    { id: 'agenda', label: t('MeetingsScreen.viewAgenda'), href: `${base}/agenda` },
   ];
   return (
     <div className="tm-cal-header-actions">
-      <nav className="tm-cal-views" aria-label="Calendar views">
+      <nav className="tm-cal-views" aria-label={t('MeetingsScreen.viewsAria')}>
         {views.map((view) => (
           <Link
             key={view.id}
@@ -466,7 +473,7 @@ export function CalendarHeaderActions({
         ))}
       </nav>
       <Link href={`${base}/focus-blocks`} className="tm-cal-btn tm-cal-btn--ink tm-cal-btn--header">
-        Protect focus
+        {t('MeetingsScreen.protectFocus')}
       </Link>
     </div>
   );
@@ -480,15 +487,20 @@ export function CalendarSubnav({
   organizationSlug: string;
   current?: 'series' | 'agenda-templates' | 'focus-blocks';
 }) {
+  const t = useT();
   const base = `/${organizationSlug}/calendar`;
   const links: readonly { id: string; label: string; href: string }[] = [
-    { id: 'series', label: 'Recurring series', href: `${base}/series` },
-    { id: 'agenda-templates', label: 'Agenda templates', href: `${base}/agenda-templates` },
-    { id: 'focus-blocks', label: 'Focus blocks', href: `${base}/focus-blocks` },
+    { id: 'series', label: t('MeetingsScreen.subRecurring'), href: `${base}/series` },
+    {
+      id: 'agenda-templates',
+      label: t('MeetingsScreen.subAgendaTemplates'),
+      href: `${base}/agenda-templates`,
+    },
+    { id: 'focus-blocks', label: t('MeetingsScreen.subFocusBlocks'), href: `${base}/focus-blocks` },
   ];
   return (
-    <nav className="tm-cal-subnav" aria-label="More in the calendar">
-      <span className="tm-cal-subnav__label">Also on the calendar</span>
+    <nav className="tm-cal-subnav" aria-label={t('MeetingsScreen.subnavAria')}>
+      <span className="tm-cal-subnav__label">{t('MeetingsScreen.subnavLabel')}</span>
       {links.map((link) => (
         <Link
           key={link.id}
@@ -517,18 +529,19 @@ export function MeetingHeaderActions({
   /** Trailing controls, e.g. the ICS export capsule. */
   children?: ReactNode;
 }) {
+  const t = useT();
   const base = `/${organizationSlug}/calendar/meetings/${encodeURIComponent(meetingId)}`;
   const views: readonly { id: MeetingPage; label: string; href: string }[] = [
-    { id: 'notes', label: 'Notes', href: base },
-    { id: 'attendees', label: 'Attendees', href: `${base}/attendees` },
-    { id: 'rsvp', label: 'RSVP', href: `${base}/rsvp` },
-    { id: 'time-poll', label: 'Time poll', href: `${base}/time-poll` },
-    { id: 'action-items', label: 'Actions', href: `${base}/action-items` },
+    { id: 'notes', label: t('MeetingsScreen.mtgNotes'), href: base },
+    { id: 'attendees', label: t('MeetingsScreen.mtgAttendees'), href: `${base}/attendees` },
+    { id: 'rsvp', label: t('MeetingsScreen.mtgRsvp'), href: `${base}/rsvp` },
+    { id: 'time-poll', label: t('MeetingsScreen.mtgTimePoll'), href: `${base}/time-poll` },
+    { id: 'action-items', label: t('MeetingsScreen.mtgActions'), href: `${base}/action-items` },
   ];
   return (
     <div className="tm-cal-header-actions">
       {meetingId !== '' ? (
-        <nav className="tm-cal-views" aria-label="This meeting">
+        <nav className="tm-cal-views" aria-label={t('MeetingsScreen.mtgNavAria')}>
           {views.map((view) => (
             <Link
               key={view.id}
@@ -548,11 +561,12 @@ export function MeetingHeaderActions({
 
 /** The line back to the calendar above a meeting's page. */
 export function MeetingBackLink({ organizationSlug }: { organizationSlug: string }) {
+  const t = useT();
   return (
-    <nav className="tm-cal-subnav" aria-label="Back to the calendar">
-      <span className="tm-cal-subnav__label">Meeting</span>
-      <Link href={`/${organizationSlug}/calendar`}>All meetings</Link>
-      <Link href={`/${organizationSlug}/calendar/agenda`}>Agenda</Link>
+    <nav className="tm-cal-subnav" aria-label={t('MeetingsScreen.backAria')}>
+      <span className="tm-cal-subnav__label">{t('MeetingsScreen.backLabel')}</span>
+      <Link href={`/${organizationSlug}/calendar`}>{t('MeetingsScreen.backAllMeetings')}</Link>
+      <Link href={`/${organizationSlug}/calendar/agenda`}>{t('MeetingsScreen.backAgenda')}</Link>
     </nav>
   );
 }
@@ -594,8 +608,8 @@ function meetingState(startsAt: string, isNext: boolean, now: number): 'done' | 
   return !Number.isNaN(at) && at < now ? 'done' : 'later';
 }
 
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingsScreen.errorNetwork');
+  return t('MeetingsScreen.errorGeneric');
 }

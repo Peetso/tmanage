@@ -12,6 +12,8 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MemberNotesPanelProps {
   organizationSlug: string;
@@ -53,6 +55,7 @@ export function MemberNotesPanel({
 }: MemberNotesPanelProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['member-admin-notes', organizationSlug, membershipId];
 
   const notes = useQuery({
@@ -87,34 +90,32 @@ export function MemberNotesPanel({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-member-notes">
       <h2 id="tm-member-notes" className="tm-eyebrow">
-        Private notes
+        {t('MemberNotesPanel.heading')}
       </h2>
-      <p className="tm-field__hint">
-        Internal admin notes about this member. They are never shown to the member.
-      </p>
+      <p className="tm-field__hint">{t('MemberNotesPanel.hint')}</p>
 
       {notes.isPending ? (
-        <LoadingRegion label="Loading notes.">
+        <LoadingRegion label={t('MemberNotesPanel.loadingLabel')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {notAvailable ? (
-        <InlineAlert tone="neutral" title="Notes unavailable" live>
-          Notes are not available for this member.
+        <InlineAlert tone="neutral" title={t('MemberNotesPanel.unavailableTitle')} live>
+          {t('MemberNotesPanel.unavailableBody')}
         </InlineAlert>
       ) : null}
 
       {notes.isError && !notAvailable ? (
-        <InlineAlert tone="danger" title="Could not load notes" live>
-          {describeError(notes.error)}
+        <InlineAlert tone="danger" title={t('MemberNotesPanel.loadErrorTitle')} live>
+          {describeError(t, notes.error)}
         </InlineAlert>
       ) : null}
 
       {!notes.isPending && !notes.isError ? (
         rows.length > 0 ? (
-          <ol className="tm-stack" aria-label="Private notes about this member">
+          <ol className="tm-stack" aria-label={t('MemberNotesPanel.listAria')}>
             {rows.map((note) => (
               <li key={note.id} className="tm-stack">
                 <p className="tm-prose">{note.body}</p>
@@ -127,23 +128,23 @@ export function MemberNotesPanel({
                     tone="destructive"
                     size="accessible"
                     loading={remove.isPending && remove.variables === note.id}
-                    loadingLabel="Deleting"
+                    loadingLabel={t('MemberNotesPanel.deletingLabel')}
                     onClick={() => remove.mutate(note.id)}
                   >
-                    Delete
+                    {t('MemberNotesPanel.delete')}
                   </Button>
                 </div>
               </li>
             ))}
           </ol>
         ) : (
-          <p className="tm-prose">No notes yet.</p>
+          <p className="tm-prose">{t('MemberNotesPanel.emptyBody')}</p>
         )
       ) : null}
 
       {remove.isError ? (
-        <InlineAlert tone="danger" title="Could not delete the note" live>
-          {describeError(remove.error)}
+        <InlineAlert tone="danger" title={t('MemberNotesPanel.deleteErrorTitle')} live>
+          {describeError(t, remove.error)}
         </InlineAlert>
       ) : null}
 
@@ -157,7 +158,7 @@ export function MemberNotesPanel({
       >
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-member-note-body">
-            Add a note
+            {t('MemberNotesPanel.addLabel')}
           </label>
           <textarea
             id="tm-member-note-body"
@@ -170,8 +171,8 @@ export function MemberNotesPanel({
         </div>
 
         {add.isError ? (
-          <InlineAlert tone="danger" title="Could not add the note" live>
-            {describeError(add.error)}
+          <InlineAlert tone="danger" title={t('MemberNotesPanel.addErrorTitle')} live>
+            {describeError(t, add.error)}
           </InlineAlert>
         ) : null}
 
@@ -181,10 +182,10 @@ export function MemberNotesPanel({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('MemberNotesPanel.addingLabel')}
             disabled={!canAdd}
           >
-            Add note
+            {t('MemberNotesPanel.addSubmit')}
           </Button>
         </div>
       </form>
@@ -192,8 +193,8 @@ export function MemberNotesPanel({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MemberNotesPanel.errorNetwork');
+  return t('MemberNotesPanel.errorGeneric');
 }

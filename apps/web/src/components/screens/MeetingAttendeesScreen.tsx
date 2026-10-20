@@ -12,6 +12,8 @@ import { inviteMeetingAttendee, listMeetingAttendees } from '../../lib/api/meeti
 import type { AttendeeRsvp } from '../../lib/api/meeting-attendees';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import { MeetingBackLink, MeetingHeaderActions, initials } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -23,10 +25,10 @@ export interface MeetingAttendeesScreenProps {
   client?: ApiClient;
 }
 
-const RSVP_LABELS: Readonly<Record<AttendeeRsvp, string>> = {
-  invited: 'Invited',
-  accepted: 'Accepted',
-  declined: 'Declined',
+const RSVP_LABEL_KEYS: Readonly<Record<AttendeeRsvp, MessageKey>> = {
+  invited: 'MeetingAttendeesScreen.rsvpInvited',
+  accepted: 'MeetingAttendeesScreen.rsvpAccepted',
+  declined: 'MeetingAttendeesScreen.rsvpDeclined',
 };
 
 /**
@@ -63,6 +65,7 @@ export function MeetingAttendeesScreen({
 }: MeetingAttendeesScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const [inviteUserId, setInviteUserId] = useState('');
 
@@ -119,8 +122,8 @@ export function MeetingAttendeesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Meeting attendees"
-      eyebrow="Calendar · Meeting"
+      title={t('MeetingAttendeesScreen.title')}
+      eyebrow={t('MeetingAttendeesScreen.eyebrow')}
       actions={
         <MeetingHeaderActions
           organizationSlug={organizationSlug}
@@ -133,20 +136,20 @@ export function MeetingAttendeesScreen({
         <MeetingBackLink organizationSlug={organizationSlug} />
 
         {meetingId === '' ? (
-          <InlineAlert tone="neutral" title="No meeting chosen">
-            Open a meeting to see and manage its attendees.
+          <InlineAlert tone="neutral" title={t('MeetingAttendeesScreen.noMeetingTitle')}>
+            {t('MeetingAttendeesScreen.noMeetingBody')}
           </InlineAlert>
         ) : null}
 
         {notFound ? (
-          <InlineAlert tone="neutral" title="Meeting not found" live>
-            This meeting does not exist or you do not have access to it.
+          <InlineAlert tone="neutral" title={t('MeetingAttendeesScreen.notFoundTitle')} live>
+            {t('MeetingAttendeesScreen.notFoundBody')}
           </InlineAlert>
         ) : null}
 
         {attendees.isError && !notFound ? (
-          <InlineAlert tone="danger" title="Could not load the attendees" live>
-            {describeError(attendees.error)}
+          <InlineAlert tone="danger" title={t('MeetingAttendeesScreen.loadErrorTitle')} live>
+            {describeError(t, attendees.error)}
           </InlineAlert>
         ) : null}
 
@@ -154,7 +157,7 @@ export function MeetingAttendeesScreen({
           <div className="tm-cal-body">
             <div className="tm-cal-main">
               {attendees.isPending ? (
-                <LoadingRegion label="Loading the attendees.">
+                <LoadingRegion label={t('MeetingAttendeesScreen.loadingLabel')}>
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
                   <Skeleton height="var(--row)" />
@@ -162,24 +165,24 @@ export function MeetingAttendeesScreen({
               ) : null}
 
               {!attendees.isPending && !attendees.isError && rows.length === 0 ? (
-                <InlineAlert tone="neutral" title="No attendees yet">
-                  Nobody has been invited to this meeting yet. Invite a member beside the list.
+                <InlineAlert tone="neutral" title={t('MeetingAttendeesScreen.emptyTitle')}>
+                  {t('MeetingAttendeesScreen.emptyBody')}
                 </InlineAlert>
               ) : null}
 
               {rows.length > 0 ? (
-                <section className="tm-cal-card" aria-label="Meeting attendees">
+                <section className="tm-cal-card" aria-label={t('MeetingAttendeesScreen.listAria')}>
                   <p className="tm-cal-eyebrow">
-                    Participants · {rows.length} ·{' '}
-                    {rows.filter((row) => row.rsvp === 'accepted').length} accepted
+                    {t('MeetingAttendeesScreen.participantsLabel')} · {rows.length} ·{' '}
+                    {rows.filter((row) => row.rsvp === 'accepted').length}{' '}
+                    {t('MeetingAttendeesScreen.acceptedCountLabel')}
                   </p>
-                  <p className="tm-cal-note">
-                    This list shows who is coming. To change your own response, open the RSVP tab —
-                    you can only set your own.
-                  </p>
+                  <p className="tm-cal-note">{t('MeetingAttendeesScreen.rosterNote')}</p>
                   <ul className="tm-cal-items">
                     {rows.map((attendee) => {
-                      const name = nameByUserId.get(attendee.userId) ?? 'A member';
+                      const name =
+                        nameByUserId.get(attendee.userId) ??
+                        t('MeetingAttendeesScreen.fallbackMemberName');
                       return (
                         <li
                           key={attendee.id}
@@ -197,7 +200,7 @@ export function MeetingAttendeesScreen({
                           </span>
                           <span className="tm-cal-item__end">
                             <StateCapsule state={rsvpCapsule(attendee.rsvp)}>
-                              {RSVP_LABELS[attendee.rsvp]}
+                              {t(RSVP_LABEL_KEYS[attendee.rsvp])}
                             </StateCapsule>
                           </span>
                         </li>
@@ -211,13 +214,13 @@ export function MeetingAttendeesScreen({
             <div className="tm-cal-side">
               <section className="tm-cal-card" aria-labelledby="tm-attendees-invite">
                 <h2 id="tm-attendees-invite" className="tm-cal-eyebrow">
-                  Invite a member
+                  {t('MeetingAttendeesScreen.inviteHeading')}
                 </h2>
                 <form className="tm-cal-form" onSubmit={submitInvite}>
                   <fieldset className="tm-fieldset tm-stack" disabled={members.isPending}>
                     <div className="tm-field">
                       <label className="tm-field__label" htmlFor="tm-attendees-member">
-                        Member
+                        {t('MeetingAttendeesScreen.memberLabel')}
                       </label>
                       <select
                         id="tm-attendees-member"
@@ -225,7 +228,7 @@ export function MeetingAttendeesScreen({
                         value={inviteUserId}
                         onChange={(event) => setInviteUserId(event.target.value)}
                       >
-                        <option value="">Choose a member…</option>
+                        <option value="">{t('MeetingAttendeesScreen.memberPlaceholder')}</option>
                         {invitable.map((m) => (
                           <option key={m.userId} value={m.userId}>
                             {m.displayName}
@@ -236,10 +239,14 @@ export function MeetingAttendeesScreen({
                   </fieldset>
 
                   {invite.isError ? (
-                    <InlineAlert tone="danger" title="Could not invite the member" live>
+                    <InlineAlert
+                      tone="danger"
+                      title={t('MeetingAttendeesScreen.inviteErrorTitle')}
+                      live
+                    >
                       {invite.error instanceof ApiRequestError
                         ? invite.error.message
-                        : 'The API did not answer. Try again.'}
+                        : t('MeetingAttendeesScreen.apiNoAnswer')}
                     </InlineAlert>
                   ) : null}
 
@@ -248,10 +255,10 @@ export function MeetingAttendeesScreen({
                     tone="ink"
                     size="accessible"
                     loading={invite.isPending}
-                    loadingLabel="Inviting"
+                    loadingLabel={t('MeetingAttendeesScreen.invitingLabel')}
                     disabled={inviteUserId === ''}
                   >
-                    Invite member
+                    {t('MeetingAttendeesScreen.inviteSubmit')}
                   </Button>
                 </form>
               </section>
@@ -269,8 +276,8 @@ function rsvpCapsule(rsvp: AttendeeRsvp): CapsuleState {
   return 'waiting';
 }
 
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingAttendeesScreen.errorNetwork');
+  return t('MeetingAttendeesScreen.errorGeneric');
 }

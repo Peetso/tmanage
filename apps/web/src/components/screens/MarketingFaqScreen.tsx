@@ -9,6 +9,7 @@ import { fetchPublicFaq } from '../../lib/api/public-faq';
 import type { PublicFaqView } from '../../lib/api/public-faq';
 import { NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MarketingFaqScreenProps {
   /** Injectable so a test drives a fake client; the browser gets the shared one. */
@@ -28,6 +29,7 @@ export interface MarketingFaqScreenProps {
  */
 export function MarketingFaqScreen({ client }: MarketingFaqScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const faq = useQuery({
     queryKey: ['public-faq'],
     queryFn: () => fetchPublicFaq(api),
@@ -37,12 +39,14 @@ export function MarketingFaqScreen({ client }: MarketingFaqScreenProps) {
   return (
     <PublicPage>
       <div className="tm-pub-columns">
-        <PublicIntro eyebrow="FAQ" title="Frequently asked questions">
+        <PublicIntro
+          eyebrow={t('MarketingFaqScreen.eyebrow')}
+          title={t('MarketingFaqScreen.title')}
+        >
           <p className="tm-pub-lede tm-pub-lede--md">
-            Answers to the questions we hear most often about TManage, the client portal, and how
-            your data is handled. For whether systems are up right now, see the{' '}
+            {t('MarketingFaqScreen.ledeBefore')}{' '}
             <Link className="tm-pub-link" href="/status">
-              status page
+              {t('MarketingFaqScreen.statusLink')}
             </Link>
             .
           </p>
@@ -50,16 +54,16 @@ export function MarketingFaqScreen({ client }: MarketingFaqScreenProps) {
 
         <div className="tm-pub-stack">
           {faq.isPending ? (
-            <LoadingRegion label="Loading the frequently asked questions.">
+            <LoadingRegion label={t('MarketingFaqScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : faq.isError || !faq.data ? (
-            <InlineAlert tone="danger" title="This information could not be loaded" live>
+            <InlineAlert tone="danger" title={t('MarketingFaqScreen.errorTitle')} live>
               {faq.error instanceof NetworkError
-                ? 'The API did not answer. Please try again shortly.'
-                : 'Something went wrong loading this page. Please try again shortly.'}
+                ? t('MarketingFaqScreen.errorNetwork')
+                : t('MarketingFaqScreen.errorGeneric')}
             </InlineAlert>
           ) : (
             <Content faq={faq.data} />

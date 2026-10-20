@@ -12,6 +12,8 @@ import type { MeetingNoteView } from '../../lib/api/meetings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import { MeetingBackLink, MeetingHeaderActions } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -54,6 +56,7 @@ export function MeetingNotesScreen({
   client,
 }: MeetingNotesScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const notes = useQuery({
     queryKey: ['meeting-notes', organizationSlug, meetingId],
@@ -71,8 +74,8 @@ export function MeetingNotesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Meeting notes"
-      eyebrow="Calendar · Meeting"
+      title={t('MeetingNotesScreen.title')}
+      eyebrow={t('MeetingNotesScreen.eyebrow')}
       actions={
         <MeetingHeaderActions
           organizationSlug={organizationSlug}
@@ -90,25 +93,25 @@ export function MeetingNotesScreen({
 
         <div className="tm-cal-narrow">
           {meetingId === '' ? (
-            <InlineAlert tone="neutral" title="No meeting chosen">
-              Open a meeting to see the notes and decisions captured in it.
+            <InlineAlert tone="neutral" title={t('MeetingNotesScreen.noMeetingTitle')}>
+              {t('MeetingNotesScreen.noMeetingBody')}
             </InlineAlert>
           ) : null}
 
           {notFound ? (
-            <InlineAlert tone="neutral" title="Meeting not found" live>
-              This meeting does not exist or you do not have access to it.
+            <InlineAlert tone="neutral" title={t('MeetingNotesScreen.notFoundTitle')} live>
+              {t('MeetingNotesScreen.notFoundBody')}
             </InlineAlert>
           ) : null}
 
           {notes.isError && !notFound ? (
-            <InlineAlert tone="danger" title="Could not load the notes" live>
-              {describeError(notes.error)}
+            <InlineAlert tone="danger" title={t('MeetingNotesScreen.loadErrorTitle')} live>
+              {describeError(t, notes.error)}
             </InlineAlert>
           ) : null}
 
           {meetingId !== '' && notes.isPending ? (
-            <LoadingRegion label="Loading the meeting notes.">
+            <LoadingRegion label={t('MeetingNotesScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
@@ -116,19 +119,22 @@ export function MeetingNotesScreen({
           ) : null}
 
           {meetingId !== '' && !notes.isPending && !notes.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No notes yet">
-              Nothing has been captured in this meeting yet.
+            <InlineAlert tone="neutral" title={t('MeetingNotesScreen.emptyTitle')}>
+              {t('MeetingNotesScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
           {rows.length > 0 ? (
             <section
               className="tm-cal-card"
-              aria-label="Meeting notes and decisions"
+              aria-label={t('MeetingNotesScreen.listAria')}
               aria-describedby="tm-meeting-notes-count"
             >
               <p id="tm-meeting-notes-count" className="tm-cal-eyebrow">
-                Captured · {rows.length} · {decisions} {decisions === 1 ? 'decision' : 'decisions'}
+                {t('MeetingNotesScreen.capturedLabel')} · {rows.length} · {decisions}{' '}
+                {decisions === 1
+                  ? t('MeetingNotesScreen.decisionCountSingular')
+                  : t('MeetingNotesScreen.decisionCountPlural')}
               </p>
               <ul className="tm-cal-items">
                 {rows.map((note) => (
@@ -149,7 +155,9 @@ export function MeetingNotesScreen({
                     </div>
                     <span className="tm-cal-item__end">
                       <StateCapsule state={kindCapsule(note.kind)}>
-                        {kindLabel(note.kind)}
+                        {note.kind === 'decision'
+                          ? t('MeetingNotesScreen.kindDecision')
+                          : t('MeetingNotesScreen.kindNote')}
                       </StateCapsule>
                     </span>
                   </li>
@@ -168,12 +176,8 @@ function kindCapsule(kind: MeetingNoteView['kind']): CapsuleState {
   return kind === 'decision' ? 'current' : 'neutral';
 }
 
-function kindLabel(kind: MeetingNoteView['kind']): string {
-  return kind === 'decision' ? 'Decision' : 'Note';
-}
-
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingNotesScreen.errorNetwork');
+  return t('MeetingNotesScreen.errorGeneric');
 }

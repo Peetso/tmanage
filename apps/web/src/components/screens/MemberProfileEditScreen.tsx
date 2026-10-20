@@ -10,6 +10,8 @@ import { fetchMemberProfile, saveMemberProfile } from '../../lib/api/member-prof
 import type { MemberProfileView } from '../../lib/api/member-profile';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MemberProfileEditScreenProps {
   organizationSlug: string;
@@ -64,6 +66,7 @@ export function MemberProfileEditScreen({
 }: MemberProfileEditScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['member-profile', organizationSlug, membershipId];
 
   const profile = useQuery({
@@ -108,28 +111,31 @@ export function MemberProfileEditScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      title="Edit profile"
-      description="A member's department, bio and contact details for this studio."
+      title={t('MemberProfileEditScreen.title')}
+      description={t('MemberProfileEditScreen.description')}
     >
       <p className="tm-prose">
-        <Link href={`/${organizationSlug}/people`}>Back to people</Link>
+        <Link href={`/${organizationSlug}/people`}>{t('MemberProfileEditScreen.backLink')}</Link>
       </p>
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-member-profile-heading">
         <h2 id="tm-member-profile-heading" className="tm-eyebrow">
-          Profile
+          {t('MemberProfileEditScreen.heading')}
         </h2>
 
         {profile.isPending ? (
-          <LoadingRegion label="Loading the profile." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('MemberProfileEditScreen.loadingLabel')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {profile.isError ? (
-          <InlineAlert tone="danger" title="Could not load the profile" live>
-            {describe(profile.error)}
+          <InlineAlert tone="danger" title={t('MemberProfileEditScreen.loadErrorTitle')} live>
+            {describe(t, profile.error)}
           </InlineAlert>
         ) : null}
 
@@ -143,54 +149,60 @@ export function MemberProfileEditScreen({
             }}
           >
             <Field
-              label="Department"
+              label={t('MemberProfileEditScreen.departmentLabel')}
               name="department"
               value={form.department}
               onChange={field('department')}
               maxLength={120}
-              hint="The team this member works in, for this studio."
+              hint={t('MemberProfileEditScreen.departmentHint')}
             />
             <Field
-              label="Bio"
+              label={t('MemberProfileEditScreen.bioLabel')}
               name="bio"
               value={form.bio}
               onChange={field('bio')}
               maxLength={2000}
-              hint="A short description. Visible within this studio only."
+              hint={t('MemberProfileEditScreen.bioHint')}
             />
             <Field
-              label="Contact email"
+              label={t('MemberProfileEditScreen.contactEmailLabel')}
               name="contactEmail"
               type="email"
               value={form.contactEmail}
               onChange={field('contactEmail')}
               maxLength={320}
-              hint="A studio-local contact address. This does not change the member's sign-in email."
+              hint={t('MemberProfileEditScreen.contactEmailHint')}
             />
             <Field
-              label="Contact phone"
+              label={t('MemberProfileEditScreen.contactPhoneLabel')}
               name="contactPhone"
               value={form.contactPhone}
               onChange={field('contactPhone')}
               maxLength={40}
-              hint="A studio-local contact number."
+              hint={t('MemberProfileEditScreen.contactPhoneHint')}
             />
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save the profile" live>
-                {describe(save.error)}
+              <InlineAlert tone="danger" title={t('MemberProfileEditScreen.saveErrorTitle')} live>
+                {describe(t, save.error)}
               </InlineAlert>
             ) : null}
 
             {save.isSuccess ? (
-              <InlineAlert tone="success" title="Profile saved" live>
-                The profile has been updated for this studio.
+              <InlineAlert
+                tone="success"
+                title={t('MemberProfileEditScreen.saveSuccessTitle')}
+                live
+              >
+                {t('MemberProfileEditScreen.saveSuccessBody')}
               </InlineAlert>
             ) : null}
 
             <div>
               <Button type="submit" disabled={save.isPending}>
-                {save.isPending ? 'Saving…' : 'Save profile'}
+                {save.isPending
+                  ? t('MemberProfileEditScreen.savingLabel')
+                  : t('MemberProfileEditScreen.saveSubmit')}
               </Button>
             </div>
           </form>
@@ -201,8 +213,8 @@ export function MemberProfileEditScreen({
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
+function describe(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MemberProfileEditScreen.errorNetwork');
+  return t('MemberProfileEditScreen.errorGeneric');
 }

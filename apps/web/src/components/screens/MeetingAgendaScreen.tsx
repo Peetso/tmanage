@@ -10,6 +10,8 @@ import { getMeetingAgenda } from '../../lib/api/meeting-agenda';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatDay, formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 import { CalendarHeaderActions, CalendarSubnav, MeetingTrack, clockLabel } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
 
@@ -47,6 +49,7 @@ export function MeetingAgendaScreen({
   client,
 }: MeetingAgendaScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const defaults = useMemo(currentMonthRange, []);
   const [from, setFrom] = useState<string>(defaults.from);
   const [to, setTo] = useState<string>(defaults.to);
@@ -78,8 +81,8 @@ export function MeetingAgendaScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="calendar"
-      title="Agenda"
-      eyebrow="Calendar · Agenda"
+      title={t('MeetingAgendaScreen.title')}
+      eyebrow={t('MeetingAgendaScreen.eyebrow')}
       actions={<CalendarHeaderActions organizationSlug={organizationSlug} current="agenda" />}
     >
       <div className="tm-cal">
@@ -88,7 +91,7 @@ export function MeetingAgendaScreen({
         {allMeetings.length > 0 ? (
           <MeetingTrack
             organizationSlug={organizationSlug}
-            label="Agenda track"
+            label={t('MeetingAgendaScreen.trackLabel')}
             meetings={allMeetings}
             nextId={nextId}
             now={now}
@@ -98,20 +101,20 @@ export function MeetingAgendaScreen({
         <div className="tm-cal-body">
           <div className="tm-cal-main">
             {!rangeValid ? (
-              <InlineAlert tone="warning" title="Choose a valid range">
-                Set a start date on or before the end date, no more than {MAX_WINDOW_DAYS} days
-                apart, to load the agenda.
+              <InlineAlert tone="warning" title={t('MeetingAgendaScreen.rangeInvalidTitle')}>
+                {t('MeetingAgendaScreen.rangeInvalidBodyBefore')} {MAX_WINDOW_DAYS}{' '}
+                {t('MeetingAgendaScreen.rangeInvalidBodyAfter')}
               </InlineAlert>
             ) : null}
 
             {agenda.isError ? (
-              <InlineAlert tone="danger" title="Could not load the agenda" live>
-                {describeError(agenda.error)}
+              <InlineAlert tone="danger" title={t('MeetingAgendaScreen.loadErrorTitle')} live>
+                {describeError(t, agenda.error)}
               </InlineAlert>
             ) : null}
 
             {rangeValid && agenda.isPending ? (
-              <LoadingRegion label="Loading the agenda.">
+              <LoadingRegion label={t('MeetingAgendaScreen.loadingLabel')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
@@ -119,9 +122,8 @@ export function MeetingAgendaScreen({
             ) : null}
 
             {rangeValid && !agenda.isPending && !agenda.isError && days.length === 0 ? (
-              <InlineAlert tone="neutral" title="Nothing on the agenda yet">
-                No meetings you can see start in this range. Widen the range, or schedule one from
-                the calendar.
+              <InlineAlert tone="neutral" title={t('MeetingAgendaScreen.emptyTitle')}>
+                {t('MeetingAgendaScreen.emptyBody')}
               </InlineAlert>
             ) : null}
 
@@ -134,17 +136,18 @@ export function MeetingAgendaScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Agenda"
+                  aria-label={t('MeetingAgendaScreen.regionAria')}
                 >
                   <table>
                     <caption className="tm-visually-hidden">
-                      Meetings grouped by the day they start on, {allMeetings.length} shown.
+                      {t('MeetingAgendaScreen.captionBefore')} {allMeetings.length}{' '}
+                      {t('MeetingAgendaScreen.captionAfter')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Time</th>
-                        <th scope="col">What</th>
-                        <th scope="col">Kind</th>
+                        <th scope="col">{t('MeetingAgendaScreen.colTime')}</th>
+                        <th scope="col">{t('MeetingAgendaScreen.colWhat')}</th>
+                        <th scope="col">{t('MeetingAgendaScreen.colKind')}</th>
                       </tr>
                     </thead>
                     {days.map((day) => (
@@ -152,7 +155,9 @@ export function MeetingAgendaScreen({
                         <tr className="tm-cal-sheet__day">
                           <th id={`tm-agenda-day-${day.date}`} scope="colgroup" colSpan={3}>
                             {formatDay(day.date)} · {day.meetings.length}{' '}
-                            {day.meetings.length === 1 ? 'meeting' : 'meetings'}
+                            {day.meetings.length === 1
+                              ? t('MeetingAgendaScreen.meetingSingular')
+                              : t('MeetingAgendaScreen.meetingPlural')}
                           </th>
                         </tr>
                         {day.meetings.map((meeting) => {
@@ -181,12 +186,12 @@ export function MeetingAgendaScreen({
                               <td className="tm-cal-sheet__kind">
                                 {state === 'next' ? (
                                   <span className="tm-cal-pill tm-cal-pill--lime">
-                                    Meeting · next
+                                    {t('MeetingAgendaScreen.kindNext')}
                                   </span>
                                 ) : state === 'done' ? (
-                                  'Meeting · done'
+                                  t('MeetingAgendaScreen.kindDone')
                                 ) : (
-                                  'Meeting'
+                                  t('MeetingAgendaScreen.kindMeeting')
                                 )}
                               </td>
                             </tr>
@@ -203,13 +208,13 @@ export function MeetingAgendaScreen({
           <div className="tm-cal-side">
             <section className="tm-cal-card" aria-labelledby="tm-agenda-filters">
               <h2 id="tm-agenda-filters" className="tm-cal-eyebrow">
-                Range
+                {t('MeetingAgendaScreen.rangeHeading')}
               </h2>
               <fieldset className="tm-fieldset tm-stack">
                 <div className="tm-cal-form-row">
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-agenda-from">
-                      From
+                      {t('MeetingAgendaScreen.fromLabel')}
                     </label>
                     <input
                       id="tm-agenda-from"
@@ -222,7 +227,7 @@ export function MeetingAgendaScreen({
                   </div>
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor="tm-agenda-to">
-                      To
+                      {t('MeetingAgendaScreen.toLabel')}
                     </label>
                     <input
                       id="tm-agenda-to"
@@ -235,8 +240,8 @@ export function MeetingAgendaScreen({
                   </div>
                 </div>
                 <span className="tm-field__hint">
-                  The agenda covers a range of up to {MAX_WINDOW_DAYS} days. Meetings appear on the
-                  day they start.
+                  {t('MeetingAgendaScreen.hintBefore')} {MAX_WINDOW_DAYS}{' '}
+                  {t('MeetingAgendaScreen.hintAfter')}
                 </span>
               </fieldset>
             </section>
@@ -265,8 +270,8 @@ function windowDays(from: string, to: string): number {
   return Math.round((toMs - fromMs) / 86_400_000) + 1;
 }
 
-function describeError(error: unknown): string {
+function describeError(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MeetingAgendaScreen.errorNetwork');
+  return t('MeetingAgendaScreen.errorGeneric');
 }

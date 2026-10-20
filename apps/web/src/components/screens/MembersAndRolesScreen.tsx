@@ -19,6 +19,8 @@ import type { ProjectMemberSummary } from '../../lib/api/project-members';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { describeInternalRole } from '../../lib/roles';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface MembersAndRolesScreenProps {
   organizationSlug: string;
@@ -64,6 +66,7 @@ export function MembersAndRolesScreen({
 }: MembersAndRolesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const membersKey = ['project-members', projectId];
 
   const members = useQuery({
@@ -87,7 +90,7 @@ export function MembersAndRolesScreen({
   const [actionError, setActionError] = useState<string | undefined>(undefined);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: membersKey });
-  const onError = (error: unknown) => setActionError(describe(error));
+  const onError = (error: unknown) => setActionError(describe(t, error));
 
   const add = useMutation({
     mutationFn: () =>
@@ -134,16 +137,16 @@ export function MembersAndRolesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      eyebrow="Project · Team"
-      title="Members and roles"
-      description="Who works on this project, and what they can do. Adding, changing a role and removing are all recorded."
+      eyebrow={t('MembersAndRolesScreen.eyebrow')}
+      title={t('MembersAndRolesScreen.title')}
+      description={t('MembersAndRolesScreen.description')}
       topBar={
         <ProjectTabs organizationSlug={organizationSlug} projectId={projectId} current="team" />
       }
     >
       <div className="tm-prj tm-prj--sub">
         {actionError ? (
-          <InlineAlert tone="danger" title="That change was refused" live>
+          <InlineAlert tone="danger" title={t('MembersAndRolesScreen.actionErrorTitle')} live>
             {actionError}
           </InlineAlert>
         ) : null}
@@ -151,12 +154,13 @@ export function MembersAndRolesScreen({
         <div className="tm-prj__grid tm-prj__grid--even">
           <section className="tm-card tm-prj-card" aria-labelledby="tm-member-list">
             <h2 id="tm-member-list" className="tm-prj-eyebrow">
-              On this project{members.isSuccess ? ` · ${members.data.length}` : ''}
+              {t('MembersAndRolesScreen.memberListHeading')}
+              {members.isSuccess ? ` · ${members.data.length}` : ''}
             </h2>
 
             {members.isPending ? (
               <LoadingRegion
-                label="Loading the project's members."
+                label={t('MembersAndRolesScreen.loadingMembersLabel')}
                 className="tm-stack tm-stack--tight"
               >
                 <Skeleton height="58px" />
@@ -165,14 +169,14 @@ export function MembersAndRolesScreen({
             ) : null}
 
             {members.isError ? (
-              <InlineAlert tone="danger" title="Could not load the members" live>
-                {describe(members.error)}
+              <InlineAlert tone="danger" title={t('MembersAndRolesScreen.loadErrorTitle')} live>
+                {describe(t, members.error)}
               </InlineAlert>
             ) : null}
 
             {members.isSuccess ? (
               members.data.length === 0 ? (
-                <InlineAlert tone="neutral">Nobody is on this project yet.</InlineAlert>
+                <InlineAlert tone="neutral">{t('MembersAndRolesScreen.emptyMembers')}</InlineAlert>
               ) : (
                 <ul className="tm-prj-people">
                   {members.data.map((member) => {
@@ -183,12 +187,13 @@ export function MembersAndRolesScreen({
                         <span className="tm-prj-people__who">
                           <span className="tm-prj-people__name">{name}</span>
                           <span className="tm-prj-people__role">
-                            {describeInternalRole(member.role).label} · on project
+                            {describeInternalRole(member.role).label} ·{' '}
+                            {t('MembersAndRolesScreen.onProjectSuffix')}
                           </span>
                         </span>
                         <span className="tm-prj-people__end">
                           <Select
-                            label={`Role for ${name}`}
+                            label={`${t('MembersAndRolesScreen.roleForPrefix')} ${name}`}
                             name={`role-${member.projectMembershipId}`}
                             value={member.role}
                             onChange={(event) =>
@@ -206,9 +211,9 @@ export function MembersAndRolesScreen({
                             size="compact"
                             onClick={() => remove.mutate(member)}
                             loading={remove.isPending}
-                            loadingLabel="Removing"
+                            loadingLabel={t('MembersAndRolesScreen.removingLabel')}
                           >
-                            Remove
+                            {t('MembersAndRolesScreen.remove')}
                           </Button>
                         </span>
                       </li>
@@ -221,7 +226,7 @@ export function MembersAndRolesScreen({
 
           <section className="tm-card tm-prj-card" aria-labelledby="tm-add-member">
             <h2 id="tm-add-member" className="tm-prj-eyebrow">
-              Add someone to this project
+              {t('MembersAndRolesScreen.addHeading')}
             </h2>
             <form
               className="tm-prj-form"
@@ -231,12 +236,12 @@ export function MembersAndRolesScreen({
               }}
             >
               <Select
-                label="Person"
+                label={t('MembersAndRolesScreen.personLabel')}
                 name="userId"
                 value={addUserId}
                 onChange={(event) => setAddUserId(event.target.value)}
               >
-                <option value="">Choose a member…</option>
+                <option value="">{t('MembersAndRolesScreen.memberPlaceholder')}</option>
                 {candidates.map((member) => (
                   <option key={member.userId} value={member.userId}>
                     {member.displayName}
@@ -244,7 +249,7 @@ export function MembersAndRolesScreen({
                 ))}
               </Select>
               <Select
-                label="Role"
+                label={t('MembersAndRolesScreen.roleLabel')}
                 name="role"
                 value={addRole}
                 onChange={(event) => setAddRole(event.target.value)}
@@ -260,19 +265,19 @@ export function MembersAndRolesScreen({
                   type="submit"
                   tone="ink"
                   loading={add.isPending}
-                  loadingLabel="Adding"
+                  loadingLabel={t('MembersAndRolesScreen.addingLabel')}
                   disabled={addUserId === ''}
                 >
-                  Add to project
+                  {t('MembersAndRolesScreen.addSubmit')}
                 </Button>
               </div>
             </form>
             <p className="tm-card__meta">
-              Allocations — who gives this project what share of their week — are on the{' '}
+              {t('MembersAndRolesScreen.allocationsMetaBefore')}{' '}
               <Link
                 href={`/${organizationSlug}/projects/${encodeURIComponent(projectId)}/allocations`}
               >
-                allocations page
+                {t('MembersAndRolesScreen.allocationsLinkText')}
               </Link>
               .
             </p>
@@ -284,8 +289,8 @@ export function MembersAndRolesScreen({
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
+function describe(t: (key: MessageKey) => string, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('MembersAndRolesScreen.errorNetwork');
+  return t('MembersAndRolesScreen.errorGeneric');
 }
