@@ -14,6 +14,7 @@ import {
 } from '../../lib/api/billing-seats';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface BillingSeatsScreenProps {
@@ -42,6 +43,7 @@ export function BillingSeatsScreen({
 }: BillingSeatsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const seats = useQuery({
     queryKey: ['billing-seats', organizationSlug],
@@ -86,14 +88,14 @@ export function BillingSeatsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Seats"
-      description="Assign and reclaim the seats your team holds against your plan."
+      eyebrow={t('BillingSeatsScreen.eyebrow')}
+      title={t('BillingSeatsScreen.title')}
+      description={t('BillingSeatsScreen.description')}
     >
       <div className="tm-bil">
         <section className="tm-panel tm-stack" aria-labelledby="tm-seat-assign-heading">
           <h2 id="tm-seat-assign-heading" className="tm-eyebrow">
-            Assign a seat
+            {t('BillingSeatsScreen.assignHeading')}
           </h2>
           <form
             className="tm-stack"
@@ -104,17 +106,17 @@ export function BillingSeatsScreen({
             }}
           >
             <Field
-              label="Membership ID"
+              label={t('BillingSeatsScreen.membershipIdLabel')}
               name="membershipId"
               value={membershipId}
               onChange={(event) => setMembershipId(event.target.value)}
-              hint="The membership to grant a seat to."
+              hint={t('BillingSeatsScreen.membershipIdHint')}
               required
             />
 
             {assign.isError ? (
-              <InlineAlert tone="danger" title="Could not assign the seat" live>
-                {describeError(assign.error)}
+              <InlineAlert tone="danger" title={t('BillingSeatsScreen.errorAssignTitle')} live>
+                {describeError(t, assign.error)}
               </InlineAlert>
             ) : null}
 
@@ -124,10 +126,10 @@ export function BillingSeatsScreen({
                 tone="ink"
                 size="accessible"
                 loading={assign.isPending}
-                loadingLabel="Assigning"
+                loadingLabel={t('BillingSeatsScreen.assigning')}
                 disabled={!canAssign}
               >
-                Assign seat
+                {t('BillingSeatsScreen.assignButton')}
               </Button>
             </div>
           </form>
@@ -138,53 +140,55 @@ export function BillingSeatsScreen({
           aria-labelledby="tm-seat-list-heading"
         >
           <h2 id="tm-seat-list-heading" className="tm-eyebrow">
-            Active seats {seats.isSuccess ? `(${seats.data.activeCount})` : ''}
+            {t('BillingSeatsScreen.activeSeatsHeading')}{' '}
+            {seats.isSuccess ? `(${seats.data.activeCount})` : ''}
           </h2>
 
           {seats.isSuccess && activeMembers !== undefined ? (
             <p className="tm-muted">
-              {activeMembers === 1 ? '1 person is' : `${activeMembers} people are`} active in this
-              workspace. Seats are assigned here by hand and are separate from that count — no one
-              needs a seat to use TManage, so an empty list is normal.
+              {activeMembers === 1
+                ? t('BillingSeatsScreen.onePersonIs')
+                : `${activeMembers} ${t('BillingSeatsScreen.peopleAre')}`}{' '}
+              {t('BillingSeatsScreen.activeInWorkspace')}
             </p>
           ) : null}
 
           {seats.isError ? (
-            <InlineAlert tone="danger" title="Could not load the seats" live>
-              {describeError(seats.error)}
+            <InlineAlert tone="danger" title={t('BillingSeatsScreen.errorLoadTitle')} live>
+              {describeError(t, seats.error)}
             </InlineAlert>
           ) : null}
 
           {release.isError ? (
-            <InlineAlert tone="danger" title="Could not reclaim the seat" live>
-              {describeError(release.error)}
+            <InlineAlert tone="danger" title={t('BillingSeatsScreen.errorReclaimTitle')} live>
+              {describeError(t, release.error)}
             </InlineAlert>
           ) : null}
 
           {seats.isPending ? (
-            <LoadingRegion label="Loading the seats.">
+            <LoadingRegion label={t('BillingSeatsScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {seats.isSuccess && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No active seats yet">
-              Assign a seat with the form to grant a membership a licence against your plan.
+            <InlineAlert tone="neutral" title={t('BillingSeatsScreen.emptyTitle')}>
+              {t('BillingSeatsScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
           {rows.length > 0 ? (
             <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                The organization&rsquo;s active seats.
-              </caption>
+              <caption className="tm-visually-hidden">{t('BillingSeatsScreen.caption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Membership</th>
-                  <th scope="col">Assigned</th>
+                  <th scope="col">{t('BillingSeatsScreen.colMembership')}</th>
+                  <th scope="col">{t('BillingSeatsScreen.colAssigned')}</th>
                   <th scope="col">
-                    <span className="tm-visually-hidden">Actions</span>
+                    <span className="tm-visually-hidden">
+                      {t('BillingSeatsScreen.actionsColumn')}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -199,10 +203,10 @@ export function BillingSeatsScreen({
                         tone="outline"
                         size="accessible"
                         loading={release.isPending && release.variables?.id === seat.id}
-                        loadingLabel="Reclaiming"
+                        loadingLabel={t('BillingSeatsScreen.reclaiming')}
                         onClick={() => release.mutate(seat)}
                       >
-                        Reclaim
+                        {t('BillingSeatsScreen.reclaim')}
                       </Button>
                     </td>
                   </tr>
@@ -216,8 +220,8 @@ export function BillingSeatsScreen({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('BillingSeatsScreen.errorApiUnreachable');
+  return t('BillingSeatsScreen.errorGeneric');
 }

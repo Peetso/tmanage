@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { cloneWorkflowTemplate, type WorkflowTemplateSummary } from '../../lib/api/automations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationTemplateCloneControlProps {
   organizationSlug: string;
@@ -37,8 +38,11 @@ export function AutomationTemplateCloneControl({
 }: AutomationTemplateCloneControlProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
-  const [name, setName] = useState(`${template.name} (copy)`);
+  const [name, setName] = useState(
+    `${template.name} (${t('AutomationTemplateCloneControl.copySuffix')})`,
+  );
 
   const clone = useMutation({
     mutationFn: () =>
@@ -53,11 +57,11 @@ export function AutomationTemplateCloneControl({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-automation-clone-heading">
       <h2 id="tm-automation-clone-heading" className="tm-eyebrow">
-        Duplicate template
+        {t('AutomationTemplateCloneControl.heading')}
       </h2>
       <p className="tm-muted">
-        Create a disabled copy of <strong>{template.name}</strong>. Enable it from the edit screen
-        once you have adjusted it.
+        {t('AutomationTemplateCloneControl.createCopyPrefix')} <strong>{template.name}</strong>
+        {t('AutomationTemplateCloneControl.createCopySuffix')}
       </p>
       <form
         className="tm-stack"
@@ -68,23 +72,27 @@ export function AutomationTemplateCloneControl({
         }}
       >
         <Field
-          label="New template name"
+          label={t('AutomationTemplateCloneControl.nameLabel')}
           name="cloneName"
           value={name}
           onChange={(event) => setName(event.target.value)}
-          hint="Must be unique within the organization."
+          hint={t('AutomationTemplateCloneControl.nameHint')}
           required
         />
 
         {clone.isError ? (
-          <InlineAlert tone="danger" title="Could not clone the template" live>
-            {describeError(clone.error)}
+          <InlineAlert
+            tone="danger"
+            title={t('AutomationTemplateCloneControl.errorCloneTitle')}
+            live
+          >
+            {describeError(t, clone.error)}
           </InlineAlert>
         ) : null}
 
         {clone.isSuccess ? (
-          <InlineAlert tone="success" title="Template duplicated" live>
-            The copy was created and is disabled. Enable it from the edit screen when it is ready.
+          <InlineAlert tone="success" title={t('AutomationTemplateCloneControl.successTitle')} live>
+            {t('AutomationTemplateCloneControl.successBody')}
           </InlineAlert>
         ) : null}
 
@@ -94,10 +102,10 @@ export function AutomationTemplateCloneControl({
             tone="ink"
             size="accessible"
             loading={clone.isPending}
-            loadingLabel="Cloning"
+            loadingLabel={t('AutomationTemplateCloneControl.cloning')}
             disabled={!canClone}
           >
-            Duplicate
+            {t('AutomationTemplateCloneControl.duplicate')}
           </Button>
         </div>
       </form>
@@ -105,8 +113,8 @@ export function AutomationTemplateCloneControl({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationTemplateCloneControl.errorApiUnreachable');
+  return t('AutomationTemplateCloneControl.errorGeneric');
 }

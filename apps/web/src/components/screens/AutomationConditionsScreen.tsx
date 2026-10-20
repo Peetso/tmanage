@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/automations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationConditionsScreenProps {
   organizationSlug: string;
@@ -25,15 +26,6 @@ const CONDITION_OPS = [
   'lt',
   'contains',
 ] as const satisfies readonly WorkflowConditionOp[];
-
-/** Human labels for the operator options. */
-const OP_LABELS: Record<WorkflowConditionOp, string> = {
-  eq: 'equals',
-  neq: 'does not equal',
-  gt: 'greater than',
-  lt: 'less than',
-  contains: 'contains',
-};
 
 /**
  * **Automations & integrations (module 17, x190).**
@@ -58,7 +50,26 @@ export function AutomationConditionsScreen({
 }: AutomationConditionsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['workflow-conditions', organizationSlug, templateId];
+
+  /** Human labels for the operator options. */
+  const opLabel = (op: string): string => {
+    switch (op) {
+      case 'eq':
+        return t('AutomationConditionsScreen.opEq');
+      case 'neq':
+        return t('AutomationConditionsScreen.opNeq');
+      case 'gt':
+        return t('AutomationConditionsScreen.opGt');
+      case 'lt':
+        return t('AutomationConditionsScreen.opLt');
+      case 'contains':
+        return t('AutomationConditionsScreen.opContains');
+      default:
+        return op;
+    }
+  };
 
   const conditions = useQuery({
     queryKey,
@@ -95,11 +106,9 @@ export function AutomationConditionsScreen({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-automation-conditions-heading">
       <h2 id="tm-automation-conditions-heading" className="tm-eyebrow">
-        Conditions
+        {t('AutomationConditionsScreen.heading')}
       </h2>
-      <p className="tm-muted">
-        Gate a step: the step runs only when the event field satisfies the predicate.
-      </p>
+      <p className="tm-muted">{t('AutomationConditionsScreen.lede')}</p>
 
       <form
         className="tm-stack"
@@ -110,17 +119,17 @@ export function AutomationConditionsScreen({
         }}
       >
         <Field
-          label="Field"
+          label={t('AutomationConditionsScreen.fieldLabel')}
           name="field"
           value={field}
           onChange={(event) => setField(event.target.value)}
-          hint="The event field to test, such as priority."
+          hint={t('AutomationConditionsScreen.fieldHint')}
           required
         />
 
         <div className="tm-field">
           <label className="tm-field__label" htmlFor="tm-automation-condition-op">
-            Operator
+            {t('AutomationConditionsScreen.operatorLabel')}
           </label>
           <select
             id="tm-automation-condition-op"
@@ -130,33 +139,33 @@ export function AutomationConditionsScreen({
           >
             {CONDITION_OPS.map((candidate) => (
               <option key={candidate} value={candidate}>
-                {OP_LABELS[candidate]}
+                {opLabel(candidate)}
               </option>
             ))}
           </select>
         </div>
 
         <Field
-          label="Value"
+          label={t('AutomationConditionsScreen.valueLabel')}
           name="value"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          hint="What the field is compared against."
+          hint={t('AutomationConditionsScreen.valueHint')}
         />
 
         <Field
-          label="Target step"
+          label={t('AutomationConditionsScreen.targetStepLabel')}
           name="targetStep"
           type="number"
           value={targetStep}
           onChange={(event) => setTargetStep(event.target.value)}
-          hint="The step this condition gates (0 or more)."
+          hint={t('AutomationConditionsScreen.targetStepHint')}
           required
         />
 
         {create.isError ? (
-          <InlineAlert tone="danger" title="Could not add the condition" live>
-            {describeError(create.error)}
+          <InlineAlert tone="danger" title={t('AutomationConditionsScreen.errorAddTitle')} live>
+            {describeError(t, create.error)}
           </InlineAlert>
         ) : null}
 
@@ -166,30 +175,30 @@ export function AutomationConditionsScreen({
             tone="ink"
             size="accessible"
             loading={create.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('AutomationConditionsScreen.adding')}
             disabled={!canCreate}
           >
-            Add condition
+            {t('AutomationConditionsScreen.addButton')}
           </Button>
         </div>
       </form>
 
       {conditions.isError ? (
-        <InlineAlert tone="danger" title="Could not load the conditions" live>
-          {describeError(conditions.error)}
+        <InlineAlert tone="danger" title={t('AutomationConditionsScreen.errorLoadTitle')} live>
+          {describeError(t, conditions.error)}
         </InlineAlert>
       ) : null}
 
       {conditions.isPending ? (
-        <LoadingRegion label="Loading the conditions.">
+        <LoadingRegion label={t('AutomationConditionsScreen.loadingLabel')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!conditions.isPending && !conditions.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No conditions yet">
-          Add a condition above to gate a step of this template.
+        <InlineAlert tone="neutral" title={t('AutomationConditionsScreen.emptyTitle')}>
+          {t('AutomationConditionsScreen.emptyBody')}
         </InlineAlert>
       ) : null}
 
@@ -201,18 +210,19 @@ export function AutomationConditionsScreen({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
-          aria-label="Workflow conditions"
+          aria-label={t('AutomationConditionsScreen.tableLabel')}
         >
           <table className="tm-table">
             <caption className="tm-visually-hidden">
-              Conditions for this template, in step order, {rows.length} shown.
+              {t('AutomationConditionsScreen.captionPrefix')} {rows.length}{' '}
+              {t('AutomationConditionsScreen.captionSuffix')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Step</th>
-                <th scope="col">Field</th>
-                <th scope="col">Operator</th>
-                <th scope="col">Value</th>
+                <th scope="col">{t('AutomationConditionsScreen.colStep')}</th>
+                <th scope="col">{t('AutomationConditionsScreen.colField')}</th>
+                <th scope="col">{t('AutomationConditionsScreen.colOperator')}</th>
+                <th scope="col">{t('AutomationConditionsScreen.colValue')}</th>
               </tr>
             </thead>
             <tbody>
@@ -222,7 +232,7 @@ export function AutomationConditionsScreen({
                     {condition.targetStep}
                   </th>
                   <td>{condition.field}</td>
-                  <td>{OP_LABELS[condition.op as WorkflowConditionOp] ?? condition.op}</td>
+                  <td>{opLabel(condition.op)}</td>
                   <td>{condition.value}</td>
                 </tr>
               ))}
@@ -234,8 +244,8 @@ export function AutomationConditionsScreen({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationConditionsScreen.errorApiUnreachable');
+  return t('AutomationConditionsScreen.errorGeneric');
 }

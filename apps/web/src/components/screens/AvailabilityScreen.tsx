@@ -13,6 +13,7 @@ import {
 import type { AvailabilityView } from '../../lib/api/people-availability';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/people.css';
 
 export interface AvailabilityScreenProps {
@@ -24,13 +25,7 @@ export interface AvailabilityScreenProps {
 }
 
 /** The fixed vocabulary a window's kind may take — mirrors the API's `AVAILABILITY_KINDS`. */
-const KINDS: readonly { value: string; label: string }[] = [
-  { value: 'vacation', label: 'Vacation' },
-  { value: 'sick', label: 'Sick' },
-  { value: 'holiday', label: 'Holiday' },
-  { value: 'personal', label: 'Personal' },
-  { value: 'other', label: 'Other' },
-];
+const KIND_VALUES: readonly string[] = ['vacation', 'sick', 'holiday', 'personal', 'other'];
 
 const DAY_LETTERS = ['M', 'T', 'W', 'T', 'F'] as const;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -57,6 +52,23 @@ function shortDate(iso: string): string {
   });
 }
 
+function kindLabel(t: ReturnType<typeof useT>, kind: string): string {
+  switch (kind) {
+    case 'vacation':
+      return t('AvailabilityScreen.kindVacation');
+    case 'sick':
+      return t('AvailabilityScreen.kindSick');
+    case 'holiday':
+      return t('AvailabilityScreen.kindHoliday');
+    case 'personal':
+      return t('AvailabilityScreen.kindPersonal');
+    case 'other':
+      return t('AvailabilityScreen.kindOther');
+    default:
+      return kind;
+  }
+}
+
 /**
  * **Member availability / out-of-office (module 14 People & capacity, x218)**, drawn as PEO-04
  * "Availability · declared, never inferred · two weeks".
@@ -78,6 +90,7 @@ export function AvailabilityScreen({
 }: AvailabilityScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const windows = useQuery({
     queryKey: ['availability', organizationSlug],
@@ -86,7 +99,7 @@ export function AvailabilityScreen({
 
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
-  const [kind, setKind] = useState<string>(KINDS[0]!.value);
+  const [kind, setKind] = useState<string>(KIND_VALUES[0]!);
   const [note, setNote] = useState('');
 
   const add = useMutation({
@@ -101,7 +114,7 @@ export function AvailabilityScreen({
       void queries.invalidateQueries({ queryKey: ['availability', organizationSlug] });
       setStartDate('');
       setEndDate('');
-      setKind(KINDS[0]!.value);
+      setKind(KIND_VALUES[0]!);
       setNote('');
     },
   });
@@ -127,29 +140,31 @@ export function AvailabilityScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      eyebrow={`People · Availability · ${shortDate(first)} – ${shortDate(last)}`}
-      title="When you are away, and what it covers"
+      eyebrow={`${t('AvailabilityScreen.eyebrowPrefix')} · ${shortDate(first)} – ${shortDate(last)}`}
+      title={t('AvailabilityScreen.title')}
       actions={
         <a href="#tm-availability-start" className="tm-button tm-button--ink ppl-cta">
-          Declare my time off
+          {t('AvailabilityScreen.declareCta')}
         </a>
       }
     >
       <div className="ppl-screen">
-        <ul className="ppl-legend" aria-label="Legend">
+        <ul className="ppl-legend" aria-label={t('AvailabilityScreen.legendLabel')}>
           <li>
             <span className="ppl-swatch" aria-hidden="true" />
-            declared working
+            {t('AvailabilityScreen.legendWorking')}
           </li>
           <li>
             <span className="ppl-swatch ppl-swatch--away" aria-hidden="true" />
-            away
+            {t('AvailabilityScreen.legendAway')}
           </li>
           <li>
             <span className="ppl-swatch ppl-swatch--today" aria-hidden="true" />
-            today
+            {t('AvailabilityScreen.legendToday')}
           </li>
-          <li className="ppl-legend__end ppl-mono ppl-mono--meta">Monday to Friday</li>
+          <li className="ppl-legend__end ppl-mono ppl-mono--meta">
+            {t('AvailabilityScreen.legendMonFri')}
+          </li>
         </ul>
 
         <div className="ppl-body">
@@ -158,30 +173,32 @@ export function AvailabilityScreen({
             aria-labelledby="tm-availability-list-heading"
           >
             <h2 id="tm-availability-list-heading" className="tm-visually-hidden">
-              Your out-of-office windows
+              {t('AvailabilityScreen.windowsHeading')}
             </h2>
 
             <div className="ppl-grid-scroll">
-              <div className="ppl-grid" role="table" aria-label="Your next two working weeks">
+              <div className="ppl-grid" role="table" aria-label={t('AvailabilityScreen.gridLabel')}>
                 <div className="ppl-grid__row ppl-grid__row--head" role="row">
                   <span className="ppl-grid__who ppl-mono" role="columnheader">
-                    This week / next week
+                    {t('AvailabilityScreen.thisWeekNextWeek')}
                   </span>
                   {span.weeks.map((week, index) => (
                     <WeekHead key={week[0]} week={week} gap={index > 0} />
                   ))}
                   <span className="ppl-grid__declared ppl-mono" role="columnheader">
-                    Declared
+                    {t('AvailabilityScreen.declared')}
                   </span>
                 </div>
                 <div className="ppl-grid__row" role="row">
                   <span className="ppl-grid__who" role="rowheader">
                     <span className="ppl-avatar ppl-avatar--32" aria-hidden="true">
-                      You
+                      {t('AvailabilityScreen.you')}
                     </span>
                     <span>
-                      <span className="ppl-grid__name">You</span>
-                      <span className="ppl-grid__team">your own windows</span>
+                      <span className="ppl-grid__name">{t('AvailabilityScreen.you')}</span>
+                      <span className="ppl-grid__team">
+                        {t('AvailabilityScreen.yourOwnWindows')}
+                      </span>
                     </span>
                   </span>
                   {span.weeks.map((week, index) => (
@@ -191,18 +208,19 @@ export function AvailabilityScreen({
                       gap={index > 0}
                       today={span.today}
                       awayKind={awayKind}
+                      t={t}
                     />
                   ))}
                   <span className="ppl-grid__declared" role="cell">
                     <strong data-away={awayDays > 0}>
                       {awayDays === 0
-                        ? 'full fortnight'
-                        : `away ${awayDays} ${awayDays === 1 ? 'day' : 'days'}`}
+                        ? t('AvailabilityScreen.fullFortnight')
+                        : `${t('AvailabilityScreen.away')} ${awayDays} ${awayDays === 1 ? t('AvailabilityScreen.dayOne') : t('AvailabilityScreen.dayMany')}`}
                     </strong>
                     <span>
                       {list.length === 0
-                        ? 'no declared time off'
-                        : `${list.length} ${list.length === 1 ? 'window' : 'windows'} on record`}
+                        ? t('AvailabilityScreen.noDeclaredTimeOff')
+                        : `${list.length} ${list.length === 1 ? t('AvailabilityScreen.windowOne') : t('AvailabilityScreen.windowMany')} ${t('AvailabilityScreen.onRecord')}`}
                     </span>
                   </span>
                 </div>
@@ -210,21 +228,21 @@ export function AvailabilityScreen({
             </div>
 
             {windows.isPending ? (
-              <LoadingRegion label="Loading your availability">
+              <LoadingRegion label={t('AvailabilityScreen.loadingAvailability')}>
                 <Skeleton />
               </LoadingRegion>
             ) : windows.isError ? (
-              <InlineAlert tone="danger" title="We could not load your availability">
-                {errorMessage(windows.error)}
+              <InlineAlert tone="danger" title={t('AvailabilityScreen.errorLoadTitle')}>
+                {errorMessage(t, windows.error)}
               </InlineAlert>
             ) : list.length === 0 ? (
-              <p className="ppl-note">You have no out-of-office windows recorded.</p>
+              <p className="ppl-note">{t('AvailabilityScreen.noWindowsRecorded')}</p>
             ) : (
               <ul className="ppl-windows">
                 {list.map((window) => (
                   <li key={window.id} className="ppl-soft-row ppl-soft-row--roomy">
                     <span>
-                      {window.startDate} → {window.endDate} · {kindLabel(window.kind)}
+                      {window.startDate} → {window.endDate} · {kindLabel(t, window.kind)}
                       {window.note ? ` · ${window.note}` : ''}
                     </span>
                     <span className="ppl-soft-row__end">
@@ -235,7 +253,7 @@ export function AvailabilityScreen({
                         disabled={remove.isPending}
                         onClick={() => remove.mutate(window.id)}
                       >
-                        Remove
+                        {t('AvailabilityScreen.remove')}
                       </Button>
                     </span>
                   </li>
@@ -244,16 +262,13 @@ export function AvailabilityScreen({
             )}
 
             {remove.isError ? (
-              <InlineAlert tone="danger" title="We could not remove the window">
-                {errorMessage(remove.error)}
+              <InlineAlert tone="danger" title={t('AvailabilityScreen.errorRemoveTitle')}>
+                {errorMessage(t, remove.error)}
               </InlineAlert>
             ) : null}
 
             <div className="ppl-grid-card__foot">
-              <p className="ppl-dashed-note">
-                Everything on this grid was entered by the person it belongs to. Nothing here is
-                derived from logins, message volume or hours worked.
-              </p>
+              <p className="ppl-dashed-note">{t('AvailabilityScreen.dashedNote')}</p>
             </div>
           </section>
 
@@ -267,13 +282,13 @@ export function AvailabilityScreen({
               }}
             >
               <h2 id="tm-availability-add-heading" className="ppl-card__title">
-                Add an out-of-office window
+                {t('AvailabilityScreen.addHeading')}
               </h2>
 
               <div className="ppl-form__pair">
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-availability-start">
-                    Start date
+                    {t('AvailabilityScreen.startDate')}
                   </label>
                   <input
                     id="tm-availability-start"
@@ -287,7 +302,7 @@ export function AvailabilityScreen({
 
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-availability-end">
-                    End date
+                    {t('AvailabilityScreen.endDate')}
                   </label>
                   <input
                     id="tm-availability-end"
@@ -302,7 +317,7 @@ export function AvailabilityScreen({
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-availability-kind">
-                  Kind
+                  {t('AvailabilityScreen.kind')}
                 </label>
                 <select
                   id="tm-availability-kind"
@@ -310,9 +325,9 @@ export function AvailabilityScreen({
                   value={kind}
                   onChange={(event) => setKind(event.target.value)}
                 >
-                  {KINDS.map(({ value, label }) => (
+                  {KIND_VALUES.map((value) => (
                     <option key={value} value={value}>
-                      {label}
+                      {kindLabel(t, value)}
                     </option>
                   ))}
                 </select>
@@ -320,7 +335,7 @@ export function AvailabilityScreen({
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-availability-note">
-                  Note (optional)
+                  {t('AvailabilityScreen.noteOptional')}
                 </label>
                 <input
                   id="tm-availability-note"
@@ -333,30 +348,35 @@ export function AvailabilityScreen({
               </div>
 
               {add.isError ? (
-                <InlineAlert tone="danger" title="We could not add the window">
-                  {errorMessage(add.error)}
+                <InlineAlert tone="danger" title={t('AvailabilityScreen.errorAddTitle')}>
+                  {errorMessage(t, add.error)}
                 </InlineAlert>
               ) : null}
 
               <div>
                 <Button type="submit" disabled={add.isPending}>
-                  {add.isPending ? 'Adding…' : 'Add window'}
+                  {add.isPending
+                    ? t('AvailabilityScreen.adding')
+                    : t('AvailabilityScreen.addWindow')}
                 </Button>
               </div>
             </form>
 
             <section className="ppl-card ppl-card--tight" aria-labelledby="tm-availability-days">
               <h2 id="tm-availability-days" className="ppl-mono">
-                Declared days this fortnight
+                {t('AvailabilityScreen.declaredDaysHeading')}
               </h2>
               <div className="ppl-metric">
                 <span className="ppl-metric__value">{days.length - awayDays}</span>
-                <span className="ppl-metric__label">of {days.length} working days</span>
+                <span className="ppl-metric__label">
+                  {t('AvailabilityScreen.ofPrefix')} {days.length}{' '}
+                  {t('AvailabilityScreen.workingDays')}
+                </span>
               </div>
               <p className="ppl-note">
                 {awayDays === 0
-                  ? 'No time off declared in these two weeks.'
-                  : `${awayDays} ${awayDays === 1 ? 'day' : 'days'} away, as you declared.`}
+                  ? t('AvailabilityScreen.noTimeOffTwoWeeks')
+                  : `${awayDays} ${awayDays === 1 ? t('AvailabilityScreen.dayOne') : t('AvailabilityScreen.dayMany')} ${t('AvailabilityScreen.awayAsDeclared')}`}
               </p>
             </section>
 
@@ -365,12 +385,9 @@ export function AvailabilityScreen({
               aria-labelledby="tm-availability-who"
             >
               <h2 id="tm-availability-who" className="ppl-mono">
-                Who sees this
+                {t('AvailabilityScreen.whoSeesHeading')}
               </h2>
-              <p className="ppl-note ppl-note--ink">
-                Internal members see days, never reasons. Clients see neither this screen nor its
-                data.
-              </p>
+              <p className="ppl-note ppl-note--ink">{t('AvailabilityScreen.whoSeesBody')}</p>
             </section>
           </div>
         </div>
@@ -400,11 +417,13 @@ function WeekCells({
   gap,
   today,
   awayKind,
+  t,
 }: {
   week: readonly string[];
   gap: boolean;
   today: string;
   awayKind: (day: string) => string | undefined;
+  t: ReturnType<typeof useT>;
 }) {
   return (
     <>
@@ -420,9 +439,9 @@ function WeekCells({
                 : 'ppl-day';
           return (
             <span key={day} className={className} role="cell">
-              {away !== undefined ? 'AWAY' : ''}
+              {away !== undefined ? t('AvailabilityScreen.awayCaps') : ''}
               <span className="tm-visually-hidden">
-                {`${day}: ${away !== undefined ? `away (${kindLabel(away)})` : 'working'}`}
+                {`${day}: ${away !== undefined ? `${t('AvailabilityScreen.awayLower')} (${kindLabel(t, away)})` : t('AvailabilityScreen.working')}`}
               </span>
             </span>
           );
@@ -432,11 +451,7 @@ function WeekCells({
   );
 }
 
-function kindLabel(kind: string): string {
-  return KINDS.find((entry) => entry.value === kind)?.label ?? kind;
-}
-
-function errorMessage(error: unknown): string {
+function errorMessage(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
+  return t('AvailabilityScreen.errorGeneric');
 }

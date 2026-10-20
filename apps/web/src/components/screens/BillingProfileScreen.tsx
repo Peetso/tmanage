@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/billing';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface BillingProfileScreenProps {
@@ -83,6 +84,7 @@ export function BillingProfileScreen({
 }: BillingProfileScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const profile = useQuery({
     queryKey: ['billing-profile', organizationSlug],
@@ -129,19 +131,22 @@ export function BillingProfileScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Billing settings"
-      description="Your billing contact, company details and address. No card details are stored here."
+      eyebrow={t('BillingProfileScreen.eyebrow')}
+      title={t('BillingProfileScreen.title')}
+      description={t('BillingProfileScreen.description')}
     >
       <div className="tm-bil">
         {profile.isError ? (
-          <InlineAlert tone="danger" title="Could not load billing settings" live>
-            {describeError(profile.error)}
+          <InlineAlert tone="danger" title={t('BillingProfileScreen.errorLoadTitle')} live>
+            {describeError(t, profile.error)}
           </InlineAlert>
         ) : null}
 
         {profile.isPending ? (
-          <LoadingRegion label="Loading billing settings." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('BillingProfileScreen.loadingLabel')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -151,7 +156,7 @@ export function BillingProfileScreen({
           <form
             className="tm-panel tm-stack"
             noValidate
-            aria-label="Billing settings"
+            aria-label={t('BillingProfileScreen.formLabel')}
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
               if (!save.isPending) save.mutate();
@@ -159,81 +164,81 @@ export function BillingProfileScreen({
           >
             <section className="tm-stack" aria-labelledby="tm-billing-contact-heading">
               <h2 id="tm-billing-contact-heading" className="tm-eyebrow">
-                Billing contact
+                {t('BillingProfileScreen.contactHeading')}
               </h2>
               <Field
-                label="Billing email"
+                label={t('BillingProfileScreen.emailLabel')}
                 name="billingEmail"
                 type="email"
                 value={form.billingEmail}
                 onChange={(event) => set({ billingEmail: event.target.value })}
-                hint="Where invoices and billing notices are sent."
+                hint={t('BillingProfileScreen.emailHint')}
               />
               <Field
-                label="Company name"
+                label={t('BillingProfileScreen.companyLabel')}
                 name="companyName"
                 value={form.companyName}
                 onChange={(event) => set({ companyName: event.target.value })}
               />
               <Field
-                label="Tax ID"
+                label={t('BillingProfileScreen.taxIdLabel')}
                 name="taxId"
                 value={form.taxId}
                 onChange={(event) => set({ taxId: event.target.value })}
-                hint="VAT, EIN or equivalent. Not a card or account number."
+                hint={t('BillingProfileScreen.taxIdHint')}
               />
             </section>
 
             <fieldset className="tm-stack tm-fieldset">
-              <legend className="tm-field__label">Billing address</legend>
+              <legend className="tm-field__label">{t('BillingProfileScreen.addressLegend')}</legend>
               <Field
-                label="Address line 1"
+                label={t('BillingProfileScreen.line1')}
                 name="line1"
                 value={form.line1}
                 onChange={(event) => set({ line1: event.target.value })}
               />
               <Field
-                label="Address line 2"
+                label={t('BillingProfileScreen.line2')}
                 name="line2"
                 value={form.line2}
                 onChange={(event) => set({ line2: event.target.value })}
               />
               <Field
-                label="City"
+                label={t('BillingProfileScreen.city')}
                 name="city"
                 value={form.city}
                 onChange={(event) => set({ city: event.target.value })}
               />
               <Field
-                label="State or region"
+                label={t('BillingProfileScreen.region')}
                 name="region"
                 value={form.region}
                 onChange={(event) => set({ region: event.target.value })}
               />
               <Field
-                label="Postal code"
+                label={t('BillingProfileScreen.postalCode')}
                 name="postalCode"
                 value={form.postalCode}
                 onChange={(event) => set({ postalCode: event.target.value })}
               />
               <Field
-                label="Country"
+                label={t('BillingProfileScreen.country')}
                 name="country"
                 value={form.country}
                 onChange={(event) => set({ country: event.target.value })}
-                hint="A two-letter country code, such as GB or US."
+                hint={t('BillingProfileScreen.countryHint')}
               />
             </fieldset>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save billing settings" live>
-                {describeError(save.error)}
+              <InlineAlert tone="danger" title={t('BillingProfileScreen.errorSaveTitle')} live>
+                {describeError(t, save.error)}
               </InlineAlert>
             ) : null}
 
             {saved && !save.isError ? (
-              <InlineAlert tone="success" title="Billing settings saved" live>
-                Your billing details have been updated.
+              <InlineAlert tone="success" title={t('BillingProfileScreen.savedTitle')} live>
+                {t('BillingProfileScreen.savedBody')}
               </InlineAlert>
             ) : null}
 
@@ -243,9 +248,9 @@ export function BillingProfileScreen({
                 tone="ink"
                 size="accessible"
                 loading={save.isPending}
-                loadingLabel="Saving"
+                loadingLabel={t('BillingProfileScreen.saving')}
               >
-                Save billing settings
+                {t('BillingProfileScreen.saveButton')}
               </Button>
             </div>
           </form>
@@ -255,8 +260,8 @@ export function BillingProfileScreen({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('BillingProfileScreen.errorApiUnreachable');
+  return t('BillingProfileScreen.errorGeneric');
 }

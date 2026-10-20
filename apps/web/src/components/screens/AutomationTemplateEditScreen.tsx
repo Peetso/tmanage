@@ -17,6 +17,7 @@ import {
 } from '../../lib/api/automations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationTemplateEditScreenProps {
   organizationSlug: string;
@@ -66,6 +67,7 @@ export function AutomationTemplateEditScreen({
   client,
 }: AutomationTemplateEditScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const templates = useQuery({
     queryKey: ['workflow-templates', organizationSlug],
@@ -80,25 +82,27 @@ export function AutomationTemplateEditScreen({
       organizationName={organizationName}
       activeNavigationId="admin"
       eyebrow={
-        template ? `Automation · ${template.enabled ? 'Live' : 'Off · not live'}` : 'Automation'
+        template
+          ? `${t('AutomationTemplateEditScreen.eyebrowAutomation')} · ${template.enabled ? t('AutomationTemplateEditScreen.stateLive') : t('AutomationTemplateEditScreen.stateOffNotLive')}`
+          : t('AutomationTemplateEditScreen.eyebrowAutomation')
       }
-      title={template?.name ?? 'Edit template'}
+      title={template?.name ?? t('AutomationTemplateEditScreen.editTemplate')}
       actions={
         <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
-          Run history
+          {t('AutomationTemplateEditScreen.runHistory')}
         </Link>
       }
     >
       <div className="tm-aut">
         {templates.isError ? (
-          <InlineAlert tone="danger" title="Could not load the template" live>
-            {describeError(templates.error)}
+          <InlineAlert tone="danger" title={t('AutomationTemplateEditScreen.errorLoadTitle')} live>
+            {describeError(t, templates.error)}
           </InlineAlert>
         ) : null}
 
         {templates.isPending ? (
           <div className="tm-aut-builder">
-            <LoadingRegion label="Loading the template.">
+            <LoadingRegion label={t('AutomationTemplateEditScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
@@ -108,10 +112,14 @@ export function AutomationTemplateEditScreen({
         {!templates.isPending && !templates.isError && !template ? (
           <div className="tm-aut-tablecard">
             <div className="tm-aut-empty">
-              <p className="tm-aut-empty__title">Template not found</p>
+              <p className="tm-aut-empty__title">
+                {t('AutomationTemplateEditScreen.notFoundTitle')}
+              </p>
               <p className="tm-aut-empty__body">
-                This template does not exist, or it belongs to another organization.{' '}
-                <Link href={`/${organizationSlug}/automations`}>Back to the library</Link>
+                {t('AutomationTemplateEditScreen.notFoundBody')}{' '}
+                <Link href={`/${organizationSlug}/automations`}>
+                  {t('AutomationTemplateEditScreen.backToLibrary')}
+                </Link>
               </p>
             </div>
           </div>
@@ -138,6 +146,7 @@ interface EditFormProps {
  */
 function EditForm({ api, organizationSlug, template }: EditFormProps) {
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [name, setName] = useState(template.name);
   const [triggerKind, setTriggerKind] = useState(template.triggerKind);
@@ -163,7 +172,7 @@ function EditForm({ api, organizationSlug, template }: EditFormProps) {
     <div className="tm-aut-split tm-aut-split--builder">
       <section className="tm-aut-builder" aria-labelledby="tm-automation-edit-heading">
         <h2 id="tm-automation-edit-heading" className="tm-aut-eyebrow">
-          Template details
+          {t('AutomationTemplateEditScreen.templateDetails')}
         </h2>
         <form
           className="tm-stack"
@@ -174,25 +183,25 @@ function EditForm({ api, organizationSlug, template }: EditFormProps) {
           }}
         >
           <Field
-            label="Name"
+            label={t('AutomationTemplateEditScreen.nameLabel')}
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Notify owner on new work."
+            hint={t('AutomationTemplateEditScreen.nameHint')}
             required
           />
 
-          <ol className="tm-aut-flow" aria-label="Steps">
+          <ol className="tm-aut-flow" aria-label={t('AutomationTemplateEditScreen.stepsLabel')}>
             <li>
               <span className="tm-aut-flow__num" aria-hidden="true">
                 1
               </span>
               <div className="tm-aut-flow__body">
-                <p className="tm-aut-eyebrow">When</p>
+                <p className="tm-aut-eyebrow">{t('AutomationTemplateEditScreen.when')}</p>
                 <p className="tm-aut-flow__title">{humanize(triggerKind)}</p>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-automation-edit-trigger">
-                    Trigger
+                    {t('AutomationTemplateEditScreen.trigger')}
                   </label>
                   <select
                     id="tm-automation-edit-trigger"
@@ -214,11 +223,11 @@ function EditForm({ api, organizationSlug, template }: EditFormProps) {
                 2
               </span>
               <div className="tm-aut-flow__body">
-                <p className="tm-aut-eyebrow">Then</p>
+                <p className="tm-aut-eyebrow">{t('AutomationTemplateEditScreen.then')}</p>
                 <p className="tm-aut-flow__title">{humanize(actionKind)}</p>
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-automation-edit-action">
-                    Action
+                    {t('AutomationTemplateEditScreen.action')}
                   </label>
                   <select
                     id="tm-automation-edit-action"
@@ -240,30 +249,34 @@ function EditForm({ api, organizationSlug, template }: EditFormProps) {
                 +
               </span>
               <div className="tm-aut-flow__body">
-                <p className="tm-aut-flow__add-title">One trigger, one action</p>
-                <p className="tm-aut-flow__note">
-                  Automations can never approve, publish, change access, invite, or delete.
+                <p className="tm-aut-flow__add-title">
+                  {t('AutomationTemplateEditScreen.oneTriggerOneAction')}
                 </p>
+                <p className="tm-aut-flow__note">{t('AutomationTemplateEditScreen.flowNote')}</p>
               </div>
             </li>
           </ol>
 
           <Switch
-            label="Enabled"
-            hint="A disabled template is kept but never fires."
+            label={t('AutomationTemplateEditScreen.enabledLabel')}
+            hint={t('AutomationTemplateEditScreen.enabledHint')}
             checked={enabled}
             onChange={(event) => setEnabled(event.target.checked)}
           />
 
           {save.isError ? (
-            <InlineAlert tone="danger" title="Could not save the template" live>
-              {describeError(save.error)}
+            <InlineAlert
+              tone="danger"
+              title={t('AutomationTemplateEditScreen.errorSaveTitle')}
+              live
+            >
+              {describeError(t, save.error)}
             </InlineAlert>
           ) : null}
 
           {save.isSuccess ? (
-            <InlineAlert tone="success" title="Saved" live>
-              The template changes have been saved.
+            <InlineAlert tone="success" title={t('AutomationTemplateEditScreen.savedTitle')} live>
+              {t('AutomationTemplateEditScreen.savedBody')}
             </InlineAlert>
           ) : null}
 
@@ -273,10 +286,10 @@ function EditForm({ api, organizationSlug, template }: EditFormProps) {
               tone="ink"
               size="accessible"
               loading={save.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('AutomationTemplateEditScreen.saving')}
               disabled={!canSave}
             >
-              Save changes
+              {t('AutomationTemplateEditScreen.saveChanges')}
             </Button>
           </div>
         </form>
@@ -291,26 +304,27 @@ function EditForm({ api, organizationSlug, template }: EditFormProps) {
             id="tm-automation-state-heading"
             className="tm-aut-card__title tm-aut-card__title--section"
           >
-            {template.enabled ? 'This automation is live' : 'This automation is off'}
+            {template.enabled
+              ? t('AutomationTemplateEditScreen.isLive')
+              : t('AutomationTemplateEditScreen.isOff')}
           </h2>
           <p className="tm-aut-card__body">
             {template.enabled
-              ? `When ${humanize(template.triggerKind).toLowerCase()} happens, it will ${humanize(template.actionKind).toLowerCase()}.`
-              : 'It is kept but never fires. Turn on Enabled and save to make it live.'}
+              ? `${t('AutomationTemplateEditScreen.whenPrefix')} ${humanize(template.triggerKind).toLowerCase()} ${t('AutomationTemplateEditScreen.happensItWill')} ${humanize(template.actionKind).toLowerCase()}.`
+              : t('AutomationTemplateEditScreen.keptNeverFires')}
           </p>
           <p className="tm-aut-card__foot">
-            Created {formatDate(template.createdAt)}. Every run is recorded in the run history.
+            {t('AutomationTemplateEditScreen.createdPrefix')} {formatDate(template.createdAt)}.{' '}
+            {t('AutomationTemplateEditScreen.createdSuffix')}
           </p>
         </section>
 
         <section className="tm-aut-card tm-card--ink" aria-labelledby="tm-automation-run-heading">
-          <p className="tm-aut-eyebrow">Run once · a real run</p>
+          <p className="tm-aut-eyebrow">{t('AutomationTemplateEditScreen.runOnceEyebrow')}</p>
           <h2 id="tm-automation-run-heading" className="tm-aut-card__title">
-            Run it now
+            {t('AutomationTemplateEditScreen.runItNow')}
           </h2>
-          <p className="tm-aut-card__body">
-            Runs the saved version once, right away. The outcome lands in the run history.
-          </p>
+          <p className="tm-aut-card__body">{t('AutomationTemplateEditScreen.runItNowBody')}</p>
           <AutomationRunButton
             organizationSlug={organizationSlug}
             templateId={template.id}
@@ -335,8 +349,8 @@ function formatDate(iso: string): string {
   });
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationTemplateEditScreen.errorApiUnreachable');
+  return t('AutomationTemplateEditScreen.errorGeneric');
 }

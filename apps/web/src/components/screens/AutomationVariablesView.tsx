@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/automation-variables';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationVariablesViewProps {
   organizationSlug: string;
@@ -41,6 +42,7 @@ export function AutomationVariablesView({
 }: AutomationVariablesViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['automation-variables', organizationSlug];
 
   const variables = useQuery({
@@ -76,12 +78,9 @@ export function AutomationVariablesView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-automation-variables-heading">
       <h2 id="tm-automation-variables-heading" className="tm-eyebrow">
-        Variables
+        {t('AutomationVariablesView.heading')}
       </h2>
-      <p className="tm-muted">
-        Non-secret values your automations can reference by name, such as a channel or a threshold.
-        Do not store passwords, tokens or other secrets here.
-      </p>
+      <p className="tm-muted">{t('AutomationVariablesView.lede')}</p>
 
       <form
         className="tm-stack"
@@ -92,25 +91,25 @@ export function AutomationVariablesView({
         }}
       >
         <Field
-          label="Key"
+          label={t('AutomationVariablesView.keyLabel')}
           name="key"
           value={key}
           onChange={(event) => setKey(event.target.value)}
-          hint="A letter, then letters, digits or underscore (max 64). Not a secret name."
+          hint={t('AutomationVariablesView.keyHint')}
           required
         />
 
         <Field
-          label="Value"
+          label={t('AutomationVariablesView.valueLabel')}
           name="value"
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          hint="The non-secret value this variable holds."
+          hint={t('AutomationVariablesView.valueHint')}
         />
 
         {save.isError ? (
-          <InlineAlert tone="danger" title="Could not save the variable" live>
-            {describeError(save.error)}
+          <InlineAlert tone="danger" title={t('AutomationVariablesView.errorSaveTitle')} live>
+            {describeError(t, save.error)}
           </InlineAlert>
         ) : null}
 
@@ -120,36 +119,36 @@ export function AutomationVariablesView({
             tone="ink"
             size="accessible"
             loading={save.isPending}
-            loadingLabel="Saving"
+            loadingLabel={t('AutomationVariablesView.saving')}
             disabled={!canSave}
           >
-            Save variable
+            {t('AutomationVariablesView.saveButton')}
           </Button>
         </div>
       </form>
 
       {remove.isError ? (
-        <InlineAlert tone="danger" title="Could not remove the variable" live>
-          {describeError(remove.error)}
+        <InlineAlert tone="danger" title={t('AutomationVariablesView.errorRemoveTitle')} live>
+          {describeError(t, remove.error)}
         </InlineAlert>
       ) : null}
 
       {variables.isError ? (
-        <InlineAlert tone="danger" title="Could not load the variables" live>
-          {describeError(variables.error)}
+        <InlineAlert tone="danger" title={t('AutomationVariablesView.errorLoadTitle')} live>
+          {describeError(t, variables.error)}
         </InlineAlert>
       ) : null}
 
       {variables.isPending ? (
-        <LoadingRegion label="Loading the variables.">
+        <LoadingRegion label={t('AutomationVariablesView.loadingLabel')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!variables.isPending && !variables.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No variables yet">
-          Add a non-secret variable above for your automations to reference.
+        <InlineAlert tone="neutral" title={t('AutomationVariablesView.emptyTitle')}>
+          {t('AutomationVariablesView.emptyBody')}
         </InlineAlert>
       ) : null}
 
@@ -161,18 +160,21 @@ export function AutomationVariablesView({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
-          aria-label="Automation variables"
+          aria-label={t('AutomationVariablesView.tableLabel')}
         >
           <table className="tm-table">
             <caption className="tm-visually-hidden">
-              This organization&apos;s automation variables, {rows.length} shown.
+              {t('AutomationVariablesView.captionPrefix')} {rows.length}{' '}
+              {t('AutomationVariablesView.captionSuffix')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Key</th>
-                <th scope="col">Value</th>
+                <th scope="col">{t('AutomationVariablesView.colKey')}</th>
+                <th scope="col">{t('AutomationVariablesView.colValue')}</th>
                 <th scope="col">
-                  <span className="tm-visually-hidden">Actions</span>
+                  <span className="tm-visually-hidden">
+                    {t('AutomationVariablesView.actionsColumn')}
+                  </span>
                 </th>
               </tr>
             </thead>
@@ -189,10 +191,10 @@ export function AutomationVariablesView({
                       tone="text"
                       size="compact"
                       loading={remove.isPending && remove.variables === variable.key}
-                      loadingLabel="Removing"
+                      loadingLabel={t('AutomationVariablesView.removing')}
                       onClick={() => remove.mutate(variable.key)}
                     >
-                      Remove
+                      {t('AutomationVariablesView.remove')}
                     </Button>
                   </td>
                 </tr>
@@ -205,8 +207,8 @@ export function AutomationVariablesView({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationVariablesView.errorApiUnreachable');
+  return t('AutomationVariablesView.errorGeneric');
 }

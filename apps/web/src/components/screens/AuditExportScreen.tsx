@@ -9,6 +9,7 @@ import {
   auditFilteredExportUrl,
   MAX_AUDIT_EXPORT_WINDOW_DAYS,
 } from '../../lib/api/admin-audit-export';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AuditExportScreenProps {
   organizationSlug: string;
@@ -43,6 +44,7 @@ export function AuditExportScreen({
   organizationName,
   baseUrl,
 }: AuditExportScreenProps) {
+  const t = useT();
   const [fromDay, setFromDay] = useState('');
   const [toDay, setToDay] = useState('');
   const [actor, setActor] = useState('');
@@ -52,13 +54,13 @@ export function AuditExportScreen({
     if (fromDay === '' || toDay === '') return null;
     const fromMs = Date.parse(startOfDay(fromDay));
     const toMs = Date.parse(endOfDay(toDay));
-    if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return 'Enter a valid from and to date.';
-    if (fromMs > toMs) return 'The "to" date must not be earlier than the "from" date.';
+    if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return t('AuditExportScreen.errorInvalidDates');
+    if (fromMs > toMs) return t('AuditExportScreen.errorToBeforeFrom');
     if (toMs - fromMs > MAX_AUDIT_EXPORT_WINDOW_DAYS * MS_PER_DAY) {
-      return `The window must not exceed ${MAX_AUDIT_EXPORT_WINDOW_DAYS} days. Narrow it and try again.`;
+      return `${t('AuditExportScreen.windowMaxPrefix')} ${MAX_AUDIT_EXPORT_WINDOW_DAYS} ${t('AuditExportScreen.windowMaxSuffix')}`;
     }
     return null;
-  }, [fromDay, toDay]);
+  }, [fromDay, toDay, t]);
 
   const ready = fromDay !== '' && toDay !== '' && windowError === null;
 
@@ -77,33 +79,33 @@ export function AuditExportScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="data"
-      crumbs={['Data']}
-      title="Your data leaves whenever you want"
+      crumbs={[t('AuditExportScreen.crumbData')]}
+      title={t('AuditExportScreen.title')}
       actions={
         <Link
           href={`/${organizationSlug}/admin/audit`}
           className="tm-button tm-button--outline tm-button--compact"
         >
-          Open audit log
+          {t('AuditExportScreen.openAuditLog')}
         </Link>
       }
     >
       <div className="tm-cc-split tm-cc-split--even">
         <section className="tm-cc-card" aria-labelledby="tm-audit-export-heading">
           <h2 id="tm-audit-export-heading" className="tm-cc-card__title">
-            Audit export
+            {t('AuditExportScreen.cardTitle')}
           </h2>
-          <form className="tm-cc-form" aria-label="Audit export filters">
+          <form className="tm-cc-form" aria-label={t('AuditExportScreen.filtersLabel')}>
             <div className="tm-cc-form__pair">
               <Field
-                label="From"
+                label={t('AuditExportScreen.from')}
                 type="date"
                 value={fromDay}
                 onChange={(event) => setFromDay(event.currentTarget.value)}
                 required
               />
               <Field
-                label="To"
+                label={t('AuditExportScreen.to')}
                 type="date"
                 value={toDay}
                 onChange={(event) => setToDay(event.currentTarget.value)}
@@ -111,16 +113,16 @@ export function AuditExportScreen({
               />
             </div>
             <Field
-              label="Actor ID"
+              label={t('AuditExportScreen.actorId')}
               value={actor}
               onChange={(event) => setActor(event.currentTarget.value)}
-              hint="Optional. Limit the export to one user's actions."
+              hint={t('AuditExportScreen.actorHint')}
             />
             <Field
-              label="Action"
+              label={t('AuditExportScreen.action')}
               value={action}
               onChange={(event) => setAction(event.currentTarget.value)}
-              hint="Optional. An exact action name, e.g. membership.revoked."
+              hint={t('AuditExportScreen.actionHint')}
             />
 
             {windowError ? <InlineAlert tone="danger">{windowError}</InlineAlert> : null}
@@ -128,7 +130,8 @@ export function AuditExportScreen({
             <hr className="tm-cc-rule" />
             <div className="tm-row tm-row--between tm-row--wrap">
               <p className="tm-cc-note">
-                Exports are CSV and cover at most {MAX_AUDIT_EXPORT_WINDOW_DAYS} days.
+                {t('AuditExportScreen.exportNotePrefix')} {MAX_AUDIT_EXPORT_WINDOW_DAYS}{' '}
+                {t('AuditExportScreen.exportNoteSuffix')}
               </p>
               {href ? (
                 <a
@@ -136,12 +139,10 @@ export function AuditExportScreen({
                   href={href}
                   download="audit-export.csv"
                 >
-                  Export CSV
+                  {t('AuditExportScreen.exportCsv')}
                 </a>
               ) : windowError ? null : (
-                <InlineAlert tone="neutral">
-                  Choose a from and to date to enable the export.
-                </InlineAlert>
+                <InlineAlert tone="neutral">{t('AuditExportScreen.chooseDates')}</InlineAlert>
               )}
             </div>
           </form>
@@ -151,27 +152,25 @@ export function AuditExportScreen({
           className="tm-cc-card tm-cc-card--quiet tm-cc-card--fill"
           aria-labelledby="tm-audit-export-contents"
         >
-          <p className="tm-cc-eyebrow">What the file holds</p>
+          <p className="tm-cc-eyebrow">{t('AuditExportScreen.whatFileHolds')}</p>
           <h2 id="tm-audit-export-contents" className="tm-cc-card__title">
-            One row per audit event in the window
+            {t('AuditExportScreen.contentsTitle')}
           </h2>
           <ul className="tm-cc-rows">
             <li>
-              <span className="tm-cc-rows__title">When, who and what changed</span>
+              <span className="tm-cc-rows__title">{t('AuditExportScreen.rowWhen')}</span>
               <span className="tm-cc-cell-mono">CSV</span>
             </li>
             <li>
-              <span className="tm-cc-rows__title">The object the change was made to</span>
-              <span className="tm-cc-cell-mono">Type + id</span>
+              <span className="tm-cc-rows__title">{t('AuditExportScreen.rowObject')}</span>
+              <span className="tm-cc-cell-mono">{t('AuditExportScreen.cellTypeId')}</span>
             </li>
             <li>
-              <span className="tm-cc-rows__title">Narrowed to one actor or action</span>
-              <span className="tm-cc-cell-mono">Optional</span>
+              <span className="tm-cc-rows__title">{t('AuditExportScreen.rowNarrowed')}</span>
+              <span className="tm-cc-cell-mono">{t('AuditExportScreen.cellOptional')}</span>
             </li>
           </ul>
-          <p className="tm-cc-card__body">
-            Audit entries cannot be edited or deleted, including by an owner.
-          </p>
+          <p className="tm-cc-card__body">{t('AuditExportScreen.cannotEdit')}</p>
         </section>
       </div>
     </ControlCenterShell>

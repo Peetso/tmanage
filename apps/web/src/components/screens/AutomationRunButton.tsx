@@ -6,6 +6,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { runWorkflowTemplate, type WorkflowRunSummary } from '../../lib/api/automations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationRunButtonProps {
   organizationSlug: string;
@@ -33,6 +34,7 @@ export function AutomationRunButton({
   client,
 }: AutomationRunButtonProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const run = useMutation<WorkflowRunSummary, unknown, void>({
     mutationFn: () => runWorkflowTemplate(api, organizationSlug, templateId),
@@ -45,44 +47,50 @@ export function AutomationRunButton({
         tone="lime"
         size="accessible"
         loading={run.isPending}
-        loadingLabel="Running"
-        aria-label={`Run ${templateName}`}
+        loadingLabel={t('AutomationRunButton.running')}
+        aria-label={`${t('AutomationRunButton.run')} ${templateName}`}
         onClick={() => run.mutate()}
       >
-        Run
+        {t('AutomationRunButton.run')}
       </Button>
 
       {run.isError ? (
-        <InlineAlert tone="danger" title="Could not run the template" live>
-          {describeError(run.error)}
+        <InlineAlert tone="danger" title={t('AutomationRunButton.errorRunTitle')} live>
+          {describeError(t, run.error)}
         </InlineAlert>
       ) : null}
 
       {run.isSuccess ? (
         <InlineAlert
           tone={run.data.status === 'succeeded' ? 'success' : 'warning'}
-          title={run.data.status === 'succeeded' ? 'Run succeeded' : 'Run did not complete'}
+          title={
+            run.data.status === 'succeeded'
+              ? t('AutomationRunButton.runSucceeded')
+              : t('AutomationRunButton.runNotComplete')
+          }
           live
         >
-          {describeOutcome(run.data)}
+          {describeOutcome(t, run.data)}
         </InlineAlert>
       ) : null}
     </div>
   );
 }
 
-function describeOutcome(runResult: WorkflowRunSummary): string {
+function describeOutcome(t: ReturnType<typeof useT>, runResult: WorkflowRunSummary): string {
   const effect = runResult.detail['effect'];
   if (runResult.status === 'succeeded' && typeof effect === 'string') return effect;
   const reason = runResult.detail['reason'];
   if (runResult.status === 'failed' && typeof reason === 'string') {
-    return 'This action runs outside TManage and is not available yet.';
+    return t('AutomationRunButton.outcomeExternal');
   }
-  return runResult.status === 'succeeded' ? 'The automation ran.' : 'The automation did not run.';
+  return runResult.status === 'succeeded'
+    ? t('AutomationRunButton.outcomeRan')
+    : t('AutomationRunButton.outcomeNotRun');
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationRunButton.errorApiUnreachable');
+  return t('AutomationRunButton.errorGeneric');
 }

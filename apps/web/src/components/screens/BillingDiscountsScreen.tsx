@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/billing-discounts';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface BillingDiscountsScreenProps {
@@ -43,6 +44,7 @@ export function BillingDiscountsScreen({
 }: BillingDiscountsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const discounts = useQuery({
     queryKey: ['billing-discounts', organizationSlug],
@@ -88,14 +90,14 @@ export function BillingDiscountsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Billing discounts"
-      description="Record standing discounts and adjustments against this organization's account."
+      eyebrow={t('BillingDiscountsScreen.eyebrow')}
+      title={t('BillingDiscountsScreen.title')}
+      description={t('BillingDiscountsScreen.description')}
     >
       <div className="tm-bil">
         <section className="tm-panel tm-stack" aria-labelledby="tm-discount-add-heading">
           <h2 id="tm-discount-add-heading" className="tm-eyebrow">
-            Record a discount or adjustment
+            {t('BillingDiscountsScreen.recordHeading')}
           </h2>
           <form
             className="tm-stack"
@@ -106,16 +108,16 @@ export function BillingDiscountsScreen({
             }}
           >
             <Field
-              label="Label"
+              label={t('BillingDiscountsScreen.labelLabel')}
               name="label"
               value={label}
               onChange={(event) => setLabel(event.target.value)}
-              hint="A short name — e.g. Launch promo, Loyalty adjustment."
+              hint={t('BillingDiscountsScreen.labelHint')}
               required
             />
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-discount-kind">
-                Kind
+                {t('BillingDiscountsScreen.kindLabel')}
               </label>
               <select
                 id="tm-discount-kind"
@@ -123,12 +125,16 @@ export function BillingDiscountsScreen({
                 value={kind}
                 onChange={(event) => setKind(event.target.value === 'fixed' ? 'fixed' : 'percent')}
               >
-                <option value="percent">Percentage off</option>
-                <option value="fixed">Fixed amount off</option>
+                <option value="percent">{t('BillingDiscountsScreen.kindPercent')}</option>
+                <option value="fixed">{t('BillingDiscountsScreen.kindFixed')}</option>
               </select>
             </div>
             <Field
-              label={kind === 'percent' ? 'Percentage' : 'Amount'}
+              label={
+                kind === 'percent'
+                  ? t('BillingDiscountsScreen.percentage')
+                  : t('BillingDiscountsScreen.amount')
+              }
               name="amount"
               type="number"
               step={kind === 'percent' ? '1' : '0.01'}
@@ -136,23 +142,23 @@ export function BillingDiscountsScreen({
               onChange={(event) => setAmount(event.target.value)}
               hint={
                 kind === 'percent'
-                  ? 'A whole percentage between 0 and 100.'
-                  : 'In your billing currency.'
+                  ? t('BillingDiscountsScreen.percentHint')
+                  : t('BillingDiscountsScreen.amountHint')
               }
               required
             />
             <Field
-              label="Expires on (optional)"
+              label={t('BillingDiscountsScreen.expiresLabel')}
               name="expiresOn"
               type="date"
               value={expiresOn}
               onChange={(event) => setExpiresOn(event.target.value)}
-              hint="Leave blank for a discount that never expires."
+              hint={t('BillingDiscountsScreen.expiresHint')}
             />
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="Could not record the discount" live>
-                {describeError(create.error)}
+              <InlineAlert tone="danger" title={t('BillingDiscountsScreen.errorRecordTitle')} live>
+                {describeError(t, create.error)}
               </InlineAlert>
             ) : null}
 
@@ -162,10 +168,10 @@ export function BillingDiscountsScreen({
                 tone="ink"
                 size="accessible"
                 loading={create.isPending}
-                loadingLabel="Recording"
+                loadingLabel={t('BillingDiscountsScreen.recording')}
                 disabled={!canCreate}
               >
-                Record discount
+                {t('BillingDiscountsScreen.recordButton')}
               </Button>
             </div>
           </form>
@@ -176,47 +182,50 @@ export function BillingDiscountsScreen({
           aria-labelledby="tm-discount-list-heading"
         >
           <h2 id="tm-discount-list-heading" className="tm-eyebrow">
-            Discounts {discounts.isSuccess ? `(${rows.length})` : ''}
+            {t('BillingDiscountsScreen.discountsHeading')}{' '}
+            {discounts.isSuccess ? `(${rows.length})` : ''}
           </h2>
 
           {discounts.isError ? (
-            <InlineAlert tone="danger" title="Could not load the discounts" live>
-              {describeError(discounts.error)}
+            <InlineAlert tone="danger" title={t('BillingDiscountsScreen.errorLoadTitle')} live>
+              {describeError(t, discounts.error)}
             </InlineAlert>
           ) : null}
 
           {remove.isError ? (
-            <InlineAlert tone="danger" title="Could not remove the discount" live>
-              {describeError(remove.error)}
+            <InlineAlert tone="danger" title={t('BillingDiscountsScreen.errorRemoveTitle')} live>
+              {describeError(t, remove.error)}
             </InlineAlert>
           ) : null}
 
           {discounts.isPending ? (
-            <LoadingRegion label="Loading the discounts.">
+            <LoadingRegion label={t('BillingDiscountsScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {discounts.isSuccess && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No discounts yet">
-              Record a discount or adjustment with the form to start the register.
+            <InlineAlert tone="neutral" title={t('BillingDiscountsScreen.emptyTitle')}>
+              {t('BillingDiscountsScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
           {rows.length > 0 ? (
             <table className="tm-table">
               <caption className="tm-visually-hidden">
-                The organization&rsquo;s discount and adjustment register, newest first.
+                {t('BillingDiscountsScreen.caption')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Label</th>
-                  <th scope="col">Amount</th>
-                  <th scope="col">Expires</th>
-                  <th scope="col">Status</th>
+                  <th scope="col">{t('BillingDiscountsScreen.colLabel')}</th>
+                  <th scope="col">{t('BillingDiscountsScreen.colAmount')}</th>
+                  <th scope="col">{t('BillingDiscountsScreen.colExpires')}</th>
+                  <th scope="col">{t('BillingDiscountsScreen.colStatus')}</th>
                   <th scope="col">
-                    <span className="tm-visually-hidden">Actions</span>
+                    <span className="tm-visually-hidden">
+                      {t('BillingDiscountsScreen.actionsColumn')}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -225,18 +234,22 @@ export function BillingDiscountsScreen({
                   <tr key={discount.id}>
                     <td>{discount.label}</td>
                     <td>{formatAmount(discount)}</td>
-                    <td>{discount.expiresOn ?? 'Never'}</td>
-                    <td>{discount.active ? 'Active' : 'Expired'}</td>
+                    <td>{discount.expiresOn ?? t('BillingDiscountsScreen.never')}</td>
+                    <td>
+                      {discount.active
+                        ? t('BillingDiscountsScreen.active')
+                        : t('BillingDiscountsScreen.expired')}
+                    </td>
                     <td>
                       <Button
                         type="button"
                         tone="text"
                         size="compact"
                         loading={remove.isPending && remove.variables === discount.id}
-                        loadingLabel="Removing"
+                        loadingLabel={t('BillingDiscountsScreen.removing')}
                         onClick={() => remove.mutate(discount.id)}
                       >
-                        Remove
+                        {t('BillingDiscountsScreen.remove')}
                       </Button>
                     </td>
                   </tr>
@@ -269,8 +282,8 @@ function formatAmount(discount: BillingDiscountView): string {
   return discount.kind === 'percent' ? `${discount.amount}%` : (discount.amount / 100).toFixed(2);
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('BillingDiscountsScreen.errorApiUnreachable');
+  return t('BillingDiscountsScreen.errorGeneric');
 }

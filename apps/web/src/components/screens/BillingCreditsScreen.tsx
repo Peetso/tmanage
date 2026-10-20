@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listBillingCredits, postBillingCredit } from '../../lib/api/billing-credits';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface BillingCreditsScreenProps {
@@ -36,6 +37,7 @@ export function BillingCreditsScreen({
 }: BillingCreditsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const credits = useQuery({
     queryKey: ['billing-credits', organizationSlug],
@@ -70,17 +72,17 @@ export function BillingCreditsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Billing credits"
-      description="Record manual credits and adjustments against this organization's account."
+      eyebrow={t('BillingCreditsScreen.eyebrow')}
+      title={t('BillingCreditsScreen.title')}
+      description={t('BillingCreditsScreen.description')}
     >
       <div className="tm-bil">
         <section className="tm-panel tm-stack" aria-labelledby="tm-credit-add-heading">
           <h2 id="tm-credit-add-heading" className="tm-eyebrow">
-            Post a credit or adjustment
+            {t('BillingCreditsScreen.postHeading')}
           </h2>
           <p className="tm-muted">
-            Current balance: <strong>{formatCurrency(balance)}</strong>
+            {t('BillingCreditsScreen.currentBalance')} <strong>{formatCurrency(balance)}</strong>
           </p>
           <form
             className="tm-stack"
@@ -91,27 +93,27 @@ export function BillingCreditsScreen({
             }}
           >
             <Field
-              label="Amount"
+              label={t('BillingCreditsScreen.amountLabel')}
               name="amount"
               type="number"
               step="0.01"
               value={amount}
               onChange={(event) => setAmount(event.target.value)}
-              hint="In your billing currency. A negative amount records an adjustment."
+              hint={t('BillingCreditsScreen.amountHint')}
               required
             />
             <Field
-              label="Reason"
+              label={t('BillingCreditsScreen.reasonLabel')}
               name="reason"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
-              hint="Why this credit is being posted — e.g. Goodwill credit, Overbill adjustment."
+              hint={t('BillingCreditsScreen.reasonHint')}
               required
             />
 
             {post.isError ? (
-              <InlineAlert tone="danger" title="Could not post the credit" live>
-                {describeError(post.error)}
+              <InlineAlert tone="danger" title={t('BillingCreditsScreen.errorPostTitle')} live>
+                {describeError(t, post.error)}
               </InlineAlert>
             ) : null}
 
@@ -121,10 +123,10 @@ export function BillingCreditsScreen({
                 tone="ink"
                 size="accessible"
                 loading={post.isPending}
-                loadingLabel="Posting"
+                loadingLabel={t('BillingCreditsScreen.posting')}
                 disabled={!canPost}
               >
-                Post credit
+                {t('BillingCreditsScreen.postButton')}
               </Button>
             </div>
           </form>
@@ -135,38 +137,36 @@ export function BillingCreditsScreen({
           aria-labelledby="tm-credit-list-heading"
         >
           <h2 id="tm-credit-list-heading" className="tm-eyebrow">
-            Ledger {credits.isSuccess ? `(${rows.length})` : ''}
+            {t('BillingCreditsScreen.ledgerHeading')} {credits.isSuccess ? `(${rows.length})` : ''}
           </h2>
 
           {credits.isError ? (
-            <InlineAlert tone="danger" title="Could not load the credits" live>
-              {describeError(credits.error)}
+            <InlineAlert tone="danger" title={t('BillingCreditsScreen.errorLoadTitle')} live>
+              {describeError(t, credits.error)}
             </InlineAlert>
           ) : null}
 
           {credits.isPending ? (
-            <LoadingRegion label="Loading the credit ledger.">
+            <LoadingRegion label={t('BillingCreditsScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {credits.isSuccess && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No credits yet">
-              Post a credit or adjustment with the form to start the ledger.
+            <InlineAlert tone="neutral" title={t('BillingCreditsScreen.emptyTitle')}>
+              {t('BillingCreditsScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
           {rows.length > 0 ? (
             <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                The organization&rsquo;s credit and adjustment ledger, newest first.
-              </caption>
+              <caption className="tm-visually-hidden">{t('BillingCreditsScreen.caption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Posted</th>
-                  <th scope="col">Reason</th>
-                  <th scope="col">Amount</th>
+                  <th scope="col">{t('BillingCreditsScreen.colPosted')}</th>
+                  <th scope="col">{t('BillingCreditsScreen.colReason')}</th>
+                  <th scope="col">{t('BillingCreditsScreen.colAmount')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -200,8 +200,8 @@ function formatCurrency(minorUnits: number): string {
   return (minorUnits / 100).toFixed(2);
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('BillingCreditsScreen.errorApiUnreachable');
+  return t('BillingCreditsScreen.errorGeneric');
 }

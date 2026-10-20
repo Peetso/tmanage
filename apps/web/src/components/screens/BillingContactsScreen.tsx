@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/billing-contacts';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface BillingContactsScreenProps {
@@ -40,6 +41,7 @@ export function BillingContactsScreen({
 }: BillingContactsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const contacts = useQuery({
     queryKey: ['billing-contacts', organizationSlug],
@@ -84,14 +86,14 @@ export function BillingContactsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Billing contacts"
-      description="Nominate the people who receive your billing and account notices."
+      eyebrow={t('BillingContactsScreen.eyebrow')}
+      title={t('BillingContactsScreen.title')}
+      description={t('BillingContactsScreen.description')}
     >
       <div className="tm-bil">
         <section className="tm-panel tm-stack" aria-labelledby="tm-contact-add-heading">
           <h2 id="tm-contact-add-heading" className="tm-eyebrow">
-            Add a contact
+            {t('BillingContactsScreen.addHeading')}
           </h2>
           <form
             className="tm-stack"
@@ -102,32 +104,32 @@ export function BillingContactsScreen({
             }}
           >
             <Field
-              label="Name"
+              label={t('BillingContactsScreen.nameLabel')}
               name="name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
             />
             <Field
-              label="Email"
+              label={t('BillingContactsScreen.emailLabel')}
               name="email"
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
-              hint="Where billing notices for this contact would be sent."
+              hint={t('BillingContactsScreen.emailHint')}
               required
             />
             <Field
-              label="Role"
+              label={t('BillingContactsScreen.roleLabel')}
               name="role"
               value={role}
               onChange={(event) => setRole(event.target.value)}
-              hint="Optional — e.g. Accounts payable."
+              hint={t('BillingContactsScreen.roleHint')}
             />
 
             {add.isError ? (
-              <InlineAlert tone="danger" title="Could not add the contact" live>
-                {describeError(add.error)}
+              <InlineAlert tone="danger" title={t('BillingContactsScreen.errorAddTitle')} live>
+                {describeError(t, add.error)}
               </InlineAlert>
             ) : null}
 
@@ -137,10 +139,10 @@ export function BillingContactsScreen({
                 tone="ink"
                 size="accessible"
                 loading={add.isPending}
-                loadingLabel="Adding"
+                loadingLabel={t('BillingContactsScreen.adding')}
                 disabled={!canAdd}
               >
-                Add contact
+                {t('BillingContactsScreen.addButton')}
               </Button>
             </div>
           </form>
@@ -151,46 +153,47 @@ export function BillingContactsScreen({
           aria-labelledby="tm-contact-list-heading"
         >
           <h2 id="tm-contact-list-heading" className="tm-eyebrow">
-            Contacts {contacts.isSuccess ? `(${rows.length})` : ''}
+            {t('BillingContactsScreen.contactsHeading')}{' '}
+            {contacts.isSuccess ? `(${rows.length})` : ''}
           </h2>
 
           {contacts.isError ? (
-            <InlineAlert tone="danger" title="Could not load the contacts" live>
-              {describeError(contacts.error)}
+            <InlineAlert tone="danger" title={t('BillingContactsScreen.errorLoadTitle')} live>
+              {describeError(t, contacts.error)}
             </InlineAlert>
           ) : null}
 
           {remove.isError ? (
-            <InlineAlert tone="danger" title="Could not remove the contact" live>
-              {describeError(remove.error)}
+            <InlineAlert tone="danger" title={t('BillingContactsScreen.errorRemoveTitle')} live>
+              {describeError(t, remove.error)}
             </InlineAlert>
           ) : null}
 
           {contacts.isPending ? (
-            <LoadingRegion label="Loading the contacts.">
+            <LoadingRegion label={t('BillingContactsScreen.loadingLabel')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {contacts.isSuccess && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No billing contacts yet">
-              Add a contact with the form to nominate who receives your billing notices.
+            <InlineAlert tone="neutral" title={t('BillingContactsScreen.emptyTitle')}>
+              {t('BillingContactsScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
           {rows.length > 0 ? (
             <table className="tm-table">
-              <caption className="tm-visually-hidden">
-                The organization&rsquo;s billing contacts.
-              </caption>
+              <caption className="tm-visually-hidden">{t('BillingContactsScreen.caption')}</caption>
               <thead>
                 <tr>
-                  <th scope="col">Name</th>
-                  <th scope="col">Email</th>
-                  <th scope="col">Role</th>
+                  <th scope="col">{t('BillingContactsScreen.colName')}</th>
+                  <th scope="col">{t('BillingContactsScreen.colEmail')}</th>
+                  <th scope="col">{t('BillingContactsScreen.colRole')}</th>
                   <th scope="col">
-                    <span className="tm-visually-hidden">Actions</span>
+                    <span className="tm-visually-hidden">
+                      {t('BillingContactsScreen.actionsColumn')}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -206,10 +209,10 @@ export function BillingContactsScreen({
                         tone="outline"
                         size="accessible"
                         loading={remove.isPending && remove.variables?.id === contact.id}
-                        loadingLabel="Removing"
+                        loadingLabel={t('BillingContactsScreen.removing')}
                         onClick={() => remove.mutate(contact)}
                       >
-                        Remove
+                        {t('BillingContactsScreen.remove')}
                       </Button>
                     </td>
                   </tr>
@@ -223,8 +226,8 @@ export function BillingContactsScreen({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('BillingContactsScreen.errorApiUnreachable');
+  return t('BillingContactsScreen.errorGeneric');
 }

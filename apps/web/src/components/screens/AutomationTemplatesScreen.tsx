@@ -16,6 +16,7 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationTemplatesScreenProps {
   organizationSlug: string;
@@ -39,11 +40,7 @@ const ACTION_KINDS = [
 ] as const satisfies readonly WorkflowActionKind[];
 
 /** The library's state filter (AUT-01's filter capsules), over the loaded rows only. */
-const STATE_FILTERS = [
-  { value: 'all', label: 'All' },
-  { value: 'live', label: 'Live' },
-  { value: 'off', label: 'Off' },
-] as const;
+const STATE_FILTERS = [{ value: 'all' }, { value: 'live' }, { value: 'off' }] as const;
 
 type StateFilter = (typeof STATE_FILTERS)[number]['value'];
 
@@ -75,6 +72,18 @@ export function AutomationTemplatesScreen({
 }: AutomationTemplatesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
+
+  const stateFilterLabel = (value: StateFilter): string => {
+    switch (value) {
+      case 'live':
+        return t('AutomationTemplatesScreen.stateLive');
+      case 'off':
+        return t('AutomationTemplatesScreen.stateOff');
+      default:
+        return t('AutomationTemplatesScreen.filterAll');
+    }
+  };
 
   const templates = useQuery({
     queryKey: ['workflow-templates', organizationSlug],
@@ -126,16 +135,16 @@ export function AutomationTemplatesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Automations"
-      title="Rules that act on your behalf"
+      eyebrow={t('AutomationTemplatesScreen.eyebrow')}
+      title={t('AutomationTemplatesScreen.title')}
       actions={
         <>
           <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
-            Run history
+            {t('AutomationTemplatesScreen.runHistory')}
           </Link>
           {refused ? null : (
             <a href="#tm-automation-new" className="tm-aut-btn tm-aut-btn--ink">
-              New automation
+              {t('AutomationTemplatesScreen.newAutomation')}
             </a>
           )}
         </>
@@ -147,7 +156,11 @@ export function AutomationTemplatesScreen({
           current="library"
           count={rows.length}
           end={
-            <fieldset className="tm-aut-filters" disabled={!hydrated} aria-label="Show">
+            <fieldset
+              className="tm-aut-filters"
+              disabled={!hydrated}
+              aria-label={t('AutomationTemplatesScreen.showLabel')}
+            >
               {STATE_FILTERS.map((option) => (
                 <button
                   key={option.value}
@@ -156,7 +169,7 @@ export function AutomationTemplatesScreen({
                   aria-pressed={stateFilter === option.value}
                   onClick={() => setStateFilter(option.value)}
                 >
-                  {option.label}
+                  {stateFilterLabel(option.value)}
                   {option.value === 'live' ? ` · ${liveCount}` : ''}
                 </button>
               ))}
@@ -167,24 +180,23 @@ export function AutomationTemplatesScreen({
         <div className="tm-aut-split">
           <section className="tm-aut-col" aria-labelledby="tm-automation-list-heading">
             <h2 id="tm-automation-list-heading" className="tm-visually-hidden">
-              Templates
+              {t('AutomationTemplatesScreen.templatesHeading')}
             </h2>
 
             {refused ? (
-              <InlineAlert tone="neutral" title="Automations are set up by your admins" live>
-                The owner and organization admins create and change automations. Ask one of them if
-                you need a rule added or changed.
+              <InlineAlert tone="neutral" title={t('AutomationTemplatesScreen.refusedTitle')} live>
+                {t('AutomationTemplatesScreen.refusedBody')}
               </InlineAlert>
             ) : templates.isError ? (
-              <InlineAlert tone="danger" title="Could not load the templates" live>
-                {describeError(templates.error)}
+              <InlineAlert tone="danger" title={t('AutomationTemplatesScreen.errorLoadTitle')} live>
+                {describeError(t, templates.error)}
               </InlineAlert>
             ) : null}
 
             <div className="tm-aut-tablecard">
               {templates.isPending ? (
                 <div className="tm-aut-pad">
-                  <LoadingRegion label="Loading the templates.">
+                  <LoadingRegion label={t('AutomationTemplatesScreen.loadingLabel')}>
                     <Skeleton height="var(--row)" />
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
@@ -193,11 +205,8 @@ export function AutomationTemplatesScreen({
 
               {!templates.isPending && !templates.isError && rows.length === 0 ? (
                 <div className="tm-aut-empty">
-                  <p className="tm-aut-empty__title">No templates yet</p>
-                  <p className="tm-aut-empty__body">
-                    Use New automation to pair a trigger with an action. It appears here once it is
-                    saved.
-                  </p>
+                  <p className="tm-aut-empty__title">{t('AutomationTemplatesScreen.emptyTitle')}</p>
+                  <p className="tm-aut-empty__body">{t('AutomationTemplatesScreen.emptyBody')}</p>
                 </div>
               ) : null}
 
@@ -209,21 +218,22 @@ export function AutomationTemplatesScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Workflow templates"
+                  aria-label={t('AutomationTemplatesScreen.tableLabel')}
                 >
                   <table className="tm-aut-table">
                     <caption className="tm-visually-hidden">
-                      Workflow templates for this organization, in name order, {shown.length} shown.
+                      {t('AutomationTemplatesScreen.captionPrefix')} {shown.length}{' '}
+                      {t('AutomationTemplatesScreen.captionSuffix')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Automation</th>
-                        <th scope="col">Trigger</th>
+                        <th scope="col">{t('AutomationTemplatesScreen.colAutomation')}</th>
+                        <th scope="col">{t('AutomationTemplatesScreen.colTrigger')}</th>
                         <th scope="col" className="tm-aut-hide-sm">
-                          Action
+                          {t('AutomationTemplatesScreen.colAction')}
                         </th>
                         <th scope="col" className="tm-aut-end">
-                          State
+                          {t('AutomationTemplatesScreen.colState')}
                         </th>
                       </tr>
                     </thead>
@@ -238,7 +248,8 @@ export function AutomationTemplatesScreen({
                               {template.name}
                             </Link>
                             <span className="tm-aut-rowsub">
-                              when {humanize(template.triggerKind).toLowerCase()} →{' '}
+                              {t('AutomationTemplatesScreen.rowWhen')}{' '}
+                              {humanize(template.triggerKind).toLowerCase()} →{' '}
                               {humanize(template.actionKind).toLowerCase()}
                             </span>
                           </th>
@@ -248,7 +259,9 @@ export function AutomationTemplatesScreen({
                             <span
                               className={`tm-aut-state ${template.enabled ? 'tm-aut-state--live' : 'tm-aut-state--off'}`}
                             >
-                              {template.enabled ? 'Live' : 'Off'}
+                              {template.enabled
+                                ? t('AutomationTemplatesScreen.stateLive')
+                                : t('AutomationTemplatesScreen.stateOff')}
                             </span>
                           </td>
                         </tr>
@@ -257,8 +270,12 @@ export function AutomationTemplatesScreen({
                   </table>
                   {shown.length === 0 ? (
                     <div className="tm-aut-empty">
-                      <p className="tm-aut-empty__title">Nothing matches this filter</p>
-                      <p className="tm-aut-empty__body">Choose All to see every automation.</p>
+                      <p className="tm-aut-empty__title">
+                        {t('AutomationTemplatesScreen.noMatchTitle')}
+                      </p>
+                      <p className="tm-aut-empty__body">
+                        {t('AutomationTemplatesScreen.noMatchBody')}
+                      </p>
                     </div>
                   ) : null}
                 </div>
@@ -275,10 +292,10 @@ export function AutomationTemplatesScreen({
               >
                 <p className="tm-aut-eyebrow">
                   <span className="tm-aut-eyebrow__orb" aria-hidden="true" />
-                  New automation
+                  {t('AutomationTemplatesScreen.newAutomation')}
                 </p>
                 <h2 id="tm-automation-new-heading" className="tm-aut-card__title">
-                  New template
+                  {t('AutomationTemplatesScreen.newTemplate')}
                 </h2>
                 <form
                   className="tm-stack"
@@ -290,17 +307,17 @@ export function AutomationTemplatesScreen({
                 >
                   <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
                     <Field
-                      label="Name"
+                      label={t('AutomationTemplatesScreen.nameLabel')}
                       name="name"
                       value={name}
                       onChange={(event) => setName(event.target.value)}
-                      hint="A short handle, such as Notify owner on new work."
+                      hint={t('AutomationTemplatesScreen.nameHint')}
                       required
                     />
 
                     <div className="tm-field">
                       <label className="tm-field__label" htmlFor="tm-automation-trigger">
-                        Trigger
+                        {t('AutomationTemplatesScreen.triggerLabel')}
                       </label>
                       <select
                         id="tm-automation-trigger"
@@ -320,7 +337,7 @@ export function AutomationTemplatesScreen({
 
                     <div className="tm-field">
                       <label className="tm-field__label" htmlFor="tm-automation-action">
-                        Action
+                        {t('AutomationTemplatesScreen.actionLabel')}
                       </label>
                       <select
                         id="tm-automation-action"
@@ -339,8 +356,12 @@ export function AutomationTemplatesScreen({
                     </div>
 
                     {create.isError ? (
-                      <InlineAlert tone="danger" title="Could not create the template" live>
-                        {describeError(create.error)}
+                      <InlineAlert
+                        tone="danger"
+                        title={t('AutomationTemplatesScreen.errorCreateTitle')}
+                        live
+                      >
+                        {describeError(t, create.error)}
                       </InlineAlert>
                     ) : null}
 
@@ -350,10 +371,10 @@ export function AutomationTemplatesScreen({
                         tone="lime"
                         size="accessible"
                         loading={create.isPending}
-                        loadingLabel="Creating"
+                        loadingLabel={t('AutomationTemplatesScreen.creating')}
                         disabled={!canCreate}
                       >
-                        Create template
+                        {t('AutomationTemplatesScreen.createButton')}
                       </Button>
                     </div>
                   </fieldset>
@@ -365,11 +386,11 @@ export function AutomationTemplatesScreen({
                   id="tm-automation-summary-heading"
                   className="tm-aut-card__title tm-aut-card__title--section"
                 >
-                  In the library
+                  {t('AutomationTemplatesScreen.inLibrary')}
                 </h2>
                 <dl className="tm-aut-bars">
                   <div className="tm-aut-bars__row">
-                    <dt>Live</dt>
+                    <dt>{t('AutomationTemplatesScreen.stateLive')}</dt>
                     <dd className="tm-aut-bars__value">
                       <span className="tm-aut-bars__track" aria-hidden="true">
                         <span
@@ -381,7 +402,7 @@ export function AutomationTemplatesScreen({
                     </dd>
                   </div>
                   <div className="tm-aut-bars__row">
-                    <dt>Off</dt>
+                    <dt>{t('AutomationTemplatesScreen.stateOff')}</dt>
                     <dd className="tm-aut-bars__value">
                       <span className="tm-aut-bars__track" aria-hidden="true">
                         <span
@@ -393,13 +414,10 @@ export function AutomationTemplatesScreen({
                     </dd>
                   </div>
                 </dl>
-                <p className="tm-aut-card__foot">
-                  Every automation is recorded with the person who created it. An automation that is
-                  off is kept but never fires.
-                </p>
+                <p className="tm-aut-card__foot">{t('AutomationTemplatesScreen.foot')}</p>
                 <div className="tm-aut-actions">
                   <Link href={`/${organizationSlug}/automations/runs`} className="tm-aut-btn">
-                    Open run history
+                    {t('AutomationTemplatesScreen.openRunHistory')}
                   </Link>
                 </div>
               </section>
@@ -416,8 +434,8 @@ function share(part: number, whole: number): number {
   return whole === 0 ? 0 : Math.round((part / whole) * 100);
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationTemplatesScreen.errorApiUnreachable');
+  return t('AutomationTemplatesScreen.errorGeneric');
 }

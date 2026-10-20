@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { readAuditRetention, setAuditRetention } from '../../lib/api/admin-audit-retention';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AuditRetentionViewProps {
   organizationSlug: string;
@@ -36,6 +37,7 @@ export function AuditRetentionView({
 }: AuditRetentionViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const policy = useQuery({
     queryKey: ['admin-audit-retention', organizationSlug],
@@ -62,7 +64,7 @@ export function AuditRetentionView({
   const daysError =
     daysText.trim() === '' || daysValid
       ? undefined
-      : `Enter a whole number of days between 1 and ${MAX_RETENTION_DAYS}.`;
+      : `${t('AuditRetentionView.fieldErrorPrefix')} ${MAX_RETENTION_DAYS}.`;
 
   const save = useMutation({
     mutationFn: () => setAuditRetention(api, organizationSlug, { retentionDays: parsed }),
@@ -79,22 +81,22 @@ export function AuditRetentionView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      title="Audit-log retention"
-      description="How long this organization keeps its audit events. Setting a window does not delete anything."
+      title={t('AuditRetentionView.title')}
+      description={t('AuditRetentionView.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-audit-retention-heading">
         <h2 id="tm-audit-retention-heading" className="tm-eyebrow">
-          Retention
+          {t('AuditRetentionView.retention')}
         </h2>
 
         {policy.isError ? (
-          <InlineAlert tone="danger" title="Could not load the retention policy" live>
-            {describeError(policy.error)}
+          <InlineAlert tone="danger" title={t('AuditRetentionView.errorLoadTitle')} live>
+            {describeError(t, policy.error)}
           </InlineAlert>
         ) : null}
 
         {policy.isPending ? (
-          <LoadingRegion label="Loading the retention policy.">
+          <LoadingRegion label={t('AuditRetentionView.loadingLabel')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -104,7 +106,7 @@ export function AuditRetentionView({
           <form
             className="tm-stack"
             noValidate
-            aria-label="Audit-log retention"
+            aria-label={t('AuditRetentionView.formLabel')}
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
               setSaved(false);
@@ -112,7 +114,7 @@ export function AuditRetentionView({
             }}
           >
             <Field
-              label="Retention window (days)"
+              label={t('AuditRetentionView.fieldLabel')}
               name="retention-days"
               type="number"
               inputMode="numeric"
@@ -121,31 +123,30 @@ export function AuditRetentionView({
                 setSaved(false);
                 setDaysText(event.target.value);
               }}
-              hint={`How many days of audit events to keep, between 1 and ${MAX_RETENTION_DAYS}.`}
+              hint={`${t('AuditRetentionView.fieldHintPrefix')} ${MAX_RETENTION_DAYS}.`}
               error={daysError}
               disabled={save.isPending}
             />
 
             <p className="tm-muted" aria-live="polite">
               {policy.data.retentionDays === null
-                ? 'No retention window is set yet, so no events are outside a window.'
-                : `${policy.data.eventsOlderThanWindow.toLocaleString()} event${
-                    policy.data.eventsOlderThanWindow === 1 ? '' : 's'
-                  } older than the current ${policy.data.retentionDays}-day window.`}
+                ? t('AuditRetentionView.noWindow')
+                : `${policy.data.eventsOlderThanWindow.toLocaleString()} ${
+                    policy.data.eventsOlderThanWindow === 1
+                      ? t('AuditRetentionView.eventOne')
+                      : t('AuditRetentionView.eventMany')
+                  } ${t('AuditRetentionView.olderMid')} ${policy.data.retentionDays}${t('AuditRetentionView.olderDaySuffix')}`}
             </p>
-            <p className="tm-muted">
-              Saving a window records the policy only. Events outside it are not removed now — a
-              purge runs later as a separate, deliberate step.
-            </p>
+            <p className="tm-muted">{t('AuditRetentionView.savingNote')}</p>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save the retention policy" live>
-                {describeError(save.error)}
+              <InlineAlert tone="danger" title={t('AuditRetentionView.errorSaveTitle')} live>
+                {describeError(t, save.error)}
               </InlineAlert>
             ) : null}
             {saved && !save.isPending && !save.isError ? (
-              <InlineAlert tone="success" title="Saved" live>
-                The retention window has been updated. No events were deleted.
+              <InlineAlert tone="success" title={t('AuditRetentionView.savedTitle')} live>
+                {t('AuditRetentionView.savedBody')}
               </InlineAlert>
             ) : null}
 
@@ -156,9 +157,9 @@ export function AuditRetentionView({
                 size="accessible"
                 disabled={!daysValid}
                 loading={save.isPending}
-                loadingLabel="Saving"
+                loadingLabel={t('AuditRetentionView.saving')}
               >
-                Save
+                {t('AuditRetentionView.save')}
               </Button>
             </div>
           </form>
@@ -168,8 +169,8 @@ export function AuditRetentionView({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AuditRetentionView.errorApiUnreachable');
+  return t('AuditRetentionView.errorGeneric');
 }

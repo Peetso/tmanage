@@ -16,6 +16,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { describeRunDetail } from './run-detail-view';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationRunHistoryScreenProps {
   organizationSlug: string;
@@ -24,11 +25,7 @@ export interface AutomationRunHistoryScreenProps {
 }
 
 /** The status filter options: "All" plus each allowlisted outcome the API accepts. */
-const STATUS_OPTIONS = [
-  { value: 'all', label: 'All outcomes' },
-  { value: 'succeeded', label: 'Succeeded' },
-  { value: 'failed', label: 'Failed' },
-] as const;
+const STATUS_OPTIONS = [{ value: 'all' }, { value: 'succeeded' }, { value: 'failed' }] as const;
 
 type StatusFilter = (typeof STATUS_OPTIONS)[number]['value'];
 
@@ -65,6 +62,18 @@ export function AutomationRunHistoryScreen({
   client,
 }: AutomationRunHistoryScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
+
+  const statusLabel = (value: StatusFilter): string => {
+    switch (value) {
+      case 'succeeded':
+        return t('AutomationRunHistoryScreen.filterSucceeded');
+      case 'failed':
+        return t('AutomationRunHistoryScreen.filterFailed');
+      default:
+        return t('AutomationRunHistoryScreen.filterAll');
+    }
+  };
 
   // The standing `useHydrated` barrier: the filter ships disabled in the server render, so a choice
   // made before hydration cannot change the DOM while the query keeps listing every status.
@@ -111,10 +120,16 @@ export function AutomationRunHistoryScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Automations · Run history"
-      title={loaded ? `${rows.length} ${rows.length === 1 ? 'run' : 'runs'}` : 'Automation runs'}
+      eyebrow={t('AutomationRunHistoryScreen.eyebrow')}
+      title={
+        loaded
+          ? `${rows.length} ${rows.length === 1 ? t('AutomationRunHistoryScreen.titleRunsOne') : t('AutomationRunHistoryScreen.titleRunsMany')}`
+          : t('AutomationRunHistoryScreen.titleFallback')
+      }
       {...(loaded && rows.length > 0
-        ? { titleMeta: `${succeeded} succeeded · ${failed} failed` }
+        ? {
+            titleMeta: `${succeeded} ${t('AutomationRunHistoryScreen.succeededLower')} · ${failed} ${t('AutomationRunHistoryScreen.failedLower')}`,
+          }
         : {})}
     >
       <div className="tm-aut">
@@ -123,7 +138,9 @@ export function AutomationRunHistoryScreen({
           current="runs"
           end={
             <fieldset className="tm-aut-filters" disabled={!hydrated}>
-              <legend className="tm-visually-hidden">Outcome</legend>
+              <legend className="tm-visually-hidden">
+                {t('AutomationRunHistoryScreen.outcomeLegend')}
+              </legend>
               {STATUS_OPTIONS.map((option) => (
                 <button
                   key={option.value}
@@ -132,7 +149,7 @@ export function AutomationRunHistoryScreen({
                   aria-pressed={status === option.value}
                   onClick={() => setStatus(option.value)}
                 >
-                  {option.label}
+                  {statusLabel(option.value)}
                 </button>
               ))}
             </fieldset>
@@ -142,19 +159,23 @@ export function AutomationRunHistoryScreen({
         <div className="tm-aut-split">
           <section className="tm-aut-col" aria-labelledby="tm-run-list-heading">
             <h2 id="tm-run-list-heading" className="tm-visually-hidden">
-              Runs
+              {t('AutomationRunHistoryScreen.runsHeading')}
             </h2>
 
             {runs.isError ? (
-              <InlineAlert tone="danger" title="Could not load the run history" live>
-                {describeError(runs.error)}
+              <InlineAlert
+                tone="danger"
+                title={t('AutomationRunHistoryScreen.errorLoadHistoryTitle')}
+                live
+              >
+                {describeError(t, runs.error)}
               </InlineAlert>
             ) : null}
 
             <div className="tm-aut-tablecard">
               {runs.isPending ? (
                 <div className="tm-aut-pad">
-                  <LoadingRegion label="Loading the run history.">
+                  <LoadingRegion label={t('AutomationRunHistoryScreen.loadingHistory')}>
                     <Skeleton height="var(--row)" />
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
@@ -163,10 +184,10 @@ export function AutomationRunHistoryScreen({
 
               {loaded && rows.length === 0 ? (
                 <div className="tm-aut-empty">
-                  <p className="tm-aut-empty__title">No runs yet</p>
-                  <p className="tm-aut-empty__body">
-                    When a workflow template runs, its outcome is recorded here.
+                  <p className="tm-aut-empty__title">
+                    {t('AutomationRunHistoryScreen.emptyTitle')}
                   </p>
+                  <p className="tm-aut-empty__body">{t('AutomationRunHistoryScreen.emptyBody')}</p>
                 </div>
               ) : null}
 
@@ -178,19 +199,20 @@ export function AutomationRunHistoryScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Workflow runs"
+                  aria-label={t('AutomationRunHistoryScreen.tableLabel')}
                 >
                   <table className="tm-aut-table tm-aut-table--compact">
                     <caption className="tm-visually-hidden">
-                      Workflow runs for this organization, newest first, {rows.length} shown.
+                      {t('AutomationRunHistoryScreen.captionPrefix')} {rows.length}{' '}
+                      {t('AutomationRunHistoryScreen.captionSuffix')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Time (UTC)</th>
-                        <th scope="col">Template</th>
-                        <th scope="col">Run ID</th>
+                        <th scope="col">{t('AutomationRunHistoryScreen.colTime')}</th>
+                        <th scope="col">{t('AutomationRunHistoryScreen.colTemplate')}</th>
+                        <th scope="col">{t('AutomationRunHistoryScreen.colRunId')}</th>
                         <th scope="col" className="tm-aut-end">
-                          Outcome
+                          {t('AutomationRunHistoryScreen.colOutcome')}
                         </th>
                       </tr>
                     </thead>
@@ -213,7 +235,10 @@ export function AutomationRunHistoryScreen({
                               <span
                                 className={`tm-aut-rowsub ${isFailed ? 'tm-aut-rowsub--danger' : ''}`}
                               >
-                                {isFailed ? 'failed' : 'succeeded'} · finished{' '}
+                                {isFailed
+                                  ? t('AutomationRunHistoryScreen.failedLower')
+                                  : t('AutomationRunHistoryScreen.succeededLower')}{' '}
+                                · {t('AutomationRunHistoryScreen.rowFinished')}{' '}
                                 {formatWhen(run.finishedAt).toLowerCase()}
                               </span>
                             </th>
@@ -221,7 +246,7 @@ export function AutomationRunHistoryScreen({
                               <button
                                 type="button"
                                 className="tm-aut-linkbtn tm-aut-mono"
-                                aria-label={`View details of run ${shortRunId(run.id)}`}
+                                aria-label={`${t('AutomationRunHistoryScreen.viewDetailsOfRun')} ${shortRunId(run.id)}`}
                                 aria-pressed={run.id === selectedRunId}
                                 onClick={() => setSelectedRunId(run.id)}
                               >
@@ -252,7 +277,7 @@ export function AutomationRunHistoryScreen({
           >
             <div className="tm-row tm-row--between">
               <h2 id="tm-run-detail-heading" className="tm-aut-eyebrow">
-                Run detail
+                {t('AutomationRunHistoryScreen.runDetailHeading')}
               </h2>
               {selectedRunId !== null ? (
                 <Button
@@ -261,29 +286,32 @@ export function AutomationRunHistoryScreen({
                   size="accessible"
                   onClick={() => setSelectedRunId(null)}
                 >
-                  Close
+                  {t('AutomationRunHistoryScreen.close')}
                 </Button>
               ) : null}
             </div>
 
             {selectedRunId === null ? (
               <>
-                <p className="tm-aut-card__title">Choose a run</p>
-                <p className="tm-aut-card__body">
-                  Pick a run ID on the left to see when it started, when it finished and what it
-                  recorded.
+                <p className="tm-aut-card__title">
+                  {t('AutomationRunHistoryScreen.chooseRunTitle')}
                 </p>
+                <p className="tm-aut-card__body">{t('AutomationRunHistoryScreen.chooseRunBody')}</p>
               </>
             ) : null}
 
             {selectedRunId !== null && detail.isError ? (
-              <InlineAlert tone="danger" title="Could not load the run" live>
-                {describeError(detail.error)}
+              <InlineAlert
+                tone="danger"
+                title={t('AutomationRunHistoryScreen.errorLoadRunTitle')}
+                live
+              >
+                {describeError(t, detail.error)}
               </InlineAlert>
             ) : null}
 
             {selectedRunId !== null && detail.isPending ? (
-              <LoadingRegion label="Loading the run detail.">
+              <LoadingRegion label={t('AutomationRunHistoryScreen.loadingRunDetail')}>
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
@@ -295,12 +323,14 @@ export function AutomationRunHistoryScreen({
                 </p>
                 <p className="tm-aut-card__title">
                   {detail.data.status === 'succeeded'
-                    ? 'Ran as expected'
-                    : 'Stopped before it acted'}
+                    ? t('AutomationRunHistoryScreen.ranAsExpected')
+                    : t('AutomationRunHistoryScreen.stoppedBeforeActed')}
                 </p>
                 <ol className="tm-aut-steps">
                   <li>
-                    <p className="tm-aut-steps__title">Started</p>
+                    <p className="tm-aut-steps__title">
+                      {t('AutomationRunHistoryScreen.stepStarted')}
+                    </p>
                     <p className="tm-aut-steps__body">
                       {templateName(detail.data.templateId)} ·{' '}
                       {formatInstant(detail.data.startedAt)} UTC
@@ -309,11 +339,14 @@ export function AutomationRunHistoryScreen({
                   <li className={detail.data.status === 'failed' ? 'is-danger' : undefined}>
                     <p className="tm-aut-steps__title">{humanize(detail.data.status)}</p>
                     <p className="tm-aut-steps__body">
-                      Finished {formatInstant(detail.data.finishedAt)} UTC
+                      {t('AutomationRunHistoryScreen.stepFinishedPrefix')}{' '}
+                      {formatInstant(detail.data.finishedAt)} UTC
                     </p>
                   </li>
                   <li>
-                    <p className="tm-aut-steps__title">What it recorded</p>
+                    <p className="tm-aut-steps__title">
+                      {t('AutomationRunHistoryScreen.whatRecorded')}
+                    </p>
                     <dl className="tm-aut-kv">
                       {describeRunDetail(detail.data.detail).map((line) => (
                         <div key={line.label} className="tm-aut-kv__row">
@@ -324,9 +357,7 @@ export function AutomationRunHistoryScreen({
                     </dl>
                   </li>
                 </ol>
-                <p className="tm-aut-card__foot">
-                  History is append-only: a run is never edited or deleted.
-                </p>
+                <p className="tm-aut-card__foot">{t('AutomationRunHistoryScreen.foot')}</p>
               </>
             ) : null}
           </aside>
@@ -362,8 +393,8 @@ function formatWhen(iso: string): string {
   return `${label.toUpperCase()} ${time}`;
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationRunHistoryScreen.errorApiUnreachable');
+  return t('AutomationRunHistoryScreen.errorGeneric');
 }

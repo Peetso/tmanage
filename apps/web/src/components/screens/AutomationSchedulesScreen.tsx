@@ -15,6 +15,7 @@ import {
 } from '../../lib/api/automation-schedules';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationSchedulesScreenProps {
   organizationSlug: string;
@@ -22,21 +23,9 @@ export interface AutomationSchedulesScreenProps {
   client?: ApiClient;
 }
 
-const INTERVALS: readonly { value: ScheduleInterval; label: string }[] = [
-  { value: 'hourly', label: 'Hourly' },
-  { value: 'daily', label: 'Daily' },
-  { value: 'weekly', label: 'Weekly' },
-];
+const INTERVALS: readonly ScheduleInterval[] = ['hourly', 'daily', 'weekly'];
 
-const DAYS: readonly { value: number; label: string }[] = [
-  { value: 0, label: 'Sunday' },
-  { value: 1, label: 'Monday' },
-  { value: 2, label: 'Tuesday' },
-  { value: 3, label: 'Wednesday' },
-  { value: 4, label: 'Thursday' },
-  { value: 5, label: 'Friday' },
-  { value: 6, label: 'Saturday' },
-];
+const DAY_VALUES: readonly number[] = [0, 1, 2, 3, 4, 5, 6];
 
 /**
  * **Automations scheduled triggers (x167).**
@@ -60,7 +49,38 @@ export function AutomationSchedulesScreen({
 }: AutomationSchedulesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['automation-schedules', organizationSlug];
+
+  const intervalLabel = (value: ScheduleInterval): string => {
+    switch (value) {
+      case 'hourly':
+        return t('AutomationSchedulesScreen.intervalHourly');
+      case 'daily':
+        return t('AutomationSchedulesScreen.intervalDaily');
+      default:
+        return t('AutomationSchedulesScreen.intervalWeekly');
+    }
+  };
+
+  const dayLabel = (value: number): string => {
+    switch (value) {
+      case 0:
+        return t('AutomationSchedulesScreen.daySunday');
+      case 1:
+        return t('AutomationSchedulesScreen.dayMonday');
+      case 2:
+        return t('AutomationSchedulesScreen.dayTuesday');
+      case 3:
+        return t('AutomationSchedulesScreen.dayWednesday');
+      case 4:
+        return t('AutomationSchedulesScreen.dayThursday');
+      case 5:
+        return t('AutomationSchedulesScreen.dayFriday');
+      default:
+        return t('AutomationSchedulesScreen.daySaturday');
+    }
+  };
 
   const schedules = useQuery({
     queryKey,
@@ -108,9 +128,13 @@ export function AutomationSchedulesScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Automations · Schedules"
-      title="Scheduled triggers"
-      {...(rows.length > 0 ? { titleMeta: `${onCount} on · ${rows.length - onCount} off` } : {})}
+      eyebrow={t('AutomationSchedulesScreen.eyebrow')}
+      title={t('AutomationSchedulesScreen.title')}
+      {...(rows.length > 0
+        ? {
+            titleMeta: `${onCount} ${t('AutomationSchedulesScreen.metaOn')} · ${rows.length - onCount} ${t('AutomationSchedulesScreen.metaOff')}`,
+          }
+        : {})}
     >
       <div className="tm-aut">
         <AutomationSectionTabs
@@ -122,23 +146,20 @@ export function AutomationSchedulesScreen({
         <div className="tm-aut-split tm-aut-split--wide">
           <section className="tm-aut-col" aria-labelledby="tm-schedule-list-heading">
             <h2 id="tm-schedule-list-heading" className="tm-visually-hidden">
-              Schedules
+              {t('AutomationSchedulesScreen.schedulesHeading')}
             </h2>
-            <p className="tm-aut-lede">
-              When an automation should run on its own. Every schedule is recorded here, times are
-              in UTC, and each run lands in the run history.
-            </p>
+            <p className="tm-aut-lede">{t('AutomationSchedulesScreen.lede')}</p>
 
             {schedules.isError ? (
-              <InlineAlert tone="danger" title="Could not load the schedules" live>
-                {describeError(schedules.error)}
+              <InlineAlert tone="danger" title={t('AutomationSchedulesScreen.errorLoadTitle')} live>
+                {describeError(t, schedules.error)}
               </InlineAlert>
             ) : null}
 
             <div className="tm-aut-tablecard">
               {schedules.isPending ? (
                 <div className="tm-aut-pad">
-                  <LoadingRegion label="Loading the schedules.">
+                  <LoadingRegion label={t('AutomationSchedulesScreen.loadingLabel')}>
                     <Skeleton height="var(--row)" />
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
@@ -147,10 +168,8 @@ export function AutomationSchedulesScreen({
 
               {!schedules.isPending && !schedules.isError && rows.length === 0 ? (
                 <div className="tm-aut-empty">
-                  <p className="tm-aut-empty__title">No schedules yet</p>
-                  <p className="tm-aut-empty__body">
-                    Add a schedule with the form. Each one records when an automation should run.
-                  </p>
+                  <p className="tm-aut-empty__title">{t('AutomationSchedulesScreen.emptyTitle')}</p>
+                  <p className="tm-aut-empty__body">{t('AutomationSchedulesScreen.emptyBody')}</p>
                 </div>
               ) : null}
 
@@ -162,21 +181,21 @@ export function AutomationSchedulesScreen({
                   // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
                   tabIndex={0}
                   role="region"
-                  aria-label="Scheduled triggers"
+                  aria-label={t('AutomationSchedulesScreen.tableLabel')}
                 >
                   <table className="tm-aut-table">
                     <caption className="tm-visually-hidden">
-                      This organization&rsquo;s scheduled triggers, {rows.length} shown, soonest due
-                      first.
+                      {t('AutomationSchedulesScreen.captionPrefix')} {rows.length}{' '}
+                      {t('AutomationSchedulesScreen.captionSuffix')}
                     </caption>
                     <thead>
                       <tr>
-                        <th scope="col">Template</th>
+                        <th scope="col">{t('AutomationSchedulesScreen.colTemplate')}</th>
                         <th scope="col" className="tm-aut-hide-sm">
-                          Next run (UTC)
+                          {t('AutomationSchedulesScreen.colNextRun')}
                         </th>
                         <th scope="col" className="tm-aut-end">
-                          Enabled
+                          {t('AutomationSchedulesScreen.colEnabled')}
                         </th>
                       </tr>
                     </thead>
@@ -188,7 +207,7 @@ export function AutomationSchedulesScreen({
                               {templateName(schedule.templateId)}
                             </span>
                             <span className="tm-aut-rowsub">
-                              {describeRecurrence(schedule.spec)}
+                              {describeRecurrence(t, dayLabel, schedule.spec)}
                             </span>
                           </th>
                           <td className="tm-aut-mono tm-aut-hide-sm">
@@ -198,7 +217,9 @@ export function AutomationSchedulesScreen({
                             <span
                               className={`tm-aut-state ${schedule.enabled ? 'tm-aut-state--live' : 'tm-aut-state--off'}`}
                             >
-                              {schedule.enabled ? 'On' : 'Off'}
+                              {schedule.enabled
+                                ? t('AutomationSchedulesScreen.stateOn')
+                                : t('AutomationSchedulesScreen.stateOff')}
                             </span>
                           </td>
                         </tr>
@@ -212,9 +233,9 @@ export function AutomationSchedulesScreen({
 
           <div className="tm-aut-col">
             <section className="tm-aut-card tm-card--ink" aria-labelledby="tm-schedule-new-heading">
-              <p className="tm-aut-eyebrow">New schedule</p>
+              <p className="tm-aut-eyebrow">{t('AutomationSchedulesScreen.newScheduleEyebrow')}</p>
               <h2 id="tm-schedule-new-heading" className="tm-aut-card__title">
-                Run an automation on its own
+                {t('AutomationSchedulesScreen.newScheduleTitle')}
               </h2>
               <form
                 className="tm-stack"
@@ -226,14 +247,14 @@ export function AutomationSchedulesScreen({
               >
                 {library.length > 0 ? (
                   <Select
-                    label="Automation"
+                    label={t('AutomationSchedulesScreen.automationLabel')}
                     name="templateId"
                     value={templateId}
                     onChange={(event) => setTemplateId(event.target.value)}
-                    hint="The automation this schedule runs."
+                    hint={t('AutomationSchedulesScreen.automationHint')}
                     required
                   >
-                    <option value="">Choose an automation…</option>
+                    <option value="">{t('AutomationSchedulesScreen.chooseAutomation')}</option>
                     {library.map((template) => (
                       <option key={template.id} value={template.id}>
                         {template.name}
@@ -242,68 +263,72 @@ export function AutomationSchedulesScreen({
                   </Select>
                 ) : (
                   <Field
-                    label="Workflow template ID"
+                    label={t('AutomationSchedulesScreen.templateIdLabel')}
                     name="templateId"
                     value={templateId}
                     onChange={(event) => setTemplateId(event.target.value)}
-                    hint="The template this schedule runs. It must belong to this organization."
+                    hint={t('AutomationSchedulesScreen.templateIdHint')}
                     required
                   />
                 )}
                 <Select
-                  label="Interval"
+                  label={t('AutomationSchedulesScreen.intervalLabel')}
                   name="interval"
                   value={interval}
                   onChange={(event) => setInterval(event.target.value as ScheduleInterval)}
-                  hint="How often the schedule fires."
+                  hint={t('AutomationSchedulesScreen.intervalHint')}
                 >
                   {INTERVALS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
+                    <option key={option} value={option}>
+                      {intervalLabel(option)}
                     </option>
                   ))}
                 </Select>
 
                 {usesHour ? (
                   <Field
-                    label="Hour of day (UTC)"
+                    label={t('AutomationSchedulesScreen.hourLabel')}
                     name="hour"
                     type="number"
                     min={0}
                     max={23}
                     value={hour}
                     onChange={(event) => setHour(event.target.value)}
-                    hint="0–23. The hour, in UTC, the schedule fires."
+                    hint={t('AutomationSchedulesScreen.hourHint')}
                   />
                 ) : null}
 
                 {usesDay ? (
                   <Select
-                    label="Day of week"
+                    label={t('AutomationSchedulesScreen.dayOfWeekLabel')}
                     name="dayOfWeek"
                     value={dayOfWeek}
                     onChange={(event) => setDayOfWeek(event.target.value)}
-                    hint="The day of the week the weekly schedule fires."
+                    hint={t('AutomationSchedulesScreen.dayOfWeekHint')}
                   >
-                    {DAYS.map((option) => (
-                      <option key={option.value} value={String(option.value)}>
-                        {option.label}
+                    {DAY_VALUES.map((option) => (
+                      <option key={option} value={String(option)}>
+                        {dayLabel(option)}
                       </option>
                     ))}
                   </Select>
                 ) : null}
 
                 <Checkbox
-                  label="Enabled"
+                  label={t('AutomationSchedulesScreen.enabledLabel')}
                   name="enabled"
                   checked={enabled}
                   onChange={(event) => setEnabled(event.target.checked)}
-                  hint="A disabled schedule is recorded but a runner will skip it."
+                  hint={t('AutomationSchedulesScreen.enabledHint')}
                 />
 
                 {create.isError ? (
-                  <InlineAlert tone="danger" title="Could not create the schedule" live>
-                    {describeError(create.error)}
+                  <InlineAlert
+                    tone="danger"
+                    title={t('AutomationSchedulesScreen.errorCreateTitle')}
+                    live
+                  >
+                    {describeError(t, create.error)}
                   </InlineAlert>
                 ) : null}
 
@@ -313,10 +338,10 @@ export function AutomationSchedulesScreen({
                     tone="lime"
                     size="accessible"
                     loading={create.isPending}
-                    loadingLabel="Scheduling"
+                    loadingLabel={t('AutomationSchedulesScreen.scheduling')}
                     disabled={!canCreate}
                   >
-                    Create schedule
+                    {t('AutomationSchedulesScreen.createButton')}
                   </Button>
                 </div>
               </form>
@@ -325,19 +350,19 @@ export function AutomationSchedulesScreen({
             <section className="tm-aut-card" aria-labelledby="tm-schedule-rules-heading">
               <p className="tm-aut-eyebrow">
                 <span className="tm-aut-eyebrow__square" aria-hidden="true" />
-                How a schedule runs
+                {t('AutomationSchedulesScreen.howEyebrow')}
               </p>
               <h2
                 id="tm-schedule-rules-heading"
                 className="tm-aut-card__title tm-aut-card__title--section"
               >
-                One automation, at a fixed time, recorded every time
+                {t('AutomationSchedulesScreen.howTitle')}
               </h2>
               <ol className="tm-aut-facts tm-aut-facts--numbered">
-                <li>Times are kept in UTC, so a schedule never drifts with daylight saving.</li>
-                <li>A disabled schedule stays on the list and is skipped until it is turned on.</li>
-                <li>Every run, succeeded or failed, is written to the run history.</li>
-                <li>A schedule only runs automations that belong to this organization.</li>
+                <li>{t('AutomationSchedulesScreen.fact1')}</li>
+                <li>{t('AutomationSchedulesScreen.fact2')}</li>
+                <li>{t('AutomationSchedulesScreen.fact3')}</li>
+                <li>{t('AutomationSchedulesScreen.fact4')}</li>
               </ol>
             </section>
           </div>
@@ -358,17 +383,21 @@ function formatNextRun(iso: string): string {
 }
 
 /** A short human description of a recurrence spec. */
-function describeRecurrence(spec: ScheduleSpec): string {
-  if (spec.interval === 'hourly') return 'Every hour';
+function describeRecurrence(
+  t: ReturnType<typeof useT>,
+  dayLabel: (value: number) => string,
+  spec: ScheduleSpec,
+): string {
+  if (spec.interval === 'hourly') return t('AutomationSchedulesScreen.everyHour');
   const hour = spec.hour ?? 0;
-  const at = `at ${String(hour).padStart(2, '0')}:00`;
-  if (spec.interval === 'daily') return `Daily ${at}`;
-  const day = DAYS.find((d) => d.value === (spec.dayOfWeek ?? 0))?.label ?? 'Sunday';
-  return `Weekly on ${day} ${at}`;
+  const at = `${t('AutomationSchedulesScreen.at')} ${String(hour).padStart(2, '0')}:00`;
+  if (spec.interval === 'daily') return `${t('AutomationSchedulesScreen.daily')} ${at}`;
+  const day = dayLabel(spec.dayOfWeek ?? 0);
+  return `${t('AutomationSchedulesScreen.weeklyOn')} ${day} ${at}`;
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationSchedulesScreen.errorApiUnreachable');
+  return t('AutomationSchedulesScreen.errorGeneric');
 }

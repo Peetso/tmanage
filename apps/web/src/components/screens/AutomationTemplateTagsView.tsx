@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/automation-template-tags';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface AutomationTemplateTagsViewProps {
   organizationSlug: string;
@@ -43,6 +44,7 @@ export function AutomationTemplateTagsView({
 }: AutomationTemplateTagsViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const tagsKey = ['automation-template-tags', organizationSlug, templateId];
 
   const tags = useQuery({
@@ -85,11 +87,9 @@ export function AutomationTemplateTagsView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-automation-template-tags-heading">
       <h2 id="tm-automation-template-tags-heading" className="tm-eyebrow">
-        Tags
+        {t('AutomationTemplateTagsView.heading')}
       </h2>
-      <p className="tm-muted">
-        Label this template so it can be grouped and found. A tag is added or removed, not edited.
-      </p>
+      <p className="tm-muted">{t('AutomationTemplateTagsView.lede')}</p>
 
       <form
         className="tm-stack"
@@ -100,17 +100,17 @@ export function AutomationTemplateTagsView({
         }}
       >
         <Field
-          label="Tag"
+          label={t('AutomationTemplateTagsView.tagLabel')}
           name="label"
           value={label}
           onChange={(event) => setLabel(event.target.value)}
-          hint="A short label, such as onboarding or urgent."
+          hint={t('AutomationTemplateTagsView.tagHint')}
           required
         />
 
         {add.isError ? (
-          <InlineAlert tone="danger" title="Could not add the tag" live>
-            {describeError(add.error)}
+          <InlineAlert tone="danger" title={t('AutomationTemplateTagsView.errorAddTitle')} live>
+            {describeError(t, add.error)}
           </InlineAlert>
         ) : null}
 
@@ -120,34 +120,34 @@ export function AutomationTemplateTagsView({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('AutomationTemplateTagsView.adding')}
             disabled={!canAdd}
           >
-            Add tag
+            {t('AutomationTemplateTagsView.addButton')}
           </Button>
         </div>
       </form>
 
       {tags.isError ? (
-        <InlineAlert tone="danger" title="Could not load the tags" live>
-          {describeError(tags.error)}
+        <InlineAlert tone="danger" title={t('AutomationTemplateTagsView.errorLoadTitle')} live>
+          {describeError(t, tags.error)}
         </InlineAlert>
       ) : null}
 
       {tags.isPending ? (
-        <LoadingRegion label="Loading the tags.">
+        <LoadingRegion label={t('AutomationTemplateTagsView.loadingLabel')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!tags.isPending && !tags.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No tags yet">
-          Add a tag above to categorise this template.
+        <InlineAlert tone="neutral" title={t('AutomationTemplateTagsView.emptyTitle')}>
+          {t('AutomationTemplateTagsView.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (
-        <ul className="tm-chip-list" aria-label="Template tags">
+        <ul className="tm-chip-list" aria-label={t('AutomationTemplateTagsView.tagsListLabel')}>
           {rows.map((tag) => (
             <li key={tag.id} className="tm-chip">
               <span className="tm-chip__label">{tag.label}</span>
@@ -157,10 +157,10 @@ export function AutomationTemplateTagsView({
                 size="compact"
                 onClick={() => remove.mutate(tag.id)}
                 loading={remove.isPending && remove.variables === tag.id}
-                loadingLabel="Removing"
-                aria-label={`Remove tag ${tag.label}`}
+                loadingLabel={t('AutomationTemplateTagsView.removing')}
+                aria-label={`${t('AutomationTemplateTagsView.removeTag')} ${tag.label}`}
               >
-                Remove
+                {t('AutomationTemplateTagsView.remove')}
               </Button>
             </li>
           ))}
@@ -168,12 +168,12 @@ export function AutomationTemplateTagsView({
       ) : null}
 
       {remove.isError ? (
-        <InlineAlert tone="danger" title="Could not remove the tag" live>
-          {describeError(remove.error)}
+        <InlineAlert tone="danger" title={t('AutomationTemplateTagsView.errorRemoveTitle')} live>
+          {describeError(t, remove.error)}
         </InlineAlert>
       ) : null}
 
-      <h3 className="tm-eyebrow">Filter templates by tag</h3>
+      <h3 className="tm-eyebrow">{t('AutomationTemplateTagsView.filterHeading')}</h3>
       <form
         className="tm-stack"
         noValidate
@@ -183,22 +183,22 @@ export function AutomationTemplateTagsView({
         }}
       >
         <Field
-          label="Tag to filter by"
+          label={t('AutomationTemplateTagsView.filterFieldLabel')}
           name="filter"
           value={filterInput}
           onChange={(event) => setFilterInput(event.target.value)}
-          hint="Show every template carrying this label."
+          hint={t('AutomationTemplateTagsView.filterFieldHint')}
         />
         <div className="tm-row">
           <Button type="submit" tone="ink" size="accessible" disabled={!canFilter}>
-            Filter
+            {t('AutomationTemplateTagsView.filterButton')}
           </Button>
         </div>
       </form>
 
       {filter.isError ? (
-        <InlineAlert tone="danger" title="Could not filter the templates" live>
-          {describeError(filter.error)}
+        <InlineAlert tone="danger" title={t('AutomationTemplateTagsView.errorFilterTitle')} live>
+          {describeError(t, filter.error)}
         </InlineAlert>
       ) : null}
 
@@ -206,13 +206,16 @@ export function AutomationTemplateTagsView({
       !filter.isPending &&
       !filter.isError &&
       filteredTemplates.length === 0 ? (
-        <InlineAlert tone="neutral" title="No templates with that tag">
-          No template carries the label &ldquo;{filterLabel}&rdquo;.
+        <InlineAlert tone="neutral" title={t('AutomationTemplateTagsView.noMatchTitle')}>
+          {t('AutomationTemplateTagsView.noMatchPrefix')} &ldquo;{filterLabel}&rdquo;.
         </InlineAlert>
       ) : null}
 
       {filteredTemplates.length > 0 ? (
-        <ul className="tm-list" aria-label={`Templates tagged ${filterLabel ?? ''}`}>
+        <ul
+          className="tm-list"
+          aria-label={`${t('AutomationTemplateTagsView.templatesTagged')} ${filterLabel ?? ''}`}
+        >
           {filteredTemplates.map((template) => (
             <li key={template.id} className="tm-list__item">
               {template.name}
@@ -224,8 +227,8 @@ export function AutomationTemplateTagsView({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(t: ReturnType<typeof useT>, error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('AutomationTemplateTagsView.errorApiUnreachable');
+  return t('AutomationTemplateTagsView.errorGeneric');
 }
