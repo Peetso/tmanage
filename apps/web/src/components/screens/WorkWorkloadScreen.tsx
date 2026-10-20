@@ -13,6 +13,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/work-planning.css';
 
 export interface WorkWorkloadScreenProps {
@@ -44,6 +45,7 @@ export function WorkWorkloadScreen({
   initialProjectId,
   client,
 }: WorkWorkloadScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
   const directory = useMembers(api, organizationSlug);
@@ -72,18 +74,22 @@ export function WorkWorkloadScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Commitments against capacity"
-      eyebrow={projectName ? `Workload · ${projectName}` : 'Workload'}
+      title={t('WorkWorkloadScreen.title')}
+      eyebrow={
+        projectName
+          ? `${t('WorkWorkloadScreen.workload')} · ${projectName}`
+          : t('WorkWorkloadScreen.workload')
+      }
       actions={
         <div className="wp-toolbar">
-          <nav className="wp-segmented" aria-label="Work views">
-            <Link href={`/${organizationSlug}/work`}>List</Link>
+          <nav className="wp-segmented" aria-label={t('WorkWorkloadScreen.workViews')}>
+            <Link href={`/${organizationSlug}/work`}>{t('WorkWorkloadScreen.list')}</Link>
             <Link
               href={`/${organizationSlug}/work/timeline${
                 chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
               }`}
             >
-              Timeline
+              {t('WorkWorkloadScreen.timeline')}
             </Link>
             {/* CQ-07 (WRK-08): the switcher was missing Calendar; the four views now match. */}
             <Link
@@ -91,12 +97,12 @@ export function WorkWorkloadScreen({
                 chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
               }`}
             >
-              Calendar
+              {t('WorkWorkloadScreen.calendar')}
             </Link>
-            <span aria-current="page">Workload</span>
+            <span aria-current="page">{t('WorkWorkloadScreen.workload')}</span>
           </nav>
           <label className="tm-visually-hidden" htmlFor="tm-workload-project">
-            Show the workload for
+            {t('WorkWorkloadScreen.showWorkloadFor')}
           </label>
           <select
             id="tm-workload-project"
@@ -105,7 +111,9 @@ export function WorkWorkloadScreen({
             disabled={projects.isPending || noProjects}
             onChange={(event) => setProjectId(event.target.value)}
           >
-            {chosenProjectId === '' ? <option value="">Choose a project…</option> : null}
+            {chosenProjectId === '' ? (
+              <option value="">{t('WorkWorkloadScreen.chooseProject')}</option>
+            ) : null}
             {(projects.data ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -117,22 +125,19 @@ export function WorkWorkloadScreen({
     >
       {noProjects ? (
         <div className="wp-empty">
-          <h2 className="wp-empty__title">No project to show yet</h2>
-          <p className="wp-empty__body">
-            A workload is per project. Once you can see a project, who carries its open work appears
-            here.
-          </p>
+          <h2 className="wp-empty__title">{t('WorkWorkloadScreen.noProjectTitle')}</h2>
+          <p className="wp-empty__body">{t('WorkWorkloadScreen.noProjectBody')}</p>
         </div>
       ) : null}
 
       {workload.isError ? (
-        <InlineAlert tone="danger" title="Could not load the workload" live>
+        <InlineAlert tone="danger" title={t('WorkWorkloadScreen.loadError')} live>
           {describeError(workload.error)}
         </InlineAlert>
       ) : null}
 
       {chosenProjectId !== '' && workload.isPending ? (
-        <LoadingRegion label="Loading the workload.">
+        <LoadingRegion label={t('WorkWorkloadScreen.loading')}>
           <Skeleton height="60px" />
           <Skeleton height="60px" />
           <Skeleton height="60px" />
@@ -141,24 +146,23 @@ export function WorkWorkloadScreen({
 
       {chosenProjectId !== '' && workload.isSuccess && rows.length === 0 ? (
         <div className="wp-empty">
-          <h2 className="wp-empty__title">No open work on this project</h2>
-          <p className="wp-empty__body">
-            This project has no open work items you can see. Create one from the project.
-          </p>
+          <h2 className="wp-empty__title">{t('WorkWorkloadScreen.emptyTitle')}</h2>
+          <p className="wp-empty__body">{t('WorkWorkloadScreen.emptyBody')}</p>
         </div>
       ) : null}
 
       {rows.length > 0 ? (
-        <div className="wp-load" role="region" aria-label="Work workload">
+        <div className="wp-load" role="region" aria-label={t('WorkWorkloadScreen.region')}>
           <table>
             <caption className="tm-visually-hidden">
-              Assignees on this project by open workload, {rows.length} shown.
+              {t('WorkWorkloadScreen.captionPre')} {rows.length}{' '}
+              {t('WorkWorkloadScreen.captionShown')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Assignee</th>
-                <th scope="col">Open items</th>
-                <th scope="col">On the calendar</th>
+                <th scope="col">{t('WorkWorkloadScreen.colAssignee')}</th>
+                <th scope="col">{t('WorkWorkloadScreen.colOpenItems')}</th>
+                <th scope="col">{t('WorkWorkloadScreen.colOnCalendar')}</th>
               </tr>
             </thead>
             <tbody>
@@ -181,8 +185,12 @@ export function WorkWorkloadScreen({
                       </span>
                       <span>{name}</span>
                     </th>
-                    <td className="wp-load__open">{group.openItemCount} open</td>
-                    <td className="wp-load__sched">· {group.scheduledItemCount} on the calendar</td>
+                    <td className="wp-load__open">
+                      {group.openItemCount} {t('WorkWorkloadScreen.openWord')}
+                    </td>
+                    <td className="wp-load__sched">
+                      · {group.scheduledItemCount} {t('WorkWorkloadScreen.onCalendar')}
+                    </td>
                     <td className="wp-load__barcell" aria-hidden="true">
                       <LoadBar group={group} heaviest={heaviest} />
                     </td>
@@ -191,9 +199,7 @@ export function WorkWorkloadScreen({
               })}
             </tbody>
           </table>
-          <p className="wp-load__legend">
-            Solid = on the calendar · Outline = no date yet · Counts only, nobody is scored
-          </p>
+          <p className="wp-load__legend">{t('WorkWorkloadScreen.legend')}</p>
         </div>
       ) : null}
     </AppShell>

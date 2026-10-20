@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkSubtasksViewProps {
   organizationSlug: string;
@@ -38,6 +39,7 @@ function describe(error: unknown): string {
  * the list reflects the server rather than an optimistic guess.
  */
 export function WorkSubtasksView({ organizationSlug, workItemId, api }: WorkSubtasksViewProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-subtasks', organizationSlug, workItemId] as const;
   const [title, setTitle] = useState('');
@@ -96,43 +98,44 @@ export function WorkSubtasksView({ organizationSlug, workItemId, api }: WorkSubt
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-subtasks">
       <h2 id="tm-work-subtasks" className="tm-eyebrow">
-        Subtasks
+        {t('WorkSubtasksView.heading')}
       </h2>
 
       {subtasks.isPending ? (
-        <LoadingRegion label="Loading this item’s subtasks.">
+        <LoadingRegion label={t('WorkSubtasksView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {subtasks.isError ? (
-        <InlineAlert tone="danger" title="Could not load the subtasks" live>
+        <InlineAlert tone="danger" title={t('WorkSubtasksView.loadError')} live>
           {describe(subtasks.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('WorkSubtasksView.failureTitle')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {list ? (
         items.length === 0 ? (
-          <p className="tm-prose">No subtasks yet. Add the first one below.</p>
+          <p className="tm-prose">{t('WorkSubtasksView.empty')}</p>
         ) : (
           <>
             <p className="tm-prose">
-              {list.done} of {list.total} done.
+              {list.done} {t('WorkSubtasksView.progressOf')} {list.total}{' '}
+              {t('WorkSubtasksView.progressDone')}
             </p>
             <progress
               className="tm-progress"
               max={list.total}
               value={list.done}
-              aria-label={`${list.done} of ${list.total} subtasks done`}
+              aria-label={`${list.done} ${t('WorkSubtasksView.progressOf')} ${list.total} ${t('WorkSubtasksView.subtasksDone')}`}
             />
-            <ul className="tm-list" aria-label="Subtasks">
+            <ul className="tm-list" aria-label={t('WorkSubtasksView.listLabel')}>
               {items.map((item) => (
                 <li key={item.id} className="tm-row">
                   <Checkbox
@@ -148,7 +151,7 @@ export function WorkSubtasksView({ organizationSlug, workItemId, api }: WorkSubt
                     disabled={busy}
                     onClick={() => remove.mutate(item)}
                   >
-                    Remove
+                    {t('WorkSubtasksView.remove')}
                   </Button>
                 </li>
               ))}
@@ -159,12 +162,12 @@ export function WorkSubtasksView({ organizationSlug, workItemId, api }: WorkSubt
 
       <form className="tm-stack" noValidate onSubmit={submit}>
         <Field
-          label="Add a subtask"
+          label={t('WorkSubtasksView.addLabel')}
           name="subtaskTitle"
           value={title}
           maxLength={300}
           onChange={(event) => setTitle(event.target.value)}
-          hint="A short child task. It is added to the end of the list."
+          hint={t('WorkSubtasksView.addHint')}
         />
         <div className="tm-row">
           <Button
@@ -172,10 +175,10 @@ export function WorkSubtasksView({ organizationSlug, workItemId, api }: WorkSubt
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('WorkSubtasksView.adding')}
             disabled={title.trim() === ''}
           >
-            Add subtask
+            {t('WorkSubtasksView.addSubtask')}
           </Button>
         </div>
       </form>

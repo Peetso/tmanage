@@ -5,6 +5,8 @@ import type { ReactNode } from 'react';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../../brand/Wordmark';
 import { useInWebsiteChrome } from '../../website/WebsiteChrome';
+import type { MessageKey } from '../../../lib/i18n/t';
+import { useT } from '../../../lib/i18n/use-t';
 import '../../../styles/screens/public.css';
 
 /**
@@ -35,12 +37,12 @@ export interface PublicPageProps {
 
 export type PublicSection = 'product' | 'portal' | 'pricing' | 'security' | 'status';
 
-const SECTIONS: readonly { id: PublicSection; label: string; href: string }[] = [
-  { id: 'product', label: 'Product', href: '/#product' },
-  { id: 'portal', label: 'Client Portal', href: '/#portal' },
-  { id: 'pricing', label: 'Pricing', href: '/pricing' },
-  { id: 'security', label: 'Security', href: '/security' },
-  { id: 'status', label: 'Status', href: '/status' },
+const SECTIONS: readonly { id: PublicSection; labelKey: MessageKey; href: string }[] = [
+  { id: 'product', labelKey: 'PublicSite.navProduct', href: '/#product' },
+  { id: 'portal', labelKey: 'PublicSite.navPortal', href: '/#portal' },
+  { id: 'pricing', labelKey: 'PublicSite.navPricing', href: '/pricing' },
+  { id: 'security', labelKey: 'PublicSite.navSecurity', href: '/security' },
+  { id: 'status', labelKey: 'PublicSite.navStatus', href: '/status' },
 ];
 
 export function PublicPage({
@@ -51,6 +53,7 @@ export function PublicPage({
   tone = 'default',
   width = 'wide',
 }: PublicPageProps) {
+  const t = useT();
   const inWebsite = useInWebsiteChrome();
   if (inWebsite) {
     // Inside the `(website)` route group the shared Web/Nav, `<main>` and Web/Footer already
@@ -60,7 +63,7 @@ export function PublicPage({
         <div className={`tm-pub__inner${width === 'narrow' ? ' tm-pub__inner--narrow' : ''}`}>
           {bar === 'status' ? (
             <div className="tm-pub__bar tm-pub__bar--status">
-              <p className="tm-pub-eyebrow">Status</p>
+              <p className="tm-pub-eyebrow">{t('PublicSite.statusEyebrow')}</p>
               {statusMeta ? <p className="tm-pub__bar-meta">{statusMeta}</p> : null}
             </div>
           ) : null}
@@ -76,18 +79,18 @@ export function PublicPage({
         <div className={`tm-pub__inner${width === 'narrow' ? ' tm-pub__inner--narrow' : ''}`}>
           {bar === 'status' ? (
             <header className="tm-pub__bar tm-pub__bar--status">
-              <Link href="/" className="tm-pub__brand" aria-label="TManage home">
+              <Link href="/" className="tm-pub__brand" aria-label={t('PublicSite.brandHome')}>
                 <Wordmark label="TManage" />
               </Link>
-              <p className="tm-pub-eyebrow">Status</p>
+              <p className="tm-pub-eyebrow">{t('PublicSite.statusEyebrow')}</p>
               {statusMeta ? <p className="tm-pub__bar-meta">{statusMeta}</p> : null}
             </header>
           ) : (
             <header className="tm-pub__bar">
-              <Link href="/" className="tm-pub__brand" aria-label="TManage home">
+              <Link href="/" className="tm-pub__brand" aria-label={t('PublicSite.brandHome')}>
                 <Wordmark label="TManage" />
               </Link>
-              <nav className="tm-pub__nav" aria-label="Primary">
+              <nav className="tm-pub__nav" aria-label={t('PublicSite.primaryNav')}>
                 {SECTIONS.map((section) => (
                   <Link
                     key={section.id}
@@ -95,15 +98,15 @@ export function PublicPage({
                     className="tm-pub__nav-link"
                     aria-current={section.id === current ? 'page' : undefined}
                   >
-                    {section.label}
+                    {t(section.labelKey)}
                   </Link>
                 ))}
               </nav>
               <div className="tm-pub__actions">
                 <Link href="/sign-in" className="tm-pub__signin">
-                  Sign in
+                  {t('PublicSite.signIn')}
                 </Link>
-                <OrbLink href="/sign-in">Start free</OrbLink>
+                <OrbLink href="/sign-in">{t('PublicSite.startFree')}</OrbLink>
               </div>
             </header>
           )}
@@ -114,15 +117,15 @@ export function PublicPage({
 
           <footer className="tm-pub__footer">
             <Wordmark label="TManage" />
-            <nav className="tm-pub__footer-nav" aria-label="Site">
-              <Link href="/pricing">Pricing</Link>
-              <Link href="/security">Security</Link>
-              <Link href="/resources">Resources</Link>
-              <Link href="/faq">FAQ</Link>
-              <Link href="/changelog">Changelog</Link>
-              <Link href="/contact">Contact</Link>
-              <Link href="/legal/privacy">Privacy</Link>
-              <Link href="/legal/terms">Terms</Link>
+            <nav className="tm-pub__footer-nav" aria-label={t('PublicSite.footerNav')}>
+              <Link href="/pricing">{t('PublicSite.footerPricing')}</Link>
+              <Link href="/security">{t('PublicSite.footerSecurity')}</Link>
+              <Link href="/resources">{t('PublicSite.footerResources')}</Link>
+              <Link href="/faq">{t('PublicSite.footerFaq')}</Link>
+              <Link href="/changelog">{t('PublicSite.footerChangelog')}</Link>
+              <Link href="/contact">{t('PublicSite.footerContact')}</Link>
+              <Link href="/legal/privacy">{t('PublicSite.footerPrivacy')}</Link>
+              <Link href="/legal/terms">{t('PublicSite.footerTerms')}</Link>
             </nav>
           </footer>
         </div>

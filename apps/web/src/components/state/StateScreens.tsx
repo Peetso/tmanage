@@ -4,6 +4,8 @@ import { useCallback, useId, useState, type ReactNode } from 'react';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { STATE_COPY, type StateKey } from './state-copy';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 
 /**
  * The standard platform-state matrix as shared, presentational components.
@@ -53,12 +55,12 @@ const HEADING_TAG: Record<HeadingLevel, 'h1' | 'h2' | 'h3'> = {
  * error eyebrow carries the danger square in CSS, so it reads by shape as well as by colour.
  * Hidden from assistive technology: the heading already says the same thing.
  */
-const EYEBROW: Record<StateKey, string> = {
-  forbidden: 'No access',
-  notFound: 'Not found',
-  serverError: 'Unexpected error',
-  empty: 'Nothing here yet',
-  loading: 'Loading',
+const EYEBROW_KEY: Record<StateKey, MessageKey> = {
+  forbidden: 'StateScreens.eyebrowForbidden',
+  notFound: 'StateScreens.eyebrowNotFound',
+  serverError: 'StateScreens.eyebrowServerError',
+  empty: 'StateScreens.eyebrowEmpty',
+  loading: 'StateScreens.eyebrowLoading',
 };
 
 /** The glyph each state shows. Decorative — the heading carries the meaning. */
@@ -99,6 +101,7 @@ function StatePanel({
   busy,
   detail,
 }: StatePanelProps) {
+  const t = useT();
   const headingId = useId();
   const Heading = HEADING_TAG[headingLevel];
   const classes = ['tm-state', className].filter(Boolean).join(' ');
@@ -116,7 +119,7 @@ function StatePanel({
         </span>
         <div className="tm-state__text">
           <p className="tm-state__eyebrow" aria-hidden="true">
-            {EYEBROW[state]}
+            {t(EYEBROW_KEY[state])}
           </p>
           <Heading id={headingId} className="tm-state__title">
             {title}
@@ -254,11 +257,12 @@ interface ServerErrorStateProps {
 
 /** SYS-06's reference card: the id in mono beside a Copy button. */
 function ReferenceCard({ reference }: { reference: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <div className="tm-state__reference">
       <div className="tm-state__reference-text">
-        <span className="tm-state__reference-label">Reference</span>
+        <span className="tm-state__reference-label">{t('StateScreens.reference')}</span>
         <code className="tm-state__reference-value">{reference}</code>
       </div>
       <button
@@ -271,7 +275,7 @@ function ReferenceCard({ reference }: { reference: string }) {
             .catch(() => setCopied(false));
         }}
       >
-        {copied ? 'Copied' : 'Copy'}
+        {copied ? t('StateScreens.copied') : t('StateScreens.copy')}
       </button>
     </div>
   );
@@ -289,6 +293,7 @@ export function ServerErrorState({
   className,
   reference,
 }: ServerErrorStateProps) {
+  const t = useT();
   const focusRef = useFocusOnMount(autoFocusAction);
   const copy = STATE_COPY.serverError;
   return (
@@ -315,7 +320,7 @@ export function ServerErrorState({
             className="tm-button tm-button--ink tm-button--accessible"
             href={homeHref}
           >
-            Back to home
+            {t('StateScreens.backToHome')}
           </a>
         )
       }
@@ -406,6 +411,7 @@ export function LoadingState({
  * own `<section>` region and `<h1>` nest inside the `<main>`.
  */
 export function StateScreen({ children, label }: { children: ReactNode; label?: string }) {
+  const t = useT();
   return (
     <LiveAnnouncer>
       <div className="tm-state-screen">
@@ -413,7 +419,7 @@ export function StateScreen({ children, label }: { children: ReactNode; label?: 
         {/* SYS-06: a quiet bar with the brand orb and the state's name in mono. */}
         <header className="tm-state-screen__bar">
           <a href="/" className="tm-state-screen__mark">
-            <Wordmark variant="icon" label="TManage home" />
+            <Wordmark variant="icon" label={t('StateScreens.brandHome')} />
           </a>
           {label ? <p className="tm-state-screen__label">{label}</p> : null}
         </header>

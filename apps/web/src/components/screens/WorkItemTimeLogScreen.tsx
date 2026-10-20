@@ -10,6 +10,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { addTimeLog, deleteTimeLog, listTimeLogs, type TimeLog } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemTimeLogScreenProps {
   organizationSlug: string;
@@ -35,6 +36,7 @@ export function WorkItemTimeLogScreen({
   workItemId,
   client,
 }: WorkItemTimeLogScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
 
@@ -90,22 +92,28 @@ export function WorkItemTimeLogScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow="Work item"
-      title="Time tracking"
-      description="Log the effort spent on this work item and see the running total."
+      eyebrow={t('WorkItemTimeLogScreen.eyebrow')}
+      title={t('WorkItemTimeLogScreen.title')}
+      description={t('WorkItemTimeLogScreen.description')}
     >
       <div className="tm-wk-page tm-stack">
-        <nav className="tm-segmented tm-wk-subnav" aria-label="This work item">
-          <Link href={`/${organizationSlug}/work/${workItemId}`}>Overview</Link>
-          <Link href={`/${organizationSlug}/work/${workItemId}/activity`}>Activity</Link>
-          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`} aria-current="page">
-            Time
+        <nav className="tm-segmented tm-wk-subnav" aria-label={t('WorkItemTimeLogScreen.subnav')}>
+          <Link href={`/${organizationSlug}/work/${workItemId}`}>
+            {t('WorkItemTimeLogScreen.overview')}
           </Link>
-          <Link href={`/${organizationSlug}/work/${workItemId}/estimate`}>Estimate</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/activity`}>
+            {t('WorkItemTimeLogScreen.activity')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`} aria-current="page">
+            {t('WorkItemTimeLogScreen.time')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/estimate`}>
+            {t('WorkItemTimeLogScreen.estimate')}
+          </Link>
         </nav>
         <section className="tm-panel tm-stack" aria-labelledby="tm-time-new-heading">
           <h2 id="tm-time-new-heading" className="tm-eyebrow">
-            Log time
+            {t('WorkItemTimeLogScreen.logTimeHeading')}
           </h2>
           <form
             className="tm-stack"
@@ -116,40 +124,40 @@ export function WorkItemTimeLogScreen({
             }}
           >
             <Field
-              label="Minutes"
+              label={t('WorkItemTimeLogScreen.minutesLabel')}
               name="minutes"
               type="number"
               min={1}
               max={MAX_MINUTES}
               value={minutes}
               onChange={(event) => setMinutes(event.target.value)}
-              hint={`A whole number of minutes, 1 to ${MAX_MINUTES}.`}
+              hint={`${t('WorkItemTimeLogScreen.minutesHint')} ${MAX_MINUTES}.`}
               required
             />
             <Field
-              label="Day"
+              label={t('WorkItemTimeLogScreen.dayLabel')}
               name="spentOn"
               type="date"
               value={spentOn}
               onChange={(event) => setSpentOn(event.target.value)}
-              hint="The calendar day the effort was spent."
+              hint={t('WorkItemTimeLogScreen.dayHint')}
               required
             />
             <Field
-              label="Note"
+              label={t('WorkItemTimeLogScreen.noteLabel')}
               name="note"
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              hint="Optional — what the time was spent on."
+              hint={t('WorkItemTimeLogScreen.noteHint')}
             />
             {add.isError ? (
-              <InlineAlert tone="danger" title="Could not log the time" live>
+              <InlineAlert tone="danger" title={t('WorkItemTimeLogScreen.logError')} live>
                 {describeError(add.error)}
               </InlineAlert>
             ) : null}
             <div className="tm-row">
               <Button type="submit" tone="ink" disabled={!canAdd} loading={add.isPending}>
-                Log time
+                {t('WorkItemTimeLogScreen.logTime')}
               </Button>
             </div>
           </form>
@@ -158,29 +166,29 @@ export function WorkItemTimeLogScreen({
         <section className="tm-panel tm-stack" aria-labelledby="tm-time-list-heading">
           <div className="tm-row tm-row--between">
             <h2 id="tm-time-list-heading" className="tm-eyebrow">
-              Logged effort
+              {t('WorkItemTimeLogScreen.loggedEffort')}
             </h2>
-            <span className="tm-badge" aria-label="Total time logged">
-              {formatMinutes(totalMinutes)} total
+            <span className="tm-badge" aria-label={t('WorkItemTimeLogScreen.totalAria')}>
+              {formatMinutes(totalMinutes)} {t('WorkItemTimeLogScreen.total')}
             </span>
           </div>
 
           {logs.isError ? (
-            <InlineAlert tone="danger" title="Could not load the time logs" live>
+            <InlineAlert tone="danger" title={t('WorkItemTimeLogScreen.loadError')} live>
               {describeError(logs.error)}
             </InlineAlert>
           ) : null}
 
           {logs.isPending ? (
-            <LoadingRegion label="Loading the time logs.">
+            <LoadingRegion label={t('WorkItemTimeLogScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!logs.isPending && !logs.isError && entries.length === 0 ? (
-            <InlineAlert tone="neutral" title="No time logged yet">
-              Record the first entry above.
+            <InlineAlert tone="neutral" title={t('WorkItemTimeLogScreen.emptyTitle')}>
+              {t('WorkItemTimeLogScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
@@ -189,16 +197,17 @@ export function WorkItemTimeLogScreen({
               {entries.map((entry: TimeLog) => (
                 <li key={entry.id} className="tm-row tm-row--between tm-list__item">
                   <span>
-                    <strong>{formatMinutes(entry.minutes)}</strong> on {entry.spentOn}
+                    <strong>{formatMinutes(entry.minutes)}</strong> {t('WorkItemTimeLogScreen.on')}{' '}
+                    {entry.spentOn}
                     {entry.note ? ` — ${entry.note}` : ''}
                   </span>
                   <Button
                     tone="destructive"
                     onClick={() => remove.mutate(entry.id)}
                     disabled={remove.isPending}
-                    aria-label={`Delete the ${formatMinutes(entry.minutes)} entry on ${entry.spentOn}`}
+                    aria-label={`${t('WorkItemTimeLogScreen.deletePrefix')} ${formatMinutes(entry.minutes)} ${t('WorkItemTimeLogScreen.entryOn')} ${entry.spentOn}`}
                   >
-                    Delete
+                    {t('WorkItemTimeLogScreen.delete')}
                   </Button>
                 </li>
               ))}

@@ -17,6 +17,7 @@ import {
   stateLabel,
 } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/work-planning.css';
 
 export interface WorkTimelineScreenProps {
@@ -53,6 +54,7 @@ export function WorkTimelineScreen({
   client,
   now: nowProp,
 }: WorkTimelineScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
@@ -89,30 +91,34 @@ export function WorkTimelineScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Plan against the commitment"
-      eyebrow={projectName ? `${projectName} · Timeline` : 'Timeline'}
+      title={t('WorkTimelineScreen.title')}
+      eyebrow={
+        projectName
+          ? `${projectName} · ${t('WorkTimelineScreen.timeline')}`
+          : t('WorkTimelineScreen.timeline')
+      }
       actions={
         <div className="wp-toolbar">
-          <nav className="wp-segmented" aria-label="Work views">
-            <Link href={`/${organizationSlug}/work`}>List</Link>
-            <span aria-current="page">Timeline</span>
+          <nav className="wp-segmented" aria-label={t('WorkTimelineScreen.workViews')}>
+            <Link href={`/${organizationSlug}/work`}>{t('WorkTimelineScreen.list')}</Link>
+            <span aria-current="page">{t('WorkTimelineScreen.timeline')}</span>
             <Link
               href={`/${organizationSlug}/work/calendar${
                 chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
               }`}
             >
-              Calendar
+              {t('WorkTimelineScreen.calendar')}
             </Link>
             <Link
               href={`/${organizationSlug}/work/workload${
                 chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
               }`}
             >
-              Workload
+              {t('WorkTimelineScreen.workload')}
             </Link>
           </nav>
           <label className="tm-visually-hidden" htmlFor="tm-timeline-project">
-            Show the timeline for
+            {t('WorkTimelineScreen.showTimelineFor')}
           </label>
           <select
             id="tm-timeline-project"
@@ -121,7 +127,9 @@ export function WorkTimelineScreen({
             disabled={projects.isPending || noProjects}
             onChange={(event) => setProjectId(event.target.value)}
           >
-            {chosenProjectId === '' ? <option value="">Choose a project…</option> : null}
+            {chosenProjectId === '' ? (
+              <option value="">{t('WorkTimelineScreen.chooseProject')}</option>
+            ) : null}
             {(projects.data ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -134,34 +142,32 @@ export function WorkTimelineScreen({
             aria-pressed={listView}
             onClick={() => setListView((current) => !current)}
           >
-            Accessible list
+            {t('WorkTimelineScreen.accessibleList')}
           </button>
         </div>
       }
     >
       {projects.isError ? (
-        <InlineAlert tone="danger" title="Could not load your projects" live>
+        <InlineAlert tone="danger" title={t('WorkTimelineScreen.projectsError')} live>
           {describeError(projects.error)}
         </InlineAlert>
       ) : null}
 
       {noProjects ? (
         <div className="wp-empty">
-          <h2 className="wp-empty__title">No project to show yet</h2>
-          <p className="wp-empty__body">
-            A timeline is per project. Once you can see a project, its work appears here in order.
-          </p>
+          <h2 className="wp-empty__title">{t('WorkTimelineScreen.noProjectTitle')}</h2>
+          <p className="wp-empty__body">{t('WorkTimelineScreen.noProjectBody')}</p>
         </div>
       ) : null}
 
       {timeline.isError ? (
-        <InlineAlert tone="danger" title="Could not load the timeline" live>
+        <InlineAlert tone="danger" title={t('WorkTimelineScreen.timelineError')} live>
           {describeError(timeline.error)}
         </InlineAlert>
       ) : null}
 
       {chosenProjectId !== '' && timeline.isPending ? (
-        <LoadingRegion label="Loading the timeline.">
+        <LoadingRegion label={t('WorkTimelineScreen.loading')}>
           <Skeleton height="38px" />
           <Skeleton height="40px" />
           <Skeleton height="40px" />
@@ -171,10 +177,8 @@ export function WorkTimelineScreen({
 
       {chosenProjectId !== '' && timeline.isSuccess && rows.length === 0 ? (
         <div className="wp-empty">
-          <h2 className="wp-empty__title">Nothing on this timeline yet</h2>
-          <p className="wp-empty__body">
-            This project has no work items you can see. Create one from the project.
-          </p>
+          <h2 className="wp-empty__title">{t('WorkTimelineScreen.emptyTitle')}</h2>
+          <p className="wp-empty__body">{t('WorkTimelineScreen.emptyBody')}</p>
         </div>
       ) : null}
 
@@ -185,11 +189,13 @@ export function WorkTimelineScreen({
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Work timeline chart"
+            aria-label={t('WorkTimelineScreen.chartRegion')}
           >
             <div className="wp-gantt__inner">
               <div className="wp-gantt__head" aria-hidden="true">
-                <div className="wp-gantt__label wp-mono-label">Work</div>
+                <div className="wp-gantt__label wp-mono-label">
+                  {t('WorkTimelineScreen.workLabel')}
+                </div>
                 <div className="wp-gantt__weeks">
                   {chart.columns.map((column) => (
                     <div
@@ -265,7 +271,7 @@ export function WorkTimelineScreen({
                         <span
                           className="wp-gantt__bar wp-gantt__bar--undated"
                           style={{ insetInlineStart: '0%', inlineSize: '12%' }}
-                          title="No start or due date"
+                          title={t('WorkTimelineScreen.undated')}
                         />
                       )}
                     </div>
@@ -275,11 +281,8 @@ export function WorkTimelineScreen({
             </div>
           </div>
           <div className="wp-gantt__foot">
-            <span>
-              Solid ink = done · Ink outline = scheduled · Orange outline = past due · Dashed elbow
-              = dependency · Dashed bar = no dates
-            </span>
-            <span>Accessible list shows every date</span>
+            <span>{t('WorkTimelineScreen.legend')}</span>
+            <span>{t('WorkTimelineScreen.legendList')}</span>
           </div>
         </div>
       ) : null}
@@ -290,19 +293,20 @@ export function WorkTimelineScreen({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
-          aria-label="Work timeline"
+          aria-label={t('WorkTimelineScreen.listRegion')}
         >
           <table>
             <caption className="tm-visually-hidden">
-              Work items in this project in timeline order, {rows.length} shown.
+              {t('WorkTimelineScreen.captionPre')} {rows.length}{' '}
+              {t('WorkTimelineScreen.captionShown')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Title</th>
-                <th scope="col">State</th>
-                <th scope="col">Start</th>
-                <th scope="col">Due</th>
-                <th scope="col">Depends on</th>
+                <th scope="col">{t('WorkTimelineScreen.colTitle')}</th>
+                <th scope="col">{t('WorkTimelineScreen.colState')}</th>
+                <th scope="col">{t('WorkTimelineScreen.colStart')}</th>
+                <th scope="col">{t('WorkTimelineScreen.colDue')}</th>
+                <th scope="col">{t('WorkTimelineScreen.colDependsOn')}</th>
               </tr>
             </thead>
             <tbody>

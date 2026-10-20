@@ -11,6 +11,7 @@ import type { SavedViewInput, SavedViewView } from '../../lib/api/work-views';
 import { savedViewKeys } from '../../lib/query-keys';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/work-planning.css';
 
 export interface WorkSavedViewsScreenProps {
@@ -44,6 +45,7 @@ export function WorkSavedViewsScreen({
   organizationName,
   client,
 }: WorkSavedViewsScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
 
@@ -126,32 +128,30 @@ export function WorkSavedViewsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Saved views"
-      eyebrow="Work"
+      title={t('WorkSavedViewsScreen.title')}
+      eyebrow={t('WorkSavedViewsScreen.eyebrow')}
     >
       <section className="wp-stack" aria-labelledby="tm-saved-view-list">
         <h2 id="tm-saved-view-list" className="wp-views-title">
-          Your saved views
+          {t('WorkSavedViewsScreen.yourSavedViews')}
         </h2>
 
         {savedViews.isError ? (
-          <InlineAlert tone="danger" title="Could not load your saved views" live>
+          <InlineAlert tone="danger" title={t('WorkSavedViewsScreen.loadError')} live>
             {describeError(savedViews.error)}
           </InlineAlert>
         ) : null}
 
         {savedViews.isPending ? (
-          <LoadingRegion label="Loading your saved views.">
+          <LoadingRegion label={t('WorkSavedViewsScreen.loading')}>
             <Skeleton height="120px" />
           </LoadingRegion>
         ) : null}
 
         {!savedViews.isPending && !savedViews.isError && rows.length === 0 ? (
           <div className="wp-empty">
-            <h3 className="wp-empty__title">No saved views yet</h3>
-            <p className="wp-empty__body">
-              Save a configuration below and it will appear here for you to re-apply.
-            </p>
+            <h3 className="wp-empty__title">{t('WorkSavedViewsScreen.emptyTitle')}</h3>
+            <p className="wp-empty__body">{t('WorkSavedViewsScreen.emptyBody')}</p>
           </div>
         ) : null}
 
@@ -164,21 +164,25 @@ export function WorkSavedViewsScreen({
               >
                 <span className="wp-view-card__eyebrow">
                   {view.projectId === null
-                    ? 'All projects'
-                    : (projectNames.get(view.projectId) ?? 'One project')}
-                  {view.shared ? ' · Shared' : ' · Private'}
+                    ? t('WorkSavedViewsScreen.allProjects')
+                    : (projectNames.get(view.projectId) ?? t('WorkSavedViewsScreen.oneProject'))}
+                  {view.shared
+                    ? ` · ${t('WorkSavedViewsScreen.shared')}`
+                    : ` · ${t('WorkSavedViewsScreen.private')}`}
                 </span>
                 <h3 className="wp-view-card__name">{view.name}</h3>
                 <div className="wp-view-card__foot">
                   <span className="wp-view-card__count">{view.config.columns.length}</span>
                   <span className="wp-view-card__meta">
                     {view.config.columns.length > 0
-                      ? `${view.config.columns.length === 1 ? 'column' : 'columns'} · ${view.config.columns.join(', ')}`
-                      : 'No columns set'}
-                    {view.config.grouping ? ` · grouped by ${view.config.grouping}` : ''}
+                      ? `${view.config.columns.length === 1 ? t('WorkSavedViewsScreen.columnSingular') : t('WorkSavedViewsScreen.columnPlural')} · ${view.config.columns.join(', ')}`
+                      : t('WorkSavedViewsScreen.noColumnsSet')}
+                    {view.config.grouping
+                      ? ` · ${t('WorkSavedViewsScreen.groupedBy')} ${view.config.grouping}`
+                      : ''}
                   </span>
                   <Button tone="outline" size="compact" onClick={() => loadIntoForm(view)}>
-                    Load
+                    {t('WorkSavedViewsScreen.load')}
                   </Button>
                 </div>
               </li>
@@ -190,8 +194,8 @@ export function WorkSavedViewsScreen({
       <section className="wp-stack" aria-labelledby="tm-saved-view-editor">
         <h2 id="tm-saved-view-editor" className="wp-views-title">
           {editingId === null
-            ? 'New saved view'
-            : `Edit ${name.trim() === '' ? 'saved view' : name}`}
+            ? t('WorkSavedViewsScreen.newSavedView')
+            : `${t('WorkSavedViewsScreen.editPrefix')} ${name.trim() === '' ? t('WorkSavedViewsScreen.savedViewFallback') : name}`}
         </h2>
 
         <form
@@ -204,7 +208,7 @@ export function WorkSavedViewsScreen({
           <div className="wp-editor__main">
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-saved-view-name">
-                Name
+                {t('WorkSavedViewsScreen.nameLabel')}
               </label>
               <input
                 id="tm-saved-view-name"
@@ -218,7 +222,7 @@ export function WorkSavedViewsScreen({
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-saved-view-project">
-                Project
+                {t('WorkSavedViewsScreen.projectLabel')}
               </label>
               <select
                 id="tm-saved-view-project"
@@ -226,33 +230,31 @@ export function WorkSavedViewsScreen({
                 value={projectId}
                 onChange={(event) => setProjectId(event.target.value)}
               >
-                <option value="">All projects (org-wide)</option>
+                <option value="">{t('WorkSavedViewsScreen.allProjectsOrgWide')}</option>
                 {(projects.data ?? []).map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
                 ))}
               </select>
-              <span className="tm-field__hint">
-                Scope the view to one project, or leave it org-wide.
-              </span>
+              <span className="tm-field__hint">{t('WorkSavedViewsScreen.projectHint')}</span>
             </div>
 
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-saved-view-grouping">
-                Group by
+                {t('WorkSavedViewsScreen.groupByLabel')}
               </label>
               <input
                 id="tm-saved-view-grouping"
                 className="tm-field__control"
                 value={grouping}
-                placeholder="Optional — e.g. state"
+                placeholder={t('WorkSavedViewsScreen.groupByPlaceholder')}
                 onChange={(event) => setGrouping(event.target.value)}
               />
             </div>
 
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save the view" live>
+              <InlineAlert tone="danger" title={t('WorkSavedViewsScreen.saveError')} live>
                 {describeError(save.error)}
               </InlineAlert>
             ) : null}
@@ -260,18 +262,18 @@ export function WorkSavedViewsScreen({
 
           <div className="wp-editor__side">
             <p className="wp-mono-label" aria-hidden="true">
-              Columns · {previewColumns.length}
+              {t('WorkSavedViewsScreen.columnsCount')} {previewColumns.length}
             </p>
             <ul className="wp-colchips" aria-hidden="true">
               {previewColumns.length === 0 ? (
-                <li className="wp-colchips__none">None yet</li>
+                <li className="wp-colchips__none">{t('WorkSavedViewsScreen.noneYet')}</li>
               ) : (
                 previewColumns.map((column, index) => <li key={`${column}-${index}`}>{column}</li>)
               )}
             </ul>
             <div className="tm-field">
               <label className="tm-visually-hidden" htmlFor="tm-saved-view-columns">
-                Columns
+                {t('WorkSavedViewsScreen.columnsLabel')}
               </label>
               <input
                 id="tm-saved-view-columns"
@@ -280,13 +282,11 @@ export function WorkSavedViewsScreen({
                 placeholder="title, state, due"
                 onChange={(event) => setColumnsText(event.target.value)}
               />
-              <span className="tm-field__hint">
-                A comma-separated list of column names, in order.
-              </span>
+              <span className="tm-field__hint">{t('WorkSavedViewsScreen.columnsHint')}</span>
             </div>
 
             <p className="wp-mono-label" aria-hidden="true">
-              Sharing
+              {t('WorkSavedViewsScreen.sharing')}
             </p>
             <label className="wp-share">
               <input
@@ -294,7 +294,7 @@ export function WorkSavedViewsScreen({
                 checked={shared}
                 onChange={(event) => setShared(event.target.checked)}
               />
-              <span>Share with everyone in this studio</span>
+              <span>{t('WorkSavedViewsScreen.shareWithStudio')}</span>
             </label>
 
             <div className="wp-editor__buttons">
@@ -304,13 +304,15 @@ export function WorkSavedViewsScreen({
                 size="accessible"
                 disabled={!canSave}
                 loading={save.isPending}
-                loadingLabel="Saving"
+                loadingLabel={t('WorkSavedViewsScreen.saving')}
               >
-                {editingId === null ? 'Save view' : 'Save changes'}
+                {editingId === null
+                  ? t('WorkSavedViewsScreen.saveView')
+                  : t('WorkSavedViewsScreen.saveChanges')}
               </Button>
               {editingId !== null ? (
                 <Button tone="outline" size="accessible" onClick={resetForm}>
-                  Cancel edit
+                  {t('WorkSavedViewsScreen.cancelEdit')}
                 </Button>
               ) : null}
             </div>
@@ -318,7 +320,7 @@ export function WorkSavedViewsScreen({
         </form>
       </section>
 
-      <Announce message={save.isSuccess ? 'Saved view stored.' : ''} />
+      <Announce message={save.isSuccess ? t('WorkSavedViewsScreen.storedAnnounce') : ''} />
     </AppShell>
   );
 }

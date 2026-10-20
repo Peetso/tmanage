@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkWatchersPanelProps {
   organizationSlug: string;
@@ -44,6 +45,7 @@ function formatWhen(iso: string): string {
  * roster reflects the server. The toggle drives idempotent PUT/DELETE — a repeat is harmless.
  */
 export function WorkWatchersPanel({ organizationSlug, workItemId, api }: WorkWatchersPanelProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-watchers', organizationSlug, workItemId] as const;
   const [watching, setWatching] = useState(false);
@@ -84,24 +86,24 @@ export function WorkWatchersPanel({ organizationSlug, workItemId, api }: WorkWat
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-watchers">
       <h2 id="tm-work-watchers" className="tm-eyebrow">
-        Watchers
+        {t('WorkWatchersPanel.heading')}
       </h2>
 
       {watchers.isPending ? (
-        <LoadingRegion label="Loading this item’s watchers.">
+        <LoadingRegion label={t('WorkWatchersPanel.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {watchers.isError ? (
-        <InlineAlert tone="danger" title="Could not load the watchers" live>
+        <InlineAlert tone="danger" title={t('WorkWatchersPanel.loadError')} live>
           {describe(watchers.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('WorkWatchersPanel.failureTitle')} live>
           {failure}
         </InlineAlert>
       ) : null}
@@ -113,11 +115,11 @@ export function WorkWatchersPanel({ organizationSlug, workItemId, api }: WorkWat
             tone="outline"
             size="accessible"
             loading={unsubscribe.isPending}
-            loadingLabel="Updating"
+            loadingLabel={t('WorkWatchersPanel.updating')}
             disabled={pending}
             onClick={() => unsubscribe.mutate()}
           >
-            Stop watching
+            {t('WorkWatchersPanel.stopWatching')}
           </Button>
         ) : (
           <Button
@@ -125,20 +127,20 @@ export function WorkWatchersPanel({ organizationSlug, workItemId, api }: WorkWat
             tone="ink"
             size="accessible"
             loading={subscribe.isPending}
-            loadingLabel="Updating"
+            loadingLabel={t('WorkWatchersPanel.updating')}
             disabled={pending}
             onClick={() => subscribe.mutate()}
           >
-            Watch this item
+            {t('WorkWatchersPanel.watch')}
           </Button>
         )}
       </div>
 
       {watchers.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No one is watching this item yet.</p>
+          <p className="tm-prose">{t('WorkWatchersPanel.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Watchers">
+          <ul className="tm-list" aria-label={t('WorkWatchersPanel.listLabel')}>
             {items.map((watcher) => (
               <li key={watcher.id} className="tm-stack">
                 <p className="tm-prose">{watcher.memberId}</p>

@@ -1,7 +1,10 @@
+'use client';
+
 import Link from 'next/link';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import type { PortfolioCapacity } from '../../../lib/api/project-portfolio';
 import { NUMBER_WORDS, formatDay } from '../../../lib/portfolio-presentation';
+import { useT } from '../../../lib/i18n/use-t';
 
 export interface PortfolioCapacityPanelProps {
   organizationSlug: string;
@@ -22,25 +25,26 @@ export function PortfolioCapacityPanel({
   pending,
   error,
 }: PortfolioCapacityPanelProps) {
+  const t = useT();
   return (
     <section className="tm-por-plan__panel" aria-labelledby="tm-por-capacity-heading">
       <header className="tm-por-plan__head">
         <div>
-          <p className="tm-por-plan__eyebrow">Portfolio capacity</p>
+          <p className="tm-por-plan__eyebrow">{t('PortfolioCapacityPanel.eyebrow')}</p>
           <h2 id="tm-por-capacity-heading" className="tm-por-plan__title">
-            Where the team is the constraint
+            {t('PortfolioCapacityPanel.heading')}
           </h2>
         </div>
       </header>
 
       {error ? (
-        <InlineAlert tone="danger" title="Could not load capacity" live>
+        <InlineAlert tone="danger" title={t('PortfolioCapacityPanel.loadError')} live>
           {error}
         </InlineAlert>
       ) : null}
 
       {pending ? (
-        <LoadingRegion label="Loading capacity.">
+        <LoadingRegion label={t('PortfolioCapacityPanel.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
@@ -49,18 +53,21 @@ export function PortfolioCapacityPanel({
         <>
           <div className="tm-por-cap" data-testid="portfolio-capacity">
             <p className="tm-por-cap__label">
-              By discipline · week of {formatDay(capacity.weekStart)}
+              {t('PortfolioCapacityPanel.byDiscipline')} {formatDay(capacity.weekStart)}
             </p>
             {capacity.disciplines.length === 0 ? (
               <p className="tm-por-cap__empty">
-                No weekly capacity is recorded yet. Set hours and allocations on each person in{' '}
-                <Link href={`/${organizationSlug}/people`}>People</Link>.
+                {t('PortfolioCapacityPanel.noCapacityPre')}{' '}
+                <Link href={`/${organizationSlug}/people`}>
+                  {t('PortfolioCapacityPanel.peopleLink')}
+                </Link>
+                .
               </p>
             ) : (
               <ul className="tm-por-cap__list">
                 {capacity.disciplines.map((row) => {
                   const over = row.loadPercent > 100;
-                  const name = row.discipline ?? 'No discipline set';
+                  const name = row.discipline ?? t('PortfolioCapacityPanel.noDiscipline');
                   return (
                     <li
                       key={name}
@@ -71,11 +78,11 @@ export function PortfolioCapacityPanel({
                       <span
                         className="tm-por-cap__track"
                         role="meter"
-                        aria-label={`${name} load`}
+                        aria-label={`${name} ${t('PortfolioCapacityPanel.loadAria')}`}
                         aria-valuemin={0}
                         aria-valuemax={100}
                         aria-valuenow={Math.min(row.loadPercent, 100)}
-                        aria-valuetext={`${row.loadPercent}% of ${row.capacityHours} hours`}
+                        aria-valuetext={`${row.loadPercent}% ${t('PortfolioCapacityPanel.valuetextOf')} ${row.capacityHours} ${t('PortfolioCapacityPanel.valuetextHours')}`}
                       >
                         <span
                           className="tm-por-cap__fill"
@@ -100,7 +107,7 @@ export function PortfolioCapacityPanel({
                   !
                 </span>
               ) : null}
-              Unstaffed commitments · {capacity.unstaffed.total}
+              {t('PortfolioCapacityPanel.unstaffed')} {capacity.unstaffed.total}
             </h3>
             {capacity.unstaffed.items.length > 0 ? (
               <ul className="tm-por-unstaffed__list">
@@ -114,7 +121,7 @@ export function PortfolioCapacityPanel({
                     </Link>
                     <span className="tm-por-unstaffed__meta">
                       {item.projectName.split(' ')[0]} ·{' '}
-                      {item.dueOn ? formatDay(item.dueOn) : 'No date'}
+                      {item.dueOn ? formatDay(item.dueOn) : t('PortfolioCapacityPanel.noDate')}
                     </span>
                   </li>
                 ))}

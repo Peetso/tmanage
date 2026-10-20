@@ -6,6 +6,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { listWorkItemFiles } from '../../lib/api/work-items';
 import { listItemLabels } from '../../lib/api/work-labels';
 import { WorkItemLabelChips } from './WorkItemLabelChips';
+import { useT } from '../../lib/i18n/use-t';
 import './capture-extras.css';
 
 export interface WorkItemTagsAndFilesProps {
@@ -28,6 +29,7 @@ export function WorkItemTagsAndFiles({
   client,
   downloadBase,
 }: WorkItemTagsAndFilesProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
 
   const labels = useQuery({
@@ -44,28 +46,28 @@ export function WorkItemTagsAndFiles({
   return (
     <section className="tm-wk-card tm-stack" aria-labelledby="tm-work-tags-files">
       <h2 id="tm-work-tags-files" className="tm-wk-card__eyebrow">
-        Labels and attachments
+        {t('WorkItemTagsAndFiles.heading')}
       </h2>
 
       <div className="tm-capture-extra">
-        <span className="tm-capture-extra__label">Labels</span>
+        <span className="tm-capture-extra__label">{t('WorkItemTagsAndFiles.labels')}</span>
         {labels.isPending ? (
-          <p className="tm-capture-extra__hint">Loading labels…</p>
+          <p className="tm-capture-extra__hint">{t('WorkItemTagsAndFiles.loadingLabels')}</p>
         ) : labels.isError ? (
-          <p className="tm-capture-extra__hint">The labels could not be loaded.</p>
+          <p className="tm-capture-extra__hint">{t('WorkItemTagsAndFiles.labelsError')}</p>
         ) : (
           <WorkItemLabelChips labels={labels.data} />
         )}
       </div>
 
       <div className="tm-capture-extra">
-        <span className="tm-capture-extra__label">Attachments</span>
+        <span className="tm-capture-extra__label">{t('WorkItemTagsAndFiles.attachments')}</span>
         {files.isPending ? (
-          <p className="tm-capture-extra__hint">Loading attachments…</p>
+          <p className="tm-capture-extra__hint">{t('WorkItemTagsAndFiles.loadingAttachments')}</p>
         ) : files.isError ? (
-          <p className="tm-capture-extra__hint">The attachments could not be loaded.</p>
+          <p className="tm-capture-extra__hint">{t('WorkItemTagsAndFiles.attachmentsError')}</p>
         ) : files.data.length === 0 ? (
-          <p className="tm-capture-extra__hint">No files attached.</p>
+          <p className="tm-capture-extra__hint">{t('WorkItemTagsAndFiles.noFiles')}</p>
         ) : (
           <ul className="tm-capture-extra__chips tm-capture-extra__list">
             {files.data.map((file) =>
@@ -91,17 +93,15 @@ export function WorkItemTagsAndFiles({
                   </span>
                   <span className="tm-capture-extra__hint" role="status">
                     {file.availability === 'scanning'
-                      ? 'Being checked for viruses…'
-                      : 'This file is not available.'}
+                      ? t('WorkItemTagsAndFiles.scanning')
+                      : t('WorkItemTagsAndFiles.unavailable')}
                   </span>
                 </li>
               ),
             )}
           </ul>
         )}
-        <p className="tm-capture-extra__hint">
-          A new file opens once it has been checked for viruses, usually within a minute.
-        </p>
+        <p className="tm-capture-extra__hint">{t('WorkItemTagsAndFiles.scanHint')}</p>
       </div>
     </section>
   );

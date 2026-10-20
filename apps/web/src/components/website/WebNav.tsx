@@ -6,6 +6,7 @@ import { WebIcon } from './WebIcon';
 import { BrandLockup, ButtonLink, MenuItem, cx } from './primitives';
 import { NAV_ACTIONS, NAV_ENTRIES, type WebMegaMenu } from './site-nav';
 import { MegaMenuFeatured } from './MegaMenu';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WebNavProps {
   /** `paper` (default) on the paper canvas; `ink` over a dark hero (Website components §01). */
@@ -23,6 +24,7 @@ export interface WebNavProps {
  * Start free and the menu orb, which opens the full-screen drawer with the groups as accordions.
  */
 export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps) {
+  const t = useT();
   const [open, setOpen] = useState<WebMegaMenu['id'] | null>(null);
   const [drawer, setDrawer] = useState(false);
   const rootRef = useRef<HTMLElement>(null);
@@ -96,7 +98,7 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
       <div className="tm-web-nav__bar">
         <BrandLockup tone={theme} />
 
-        <nav className="tm-web-nav__menu" aria-label="Primary">
+        <nav className="tm-web-nav__menu" aria-label={t('WebNav.primaryNav')}>
           <ul className="tm-web-nav__list">
             {NAV_ENTRIES.map((entry) =>
               entry.kind === 'menu' ? (
@@ -161,7 +163,7 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
           <button
             type="button"
             className="tm-web-nav__menu-orb"
-            aria-label="Open menu"
+            aria-label={t('WebNav.openMenu')}
             aria-expanded={drawer}
             aria-controls={`${baseId}-drawer`}
             onClick={() => setDrawer(true)}
@@ -189,7 +191,7 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
         className="tm-web-drawer"
         role="dialog"
         aria-modal="true"
-        aria-label="Site menu"
+        aria-label={t('WebNav.siteMenu')}
         hidden={!drawer}
       >
         <div className="tm-web-drawer__bar">
@@ -197,7 +199,7 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
           <button
             type="button"
             className="tm-web-nav__menu-orb tm-web-nav__menu-orb--close"
-            aria-label="Close menu"
+            aria-label={t('WebNav.closeMenu')}
             onClick={() => setDrawer(false)}
           >
             <WebIcon name="close" />

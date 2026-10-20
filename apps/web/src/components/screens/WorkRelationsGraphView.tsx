@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchWorkRelationsGraph } from '../../lib/api/work-relations-graph';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkRelationsGraphViewProps {
   organizationSlug: string;
@@ -19,13 +20,6 @@ export interface WorkRelationsGraphViewProps {
 
 /** The depths the panel offers — the API bounds the walk to 1..3. */
 const DEPTHS = [1, 2, 3] as const;
-
-/** How each typed link reads in the adjacency table. */
-const LINK_LABEL: Record<string, string> = {
-  blocks: 'blocks',
-  blocked_by: 'is blocked by',
-  relates: 'relates to',
-};
 
 /**
  * **Work item relations graph (x274).**
@@ -45,8 +39,16 @@ export function WorkRelationsGraphView({
   workItemTitle,
   client,
 }: WorkRelationsGraphViewProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const [depth, setDepth] = useState<number>(1);
+
+  /** How each typed link reads in the adjacency table. */
+  const linkLabel: Record<string, string> = {
+    blocks: t('WorkRelationsGraphView.linkBlocks'),
+    blocked_by: t('WorkRelationsGraphView.linkBlockedBy'),
+    relates: t('WorkRelationsGraphView.linkRelates'),
+  };
 
   const headingId = `tm-relations-graph-${workItemId}`;
 
@@ -64,10 +66,10 @@ export function WorkRelationsGraphView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby={headingId}>
       <h3 id={headingId} className="tm-eyebrow">
-        Relations — {workItemTitle}
+        {t('WorkRelationsGraphView.relationsPrefix')} {workItemTitle}
       </h3>
 
-      <div className="tm-row" role="group" aria-label="Graph depth">
+      <div className="tm-row" role="group" aria-label={t('WorkRelationsGraphView.graphDepth')}>
         {DEPTHS.map((value) => (
           <Button
             key={value}
@@ -77,26 +79,26 @@ export function WorkRelationsGraphView({
             aria-pressed={value === depth}
             onClick={() => setDepth(value)}
           >
-            {`Depth ${value}`}
+            {`${t('WorkRelationsGraphView.depthPrefix')} ${value}`}
           </Button>
         ))}
       </div>
 
       {graph.isError ? (
-        <InlineAlert tone="danger" title="Could not load the relations graph" live>
+        <InlineAlert tone="danger" title={t('WorkRelationsGraphView.loadError')} live>
           {describeError(graph.error)}
         </InlineAlert>
       ) : null}
 
       {graph.isPending ? (
-        <LoadingRegion label="Loading the work item's relations.">
+        <LoadingRegion label={t('WorkRelationsGraphView.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!graph.isPending && !graph.isError && edges.length === 0 ? (
-        <InlineAlert tone="neutral" title="No relations yet">
-          This work item has no typed links to other items within depth {depth}.
+        <InlineAlert tone="neutral" title={t('WorkRelationsGraphView.noRelationsTitle')}>
+          {t('WorkRelationsGraphView.noRelationsBody')} {depth}.
         </InlineAlert>
       ) : null}
 
@@ -108,17 +110,19 @@ export function WorkRelationsGraphView({
           // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
           tabIndex={0}
           role="region"
-          aria-label={`Relations of ${workItemTitle}`}
+          aria-label={`${t('WorkRelationsGraphView.relationsOf')} ${workItemTitle}`}
         >
           <table className="tm-table">
             <caption className="tm-visually-hidden">
-              Typed links between the {nodeCount} items within depth {depth}, {edges.length} shown.
+              {t('WorkRelationsGraphView.captionPre')} {nodeCount}{' '}
+              {t('WorkRelationsGraphView.captionItemsWithinDepth')} {depth}, {edges.length}{' '}
+              {t('WorkRelationsGraphView.captionShown')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">From</th>
-                <th scope="col">Relation</th>
-                <th scope="col">To</th>
+                <th scope="col">{t('WorkRelationsGraphView.colFrom')}</th>
+                <th scope="col">{t('WorkRelationsGraphView.colRelation')}</th>
+                <th scope="col">{t('WorkRelationsGraphView.colTo')}</th>
               </tr>
             </thead>
             <tbody>
@@ -127,7 +131,7 @@ export function WorkRelationsGraphView({
                   <th scope="row" className="tm-table__title">
                     {titleOf(edge.fromWorkItemId)}
                   </th>
-                  <td>{LINK_LABEL[edge.linkType] ?? edge.linkType}</td>
+                  <td>{linkLabel[edge.linkType] ?? edge.linkType}</td>
                   <td>{titleOf(edge.toWorkItemId)}</td>
                 </tr>
               ))}

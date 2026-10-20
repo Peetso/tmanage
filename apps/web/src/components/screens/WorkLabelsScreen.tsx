@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/work-labels';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkLabelsScreenProps {
   organizationSlug: string;
@@ -41,6 +42,7 @@ export function WorkLabelsScreen({
   organizationName,
   client,
 }: WorkLabelsScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const queryKey = ['work-labels', organizationSlug] as const;
@@ -72,12 +74,12 @@ export function WorkLabelsScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Labels"
-      description="Define reusable labels, then tag work items with them."
+      title={t('WorkLabelsScreen.title')}
+      description={t('WorkLabelsScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-work-label-new-heading">
         <h2 id="tm-work-label-new-heading" className="tm-eyebrow">
-          New label
+          {t('WorkLabelsScreen.newLabel')}
         </h2>
         <form
           className="tm-stack"
@@ -88,17 +90,17 @@ export function WorkLabelsScreen({
           }}
         >
           <Field
-            label="Name"
+            label={t('WorkLabelsScreen.nameLabel')}
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
-            hint="A short handle, such as Urgent or Needs review."
+            hint={t('WorkLabelsScreen.nameHint')}
             required
           />
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-work-label-color">
-              Colour
+              {t('WorkLabelsScreen.colourLabel')}
             </label>
             <select
               id="tm-work-label-color"
@@ -115,7 +117,7 @@ export function WorkLabelsScreen({
           </div>
 
           {failure ? (
-            <InlineAlert tone="danger" title="Could not define the label" live>
+            <InlineAlert tone="danger" title={t('WorkLabelsScreen.defineError')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -126,10 +128,10 @@ export function WorkLabelsScreen({
               tone="ink"
               size="accessible"
               loading={define.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('WorkLabelsScreen.saving')}
               disabled={!canDefine}
             >
-              Define label
+              {t('WorkLabelsScreen.defineLabel')}
             </Button>
           </div>
         </form>
@@ -137,24 +139,24 @@ export function WorkLabelsScreen({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-work-label-list-heading">
         <h2 id="tm-work-label-list-heading" className="tm-eyebrow">
-          Labels
+          {t('WorkLabelsScreen.labelsHeading')}
         </h2>
         {labels.isPending ? (
-          <LoadingRegion label="Loading this studio’s labels.">
+          <LoadingRegion label={t('WorkLabelsScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {labels.isError ? (
-          <InlineAlert tone="danger" title="Could not load the labels" live>
+          <InlineAlert tone="danger" title={t('WorkLabelsScreen.loadError')} live>
             {describe(labels.error)}
           </InlineAlert>
         ) : null}
 
         {labels.data ? (
           rows.length === 0 ? (
-            <p className="tm-prose">No labels defined yet.</p>
+            <p className="tm-prose">{t('WorkLabelsScreen.empty')}</p>
           ) : (
             <ul
               className="tm-row tm-row--wrap"

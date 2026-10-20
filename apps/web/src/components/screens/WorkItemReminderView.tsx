@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemReminderViewProps {
   organizationSlug: string;
@@ -48,6 +49,7 @@ export function WorkItemReminderView({
   workItemId,
   api,
 }: WorkItemReminderViewProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-reminders-due', organizationSlug] as const;
   const [remindAt, setRemindAt] = useState('');
@@ -86,7 +88,7 @@ export function WorkItemReminderView({
     event.preventDefault();
     const at = new Date(remindAt);
     if (remindAt === '' || Number.isNaN(at.getTime())) {
-      setFailure('Choose a valid date and time to be reminded.');
+      setFailure(t('WorkItemReminderView.invalidWhen'));
       return;
     }
     save.mutate(at.toISOString());
@@ -98,18 +100,18 @@ export function WorkItemReminderView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-reminder">
       <h2 id="tm-work-reminder" className="tm-eyebrow">
-        Reminder
+        {t('WorkItemReminderView.reminder')}
       </h2>
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('WorkItemReminderView.failureTitle')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       <form className="tm-stack" onSubmit={submit}>
         <Field
-          label="Remind me at"
+          label={t('WorkItemReminderView.remindMeAt')}
           type="datetime-local"
           value={remindAt}
           onChange={(event) => setRemindAt(event.target.value)}
@@ -121,9 +123,9 @@ export function WorkItemReminderView({
             size="accessible"
             disabled={pending}
             loading={save.isPending}
-            loadingLabel="Saving"
+            loadingLabel={t('WorkItemReminderView.saving')}
           >
-            Set reminder
+            {t('WorkItemReminderView.setReminder')}
           </Button>
           <Button
             type="button"
@@ -131,34 +133,34 @@ export function WorkItemReminderView({
             size="accessible"
             disabled={pending}
             loading={clear.isPending}
-            loadingLabel="Clearing"
+            loadingLabel={t('WorkItemReminderView.clearing')}
             onClick={() => clear.mutate()}
           >
-            Clear reminder
+            {t('WorkItemReminderView.clearReminder')}
           </Button>
         </div>
       </form>
 
-      <h3 className="tm-eyebrow">My reminders due</h3>
+      <h3 className="tm-eyebrow">{t('WorkItemReminderView.myRemindersDue')}</h3>
 
       {due.isPending ? (
-        <LoadingRegion label="Loading your due reminders.">
+        <LoadingRegion label={t('WorkItemReminderView.loadingDue')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {due.isError ? (
-        <InlineAlert tone="danger" title="Could not load your reminders" live>
+        <InlineAlert tone="danger" title={t('WorkItemReminderView.loadError')} live>
           {describe(due.error)}
         </InlineAlert>
       ) : null}
 
       {due.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">Nothing is due right now.</p>
+          <p className="tm-prose">{t('WorkItemReminderView.nothingDue')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Reminders due">
+          <ul className="tm-list" aria-label={t('WorkItemReminderView.remindersDueList')}>
             {items.map((reminder) => (
               <li key={reminder.id} className="tm-stack">
                 <p className="tm-prose">{reminder.workItemTitle}</p>

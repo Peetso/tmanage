@@ -1,4 +1,7 @@
+'use client';
+
 import type { Timeline } from '../../../lib/portfolio-presentation';
+import { useT } from '../../../lib/i18n/use-t';
 
 const MONTH = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' });
 
@@ -12,13 +15,14 @@ const FLIP_CHIP_AFTER = 78;
  * already met. The footer names the month that carries the most client-facing dates.
  */
 export function PortfolioTimeline({ timeline }: { timeline: Timeline }) {
+  const t = useT();
   return (
     <section className="tm-por-plan__panel" aria-labelledby="tm-por-timeline-heading">
       <header className="tm-por-plan__head">
         <div>
-          <p className="tm-por-plan__eyebrow">Portfolio timeline</p>
+          <p className="tm-por-plan__eyebrow">{t('PortfolioTimeline.eyebrow')}</p>
           <h2 id="tm-por-timeline-heading" className="tm-por-plan__title">
-            Cross-project commitments
+            {t('PortfolioTimeline.heading')}
           </h2>
         </div>
         <p className="tm-por-tl__range">{timeline.range}</p>
@@ -26,7 +30,7 @@ export function PortfolioTimeline({ timeline }: { timeline: Timeline }) {
 
       <div className="tm-por-tl" data-testid="portfolio-timeline">
         <div className="tm-por-tl__grid tm-por-tl__months" aria-hidden="true">
-          <span className="tm-por-tl__name">Project</span>
+          <span className="tm-por-tl__name">{t('PortfolioTimeline.projectColumn')}</span>
           {timeline.months.map((month) => (
             <span key={month} className="tm-por-tl__month">
               {MONTH.format(Date.parse(`${month}T00:00:00.000Z`))}
@@ -35,9 +39,7 @@ export function PortfolioTimeline({ timeline }: { timeline: Timeline }) {
         </div>
 
         {timeline.rows.length === 0 ? (
-          <p className="tm-por-tl__empty">
-            No active project has a committed date or a planned milestone in this window yet.
-          </p>
+          <p className="tm-por-tl__empty">{t('PortfolioTimeline.empty')}</p>
         ) : (
           <ul className="tm-por-tl__rows">
             {timeline.rows.map((row) => (

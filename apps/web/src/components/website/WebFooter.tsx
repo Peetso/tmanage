@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { activeLocale } from '../../lib/i18n/locale-store';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { useT } from '../../lib/i18n/use-t';
 import { WebIcon } from './WebIcon';
 import { BrandLockup } from './primitives';
 import { FOOTER_COLUMNS, FOOTER_LEGAL, FOOTER_MOBILE_GROUPS, FOOTER_SOCIAL } from './site-nav';
@@ -12,10 +13,11 @@ import { FOOTER_COLUMNS, FOOTER_LEGAL, FOOTER_MOBILE_GROUPS, FOOTER_SOCIAL } fro
  * `LocaleDirectionProvider` turns into `lang`/`dir` on `<html>`, so Arabic mirrors the page.
  */
 export function LanguageSwitch() {
+  const t = useT();
   const locale = useActiveLocale();
   const arabic = locale.startsWith('ar');
   return (
-    <div className="tm-web-lang" role="group" aria-label="Language">
+    <div className="tm-web-lang" role="group" aria-label={t('WebFooter.language')}>
       <button
         type="button"
         className="tm-web-lang__option"
@@ -46,6 +48,7 @@ export function LanguageSwitch() {
  * the same links as Icon/Plus accordions.
  */
 export function WebFooter() {
+  const t = useT();
   const year = 2026;
   return (
     <footer className="tm-web-footer">
@@ -53,14 +56,14 @@ export function WebFooter() {
         <div className="tm-web-footer__top">
           <div className="tm-web-footer__brand">
             <BrandLockup />
-            <p className="tm-web-footer__tagline">Connected work, clearly delivered.</p>
+            <p className="tm-web-footer__tagline">{t('WebFooter.tagline')}</p>
           </div>
           <div className="tm-web-footer__lang tm-web-footer__lang--desktop">
             <LanguageSwitch />
           </div>
         </div>
 
-        <nav className="tm-web-footer__columns" aria-label="Footer">
+        <nav className="tm-web-footer__columns" aria-label={t('WebFooter.footerNav')}>
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.heading} className="tm-web-footer__column">
               <p className="tm-web-footer__heading">{column.heading}</p>
@@ -75,7 +78,7 @@ export function WebFooter() {
           ))}
         </nav>
 
-        <nav className="tm-web-footer__accordions" aria-label="Footer">
+        <nav className="tm-web-footer__accordions" aria-label={t('WebFooter.footerNav')}>
           {FOOTER_MOBILE_GROUPS.map((group) => (
             <details key={group.heading} className="tm-web-accordion">
               <summary className="tm-web-accordion__summary">

@@ -25,6 +25,8 @@ import {
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkListScreenProps {
   organizationSlug: string;
@@ -93,6 +95,7 @@ export function WorkListScreen({
   client,
   now = new Date(),
 }: WorkListScreenProps) {
+  const t = useT();
   const api = client ?? browserApiClient();
   const canCreateProjects = useCanCreateProjects(organizationSlug, client);
   const queries = useQueryClient();
@@ -233,7 +236,10 @@ export function WorkListScreen({
   ).length;
   const countLabel = `${loadedRows.length}${workItems.hasNextPage ? '+' : ''}`;
   // CQ-07 (WRK-10): "1 items" reads wrong; a single loaded row with no further page is one item.
-  const itemWord = loadedRows.length === 1 && !workItems.hasNextPage ? 'item' : 'items';
+  const itemWord =
+    loadedRows.length === 1 && !workItems.hasNextPage
+      ? t('WorkListScreen.itemSingular')
+      : t('WorkListScreen.itemPlural');
   // CQ-07 (WRK-10): when the list is filtered to one project, name that project in the heading
   // rather than the state view's label ("All work"), which described the whole organization.
   const selectedProjectName = projectId === '' ? undefined : projectNames.get(projectId);
@@ -255,10 +261,10 @@ export function WorkListScreen({
     }
     return [...byProject.entries()].map(([key, groupRows]) => ({
       key,
-      label: projectNames.get(key) ?? 'Another project',
+      label: projectNames.get(key) ?? t('WorkListScreen.anotherProject'),
       rows: groupRows,
     }));
-  }, [rows, sortKey, projectNames]);
+  }, [rows, sortKey, projectNames, t]);
 
   function chooseStates(next: readonly WorkItemState[]) {
     setStates(next);
@@ -275,27 +281,36 @@ export function WorkListScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow="Work"
-      title={selectedProjectName ?? activeView?.label ?? 'Filtered work'}
+      eyebrow={t('WorkListScreen.eyebrow')}
+      title={
+        selectedProjectName ??
+        (activeView ? t(activeView.labelKey) : t('WorkListScreen.filteredWork'))
+      }
       titleMeta={
         workItems.isPending
           ? undefined
-          : `${countLabel} ${itemWord} · ${blockedCount} blocked · ${clientWaitingCount} client waiting`
+          : `${countLabel} ${itemWord} · ${blockedCount} ${t('WorkListScreen.metaBlocked')} · ${clientWaitingCount} ${t('WorkListScreen.metaClientWaiting')}`
       }
       actions={
         <>
-          <nav className="tm-segmented tm-wk-views" aria-label="Work views">
+          <nav className="tm-segmented tm-wk-views" aria-label={t('WorkListScreen.workViewsNav')}>
             <Link href={`/${organizationSlug}/work`} aria-current="page">
-              List
+              {t('WorkListScreen.viewList')}
             </Link>
             {/*
               CQ-07 (WRK-08): carry the chosen project across the switch, so moving from a
               project-filtered list to the timeline / calendar / workload keeps that project
               rather than dropping the reader onto the first one.
             */}
-            <Link href={`/${organizationSlug}/work/timeline${viewQuery}`}>Timeline</Link>
-            <Link href={`/${organizationSlug}/work/calendar${viewQuery}`}>Calendar</Link>
-            <Link href={`/${organizationSlug}/work/workload${viewQuery}`}>Workload</Link>
+            <Link href={`/${organizationSlug}/work/timeline${viewQuery}`}>
+              {t('WorkListScreen.viewTimeline')}
+            </Link>
+            <Link href={`/${organizationSlug}/work/calendar${viewQuery}`}>
+              {t('WorkListScreen.viewCalendar')}
+            </Link>
+            <Link href={`/${organizationSlug}/work/workload${viewQuery}`}>
+              {t('WorkListScreen.viewWorkload')}
+            </Link>
           </nav>
           <Link
             href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
@@ -304,7 +319,7 @@ export function WorkListScreen({
             <span className="tm-wk-new__orb" aria-hidden="true">
               +
             </span>
-            New work
+            {t('WorkListScreen.newWork')}
           </Link>
         </>
       }
@@ -312,7 +327,7 @@ export function WorkListScreen({
         <div className="tm-wk-rail">
           <div className="tm-wk-rail__group">
             <h2 className="tm-wk-rail__heading" id="tm-work-views">
-              Views
+              {t('WorkListScreen.railViews')}
             </h2>
             <ul className="tm-wk-rail__group" aria-labelledby="tm-work-views">
               {STATE_VIEWS.map((view) => (
@@ -325,7 +340,7 @@ export function WorkListScreen({
                     disabled={projects.isPending}
                     onClick={() => chooseStates(view.states)}
                   >
-                    {view.label}
+                    {t(view.labelKey)}
                   </button>
                 </li>
               ))}
@@ -334,7 +349,7 @@ export function WorkListScreen({
 
           <div className="tm-wk-rail__group">
             <h2 className="tm-wk-rail__heading" id="tm-work-projects">
-              Projects
+              {t('WorkListScreen.railProjects')}
             </h2>
             <ul className="tm-wk-rail__group" aria-labelledby="tm-work-projects">
               {(projects.data ?? []).map((project) => (
@@ -354,7 +369,7 @@ export function WorkListScreen({
               {canCreateProjects ? (
                 <li>
                   <Link className="tm-wk-rail__item" href={`/${organizationSlug}/projects/new`}>
-                    <span className="tm-wk-rail__text">+ New project</span>
+                    <span className="tm-wk-rail__text">{t('WorkListScreen.railNewProject')}</span>
                   </Link>
                 </li>
               ) : null}
@@ -363,7 +378,7 @@ export function WorkListScreen({
 
           <div className="tm-wk-rail__group">
             <h2 className="tm-wk-rail__heading" id="tm-work-more">
-              More
+              {t('WorkListScreen.railMore')}
             </h2>
             <ul className="tm-wk-rail__group" aria-labelledby="tm-work-more">
               {/*
@@ -372,12 +387,12 @@ export function WorkListScreen({
               */}
               <li>
                 <Link className="tm-wk-rail__item" href={`/${organizationSlug}/work/requests`}>
-                  Client requests
+                  {t('WorkListScreen.clientRequests')}
                 </Link>
               </li>
               <li>
                 <Link className="tm-wk-rail__item" href={`/${organizationSlug}/work/saved-views`}>
-                  Saved views
+                  {t('WorkListScreen.savedViews')}
                 </Link>
               </li>
             </ul>
@@ -387,7 +402,7 @@ export function WorkListScreen({
     >
       <section className="tm-wk-toolbar" aria-labelledby="tm-work-filters">
         <h2 id="tm-work-filters" className="tm-visually-hidden">
-          Filters
+          {t('WorkListScreen.filters')}
         </h2>
 
         {/*
@@ -400,15 +415,15 @@ export function WorkListScreen({
           still leaves the state filters usable.
         */}
         <fieldset className="tm-wk-filters" disabled={projects.isPending}>
-          <legend>Filters</legend>
+          <legend>{t('WorkListScreen.filters')}</legend>
           <span className="tm-wk-select">
-            <label htmlFor="tm-work-project">Project</label>
+            <label htmlFor="tm-work-project">{t('WorkListScreen.projectLabel')}</label>
             <select
               id="tm-work-project"
               value={projectId}
               onChange={(event) => chooseProject(event.target.value)}
             >
-              <option value="">All projects</option>
+              <option value="">{t('WorkListScreen.allProjects')}</option>
               {(projects.data ?? []).map((project) => (
                 <option key={project.id} value={project.id}>
                   {project.name}
@@ -418,7 +433,7 @@ export function WorkListScreen({
           </span>
 
           <fieldset className="tm-wk-filters" aria-describedby="tm-work-state-hint">
-            <legend>State</legend>
+            <legend>{t('WorkListScreen.stateLegend')}</legend>
             {WORK_ITEM_STATES.map((state) => (
               <label
                 key={state}
@@ -438,18 +453,18 @@ export function WorkListScreen({
           </fieldset>
         </fieldset>
         <span id="tm-work-state-hint" className="tm-visually-hidden">
-          No state ticked means every state, which is what the list opens with.
+          {t('WorkListScreen.stateHint')}
         </span>
       </section>
 
       {workItems.isError ? (
-        <InlineAlert tone="danger" title="Could not load the work list" live>
+        <InlineAlert tone="danger" title={t('WorkListScreen.loadListError')} live>
           {describeError(workItems.error)}
         </InlineAlert>
       ) : null}
 
       {workItems.isPending ? (
-        <LoadingRegion label="Loading the work list.">
+        <LoadingRegion label={t('WorkListScreen.loadingList')}>
           <Skeleton height="38px" />
           <Skeleton height="38px" />
           <Skeleton height="38px" />
@@ -457,24 +472,25 @@ export function WorkListScreen({
       ) : null}
 
       {!workItems.isPending && !workItems.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="Nothing here yet">
+        <InlineAlert tone="neutral" title={t('WorkListScreen.emptyTitle')}>
           {projectId === '' && states.length === 0
-            ? 'No work items exist in this organization. Create one from a project.'
-            : 'No work items match these filters. Clear one to widen the list.'}
+            ? t('WorkListScreen.emptyNoneOrg')
+            : t('WorkListScreen.emptyNoMatch')}
         </InlineAlert>
       ) : null}
 
       {bulkReport !== undefined ? (
         <InlineAlert
           tone={bulkReport.failed.length === 0 ? 'neutral' : 'warning'}
-          title={`Audience changed on ${bulkReport.updated} ${bulkReport.updated === 1 ? 'item' : 'items'}`}
+          title={`${t('WorkListScreen.audienceChangedPrefix')} ${bulkReport.updated} ${bulkReport.updated === 1 ? t('WorkListScreen.itemSingular') : t('WorkListScreen.itemPlural')}`}
           live
         >
           {bulkReport.failed.length > 0 ? (
             <>
               <p className="tm-prose">
-                These were <strong>not</strong> applied, and were not retried — reload the list and
-                decide again with the current state in view:
+                {t('WorkListScreen.bulkFailedPre')}{' '}
+                <strong>{t('WorkListScreen.bulkFailedNot')}</strong>{' '}
+                {t('WorkListScreen.bulkFailedPost')}
               </p>
               <ul className="tm-list">
                 {bulkReport.failed.map((failure) => (
@@ -494,8 +510,8 @@ export function WorkListScreen({
             {selectedRows.length}
           </span>
           <h2 id="tm-work-bulk" className="tm-wk-bulk__label">
-            <span className="tm-visually-hidden">{selectedRows.length} </span>selected — set
-            audience
+            <span className="tm-visually-hidden">{selectedRows.length} </span>
+            {t('WorkListScreen.selectedSetAudience')}
           </h2>
           <span className="tm-wk-bulk__rule" aria-hidden="true" />
           {(['internal', 'client_visible', 'client_action_required'] as const).map((audience) => (
@@ -511,7 +527,7 @@ export function WorkListScreen({
           <button
             type="button"
             className="tm-wk-bulk__close"
-            aria-label="Clear the selection"
+            aria-label={t('WorkListScreen.clearSelection')}
             onClick={() => {
               setSelected(new Set());
               setPendingBulk(undefined);
@@ -525,7 +541,7 @@ export function WorkListScreen({
       {selectedRows.length > 0 && pendingBulk !== undefined ? (
         <section className="tm-wk-review" role="status" aria-labelledby="tm-work-review">
           <h3 id="tm-work-review" className="tm-wk-review__title">
-            This will show items to the client
+            {t('WorkListScreen.reviewTitle')}
           </h3>
           {widening.length === 0 ? (
             <p className="tm-wk-review__line">
@@ -533,8 +549,8 @@ export function WorkListScreen({
                 ✓
               </span>
               <span>
-                Every selected item is already {audienceLabel(pendingBulk).toLowerCase()} or wider.
-                There is nothing to change.
+                {t('WorkListScreen.reviewAlreadyPre')} {audienceLabel(pendingBulk).toLowerCase()}{' '}
+                {t('WorkListScreen.reviewAlreadyPost')}
               </span>
             </p>
           ) : (
@@ -544,10 +560,14 @@ export function WorkListScreen({
               </span>
               <div>
                 <p className="tm-prose">
-                  {widening.length} of the {selectedRows.length} selected{' '}
-                  {selectedRows.length === 1 ? 'item' : 'items'} will become{' '}
-                  {audienceLabel(pendingBulk).toLowerCase()} in the client portal. Their titles are
-                  what the client will read:
+                  {widening.length} {t('WorkListScreen.reviewWideningOf')} {selectedRows.length}{' '}
+                  {t('WorkListScreen.reviewWideningSelected')}{' '}
+                  {selectedRows.length === 1
+                    ? t('WorkListScreen.itemSingular')
+                    : t('WorkListScreen.itemPlural')}{' '}
+                  {t('WorkListScreen.reviewWideningWillBecome')}{' '}
+                  {audienceLabel(pendingBulk).toLowerCase()}{' '}
+                  {t('WorkListScreen.reviewWideningPortal')}
                 </p>
                 <ul className="tm-wk-review__list">
                   {widening.map((row) => (
@@ -563,8 +583,8 @@ export function WorkListScreen({
                 !
               </span>
               <span>
-                {selectedRows.length - widening.length} already{' '}
-                {audienceLabel(pendingBulk).toLowerCase()} — left as they are.
+                {selectedRows.length - widening.length} {t('WorkListScreen.reviewPartialAlready')}{' '}
+                {audienceLabel(pendingBulk).toLowerCase()} {t('WorkListScreen.reviewPartialLeft')}
               </span>
             </p>
           ) : null}
@@ -574,16 +594,18 @@ export function WorkListScreen({
                 tone="ink"
                 size="accessible"
                 loading={bulkChange.isPending}
-                loadingLabel="Publishing"
+                loadingLabel={t('WorkListScreen.publishing')}
                 onClick={() => bulkChange.mutate({ audience: pendingBulk, targets: widening })}
               >
-                Show {widening.length === 1 ? 'it' : 'them'} to the client
+                {t('WorkListScreen.showPrefix')}{' '}
+                {widening.length === 1 ? t('WorkListScreen.showIt') : t('WorkListScreen.showThem')}{' '}
+                {t('WorkListScreen.showToClient')}
               </Button>
             ) : null}
             <Button tone="outline" size="accessible" onClick={() => setPendingBulk(undefined)}>
-              Keep things as they are
+              {t('WorkListScreen.keepAsIs')}
             </Button>
-            <span className="tm-wk-review__receipt">Each item keeps its own version</span>
+            <span className="tm-wk-review__receipt">{t('WorkListScreen.keepsVersion')}</span>
           </div>
         </section>
       ) : null}
@@ -597,11 +619,13 @@ export function WorkListScreen({
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Work items"
+            aria-label={t('WorkListScreen.tableRegion')}
           >
             <table className="tm-wk-table">
               <caption className="tm-visually-hidden">
-                Work items{projectId === '' ? '' : ' in the selected project'}, {rows.length} shown.
+                {t('WorkListScreen.colCaption')}
+                {projectId === '' ? '' : ` ${t('WorkListScreen.colCaptionInProject')}`},{' '}
+                {rows.length} {t('WorkListScreen.shown')}
               </caption>
               <thead>
                 <tr>
@@ -609,7 +633,7 @@ export function WorkListScreen({
                     <input
                       className="tm-choice__input"
                       type="checkbox"
-                      aria-label="Select every loaded item"
+                      aria-label={t('WorkListScreen.selectAll')}
                       checked={allVisibleSelected}
                       onChange={() =>
                         setSelected(
@@ -619,36 +643,36 @@ export function WorkListScreen({
                     />
                   </th>
                   <th scope="col" className="tm-wk-cell--type">
-                    <span className="tm-visually-hidden">Type</span>
+                    <span className="tm-visually-hidden">{t('WorkListScreen.typeHidden')}</span>
                   </th>
                   <SortableHeader
-                    label="Work item"
+                    label={t('WorkListScreen.colWorkItem')}
                     active={sortKey === 'title'}
                     direction={sortDirection}
                     onToggle={() => toggleSort('title')}
                   />
                   <th scope="col" className="tm-wk-cell--owner">
-                    Owner
+                    {t('WorkListScreen.colOwner')}
                   </th>
                   <SortableHeader
-                    label="State"
+                    label={t('WorkListScreen.colState')}
                     className="tm-wk-cell--state"
                     active={sortKey === 'state'}
                     direction={sortDirection}
                     onToggle={() => toggleSort('state')}
                   />
                   <SortableHeader
-                    label="Due"
+                    label={t('WorkListScreen.colDue')}
                     className="tm-wk-cell--date"
                     active={sortKey === 'due'}
                     direction={sortDirection}
                     onToggle={() => toggleSort('due')}
                   />
                   <th scope="col" className="tm-wk-cell--audience">
-                    Audience
+                    {t('WorkListScreen.colAudience')}
                   </th>
                   <th scope="col" className="tm-wk-cell--fresh">
-                    Fresh
+                    {t('WorkListScreen.colFresh')}
                   </th>
                 </tr>
               </thead>
@@ -658,9 +682,12 @@ export function WorkListScreen({
                     {group.label !== undefined ? (
                       <tr className="tm-wk-table__group">
                         <td colSpan={8}>
-                          Project · {group.label}
+                          {t('WorkListScreen.groupProjectPrefix')} {group.label}
                           <span className="tm-wk-table__group-count">
-                            {group.rows.length} {group.rows.length === 1 ? 'item' : 'items'}
+                            {group.rows.length}{' '}
+                            {group.rows.length === 1
+                              ? t('WorkListScreen.itemSingular')
+                              : t('WorkListScreen.itemPlural')}
                           </span>
                         </td>
                       </tr>
@@ -679,7 +706,7 @@ export function WorkListScreen({
                             <input
                               className="tm-choice__input"
                               type="checkbox"
-                              aria-label={`Select ${item.title}`}
+                              aria-label={`${t('WorkListScreen.selectRowPrefix')} ${item.title}`}
                               checked={selected.has(item.id)}
                               onChange={() => toggleRow(item.id)}
                             />
@@ -721,12 +748,16 @@ export function WorkListScreen({
                                   ? { 'data-tone': 'warning' }
                                   : {})}
                             >
-                              {item.dueAt === null ? 'not set' : shortDay(item.dueAt)}
+                              {item.dueAt === null
+                                ? t('WorkListScreen.dueNotSet')
+                                : shortDay(item.dueAt)}
                             </span>
                             {overdue ? (
                               <>
                                 {' '}
-                                <StateCapsule state="blocked">Overdue</StateCapsule>
+                                <StateCapsule state="blocked">
+                                  {t('WorkListScreen.overdue')}
+                                </StateCapsule>
                               </>
                             ) : null}
                           </td>
@@ -746,7 +777,7 @@ export function WorkListScreen({
                               // Minutes since the change differ between the server render and
                               // hydration by however long the page took to arrive.
                               suppressHydrationWarning
-                              title={`Last changed ${formatInstant(item.updatedAt)}`}
+                              title={`${t('WorkListScreen.lastChangedPrefix')} ${formatInstant(item.updatedAt)}`}
                             >
                               {fresh.label}
                             </time>
@@ -760,24 +791,24 @@ export function WorkListScreen({
             </table>
           </div>
           <p className="tm-wk-table__foot">
-            rows 1–{rows.length}
+            {t('WorkListScreen.footRowsPrefix')}
+            {rows.length}
             {workItems.hasNextPage ? (
               <>
                 {' · '}
-                <span>This is not all of it.</span> Sorting orders what is loaded, so load the rest
-                before trusting an order across everything.
+                <span>{t('WorkListScreen.footNotAll')}</span> {t('WorkListScreen.footSortNote')}
                 <Button
                   tone="outline"
                   size="accessible"
                   loading={workItems.isFetchingNextPage}
-                  loadingLabel="Loading more"
+                  loadingLabel={t('WorkListScreen.loadingMore')}
                   onClick={() => void workItems.fetchNextPage()}
                 >
-                  Load more
+                  {t('WorkListScreen.loadMore')}
                 </Button>
               </>
             ) : (
-              ' · everything is loaded'
+              ` · ${t('WorkListScreen.footAllLoaded')}`
             )}
           </p>
         </div>
@@ -791,7 +822,7 @@ export function WorkListScreen({
       <Announce
         message={
           (workItems.data?.pages.length ?? 0) > 1 && !workItems.isFetchingNextPage
-            ? `${loadedRows.length} ${loadedRows.length === 1 ? 'work item' : 'work items'} loaded in total.`
+            ? `${loadedRows.length} ${loadedRows.length === 1 ? t('WorkListScreen.workItemSingular') : t('WorkListScreen.workItemPlural')} ${t('WorkListScreen.loadedInTotal')}`
             : ''
         }
       />
@@ -800,15 +831,24 @@ export function WorkListScreen({
 }
 
 /** The rail's views: each is a real server-side state filter, named the way people ask for it. */
-const STATE_VIEWS: readonly { label: string; states: readonly WorkItemState[] }[] = [
-  { label: 'All work', states: [] },
+const STATE_VIEWS: readonly {
+  label: string;
+  labelKey: MessageKey;
+  states: readonly WorkItemState[];
+}[] = [
+  { label: 'All work', labelKey: 'WorkListScreen.viewAllWork', states: [] },
   {
     label: 'All open work',
+    labelKey: 'WorkListScreen.viewAllOpen',
     states: WORK_ITEM_STATES.filter((state) => state !== 'done' && state !== 'archived'),
   },
-  { label: 'Blocked work', states: ['blocked'] },
-  { label: 'In internal review', states: ['internal_review'] },
-  { label: 'Done', states: ['done'] },
+  { label: 'Blocked work', labelKey: 'WorkListScreen.viewBlocked', states: ['blocked'] },
+  {
+    label: 'In internal review',
+    labelKey: 'WorkListScreen.viewInternalReview',
+    states: ['internal_review'],
+  },
+  { label: 'Done', labelKey: 'WorkListScreen.viewDone', states: ['done'] },
 ];
 
 function sameStates(left: readonly WorkItemState[], right: readonly WorkItemState[]): boolean {
