@@ -7,6 +7,7 @@ import { WebIcon, type WebIconName } from './WebIcon';
 import { ArrowLink, ButtonLink, Eyebrow, IconOrb, PlayCapsule, cx } from './primitives';
 import { DeliveryRiskScene } from './ProductScenes';
 import { SIGN_UP_HREF } from '../../lib/public-signup';
+import { useT } from '../../lib/i18n/use-t';
 
 /* ── Web/Section — the 1248 column and section rhythm ─────────────────────────── */
 
@@ -182,7 +183,7 @@ const DEFAULT_PARTNERS: readonly LogoStripPartner[] = [
  * mono "DESIGN PARTNER · 01" capsule row; `detailed` adds an icon orb and the team type.
  */
 export function LogoStrip({
-  label = 'Built with service teams in our design-partner programme',
+  label,
   partners = DEFAULT_PARTNERS,
   variant = 'compact',
 }: {
@@ -190,9 +191,11 @@ export function LogoStrip({
   partners?: readonly LogoStripPartner[];
   variant?: 'compact' | 'detailed';
 }) {
+  const t = useT();
+  const resolvedLabel = label ?? t('Sections.logoStripLabel');
   return (
     <div className={cx('tm-web-logos', `tm-web-logos--${variant}`)}>
-      <p className="tm-web-logos__label">{label}</p>
+      <p className="tm-web-logos__label">{resolvedLabel}</p>
       <ul className="tm-web-logos__list">
         {partners.map((partner, index) => (
           <li key={partner.name} className="tm-web-logos__tile">
@@ -239,8 +242,10 @@ export function TestimonialCard({
   org,
   initials = 'DP',
   tone = 'paper',
-  note = 'Design-partner quote · name withheld',
+  note,
 }: TestimonialCardProps) {
+  const t = useT();
+  const resolvedNote = note === undefined ? t('Sections.testimonialNote') : note;
   return (
     <figure className={cx('tm-web-quote', tone === 'ink' && 'tm-web-quote--ink')}>
       <IconOrb icon="quote" tone="lime" />
@@ -254,7 +259,7 @@ export function TestimonialCard({
           <span className="tm-web-quote__org">{org}</span>
         </span>
       </figcaption>
-      {note ? <p className="tm-web-quote__note">{note}</p> : null}
+      {resolvedNote ? <p className="tm-web-quote__note">{resolvedNote}</p> : null}
     </figure>
   );
 }
@@ -416,31 +421,33 @@ export interface CtaBandProps {
   visual?: ReactNode | null;
 }
 
-export function CtaBand({
-  title = 'Your next client project, one story.',
-  lede = 'Start free with your team. Invite your client when the first deliverable is ready.',
-  primary = { label: 'Start free', href: SIGN_UP_HREF },
-  secondary = { label: 'Watch the 4-minute story', href: '/#work-story' },
-  note = 'No credit card · Client users are always free',
-  visual,
-}: CtaBandProps) {
+export function CtaBand({ title, lede, primary, secondary, note, visual }: CtaBandProps) {
+  const t = useT();
+  const resolvedTitle = title ?? t('Sections.ctaTitle');
+  const resolvedLede = lede ?? t('Sections.ctaLede');
+  const resolvedPrimary = primary ?? { label: t('Sections.ctaPrimary'), href: SIGN_UP_HREF };
+  const resolvedSecondary = secondary ?? {
+    label: t('Sections.ctaSecondary'),
+    href: '/#work-story',
+  };
+  const resolvedNote = note ?? t('Sections.ctaNote');
   const crop = visual === undefined ? <DeliveryRiskScene /> : visual;
   return (
-    <section className="tm-web-cta-section" aria-label="Get started">
+    <section className="tm-web-cta-section" aria-label={t('Sections.getStarted')}>
       <div className="tm-web-container">
         <div className={cx('tm-web-cta', crop === null && 'tm-web-cta--text')}>
           <div className="tm-web-cta__text">
-            <h2 className="tm-web-cta__title">{title}</h2>
-            <p className="tm-web-cta__lede">{lede}</p>
+            <h2 className="tm-web-cta__title">{resolvedTitle}</h2>
+            <p className="tm-web-cta__lede">{resolvedLede}</p>
             <div className="tm-web-cta__actions">
-              <ButtonLink href={primary.href} tone="lime">
-                {primary.label}
+              <ButtonLink href={resolvedPrimary.href} tone="lime">
+                {resolvedPrimary.label}
               </ButtonLink>
-              <PlayCapsule href={secondary.href} tone="paper">
-                {secondary.label}
+              <PlayCapsule href={resolvedSecondary.href} tone="paper">
+                {resolvedSecondary.label}
               </PlayCapsule>
             </div>
-            {note ? <p className="tm-web-cta__note">{note}</p> : null}
+            {resolvedNote ? <p className="tm-web-cta__note">{resolvedNote}</p> : null}
           </div>
           {crop !== null ? <div className="tm-web-cta__visual">{crop}</div> : null}
         </div>

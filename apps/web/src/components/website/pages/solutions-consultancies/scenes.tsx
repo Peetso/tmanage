@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule } from '@tmanage/ui';
 import { WebIcon } from '../../WebIcon';
 import { cx } from '../../primitives';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * Product scenes for Solutions · Consultancies — small, real TManage screens composed from
@@ -78,10 +79,11 @@ const DECISIONS = [
 ] as const;
 
 export function DecisionRegisterScene() {
+  const t = useT();
   return (
     <AppWindow
       url="app.tmanage.com/decisions"
-      label="The decision register: five decisions with an owner, an effective date and the work each one affects; one is superseded by a newer decision."
+      label={t('ConsultanciesScenes.decisionRegisterAlt')}
       className="tm-consult-window--hero"
     >
       <div className="tm-consult-register">
@@ -160,10 +162,11 @@ const STORY: readonly { tone: StoryTone; meta: string; title: string; sub?: stri
 ];
 
 export function EngagementStoryScene() {
+  const t = useT();
   return (
     <AppWindow
       url="app.tmanage.com/engagements/story"
-      label="An engagement's Work Story: scoping, discovery findings, a published concept, and the client decision it is waiting on now."
+      label={t('ConsultanciesScenes.engagementStoryAlt')}
     >
       <ol className="tm-consult-story">
         {STORY.map((step) => (
@@ -182,11 +185,12 @@ export function EngagementStoryScene() {
 /* ── Row 2: one decision with its evidence and audit trail ────────────────────── */
 
 export function DecisionDetailScene() {
+  const t = useT();
   return (
     <AppWindow
       url="app.tmanage.com/decisions/detail"
       tone="sunken"
-      label="A decision record with its owner, rationale, supporting evidence, related items and an audit trail of who recorded and approved it."
+      label={t('ConsultanciesScenes.decisionDetailAlt')}
     >
       <div className="tm-consult-detail">
         <div className="tm-consult-detail__main">
@@ -300,11 +304,12 @@ const HEALTH = [
 ] as const;
 
 export function SteeringHealthScene() {
+  const t = useT();
   return (
     <AppWindow
       url="app.tmanage.com/insights/health"
       tone="sunken"
-      label="The portfolio health view: two projects at risk, six decisions waiting on the client, and a drafted steering update ready to send to the client portal."
+      label={t('ConsultanciesScenes.steeringHealthAlt')}
     >
       <div className="tm-consult-health">
         <div className="tm-consult-health__head">

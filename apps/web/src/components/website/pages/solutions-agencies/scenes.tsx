@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule, StatusDot, type CapsuleState } from '@tmanage/ui';
 import { WebIcon } from '../../WebIcon';
 import { cx } from '../../primitives';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * Mini product scenes for Solutions · Agencies & studios (WEB-08). Each one is composed from
@@ -95,9 +96,10 @@ const PORTFOLIO: readonly PortfolioRow[] = [
 
 /** Hero — the studio portfolio: every client project, its state, due date and owner. */
 export function PortfolioScene() {
+  const t = useT();
   return (
     <AgScene
-      label="The Northstar Studio portfolio: five client projects across four clients, one in client review and one blocked."
+      label={t('SolutionsAgenciesScenes.portfolioAlt')}
       address="app.tmanage.com/northstar/portfolio"
       className="tm-web-ag-scene--portfolio"
     >
@@ -146,6 +148,7 @@ export function PortfolioScene() {
 
 /** Row 1 — one workspace, one boundary per client organization. */
 export function ClientBoundariesScene() {
+  const t = useT();
   const clients = [
     { name: 'Atlas Hospitality', projects: '2 projects', people: 'Salma Riad, Youssef Kamal' },
     { name: 'Cedar Clinics', projects: '1 project', people: '3 client members' },
@@ -153,7 +156,7 @@ export function ClientBoundariesScene() {
   ];
   return (
     <AgScene
-      label="Three client organizations, each with its own portal that shows only its own projects."
+      label={t('SolutionsAgenciesScenes.clientBoundariesAlt')}
       address="app.tmanage.com/northstar/clients"
     >
       <div className="tm-web-ag-panel">
@@ -190,9 +193,10 @@ export function ClientBoundariesScene() {
 
 /** Row 2 — creative review bound to one version, with criteria and a decision trail. */
 export function CreativeReviewScene() {
+  const t = useT();
   return (
     <AgScene
-      label="Homepage Concept v2 in client review: three criteria, the earlier version superseded and Salma Riad's approval recorded on v2."
+      label={t('SolutionsAgenciesScenes.creativeReviewAlt')}
       address="app.tmanage.com/northstar/deliverables/homepage-concept"
     >
       <div className="tm-web-ag-panel">
@@ -244,6 +248,7 @@ export function CreativeReviewScene() {
 
 /** Row 3 — a retainer's recurring requests flowing into the monthly plan. */
 export function RetainerPlanScene() {
+  const t = useT();
   const requests: readonly { title: string; state: CapsuleState; label: string }[] = [
     { title: 'Weekly social set · week 41', state: 'done', label: 'Done' },
     { title: 'Newsletter layout · October', state: 'current', label: 'In progress' },
@@ -252,7 +257,7 @@ export function RetainerPlanScene() {
   ];
   return (
     <AgScene
-      label="The Lumen Travel October retainer plan: four recurring requests, eleven of sixteen agreed days committed."
+      label={t('SolutionsAgenciesScenes.retainerPlanAlt')}
       address="app.tmanage.com/northstar/retainers/lumen-october"
     >
       <div className="tm-web-ag-panel">

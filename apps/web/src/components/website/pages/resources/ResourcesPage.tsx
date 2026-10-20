@@ -27,6 +27,7 @@ import {
 } from './resources-data';
 import './resources.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * WEB-15 Resources (`/resources`). No Figma frame yet: designed in code from SITE-SPEC in the
@@ -42,6 +43,7 @@ const HASH_TABS: Readonly<Record<string, ResourceTab['id']>> = {
 };
 
 export function ResourcesPage() {
+  const t = useT();
   const [tab, setTab] = useState<ResourceTab['id']>('all');
   const [query, setQuery] = useState('');
 
@@ -76,9 +78,9 @@ export function ResourcesPage() {
               as="h1"
               size="page"
               id="res-hero-title"
-              eyebrow="RESOURCES"
-              title="Guides for calmer client delivery."
-              lede="Practical playbooks, templates and product notes from the TManage team."
+              eyebrow={t('ResourcesPage.eyebrow')}
+              title={t('ResourcesPage.heroTitle')}
+              lede={t('ResourcesPage.heroLede')}
             />
             <form
               className="tm-web-res-search"
@@ -89,8 +91,8 @@ export function ResourcesPage() {
               }}
             >
               <SearchField
-                label="Search guides and articles"
-                placeholder="Search guides and articles"
+                label={t('ResourcesPage.searchLabel')}
+                placeholder={t('ResourcesPage.searchLabel')}
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 aria-controls="res-grid"
@@ -103,7 +105,7 @@ export function ResourcesPage() {
 
       <WebSection spacing="flush" className="tm-web-res-featured" aria-labelledby="res-feat-title">
         <h2 id="res-feat-title" className="tm-visually-hidden">
-          Featured
+          {t('ResourcesPage.featured')}
         </h2>
         <div className="tm-web-res-featured__grid">
           <FeaturedGuide />
@@ -117,7 +119,7 @@ export function ResourcesPage() {
 
       <WebSection className="tm-web-res-library" aria-labelledby="res-lib-title" id="res-library">
         <h2 id="res-lib-title" className="tm-visually-hidden">
-          All articles
+          {t('ResourcesPage.allArticles')}
         </h2>
         {Object.keys(HASH_TABS).map((anchor) => (
           <span key={anchor} id={anchor} aria-hidden="true" />
@@ -130,8 +132,9 @@ export function ResourcesPage() {
           className="tm-web-res-panel"
         >
           <p className="tm-web-res-count" aria-live="polite">
-            {visible.length} of {ARTICLES.length} articles
-            {query.trim() !== '' ? ` matching “${query.trim()}”` : ''}
+            {visible.length} {t('ResourcesPage.countOf')} {ARTICLES.length}{' '}
+            {t('ResourcesPage.countArticles')}
+            {query.trim() !== '' ? ` ${t('ResourcesPage.countMatching')} “${query.trim()}”` : ''}
           </p>
           {visible.length > 0 ? (
             <ul className="tm-web-res-grid" id="res-grid">
@@ -144,11 +147,9 @@ export function ResourcesPage() {
           ) : (
             <div className="tm-web-res-empty" id="res-grid">
               <IconOrb icon="search" tone="tint" />
-              <p className="tm-web-res-empty__title">Nothing here matches yet.</p>
-              <p className="tm-web-res-empty__body">
-                Try another word or another tab — or tell us what you would like us to write next.
-              </p>
-              <ArrowLink href="/contact">Suggest a topic</ArrowLink>
+              <p className="tm-web-res-empty__title">{t('ResourcesPage.emptyTitle')}</p>
+              <p className="tm-web-res-empty__body">{t('ResourcesPage.emptyBody')}</p>
+              <ArrowLink href="/contact">{t('ResourcesPage.suggestTopic')}</ArrowLink>
             </div>
           )}
         </div>
@@ -157,11 +158,11 @@ export function ResourcesPage() {
       <Newsletter />
 
       <CtaBand
-        title="Bring the next client project into one story."
-        lede="Start free with your team. Invite your client when the first deliverable is ready."
-        primary={{ label: 'Start free', href: SIGN_UP_HREF }}
-        secondary={{ label: 'Book a demo', href: '/contact' }}
-        note="No credit card · Client users are always free"
+        title={t('ResourcesPage.ctaTitle')}
+        lede={t('ResourcesPage.ctaLede')}
+        primary={{ label: t('ResourcesPage.ctaStartFree'), href: SIGN_UP_HREF }}
+        secondary={{ label: t('ResourcesPage.ctaBookDemo'), href: '/contact' }}
+        note={t('ResourcesPage.ctaNote')}
         visual={<TemplateProjectScene />}
       />
     </>
@@ -177,6 +178,7 @@ function LibraryTabs({
   active: ResourceTab['id'];
   onChange: (id: ResourceTab['id']) => void;
 }) {
+  const translate = useT();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
   const scroller = useRef<HTMLDivElement | null>(null);
   const [more, setMore] = useState({ start: false, end: false });
@@ -233,7 +235,7 @@ function LibraryTabs({
       <div
         className="tm-segmented tm-web-res-tabs__list"
         role="tablist"
-        aria-label="Resource categories"
+        aria-label={translate('ResourcesPage.tabsLabel')}
       >
         {RESOURCE_TABS.map((t, i) => (
           <button
@@ -261,12 +263,13 @@ function LibraryTabs({
 /* ── Featured guide (ink panel) ─────────────────────────────────────────────── */
 
 function FeaturedGuide() {
+  const t = useT();
   const href = resourceHref(FEATURED_GUIDE);
   return (
     <article className="tm-web-res-guide" aria-labelledby="res-guide-title">
       <div className="tm-web-res-guide__text">
         <Badge mono className="tm-web-res-guide__badge">
-          FEATURED GUIDE
+          {t('ResourcesPage.featuredGuideBadge')}
         </Badge>
         <h3 id="res-guide-title" className="tm-web-res-guide__title">
           <Link href={href} className="tm-web-res-guide__link">
@@ -282,14 +285,14 @@ function FeaturedGuide() {
         <p className="tm-web-res-guide__meta">
           <span>{FEATURED_GUIDE.meta}</span>
           <span aria-hidden="true"> · </span>
-          <span>Written by the TManage team</span>
+          <span>{t('ResourcesPage.writtenBy')}</span>
         </p>
         <div className="tm-web-res-guide__actions">
           <ButtonLink href={href} tone="lime" size="accessible">
-            Read the guide
+            {t('ResourcesPage.readGuide')}
           </ButtonLink>
           <ArrowLink href="#res-newsletter" tone="ink">
-            Get new guides by email
+            {t('ResourcesPage.getNewGuides')}
           </ArrowLink>
         </div>
       </div>
@@ -301,6 +304,7 @@ function FeaturedGuide() {
 /* ── Newsletter band ────────────────────────────────────────────────────────── */
 
 function Newsletter() {
+  const t = useT();
   const [state, setState] = useState<'idle' | 'noted'>('idle');
   const statusId = useId();
 
@@ -318,11 +322,11 @@ function Newsletter() {
       id="res-newsletter"
     >
       <div className="tm-web-res-news__grid">
-        <SectionHeader id="res-news-title" title="One useful email a month." />
+        <SectionHeader id="res-news-title" title={t('ResourcesPage.newsletterTitle')} />
         <form className="tm-web-res-news__form" onSubmit={onSubmit} aria-describedby={statusId}>
           <div className="tm-web-res-news__row">
             <Field
-              label="Work email"
+              label={t('ResourcesPage.workEmail')}
               type="email"
               name="email"
               autoComplete="email"
@@ -330,13 +334,13 @@ function Newsletter() {
               required
             />
             <Button type="submit" tone="ink" size="accessible">
-              Subscribe
+              {t('ResourcesPage.subscribe')}
             </Button>
           </div>
           <p id={statusId} className="tm-web-res-news__caption" aria-live="polite">
             {state === 'noted'
-              ? 'Sign-up opens with the first issue. Nothing was sent or stored.'
-              : 'Unsubscribe in one click.'}
+              ? t('ResourcesPage.newsletterNoted')
+              : t('ResourcesPage.newsletterIdle')}
           </p>
         </form>
       </div>
@@ -393,11 +397,9 @@ const SEARCH_RESULTS: readonly {
 
 /** Hero — the library searched from inside TManage: a query, three results, who keeps it current. */
 function LibraryScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-res-library-scene"
-      label="The TManage resource library searched for “client review”: three results — a guide, a blog post and a template."
-    >
+    <Scene className="tm-web-res-library-scene" label={t('ResourcesPage.librarySceneAlt')}>
       <div className="tm-web-res-doc">
         <div className="tm-web-res-doc__head">
           <IconOrb icon="book" tone="tint" />
@@ -439,11 +441,9 @@ function LibraryScene() {
 
 /** Featured guide — the approval the playbook teaches: one decision on one exact version. */
 function ApprovalScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-res-approval-scene"
-      label="An approval request in TManage: Homepage Concept v2 for Atlas Hospitality, version 1 with changes requested and version 2 approved by Salma Riad."
-    >
+    <Scene className="tm-web-res-approval-scene" label={t('ResourcesPage.approvalSceneAlt')}>
       <div className="tm-web-res-approval">
         <div className="tm-web-res-approval__head">
           <div>
@@ -489,11 +489,9 @@ const TEMPLATE_MILESTONES: readonly {
 
 /** CTA — the relaunch template copied into a real project, every line wrapping instead of cropping. */
 function TemplateProjectScene() {
+  const t = useT();
   return (
-    <Scene
-      className="tm-web-res-template-scene"
-      label="The Website relaunch template copied into the Atlas Website Relaunch project: three milestones, one done and one in progress."
-    >
+    <Scene className="tm-web-res-template-scene" label={t('ResourcesPage.templateProjectSceneAlt')}>
       <div className="tm-web-res-doc">
         <div className="tm-web-res-doc__head">
           <IconOrb icon="layers" tone="lime" />

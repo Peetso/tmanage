@@ -13,68 +13,13 @@ import {
 } from './scenes';
 import './solutions-inhouse.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * Solutions · In-house teams — `/solutions/in-house`, built to the approved design
  * (shots/10-solutions-inhouse.png) and SITE-SPEC. Sections: hero, pain → answer, workflow,
  * three alternating rows, story card, CTA band. Nav and footer come from the route group.
  */
-
-const PAINS = [
-  {
-    today: 'Requests in DMs and hallways',
-    answer: 'One intake per team',
-    body: 'Every team gets its own request form. Asks land in one inbox with a requester, a need-by date and a clear owner.',
-  },
-  {
-    today: 'Priorities change every week',
-    answer: 'Committed vs desired dates, visible to all',
-    body: 'Stakeholders see the date they asked for next to the date you committed to, so trade-offs are a conversation, not a surprise.',
-  },
-  {
-    today: 'Leadership asks for status',
-    answer: 'Portfolio exceptions, not reports',
-    body: 'Leaders see only what is late, blocked or waiting on them. Everything on track stays quiet.',
-  },
-] as const;
-
-const STEPS: readonly {
-  title: string;
-  body: string;
-  state: CapsuleState;
-  label: string;
-}[] = [
-  {
-    title: 'Request',
-    body: 'Stakeholders ask through their team’s form, not a DM.',
-    state: 'done',
-    label: 'Done',
-  },
-  {
-    title: 'Triage',
-    body: 'Your lead sorts, merges and sets a need-by date.',
-    state: 'done',
-    label: 'Done',
-  },
-  {
-    title: 'Plan',
-    body: 'Owner, committed date and capacity agreed in one place.',
-    state: 'current',
-    label: 'In progress',
-  },
-  {
-    title: 'Deliver',
-    body: 'Work moves on a board stakeholders can follow without a status meeting.',
-    state: 'future',
-    label: 'Next week',
-  },
-  {
-    title: 'Review',
-    body: 'The requester approves the result from a link, and the request closes.',
-    state: 'client',
-    label: 'Stakeholder review',
-  },
-];
 
 function Checklist({ items }: { items: readonly string[] }) {
   return (
@@ -123,26 +68,81 @@ function Row({
 }
 
 export function SolutionsInhousePage() {
+  const t = useT();
+
+  const PAINS = [
+    {
+      today: t('SolutionsInhousePage.pain1Today'),
+      answer: t('SolutionsInhousePage.pain1Answer'),
+      body: t('SolutionsInhousePage.pain1Body'),
+    },
+    {
+      today: t('SolutionsInhousePage.pain2Today'),
+      answer: t('SolutionsInhousePage.pain2Answer'),
+      body: t('SolutionsInhousePage.pain2Body'),
+    },
+    {
+      today: t('SolutionsInhousePage.pain3Today'),
+      answer: t('SolutionsInhousePage.pain3Answer'),
+      body: t('SolutionsInhousePage.pain3Body'),
+    },
+  ] as const;
+
+  const STEPS: readonly {
+    title: string;
+    body: string;
+    state: CapsuleState;
+    label: string;
+  }[] = [
+    {
+      title: t('SolutionsInhousePage.step1Title'),
+      body: t('SolutionsInhousePage.step1Body'),
+      state: 'done',
+      label: t('SolutionsInhousePage.step1Label'),
+    },
+    {
+      title: t('SolutionsInhousePage.step2Title'),
+      body: t('SolutionsInhousePage.step2Body'),
+      state: 'done',
+      label: t('SolutionsInhousePage.step2Label'),
+    },
+    {
+      title: t('SolutionsInhousePage.step3Title'),
+      body: t('SolutionsInhousePage.step3Body'),
+      state: 'current',
+      label: t('SolutionsInhousePage.step3Label'),
+    },
+    {
+      title: t('SolutionsInhousePage.step4Title'),
+      body: t('SolutionsInhousePage.step4Body'),
+      state: 'future',
+      label: t('SolutionsInhousePage.step4Label'),
+    },
+    {
+      title: t('SolutionsInhousePage.step5Title'),
+      body: t('SolutionsInhousePage.step5Body'),
+      state: 'client',
+      label: t('SolutionsInhousePage.step5Label'),
+    },
+  ];
+
   return (
     <div className="tm-inh">
       {/* Hero */}
       <WebSection tone="surface" className="tm-inh-hero" aria-labelledby="inh-hero-title">
         <div className="tm-inh-hero__grid">
           <div className="tm-inh-hero__text">
-            <Badge className="tm-inh-eyebrow">For in-house teams</Badge>
+            <Badge className="tm-inh-eyebrow">{t('SolutionsInhousePage.heroEyebrow')}</Badge>
             <h1 id="inh-hero-title" className="tm-metric__value tm-inh-hero__title">
-              Treat internal stakeholders like clients — with the same clarity.
+              {t('SolutionsInhousePage.heroTitle')}
             </h1>
-            <p className="tm-inh-hero__lede">
-              Requests, priorities and status for every team you serve, in one place your
-              stakeholders can actually read.
-            </p>
+            <p className="tm-inh-hero__lede">{t('SolutionsInhousePage.heroLede')}</p>
             <div className="tm-inh-hero__actions">
               <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                Start free
+                {t('SolutionsInhousePage.startFree')}
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">
-                Book a demo
+                {t('SolutionsInhousePage.bookDemo')}
               </ButtonLink>
             </div>
           </div>
@@ -157,19 +157,19 @@ export function SolutionsInhousePage() {
         <SectionHeader
           id="inh-pain-title"
           align="center"
-          eyebrow="Why in-house teams switch"
-          title="Internal work deserves a real front door."
-          lede="Three things in-house leads tell us slow them down, and how TManage answers each one."
+          eyebrow={t('SolutionsInhousePage.painEyebrow')}
+          title={t('SolutionsInhousePage.painTitle')}
+          lede={t('SolutionsInhousePage.painLede')}
         />
         <ul className="tm-inh-pains">
           {PAINS.map((pain) => (
             <li key={pain.today} className="tm-inh-pain">
-              <Badge>Today</Badge>
+              <Badge>{t('SolutionsInhousePage.today')}</Badge>
               <p className="tm-inh-pain__today">{pain.today}</p>
               <div className="tm-inh-pain__answer">
                 <p className="tm-metric__label tm-inh-pain__with">
                   <WebIcon name="check" size={14} />
-                  With TManage
+                  {t('SolutionsInhousePage.withTManage')}
                 </p>
                 <p className="tm-inline-alert__title tm-inh-pain__title">{pain.answer}</p>
                 <p className="tm-inh-pain__body">{pain.body}</p>
@@ -184,9 +184,9 @@ export function SolutionsInhousePage() {
         <SectionHeader
           id="inh-flow-title"
           align="center"
-          eyebrow="How internal work flows"
-          title="From a hallway ask to a reviewed result."
-          lede="Each stage hands the next one its context, so nobody asks the same question twice."
+          eyebrow={t('SolutionsInhousePage.flowEyebrow')}
+          title={t('SolutionsInhousePage.flowTitle')}
+          lede={t('SolutionsInhousePage.flowLede')}
         />
         <ol className="tm-inh-steps">
           {STEPS.map((step, index) => (
@@ -206,64 +206,61 @@ export function SolutionsInhousePage() {
       </WebSection>
 
       {/* Alternating rows */}
-      <WebSection aria-label="What in-house teams get" className="tm-inh-rows">
+      <WebSection aria-label={t('SolutionsInhousePage.rowsLabel')} className="tm-inh-rows">
         <Row
-          kicker="Intake"
-          title="A front door for every team."
-          body="Give marketing, finance, legal and operations their own request form. Asks arrive structured and routed to the right owner."
+          kicker={t('SolutionsInhousePage.row1Kicker')}
+          title={t('SolutionsInhousePage.row1Title')}
+          body={t('SolutionsInhousePage.row1Body')}
           checks={[
-            'A request form per team, with the fields you need',
-            'Triage with merge, decline and need-by dates',
-            'Requesters see status without chasing you',
+            t('SolutionsInhousePage.row1Check1'),
+            t('SolutionsInhousePage.row1Check2'),
+            t('SolutionsInhousePage.row1Check3'),
           ]}
-          link={{ label: 'Explore requests', href: '/features/work' }}
+          link={{ label: t('SolutionsInhousePage.row1Link'), href: '/features/work' }}
           visual={<IntakeFormScene />}
         />
         <Row
           reverse
-          kicker="Review"
-          title="Stakeholder review without accounts everywhere."
-          body="Send a review link to the person who asked. They comment, approve or ask for changes, and every answer stays with the work."
+          kicker={t('SolutionsInhousePage.row2Kicker')}
+          title={t('SolutionsInhousePage.row2Title')}
+          body={t('SolutionsInhousePage.row2Body')}
           checks={[
-            'Approve or request changes from one link',
-            'Versioned reviews that are never overwritten',
-            'Guest reviewers are always free',
+            t('SolutionsInhousePage.row2Check1'),
+            t('SolutionsInhousePage.row2Check2'),
+            t('SolutionsInhousePage.row2Check3'),
           ]}
-          link={{ label: 'Explore approvals', href: '/features/knowledge' }}
+          link={{ label: t('SolutionsInhousePage.row2Link'), href: '/features/knowledge' }}
           visual={<StakeholderReviewScene />}
         />
         <Row
-          kicker="Capacity"
-          title="Capacity planning without scoring people."
-          body="See load by team and week in committed hours, not productivity scores. Rebalance before a date slips, not after."
+          kicker={t('SolutionsInhousePage.row3Kicker')}
+          title={t('SolutionsInhousePage.row3Title')}
+          body={t('SolutionsInhousePage.row3Body')}
           checks={[
-            'Workload by team and week',
-            'Time off and availability built in',
-            'No individual rankings or scorecards',
+            t('SolutionsInhousePage.row3Check1'),
+            t('SolutionsInhousePage.row3Check2'),
+            t('SolutionsInhousePage.row3Check3'),
           ]}
-          link={{ label: 'Explore workload', href: '/features/insights' }}
+          link={{ label: t('SolutionsInhousePage.row3Link'), href: '/features/insights' }}
           visual={<WorkloadScene />}
         />
       </WebSection>
 
       {/* Story card */}
-      <WebSection tone="sunken" aria-label="Customer story">
+      <WebSection tone="sunken" aria-label={t('SolutionsInhousePage.storyLabel')}>
         <figure className="tm-inh-story">
           <div className="tm-inh-story__main">
-            <Badge>Customer story · coming soon</Badge>
+            <Badge>{t('SolutionsInhousePage.storyBadge')}</Badge>
             <blockquote className="tm-web-feature__title tm-inh-story__quote">
-              <p>
-                “An in-house operations team will tell how one intake form ended the Monday-morning
-                priority scramble.”
-              </p>
+              <p>{t('SolutionsInhousePage.storyQuote')}</p>
             </blockquote>
             <figcaption className="tm-inh-story__by">
               <Avatar name="H O" audience="client" decorative className="tm-inh-story__avatar" />
               <span className="tm-inh-story__who">
-                <span className="tm-metric__label tm-inh-story__name">Team lead name</span>
-                <span className="tm-inh-story__org">
-                  Head of operations, design-partner company
+                <span className="tm-metric__label tm-inh-story__name">
+                  {t('SolutionsInhousePage.storyName')}
                 </span>
+                <span className="tm-inh-story__org">{t('SolutionsInhousePage.storyOrg')}</span>
               </span>
             </figcaption>
           </div>
@@ -271,18 +268,18 @@ export function SolutionsInhousePage() {
             <div className="tm-inh-story__fact">
               <dt>
                 <span className="tm-inh-story__bar" aria-hidden="true" />
-                <span className="tm-visually-hidden">Figure to come: </span>
-                fewer status requests to the delivery team
+                <span className="tm-visually-hidden">{t('SolutionsInhousePage.figureToCome')}</span>
+                {t('SolutionsInhousePage.fact1Text')}
               </dt>
-              <dd>Measured with the design partner. Published with the story.</dd>
+              <dd>{t('SolutionsInhousePage.fact1Note')}</dd>
             </div>
             <div className="tm-inh-story__fact">
               <dt>
                 <span className="tm-inh-story__bar" aria-hidden="true" />
-                <span className="tm-visually-hidden">Figure to come: </span>
-                requests triaged within one working day
+                <span className="tm-visually-hidden">{t('SolutionsInhousePage.figureToCome')}</span>
+                {t('SolutionsInhousePage.fact2Text')}
               </dt>
-              <dd>Shared only with the partner’s consent.</dd>
+              <dd>{t('SolutionsInhousePage.fact2Note')}</dd>
             </div>
           </dl>
         </figure>
@@ -294,22 +291,18 @@ export function SolutionsInhousePage() {
           <div className="tm-web-cta tm-web-cta--text">
             <div className="tm-web-cta__text">
               <h2 id="inh-cta-title" className="tm-web-cta__title">
-                Give every team you serve one front door.
+                {t('SolutionsInhousePage.ctaTitle')}
               </h2>
-              <p className="tm-web-cta__lede">
-                Start free with your team. Invite stakeholders when the first request comes in.
-              </p>
+              <p className="tm-web-cta__lede">{t('SolutionsInhousePage.ctaLede')}</p>
               <div className="tm-web-cta__actions">
                 <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                  Start free
+                  {t('SolutionsInhousePage.startFree')}
                 </ButtonLink>
                 <ButtonLink href="/contact" tone="outline-ink">
-                  Book a demo
+                  {t('SolutionsInhousePage.bookDemo')}
                 </ButtonLink>
               </div>
-              <p className="tm-web-cta__note">
-                No credit card · Stakeholder reviewers are always free
-              </p>
+              <p className="tm-web-cta__note">{t('SolutionsInhousePage.ctaNote')}</p>
             </div>
           </div>
         </div>

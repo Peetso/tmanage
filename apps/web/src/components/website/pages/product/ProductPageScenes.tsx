@@ -6,6 +6,7 @@ import { Wordmark } from '../../../brand/Wordmark';
 import { CalloutPin } from '../../sections';
 import { WebIcon, type WebIconName } from '../../WebIcon';
 import { cx } from '../../primitives';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * Product overview scenes (WEB-02). Each one is a small, real TManage screen composed from
@@ -126,11 +127,9 @@ const TASKS: readonly {
 
 /** The editable app shell — rail, project list, work table and the details panel. */
 export function AppShellScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The TManage team workspace: the Atlas Website Relaunch project with its stage track, a task table and the details panel of Homepage Concept v2."
-      className="tm-pp-scene--shell"
-    >
+    <Scene label={t('ProductPageScenes.appShellAlt')} className="tm-pp-scene--shell">
       <div className="tm-pp-shell">
         <div className="tm-pp-shell__rail">
           <span className="tm-pp-shell__mark">
@@ -329,11 +328,9 @@ const WORK_ROWS: readonly {
 ];
 
 export function WorkListScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The Delivery risk saved view: work items grouped by milestone with owner, state, and committed and forecast dates kept apart."
-      className="tm-pp-scene--card"
-    >
+    <Scene label={t('ProductPageScenes.workListAlt')} className="tm-pp-scene--card">
       <div className="tm-pp-work">
         <div className="tm-pp-work__list">
           <Mono>Work · Saved view</Mono>
@@ -433,11 +430,9 @@ const INBOX: readonly {
 ];
 
 export function InboxScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The focus inbox: notifications bundled by object, with the one approval that needs you first."
-      className="tm-pp-scene--card"
-    >
+    <Scene label={t('ProductPageScenes.inboxAlt')} className="tm-pp-scene--card">
       <div className="tm-pp-inbox">
         {INBOX.map((bundle) => (
           <div key={bundle.group} className="tm-pp-inbox__bundle">
@@ -471,11 +466,9 @@ export function InboxScene() {
 /* ── 4. Client portal ─────────────────────────────────────────────────────── */
 
 export function PortalScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The client portal for Atlas Hospitality: 47 days to launch, one action waiting, and the homepage direction approval first."
-      className="tm-pp-scene--card"
-    >
+    <Scene label={t('ProductPageScenes.portalAlt')} className="tm-pp-scene--card">
       <div className="tm-pp-portal">
         <div className="tm-pp-portal__bar">
           <span className="tm-pp-portal__org">
@@ -566,11 +559,9 @@ const ADMIN_NAV: readonly { heading: string; items: readonly string[] }[] = [
 ];
 
 export function AdminScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The control center: an offboarding decision with its impact first, policy counts and the audit trail of recent changes."
-      className="tm-pp-scene--card"
-    >
+    <Scene label={t('ProductPageScenes.adminAlt')} className="tm-pp-scene--card">
       <div className="tm-pp-admin">
         <div className="tm-pp-admin__nav">
           {ADMIN_NAV.map((group) => (
@@ -673,11 +664,9 @@ const BILINGUAL = [
 ] as const;
 
 export function BilingualScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The same studio settings card twice: left-to-right in English and mirrored right-to-left in Arabic."
-      className="tm-pp-scene--bilingual"
-    >
+    <Scene label={t('ProductPageScenes.bilingualAlt')} className="tm-pp-scene--bilingual">
       <div className="tm-pp-bilingual">
         {BILINGUAL.map((side) => (
           <div key={side.lang} className="tm-pp-bilingual__side" dir={side.dir} lang={side.lang}>

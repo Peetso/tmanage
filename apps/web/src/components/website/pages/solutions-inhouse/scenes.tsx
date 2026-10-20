@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { Avatar, Button, Checkbox, StateCapsule, type CapsuleState } from '@tmanage/ui';
 import { cx } from '../../primitives';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /** Mono caption: the shared Web/Eyebrow text style, laid out as plain text inside scenes. */
 const MONO = 'tm-web-eyebrow tm-inh-mono';
@@ -92,9 +93,10 @@ const INBOX: readonly InboxRow[] = [
 
 /** REQ-01 request inbox — the hero visual. */
 export function RequestInboxScene() {
+  const t = useT();
   return (
     <WindowScene
-      label="The request inbox: five requests from marketing, finance and operations, two waiting for triage, one being clarified, one deferred and one declined with a reason."
+      label={t('SolutionsInhouseScenes.requestInboxAlt')}
       url="app.tmanage.com/requests/inbox"
       className="tm-inh-window--hero"
     >
@@ -145,9 +147,10 @@ const QUESTIONS: readonly { q: string; kind: string; on?: boolean }[] = [
 
 /** REQ request-form builder beside the requester's view of the same form. */
 export function IntakeFormScene() {
+  const t = useT();
   return (
     <WindowScene
-      label="A team's request form: the builder with four questions on one side, and the form a requester fills in on the other, with a desired date that is not a promise."
+      label={t('SolutionsInhouseScenes.intakeFormAlt')}
       url="app.tmanage.com/requests/forms"
     >
       <div className="tm-inh-intake">
@@ -198,9 +201,10 @@ const CRITERIA = [
 
 /** The guest review page: one exact version, explicit criteria, approve or request changes. */
 export function StakeholderReviewScene() {
+  const t = useT();
   return (
     <WindowScene
-      label="A stakeholder review page: the exact version being decided on, four criteria to confirm, and buttons to approve version 2 or request changes."
+      label={t('SolutionsInhouseScenes.stakeholderReviewAlt')}
       url="portal.tmanage.com/review/homepage-v2"
       className="tm-inh-window--review"
     >
@@ -265,9 +269,10 @@ const LOAD: readonly LoadRow[] = [
 
 /** Workload — committed hours against stated capacity, per person, with no score. */
 export function WorkloadScene() {
+  const t = useT();
   return (
     <WindowScene
-      label="The workload view for one week: committed hours against capacity for four people, with one person over capacity by nine hours and one on leave for two days."
+      label={t('SolutionsInhouseScenes.workloadAlt')}
       url="app.tmanage.com/people/workload"
       className="tm-inh-window--load"
     >

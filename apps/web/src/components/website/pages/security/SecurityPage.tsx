@@ -5,24 +5,13 @@ import { ArrowLink, ButtonLink } from '../../primitives';
 import { FeatureRow, SectionHeader, WebSection } from '../../sections';
 import { ApprovalScene, AuditLogScene, OffboardingScene, PublicationScene } from './SecurityScenes';
 import './security.css';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * Security & trust (`/security`, SITE-SPEC "PAGE: Security & trust", Figma 12-security).
  * Ink hero, six guarantees, three alternating product rows, the documents list with status and
  * disclosure cards, and the security CTA band. Copy is the spec's, word for word.
  */
-
-const GUARANTEES: readonly { title: string; body: string }[] = [
-  { title: 'Tenancy', body: 'Row-level isolation on every query.' },
-  {
-    title: 'Client access',
-    body: 'Clients read a computed projection, never the internal record.',
-  },
-  { title: 'Files', body: 'Malware-scanned, short-lived signed links.' },
-  { title: 'Identity', body: 'Passkeys, MFA, SSO and session revocation.' },
-  { title: 'Evidence', body: 'Append-only audit for approvals, publications and access.' },
-  { title: 'AI boundary', body: 'Cites sources. Cannot publish, approve, invite or delete.' },
-];
 
 /*
  * No document is a public file yet: each one goes out with the security pack, so the actions say
@@ -31,50 +20,86 @@ const GUARANTEES: readonly { title: string; body: string }[] = [
  */
 const PACK_REQUEST = '/contact#book-demo-form';
 
-const DOCUMENTS: readonly {
-  id: string;
-  title: string;
-  body: string;
-  badge: string;
-  action?: { label: string; href: string };
-}[] = [
-  {
-    id: 'security-overview',
-    title: 'Security overview',
-    body: 'Architecture, isolation model and controls in one document.',
-    badge: 'PDF',
-    action: { label: 'Request PDF', href: PACK_REQUEST },
-  },
-  {
-    id: 'sub-processors',
-    title: 'Sub-processors',
-    body: 'Every service that touches customer data, kept current.',
-    badge: 'Live list',
-    action: { label: 'Request list', href: PACK_REQUEST },
-  },
-  {
-    id: 'privacy-terms',
-    title: 'DPA & privacy terms',
-    body: 'Data processing agreement and privacy commitments.',
-    badge: 'PDF',
-    action: { label: 'Read privacy terms', href: '/legal/privacy' },
-  },
-  {
-    id: 'accessibility',
-    title: 'Accessibility report',
-    body: 'Conformance for the product and the client portal.',
-    badge: 'WCAG 2.2 AA',
-    action: { label: 'Request report', href: PACK_REQUEST },
-  },
-  {
-    id: 'independent-audit',
-    title: 'Independent audit',
-    body: 'A third-party assessment of our controls.',
-    badge: 'Planned',
-  },
-];
-
 export function SecurityPage() {
+  const t = useT();
+
+  const GUARANTEES: readonly { k: string; title: string; body: string; anchor?: string }[] = [
+    {
+      k: 'tenancy',
+      title: t('SecurityPage.guaranteeTenancyTitle'),
+      body: t('SecurityPage.guaranteeTenancyBody'),
+    },
+    {
+      k: 'clientAccess',
+      title: t('SecurityPage.guaranteeClientAccessTitle'),
+      body: t('SecurityPage.guaranteeClientAccessBody'),
+      anchor: 'clients',
+    },
+    {
+      k: 'files',
+      title: t('SecurityPage.guaranteeFilesTitle'),
+      body: t('SecurityPage.guaranteeFilesBody'),
+    },
+    {
+      k: 'identity',
+      title: t('SecurityPage.guaranteeIdentityTitle'),
+      body: t('SecurityPage.guaranteeIdentityBody'),
+    },
+    {
+      k: 'evidence',
+      title: t('SecurityPage.guaranteeEvidenceTitle'),
+      body: t('SecurityPage.guaranteeEvidenceBody'),
+    },
+    {
+      k: 'aiBoundary',
+      title: t('SecurityPage.guaranteeAiBoundaryTitle'),
+      body: t('SecurityPage.guaranteeAiBoundaryBody'),
+    },
+  ];
+
+  const DOCUMENTS: readonly {
+    id: string;
+    title: string;
+    body: string;
+    badge: string;
+    action?: { label: string; href: string };
+  }[] = [
+    {
+      id: 'security-overview',
+      title: t('SecurityPage.docOverviewTitle'),
+      body: t('SecurityPage.docOverviewBody'),
+      badge: t('SecurityPage.docOverviewBadge'),
+      action: { label: t('SecurityPage.docOverviewAction'), href: PACK_REQUEST },
+    },
+    {
+      id: 'sub-processors',
+      title: t('SecurityPage.docSubProcessorsTitle'),
+      body: t('SecurityPage.docSubProcessorsBody'),
+      badge: t('SecurityPage.docSubProcessorsBadge'),
+      action: { label: t('SecurityPage.docSubProcessorsAction'), href: PACK_REQUEST },
+    },
+    {
+      id: 'privacy-terms',
+      title: t('SecurityPage.docPrivacyTitle'),
+      body: t('SecurityPage.docPrivacyBody'),
+      badge: t('SecurityPage.docPrivacyBadge'),
+      action: { label: t('SecurityPage.docPrivacyAction'), href: '/legal/privacy' },
+    },
+    {
+      id: 'accessibility',
+      title: t('SecurityPage.docAccessibilityTitle'),
+      body: t('SecurityPage.docAccessibilityBody'),
+      badge: t('SecurityPage.docAccessibilityBadge'),
+      action: { label: t('SecurityPage.docAccessibilityAction'), href: PACK_REQUEST },
+    },
+    {
+      id: 'independent-audit',
+      title: t('SecurityPage.docAuditTitle'),
+      body: t('SecurityPage.docAuditBody'),
+      badge: t('SecurityPage.docAuditBadge'),
+    },
+  ];
+
   return (
     <div className="tm-sec">
       <WebSection tone="ink" className="tm-sec-hero" aria-labelledby="security-title">
@@ -84,16 +109,16 @@ export function SecurityPage() {
           size="hero"
           align="center"
           tone="ink"
-          eyebrow="Security & trust"
-          title="Internal by default. Client-ready when you choose."
-          lede="Isolation is enforced in the database, not the interface. Every list, lookup, search, file link and notification is scoped to your organization."
+          eyebrow={t('SecurityPage.heroEyebrow')}
+          title={t('SecurityPage.heroTitle')}
+          lede={t('SecurityPage.heroLede')}
         >
           <div className="tm-sec-hero__actions">
             <ButtonLink href={PACK_REQUEST} tone="lime">
-              Request the security pack
+              {t('SecurityPage.heroRequestPack')}
             </ButtonLink>
             <ButtonLink href="#guarantees" tone="outline-ink">
-              Read the architecture overview
+              {t('SecurityPage.heroReadArchitecture')}
             </ButtonLink>
           </div>
         </SectionHeader>
@@ -102,17 +127,13 @@ export function SecurityPage() {
       <WebSection id="guarantees" aria-labelledby="guarantees-title">
         <SectionHeader
           id="guarantees-title"
-          eyebrow="Six guarantees"
-          title="Security that lives in the architecture, not in a settings page."
-          lede="These hold for every organization, on every plan, from the first day."
+          eyebrow={t('SecurityPage.guaranteesEyebrow')}
+          title={t('SecurityPage.guaranteesTitle')}
+          lede={t('SecurityPage.guaranteesLede')}
         />
         <ol className="tm-sec-pillars">
           {GUARANTEES.map((item, index) => (
-            <li
-              key={item.title}
-              id={item.title === 'Client access' ? 'clients' : undefined}
-              className="tm-sec-pillar"
-            >
+            <li key={item.k} id={item.anchor} className="tm-sec-pillar">
               <span className="tm-web-orb tm-web-orb--lime tm-web-orb--default tm-sec-pillar__n">
                 {index + 1}
               </span>
@@ -123,27 +144,31 @@ export function SecurityPage() {
         </ol>
       </WebSection>
 
-      <WebSection spacing="compact" className="tm-sec-rows" aria-label="How the guarantees work">
+      <WebSection
+        spacing="compact"
+        className="tm-sec-rows"
+        aria-label={t('SecurityPage.rowsLabel')}
+      >
         <FeatureRow
-          label="Offboarding"
-          title="Offboarding without loose ends."
-          body="Suspend, revoke sessions and tokens, transfer ownership and review external shares in one guided flow."
-          link={{ label: 'See the offboarding flow', href: '/product#control-center' }}
+          label={t('SecurityPage.rowOffboardingLabel')}
+          title={t('SecurityPage.rowOffboardingTitle')}
+          body={t('SecurityPage.rowOffboardingBody')}
+          link={{ label: t('SecurityPage.rowOffboardingLink'), href: '/product#control-center' }}
           visual={<OffboardingScene />}
         />
         <FeatureRow
           reverse
-          label="Audit"
-          title="Know who did what."
-          body="Approvals, publications, permission changes and exports land in an append-only log you can filter, read and export."
-          link={{ label: 'Explore the audit log', href: '/product#control-center' }}
+          label={t('SecurityPage.rowAuditLabel')}
+          title={t('SecurityPage.rowAuditTitle')}
+          body={t('SecurityPage.rowAuditBody')}
+          link={{ label: t('SecurityPage.rowAuditLink'), href: '/product#control-center' }}
           visual={<AuditLogScene />}
         />
         <FeatureRow
-          label="Publication"
-          title="See before you share."
-          body="Before anything reaches a client, a preview shows exactly what they will see and what stays internal."
-          link={{ label: 'How publishing works', href: '/client-portal' }}
+          label={t('SecurityPage.rowPublicationLabel')}
+          title={t('SecurityPage.rowPublicationTitle')}
+          body={t('SecurityPage.rowPublicationBody')}
+          link={{ label: t('SecurityPage.rowPublicationLink'), href: '/client-portal' }}
           visual={<PublicationScene />}
         />
       </WebSection>
@@ -151,9 +176,9 @@ export function SecurityPage() {
       <WebSection tone="sunken" aria-labelledby="documents-title">
         <SectionHeader
           id="documents-title"
-          eyebrow="Documents"
-          title="Everything your reviewer will ask for."
-          lede="Request the pack once. We keep it current as the product changes."
+          eyebrow={t('SecurityPage.documentsEyebrow')}
+          title={t('SecurityPage.documentsTitle')}
+          lede={t('SecurityPage.documentsLede')}
         />
         <ul className="tm-sec-docs">
           {DOCUMENTS.map((doc) => (
@@ -179,17 +204,15 @@ export function SecurityPage() {
         </ul>
         <div className="tm-sec-notes">
           <div className="tm-sec-note">
-            <p className="tm-sec-note__label">System status</p>
-            <StatusDot tone="live">All systems operational</StatusDot>
+            <p className="tm-sec-note__label">{t('SecurityPage.systemStatus')}</p>
+            <StatusDot tone="live">{t('SecurityPage.allOperational')}</StatusDot>
             <ArrowLink href="/status" underline={false}>
-              Open status page
+              {t('SecurityPage.openStatus')}
             </ArrowLink>
           </div>
           <div className="tm-sec-note">
-            <p className="tm-sec-note__label">Responsible disclosure</p>
-            <p className="tm-sec-note__text">
-              Found a vulnerability? Write to security@ — we respond within two business days.
-            </p>
+            <p className="tm-sec-note__label">{t('SecurityPage.disclosureLabel')}</p>
+            <p className="tm-sec-note__text">{t('SecurityPage.disclosureText')}</p>
           </div>
         </div>
       </WebSection>
@@ -199,23 +222,18 @@ export function SecurityPage() {
           <div className="tm-web-cta tm-sec-cta">
             <div className="tm-web-cta__text">
               <h2 className="tm-web-cta__title" id="security-cta-title">
-                Questions from your security team? We’ll answer them in writing.
+                {t('SecurityPage.ctaTitle')}
               </h2>
-              <p className="tm-web-cta__lede">
-                Send your questionnaire and get written answers with links to the evidence behind
-                them.
-              </p>
+              <p className="tm-web-cta__lede">{t('SecurityPage.ctaLede')}</p>
               <div className="tm-web-cta__actions">
                 <ButtonLink href={PACK_REQUEST} tone="lime">
-                  Request the security pack
+                  {t('SecurityPage.ctaRequestPack')}
                 </ButtonLink>
                 <ButtonLink href="/contact" tone="outline-ink">
-                  Book a call
+                  {t('SecurityPage.ctaBookCall')}
                 </ButtonLink>
               </div>
-              <p className="tm-web-cta__note">
-                Security overview · Sub-processors · DPA · Accessibility report
-              </p>
+              <p className="tm-web-cta__note">{t('SecurityPage.ctaNote')}</p>
             </div>
             <div className="tm-web-cta__visual">
               <ApprovalScene />

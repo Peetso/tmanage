@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, Checkbox, InlineAlert } from '@tmanage/ui';
 import { cx } from '../../primitives';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * Security page product visuals — cropped clones of the admin offboarding run, the audit log,
@@ -93,11 +94,9 @@ const OFFBOARDING_STEPS: readonly {
 ];
 
 export function OffboardingScene() {
+  const t = useT();
   return (
-    <Scene
-      label="The offboarding run for Karim Nabil: four of six steps done, sessions being revoked, and an immutable receipt for the audit log."
-      className="tm-sec-scene--window"
-    >
+    <Scene label={t('SecurityScenes.offboardingAlt')} className="tm-sec-scene--window">
       <div className="tm-sec-window">
         <WindowBar crumb="Control center / Offboarding / Karim Nabil · Step 3 of 3 · RUN-OFF-0347" />
         <div className="tm-sec-window__body tm-sec-split">
@@ -215,9 +214,10 @@ const AUDIT_ROWS: readonly {
 ];
 
 export function AuditLogScene() {
+  const t = useT();
   return (
     <Scene
-      label="The audit log: 612 events with who changed what, an event id and a class, and the detail of one client-visibility change."
+      label={t('SecurityScenes.auditLogAlt')}
       className="tm-sec-scene--window tm-sec-scene--dense"
     >
       <div className="tm-sec-window">
@@ -298,9 +298,10 @@ const RECIPIENTS: readonly { name: string; role: string; chip: string; lime?: bo
 ];
 
 export function PublicationScene() {
+  const t = useT();
   return (
     <Scene
-      label="The safety check before publishing Homepage Concept v2: two client reviewers, the internal content excluded, one warning, and the true client projection beside it."
+      label={t('SecurityScenes.publicationAlt')}
       className="tm-sec-scene--window tm-sec-scene--publish"
     >
       <div className="tm-sec-window tm-sec-window--plain">
@@ -370,11 +371,9 @@ export function PublicationScene() {
 /* ── Client approval card (CTA band visual) ────────────────────────────────────── */
 
 export function ApprovalScene() {
+  const t = useT();
   return (
-    <Scene
-      label="A client approval card: the exact version being decided on, four things to confirm and the Approve version 2 button."
-      className="tm-sec-scene--approval"
-    >
+    <Scene label={t('SecurityScenes.approvalAlt')} className="tm-sec-scene--approval">
       <div className="tm-sec-card tm-sec-approval">
         <p className="tm-web-scene__mono">What you are deciding on</p>
         <p className="tm-sec-version">

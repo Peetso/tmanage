@@ -12,6 +12,7 @@ import {
 } from './scenes';
 import './consultancies.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * Solutions · Consultancies (SITE-SPEC "PAGE: Solutions · Consultancies", Figma shot
@@ -19,85 +20,6 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
  * parts are the pain → answer card, the workflow step card, the ink security callout, the story
  * card and the four product scenes, all drawn with Limeframe tokens in `consultancies.css`.
  */
-
-const PAINS = [
-  {
-    pain: 'Decisions lost in slide decks',
-    answer: 'A decision register with owners',
-    body: 'Every decision has an owner, a date and the evidence behind it, searchable long after the deck is gone.',
-  },
-  {
-    pain: 'Scope creep by email',
-    answer: 'Requests that need a commitment',
-    body: 'New asks arrive as requests. Nothing becomes work until someone commits to scope, date and owner.',
-  },
-  {
-    pain: 'Sensitive client data',
-    answer: 'Tenant isolation and audit by default',
-    body: 'Each client organisation sees only its own engagements, and every view, export and approval is logged.',
-  },
-] as const;
-
-const STEPS: readonly { title: string; body: string; state: CapsuleState; label: string }[] = [
-  {
-    title: 'Discovery',
-    body: 'Interviews, data requests and notes land in one engagement.',
-    state: 'done',
-    label: 'Done',
-  },
-  {
-    title: 'Findings',
-    body: 'Each finding links to the evidence that supports it.',
-    state: 'done',
-    label: 'Done',
-  },
-  {
-    title: 'Recommendation',
-    body: 'Options, trade-offs and one clear proposed path.',
-    state: 'current',
-    label: 'In progress',
-  },
-  {
-    title: 'Client decision',
-    body: 'The client approves or asks for changes in their portal.',
-    state: 'client',
-    label: 'Client review',
-  },
-  {
-    title: 'Implementation',
-    body: 'Approved decisions become committed, tracked work.',
-    state: 'future',
-    label: 'Next week',
-  },
-];
-
-const SECURITY = [
-  {
-    title: 'Tenant isolation',
-    body: 'Each client organisation sees only its own engagements, files and decisions.',
-  },
-  {
-    title: 'Audit by default',
-    body: 'Views, exports, approvals and permission changes are logged and exportable.',
-  },
-  {
-    title: 'Clean offboarding',
-    body: 'When an engagement ends, access closes and your retention rules apply.',
-  },
-] as const;
-
-const STORY_MEASURES = [
-  {
-    icon: 'pulse',
-    label: 'Hours saved preparing each steering pack',
-    hint: 'Measured with the design partner and published with the story.',
-  },
-  {
-    icon: 'link',
-    label: 'Decisions traced back to their evidence',
-    hint: 'Counted from the partner’s decision register at publication.',
-  },
-] as const;
 
 function Checklist({ items }: { items: readonly string[] }) {
   return (
@@ -113,6 +35,78 @@ function Checklist({ items }: { items: readonly string[] }) {
 }
 
 export function ConsultanciesPage() {
+  const t = useT();
+
+  const PAINS = [
+    {
+      pain: t('ConsultanciesPage.pain1Pain'),
+      answer: t('ConsultanciesPage.pain1Answer'),
+      body: t('ConsultanciesPage.pain1Body'),
+    },
+    {
+      pain: t('ConsultanciesPage.pain2Pain'),
+      answer: t('ConsultanciesPage.pain2Answer'),
+      body: t('ConsultanciesPage.pain2Body'),
+    },
+    {
+      pain: t('ConsultanciesPage.pain3Pain'),
+      answer: t('ConsultanciesPage.pain3Answer'),
+      body: t('ConsultanciesPage.pain3Body'),
+    },
+  ] as const;
+
+  const STEPS: readonly { title: string; body: string; state: CapsuleState; label: string }[] = [
+    {
+      title: t('ConsultanciesPage.step1Title'),
+      body: t('ConsultanciesPage.step1Body'),
+      state: 'done',
+      label: t('ConsultanciesPage.step1Label'),
+    },
+    {
+      title: t('ConsultanciesPage.step2Title'),
+      body: t('ConsultanciesPage.step2Body'),
+      state: 'done',
+      label: t('ConsultanciesPage.step2Label'),
+    },
+    {
+      title: t('ConsultanciesPage.step3Title'),
+      body: t('ConsultanciesPage.step3Body'),
+      state: 'current',
+      label: t('ConsultanciesPage.step3Label'),
+    },
+    {
+      title: t('ConsultanciesPage.step4Title'),
+      body: t('ConsultanciesPage.step4Body'),
+      state: 'client',
+      label: t('ConsultanciesPage.step4Label'),
+    },
+    {
+      title: t('ConsultanciesPage.step5Title'),
+      body: t('ConsultanciesPage.step5Body'),
+      state: 'future',
+      label: t('ConsultanciesPage.step5Label'),
+    },
+  ];
+
+  const SECURITY = [
+    { title: t('ConsultanciesPage.security1Title'), body: t('ConsultanciesPage.security1Body') },
+    { title: t('ConsultanciesPage.security2Title'), body: t('ConsultanciesPage.security2Body') },
+    { title: t('ConsultanciesPage.security3Title'), body: t('ConsultanciesPage.security3Body') },
+  ] as const;
+
+  const STORY_MEASURES = [
+    {
+      icon: 'pulse',
+      label: t('ConsultanciesPage.measure1Label'),
+      hint: t('ConsultanciesPage.measure1Hint'),
+    },
+    {
+      icon: 'link',
+      label: t('ConsultanciesPage.measure2Label'),
+      hint: t('ConsultanciesPage.measure2Hint'),
+    },
+  ] as const;
+
   return (
     <div className="tm-consult">
       {/* 2 · Hero */}
@@ -120,23 +114,21 @@ export function ConsultanciesPage() {
         <div className="tm-consult-hero__grid">
           <div className="tm-consult-hero__text">
             <Badge mono className="tm-consult-hero__eyebrow">
-              For consultancies
+              {t('ConsultanciesPage.heroEyebrow')}
             </Badge>
             <h1 id="consult-hero-title" className="tm-consult-hero__title">
-              Make every recommendation traceable to a decision.
+              {t('ConsultanciesPage.heroTitle')}
             </h1>
-            <p className="tm-consult-hero__lede">
-              Engagements, findings, decisions and client sign-off in one auditable story.
-            </p>
+            <p className="tm-consult-hero__lede">{t('ConsultanciesPage.heroLede')}</p>
             <div className="tm-consult-hero__actions">
               <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                Start free
+                {t('ConsultanciesPage.startFree')}
               </ButtonLink>
               <ButtonLink href="/contact" tone="outline">
-                Book a demo
+                {t('ConsultanciesPage.bookDemo')}
               </ButtonLink>
             </div>
-            <p className="tm-consult-hero__note">No credit card · Client users are always free</p>
+            <p className="tm-consult-hero__note">{t('ConsultanciesPage.heroNote')}</p>
           </div>
           <DecisionRegisterScene />
         </div>
@@ -146,23 +138,23 @@ export function ConsultanciesPage() {
       <WebSection tone="sunken" aria-labelledby="consult-pain-title">
         <SectionHeader
           align="center"
-          eyebrow="Why consultancies switch"
-          title="Advice is only as good as its paper trail."
-          lede="The three problems we hear most from partners, and how TManage answers each one."
+          eyebrow={t('ConsultanciesPage.painEyebrow')}
+          title={t('ConsultanciesPage.painTitle')}
+          lede={t('ConsultanciesPage.painLede')}
           id="consult-pain-title"
         />
         <ul className="tm-consult-pains">
           {PAINS.map((item) => (
             <li key={item.pain} className="tm-consult-pain">
-              <Badge>Today</Badge>
+              <Badge>{t('ConsultanciesPage.today')}</Badge>
               <p className="tm-consult-pain__was">
-                <span className="tm-visually-hidden">Problem: </span>
+                <span className="tm-visually-hidden">{t('ConsultanciesPage.problemPrefix')}</span>
                 {item.pain}
               </p>
               <div className="tm-consult-pain__answer">
                 <p className="tm-consult-pain__with">
                   <WebIcon name="check" size={14} />
-                  With TManage
+                  {t('ConsultanciesPage.withTManage')}
                 </p>
                 <h3 className="tm-consult-pain__title">{item.answer}</h3>
                 <p className="tm-consult-pain__body">{item.body}</p>
@@ -176,9 +168,9 @@ export function ConsultanciesPage() {
       <WebSection aria-labelledby="consult-flow-title">
         <SectionHeader
           align="center"
-          eyebrow="How an engagement flows"
-          title="From first interview to signed-off change."
-          lede="Each stage hands the next one its evidence, so nothing is retyped and nothing is lost."
+          eyebrow={t('ConsultanciesPage.flowEyebrow')}
+          title={t('ConsultanciesPage.flowTitle')}
+          lede={t('ConsultanciesPage.flowLede')}
           id="consult-flow-title"
         />
         <ol className="tm-consult-flow">
@@ -201,50 +193,50 @@ export function ConsultanciesPage() {
       </WebSection>
 
       {/* 5 · Rows */}
-      <WebSection className="tm-consult-rows" aria-label="What consultancies get">
+      <WebSection className="tm-consult-rows" aria-label={t('ConsultanciesPage.rowsLabel')}>
         <FeatureRow
-          label="Engagements"
-          title="Engagements with a clear spine."
-          body="Workstreams, findings and deliverables sit on one timeline, so a new team member can read the whole story in ten minutes."
-          link={{ label: 'Explore projects', href: '/features/work' }}
+          label={t('ConsultanciesPage.row1Label')}
+          title={t('ConsultanciesPage.row1Title')}
+          body={t('ConsultanciesPage.row1Body')}
+          link={{ label: t('ConsultanciesPage.row1Link'), href: '/features/work' }}
           visual={<EngagementStoryScene />}
         >
           <Checklist
             items={[
-              'Workstreams and milestones per engagement',
-              'Findings linked to the work that produced them',
-              'One Work Story from kickoff to close',
+              t('ConsultanciesPage.row1Check1'),
+              t('ConsultanciesPage.row1Check2'),
+              t('ConsultanciesPage.row1Check3'),
             ]}
           />
         </FeatureRow>
         <FeatureRow
           reverse
-          label="Evidence"
-          title="Evidence your partners can defend."
-          body="Each recommendation carries its sources, its reviewers and its approval history. When a client asks why, the answer is one click away."
-          link={{ label: 'Explore docs & decisions', href: '/features/knowledge' }}
+          label={t('ConsultanciesPage.row2Label')}
+          title={t('ConsultanciesPage.row2Title')}
+          body={t('ConsultanciesPage.row2Body')}
+          link={{ label: t('ConsultanciesPage.row2Link'), href: '/features/knowledge' }}
           visual={<DecisionDetailScene />}
         >
           <Checklist
             items={[
-              'Decisions with owner, date and rationale',
-              'Versioned approvals that are never overwritten',
-              'A complete audit trail for every change',
+              t('ConsultanciesPage.row2Check1'),
+              t('ConsultanciesPage.row2Check2'),
+              t('ConsultanciesPage.row2Check3'),
             ]}
           />
         </FeatureRow>
         <FeatureRow
-          label="Reporting"
-          title="Steering-committee updates in minutes."
-          body="Health, risks and open client decisions roll up on their own. Review, add a line of context and send."
-          link={{ label: 'Explore insights', href: '/features/insights' }}
+          label={t('ConsultanciesPage.row3Label')}
+          title={t('ConsultanciesPage.row3Title')}
+          body={t('ConsultanciesPage.row3Body')}
+          link={{ label: t('ConsultanciesPage.row3Link'), href: '/features/insights' }}
           visual={<SteeringHealthScene />}
         >
           <Checklist
             items={[
-              'Project health without status meetings',
-              'Open client decisions surfaced first',
-              'Updates your client reads in their portal',
+              t('ConsultanciesPage.row3Check1'),
+              t('ConsultanciesPage.row3Check2'),
+              t('ConsultanciesPage.row3Check3'),
             ]}
           />
         </FeatureRow>
@@ -254,14 +246,11 @@ export function ConsultanciesPage() {
       <WebSection spacing="flush" className="tm-consult-secure-section">
         <div className="tm-consult-secure">
           <div className="tm-consult-secure__text">
-            <Eyebrow tone="ink">Security &amp; trust</Eyebrow>
-            <h2 className="tm-consult-secure__title">Your clients&rsquo; data stays theirs.</h2>
-            <p className="tm-consult-secure__lede">
-              Every client organisation is isolated, every access is logged, and offboarding is a
-              checklist, not a hope.
-            </p>
+            <Eyebrow tone="ink">{t('ConsultanciesPage.secureEyebrow')}</Eyebrow>
+            <h2 className="tm-consult-secure__title">{t('ConsultanciesPage.secureTitle')}</h2>
+            <p className="tm-consult-secure__lede">{t('ConsultanciesPage.secureLede')}</p>
             <ButtonLink href="/security" tone="lime">
-              Read about security
+              {t('ConsultanciesPage.secureButton')}
             </ButtonLink>
           </div>
           <ul className="tm-consult-secure__list">
@@ -279,22 +268,21 @@ export function ConsultanciesPage() {
       </WebSection>
 
       {/* 7 · Story card (a consented design-partner story is published here) */}
-      <WebSection tone="sunken" aria-label="Customer story">
+      <WebSection tone="sunken" aria-label={t('ConsultanciesPage.storyLabel')}>
         <figure className="tm-consult-story-card">
           <div className="tm-consult-story-card__quote">
-            <Badge>Customer story · coming soon</Badge>
+            <Badge>{t('ConsultanciesPage.storyBadge')}</Badge>
             <blockquote className="tm-consult-story-card__text">
-              <p>
-                “A design-partner consultancy will tell how a shared decision register changed their
-                steering meetings.”
-              </p>
+              <p>{t('ConsultanciesPage.storyQuote')}</p>
             </blockquote>
             <figcaption className="tm-consult-story-card__by">
               <Avatar name="Partner name" audience="client" decorative />
               <span>
-                <span className="tm-consult-story-card__name">Partner name</span>
+                <span className="tm-consult-story-card__name">
+                  {t('ConsultanciesPage.storyName')}
+                </span>
                 <span className="tm-consult-story-card__org">
-                  Partner, design-partner consultancy
+                  {t('ConsultanciesPage.storyOrg')}
                 </span>
               </span>
             </figcaption>
@@ -304,7 +292,7 @@ export function ConsultanciesPage() {
               <div key={item.label}>
                 <dt>
                   <IconOrb icon={item.icon} tone="lime" />
-                  <span className="tm-visually-hidden">What the story will measure:</span>
+                  <span className="tm-visually-hidden">{t('ConsultanciesPage.measurePrefix')}</span>
                 </dt>
                 <dd>
                   <span className="tm-consult-story-card__label">{item.label}</span>
@@ -317,10 +305,7 @@ export function ConsultanciesPage() {
       </WebSection>
 
       {/* 8 · CTA band with the Delivery risk saved view, as drawn */}
-      <CtaBand
-        title="Bring your next engagement into one story."
-        lede="Start free with your team. Invite your client when the first recommendation is ready."
-      />
+      <CtaBand title={t('ConsultanciesPage.ctaTitle')} lede={t('ConsultanciesPage.ctaLede')} />
     </div>
   );
 }

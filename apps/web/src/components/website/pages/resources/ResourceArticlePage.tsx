@@ -8,6 +8,7 @@ import { ResourceCard } from './ResourceCard';
 import { ALL_RESOURCES, CATEGORY_ICON, CATEGORY_LABEL, type Resource } from './resources-data';
 import './resources.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+import { useT } from '../../../../lib/i18n/use-t';
 
 /**
  * WEB-15 article page (`/resources/[slug]`) for every card on the Resources index. Same visual
@@ -15,6 +16,7 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
  * then three more articles to keep reading. Tokens and packages/ui parts only.
  */
 export function ResourceArticlePage({ item }: { item: Resource }) {
+  const t = useT();
   const label = CATEGORY_LABEL[item.category];
   const more = [
     ...ALL_RESOURCES.filter((r) => r.slug !== item.slug && r.category === item.category),
@@ -24,8 +26,11 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
   return (
     <>
       <WebSection className="tm-web-res-article" aria-labelledby="res-article-title">
-        <nav className="tm-web-res-article__crumbs" aria-label="Breadcrumb">
-          <Link href="/resources">Resources</Link>
+        <nav
+          className="tm-web-res-article__crumbs"
+          aria-label={t('ResourceArticlePage.breadcrumbLabel')}
+        >
+          <Link href="/resources">{t('ResourceArticlePage.resources')}</Link>
           <span aria-hidden="true">/</span>
           <span aria-current="page">{label}</span>
         </nav>
@@ -41,7 +46,7 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
             <p className="tm-web-res-article__meta">
               <span>{item.meta}</span>
               <span aria-hidden="true"> · </span>
-              <span>Written by the TManage team</span>
+              <span>{t('ResourceArticlePage.writtenBy')}</span>
             </p>
           </SectionHeader>
           <aside className="tm-web-res-takeaways" aria-labelledby="res-takeaways-title">
@@ -52,7 +57,7 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
               </Badge>
             </div>
             <h2 id="res-takeaways-title" className="tm-web-res-takeaways__title">
-              What you’ll take away
+              {t('ResourceArticlePage.takeaways')}
             </h2>
             <ol className="tm-web-res-takeaways__list">
               {item.points.map((point, i) => (
@@ -64,15 +69,13 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
                 </li>
               ))}
             </ol>
-            <p className="tm-web-res-takeaways__note">
-              The full piece goes out with the next issue of the newsletter.
-            </p>
+            <p className="tm-web-res-takeaways__note">{t('ResourceArticlePage.note')}</p>
             <div className="tm-web-res-guide__actions">
               <ButtonLink href="/resources#res-newsletter" tone="lime" size="accessible">
-                Get it by email
+                {t('ResourceArticlePage.getByEmail')}
               </ButtonLink>
               <ArrowLink href="/resources" tone="ink">
-                All resources
+                {t('ResourceArticlePage.allResources')}
               </ArrowLink>
             </div>
           </aside>
@@ -80,7 +83,7 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
       </WebSection>
 
       <WebSection tone="sunken" className="tm-web-res-more" aria-labelledby="res-more-title">
-        <SectionHeader id="res-more-title" title="Keep reading" />
+        <SectionHeader id="res-more-title" title={t('ResourceArticlePage.keepReading')} />
         <ul className="tm-web-res-grid">
           {more.map((r) => (
             <li key={r.slug}>
@@ -91,11 +94,11 @@ export function ResourceArticlePage({ item }: { item: Resource }) {
       </WebSection>
 
       <CtaBand
-        title="Bring the next client project into one story."
-        lede="Start free with your team. Invite your client when the first deliverable is ready."
-        primary={{ label: 'Start free', href: SIGN_UP_HREF }}
-        secondary={{ label: 'Book a demo', href: '/contact' }}
-        note="No credit card · Client users are always free"
+        title={t('ResourceArticlePage.ctaTitle')}
+        lede={t('ResourceArticlePage.ctaLede')}
+        primary={{ label: t('ResourceArticlePage.ctaStartFree'), href: SIGN_UP_HREF }}
+        secondary={{ label: t('ResourceArticlePage.ctaBookDemo'), href: '/contact' }}
+        note={t('ResourceArticlePage.ctaNote')}
         visual={null}
       />
     </>
