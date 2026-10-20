@@ -32,6 +32,7 @@ import {
 } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { WorkItemTagsAndFiles } from './WorkItemTagsAndFiles';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemDetailScreenProps {
   organizationSlug: string;
@@ -159,6 +160,7 @@ export function WorkItemDetailScreen({
 }: WorkItemDetailScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const item = useQuery({
     queryKey: ['work-item', organizationSlug, workItemId],
@@ -178,23 +180,23 @@ export function WorkItemDetailScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow="Work item"
-      title={item.data?.title ?? 'Work item'}
+      eyebrow={t('WorkItemDetailScreen.eyebrow')}
+      title={item.data?.title ?? t('WorkItemDetailScreen.fallbackTitle')}
     >
       {item.isPending ? (
-        <LoadingRegion label="Loading this work item.">
+        <LoadingRegion label={t('WorkItemDetailScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {item.isError ? (
-        <InlineAlert tone="danger" title="Could not load this work item" live>
+        <InlineAlert tone="danger" title={t('WorkItemDetailScreen.loadError')} live>
           {item.error instanceof ApiRequestError
             ? item.error.message
             : item.error instanceof NetworkError
-              ? 'The API did not answer. Is it running?'
-              : 'Something went wrong. Try again.'}
+              ? t('WorkItemDetailScreen.networkError')
+              : t('WorkItemDetailScreen.genericError')}
         </InlineAlert>
       ) : null}
 
@@ -225,6 +227,7 @@ interface WorkItemBodyProps {
 }
 
 function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: WorkItemBodyProps) {
+  const t = useT();
   const [target, setTarget] = useState<WorkItemState | ''>('');
   const [facts, setFacts] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -388,7 +391,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
             <span className="tm-wk-chip__orb" aria-hidden="true">
               ←
             </span>
-            Work list
+            {t('WorkItemDetailScreen.workList')}
           </Link>
           <StateCapsule state={stateCapsule(item.state)}>{stateLabel(item.state)}</StateCapsule>
           {/*
@@ -403,7 +406,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
             >
               {item.ownerUserId === null ? '?' : initialsOf(owner)}
             </span>
-            <span className="tm-visually-hidden">Owner: </span>
+            <span className="tm-visually-hidden">{t('WorkItemDetailScreen.ownerLabel')}</span>
             {owner}
           </span>
           <span
@@ -419,13 +422,16 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
           </span>
         </div>
 
-        <nav className="tm-segmented tm-wk-subnav" aria-label="This work item">
+        <nav
+          className="tm-segmented tm-wk-subnav"
+          aria-label={t('WorkItemDetailScreen.subnavLabel')}
+        >
           <Link href={base} aria-current="page">
-            Overview
+            {t('WorkItemDetailScreen.overview')}
           </Link>
-          <Link href={`${base}/activity`}>Activity</Link>
-          <Link href={`${base}/time-logs`}>Time</Link>
-          <Link href={`${base}/estimate`}>Estimate</Link>
+          <Link href={`${base}/activity`}>{t('WorkItemDetailScreen.activity')}</Link>
+          <Link href={`${base}/time-logs`}>{t('WorkItemDetailScreen.time')}</Link>
+          <Link href={`${base}/estimate`}>{t('WorkItemDetailScreen.estimate')}</Link>
         </nav>
 
         {focus !== undefined ? (
@@ -438,15 +444,15 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
               <p className="tm-focus-capsule__why">
                 {focus.why}{' '}
                 {item.dueAt === null
-                  ? 'No due date is set, so nothing is committed yet.'
+                  ? t('WorkItemDetailScreen.noDueCommitted')
                   : overdue
-                    ? `It was due ${formatDay(item.dueAt)}.`
-                    : `It is due ${formatDay(item.dueAt)}.`}
+                    ? `${t('WorkItemDetailScreen.wasDuePrefix')} ${formatDay(item.dueAt)}.`
+                    : `${t('WorkItemDetailScreen.isDuePrefix')} ${formatDay(item.dueAt)}.`}
               </p>
             </div>
             <div className="tm-focus-capsule__end">
               <a className="tm-wk-chip" href="#tm-work-transition">
-                Move this item
+                {t('WorkItemDetailScreen.moveThisItem')}
               </a>
             </div>
           </div>
@@ -454,36 +460,36 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
 
         <section className="tm-wk-card" aria-labelledby="tm-work-header">
           <h2 id="tm-work-header" className="tm-wk-card__eyebrow">
-            This item · {item.type}
+            {t('WorkItemDetailScreen.thisItem')} {item.type}
           </h2>
           <dl className="tm-wk-facts">
             <div>
-              <dt>Starts</dt>
+              <dt>{t('WorkItemDetailScreen.starts')}</dt>
               <dd>{formatDay(item.startAt)}</dd>
             </div>
             <div>
-              <dt>Due</dt>
+              <dt>{t('WorkItemDetailScreen.due')}</dt>
               <dd {...(overdue ? { 'data-tone': 'warning' } : {})}>{formatDay(item.dueAt)}</dd>
             </div>
             {item.completedAt !== null ? (
               <div>
-                <dt>Completed</dt>
+                <dt>{t('WorkItemDetailScreen.completed')}</dt>
                 <dd>{formatDay(item.completedAt)}</dd>
               </div>
             ) : null}
             <div>
-              <dt>Last changed</dt>
+              <dt>{t('WorkItemDetailScreen.lastChanged')}</dt>
               <dd title={formatInstant(item.updatedAt)}>{formatDay(item.updatedAt)}</dd>
             </div>
             <div>
-              <dt>Version</dt>
+              <dt>{t('WorkItemDetailScreen.version')}</dt>
               <dd>v{item.version}</dd>
             </div>
           </dl>
           <p className="tm-wk-facts__note">
             {overdue
-              ? `Past its due date and still ${stateLabel(item.state).toLowerCase()}.`
-              : `Currently ${stateLabel(item.state).toLowerCase()}, ${audienceLabel(item.audience).toLowerCase()}.`}
+              ? `${t('WorkItemDetailScreen.pastDuePrefix')} ${stateLabel(item.state).toLowerCase()}.`
+              : `${t('WorkItemDetailScreen.currently')} ${stateLabel(item.state).toLowerCase()}, ${audienceLabel(item.audience).toLowerCase()}.`}
           </p>
         </section>
 
@@ -494,20 +500,19 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
         />
 
         {conflict ? (
-          <InlineAlert tone="warning" title="Somebody else changed this first" live>
-            Your change was not applied. The item above has been reloaded and now shows what is
-            actually stored. Read it, then make the change again if you still want it.
+          <InlineAlert tone="warning" title={t('WorkItemDetailScreen.conflictTitle')} live>
+            {t('WorkItemDetailScreen.conflictBody')}
           </InlineAlert>
         ) : null}
 
         {failure ? (
-          <InlineAlert tone="danger" title="That did not go through" live>
+          <InlineAlert tone="danger" title={t('WorkItemDetailScreen.failureTitle')} live>
             {failure}
           </InlineAlert>
         ) : null}
 
         {missing.length > 0 ? (
-          <InlineAlert tone="warning" title="The move needs more than was given" live>
+          <InlineAlert tone="warning" title={t('WorkItemDetailScreen.missingTitle')} live>
             <ul className="tm-list">
               {missing.map((line) => (
                 <li key={line}>{line}</li>
@@ -517,19 +522,18 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
         ) : null}
         <section className="tm-panel tm-stack" aria-labelledby="tm-work-transition">
           <h2 id="tm-work-transition" className="tm-eyebrow">
-            Move this item
+            {t('WorkItemDetailScreen.moveThisItem')}
           </h2>
 
           {reachable.length === 0 ? (
             <p className="tm-prose">
-              {stateLabel(item.state)} is the end of the lifecycle. There is nowhere to move this
-              item from here.
+              {stateLabel(item.state)} {t('WorkItemDetailScreen.endOfLifecycle')}
             </p>
           ) : (
             <form className="tm-stack" noValidate onSubmit={submitTransition}>
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-work-target">
-                  Move to
+                  {t('WorkItemDetailScreen.moveTo')}
                 </label>
                 <select
                   id="tm-work-target"
@@ -555,7 +559,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
                     setMissing([]);
                   }}
                 >
-                  <option value="">Choose a state</option>
+                  <option value="">{t('WorkItemDetailScreen.chooseState')}</option>
                   {reachable.map((state) => (
                     <option key={state} value={state}>
                       {stateLabel(state)}
@@ -563,7 +567,8 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
                   ))}
                 </select>
                 <span className="tm-field__hint">
-                  Only the moves the lifecycle allows from {stateLabel(item.state)} are listed.
+                  {t('WorkItemDetailScreen.movesHintPrefix')} {stateLabel(item.state)}{' '}
+                  {t('WorkItemDetailScreen.movesHintSuffix')}
                 </span>
               </div>
 
@@ -576,7 +581,7 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
               {optional.map((fact) => renderFact(fact, false))}
 
               {target !== '' && required.length === 0 && optional.length === 0 ? (
-                <p className="tm-prose">This move needs nothing else from you.</p>
+                <p className="tm-prose">{t('WorkItemDetailScreen.needsNothing')}</p>
               ) : null}
 
               <div className="tm-row">
@@ -585,10 +590,11 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
                   tone="ink"
                   size="accessible"
                   loading={move.isPending}
-                  loadingLabel="Moving"
+                  loadingLabel={t('WorkItemDetailScreen.moving')}
                   disabled={target === ''}
                 >
-                  Move to {target === '' ? 'the chosen state' : stateLabel(target)}
+                  {t('WorkItemDetailScreen.moveToPrefix')}{' '}
+                  {target === '' ? t('WorkItemDetailScreen.chosenState') : stateLabel(target)}
                 </Button>
               </div>
             </form>
@@ -596,10 +602,10 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
         </section>
         <section className="tm-panel tm-stack" aria-labelledby="tm-work-audience">
           <h2 id="tm-work-audience" className="tm-eyebrow">
-            Who can see this
+            {t('WorkItemDetailScreen.whoCanSee')}
           </h2>
           <p className="tm-prose">
-            Currently <strong>{audienceLabel(item.audience)}</strong>.
+            {t('WorkItemDetailScreen.currently')} <strong>{audienceLabel(item.audience)}</strong>.
           </p>
 
           {/*
@@ -630,27 +636,28 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
           </div>
 
           {pendingAudience !== undefined ? (
-            <InlineAlert tone="client" title="This will show the item to the client" live>
+            <InlineAlert tone="client" title={t('WorkItemDetailScreen.showToClientTitle')} live>
               <p className="tm-prose">
-                “{item.title}” becomes {audienceLabel(pendingAudience).toLowerCase()} in the client
-                portal. The title is what they will read, so check it says what you mean it to.
+                “{item.title}” {t('WorkItemDetailScreen.becomes')}{' '}
+                {audienceLabel(pendingAudience).toLowerCase()}{' '}
+                {t('WorkItemDetailScreen.inClientPortal')}
               </p>
               <div className="tm-row">
                 <Button
                   tone="ink"
                   size="accessible"
                   loading={changeAudience.isPending}
-                  loadingLabel="Publishing"
+                  loadingLabel={t('WorkItemDetailScreen.publishing')}
                   onClick={() => changeAudience.mutate(pendingAudience)}
                 >
-                  Show it to the client
+                  {t('WorkItemDetailScreen.showToClient')}
                 </Button>
                 <Button
                   tone="outline"
                   size="accessible"
                   onClick={() => setPendingAudience(undefined)}
                 >
-                  Keep it internal
+                  {t('WorkItemDetailScreen.keepInternal')}
                 </Button>
               </div>
             </InlineAlert>
@@ -661,30 +668,46 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
         <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
       </div>
 
-      <aside className="tm-wk-item__aside" aria-label="Story and relationships">
+      <aside className="tm-wk-item__aside" aria-label={t('WorkItemDetailScreen.asideLabel')}>
         <section className="tm-wk-card" aria-labelledby="tm-work-story">
           <h2 id="tm-work-story" className="tm-wk-card__eyebrow">
-            Work story
+            {t('WorkItemDetailScreen.workStory')}
           </h2>
           <ol className="tm-wk-story">
             <li>
-              <span className="tm-wk-story__when">Created · {formatDay(item.createdAt)}</span>
-              <span className="tm-wk-story__what">Added as a {item.type}</span>
+              <span className="tm-wk-story__when">
+                {t('WorkItemDetailScreen.created')} {formatDay(item.createdAt)}
+              </span>
+              <span className="tm-wk-story__what">
+                {t('WorkItemDetailScreen.addedAs')} {item.type}
+              </span>
             </li>
             {item.completedAt !== null ? (
               <li>
-                <span className="tm-wk-story__when">Done · {formatDay(item.completedAt)}</span>
-                <span className="tm-wk-story__what">Finished by its owner</span>
+                <span className="tm-wk-story__when">
+                  {t('WorkItemDetailScreen.doneStory')} {formatDay(item.completedAt)}
+                </span>
+                <span className="tm-wk-story__what">
+                  {t('WorkItemDetailScreen.finishedByOwner')}
+                </span>
               </li>
             ) : null}
             <li>
-              <span className="tm-wk-story__when">Changed · {formatDay(item.updatedAt)}</span>
-              <span className="tm-wk-story__what">Now at version {item.version}</span>
+              <span className="tm-wk-story__when">
+                {t('WorkItemDetailScreen.changed')} {formatDay(item.updatedAt)}
+              </span>
+              <span className="tm-wk-story__what">
+                {t('WorkItemDetailScreen.nowAtVersion')} {item.version}
+              </span>
             </li>
             <li data-state="now">
-              <span className="tm-wk-story__when">Now · {stateLabel(item.state)}</span>
+              <span className="tm-wk-story__when">
+                {t('WorkItemDetailScreen.nowStory')} {stateLabel(item.state)}
+              </span>
               <span className="tm-wk-story__what">
-                {item.dueAt === null ? 'No due date' : `Due ${formatDay(item.dueAt)}`}
+                {item.dueAt === null
+                  ? t('WorkItemDetailScreen.noDueDate')
+                  : `${t('WorkItemDetailScreen.dueShort')} ${formatDay(item.dueAt)}`}
               </span>
             </li>
           </ol>

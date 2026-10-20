@@ -17,6 +17,7 @@ import {
 } from '../../lib/api/work-custom-fields';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkCustomFieldsViewProps {
   organizationSlug: string;
@@ -41,6 +42,7 @@ export function WorkCustomFieldsView({
 }: WorkCustomFieldsViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const definitionsKey = ['work-custom-fields', organizationSlug];
   const valuesKey = ['work-custom-field-values', organizationSlug, workItemId];
@@ -103,12 +105,12 @@ export function WorkCustomFieldsView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Custom fields"
-      description="Define custom fields for work items and set their values on this item."
+      title={t('WorkCustomFieldsView.title')}
+      description={t('WorkCustomFieldsView.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-custom-fields-define-heading">
         <h2 id="tm-custom-fields-define-heading" className="tm-eyebrow">
-          Field definitions
+          {t('WorkCustomFieldsView.definitionsHeading')}
         </h2>
         <form
           className="tm-stack"
@@ -119,22 +121,22 @@ export function WorkCustomFieldsView({
           }}
         >
           <Field
-            label="Key"
+            label={t('WorkCustomFieldsView.keyLabel')}
             name="key"
             value={key}
             onChange={(event) => setKey(event.target.value)}
-            hint="A stable, unique key for the field, e.g. priority."
+            hint={t('WorkCustomFieldsView.keyHint')}
             required
           />
           <Field
-            label="Name"
+            label={t('WorkCustomFieldsView.nameLabel')}
             name="name"
             value={name}
             onChange={(event) => setName(event.target.value)}
             required
           />
           <Select
-            label="Type"
+            label={t('WorkCustomFieldsView.typeLabel')}
             name="fieldType"
             value={fieldType}
             onChange={(event) => setFieldType(event.target.value as WorkCustomFieldType)}
@@ -147,38 +149,38 @@ export function WorkCustomFieldsView({
           </Select>
           {fieldType === 'select' ? (
             <Field
-              label="Options"
+              label={t('WorkCustomFieldsView.optionsLabel')}
               name="options"
               value={optionsText}
               onChange={(event) => setOptionsText(event.target.value)}
-              hint="Comma-separated list of allowed values."
+              hint={t('WorkCustomFieldsView.optionsHint')}
               required
             />
           ) : null}
           {define.isError ? (
-            <InlineAlert tone="danger" title="Could not define the field" live>
+            <InlineAlert tone="danger" title={t('WorkCustomFieldsView.defineError')} live>
               {describeError(define.error)}
             </InlineAlert>
           ) : null}
           <div className="tm-row">
             <Button type="submit" tone="ink" disabled={!canDefine} loading={define.isPending}>
-              Define field
+              {t('WorkCustomFieldsView.defineField')}
             </Button>
           </div>
         </form>
 
         {definitions.isError ? (
-          <InlineAlert tone="danger" title="Could not load the fields" live>
+          <InlineAlert tone="danger" title={t('WorkCustomFieldsView.fieldsLoadError')} live>
             {describeError(definitions.error)}
           </InlineAlert>
         ) : null}
         {definitions.isPending ? (
-          <LoadingRegion label="Loading the fields.">
+          <LoadingRegion label={t('WorkCustomFieldsView.fieldsLoading')}>
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
         {!definitions.isPending && !definitions.isError ? (
-          <ul className="tm-stack" aria-label="Custom field definitions">
+          <ul className="tm-stack" aria-label={t('WorkCustomFieldsView.definitionsListLabel')}>
             {definitions.data.map((definition) => (
               <li key={definition.id} className="tm-row tm-row--between">
                 <span>
@@ -191,7 +193,7 @@ export function WorkCustomFieldsView({
                   onClick={() => remove.mutate(definition.key)}
                   disabled={remove.isPending}
                 >
-                  Remove
+                  {t('WorkCustomFieldsView.remove')}
                 </Button>
               </li>
             ))}
@@ -201,20 +203,20 @@ export function WorkCustomFieldsView({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-custom-fields-values-heading">
         <h2 id="tm-custom-fields-values-heading" className="tm-eyebrow">
-          Values on this item
+          {t('WorkCustomFieldsView.valuesHeading')}
         </h2>
         {values.isError ? (
-          <InlineAlert tone="danger" title="Could not load the values" live>
+          <InlineAlert tone="danger" title={t('WorkCustomFieldsView.valuesLoadError')} live>
             {describeError(values.error)}
           </InlineAlert>
         ) : null}
         {values.isPending ? (
-          <LoadingRegion label="Loading the values.">
+          <LoadingRegion label={t('WorkCustomFieldsView.valuesLoading')}>
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
         {!values.isPending && !values.isError ? (
-          <ul className="tm-stack" aria-label="Custom field values">
+          <ul className="tm-stack" aria-label={t('WorkCustomFieldsView.valuesListLabel')}>
             {values.data.map((field) => (
               <FieldValueEditor
                 key={field.key}
@@ -243,6 +245,7 @@ function FieldValueEditor({
   onSave: (value: string) => Promise<WorkCustomFieldValue>;
   onSaved: () => Promise<void>;
 }) {
+  const t = useT();
   const [draft, setDraft] = useState(field.value ?? '');
 
   const save = useMutation({
@@ -267,7 +270,7 @@ function FieldValueEditor({
             value={draft}
             onChange={(event) => setDraft(event.target.value)}
           >
-            <option value="">Select…</option>
+            <option value="">{t('WorkCustomFieldsView.selectPlaceholder')}</option>
             {field.options.map((option) => (
               <option key={option} value={option}>
                 {option}
@@ -289,11 +292,11 @@ function FieldValueEditor({
           disabled={draft.trim() === '' || save.isPending}
           loading={save.isPending}
         >
-          Save
+          {t('WorkCustomFieldsView.save')}
         </Button>
       </form>
       {save.isError ? (
-        <InlineAlert tone="danger" title="Could not save the value" live>
+        <InlineAlert tone="danger" title={t('WorkCustomFieldsView.valueSaveError')} live>
           {describeError(save.error)}
         </InlineAlert>
       ) : null}

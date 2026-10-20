@@ -19,6 +19,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/work-planning.css';
 import { useOrganizationName } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkFormsScreenProps {
   organizationSlug: string;
@@ -60,6 +61,7 @@ export function WorkFormsScreen({
   const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const forms = useQuery({
     queryKey: ['work-forms', organizationSlug],
@@ -147,13 +149,13 @@ export function WorkFormsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      title="Intake forms"
-      eyebrow="Form builder"
+      title={t('WorkFormsScreen.title')}
+      eyebrow={t('WorkFormsScreen.eyebrow')}
     >
       <div className="wp-forms">
         <section className="wp-forms__builder" aria-labelledby="tm-form-new-heading">
           <h2 id="tm-form-new-heading" className="wp-section-title">
-            Builder
+            {t('WorkFormsScreen.builder')}
           </h2>
           <form
             className="wp-stack wp-stack--fill"
@@ -164,27 +166,27 @@ export function WorkFormsScreen({
             }}
           >
             <Field
-              label="Form name"
+              label={t('WorkFormsScreen.formName')}
               name="name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              hint="A short handle, such as New client request."
+              hint={t('WorkFormsScreen.formNameHint')}
               required
             />
 
             <fieldset className="wp-stack tm-fieldset">
-              <legend className="wp-plain-label">Questions</legend>
+              <legend className="wp-plain-label">{t('WorkFormsScreen.questions')}</legend>
               {draftFields.map((field, index) => (
                 <div key={index} className="wp-forms__question">
                   <Field
-                    label={`Question ${index + 1}`}
+                    label={`${t('WorkFormsScreen.question')} ${index + 1}`}
                     name={`field-label-${index}`}
                     value={field.label}
                     onChange={(event) => updateDraft(index, { label: event.target.value })}
                   />
                   <div className="tm-field">
                     <label className="tm-field__label" htmlFor={`tm-field-type-${index}`}>
-                      Answer
+                      {t('WorkFormsScreen.answer')}
                     </label>
                     <select
                       id={`tm-field-type-${index}`}
@@ -203,7 +205,7 @@ export function WorkFormsScreen({
                   </div>
                   <div className="wp-forms__check">
                     <label className="wp-plain-label" htmlFor={`tm-field-required-${index}`}>
-                      Required
+                      {t('WorkFormsScreen.required')}
                     </label>
                     <input
                       id={`tm-field-required-${index}`}
@@ -219,12 +221,12 @@ export function WorkFormsScreen({
                 className="wp-add"
                 onClick={() => setDraftFields((current) => [...current, EMPTY_FIELD])}
               >
-                + Add a question
+                {t('WorkFormsScreen.addQuestion')}
               </button>
             </fieldset>
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="Could not create the form" live>
+              <InlineAlert tone="danger" title={t('WorkFormsScreen.createError')} live>
                 {describeError(create.error)}
               </InlineAlert>
             ) : null}
@@ -235,15 +237,13 @@ export function WorkFormsScreen({
                 tone="ink"
                 size="accessible"
                 loading={create.isPending}
-                loadingLabel="Creating"
+                loadingLabel={t('WorkFormsScreen.creating')}
                 disabled={!canCreate}
               >
-                Create form
+                {t('WorkFormsScreen.createForm')}
               </Button>
             </div>
-            <p className="wp-caption">
-              Each submission creates a work item in the project you choose
-            </p>
+            <p className="wp-caption">{t('WorkFormsScreen.caption')}</p>
           </form>
         </section>
 
@@ -252,31 +252,33 @@ export function WorkFormsScreen({
             <span className="wp-forms__orb" aria-hidden="true">
               &#9678;
             </span>
-            <span>What the person filling it in sees</span>
+            <span>{t('WorkFormsScreen.whatPersonSees')}</span>
           </div>
           <h2 id="tm-form-list-heading" className="wp-forms__heading">
-            {activeForm ? activeForm.name : `Ask ${organizationName} for something`}
+            {activeForm
+              ? activeForm.name
+              : `${t('WorkFormsScreen.askPrefix')} ${organizationName} ${t('WorkFormsScreen.askSuffix')}`}
           </h2>
 
           {created ? (
-            <InlineAlert tone="success" title="Work item created from the form" live>
+            <InlineAlert tone="success" title={t('WorkFormsScreen.createdTitle')} live>
               <p className="tm-prose">
                 <Link href={`/${organizationSlug}/work/${created.id}`}>
-                  Open &ldquo;{created.title}&rdquo;
+                  {t('WorkFormsScreen.openQuote')}&ldquo;{created.title}&rdquo;
                 </Link>{' '}
-                to work on the new item.
+                {t('WorkFormsScreen.toWorkOn')}
               </p>
             </InlineAlert>
           ) : null}
 
           {forms.isError ? (
-            <InlineAlert tone="danger" title="Could not load the forms" live>
+            <InlineAlert tone="danger" title={t('WorkFormsScreen.formsLoadError')} live>
               {describeError(forms.error)}
             </InlineAlert>
           ) : null}
 
           {forms.isPending ? (
-            <LoadingRegion label="Loading the forms.">
+            <LoadingRegion label={t('WorkFormsScreen.formsLoading')}>
               <Skeleton height="44px" />
               <Skeleton height="44px" />
             </LoadingRegion>
@@ -284,18 +286,15 @@ export function WorkFormsScreen({
 
           {!forms.isPending && !forms.isError && rows.length === 0 ? (
             <div className="wp-empty">
-              <h3 className="wp-empty__title">No forms yet</h3>
-              <p className="wp-empty__body">
-                Build a form on the left. Once you have one, it can be filled in here to create a
-                work item.
-              </p>
+              <h3 className="wp-empty__title">{t('WorkFormsScreen.noFormsTitle')}</h3>
+              <p className="wp-empty__body">{t('WorkFormsScreen.noFormsBody')}</p>
             </div>
           ) : null}
 
           {rows.length > 0 ? (
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-form-select">
-                Form to fill in
+                {t('WorkFormsScreen.formToFillIn')}
               </label>
               <select
                 id="tm-form-select"
@@ -307,7 +306,7 @@ export function WorkFormsScreen({
                   setChecks({});
                 }}
               >
-                <option value="">Choose a form…</option>
+                <option value="">{t('WorkFormsScreen.chooseForm')}</option>
                 {rows.map((form) => (
                   <option key={form.id} value={form.id}>
                     {form.name}
@@ -321,7 +320,7 @@ export function WorkFormsScreen({
             <form
               className="wp-stack wp-stack--fill"
               noValidate
-              aria-label={`Fill in ${activeForm.name}`}
+              aria-label={`${t('WorkFormsScreen.fillIn')} ${activeForm.name}`}
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 if (canSubmit) submit.mutate(activeForm);
@@ -330,7 +329,7 @@ export function WorkFormsScreen({
               {available.length > 0 ? (
                 <div className="tm-field">
                   <label className="tm-field__label" htmlFor="tm-form-project">
-                    Project
+                    {t('WorkFormsScreen.project')}
                   </label>
                   <select
                     id="tm-form-project"
@@ -347,16 +346,13 @@ export function WorkFormsScreen({
                 </div>
               ) : (
                 <div className="wp-empty">
-                  <h3 className="wp-empty__title">No projects yet</h3>
-                  <p className="wp-empty__body">
-                    A work item is created in a project. Once a project exists, you can submit a
-                    form.
-                  </p>
+                  <h3 className="wp-empty__title">{t('WorkFormsScreen.noProjectsTitle')}</h3>
+                  <p className="wp-empty__body">{t('WorkFormsScreen.noProjectsBody')}</p>
                 </div>
               )}
 
               <Field
-                label="Work item title"
+                label={t('WorkFormsScreen.workItemTitle')}
                 name="title"
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
@@ -399,7 +395,7 @@ export function WorkFormsScreen({
               )}
 
               {submit.isError ? (
-                <InlineAlert tone="danger" title="Could not submit the form" live>
+                <InlineAlert tone="danger" title={t('WorkFormsScreen.submitError')} live>
                   {describeError(submit.error)}
                 </InlineAlert>
               ) : null}
@@ -410,10 +406,10 @@ export function WorkFormsScreen({
                   tone="ink"
                   size="accessible"
                   loading={submit.isPending}
-                  loadingLabel="Submitting"
+                  loadingLabel={t('WorkFormsScreen.submitting')}
                   disabled={!canSubmit}
                 >
-                  Create work item
+                  {t('WorkFormsScreen.createWorkItem')}
                 </Button>
               </div>
             </form>

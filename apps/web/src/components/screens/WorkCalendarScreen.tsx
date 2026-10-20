@@ -23,6 +23,7 @@ import {
   shiftCalendarMonth,
 } from '../../lib/work-calendar-range';
 import type { CalendarRange } from '../../lib/work-calendar-range';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/work-planning.css';
 import '../../styles/screens/work-calendar.css';
 
@@ -70,6 +71,7 @@ export function WorkCalendarScreen({
   now: nowProp,
 }: WorkCalendarScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
   const [range, setRange] = useState<CalendarRange>(() =>
@@ -123,7 +125,7 @@ export function WorkCalendarScreen({
       organizationName={organizationName}
       activeNavigationId="work"
       title={title}
-      eyebrow="Calendar"
+      eyebrow={t('WorkCalendarScreen.eyebrow')}
       actions={
         <div className="wp-toolbar">
           {/*
@@ -131,26 +133,26 @@ export function WorkCalendarScreen({
             not the one view with no way back to the list / timeline / workload. Each link keeps
             the chosen project.
           */}
-          <nav className="wp-segmented" aria-label="Work views">
-            <Link href={`/${organizationSlug}/work`}>List</Link>
+          <nav className="wp-segmented" aria-label={t('WorkCalendarScreen.workViews')}>
+            <Link href={`/${organizationSlug}/work`}>{t('WorkCalendarScreen.list')}</Link>
             <Link
               href={`/${organizationSlug}/work/timeline${
                 chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
               }`}
             >
-              Timeline
+              {t('WorkCalendarScreen.timeline')}
             </Link>
-            <span aria-current="page">Calendar</span>
+            <span aria-current="page">{t('WorkCalendarScreen.calendar')}</span>
             <Link
               href={`/${organizationSlug}/work/workload${
                 chosenProjectId === '' ? '' : `?project=${encodeURIComponent(chosenProjectId)}`
               }`}
             >
-              Workload
+              {t('WorkCalendarScreen.workload')}
             </Link>
           </nav>
           <label className="tm-visually-hidden" htmlFor="tm-calendar-project">
-            Show the calendar for
+            {t('WorkCalendarScreen.showCalendarFor')}
           </label>
           <select
             id="tm-calendar-project"
@@ -159,7 +161,9 @@ export function WorkCalendarScreen({
             disabled={projects.isPending || noProjects}
             onChange={(event) => setProjectId(event.target.value)}
           >
-            {chosenProjectId === '' ? <option value="">Choose a project…</option> : null}
+            {chosenProjectId === '' ? (
+              <option value="">{t('WorkCalendarScreen.chooseProject')}</option>
+            ) : null}
             {(projects.data ?? []).map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
@@ -171,9 +175,9 @@ export function WorkCalendarScreen({
             data-custom={isWholeMonth(range) ? undefined : 'true'}
             aria-describedby={rangeProblem ? 'tm-calendar-range-problem' : undefined}
           >
-            <legend className="tm-visually-hidden">Date range</legend>
+            <legend className="tm-visually-hidden">{t('WorkCalendarScreen.dateRange')}</legend>
             <label className="wk-cal-range__field" htmlFor="tm-calendar-from">
-              <span className="wk-cal-range__label">From</span>
+              <span className="wk-cal-range__label">{t('WorkCalendarScreen.from')}</span>
               <input
                 id="tm-calendar-from"
                 type="date"
@@ -184,7 +188,7 @@ export function WorkCalendarScreen({
               />
             </label>
             <label className="wk-cal-range__field" htmlFor="tm-calendar-to">
-              <span className="wk-cal-range__label">To</span>
+              <span className="wk-cal-range__label">{t('WorkCalendarScreen.to')}</span>
               <input
                 id="tm-calendar-to"
                 type="date"
@@ -198,7 +202,7 @@ export function WorkCalendarScreen({
           <button
             type="button"
             className="wp-cal__nav"
-            aria-label="Previous month"
+            aria-label={t('WorkCalendarScreen.previousMonth')}
             onClick={() => moveTo(shiftCalendarMonth(range, -1, now))}
           >
             <span aria-hidden="true">&#8249;</span>
@@ -209,12 +213,12 @@ export function WorkCalendarScreen({
             aria-pressed={onThisMonth}
             onClick={() => moveTo(thisMonth)}
           >
-            This month
+            {t('WorkCalendarScreen.thisMonth')}
           </button>
           <button
             type="button"
             className="wp-cal__nav"
-            aria-label="Next month"
+            aria-label={t('WorkCalendarScreen.nextMonth')}
             onClick={() => moveTo(shiftCalendarMonth(range, 1, now))}
           >
             <span aria-hidden="true">&#8250;</span>
@@ -224,35 +228,33 @@ export function WorkCalendarScreen({
     >
       {rangeProblem !== null ? (
         <div id="tm-calendar-range-problem">
-          <InlineAlert tone="warning" title="Check the date range" live>
+          <InlineAlert tone="warning" title={t('WorkCalendarScreen.checkRange')} live>
             {rangeProblem}
           </InlineAlert>
         </div>
       ) : null}
 
       {projects.isError ? (
-        <InlineAlert tone="danger" title="Could not load your projects" live>
+        <InlineAlert tone="danger" title={t('WorkCalendarScreen.projectsError')} live>
           {describeError(projects.error)}
         </InlineAlert>
       ) : null}
 
       {noProjects ? (
         <div className="wp-empty">
-          <h2 className="wp-empty__title">No project to show yet</h2>
-          <p className="wp-empty__body">
-            A calendar is per project. Once you can see a project, its dated work appears here.
-          </p>
+          <h2 className="wp-empty__title">{t('WorkCalendarScreen.noProjectTitle')}</h2>
+          <p className="wp-empty__body">{t('WorkCalendarScreen.noProjectBody')}</p>
         </div>
       ) : null}
 
       {calendar.isError ? (
-        <InlineAlert tone="danger" title="Could not load the calendar" live>
+        <InlineAlert tone="danger" title={t('WorkCalendarScreen.calendarError')} live>
           {describeError(calendar.error)}
         </InlineAlert>
       ) : null}
 
       {rangeProblem !== null ? null : chosenProjectId !== '' && calendar.isPending ? (
-        <LoadingRegion label="Loading the calendar.">
+        <LoadingRegion label={t('WorkCalendarScreen.loading')}>
           <Skeleton height="30px" />
           <Skeleton height="480px" />
         </LoadingRegion>
@@ -260,7 +262,8 @@ export function WorkCalendarScreen({
         <div className="wp-cal">
           <table>
             <caption className="tm-visually-hidden">
-              Work for {title}, on its due date or, without one, its start date.
+              {t('WorkCalendarScreen.captionPrefix')} {title}
+              {t('WorkCalendarScreen.captionSuffix')}
             </caption>
             <thead>
               <tr>
@@ -293,7 +296,9 @@ export function WorkCalendarScreen({
                             {isToday ? (
                               <>
                                 <span className="wp-cal__today-dot">{cell.day}</span>
-                                <span className="wp-cal__today-word">today</span>
+                                <span className="wp-cal__today-word">
+                                  {t('WorkCalendarScreen.today')}
+                                </span>
                               </>
                             ) : (
                               cell.label
@@ -312,7 +317,7 @@ export function WorkCalendarScreen({
                           ))}
                           {items.length > MAX_ITEMS_PER_DAY ? (
                             <span className="wp-cal__more">
-                              +{items.length - MAX_ITEMS_PER_DAY} more
+                              +{items.length - MAX_ITEMS_PER_DAY} {t('WorkCalendarScreen.more')}
                             </span>
                           ) : null}
                         </div>
@@ -328,10 +333,10 @@ export function WorkCalendarScreen({
 
       {empty ? (
         <div className="wp-empty">
-          <h2 className="wp-empty__title">Nothing on this calendar yet</h2>
+          <h2 className="wp-empty__title">{t('WorkCalendarScreen.emptyTitle')}</h2>
           <p className="wp-empty__body">
-            This project has no dated work you can see in {title}. Move to another month or range,
-            or add dates from the work item.
+            {t('WorkCalendarScreen.emptyBodyPrefix')} {title}
+            {t('WorkCalendarScreen.emptyBodySuffix')}
           </p>
         </div>
       ) : null}

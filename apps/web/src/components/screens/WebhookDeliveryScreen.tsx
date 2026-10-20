@@ -11,6 +11,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listWebhookDeliveries, type WebhookDeliveryView } from '../../lib/api/webhook-deliveries';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WebhookDeliveryScreenProps {
   organizationSlug: string;
@@ -39,6 +40,7 @@ export function WebhookDeliveryScreen({
   client,
 }: WebhookDeliveryScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const [rows, setRows] = useState<readonly WebhookDeliveryView[]>([]);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
@@ -68,13 +70,17 @@ export function WebhookDeliveryScreen({
       contextRail={
         <ControlCenterSections organizationSlug={organizationSlug} section="integrations" />
       }
-      eyebrow="Control center · Webhooks · Deliveries"
-      title="Webhook deliveries"
-      {...(rows.length > 0 ? { titleMeta: `${rows.length} shown · ${failures} failed` } : {})}
-      description="Recorded delivery attempts for this endpoint, most recent first. Status and response code only — no secret or payload is stored."
+      eyebrow={t('WebhookDeliveryScreen.eyebrow')}
+      title={t('WebhookDeliveryScreen.title')}
+      {...(rows.length > 0
+        ? {
+            titleMeta: `${rows.length} ${t('WebhookDeliveryScreen.shown')} · ${failures} ${t('WebhookDeliveryScreen.failed')}`,
+          }
+        : {})}
+      description={t('WebhookDeliveryScreen.description')}
       actions={
         <Link href={`/${organizationSlug}/admin/automations/webhooks`} className="tm-aut-btn">
-          All endpoints
+          {t('WebhookDeliveryScreen.allEndpoints')}
         </Link>
       }
     >
@@ -82,11 +88,11 @@ export function WebhookDeliveryScreen({
         <div className="tm-aut-split">
           <section className="tm-aut-col" aria-labelledby="tm-webhook-deliveries-heading">
             <h2 id="tm-webhook-deliveries-heading" className="tm-visually-hidden">
-              Delivery attempts
+              {t('WebhookDeliveryScreen.deliveryAttempts')}
             </h2>
 
             {page.isError ? (
-              <InlineAlert tone="danger" title="Could not load the delivery log" live>
+              <InlineAlert tone="danger" title={t('WebhookDeliveryScreen.loadError')} live>
                 {describeError(page.error)}
               </InlineAlert>
             ) : null}
@@ -94,7 +100,7 @@ export function WebhookDeliveryScreen({
             <div className="tm-aut-tablecard">
               {page.isPending && rows.length === 0 ? (
                 <div className="tm-aut-pad">
-                  <LoadingRegion label="Loading the delivery log.">
+                  <LoadingRegion label={t('WebhookDeliveryScreen.loading')}>
                     <Skeleton height="var(--row)" />
                     <Skeleton height="var(--row)" />
                   </LoadingRegion>
@@ -103,24 +109,22 @@ export function WebhookDeliveryScreen({
 
               {!page.isPending && !page.isError && rows.length === 0 ? (
                 <div className="tm-aut-empty">
-                  <p className="tm-aut-empty__title">No deliveries yet</p>
-                  <p className="tm-aut-empty__body">
-                    This endpoint has no recorded delivery attempts.
-                  </p>
+                  <p className="tm-aut-empty__title">{t('WebhookDeliveryScreen.emptyTitle')}</p>
+                  <p className="tm-aut-empty__body">{t('WebhookDeliveryScreen.emptyBody')}</p>
                 </div>
               ) : null}
 
               {rows.length > 0 ? (
                 <table
                   className="tm-aut-table tm-aut-table--compact"
-                  aria-label="Webhook delivery attempts"
+                  aria-label={t('WebhookDeliveryScreen.tableLabel')}
                 >
                   <thead>
                     <tr>
-                      <th scope="col">Attempted</th>
-                      <th scope="col">Response</th>
+                      <th scope="col">{t('WebhookDeliveryScreen.colAttempted')}</th>
+                      <th scope="col">{t('WebhookDeliveryScreen.colResponse')}</th>
                       <th scope="col" className="tm-aut-end">
-                        Status
+                        {t('WebhookDeliveryScreen.colStatus')}
                       </th>
                     </tr>
                   </thead>
@@ -136,7 +140,9 @@ export function WebhookDeliveryScreen({
                           <span
                             className={`tm-aut-state ${row.status === 'success' ? 'tm-aut-state--live' : 'tm-aut-state--danger'}`}
                           >
-                            {row.status === 'success' ? 'Success' : 'Failure'}
+                            {row.status === 'success'
+                              ? t('WebhookDeliveryScreen.success')
+                              : t('WebhookDeliveryScreen.failure')}
                           </span>
                         </td>
                       </tr>
@@ -153,10 +159,10 @@ export function WebhookDeliveryScreen({
                   tone="outline"
                   size="accessible"
                   loading={page.isFetching}
-                  loadingLabel="Loading"
+                  loadingLabel={t('WebhookDeliveryScreen.loadingMore')}
                   onClick={() => setCursor(nextCursor)}
                 >
-                  Load older attempts
+                  {t('WebhookDeliveryScreen.loadOlder')}
                 </Button>
               </div>
             ) : null}
@@ -168,28 +174,28 @@ export function WebhookDeliveryScreen({
           >
             <p className={`tm-aut-eyebrow ${lastFailure ? 'tm-aut-eyebrow--danger' : ''}`}>
               <span className="tm-aut-eyebrow__square" aria-hidden="true" />
-              {lastFailure ? 'Latest failure' : 'Delivery health'}
+              {lastFailure
+                ? t('WebhookDeliveryScreen.latestFailure')
+                : t('WebhookDeliveryScreen.deliveryHealth')}
             </p>
             <h2
               id="tm-webhook-delivery-summary"
               className="tm-aut-card__title tm-aut-card__title--section"
             >
               {page.isError && rows.length === 0
-                ? 'The delivery log is unavailable'
+                ? t('WebhookDeliveryScreen.summaryUnavailable')
                 : rows.length === 0
-                  ? 'Nothing delivered yet'
+                  ? t('WebhookDeliveryScreen.summaryNothing')
                   : failures === 0
-                    ? 'Every shown attempt was delivered'
-                    : `${failures} of ${rows.length} shown attempts failed`}
+                    ? t('WebhookDeliveryScreen.summaryAllDelivered')
+                    : `${failures} ${t('WebhookDeliveryScreen.of')} ${rows.length} ${t('WebhookDeliveryScreen.shownAttemptsFailed')}`}
             </h2>
             <p className="tm-aut-card__body">
               {lastFailure
-                ? `The most recent failure was ${formatAttempt(lastFailure.attemptedAt).toLowerCase()} with response ${lastFailure.responseCode ?? 'none'}.`
-                : 'Each attempt records its status and the response code the endpoint returned.'}
+                ? `${t('WebhookDeliveryScreen.recentFailurePrefix')} ${formatAttempt(lastFailure.attemptedAt).toLowerCase()} ${t('WebhookDeliveryScreen.recentFailureWithResponse')} ${lastFailure.responseCode ?? t('WebhookDeliveryScreen.none')}.`
+                : t('WebhookDeliveryScreen.bodyEachAttempt')}
             </p>
-            <p className="tm-aut-card__foot">
-              No secret or payload is stored with an attempt, only its status and response code.
-            </p>
+            <p className="tm-aut-card__foot">{t('WebhookDeliveryScreen.foot')}</p>
           </aside>
         </div>
       </div>

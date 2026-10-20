@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/billing';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface UsageAlertsScreenProps {
@@ -50,6 +51,7 @@ export function UsageAlertsScreen({
 }: UsageAlertsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const alerts = useQuery({
     queryKey: ['usage-alerts', organizationSlug],
@@ -90,14 +92,14 @@ export function UsageAlertsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Usage alerts"
-      description="Set a threshold on a usage metric and see which are currently breached."
+      eyebrow={t('UsageAlertsScreen.eyebrow')}
+      title={t('UsageAlertsScreen.title')}
+      description={t('UsageAlertsScreen.description')}
     >
       <div className="tm-bil">
         <section className="tm-panel tm-stack" aria-labelledby="tm-usage-alert-new-heading">
           <h2 id="tm-usage-alert-new-heading" className="tm-eyebrow">
-            New alert
+            {t('UsageAlertsScreen.newAlert')}
           </h2>
           <form
             className="tm-stack"
@@ -109,7 +111,7 @@ export function UsageAlertsScreen({
           >
             <div className="tm-field">
               <label className="tm-field__label" htmlFor="tm-usage-alert-metric">
-                Metric
+                {t('UsageAlertsScreen.metric')}
               </label>
               <select
                 id="tm-usage-alert-metric"
@@ -126,19 +128,19 @@ export function UsageAlertsScreen({
             </div>
 
             <Field
-              label="Threshold percent"
+              label={t('UsageAlertsScreen.thresholdPercent')}
               name="thresholdPercent"
               type="number"
               min={1}
               max={100}
               value={threshold}
               onChange={(event) => setThreshold(event.target.value)}
-              hint="A whole number from 1 to 100."
+              hint={t('UsageAlertsScreen.thresholdHint')}
               required
             />
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="Could not create the alert" live>
+              <InlineAlert tone="danger" title={t('UsageAlertsScreen.createError')} live>
                 {describeError(create.error)}
               </InlineAlert>
             ) : null}
@@ -149,10 +151,10 @@ export function UsageAlertsScreen({
                 tone="ink"
                 size="accessible"
                 loading={create.isPending}
-                loadingLabel="Creating"
+                loadingLabel={t('UsageAlertsScreen.creating')}
                 disabled={!canCreate}
               >
-                Create alert
+                {t('UsageAlertsScreen.createAlert')}
               </Button>
             </div>
           </form>
@@ -163,25 +165,25 @@ export function UsageAlertsScreen({
           aria-labelledby="tm-usage-alert-list-heading"
         >
           <h2 id="tm-usage-alert-list-heading" className="tm-eyebrow">
-            Alerts
+            {t('UsageAlertsScreen.alerts')}
           </h2>
 
           {alerts.isError ? (
-            <InlineAlert tone="danger" title="Could not load the alerts" live>
+            <InlineAlert tone="danger" title={t('UsageAlertsScreen.loadError')} live>
               {describeError(alerts.error)}
             </InlineAlert>
           ) : null}
 
           {alerts.isPending ? (
-            <LoadingRegion label="Loading the alerts.">
+            <LoadingRegion label={t('UsageAlertsScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!alerts.isPending && !alerts.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No alerts yet">
-              Create an alert with the form to watch a usage metric against a threshold.
+            <InlineAlert tone="neutral" title={t('UsageAlertsScreen.emptyTitle')}>
+              {t('UsageAlertsScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
@@ -193,18 +195,19 @@ export function UsageAlertsScreen({
               // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
               tabIndex={0}
               role="region"
-              aria-label="Usage alerts"
+              aria-label={t('UsageAlertsScreen.tableLabel')}
             >
               <table className="tm-table">
                 <caption className="tm-visually-hidden">
-                  Usage-alert rules for this organization, in metric order, {rows.length} shown.
+                  {t('UsageAlertsScreen.captionPrefix')} {rows.length}{' '}
+                  {t('UsageAlertsScreen.captionShown')}
                 </caption>
                 <thead>
                   <tr>
-                    <th scope="col">Metric</th>
-                    <th scope="col">Threshold</th>
-                    <th scope="col">Active</th>
-                    <th scope="col">State</th>
+                    <th scope="col">{t('UsageAlertsScreen.colMetric')}</th>
+                    <th scope="col">{t('UsageAlertsScreen.colThreshold')}</th>
+                    <th scope="col">{t('UsageAlertsScreen.colActive')}</th>
+                    <th scope="col">{t('UsageAlertsScreen.colState')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -214,8 +217,14 @@ export function UsageAlertsScreen({
                         {humanize(alert.metric)}
                       </th>
                       <td>{alert.thresholdPercent}%</td>
-                      <td>{alert.active ? 'Yes' : 'No'}</td>
-                      <td>{breachedByMetric.get(alert.metric) ? 'Breached' : 'OK'}</td>
+                      <td>
+                        {alert.active ? t('UsageAlertsScreen.yes') : t('UsageAlertsScreen.no')}
+                      </td>
+                      <td>
+                        {breachedByMetric.get(alert.metric)
+                          ? t('UsageAlertsScreen.breached')
+                          : t('UsageAlertsScreen.ok')}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

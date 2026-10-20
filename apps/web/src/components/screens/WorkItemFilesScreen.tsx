@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemFilesScreenProps {
   organizationSlug: string;
@@ -44,6 +45,7 @@ export function WorkItemFilesScreen({
 }: WorkItemFilesScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['work-item-files', organizationSlug, workItemId];
 
   const files = useQuery({
@@ -76,12 +78,12 @@ export function WorkItemFilesScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Attached files"
-      description="Files attached to this work item. Attach an already-uploaded file of this project by its id, or detach one."
+      title={t('WorkItemFilesScreen.title')}
+      description={t('WorkItemFilesScreen.description')}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-attach-new-heading">
         <h2 id="tm-attach-new-heading" className="tm-eyebrow">
-          Attach a file
+          {t('WorkItemFilesScreen.attachHeading')}
         </h2>
         <form
           className="tm-stack"
@@ -92,16 +94,16 @@ export function WorkItemFilesScreen({
           }}
         >
           <Field
-            label="File ID"
+            label={t('WorkItemFilesScreen.fileIdLabel')}
             name="fileAssetId"
             value={fileAssetId}
             onChange={(event) => setFileAssetId(event.target.value)}
-            hint="The id of an already-uploaded file. It must belong to this work item's project."
+            hint={t('WorkItemFilesScreen.fileIdHint')}
             required
           />
 
           {attach.isError ? (
-            <InlineAlert tone="danger" title="Could not attach the file" live>
+            <InlineAlert tone="danger" title={t('WorkItemFilesScreen.attachError')} live>
               {describeError(attach.error)}
             </InlineAlert>
           ) : null}
@@ -112,10 +114,10 @@ export function WorkItemFilesScreen({
               tone="ink"
               size="accessible"
               loading={attach.isPending}
-              loadingLabel="Attaching"
+              loadingLabel={t('WorkItemFilesScreen.attaching')}
               disabled={!canAttach}
             >
-              Attach file
+              {t('WorkItemFilesScreen.attachFile')}
             </Button>
           </div>
         </form>
@@ -126,32 +128,31 @@ export function WorkItemFilesScreen({
         aria-labelledby="tm-attach-list-heading"
       >
         <h2 id="tm-attach-list-heading" className="tm-eyebrow">
-          Attachments
+          {t('WorkItemFilesScreen.attachmentsHeading')}
         </h2>
 
         {files.isError ? (
-          <InlineAlert tone="danger" title="Could not load the attachments" live>
+          <InlineAlert tone="danger" title={t('WorkItemFilesScreen.loadError')} live>
             {describeError(files.error)}
           </InlineAlert>
         ) : null}
 
         {detach.isError ? (
-          <InlineAlert tone="danger" title="Could not detach the file" live>
+          <InlineAlert tone="danger" title={t('WorkItemFilesScreen.detachError')} live>
             {describeError(detach.error)}
           </InlineAlert>
         ) : null}
 
         {files.isPending ? (
-          <LoadingRegion label="Loading the attachments.">
+          <LoadingRegion label={t('WorkItemFilesScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!files.isPending && !files.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No files attached yet">
-            Attach a file above by its id. Each attachment links an already-uploaded file to this
-            work item.
+          <InlineAlert tone="neutral" title={t('WorkItemFilesScreen.emptyTitle')}>
+            {t('WorkItemFilesScreen.emptyBody')}
           </InlineAlert>
         ) : null}
 
@@ -163,18 +164,21 @@ export function WorkItemFilesScreen({
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Attached files"
+            aria-label={t('WorkItemFilesScreen.tableLabel')}
           >
             <table className="tm-table">
               <caption className="tm-visually-hidden">
-                Files attached to this work item, {rows.length} shown, oldest first.
+                {t('WorkItemFilesScreen.captionPrefix')} {rows.length}{' '}
+                {t('WorkItemFilesScreen.captionSuffix')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">File</th>
-                  <th scope="col">Attached</th>
+                  <th scope="col">{t('WorkItemFilesScreen.colFile')}</th>
+                  <th scope="col">{t('WorkItemFilesScreen.colAttached')}</th>
                   <th scope="col">
-                    <span className="tm-visually-hidden">Actions</span>
+                    <span className="tm-visually-hidden">
+                      {t('WorkItemFilesScreen.colActions')}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -191,10 +195,10 @@ export function WorkItemFilesScreen({
                         tone="destructive"
                         size="compact"
                         loading={detach.isPending && detach.variables === file.id}
-                        loadingLabel="Detaching"
+                        loadingLabel={t('WorkItemFilesScreen.detaching')}
                         onClick={() => detach.mutate(file.id)}
                       >
-                        Detach
+                        {t('WorkItemFilesScreen.detach')}
                       </Button>
                     </td>
                   </tr>

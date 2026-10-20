@@ -10,6 +10,7 @@ import {
 } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface UpdateCommentsPanelProps {
   organizationSlug: string;
@@ -50,6 +51,7 @@ export function UpdateCommentsPanel({
   updateId,
   api,
 }: UpdateCommentsPanelProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['project-update-comments', organizationSlug, projectId, updateId] as const;
   const bodyId = useId();
@@ -88,33 +90,33 @@ export function UpdateCommentsPanel({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-update-comments">
       <h2 id="tm-update-comments" className="tm-eyebrow">
-        Comments
+        {t('UpdateCommentsPanel.heading')}
       </h2>
 
       {comments.isPending ? (
-        <LoadingRegion label="Loading this update’s comments.">
+        <LoadingRegion label={t('UpdateCommentsPanel.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {comments.isError ? (
-        <InlineAlert tone="danger" title="Could not load the comments" live>
+        <InlineAlert tone="danger" title={t('UpdateCommentsPanel.loadError')} live>
           {describe(comments.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('UpdateCommentsPanel.submitError')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {comments.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No comments yet. Add the first one below.</p>
+          <p className="tm-prose">{t('UpdateCommentsPanel.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Comments">
+          <ul className="tm-list" aria-label={t('UpdateCommentsPanel.listLabel')}>
             {items.map((comment) => (
               <li key={comment.id} className="tm-stack">
                 <p className="tm-prose">{comment.body}</p>
@@ -130,7 +132,7 @@ export function UpdateCommentsPanel({
       <form className="tm-stack" noValidate onSubmit={submit}>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor={bodyId}>
-            Add a comment
+            {t('UpdateCommentsPanel.addLabel')}
           </label>
           <textarea
             id={bodyId}
@@ -140,9 +142,7 @@ export function UpdateCommentsPanel({
             maxLength={MAX_BODY_LENGTH}
             onChange={(event) => setBody(event.target.value)}
           />
-          <span className="tm-field__hint">
-            A comment on this update. It is shown to the client reading the update’s timeline.
-          </span>
+          <span className="tm-field__hint">{t('UpdateCommentsPanel.hint')}</span>
         </div>
         <div className="tm-row">
           <Button
@@ -150,10 +150,10 @@ export function UpdateCommentsPanel({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('UpdateCommentsPanel.adding')}
             disabled={body.trim() === ''}
           >
-            Add comment
+            {t('UpdateCommentsPanel.add')}
           </Button>
         </div>
       </form>

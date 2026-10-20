@@ -19,6 +19,7 @@ import {
 } from '../../lib/api/webhooks';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WebhookEndpointsScreenProps {
   organizationSlug: string;
@@ -45,6 +46,7 @@ export function WebhookEndpointsScreen({
 }: WebhookEndpointsScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const endpoints = useQuery({
     queryKey: ['webhook-endpoints', organizationSlug],
@@ -90,17 +92,17 @@ export function WebhookEndpointsScreen({
       contextRail={
         <ControlCenterSections organizationSlug={organizationSlug} section="integrations" />
       }
-      eyebrow="Control center · Integrations · Webhooks"
-      title="Webhooks"
+      eyebrow={t('WebhookEndpointsScreen.eyebrow')}
+      title={t('WebhookEndpointsScreen.title')}
       {...(rows.length > 0
         ? {
-            titleMeta: `${rows.length} endpoint${rows.length === 1 ? '' : 's'} · ${enabledCount} on`,
+            titleMeta: `${rows.length} ${rows.length === 1 ? t('WebhookEndpointsScreen.endpointSingular') : t('WebhookEndpointsScreen.endpointPlural')} · ${enabledCount} ${t('WebhookEndpointsScreen.on')}`,
           }
         : {})}
-      description="Register the https endpoints your automations call. Each one keeps a log of its delivery attempts."
+      description={t('WebhookEndpointsScreen.description')}
       actions={
         <Link href={`/${organizationSlug}/automations/apps`} className="tm-aut-btn">
-          All integrations
+          {t('WebhookEndpointsScreen.allIntegrations')}
         </Link>
       }
     >
@@ -112,29 +114,30 @@ export function WebhookEndpointsScreen({
                 id="tm-webhook-list-heading"
                 className="tm-aut-card__title tm-aut-card__title--section"
               >
-                Endpoints
+                {t('WebhookEndpointsScreen.endpoints')}
               </h2>
               {rows.length > 0 ? (
                 <span className="tm-aut-mono">
-                  {rows.length} registered · {enabledCount} on
+                  {rows.length} {t('WebhookEndpointsScreen.registered')} · {enabledCount}{' '}
+                  {t('WebhookEndpointsScreen.on')}
                 </span>
               ) : null}
             </div>
 
             {toggle.isError ? (
-              <InlineAlert tone="danger" title="Could not update the endpoint" live>
+              <InlineAlert tone="danger" title={t('WebhookEndpointsScreen.updateError')} live>
                 {describeError(toggle.error)}
               </InlineAlert>
             ) : null}
 
             {endpoints.isError ? (
-              <InlineAlert tone="danger" title="Could not load the endpoints" live>
+              <InlineAlert tone="danger" title={t('WebhookEndpointsScreen.loadError')} live>
                 {describeError(endpoints.error)}
               </InlineAlert>
             ) : null}
 
             {endpoints.isPending ? (
-              <LoadingRegion label="Loading the endpoints.">
+              <LoadingRegion label={t('WebhookEndpointsScreen.loading')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
@@ -142,25 +145,27 @@ export function WebhookEndpointsScreen({
 
             {!endpoints.isPending && !endpoints.isError && rows.length === 0 ? (
               <div className="tm-aut-empty tm-aut-empty--flush">
-                <p className="tm-aut-empty__title">No endpoints yet</p>
-                <p className="tm-aut-empty__body">
-                  Register an endpoint to receive automation events.
-                </p>
+                <p className="tm-aut-empty__title">{t('WebhookEndpointsScreen.emptyTitle')}</p>
+                <p className="tm-aut-empty__body">{t('WebhookEndpointsScreen.emptyBody')}</p>
               </div>
             ) : null}
 
             {rows.length > 0 ? (
-              <ul className="tm-aut-scopes" aria-label="Webhook endpoints">
+              <ul className="tm-aut-scopes" aria-label={t('WebhookEndpointsScreen.listLabel')}>
                 {rows.map((endpoint) => (
                   <li key={endpoint.id}>
                     <span className={`tm-aut-scope ${endpoint.enabled ? '' : 'tm-aut-scope--off'}`}>
-                      {endpoint.enabled ? 'On' : 'Off'}
+                      {endpoint.enabled
+                        ? t('WebhookEndpointsScreen.onShort')
+                        : t('WebhookEndpointsScreen.offShort')}
                     </span>
                     <div className="tm-aut-list__main">
                       <span className="tm-aut-rowtitle tm-aut-url">{endpoint.url}</span>
                       <span className="tm-aut-rowsub">
                         {webhookEventLabel(endpoint.eventKind)} &middot;{' '}
-                        {endpoint.enabled ? 'Enabled' : 'Disabled'}
+                        {endpoint.enabled
+                          ? t('WebhookEndpointsScreen.enabled')
+                          : t('WebhookEndpointsScreen.disabled')}
                       </span>
                     </div>
                     <div className="tm-aut-list__end">
@@ -168,17 +173,19 @@ export function WebhookEndpointsScreen({
                         href={`/${organizationSlug}/admin/automations/webhooks/${encodeURIComponent(endpoint.id)}/deliveries`}
                         className="tm-aut-btn"
                       >
-                        Deliveries
+                        {t('WebhookEndpointsScreen.deliveries')}
                       </Link>
                       <Button
                         type="button"
                         tone="outline"
                         size="compact"
                         loading={toggle.isPending && toggle.variables?.id === endpoint.id}
-                        loadingLabel="Updating"
+                        loadingLabel={t('WebhookEndpointsScreen.updating')}
                         onClick={() => toggle.mutate(endpoint)}
                       >
-                        {endpoint.enabled ? 'Disable' : 'Enable'}
+                        {endpoint.enabled
+                          ? t('WebhookEndpointsScreen.disable')
+                          : t('WebhookEndpointsScreen.enable')}
                       </Button>
                     </div>
                   </li>
@@ -191,9 +198,9 @@ export function WebhookEndpointsScreen({
             className="tm-aut-card tm-aut-card--strong"
             aria-labelledby="tm-webhook-new-heading"
           >
-            <p className="tm-aut-eyebrow">New endpoint · signed delivery</p>
+            <p className="tm-aut-eyebrow">{t('WebhookEndpointsScreen.newEndpointEyebrow')}</p>
             <h2 id="tm-webhook-new-heading" className="tm-aut-card__title">
-              Register an endpoint
+              {t('WebhookEndpointsScreen.registerHeading')}
             </h2>
             <form
               className="tm-stack"
@@ -204,18 +211,18 @@ export function WebhookEndpointsScreen({
               }}
             >
               <Field
-                label="Endpoint URL"
+                label={t('WebhookEndpointsScreen.urlLabel')}
                 name="url"
                 type="url"
                 value={url}
                 onChange={(event) => setUrl(event.target.value)}
-                hint="Must be an https URL on a public host. Localhost and private addresses are rejected."
+                hint={t('WebhookEndpointsScreen.urlHint')}
                 required
               />
 
               <div className="tm-field">
                 <label className="tm-field__label" htmlFor="tm-webhook-event">
-                  Event
+                  {t('WebhookEndpointsScreen.event')}
                 </label>
                 <select
                   id="tm-webhook-event"
@@ -232,17 +239,17 @@ export function WebhookEndpointsScreen({
               </div>
 
               <Field
-                label="Signing secret"
+                label={t('WebhookEndpointsScreen.secretLabel')}
                 name="secret"
                 type="password"
                 value={secret}
                 onChange={(event) => setSecret(event.target.value)}
-                hint="At least 16 characters. Stored as a hash and never shown again after you save it."
+                hint={t('WebhookEndpointsScreen.secretHint')}
                 required
               />
 
               {register.isError ? (
-                <InlineAlert tone="danger" title="Could not register the endpoint" live>
+                <InlineAlert tone="danger" title={t('WebhookEndpointsScreen.registerError')} live>
                   {describeError(register.error)}
                 </InlineAlert>
               ) : null}
@@ -253,10 +260,10 @@ export function WebhookEndpointsScreen({
                   tone="ink"
                   size="accessible"
                   loading={register.isPending}
-                  loadingLabel="Registering"
+                  loadingLabel={t('WebhookEndpointsScreen.registering')}
                   disabled={!canRegister}
                 >
-                  Register endpoint
+                  {t('WebhookEndpointsScreen.registerButton')}
                 </Button>
               </div>
             </form>

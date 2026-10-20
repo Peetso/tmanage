@@ -14,6 +14,7 @@ import {
 } from '../../lib/api/work-item-recurrence';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemRecurrencePanelProps {
   organizationSlug: string;
@@ -51,6 +52,7 @@ export function WorkItemRecurrencePanel({
   workItemId,
   api,
 }: WorkItemRecurrencePanelProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-recurrence', organizationSlug, workItemId] as const;
   const [freq, setFreq] = useState<WorkItemRecurrenceFreq>('weekly');
@@ -120,18 +122,18 @@ export function WorkItemRecurrencePanel({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-recurrence">
       <h2 id="tm-work-recurrence" className="tm-eyebrow">
-        Recurrence
+        {t('WorkItemRecurrencePanel.heading')}
       </h2>
 
       {rule.isPending ? (
-        <LoadingRegion label="Loading this item’s recurrence rule.">
+        <LoadingRegion label={t('WorkItemRecurrencePanel.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {rule.isError ? (
-        <InlineAlert tone="danger" title="Could not load the recurrence rule" live>
+        <InlineAlert tone="danger" title={t('WorkItemRecurrencePanel.loadError')} live>
           {describe(rule.error)}
         </InlineAlert>
       ) : null}
@@ -147,7 +149,7 @@ export function WorkItemRecurrencePanel({
         >
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-work-recurrence-freq">
-              Repeats
+              {t('WorkItemRecurrencePanel.repeats')}
             </label>
             <select
               id="tm-work-recurrence-freq"
@@ -164,7 +166,7 @@ export function WorkItemRecurrencePanel({
           </div>
 
           <Field
-            label="Every (interval)"
+            label={t('WorkItemRecurrencePanel.interval')}
             name="interval"
             type="number"
             inputMode="numeric"
@@ -172,26 +174,26 @@ export function WorkItemRecurrencePanel({
             max={365}
             value={interval}
             onChange={(event) => setInterval(event.target.value)}
-            hint="How many periods between occurrences, 1 to 365."
+            hint={t('WorkItemRecurrencePanel.intervalHint')}
             error={
               interval.trim() !== '' && !intervalValid
-                ? 'Enter a whole number from 1 to 365.'
+                ? t('WorkItemRecurrencePanel.intervalError')
                 : undefined
             }
             required
           />
 
           <Field
-            label="Until (optional)"
+            label={t('WorkItemRecurrencePanel.until')}
             name="until"
             type="date"
             value={until}
             onChange={(event) => setUntil(event.target.value)}
-            hint="Leave blank for an open-ended rule."
+            hint={t('WorkItemRecurrencePanel.untilHint')}
           />
 
           {failure ? (
-            <InlineAlert tone="danger" title="That did not go through" live>
+            <InlineAlert tone="danger" title={t('WorkItemRecurrencePanel.failureTitle')} live>
               {failure}
             </InlineAlert>
           ) : null}
@@ -202,10 +204,12 @@ export function WorkItemRecurrencePanel({
               tone="ink"
               size="accessible"
               loading={save.isPending}
-              loadingLabel="Saving"
+              loadingLabel={t('WorkItemRecurrencePanel.saving')}
               disabled={!intervalValid || pending}
             >
-              {hasRule ? 'Update recurrence' : 'Set recurrence'}
+              {hasRule
+                ? t('WorkItemRecurrencePanel.updateRecurrence')
+                : t('WorkItemRecurrencePanel.setRecurrence')}
             </Button>
             {hasRule ? (
               <>
@@ -214,22 +218,22 @@ export function WorkItemRecurrencePanel({
                   tone="outline"
                   size="accessible"
                   loading={generate.isPending}
-                  loadingLabel="Computing"
+                  loadingLabel={t('WorkItemRecurrencePanel.computing')}
                   disabled={pending}
                   onClick={() => generate.mutate()}
                 >
-                  Generate next
+                  {t('WorkItemRecurrencePanel.generateNext')}
                 </Button>
                 <Button
                   type="button"
                   tone="text"
                   size="accessible"
                   loading={clear.isPending}
-                  loadingLabel="Clearing"
+                  loadingLabel={t('WorkItemRecurrencePanel.clearing')}
                   disabled={pending}
                   onClick={() => clear.mutate()}
                 >
-                  Clear
+                  {t('WorkItemRecurrencePanel.clear')}
                 </Button>
               </>
             ) : null}
@@ -240,13 +244,13 @@ export function WorkItemRecurrencePanel({
       {preview ? (
         <p className="tm-prose" aria-live="polite">
           {preview.exhausted || preview.nextAt === null
-            ? 'This rule has ended — no further occurrences.'
-            : `Next occurrence: ${formatWhen(preview.nextAt)}.`}
+            ? t('WorkItemRecurrencePanel.ruleEnded')
+            : `${t('WorkItemRecurrencePanel.nextOccurrencePrefix')} ${formatWhen(preview.nextAt)}.`}
         </p>
       ) : null}
 
       {rule.data === null && !rule.isPending ? (
-        <p className="tm-prose">This item does not repeat yet.</p>
+        <p className="tm-prose">{t('WorkItemRecurrencePanel.doesNotRepeat')}</p>
       ) : null}
     </section>
   );

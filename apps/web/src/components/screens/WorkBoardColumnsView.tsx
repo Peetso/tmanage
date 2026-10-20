@@ -13,6 +13,7 @@ import {
 } from '../../lib/api/board-columns';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkBoardColumnsViewProps {
   organizationSlug: string;
@@ -46,6 +47,7 @@ function describe(error: unknown): string {
  * here changes the state machine. Every write invalidates the list so it reflects the server.
  */
 export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumnsViewProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-board-columns', organizationSlug] as const;
   const [label, setLabel] = useState('');
@@ -87,11 +89,11 @@ export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumns
     event.preventDefault();
     const slot = Number(position);
     if (label.trim() === '') {
-      setFailure('Give the column a label.');
+      setFailure(t('WorkBoardColumnsView.needLabel'));
       return;
     }
     if (!Number.isInteger(slot) || slot < 0) {
-      setFailure('Choose a whole-number position of 0 or more.');
+      setFailure(t('WorkBoardColumnsView.needPosition'));
       return;
     }
     save.mutate({ label: label.trim(), stateKey, position: slot });
@@ -103,24 +105,24 @@ export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumns
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-board-columns">
       <h2 id="tm-board-columns" className="tm-eyebrow">
-        Board columns
+        {t('WorkBoardColumnsView.heading')}
       </h2>
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('WorkBoardColumnsView.failureTitle')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
-      <form className="tm-stack" onSubmit={submit} aria-label="Add a board column">
+      <form className="tm-stack" onSubmit={submit} aria-label={t('WorkBoardColumnsView.formLabel')}>
         <Field
-          label="Label"
+          label={t('WorkBoardColumnsView.label')}
           value={label}
           onChange={(event) => setLabel(event.target.value)}
           maxLength={120}
         />
         <Select
-          label="Groups work state"
+          label={t('WorkBoardColumnsView.groupsState')}
           name="board-column-state"
           value={stateKey}
           onChange={(event) => setStateKey(event.target.value as WorkItemStateKey)}
@@ -132,7 +134,7 @@ export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumns
           ))}
         </Select>
         <Field
-          label="Position"
+          label={t('WorkBoardColumnsView.position')}
           type="number"
           value={position}
           onChange={(event) => setPosition(event.target.value)}
@@ -144,33 +146,33 @@ export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumns
             size="accessible"
             disabled={pending}
             loading={save.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('WorkBoardColumnsView.adding')}
           >
-            Add column
+            {t('WorkBoardColumnsView.addColumn')}
           </Button>
         </div>
       </form>
 
-      <h3 className="tm-eyebrow">Columns the board renders</h3>
+      <h3 className="tm-eyebrow">{t('WorkBoardColumnsView.rendered')}</h3>
 
       {columns.isPending ? (
-        <LoadingRegion label="Loading the board columns.">
+        <LoadingRegion label={t('WorkBoardColumnsView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {columns.isError ? (
-        <InlineAlert tone="danger" title="Could not load the columns" live>
+        <InlineAlert tone="danger" title={t('WorkBoardColumnsView.loadError')} live>
           {describe(columns.error)}
         </InlineAlert>
       ) : null}
 
       {columns.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No custom columns yet — the board shows the default states.</p>
+          <p className="tm-prose">{t('WorkBoardColumnsView.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Board columns">
+          <ul className="tm-list" aria-label={t('WorkBoardColumnsView.listLabel')}>
             {items.map((column) => (
               <li key={column.id} className="tm-row">
                 <span className="tm-prose">
@@ -186,7 +188,7 @@ export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumns
                   disabled={pending}
                   onClick={() => drop.mutate(column.id)}
                 >
-                  Remove
+                  {t('WorkBoardColumnsView.remove')}
                 </Button>
               </li>
             ))}

@@ -2,6 +2,7 @@
 
 import { Badge, Button } from '@tmanage/ui';
 import type { ItemLabel } from '../../lib/api/work-labels';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemLabelChipsProps {
   /** The labels currently on the work item. */
@@ -21,8 +22,9 @@ export interface WorkItemLabelChipsProps {
  * is given, each chip carries an accessible remove control; without it the chips are read-only.
  */
 export function WorkItemLabelChips({ labels, onRemove, busy = false }: WorkItemLabelChipsProps) {
+  const t = useT();
   if (labels.length === 0) {
-    return <p className="tm-muted">No labels yet.</p>;
+    return <p className="tm-muted">{t('WorkItemLabelChips.empty')}</p>;
   }
 
   return (
@@ -38,7 +40,7 @@ export function WorkItemLabelChips({ labels, onRemove, busy = false }: WorkItemL
                 size="compact"
                 disabled={busy}
                 onClick={() => onRemove(label.labelId)}
-                aria-label={`Remove label ${label.name}`}
+                aria-label={`${t('WorkItemLabelChips.removeLabel')} ${label.name}`}
               >
                 ×
               </Button>

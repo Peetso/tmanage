@@ -14,6 +14,7 @@ import {
 } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemEstimateScreenProps {
   organizationSlug: string;
@@ -41,6 +42,7 @@ export function WorkItemEstimateScreen({
 }: WorkItemEstimateScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const estimate = useQuery({
     queryKey: ['work-item-estimate', organizationSlug, workItemId],
@@ -81,22 +83,31 @@ export function WorkItemEstimateScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow="Work item"
-      title="Effort estimate"
-      description="Estimate the effort for this work item and compare it against the logged actual."
+      eyebrow={t('WorkItemEstimateScreen.eyebrow')}
+      title={t('WorkItemEstimateScreen.title')}
+      description={t('WorkItemEstimateScreen.description')}
     >
       <div className="tm-wk-page tm-stack">
-        <nav className="tm-segmented tm-wk-subnav" aria-label="This work item">
-          <Link href={`/${organizationSlug}/work/${workItemId}`}>Overview</Link>
-          <Link href={`/${organizationSlug}/work/${workItemId}/activity`}>Activity</Link>
-          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`}>Time</Link>
+        <nav
+          className="tm-segmented tm-wk-subnav"
+          aria-label={t('WorkItemEstimateScreen.subnavLabel')}
+        >
+          <Link href={`/${organizationSlug}/work/${workItemId}`}>
+            {t('WorkItemEstimateScreen.overview')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/activity`}>
+            {t('WorkItemEstimateScreen.activity')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`}>
+            {t('WorkItemEstimateScreen.time')}
+          </Link>
           <Link href={`/${organizationSlug}/work/${workItemId}/estimate`} aria-current="page">
-            Estimate
+            {t('WorkItemEstimateScreen.estimate')}
           </Link>
         </nav>
         <section className="tm-panel tm-stack" aria-labelledby="tm-estimate-heading">
           <h2 id="tm-estimate-heading" className="tm-eyebrow">
-            Estimate
+            {t('WorkItemEstimateScreen.estimate')}
           </h2>
           <form
             className="tm-stack"
@@ -107,24 +118,24 @@ export function WorkItemEstimateScreen({
             }}
           >
             <Field
-              label="Estimated minutes"
+              label={t('WorkItemEstimateScreen.estimatedMinutes')}
               name="minutes"
               type="number"
               min={1}
               max={MAX_MINUTES}
               value={minutes}
               onChange={(event) => setMinutes(event.target.value)}
-              hint={`A whole number of minutes, 1 to ${MAX_MINUTES}.`}
+              hint={`${t('WorkItemEstimateScreen.minutesHintPrefix')} ${MAX_MINUTES}.`}
               required
             />
             {save.isError ? (
-              <InlineAlert tone="danger" title="Could not save the estimate" live>
+              <InlineAlert tone="danger" title={t('WorkItemEstimateScreen.saveError')} live>
                 {describeError(save.error)}
               </InlineAlert>
             ) : null}
             <div className="tm-row">
               <Button type="submit" tone="ink" disabled={!canSave} loading={save.isPending}>
-                Save estimate
+                {t('WorkItemEstimateScreen.saveEstimate')}
               </Button>
             </div>
           </form>
@@ -132,17 +143,17 @@ export function WorkItemEstimateScreen({
 
         <section className="tm-panel tm-stack" aria-labelledby="tm-estimate-compare-heading">
           <h2 id="tm-estimate-compare-heading" className="tm-eyebrow">
-            Estimate vs actual
+            {t('WorkItemEstimateScreen.estimateVsActual')}
           </h2>
 
           {estimate.isError ? (
-            <InlineAlert tone="danger" title="Could not load the estimate" live>
+            <InlineAlert tone="danger" title={t('WorkItemEstimateScreen.loadError')} live>
               {describeError(estimate.error)}
             </InlineAlert>
           ) : null}
 
           {estimate.isPending ? (
-            <LoadingRegion label="Loading the estimate.">
+            <LoadingRegion label={t('WorkItemEstimateScreen.loading')}>
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
@@ -169,10 +180,11 @@ function ComparisonBar({
   actualMinutes: number;
   varianceMinutes: number | null;
 }) {
+  const t = useT();
   if (estimateMinutes === null) {
     return (
-      <InlineAlert tone="neutral" title="No estimate yet">
-        {`Set an estimate above. ${formatMinutes(actualMinutes)} logged so far.`}
+      <InlineAlert tone="neutral" title={t('WorkItemEstimateScreen.noEstimateTitle')}>
+        {`${t('WorkItemEstimateScreen.noEstimateSet')} ${formatMinutes(actualMinutes)} ${t('WorkItemEstimateScreen.loggedSoFar')}`}
       </InlineAlert>
     );
   }
@@ -185,16 +197,16 @@ function ComparisonBar({
   return (
     <div className="tm-stack">
       <div className="tm-row tm-row--between">
-        <span className="tm-badge" aria-label="Estimated effort">
-          Estimate {formatMinutes(estimateMinutes)}
+        <span className="tm-badge" aria-label={t('WorkItemEstimateScreen.estimatedEffort')}>
+          {t('WorkItemEstimateScreen.estimateLabel')} {formatMinutes(estimateMinutes)}
         </span>
-        <span className="tm-badge" aria-label="Logged actual effort">
-          Actual {formatMinutes(actualMinutes)}
+        <span className="tm-badge" aria-label={t('WorkItemEstimateScreen.loggedActualEffort')}>
+          {t('WorkItemEstimateScreen.actualLabel')} {formatMinutes(actualMinutes)}
         </span>
       </div>
       <div
         role="img"
-        aria-label={`Estimate ${formatMinutes(estimateMinutes)}, actual ${formatMinutes(actualMinutes)}`}
+        aria-label={`${t('WorkItemEstimateScreen.estimateLabel')} ${formatMinutes(estimateMinutes)}, ${t('WorkItemEstimateScreen.actualLower')} ${formatMinutes(actualMinutes)}`}
         className="tm-usage-meter"
       >
         <div className="tm-usage-meter__track" aria-hidden="true">
@@ -206,13 +218,17 @@ function ComparisonBar({
       </div>
       <InlineAlert
         tone={over ? 'danger' : 'neutral'}
-        title={over ? 'Over estimate' : 'Within estimate'}
+        title={
+          over
+            ? t('WorkItemEstimateScreen.overEstimate')
+            : t('WorkItemEstimateScreen.withinEstimate')
+        }
       >
         {varianceMinutes === null
           ? ''
           : over
-            ? `${formatMinutes(Math.abs(varianceMinutes))} over the estimate.`
-            : `${formatMinutes(varianceMinutes)} of estimate remaining.`}
+            ? `${formatMinutes(Math.abs(varianceMinutes))} ${t('WorkItemEstimateScreen.overTheEstimate')}`
+            : `${formatMinutes(varianceMinutes)} ${t('WorkItemEstimateScreen.remaining')}`}
       </InlineAlert>
     </div>
   );

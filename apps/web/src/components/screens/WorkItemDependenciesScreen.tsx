@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemDependenciesScreenProps {
   organizationSlug: string;
@@ -52,6 +53,7 @@ export function WorkItemDependenciesScreen({
   workItemId,
   api,
 }: WorkItemDependenciesScreenProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-links', organizationSlug, workItemId] as const;
   const [toWorkItemId, setToWorkItemId] = useState('');
@@ -99,33 +101,33 @@ export function WorkItemDependenciesScreen({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-links">
       <h2 id="tm-work-links" className="tm-eyebrow">
-        Dependencies
+        {t('WorkItemDependenciesScreen.heading')}
       </h2>
 
       {links.isPending ? (
-        <LoadingRegion label="Loading this item’s links.">
+        <LoadingRegion label={t('WorkItemDependenciesScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {links.isError ? (
-        <InlineAlert tone="danger" title="Could not load the links" live>
+        <InlineAlert tone="danger" title={t('WorkItemDependenciesScreen.loadError')} live>
           {describe(links.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('WorkItemDependenciesScreen.failureTitle')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {links.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No links yet. Add the first relationship below.</p>
+          <p className="tm-prose">{t('WorkItemDependenciesScreen.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Work item links">
+          <ul className="tm-list" aria-label={t('WorkItemDependenciesScreen.listLabel')}>
             {items.map((link) => (
               <li key={link.id} className="tm-row tm-row--between">
                 <span className="tm-prose">
@@ -136,10 +138,10 @@ export function WorkItemDependenciesScreen({
                   tone="text"
                   size="accessible"
                   loading={remove.isPending}
-                  loadingLabel="Removing"
+                  loadingLabel={t('WorkItemDependenciesScreen.removing')}
                   onClick={() => remove.mutate(link)}
                 >
-                  Remove
+                  {t('WorkItemDependenciesScreen.remove')}
                 </Button>
               </li>
             ))}
@@ -149,11 +151,11 @@ export function WorkItemDependenciesScreen({
 
       <form className="tm-stack" noValidate onSubmit={submit}>
         <Select
-          label="Relationship"
+          label={t('WorkItemDependenciesScreen.relationship')}
           name="linkType"
           value={linkType}
           onChange={(event) => setLinkType(event.target.value as WorkItemLinkType)}
-          hint="How this item relates to the other one."
+          hint={t('WorkItemDependenciesScreen.relationshipHint')}
         >
           {LINK_TYPES.map((option) => (
             <option key={option.value} value={option.value}>
@@ -162,11 +164,11 @@ export function WorkItemDependenciesScreen({
           ))}
         </Select>
         <Field
-          label="Linked work item id"
+          label={t('WorkItemDependenciesScreen.linkedId')}
           name="toWorkItemId"
           value={toWorkItemId}
           onChange={(event) => setToWorkItemId(event.target.value)}
-          hint="The id of the work item to link to. It must be one you can see."
+          hint={t('WorkItemDependenciesScreen.linkedIdHint')}
         />
         <div className="tm-row">
           <Button
@@ -174,10 +176,10 @@ export function WorkItemDependenciesScreen({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('WorkItemDependenciesScreen.adding')}
             disabled={toWorkItemId.trim() === ''}
           >
-            Add link
+            {t('WorkItemDependenciesScreen.addLink')}
           </Button>
         </div>
       </form>

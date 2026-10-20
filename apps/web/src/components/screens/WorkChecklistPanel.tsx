@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkChecklistPanelProps {
   organizationSlug: string;
@@ -37,6 +38,7 @@ function describe(error: unknown): string {
  * the list reflects the server rather than an optimistic guess.
  */
 export function WorkChecklistPanel({ organizationSlug, workItemId, api }: WorkChecklistPanelProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-checklist', organizationSlug, workItemId] as const;
   const [label, setLabel] = useState('');
@@ -85,37 +87,38 @@ export function WorkChecklistPanel({ organizationSlug, workItemId, api }: WorkCh
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-checklist">
       <h2 id="tm-work-checklist" className="tm-eyebrow">
-        Checklist
+        {t('WorkChecklistPanel.heading')}
       </h2>
 
       {checklist.isPending ? (
-        <LoadingRegion label="Loading this item’s checklist.">
+        <LoadingRegion label={t('WorkChecklistPanel.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {checklist.isError ? (
-        <InlineAlert tone="danger" title="Could not load the checklist" live>
+        <InlineAlert tone="danger" title={t('WorkChecklistPanel.loadError')} live>
           {describe(checklist.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('WorkChecklistPanel.submitError')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {checklist.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No sub-items yet. Add the first one below.</p>
+          <p className="tm-prose">{t('WorkChecklistPanel.empty')}</p>
         ) : (
           <>
             <p className="tm-prose">
-              {doneCount} of {items.length} done.
+              {doneCount} {t('WorkChecklistPanel.ofCount')} {items.length}{' '}
+              {t('WorkChecklistPanel.done')}
             </p>
-            <ul className="tm-list" aria-label="Checklist items">
+            <ul className="tm-list" aria-label={t('WorkChecklistPanel.listLabel')}>
               {items.map((item) => (
                 <li key={item.id}>
                   <Checkbox
@@ -133,12 +136,12 @@ export function WorkChecklistPanel({ organizationSlug, workItemId, api }: WorkCh
 
       <form className="tm-stack" noValidate onSubmit={submit}>
         <Field
-          label="Add a checklist item"
+          label={t('WorkChecklistPanel.addLabel')}
           name="checklistLabel"
           value={label}
           maxLength={300}
           onChange={(event) => setLabel(event.target.value)}
-          hint="A short sub-task. It is added to the end of the list."
+          hint={t('WorkChecklistPanel.addHint')}
         />
         <div className="tm-row">
           <Button
@@ -146,10 +149,10 @@ export function WorkChecklistPanel({ organizationSlug, workItemId, api }: WorkCh
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('WorkChecklistPanel.adding')}
             disabled={label.trim() === ''}
           >
-            Add sub-item
+            {t('WorkChecklistPanel.addSubItem')}
           </Button>
         </div>
       </form>

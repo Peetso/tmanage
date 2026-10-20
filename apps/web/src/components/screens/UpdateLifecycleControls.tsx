@@ -7,6 +7,7 @@ import { editProjectUpdate, unpublishProjectUpdate } from '../../lib/api/portal'
 import type { PortalUpdate } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 /** `project_updates.title` is VARCHAR(300). */
 const MAX_UPDATE_TITLE_LENGTH = 300;
@@ -40,6 +41,7 @@ export function UpdateLifecycleControls({
   organizationSlug,
   update,
 }: UpdateLifecycleControlsProps) {
+  const t = useT();
   const queries = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(update.title);
@@ -75,7 +77,7 @@ export function UpdateLifecycleControls({
 
   if (!editing) {
     return (
-      <div className="tm-row" role="group" aria-label="Update controls">
+      <div className="tm-row" role="group" aria-label={t('UpdateLifecycleControls.controls')}>
         <Button
           type="button"
           tone="ink"
@@ -86,7 +88,7 @@ export function UpdateLifecycleControls({
             setEditing(true);
           }}
         >
-          Edit
+          {t('UpdateLifecycleControls.edit')}
         </Button>
         {update.published ? (
           <Button
@@ -94,20 +96,20 @@ export function UpdateLifecycleControls({
             tone="outline"
             size="accessible"
             loading={unpublish.isPending}
-            loadingLabel="Unpublishing"
+            loadingLabel={t('UpdateLifecycleControls.unpublishing')}
             onClick={() => unpublish.mutate()}
           >
-            Unpublish
+            {t('UpdateLifecycleControls.unpublish')}
           </Button>
         ) : null}
         {unpublish.isError ? (
-          <InlineAlert tone="danger" title="Could not unpublish the update" live>
+          <InlineAlert tone="danger" title={t('UpdateLifecycleControls.unpublishError')} live>
             {describe(unpublish.error)}
           </InlineAlert>
         ) : null}
         {unpublish.isSuccess ? (
-          <InlineAlert tone="success" title="Update unpublished" live>
-            It is no longer visible in the client portal.
+          <InlineAlert tone="success" title={t('UpdateLifecycleControls.unpublished')} live>
+            {t('UpdateLifecycleControls.unpublishedBody')}
           </InlineAlert>
         ) : null}
       </div>
@@ -117,7 +119,7 @@ export function UpdateLifecycleControls({
   return (
     <form
       className="tm-stack"
-      aria-label="Edit update"
+      aria-label={t('UpdateLifecycleControls.editForm')}
       onSubmit={(event) => {
         event.preventDefault();
         if (canSave) save.mutate();
@@ -125,7 +127,7 @@ export function UpdateLifecycleControls({
     >
       <div className="tm-field">
         <label className="tm-field__label" htmlFor={titleId}>
-          Title
+          {t('UpdateLifecycleControls.title')}
         </label>
         <input
           id={titleId}
@@ -139,7 +141,7 @@ export function UpdateLifecycleControls({
 
       <div className="tm-field">
         <label className="tm-field__label" htmlFor={bodyId}>
-          Update
+          {t('UpdateLifecycleControls.update')}
         </label>
         <textarea
           id={bodyId}
@@ -152,7 +154,7 @@ export function UpdateLifecycleControls({
       </div>
 
       {save.isError ? (
-        <InlineAlert tone="danger" title="Could not save the edit" live>
+        <InlineAlert tone="danger" title={t('UpdateLifecycleControls.saveError')} live>
           {describe(save.error)}
         </InlineAlert>
       ) : null}
@@ -164,9 +166,9 @@ export function UpdateLifecycleControls({
           size="accessible"
           disabled={!canSave}
           loading={save.isPending}
-          loadingLabel="Saving"
+          loadingLabel={t('UpdateLifecycleControls.saving')}
         >
-          Save changes
+          {t('UpdateLifecycleControls.save')}
         </Button>
         <Button
           type="button"
@@ -175,7 +177,7 @@ export function UpdateLifecycleControls({
           disabled={save.isPending}
           onClick={() => setEditing(false)}
         >
-          Cancel
+          {t('UpdateLifecycleControls.cancel')}
         </Button>
       </div>
     </form>

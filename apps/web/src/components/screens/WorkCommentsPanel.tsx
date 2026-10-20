@@ -6,6 +6,7 @@ import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { addWorkComment, listWorkComments, type WorkComment } from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkCommentsPanelProps {
   organizationSlug: string;
@@ -40,6 +41,7 @@ function formatWhen(iso: string): string {
  * the server rather than an optimistic guess. Comments are internal-only.
  */
 export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCommentsPanelProps) {
+  const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-comments', organizationSlug, workItemId] as const;
   const bodyId = useId();
@@ -78,33 +80,33 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-comments">
       <h2 id="tm-work-comments" className="tm-eyebrow">
-        Activity
+        {t('WorkCommentsPanel.heading')}
       </h2>
 
       {comments.isPending ? (
-        <LoadingRegion label="Loading this item’s comments.">
+        <LoadingRegion label={t('WorkCommentsPanel.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {comments.isError ? (
-        <InlineAlert tone="danger" title="Could not load the activity" live>
+        <InlineAlert tone="danger" title={t('WorkCommentsPanel.loadError')} live>
           {describe(comments.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('WorkCommentsPanel.submitError')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {comments.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No comments yet. Add the first one below.</p>
+          <p className="tm-prose">{t('WorkCommentsPanel.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Comments">
+          <ul className="tm-list" aria-label={t('WorkCommentsPanel.listLabel')}>
             {items.map((comment) => (
               <li key={comment.id} className="tm-stack">
                 <p className="tm-prose">{comment.body}</p>
@@ -120,7 +122,7 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
       <form className="tm-stack" noValidate onSubmit={submit}>
         <div className="tm-field">
           <label className="tm-field__label" htmlFor={bodyId}>
-            Add a comment
+            {t('WorkCommentsPanel.addLabel')}
           </label>
           <textarea
             id={bodyId}
@@ -130,9 +132,7 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
             maxLength={MAX_BODY_LENGTH}
             onChange={(event) => setBody(event.target.value)}
           />
-          <span className="tm-field__hint">
-            An internal note about this work item. It is added to the end of the activity.
-          </span>
+          <span className="tm-field__hint">{t('WorkCommentsPanel.hint')}</span>
         </div>
         <div className="tm-row">
           <Button
@@ -140,10 +140,10 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('WorkCommentsPanel.adding')}
             disabled={body.trim() === ''}
           >
-            Add comment
+            {t('WorkCommentsPanel.add')}
           </Button>
         </div>
       </form>

@@ -11,6 +11,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface WorkItemActivityFeedProps {
   organizationSlug: string;
@@ -53,6 +54,7 @@ export function WorkItemActivityFeed({
   client,
 }: WorkItemActivityFeedProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const activity = useQuery({
     queryKey: ['work-item-activity', organizationSlug, workItemId],
@@ -69,42 +71,51 @@ export function WorkItemActivityFeed({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow="Work item"
-      title="Activity"
-      description="The item’s history — status changes and comments — newest first."
+      eyebrow={t('WorkItemActivityFeed.eyebrow')}
+      title={t('WorkItemActivityFeed.title')}
+      description={t('WorkItemActivityFeed.description')}
     >
       <div className="tm-wk-page tm-stack">
-        <nav className="tm-segmented tm-wk-subnav" aria-label="This work item">
-          <Link href={`/${organizationSlug}/work/${workItemId}`}>Overview</Link>
-          <Link href={`/${organizationSlug}/work/${workItemId}/activity`} aria-current="page">
-            Activity
+        <nav
+          className="tm-segmented tm-wk-subnav"
+          aria-label={t('WorkItemActivityFeed.subnavLabel')}
+        >
+          <Link href={`/${organizationSlug}/work/${workItemId}`}>
+            {t('WorkItemActivityFeed.overview')}
           </Link>
-          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`}>Time</Link>
-          <Link href={`/${organizationSlug}/work/${workItemId}/estimate`}>Estimate</Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/activity`} aria-current="page">
+            {t('WorkItemActivityFeed.activity')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/time-logs`}>
+            {t('WorkItemActivityFeed.time')}
+          </Link>
+          <Link href={`/${organizationSlug}/work/${workItemId}/estimate`}>
+            {t('WorkItemActivityFeed.estimate')}
+          </Link>
         </nav>
         <section className="tm-panel tm-stack" aria-labelledby="tm-work-activity">
           <h2 id="tm-work-activity" className="tm-eyebrow">
-            Activity
+            {t('WorkItemActivityFeed.activity')}
           </h2>
 
           {activity.isPending ? (
-            <LoadingRegion label="Loading this item’s activity.">
+            <LoadingRegion label={t('WorkItemActivityFeed.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {activity.isError ? (
-            <InlineAlert tone="danger" title="Could not load the activity" live>
+            <InlineAlert tone="danger" title={t('WorkItemActivityFeed.loadError')} live>
               {describe(activity.error)}
             </InlineAlert>
           ) : null}
 
           {activity.data ? (
             entries.length === 0 ? (
-              <p className="tm-prose">Nothing has happened on this item yet.</p>
+              <p className="tm-prose">{t('WorkItemActivityFeed.empty')}</p>
             ) : (
-              <ol className="tm-wk-story" aria-label="Activity timeline">
+              <ol className="tm-wk-story" aria-label={t('WorkItemActivityFeed.timelineLabel')}>
                 {entries.map((entry, index) => (
                   <li
                     key={`${entry.kind}:${entry.id}`}
@@ -117,10 +128,10 @@ export function WorkItemActivityFeed({
                     <span className="tm-wk-story__what">
                       {entry.actorId
                         ? `${memberDisplayName(entry.actorId, directory.members, directory.isPending)} — `
-                        : 'System — '}
+                        : t('WorkItemActivityFeed.system')}
                       {entry.summary}
                       {entry.via === 'ai_assistant' ? (
-                        <span className="tm-wk-story__via"> · via AI assistant</span>
+                        <span className="tm-wk-story__via"> {t('WorkItemActivityFeed.viaAi')}</span>
                       ) : null}
                     </span>
                   </li>

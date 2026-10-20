@@ -5,6 +5,7 @@ import { Field, InlineAlert } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { apiBaseUrl } from '../../lib/api/browser-client';
 import { usageExportUrl, MAX_USAGE_EXPORT_WINDOW_DAYS } from '../../lib/api/billing-usage-export';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface UsageExportScreenProps {
@@ -52,18 +53,19 @@ export function UsageExportScreen({
 }: UsageExportScreenProps) {
   const [fromDay, setFromDay] = useState('');
   const [toDay, setToDay] = useState('');
+  const t = useT();
 
   const windowError = useMemo(() => {
     if (fromDay === '' || toDay === '') return null;
     const fromMs = Date.parse(startOfDay(fromDay));
     const toMs = Date.parse(endOfDay(toDay));
-    if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return 'Enter a valid from and to date.';
-    if (fromMs > toMs) return 'The "to" date must not be earlier than the "from" date.';
+    if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return t('UsageExportScreen.invalidDates');
+    if (fromMs > toMs) return t('UsageExportScreen.invertedWindow');
     if (toMs - fromMs > MAX_USAGE_EXPORT_WINDOW_DAYS * MS_PER_DAY) {
-      return `The window must not exceed ${MAX_USAGE_EXPORT_WINDOW_DAYS} days. Narrow it and try again.`;
+      return `${t('UsageExportScreen.tooWidePrefix')} ${MAX_USAGE_EXPORT_WINDOW_DAYS} ${t('UsageExportScreen.tooWideSuffix')}`;
     }
     return null;
-  }, [fromDay, toDay]);
+  }, [fromDay, toDay, t]);
 
   const ready = fromDay !== '' && toDay !== '' && windowError === null;
 
@@ -80,23 +82,26 @@ export function UsageExportScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing"
-      title="Export usage"
-      description="Download a CSV of the organization's usage counters for a bounded date window."
+      eyebrow={t('UsageExportScreen.eyebrow')}
+      title={t('UsageExportScreen.title')}
+      description={t('UsageExportScreen.description')}
     >
       <div className="tm-bil">
-        <form className="tm-bil-card tm-bil-main tm-bil-export" aria-label="Usage export filters">
-          <h2 className="tm-bil-card__title">Date window</h2>
+        <form
+          className="tm-bil-card tm-bil-main tm-bil-export"
+          aria-label={t('UsageExportScreen.filtersLabel')}
+        >
+          <h2 className="tm-bil-card__title">{t('UsageExportScreen.dateWindow')}</h2>
           <div className="tm-row tm-row--wrap tm-bil-request-fields">
             <Field
-              label="From"
+              label={t('UsageExportScreen.from')}
               type="date"
               value={fromDay}
               onChange={(event) => setFromDay(event.currentTarget.value)}
               required
             />
             <Field
-              label="To"
+              label={t('UsageExportScreen.to')}
               type="date"
               value={toDay}
               onChange={(event) => setToDay(event.currentTarget.value)}
@@ -113,24 +118,22 @@ export function UsageExportScreen({
                 href={href}
                 download="usage-export.csv"
               >
-                Export CSV
+                {t('UsageExportScreen.exportCsv')}
               </a>
             ) : windowError ? null : (
-              <InlineAlert tone="neutral">
-                Choose a from and to date to enable the export.
-              </InlineAlert>
+              <InlineAlert tone="neutral">{t('UsageExportScreen.choosePrompt')}</InlineAlert>
             )}
           </div>
         </form>
         <section className="tm-bil-card tm-bil-card--paper" aria-labelledby="tm-usage-export-note">
           <h2 id="tm-usage-export-note" className="tm-bil-eyebrow">
-            What the file holds
+            {t('UsageExportScreen.whatFileHolds')}
           </h2>
           <p className="tm-bil-card__body">
-            The organization&rsquo;s usage counters for the window, as a CSV a spreadsheet opens.
-            The window can be at most {MAX_USAGE_EXPORT_WINDOW_DAYS} days.
+            {t('UsageExportScreen.fileHoldsBody')} {t('UsageExportScreen.windowMaxPrefix')}{' '}
+            {MAX_USAGE_EXPORT_WINDOW_DAYS} {t('UsageExportScreen.windowMaxSuffix')}
           </p>
-          <p className="tm-bil-card__foot">Only owners can export usage.</p>
+          <p className="tm-bil-card__foot">{t('UsageExportScreen.onlyOwners')}</p>
         </section>
       </div>
     </AppShell>

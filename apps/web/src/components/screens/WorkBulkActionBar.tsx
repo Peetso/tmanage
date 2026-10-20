@@ -13,6 +13,7 @@ import {
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 /** The minimum a row needs to be selected and transitioned in bulk. */
 export interface BulkSelectableWorkItem {
@@ -62,6 +63,7 @@ export function WorkBulkActionBar({
   api,
   onApplied,
 }: WorkBulkActionBarProps) {
+  const t = useT();
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState<WorkItemState>('done');
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -102,14 +104,14 @@ export function WorkBulkActionBar({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-work-bulk">
       <h2 id="tm-work-bulk" className="tm-eyebrow">
-        Bulk status change
+        {t('WorkBulkActionBar.heading')}
       </h2>
 
       {items.length === 0 ? (
-        <p className="tm-prose">No work items to act on.</p>
+        <p className="tm-prose">{t('WorkBulkActionBar.empty')}</p>
       ) : (
         <>
-          <ul className="tm-list" aria-label="Select work items to change">
+          <ul className="tm-list" aria-label={t('WorkBulkActionBar.selectLabel')}>
             {items.map((item) => (
               <li key={item.id}>
                 <Checkbox
@@ -123,7 +125,7 @@ export function WorkBulkActionBar({
           </ul>
 
           <Select
-            label="Move selected to"
+            label={t('WorkBulkActionBar.moveSelectedTo')}
             value={target}
             disabled={apply.isPending}
             onChange={(event) => setTarget(event.target.value as WorkItemState)}
@@ -142,14 +144,14 @@ export function WorkBulkActionBar({
             onClick={() => apply.mutate()}
           >
             {chosen.length === 0
-              ? 'Select items to change'
-              : `Change ${chosen.length} to ${stateLabel(target)}`}
+              ? t('WorkBulkActionBar.selectToChange')
+              : `${t('WorkBulkActionBar.changePrefix')} ${chosen.length} ${t('WorkBulkActionBar.changeTo')} ${stateLabel(target)}`}
           </Button>
         </>
       )}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('WorkBulkActionBar.failureTitle')} live>
           {failure}
         </InlineAlert>
       ) : null}
@@ -157,16 +159,16 @@ export function WorkBulkActionBar({
       {outcome ? (
         <div className="tm-stack">
           <Announce
-            message={`${outcome.appliedCount} of ${outcome.results.length} moved to ${stateLabel(
+            message={`${outcome.appliedCount} ${t('WorkBulkActionBar.of')} ${outcome.results.length} ${t('WorkBulkActionBar.movedTo')} ${stateLabel(
               outcome.targetStatus,
             )}.`}
           />
           <p className="tm-prose">
-            {outcome.appliedCount} of {outcome.results.length} moved to{' '}
-            {stateLabel(outcome.targetStatus)}.
+            {outcome.appliedCount} {t('WorkBulkActionBar.of')} {outcome.results.length}{' '}
+            {t('WorkBulkActionBar.movedTo')} {stateLabel(outcome.targetStatus)}.
           </p>
           {outcome.results.some((result) => result.outcome !== 'applied') ? (
-            <ul className="tm-list" aria-label="Items that did not move">
+            <ul className="tm-list" aria-label={t('WorkBulkActionBar.didNotMoveLabel')}>
               {outcome.results
                 .filter((result) => result.outcome !== 'applied')
                 .map((result) => (
