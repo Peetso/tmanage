@@ -409,8 +409,11 @@ describe('REQ-03 the commitment review', () => {
       commitment: '2026-09-10',
     });
 
-    // REQ-002 made the work and the acceptance one transaction; the screen says which happened.
-    expect(await screen.findByText(/created in the same transaction/)).toBeInTheDocument();
+    // REQ-002 made the work and the acceptance one transaction; the screen says which happened
+    // in plain English (CQ-07).
+    expect(
+      await screen.findByText('A work item was created for this request.'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open the work item' })).toHaveAttribute(
       'href',
       '/northstar/work/wi-new',

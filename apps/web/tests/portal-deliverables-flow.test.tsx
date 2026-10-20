@@ -38,6 +38,22 @@ function withQuery(children: ReactNode) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  // The portal header's provider/client names come from the session's organization list, not the
+  // props (CQ-03 dropped the sample-company fallback). Seed it so the empty-state names the real
+  // delivery team instead of blanking it.
+  client.setQueryData(
+    ['shell', 'organizations'],
+    [
+      {
+        id: 'o1',
+        slug: 'northstar',
+        name: 'Northstar Studio',
+        audience: 'client',
+        role: 'client',
+        clientOrganizationName: 'Atlas Hospitality',
+      },
+    ],
+  );
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 

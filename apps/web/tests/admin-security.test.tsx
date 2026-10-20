@@ -10,8 +10,10 @@ import { expectNoAxeViolations } from './axe';
  * Organization security settings (x176) — the Administration security screen.
  *
  * The screen is a faithful reader of the API's stored posture: this mounts it against a client that
- * answers the security read, and asserts the 2FA toggle and the IP allowlist editor render with the
- * loaded values, and that the page has no axe violation jsdom can see (A11Y-01).
+ * answers the security read, and asserts the 2FA toggle renders with the loaded value and that the
+ * trusted-network-ranges row links out to the dedicated IP allowlist screen (CQ-16, ADM-14 — the
+ * ranges are edited in one place, not inline here), and that the page has no axe violation jsdom can
+ * see (A11Y-01).
  */
 
 function securityClient(): ApiClient {
@@ -55,8 +57,12 @@ describe('AdminSecurityScreen — Administration security (x176)', () => {
     });
     expect(toggle).toBeChecked();
 
-    const allowlist = screen.getByLabelText('IP allowlist');
-    expect(allowlist).toHaveValue('203.0.113.0/24, 2001:db8::/32');
+    // The IP allowlist moved to its own screen (CQ-16); this row links out to it rather than
+    // editing the ranges inline.
+    expect(screen.getByRole('link', { name: 'Ranges' })).toHaveAttribute(
+      'href',
+      '/northstar-studio/admin/ip-allowlist',
+    );
 
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled();
 

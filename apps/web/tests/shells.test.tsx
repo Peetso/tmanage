@@ -1,4 +1,6 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { AppShell } from '../src/components/shell/AppShell';
 import { ClientPortalShell } from '../src/components/shell/ClientPortalShell';
@@ -14,7 +16,29 @@ import { expectNoAxeViolations } from './axe';
  * link, a `<main>`, one `<h1>`, and navigation that says which destination is current. They
  * are asserted on the shells rather than on each of the nine screens because that is where
  * the guarantee lives — a screen cannot omit a landmark it does not render.
+ *
+ * The names in the header come from the session's organization list, not the prop (CQ-03 dropped
+ * the design's sample-company fallback). The assertions about the shown name therefore seed that
+ * list through a `QueryClientProvider`; the landmark/navigation assertions keep rendering the bare
+ * shell, which needs no client.
  */
+
+/** Seeds the shell's organization list so the header resolves the real name instead of blanking it. */
+function withSeededOrg(children: ReactNode, summary: Record<string, unknown>) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  client.setQueryData(['shell', 'organizations'], [summary]);
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+/** The provider's own org row behind the portal: its `name` is the delivery team, `clientOrganizationName` the client. */
+const PORTAL_ORG = {
+  id: 'o1',
+  slug: 'northstar',
+  name: 'Northstar Studio',
+  audience: 'client',
+  role: 'client',
+  clientOrganizationName: 'Atlas Hospitality',
+};
 
 describe('AppShell', () => {
   function renderShell() {
@@ -43,7 +67,26 @@ describe('AppShell', () => {
   });
 
   it('names the organization on every screen it wraps', () => {
-    renderShell();
+    render(
+      withSeededOrg(
+        <AppShell
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          activeNavigationId="work"
+          title="Work"
+        >
+          <p>Canvas</p>
+        </AppShell>,
+        {
+          id: 'o1',
+          slug: 'northstar',
+          name: 'Northstar Studio',
+          audience: 'internal',
+          role: 'owner',
+          clientOrganizationName: null,
+        },
+      ),
+    );
     expect(screen.getByText('Northstar Studio')).toBeInTheDocument();
   });
 
@@ -121,7 +164,21 @@ describe('ClientPortalShell', () => {
   }
 
   it('leads with the client, and names the delivery team beneath', () => {
-    renderShell();
+    render(
+      withSeededOrg(
+        <ClientPortalShell
+          organizationSlug="northstar"
+          clientName="Atlas Hospitality"
+          providerName="Northstar Studio"
+          projectName="Website relaunch"
+          activeNavigationId="deliverables"
+          title="Deliverables"
+        >
+          <p>Portal canvas</p>
+        </ClientPortalShell>,
+        PORTAL_ORG,
+      ),
+    );
     expect(screen.getByText('Atlas Hospitality')).toBeInTheDocument();
     expect(screen.getByText(/Delivered by Northstar Studio/)).toBeInTheDocument();
   });
@@ -155,19 +212,36 @@ describe('ClientPortalShell', () => {
   });
 
   it('shows the preview bar only when an internal person asked for it', () => {
-    const { rerender } = renderShell(false);
+    const { rerender } = render(
+      withSeededOrg(
+        <ClientPortalShell
+          organizationSlug="northstar"
+          clientName="Atlas Hospitality"
+          providerName="Northstar Studio"
+          activeNavigationId="deliverables"
+          title="Deliverables"
+          preview={false}
+        >
+          <p>Portal canvas</p>
+        </ClientPortalShell>,
+        PORTAL_ORG,
+      ),
+    );
     expect(screen.queryByText('Client preview')).toBeNull();
 
     rerender(
-      <ClientPortalShell
-        organizationSlug="northstar"
-        clientName="Atlas Hospitality"
-        providerName="Northstar Studio"
-        title="Deliverables"
-        preview
-      >
-        <p>Portal canvas</p>
-      </ClientPortalShell>,
+      withSeededOrg(
+        <ClientPortalShell
+          organizationSlug="northstar"
+          clientName="Atlas Hospitality"
+          providerName="Northstar Studio"
+          title="Deliverables"
+          preview
+        >
+          <p>Portal canvas</p>
+        </ClientPortalShell>,
+        PORTAL_ORG,
+      ),
     );
     expect(screen.getByText('Client preview')).toBeInTheDocument();
     expect(screen.getByText(/what Atlas Hospitality sees/i)).toBeInTheDocument();

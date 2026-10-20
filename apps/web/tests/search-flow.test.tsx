@@ -13,10 +13,10 @@ import { expectNoAxeViolations } from './axe';
  * The tenant scoping, relation filter, ranking and bound are proved over fakes in
  * `apps/api/src/modules/search/search.service.test.ts`; nothing here re-proves them. What only
  * this file can prove is what the *screen* does with the answer: it renders the server's hits as one
- * flat list in the server's ranked order without re-sorting or re-grouping, links a work-item hit to
- * its detail page, leaves other kinds as text, runs the search the person typed, shows the empty
- * state, and carries an accessible structure (a search landmark, a labelled results list) with no
- * axe violation jsdom can detect.
+ * flat list in the server's ranked order without re-sorting or re-grouping, links a work-item,
+ * document or project hit to its detail page (CQ-13), leaves the kinds with no per-item route as
+ * text, runs the search the person typed, shows the empty state, and carries an accessible structure
+ * (a search landmark, a labelled results list) with no axe violation jsdom can detect.
  */
 
 interface Call {
@@ -101,14 +101,17 @@ describe('SearchScreen', () => {
 
     const list = await screen.findByRole('list', { name: /search results/i });
 
-    // The work item links to its detail page…
+    // The work item links to its detail page, and a document links to its doc page (CQ-13)…
     expect(within(list).getByRole('link', { name: 'Alpha task' })).toHaveAttribute(
       'href',
       '/acme/work/w1',
     );
-    // …while other kinds are named but not linked (no per-item route yet): only the one link.
-    expect(within(list).getAllByRole('link')).toHaveLength(1);
-    expect(within(list).getByText('Alpha brief')).toBeInTheDocument();
+    expect(within(list).getByRole('link', { name: 'Alpha brief' })).toHaveAttribute(
+      'href',
+      '/acme/docs/d1',
+    );
+    // …while a meeting is named but not linked (no per-item route yet): two links in all.
+    expect(within(list).getAllByRole('link')).toHaveLength(2);
     expect(within(list).getByText('Alpha sync')).toBeInTheDocument();
 
     // Order is the server's ranking, not re-grouped by kind: w1, d1, m1 as returned.

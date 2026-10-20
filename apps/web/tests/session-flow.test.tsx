@@ -67,10 +67,12 @@ describe('ID-01 development sign-in', () => {
 
     await waitFor(() => expect(onSignedIn).toHaveBeenCalledTimes(1));
 
-    expect(calls).toHaveLength(1);
-    expect(calls[0]?.url).toBe('https://api.example.test/v1/dev/sessions');
-    expect(calls[0]?.init.method).toBe('POST');
-    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({
+    // The screen also probes /v1/auth/google on mount (CQ-01), so assert on the dev route itself.
+    const devCalls = calls.filter((call) => call.url.includes('/v1/dev/sessions'));
+    expect(devCalls).toHaveLength(1);
+    expect(devCalls[0]?.url).toBe('https://api.example.test/v1/dev/sessions');
+    expect(devCalls[0]?.init.method).toBe('POST');
+    expect(JSON.parse(String(devCalls[0]?.init.body))).toEqual({
       userId: '0198f0aa-0000-7000-8000-000000000001',
     });
     expect(screen.getByText('Session started')).toBeInTheDocument();
@@ -105,8 +107,12 @@ describe('ID-01 development sign-in', () => {
     const client = new ApiClient({
       baseUrl: 'https://api.example.test',
       csrfCookieName: 'tmanage_session_csrf',
-      fetch: ((_input: RequestInfo | URL, init?: RequestInit) => {
-        csrfHeaders.push(new Headers(init?.headers).get('x-csrf-token'));
+      fetch: ((input: RequestInfo | URL, init?: RequestInit) => {
+        // Skip the on-mount Google-availability probe (CQ-01); this test is about the dev
+        // sign-in's token and the mutation that follows it.
+        if (!String(input).includes('/v1/auth/google')) {
+          csrfHeaders.push(new Headers(init?.headers).get('x-csrf-token'));
+        }
         return Promise.resolve(json({ csrfToken: 'from-the-api', expiresAt: 'x' }, 201));
       }) as typeof globalThis.fetch,
       // The cookie is not readable — the API on another host.
@@ -126,8 +132,9 @@ describe('ID-01 development sign-in', () => {
   it('trims the user id before sending it', async () => {
     const user = userEvent.setup();
     const bodies: string[] = [];
-    const client = clientOver((_url, init) => {
-      bodies.push(String(init.body));
+    const client = clientOver((url, init) => {
+      // Only the dev sign-in POST, not the on-mount Google-availability probe (CQ-01).
+      if (url.includes('/v1/dev/sessions')) bodies.push(String(init.body));
       return json({ csrfToken: 'abc', expiresAt: 'x' }, 201);
     });
 
@@ -150,7 +157,9 @@ describe('ID-01 development sign-in', () => {
     render(<SignInScreen client={client} developmentSignInEnabled />);
     await user.click(screen.getByRole('button', { name: /Start a development session/ }));
 
-    expect(fetched).not.toHaveBeenCalled();
+    // The screen may probe /v1/auth/google on mount (CQ-01); what must not happen is a dev
+    // sign-in request with no user id.
+    expect(fetched).not.toHaveBeenCalledWith(expect.stringContaining('/v1/dev/sessions'));
     expect(screen.getByText(/Enter the user id to sign in as/)).toBeInTheDocument();
   });
 
