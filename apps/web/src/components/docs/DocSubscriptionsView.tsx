@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   addDocSubscription,
   getDocSubscriptionStatus,
@@ -35,6 +36,7 @@ export function DocSubscriptionToggle({
   client,
 }: DocSubscriptionToggleProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const status = useQuery({
@@ -72,16 +74,20 @@ export function DocSubscriptionToggle({
         size="accessible"
         aria-pressed={subscribed}
         loading={toggle.isPending}
-        loadingLabel={subscribed ? 'Unfollowing' : 'Following'}
+        loadingLabel={
+          subscribed
+            ? t('DocSubscriptionsView.loadingUnfollow')
+            : t('DocSubscriptionsView.loadingFollow')
+        }
         disabled={status.isPending}
         onClick={() => toggle.mutate()}
       >
-        {subscribed ? 'Following' : 'Follow'}
+        {subscribed ? t('DocSubscriptionsView.stateFollowing') : t('DocSubscriptionsView.follow')}
       </Button>
 
       {toggle.isError ? (
-        <InlineAlert tone="danger" title="Could not update your subscription" live>
-          {describeError(toggle.error)}
+        <InlineAlert tone="danger" title={t('DocSubscriptionsView.toggleErrorTitle')} live>
+          {describeError(toggle.error, t)}
         </InlineAlert>
       ) : null}
     </div>
@@ -115,6 +121,7 @@ export function DocSubscriptionsView({
   client,
 }: DocSubscriptionsViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const subscriptions = useQuery({
     queryKey: ['doc-subscriptions', organizationSlug],
@@ -135,25 +142,25 @@ export function DocSubscriptionsView({
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-subscriptions-heading">
         <h2 id="tm-subscriptions-heading" className="tm-eyebrow">
-          Documents you follow
+          {t('DocSubscriptionsView.heading')}
         </h2>
 
         {subscriptions.isError ? (
-          <InlineAlert tone="danger" title="Could not load your subscriptions" live>
-            {describeError(subscriptions.error)}
+          <InlineAlert tone="danger" title={t('DocSubscriptionsView.loadErrorTitle')} live>
+            {describeError(subscriptions.error, t)}
           </InlineAlert>
         ) : null}
 
         {subscriptions.isPending ? (
-          <LoadingRegion label="Loading your subscriptions.">
+          <LoadingRegion label={t('DocSubscriptionsView.loadingSubscriptions')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
         ) : null}
 
         {!subscriptions.isPending && !subscriptions.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral" title="No subscriptions yet">
-            Follow a document to keep it here. Use the follow control beside a document to add it.
+          <InlineAlert tone="neutral" title={t('DocSubscriptionsView.emptyTitle')}>
+            {t('DocSubscriptionsView.emptyBody')}
           </InlineAlert>
         ) : null}
 
@@ -165,16 +172,17 @@ export function DocSubscriptionsView({
             // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
             tabIndex={0}
             role="region"
-            aria-label="Documents you follow"
+            aria-label={t('DocSubscriptionsView.heading')}
           >
             <table className="tm-table">
               <caption className="tm-visually-hidden">
-                The documents you follow, newest first, {rows.length} shown.
+                {t('DocSubscriptionsView.captionPrefix')} {rows.length}{' '}
+                {t('DocSubscriptionsView.shownSuffix')}
               </caption>
               <thead>
                 <tr>
-                  <th scope="col">Document</th>
-                  <th scope="col">Followed at</th>
+                  <th scope="col">{t('DocSubscriptionsView.columnDocument')}</th>
+                  <th scope="col">{t('DocSubscriptionsView.columnFollowedAt')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -195,8 +203,8 @@ export function DocSubscriptionsView({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: ReturnType<typeof useT>): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('DocSubscriptionsView.apiNoAnswer');
+  return t('DocSubscriptionsView.genericError');
 }

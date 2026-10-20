@@ -4,17 +4,19 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/admin.css';
 
 /** The Platform admin destinations the section map can mark as current. */
 export type PlatformSection = 'overview' | 'companies' | 'people' | 'settings' | 'audit';
 
-const SECTIONS: readonly { id: PlatformSection; label: string; href: string }[] = [
-  { id: 'overview', label: 'Overview', href: '/platform' },
-  { id: 'companies', label: 'Companies', href: '/platform/companies' },
-  { id: 'people', label: 'People', href: '/platform/people' },
-  { id: 'settings', label: 'Settings', href: '/platform/settings' },
-  { id: 'audit', label: 'Audit log', href: '/platform/audit' },
+const SECTIONS: readonly { id: PlatformSection; labelKey: MessageKey; href: string }[] = [
+  { id: 'overview', labelKey: 'PlatformShell.overview', href: '/platform' },
+  { id: 'companies', labelKey: 'PlatformShell.companies', href: '/platform/companies' },
+  { id: 'people', labelKey: 'PlatformShell.people', href: '/platform/people' },
+  { id: 'settings', labelKey: 'PlatformShell.settings', href: '/platform/settings' },
+  { id: 'audit', labelKey: 'PlatformShell.auditLog', href: '/platform/audit' },
 ];
 
 export interface PlatformShellProps {
@@ -42,14 +44,15 @@ export function PlatformShell({
   actions,
   children,
 }: PlatformShellProps) {
+  const t = useT();
   return (
     <LiveAnnouncer>
       <div className="tm-app">
         <SkipLink targetId="tm-main" />
         <div className="tm-app__frame">
-          <nav className="tm-rail" aria-label="Primary">
+          <nav className="tm-rail" aria-label={t('PlatformShell.ariaPrimary')}>
             <Link href="/organizations" className="tm-rail__brand">
-              <Wordmark variant="icon" label="Your organizations" />
+              <Wordmark variant="icon" label={t('PlatformShell.yourOrganizations')} />
             </Link>
             <span className="tm-rail__rule" aria-hidden="true" />
             <ul className="tm-rail__list">
@@ -58,7 +61,7 @@ export function PlatformShell({
                   <span className="tm-rail__orb" aria-hidden="true">
                     ⚙
                   </span>
-                  <span className="tm-rail__label">Platform</span>
+                  <span className="tm-rail__label">{t('PlatformShell.platform')}</span>
                 </Link>
               </li>
             </ul>
@@ -70,7 +73,7 @@ export function PlatformShell({
                 <p className="tm-canvas-header__context">
                   <span className="tm-canvas-header__org">TManage</span>
                   <span aria-hidden="true"> · </span>
-                  <span>{['Platform admin', ...crumbs].join(' / ')}</span>
+                  <span>{[t('PlatformShell.platformAdmin'), ...crumbs].join(' / ')}</span>
                 </p>
                 <div className="tm-canvas-header__title-row">
                   <h1 className="tm-canvas-header__title">{title}</h1>
@@ -83,10 +86,10 @@ export function PlatformShell({
             </header>
 
             <div className="tm-app__columns">
-              <nav className="tm-context-rail" aria-label="Within this section">
+              <nav className="tm-context-rail" aria-label={t('PlatformShell.withinSection')}>
                 <div className="tm-cc-sections">
                   <div>
-                    <p className="tm-cc-sections__label">Platform admin</p>
+                    <p className="tm-cc-sections__label">{t('PlatformShell.platformAdmin')}</p>
                     <ul className="tm-cc-sections__group">
                       {SECTIONS.map((item) => (
                         <li key={item.id}>
@@ -95,7 +98,7 @@ export function PlatformShell({
                             className="tm-cc-sections__item"
                             {...(item.id === section ? { 'aria-current': 'page' as const } : {})}
                           >
-                            {item.label}
+                            {t(item.labelKey)}
                           </Link>
                         </li>
                       ))}

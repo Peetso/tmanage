@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   addProjectFavorite,
   getProjectFavoriteStatus,
@@ -30,6 +31,7 @@ export interface FavoriteStarProps {
  */
 export function FavoriteStar({ organizationSlug, projectId, client }: FavoriteStarProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const status = useQuery({
@@ -67,24 +69,24 @@ export function FavoriteStar({ organizationSlug, projectId, client }: FavoriteSt
         size="accessible"
         aria-pressed={favorited}
         loading={toggle.isPending}
-        loadingLabel={favorited ? 'Removing' : 'Saving'}
+        loadingLabel={favorited ? t('FavoriteStar.removing') : t('FavoriteStar.saving')}
         disabled={status.isPending}
         onClick={() => toggle.mutate()}
       >
-        {favorited ? 'Favorited' : 'Favorite'}
+        {favorited ? t('FavoriteStar.favorited') : t('FavoriteStar.favorite')}
       </Button>
 
       {toggle.isError ? (
-        <InlineAlert tone="danger" title="Could not update the favorite" live>
-          {describeError(toggle.error)}
+        <InlineAlert tone="danger" title={t('FavoriteStar.errorTitle')} live>
+          {describeError(toggle.error, t)}
         </InlineAlert>
       ) : null}
     </div>
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: ReturnType<typeof useT>): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('FavoriteStar.apiNoAnswer');
+  return t('FavoriteStar.genericError');
 }

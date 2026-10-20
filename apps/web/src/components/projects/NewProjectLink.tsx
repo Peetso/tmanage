@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { hasCapability, isInternalRole } from '@tmanage/domain';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { listOrganizations } from '../../lib/api/organizations';
 import type { OrganizationSummary } from '../../lib/api/organizations';
 import type { ApiClient } from '../../lib/api/client';
@@ -59,11 +60,12 @@ export interface NewProjectLinkProps {
 export function NewProjectLink({
   organizationSlug,
   client,
-  label = 'New project',
+  label,
   tone = 'ink',
   size = 'compact',
   className,
 }: NewProjectLinkProps) {
+  const t = useT();
   const allowed = useCanCreateProjects(organizationSlug, client);
   if (!allowed) return null;
   const classes = ['tm-button', `tm-button--${tone}`, `tm-button--${size}`, className]
@@ -71,7 +73,7 @@ export function NewProjectLink({
     .join(' ');
   return (
     <Link href={`/${organizationSlug}/projects/new`} className={classes}>
-      {label}
+      {label ?? t('NewProjectLink.newProject')}
     </Link>
   );
 }

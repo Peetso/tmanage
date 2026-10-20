@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { getDocumentSharing, setDocumentAudience } from '../../lib/api/documents';
 import type { DocumentAudience, DocumentPerson } from '../../lib/api/documents';
 import { ApiRequestError } from '../../lib/api/errors';
@@ -37,24 +38,28 @@ export function AudienceBadge({
   audience: DocumentAudience;
   clientCount: number;
 }) {
+  const t = useT();
   return (
     <span className="tm-dx-audience" data-audience={audience}>
       <span className="tm-dx-audience__orb" aria-hidden="true">
         {audience === 'client' ? '◎' : '■'}
       </span>
-      {audienceLabel(audience, clientCount)}
+      {audience === 'client'
+        ? `${t('DocumentAudience.client')} · ${clientCount}`
+        : t('DocumentAudience.internal')}
     </span>
   );
 }
 
 /** Overlapping faces; the last one (most recent contributor) carries the accent ring. */
 export function CollaboratorFaces({ people }: { people: readonly DocumentPerson[] }) {
+  const t = useT();
   if (people.length === 0) return null;
   const shown = people.slice(0, 4);
   return (
     <ul
       className="tm-dx-faces"
-      aria-label={`Collaborators: ${people.map((person) => person.displayName).join(', ')}`}
+      aria-label={`${t('DocumentAudience.collaborators')}: ${people.map((person) => person.displayName).join(', ')}`}
     >
       {shown.map((person, index) => (
         <li
@@ -92,6 +97,7 @@ export function DocumentPublishBar({
   client,
 }: DocumentPublishBarProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
   const key = ['document-sharing', organizationSlug, documentId];
 
@@ -117,8 +123,8 @@ export function DocumentPublishBar({
   // COL-14: plain words, and no "client" wording while the document is still internal. Published:
   // say who can see it now; unpublished: say it is internal to the team.
   const capsule = published
-    ? `Shared with clients · ${count} ${count === 1 ? 'person' : 'people'}`
-    : 'Your team only — not shared yet';
+    ? `${t('DocumentAudience.sharedWithClients')} · ${count} ${count === 1 ? t('DocumentAudience.person') : t('DocumentAudience.people')}`
+    : t('DocumentAudience.teamOnly');
 
   return (
     <div className="tm-dx-share">
@@ -137,14 +143,14 @@ export function DocumentPublishBar({
           disabled={change.isPending}
           onClick={() => change.mutate(published ? 'internal' : 'client')}
         >
-          {published ? 'Unpublish' : 'Publish'}
+          {published ? t('DocumentAudience.unpublish') : t('DocumentAudience.publish')}
         </button>
       ) : null}
       {change.isError ? (
-        <InlineAlert tone="danger" title="Could not change who sees this document" live>
+        <InlineAlert tone="danger" title={t('DocumentAudience.changeErrorTitle')} live>
           {change.error instanceof ApiRequestError
             ? change.error.message
-            : 'Something went wrong. Try again.'}
+            : t('DocumentAudience.genericError')}
         </InlineAlert>
       ) : null}
     </div>

@@ -4,6 +4,7 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button, Checkbox, InlineAlert, Select } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { bulkAssignRole, type MemberBulkRoleView } from '../../lib/api/admin-member-bulk-role';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -45,6 +46,7 @@ export function BulkRoleAssignBar({
   client,
 }: BulkRoleAssignBarProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const [roleId, setRoleId] = useState<string>(roles[0]?.id ?? '');
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
@@ -74,29 +76,29 @@ export function BulkRoleAssignBar({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-bulk-role-heading">
       <h2 id="tm-bulk-role-heading" className="tm-eyebrow">
-        Assign a role to several members
+        {t('BulkRoleAssignBar.heading')}
       </h2>
 
       {roles.length === 0 ? (
-        <InlineAlert tone="neutral" title="No custom roles yet">
-          No custom roles have been defined, so there is nothing to assign in bulk.
+        <InlineAlert tone="neutral" title={t('BulkRoleAssignBar.noRolesTitle')}>
+          {t('BulkRoleAssignBar.noRolesBody')}
         </InlineAlert>
       ) : (
         <form
           className="tm-stack"
           noValidate
-          aria-label="Assign a role to several members"
+          aria-label={t('BulkRoleAssignBar.heading')}
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();
             if (canSubmit) assign.mutate();
           }}
         >
           <Select
-            label="Role"
+            label={t('BulkRoleAssignBar.roleLabel')}
             name="bulk-role"
             value={roleId}
             onChange={(event) => setRoleId(event.target.value)}
-            hint="Every selected member is given this role. You can only assign a role whose capabilities you hold yourself."
+            hint={t('BulkRoleAssignBar.roleHint')}
           >
             {roles.map((role) => (
               <option key={role.id} value={role.id}>
@@ -106,9 +108,9 @@ export function BulkRoleAssignBar({
           </Select>
 
           <fieldset className="tm-stack tm-fieldset">
-            <legend>Members</legend>
+            <legend>{t('BulkRoleAssignBar.membersLegend')}</legend>
             {members.length === 0 ? (
-              <p>There are no members to assign a role to.</p>
+              <p>{t('BulkRoleAssignBar.noMembers')}</p>
             ) : (
               members.map((member) => (
                 <Checkbox
@@ -123,18 +125,20 @@ export function BulkRoleAssignBar({
           </fieldset>
 
           {assign.isError ? (
-            <InlineAlert tone="danger" title="Could not assign the role" live>
-              {describeError(assign.error)}
+            <InlineAlert tone="danger" title={t('BulkRoleAssignBar.errorTitle')} live>
+              {describeError(assign.error, t)}
             </InlineAlert>
           ) : null}
           {assign.isSuccess && !assign.isPending ? (
             <InlineAlert
               tone={notFoundCount > 0 ? 'neutral' : 'success'}
-              title="Role assigned"
+              title={t('BulkRoleAssignBar.successTitle')}
               live
             >
-              {`Assigned to ${assignedCount} member${assignedCount === 1 ? '' : 's'}.`}
-              {notFoundCount > 0 ? ` ${notFoundCount} could not be found and were skipped.` : ''}
+              {`${t('BulkRoleAssignBar.assignedTo')} ${assignedCount} ${assignedCount === 1 ? t('BulkRoleAssignBar.memberWord') : t('BulkRoleAssignBar.membersWord')}.`}
+              {notFoundCount > 0
+                ? ` ${notFoundCount} ${t('BulkRoleAssignBar.couldNotBeFound')}`
+                : ''}
             </InlineAlert>
           ) : null}
 
@@ -145,9 +149,9 @@ export function BulkRoleAssignBar({
               size="accessible"
               disabled={!canSubmit}
               loading={assign.isPending}
-              loadingLabel="Assigning"
+              loadingLabel={t('BulkRoleAssignBar.assigningLabel')}
             >
-              Assign role
+              {t('BulkRoleAssignBar.submit')}
             </Button>
           </div>
         </form>
@@ -156,8 +160,8 @@ export function BulkRoleAssignBar({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: ReturnType<typeof useT>): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('BulkRoleAssignBar.apiNoAnswer');
+  return t('BulkRoleAssignBar.genericError');
 }

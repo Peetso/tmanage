@@ -6,6 +6,7 @@ import { useQuery } from '@tanstack/react-query';
 import { InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { listOrganizations } from '../../lib/api/organizations';
 
 /**
@@ -22,6 +23,7 @@ export function WorkspaceSuspendedGate({
   organizationSlug: string;
   children: ReactNode;
 }) {
+  const t = useT();
   const organizations = useQuery({
     queryKey: ['shell', 'organizations'],
     queryFn: () => listOrganizations(browserApiClient()),
@@ -30,13 +32,16 @@ export function WorkspaceSuspendedGate({
   const current = organizations.data?.find((org) => org.slug === organizationSlug);
   if (!current?.suspended) return <>{children}</>;
   return (
-    <IdentityShell screenId="SYS" eyebrow="Workspace suspended">
-      <h1 className="tm-identity__title">{current.name} is suspended</h1>
-      <InlineAlert tone="warning" title="This workspace is suspended">
-        <Link href="/contact">Contact support</Link> to have it reopened. Nothing has been deleted.
+    <IdentityShell screenId="SYS" eyebrow={t('WorkspaceSuspendedGate.eyebrow')}>
+      <h1 className="tm-identity__title">
+        {current.name} {t('WorkspaceSuspendedGate.isSuspendedSuffix')}
+      </h1>
+      <InlineAlert tone="warning" title={t('WorkspaceSuspendedGate.alertTitle')}>
+        <Link href="/contact">{t('WorkspaceSuspendedGate.contactSupport')}</Link>{' '}
+        {t('WorkspaceSuspendedGate.reopenText')}
       </InlineAlert>
       <p>
-        <Link href="/organizations">Your other organizations</Link>
+        <Link href="/organizations">{t('WorkspaceSuspendedGate.otherOrgs')}</Link>
       </p>
     </IdentityShell>
   );

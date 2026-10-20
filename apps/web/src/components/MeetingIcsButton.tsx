@@ -1,6 +1,7 @@
 'use client';
 
 import { apiBaseUrl } from '../lib/api/browser-client';
+import { useT } from '../lib/i18n/use-t';
 import '../styles/screens/calendar.css';
 
 /**
@@ -26,6 +27,7 @@ export interface MeetingIcsButtonProps {
 }
 
 export function MeetingIcsButton({ organizationSlug, meetingId, baseUrl }: MeetingIcsButtonProps) {
+  const t = useT();
   const origin = baseUrl ?? apiBaseUrl();
   const href = `${origin}/v1/organizations/${encodeURIComponent(
     organizationSlug,
@@ -38,7 +40,7 @@ export function MeetingIcsButton({ organizationSlug, meetingId, baseUrl }: Meeti
       href={href}
       download={`meeting-${meetingId}.ics`}
     >
-      Export to calendar (.ics)
+      {t('MeetingIcsButton.exportToCalendar')}
     </a>
   );
 }

@@ -6,6 +6,8 @@ import { hasCapability, isRole } from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
 import { AppShell } from '../shell/AppShell';
 import { useOrganizationRole } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/admin.css';
 
 /** The Control Center destinations the section map can mark as current. */
@@ -30,6 +32,8 @@ export type ControlCenterSection =
 interface SectionLink {
   readonly id: ControlCenterSection;
   readonly label: string;
+  /** The message key for the label; rendered through `useT` so the map is localised. */
+  readonly labelKey?: MessageKey;
   readonly href: string;
   /**
    * What the page's API asks for (CQ-06). An entry the caller's role cannot use is not drawn, so
@@ -44,16 +48,35 @@ interface SectionLink {
  * "Client organizations", "Invitations", "Templates" and "Fields" have no Control Center route yet,
  * so they are not offered as links that would 404.
  */
-const GROUPS: readonly { label: string; items: readonly SectionLink[] }[] = [
+const GROUPS: readonly { label: string; labelKey?: MessageKey; items: readonly SectionLink[] }[] = [
   {
     label: 'People',
+    labelKey: 'ControlCenterShell.groupPeople',
     items: [
-      { id: 'overview', label: 'Overview', href: '/admin', capability: 'org.manage' },
-      { id: 'members', label: 'Members and roles', href: '/people' },
-      { id: 'roles', label: 'Roles', href: '/admin/roles', capability: 'org.manage' },
+      {
+        id: 'overview',
+        label: 'Overview',
+        labelKey: 'ControlCenterShell.overview',
+        href: '/admin',
+        capability: 'org.manage',
+      },
+      {
+        id: 'members',
+        label: 'Members and roles',
+        labelKey: 'ControlCenterShell.membersAndRoles',
+        href: '/people',
+      },
+      {
+        id: 'roles',
+        label: 'Roles',
+        labelKey: 'ControlCenterShell.roles',
+        href: '/admin/roles',
+        capability: 'org.manage',
+      },
       {
         id: 'offboarding',
         label: 'Offboarding',
+        labelKey: 'ControlCenterShell.offboarding',
         href: '/people/offboarding',
         capability: 'member.offboard',
       },
@@ -61,40 +84,82 @@ const GROUPS: readonly { label: string; items: readonly SectionLink[] }[] = [
   },
   {
     label: 'Work setup',
+    labelKey: 'ControlCenterShell.groupWorkSetup',
     items: [
       // AUT-04: the rule library, not Webhooks. Webhooks sit under Integrations, as in the design.
-      { id: 'automations', label: 'Automations', href: '/automations', capability: 'org.manage' },
+      {
+        id: 'automations',
+        label: 'Automations',
+        labelKey: 'ControlCenterShell.automations',
+        href: '/automations',
+        capability: 'org.manage',
+      },
       {
         id: 'integrations',
         label: 'Integrations',
+        labelKey: 'ControlCenterShell.integrations',
         href: '/automations/apps',
         capability: 'org.manage',
       },
-      { id: 'modules', label: 'Modules', href: '/admin/feature-flags', capability: 'org.manage' },
+      {
+        id: 'modules',
+        label: 'Modules',
+        labelKey: 'ControlCenterShell.modules',
+        href: '/admin/feature-flags',
+        capability: 'org.manage',
+      },
     ],
   },
   {
     label: 'Trust',
+    labelKey: 'ControlCenterShell.groupTrust',
     items: [
-      { id: 'security', label: 'Security', href: '/admin/security', capability: 'org.manage' },
-      { id: 'sessions', label: 'Sessions', href: '/admin/sessions', capability: 'org.manage' },
+      {
+        id: 'security',
+        label: 'Security',
+        labelKey: 'ControlCenterShell.security',
+        href: '/admin/security',
+        capability: 'org.manage',
+      },
+      {
+        id: 'sessions',
+        label: 'Sessions',
+        labelKey: 'ControlCenterShell.sessions',
+        href: '/admin/sessions',
+        capability: 'org.manage',
+      },
       {
         id: 'ip-allowlist',
         label: 'IP ranges',
+        labelKey: 'ControlCenterShell.ipRanges',
         href: '/admin/ip-allowlist',
         capability: 'org.security.manage',
       },
-      { id: 'policies', label: 'Access policy', href: '/policies', capability: 'org.manage' },
+      {
+        id: 'policies',
+        label: 'Access policy',
+        labelKey: 'ControlCenterShell.accessPolicy',
+        href: '/policies',
+        capability: 'org.manage',
+      },
       {
         id: 'policy-simulation',
         label: 'Policy simulation',
+        labelKey: 'ControlCenterShell.policySimulation',
         href: '/policies/simulate',
         capability: 'org.manage',
       },
-      { id: 'audit', label: 'Audit log', href: '/admin/audit', capability: 'audit.read' },
+      {
+        id: 'audit',
+        label: 'Audit log',
+        labelKey: 'ControlCenterShell.auditLog',
+        href: '/admin/audit',
+        capability: 'audit.read',
+      },
       {
         id: 'data',
         label: 'Data and export',
+        labelKey: 'ControlCenterShell.dataAndExport',
         href: '/admin/audit/export',
         capability: 'audit.export',
       },
@@ -103,8 +168,20 @@ const GROUPS: readonly { label: string; items: readonly SectionLink[] }[] = [
 ];
 
 const FOOT: readonly SectionLink[] = [
-  { id: 'organization', label: 'Organization', href: '/settings', capability: 'org.manage' },
-  { id: 'billing', label: 'Billing', href: '/billing', capability: 'org.manage' },
+  {
+    id: 'organization',
+    label: 'Organization',
+    labelKey: 'ControlCenterShell.organization',
+    href: '/settings',
+    capability: 'org.manage',
+  },
+  {
+    id: 'billing',
+    label: 'Billing',
+    labelKey: 'ControlCenterShell.billing',
+    href: '/billing',
+    capability: 'org.manage',
+  },
 ];
 
 /**
@@ -118,12 +195,17 @@ export function mayOpenSection(role: string | undefined | null, item: SectionLin
 
 /** The section map's groups and foot, minus the entries this role would be refused. */
 export function controlCenterSectionsFor(role: string | undefined | null): {
-  readonly groups: readonly { label: string; items: readonly SectionLink[] }[];
+  readonly groups: readonly {
+    label: string;
+    labelKey?: MessageKey;
+    items: readonly SectionLink[];
+  }[];
   readonly foot: readonly SectionLink[];
 } {
   return {
     groups: GROUPS.map((group) => ({
       label: group.label,
+      ...(group.labelKey ? { labelKey: group.labelKey } : {}),
       items: group.items.filter((item) => mayOpenSection(role, item)),
     })).filter((group) => group.items.length > 0),
     foot: FOOT.filter((item) => mayOpenSection(role, item)),
@@ -139,6 +221,7 @@ function SectionItem({
   item: SectionLink;
   current: boolean;
 }) {
+  const t = useT();
   return (
     <li>
       <Link
@@ -146,7 +229,7 @@ function SectionItem({
         className="tm-cc-sections__item"
         {...(current ? { 'aria-current': 'page' as const } : {})}
       >
-        {item.label}
+        {item.labelKey ? t(item.labelKey) : item.label}
       </Link>
     </li>
   );
@@ -167,13 +250,16 @@ export function ControlCenterSections({
   children?: ReactNode;
 }) {
   // While the role is being read nothing gated is drawn, so a refused entry never flashes up.
+  const t = useT();
   const { role, known, unavailable } = useOrganizationRole(organizationSlug);
   const { groups, foot } = controlCenterSectionsFor(unavailable ? null : known ? role : undefined);
   return (
     <div className="tm-cc-sections">
       {groups.map((group) => (
         <div key={group.label}>
-          <p className="tm-cc-sections__label">{group.label}</p>
+          <p className="tm-cc-sections__label">
+            {group.labelKey ? t(group.labelKey) : group.label}
+          </p>
           <ul className="tm-cc-sections__group">
             {group.items.map((item) => (
               <SectionItem
@@ -241,6 +327,7 @@ export function ControlCenterShell({
   rail,
   children,
 }: ControlCenterShellProps) {
+  const t = useT();
   const contextRail = (
     <ControlCenterSections organizationSlug={organizationSlug} section={section}>
       {rail === 'sections' ? null : rail}
@@ -251,7 +338,7 @@ export function ControlCenterShell({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow={['Control center', ...crumbs].join(' / ')}
+      eyebrow={[t('ControlCenterShell.controlCenter'), ...crumbs].join(' / ')}
       title={title}
       {...(titleMeta ? { titleMeta } : {})}
       {...(description ? { description } : {})}

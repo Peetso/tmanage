@@ -8,6 +8,7 @@ import { Button, Field, InlineAlert, LoadingRegion, SearchField, Skeleton } from
 import { PlatformShell } from './PlatformShell';
 import type { PlatformSection } from './PlatformShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import {
@@ -52,10 +53,10 @@ interface ScreenProps {
   client?: ApiClient;
 }
 
-function describe(error: unknown): string {
+function describe(error: unknown, t: ReturnType<typeof useT>): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('PlatformAdminScreens.apiNoAnswer');
+  return t('PlatformAdminScreens.genericError');
 }
 
 function isStepUpLapse(error: unknown): boolean {
@@ -113,6 +114,7 @@ function PlatformGate({
   description?: ReactNode;
   children: (me: PlatformMeView) => ReactNode;
 }) {
+  const t = useT();
   const me = useQuery({
     queryKey: PLATFORM_ME_KEY,
     queryFn: () => fetchPlatformMe(api),
@@ -123,9 +125,13 @@ function PlatformGate({
 
   if (me.isError && me.error instanceof ApiRequestError && me.error.status === 404) {
     return (
-      <PlatformShell section={section} crumbs={['Not found']} title="Page not found">
-        <InlineAlert tone="neutral" title="This page does not exist">
-          <Link href="/organizations">Back to your organizations</Link>
+      <PlatformShell
+        section={section}
+        crumbs={[t('PlatformAdminScreens.notFound')]}
+        title={t('PlatformAdminScreens.pageNotFound')}
+      >
+        <InlineAlert tone="neutral" title={t('PlatformAdminScreens.pageDoesNotExist')}>
+          <Link href="/organizations">{t('PlatformAdminScreens.backToOrganizations')}</Link>
         </InlineAlert>
       </PlatformShell>
     );
@@ -138,17 +144,17 @@ function PlatformGate({
       title={title}
       {...(description ? { description } : {})}
     >
-      {me.isPending ? <Loading label="Checking your access." /> : null}
+      {me.isPending ? <Loading label={t('PlatformAdminScreens.checkingAccess')} /> : null}
       {me.isError ? (
-        <InlineAlert tone="danger" title="Could not open Platform admin" live>
-          {describe(me.error)}
+        <InlineAlert tone="danger" title={t('PlatformAdminScreens.couldNotOpen')} live>
+          {describe(me.error, t)}
         </InlineAlert>
       ) : null}
       {me.isSuccess && !me.data.mfaEnabled ? (
-        <InlineAlert tone="warning" title="Set up two-step sign-in">
-          Your account has no two-step sign-in yet, so Platform admin asks for your password every{' '}
-          {me.data.stepUpMinutes} minutes. Turn it on from Preferences in any of{' '}
-          <Link href="/organizations">your organizations</Link>.
+        <InlineAlert tone="warning" title={t('PlatformAdminScreens.setupTwoStepTitle')}>
+          {t('PlatformAdminScreens.twoStepBody1')} {me.data.stepUpMinutes}{' '}
+          {t('PlatformAdminScreens.twoStepBody2')}{' '}
+          <Link href="/organizations">{t('PlatformAdminScreens.yourOrganizations')}</Link>.
         </InlineAlert>
       ) : null}
       {me.isSuccess && me.data.stepUpExpiresAt === null ? (
@@ -160,6 +166,7 @@ function PlatformGate({
 }
 
 function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
@@ -181,17 +188,18 @@ function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) {
     <section className="tm-cc-card" aria-labelledby="tm-platform-step-up-heading">
       <div className="tm-cc-card__head">
         <h2 id="tm-platform-step-up-heading" className="tm-cc-card__title">
-          Confirm it is you
+          {t('PlatformAdminScreens.confirmItIsYou')}
         </h2>
       </div>
       <p className="tm-cc-note">
-        Platform admin reaches every company on TManage. Confirm your password
-        {me.mfaEnabled ? ' and two-step code' : ''} to continue for the next {me.stepUpMinutes}{' '}
-        minutes.
+        {t('PlatformAdminScreens.stepUpNote1')}
+        {me.mfaEnabled ? ` ${t('PlatformAdminScreens.stepUpAndCode')}` : ''}{' '}
+        {t('PlatformAdminScreens.stepUpNote2')} {me.stepUpMinutes}{' '}
+        {t('PlatformAdminScreens.stepUpMinutesWord')}
       </p>
       <form className="tm-stack tm-stack--tight" onSubmit={submit}>
         <Field
-          label="Password"
+          label={t('PlatformAdminScreens.passwordLabel')}
           type="password"
           autoComplete="current-password"
           value={password}
@@ -200,7 +208,7 @@ function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) {
         />
         {me.mfaEnabled ? (
           <Field
-            label="Two-step code"
+            label={t('PlatformAdminScreens.twoStepCodeLabel')}
             inputMode="numeric"
             autoComplete="one-time-code"
             value={code}
@@ -209,13 +217,18 @@ function StepUpForm({ api, me }: { api: ApiClient; me: PlatformMeView }) {
           />
         ) : null}
         {confirm.isError ? (
-          <InlineAlert tone="danger" title="Not confirmed" live>
-            {describe(confirm.error)}
+          <InlineAlert tone="danger" title={t('PlatformAdminScreens.notConfirmed')} live>
+            {describe(confirm.error, t)}
           </InlineAlert>
         ) : null}
         <div>
-          <Button type="submit" tone="ink" loading={confirm.isPending} loadingLabel="Confirming">
-            Continue
+          <Button
+            type="submit"
+            tone="ink"
+            loading={confirm.isPending}
+            loadingLabel={t('PlatformAdminScreens.confirming')}
+          >
+            {t('PlatformAdminScreens.continue')}
           </Button>
         </div>
       </form>
@@ -238,6 +251,7 @@ function ReasonAction({
   tone?: 'outline' | 'destructive' | 'ink';
   onConfirm: (reason: string) => Promise<unknown>;
 }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState('');
@@ -269,8 +283,8 @@ function ReasonAction({
       }}
     >
       <Field
-        label={`Reason for “${label}”`}
-        hint="Saved in the platform audit log with your name and the time."
+        label={`${t('PlatformAdminScreens.reasonFor')} “${label}”`}
+        hint={t('PlatformAdminScreens.reasonHint')}
         value={reason}
         onChange={(event) => setReason(event.target.value)}
         minLength={5}
@@ -278,8 +292,8 @@ function ReasonAction({
         required
       />
       {action.isError ? (
-        <InlineAlert tone="danger" title="Not done" live>
-          {describe(action.error)}
+        <InlineAlert tone="danger" title={t('PlatformAdminScreens.notDone')} live>
+          {describe(action.error, t)}
         </InlineAlert>
       ) : null}
       <div className="tm-cc-hero__actions">
@@ -288,13 +302,13 @@ function ReasonAction({
           tone={tone === 'outline' ? 'ink' : tone}
           size="compact"
           loading={action.isPending}
-          loadingLabel="Working"
+          loadingLabel={t('PlatformAdminScreens.working')}
           disabled={reason.trim().length < 5}
         >
           {confirmLabel}
         </Button>
         <Button type="button" tone="text" size="compact" onClick={() => setOpen(false)}>
-          Cancel
+          {t('PlatformAdminScreens.cancel')}
         </Button>
       </div>
     </form>
@@ -305,81 +319,106 @@ function ReasonAction({
 
 export function PlatformOverviewScreen({ client }: ScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   return (
-    <PlatformGate api={api} section="overview" crumbs={['Overview']} title="The whole service">
+    <PlatformGate
+      api={api}
+      section="overview"
+      crumbs={[t('PlatformAdminScreens.overviewCrumb')]}
+      title={t('PlatformAdminScreens.overviewTitle')}
+    >
       {() => <OverviewBody api={api} />}
     </PlatformGate>
   );
 }
 
 function OverviewBody({ api }: { api: ApiClient }) {
+  const t = useT();
   const overview = useQuery({
     queryKey: ['platform', 'overview'],
     queryFn: () => fetchPlatformOverview(api),
   });
-  if (overview.isPending) return <Loading label="Loading the platform overview." />;
+  if (overview.isPending) return <Loading label={t('PlatformAdminScreens.loadingOverview')} />;
   if (overview.isError) {
     return (
-      <InlineAlert tone="danger" title="Could not load the overview" live>
-        {describe(overview.error)}
+      <InlineAlert tone="danger" title={t('PlatformAdminScreens.couldNotLoadOverview')} live>
+        {describe(overview.error, t)}
       </InlineAlert>
     );
   }
   const data = overview.data;
   const problems = data.failedAutomationRuns7d + data.outboxErrors;
   const metrics: readonly { id: string; value: string; label: string; source: string }[] = [
-    { id: 'companies', value: String(data.companies), label: 'companies', source: 'Organizations' },
-    { id: 'people', value: String(data.people), label: 'people', source: 'Memberships' },
+    {
+      id: 'companies',
+      value: String(data.companies),
+      label: t('PlatformAdminScreens.metricCompanies'),
+      source: t('PlatformAdminScreens.sourceOrganizations'),
+    },
+    {
+      id: 'people',
+      value: String(data.people),
+      label: t('PlatformAdminScreens.metricPeople'),
+      source: t('PlatformAdminScreens.sourceMemberships'),
+    },
     {
       id: 'signups7',
       value: String(data.signups7d),
-      label: 'new companies in 7 days',
-      source: 'Sign-ups',
+      label: t('PlatformAdminScreens.metricSignups7'),
+      source: t('PlatformAdminScreens.sourceSignups'),
     },
     {
       id: 'signups30',
       value: String(data.signups30d),
-      label: 'new companies in 30 days',
-      source: 'Sign-ups',
+      label: t('PlatformAdminScreens.metricSignups30'),
+      source: t('PlatformAdminScreens.sourceSignups'),
     },
-    { id: 'active', value: String(data.activeToday), label: 'active today', source: 'Sessions' },
+    {
+      id: 'active',
+      value: String(data.activeToday),
+      label: t('PlatformAdminScreens.metricActive'),
+      source: t('PlatformAdminScreens.sourceSessions'),
+    },
     {
       id: 'storage',
       value: formatBytes(data.storageBytesUsed),
-      label: 'storage used',
-      source: 'Files',
+      label: t('PlatformAdminScreens.metricStorage'),
+      source: t('PlatformAdminScreens.sourceFiles'),
     },
   ];
   return (
     <section className="tm-cc-column" aria-labelledby="tm-platform-overview-heading">
       <h2 id="tm-platform-overview-heading" className="tm-visually-hidden">
-        Service health
+        {t('PlatformAdminScreens.serviceHealth')}
       </h2>
       <div className="tm-cc-card tm-cc-card--ink tm-cc-hero">
         <div className="tm-stack tm-stack--tight">
           <p className="tm-cc-eyebrow">
             <span className="tm-cc-orb" aria-hidden="true" />
-            {problems > 0 ? 'Act first' : 'All clear'}
+            {problems > 0 ? t('PlatformAdminScreens.actFirst') : t('PlatformAdminScreens.allClear')}
           </p>
           <p className="tm-cc-card__lead">
             {problems > 0
-              ? `${data.failedAutomationRuns7d} failed automation runs in 7 days · ${data.outboxErrors} events waiting to retry`
-              : 'No failed automation runs this week and no events waiting to retry'}
+              ? `${data.failedAutomationRuns7d} ${t('PlatformAdminScreens.failedRuns7d')} · ${data.outboxErrors} ${t('PlatformAdminScreens.eventsWaiting')}`
+              : t('PlatformAdminScreens.clearLead')}
           </p>
           <p className="tm-cc-card__body">
             {data.suspendedCompanies > 0
-              ? `${data.suspendedCompanies} ${data.suspendedCompanies === 1 ? 'company is' : 'companies are'} suspended. `
+              ? `${data.suspendedCompanies} ${data.suspendedCompanies === 1 ? t('PlatformAdminScreens.suspendedCompanyIs') : t('PlatformAdminScreens.suspendedCompaniesAre')} ${t('PlatformAdminScreens.suspendedWord')} `
               : ''}
-            Computed {formatMoment(data.computedAt)} from live counts.
+            {t('PlatformAdminScreens.computedPrefix')} {formatMoment(data.computedAt)}{' '}
+            {t('PlatformAdminScreens.computedSuffix')}
           </p>
         </div>
       </div>
-      <ul className="tm-cc-metrics" aria-label="Service health">
+      <ul className="tm-cc-metrics" aria-label={t('PlatformAdminScreens.serviceHealth')}>
         {metrics.map((metric) => (
           <li className="tm-cc-metric" key={metric.id}>
             <p className="tm-cc-metric__value">{metric.value}</p>
             <p className="tm-cc-metric__label">{metric.label}</p>
-            <p className="tm-cc-metric__source">Source · {metric.source}</p>
+            <p className="tm-cc-metric__source">
+              {t('PlatformAdminScreens.sourceWord')} · {metric.source}
+            </p>
           </li>
         ))}
       </ul>
@@ -391,13 +430,14 @@ function OverviewBody({ api }: { api: ApiClient }) {
 
 export function PlatformCompaniesScreen({ client }: ScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   return (
     <PlatformGate
       api={api}
       section="companies"
-      crumbs={['Companies']}
-      title="Companies"
-      description="Names, counts and dates only — never their work, chats, docs or files."
+      crumbs={[t('PlatformAdminScreens.companiesCrumb')]}
+      title={t('PlatformAdminScreens.companiesTitle')}
+      description={t('PlatformAdminScreens.companiesDescription')}
     >
       {() => <CompaniesBody api={api} />}
     </PlatformGate>
@@ -405,6 +445,7 @@ export function PlatformCompaniesScreen({ client }: ScreenProps) {
 }
 
 function CompaniesBody({ api }: { api: ApiClient }) {
+  const t = useT();
   const [search, setSearch] = useState('');
   const companies = useQuery({
     queryKey: ['platform', 'companies', search],
@@ -413,32 +454,40 @@ function CompaniesBody({ api }: { api: ApiClient }) {
   return (
     <>
       <SearchField
-        label="Find a company"
+        label={t('PlatformAdminScreens.findCompany')}
         value={search}
         onChange={(event) => setSearch(event.target.value)}
       />
-      {companies.isPending ? <Loading label="Loading companies." /> : null}
+      {companies.isPending ? <Loading label={t('PlatformAdminScreens.loadingCompanies')} /> : null}
       {companies.isError ? (
-        <InlineAlert tone="danger" title="Could not load companies" live>
-          {describe(companies.error)}
+        <InlineAlert tone="danger" title={t('PlatformAdminScreens.couldNotLoadCompanies')} live>
+          {describe(companies.error, t)}
         </InlineAlert>
       ) : null}
       {companies.isSuccess && companies.data.length === 0 ? (
-        <InlineAlert tone="neutral">No company matches.</InlineAlert>
+        <InlineAlert tone="neutral">{t('PlatformAdminScreens.noCompanyMatches')}</InlineAlert>
       ) : null}
       {companies.isSuccess && companies.data.length > 0 ? (
-        <section className="tm-cc-card tm-cc-card--flush" aria-label="Companies">
-          <table className="tm-table tm-cc-table" aria-label="Companies on TManage">
+        <section
+          className="tm-cc-card tm-cc-card--flush"
+          aria-label={t('PlatformAdminScreens.companiesTitle')}
+        >
+          <table
+            className="tm-table tm-cc-table"
+            aria-label={t('PlatformAdminScreens.companiesTableLabel')}
+          >
             <thead>
               <tr>
-                <th scope="col">Companies · {companies.data.length}</th>
-                <th scope="col">Owner</th>
-                <th scope="col">People</th>
-                <th scope="col">Clients</th>
-                <th scope="col">Projects</th>
-                <th scope="col">Plan</th>
-                <th scope="col">Created</th>
-                <th scope="col">Last active</th>
+                <th scope="col">
+                  {t('PlatformAdminScreens.companiesTitle')} · {companies.data.length}
+                </th>
+                <th scope="col">{t('PlatformAdminScreens.colOwner')}</th>
+                <th scope="col">{t('PlatformAdminScreens.colPeople')}</th>
+                <th scope="col">{t('PlatformAdminScreens.colClients')}</th>
+                <th scope="col">{t('PlatformAdminScreens.colProjects')}</th>
+                <th scope="col">{t('PlatformAdminScreens.colPlan')}</th>
+                <th scope="col">{t('PlatformAdminScreens.colCreated')}</th>
+                <th scope="col">{t('PlatformAdminScreens.colLastActive')}</th>
               </tr>
             </thead>
             <tbody>
@@ -483,24 +532,31 @@ export function PlatformCompanyScreen({
   client,
 }: ScreenProps & { organizationId: string }) {
   const api = client ?? browserApiClient();
+  const t = useT();
   return (
-    <PlatformGate api={api} section="companies" crumbs={['Companies', 'Company']} title="Company">
+    <PlatformGate
+      api={api}
+      section="companies"
+      crumbs={[t('PlatformAdminScreens.companiesCrumb'), t('PlatformAdminScreens.companyCrumb')]}
+      title={t('PlatformAdminScreens.companyTitle')}
+    >
       {() => <CompanyBody api={api} organizationId={organizationId} />}
     </PlatformGate>
   );
 }
 
 function CompanyBody({ api, organizationId }: { api: ApiClient; organizationId: string }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const detail = useQuery({
     queryKey: ['platform', 'company', organizationId],
     queryFn: () => fetchPlatformCompany(api, organizationId),
   });
-  if (detail.isPending) return <Loading label="Loading the company." />;
+  if (detail.isPending) return <Loading label={t('PlatformAdminScreens.loadingCompany')} />;
   if (detail.isError) {
     return (
-      <InlineAlert tone="danger" title="Could not load the company" live>
-        {describe(detail.error)}
+      <InlineAlert tone="danger" title={t('PlatformAdminScreens.couldNotLoadCompany')} live>
+        {describe(detail.error, t)}
       </InlineAlert>
     );
   }
@@ -517,8 +573,14 @@ function CompanyBody({ api, organizationId }: { api: ApiClient; organizationId: 
             {company.name}
           </h2>
           <ReasonAction
-            label={suspended ? 'Reactivate company' : 'Suspend company'}
-            confirmLabel={suspended ? 'Reactivate' : 'Suspend'}
+            label={
+              suspended
+                ? t('PlatformAdminScreens.reactivateCompany')
+                : t('PlatformAdminScreens.suspendCompany')
+            }
+            confirmLabel={
+              suspended ? t('PlatformAdminScreens.reactivate') : t('PlatformAdminScreens.suspend')
+            }
             tone={suspended ? 'outline' : 'destructive'}
             onConfirm={async (reason) => {
               await setPlatformCompanySuspended(api, organizationId, !suspended, reason);
@@ -527,9 +589,8 @@ function CompanyBody({ api, organizationId }: { api: ApiClient; organizationId: 
           />
         </div>
         {suspended ? (
-          <InlineAlert tone="warning" title="Suspended">
-            Members see “workspace suspended, contact support”. Their data is kept. Suspended{' '}
-            {formatMoment(company.suspendedAt)}.
+          <InlineAlert tone="warning" title={t('PlatformAdminScreens.suspendedTitle')}>
+            {t('PlatformAdminScreens.suspendedBody')} {formatMoment(company.suspendedAt)}.
           </InlineAlert>
         ) : null}
         <CompanyFacts company={company} />
@@ -538,13 +599,13 @@ function CompanyBody({ api, organizationId }: { api: ApiClient; organizationId: 
       <section className="tm-cc-card" aria-labelledby="tm-platform-company-audit-heading">
         <div className="tm-cc-card__head">
           <h2 id="tm-platform-company-audit-heading" className="tm-cc-card__title">
-            Recent admin and security events
+            {t('PlatformAdminScreens.recentEvents')}
           </h2>
         </div>
         {detail.data.recentAdminEvents.length === 0 ? (
-          <p className="tm-cc-note">No admin or security events recorded yet.</p>
+          <p className="tm-cc-note">{t('PlatformAdminScreens.noEventsYet')}</p>
         ) : (
-          <ul className="tm-cc-recent" aria-label="Recent admin and security events">
+          <ul className="tm-cc-recent" aria-label={t('PlatformAdminScreens.recentEvents')}>
             {detail.data.recentAdminEvents.map((event) => (
               <li key={event.id}>
                 <span className="tm-cc-recent__when">{formatMoment(event.occurredAt)}</span>
@@ -562,19 +623,20 @@ function CompanyBody({ api, organizationId }: { api: ApiClient; organizationId: 
 }
 
 function CompanyFacts({ company }: { company: PlatformCompanyView }) {
+  const t = useT();
   const facts: readonly [string, string][] = [
-    ['Address', company.slug],
-    ['Owner', company.ownerEmail ?? '—'],
-    ['People', String(company.people)],
-    ['Clients', String(company.clients)],
-    ['Projects', String(company.projects)],
-    ['Plan', company.plan ?? '—'],
-    ['Created', formatMoment(company.createdAt)],
-    ['Last active', formatMoment(company.lastActiveAt)],
-    ['Status', company.status],
+    [t('PlatformAdminScreens.factAddress'), company.slug],
+    [t('PlatformAdminScreens.factOwner'), company.ownerEmail ?? '—'],
+    [t('PlatformAdminScreens.factPeople'), String(company.people)],
+    [t('PlatformAdminScreens.factClients'), String(company.clients)],
+    [t('PlatformAdminScreens.factProjects'), String(company.projects)],
+    [t('PlatformAdminScreens.factPlan'), company.plan ?? '—'],
+    [t('PlatformAdminScreens.factCreated'), formatMoment(company.createdAt)],
+    [t('PlatformAdminScreens.factLastActive'), formatMoment(company.lastActiveAt)],
+    [t('PlatformAdminScreens.factStatus'), company.status],
   ];
   return (
-    <table className="tm-table tm-cc-table" aria-label="Company details">
+    <table className="tm-table tm-cc-table" aria-label={t('PlatformAdminScreens.companyDetails')}>
       <tbody>
         {facts.map(([label, value]) => (
           <tr key={label}>
@@ -593,13 +655,14 @@ function CompanyFacts({ company }: { company: PlatformCompanyView }) {
 
 export function PlatformPeopleScreen({ client }: ScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   return (
     <PlatformGate
       api={api}
       section="people"
-      crumbs={['People']}
-      title="People"
-      description="Search by email. You can end a person’s sessions or send them a password-reset email; you never see or set their password."
+      crumbs={[t('PlatformAdminScreens.peopleCrumb')]}
+      title={t('PlatformAdminScreens.peopleTitle')}
+      description={t('PlatformAdminScreens.peopleDescription')}
     >
       {() => <PeopleBody api={api} />}
     </PlatformGate>
@@ -607,6 +670,7 @@ export function PlatformPeopleScreen({ client }: ScreenProps) {
 }
 
 function PeopleBody({ api }: { api: ApiClient }) {
+  const t = useT();
   const [draft, setDraft] = useState('');
   const [email, setEmail] = useState('');
   const people = useQuery({
@@ -624,26 +688,26 @@ function PeopleBody({ api }: { api: ApiClient }) {
         }}
       >
         <Field
-          label="Email"
+          label={t('PlatformAdminScreens.emailLabel')}
           type="search"
-          hint="At least three characters."
+          hint={t('PlatformAdminScreens.emailHint')}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
         />
         <div>
           <Button type="submit" tone="ink" size="compact" disabled={draft.trim().length < 3}>
-            Search
+            {t('PlatformAdminScreens.search')}
           </Button>
         </div>
       </form>
-      {people.isFetching ? <Loading label="Searching people." /> : null}
+      {people.isFetching ? <Loading label={t('PlatformAdminScreens.searchingPeople')} /> : null}
       {people.isError ? (
-        <InlineAlert tone="danger" title="Could not search" live>
-          {describe(people.error)}
+        <InlineAlert tone="danger" title={t('PlatformAdminScreens.couldNotSearch')} live>
+          {describe(people.error, t)}
         </InlineAlert>
       ) : null}
       {people.isSuccess && people.data.length === 0 ? (
-        <InlineAlert tone="neutral">Nobody with that email.</InlineAlert>
+        <InlineAlert tone="neutral">{t('PlatformAdminScreens.nobodyWithEmail')}</InlineAlert>
       ) : null}
       {people.isSuccess
         ? people.data.map((person) => <PersonCard key={person.id} api={api} person={person} />)
@@ -653,6 +717,7 @@ function PeopleBody({ api }: { api: ApiClient }) {
 }
 
 function PersonCard({ api, person }: { api: ApiClient; person: PlatformPersonView }) {
+  const t = useT();
   const [notice, setNotice] = useState<string | null>(null);
   return (
     <section className="tm-cc-card" aria-label={person.email}>
@@ -660,20 +725,20 @@ function PersonCard({ api, person }: { api: ApiClient; person: PlatformPersonVie
         <h2 className="tm-cc-card__title">{person.email}</h2>
         <div className="tm-cc-hero__actions">
           <ReasonAction
-            label="Sign out everywhere"
-            confirmLabel="Sign out"
+            label={t('PlatformAdminScreens.signOutEverywhere')}
+            confirmLabel={t('PlatformAdminScreens.signOut')}
             tone="destructive"
             onConfirm={async (reason) => {
               const result = await signOutPlatformPerson(api, person.id, reason);
-              setNotice(`${result.sessionsEnded} sessions ended.`);
+              setNotice(`${result.sessionsEnded} ${t('PlatformAdminScreens.sessionsEnded')}`);
             }}
           />
           <ReasonAction
-            label="Send password reset"
-            confirmLabel="Send email"
+            label={t('PlatformAdminScreens.sendPasswordReset')}
+            confirmLabel={t('PlatformAdminScreens.sendEmail')}
             onConfirm={async (reason) => {
               await sendPlatformPasswordReset(api, person.id, reason);
-              setNotice('A password-reset email is on its way to them.');
+              setNotice(t('PlatformAdminScreens.resetEmailSent'));
             }}
           />
         </div>
@@ -684,19 +749,26 @@ function PersonCard({ api, person }: { api: ApiClient; person: PlatformPersonVie
         </InlineAlert>
       ) : null}
       <p className="tm-cc-note">
-        {person.displayName} · last sign-in {formatMoment(person.lastSignInAt)} · two-step{' '}
-        {person.mfaEnabled ? 'on' : 'off'} · email{' '}
-        {person.emailVerified ? 'verified' : 'not verified'}
+        {person.displayName} · {t('PlatformAdminScreens.lastSignIn')}{' '}
+        {formatMoment(person.lastSignInAt)} · {t('PlatformAdminScreens.twoStepWord')}{' '}
+        {person.mfaEnabled ? t('PlatformAdminScreens.on') : t('PlatformAdminScreens.off')} ·{' '}
+        {t('PlatformAdminScreens.emailWord')}{' '}
+        {person.emailVerified
+          ? t('PlatformAdminScreens.verified')
+          : t('PlatformAdminScreens.notVerified')}
       </p>
       {person.companies.length === 0 ? (
-        <p className="tm-cc-note">Not a member of any company.</p>
+        <p className="tm-cc-note">{t('PlatformAdminScreens.notMemberOfAny')}</p>
       ) : (
-        <table className="tm-table tm-cc-table" aria-label={`Companies of ${person.email}`}>
+        <table
+          className="tm-table tm-cc-table"
+          aria-label={`${t('PlatformAdminScreens.companiesOf')} ${person.email}`}
+        >
           <thead>
             <tr>
-              <th scope="col">Company</th>
-              <th scope="col">Role</th>
-              <th scope="col">Status</th>
+              <th scope="col">{t('PlatformAdminScreens.colCompany')}</th>
+              <th scope="col">{t('PlatformAdminScreens.colRole')}</th>
+              <th scope="col">{t('PlatformAdminScreens.colStatus')}</th>
             </tr>
           </thead>
           <tbody>
@@ -707,7 +779,9 @@ function PersonCard({ api, person }: { api: ApiClient; person: PlatformPersonVie
                     {company.name}
                   </Link>
                   <span className="tm-cc-cell-sub">
-                    {company.audience === 'client' ? 'client access' : 'team'}
+                    {company.audience === 'client'
+                      ? t('PlatformAdminScreens.clientAccess')
+                      : t('PlatformAdminScreens.team')}
                   </span>
                 </td>
                 <td>
@@ -729,24 +803,31 @@ function PersonCard({ api, person }: { api: ApiClient; person: PlatformPersonVie
 
 export function PlatformSettingsScreen({ client }: ScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   return (
-    <PlatformGate api={api} section="settings" crumbs={['Settings']} title="Settings">
+    <PlatformGate
+      api={api}
+      section="settings"
+      crumbs={[t('PlatformAdminScreens.settingsCrumb')]}
+      title={t('PlatformAdminScreens.settingsTitle')}
+    >
       {() => <SettingsBody api={api} />}
     </PlatformGate>
   );
 }
 
 function SettingsBody({ api }: { api: ApiClient }) {
+  const t = useT();
   const queryClient = useQueryClient();
   const settings = useQuery({
     queryKey: ['platform', 'settings'],
     queryFn: () => fetchPlatformSettings(api),
   });
-  if (settings.isPending) return <Loading label="Loading settings." />;
+  if (settings.isPending) return <Loading label={t('PlatformAdminScreens.loadingSettings')} />;
   if (settings.isError) {
     return (
-      <InlineAlert tone="danger" title="Could not load settings" live>
-        {describe(settings.error)}
+      <InlineAlert tone="danger" title={t('PlatformAdminScreens.couldNotLoadSettings')} live>
+        {describe(settings.error, t)}
       </InlineAlert>
     );
   }
@@ -755,11 +836,20 @@ function SettingsBody({ api }: { api: ApiClient }) {
     <section className="tm-cc-card" aria-labelledby="tm-platform-signup-heading">
       <div className="tm-cc-card__head">
         <h2 id="tm-platform-signup-heading" className="tm-cc-card__title">
-          Public sign-up is {signup.open ? 'open' : 'closed'}
+          {t('PlatformAdminScreens.publicSignupIs')}{' '}
+          {signup.open ? t('PlatformAdminScreens.open') : t('PlatformAdminScreens.closed')}
         </h2>
         <ReasonAction
-          label={signup.open ? 'Close sign-up' : 'Open sign-up'}
-          confirmLabel={signup.open ? 'Close' : 'Open'}
+          label={
+            signup.open
+              ? t('PlatformAdminScreens.closeSignup')
+              : t('PlatformAdminScreens.openSignup')
+          }
+          confirmLabel={
+            signup.open
+              ? t('PlatformAdminScreens.closeConfirm')
+              : t('PlatformAdminScreens.openConfirm')
+          }
           tone={signup.open ? 'destructive' : 'ink'}
           onConfirm={async (reason) => {
             await setPlatformPublicSignup(api, !signup.open, reason);
@@ -769,11 +859,11 @@ function SettingsBody({ api }: { api: ApiClient }) {
       </div>
       <p className="tm-cc-note">
         {signup.open
-          ? 'Anyone can create a company from the sign-up page.'
-          : 'The sign-up page is turned off; new people join only by invitation.'}{' '}
+          ? t('PlatformAdminScreens.signupOpenBody')
+          : t('PlatformAdminScreens.signupClosedBody')}{' '}
         {signup.source === 'environment'
-          ? `Following the server setting PUBLIC_SIGNUP (${signup.environmentDefault ? 'on' : 'off'}).`
-          : `Set here; it overrides the server setting PUBLIC_SIGNUP (${signup.environmentDefault ? 'on' : 'off'}).`}
+          ? `${t('PlatformAdminScreens.followingServerSetting')} (${signup.environmentDefault ? t('PlatformAdminScreens.on') : t('PlatformAdminScreens.off')}).`
+          : `${t('PlatformAdminScreens.setHereOverrides')} (${signup.environmentDefault ? t('PlatformAdminScreens.on') : t('PlatformAdminScreens.off')}).`}
       </p>
     </section>
   );
@@ -783,13 +873,14 @@ function SettingsBody({ api }: { api: ApiClient }) {
 
 export function PlatformAuditScreen({ client }: ScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   return (
     <PlatformGate
       api={api}
       section="audit"
-      crumbs={['Audit log']}
-      title="Platform audit log"
-      description="Every platform action: who, when, why, and what it touched."
+      crumbs={[t('PlatformAdminScreens.auditCrumb')]}
+      title={t('PlatformAdminScreens.auditTitle')}
+      description={t('PlatformAdminScreens.auditDescription')}
     >
       {() => <AuditBody api={api} />}
     </PlatformGate>
@@ -797,31 +888,38 @@ export function PlatformAuditScreen({ client }: ScreenProps) {
 }
 
 function AuditBody({ api }: { api: ApiClient }) {
+  const t = useT();
   const events = useQuery({
     queryKey: ['platform', 'audit'],
     queryFn: () => listPlatformAudit(api),
   });
-  if (events.isPending) return <Loading label="Loading the audit log." />;
+  if (events.isPending) return <Loading label={t('PlatformAdminScreens.loadingAudit')} />;
   if (events.isError) {
     return (
-      <InlineAlert tone="danger" title="Could not load the audit log" live>
-        {describe(events.error)}
+      <InlineAlert tone="danger" title={t('PlatformAdminScreens.couldNotLoadAudit')} live>
+        {describe(events.error, t)}
       </InlineAlert>
     );
   }
   if (events.data.length === 0) {
-    return <InlineAlert tone="neutral">No platform actions yet.</InlineAlert>;
+    return <InlineAlert tone="neutral">{t('PlatformAdminScreens.noActionsYet')}</InlineAlert>;
   }
   return (
-    <section className="tm-cc-card tm-cc-card--flush" aria-label="Platform audit log">
-      <table className="tm-table tm-cc-table" aria-label="Platform actions">
+    <section
+      className="tm-cc-card tm-cc-card--flush"
+      aria-label={t('PlatformAdminScreens.auditTitle')}
+    >
+      <table
+        className="tm-table tm-cc-table"
+        aria-label={t('PlatformAdminScreens.auditTableLabel')}
+      >
         <thead>
           <tr>
-            <th scope="col">When</th>
-            <th scope="col">Who</th>
-            <th scope="col">Action</th>
-            <th scope="col">Target</th>
-            <th scope="col">Reason</th>
+            <th scope="col">{t('PlatformAdminScreens.colWhen')}</th>
+            <th scope="col">{t('PlatformAdminScreens.colWho')}</th>
+            <th scope="col">{t('PlatformAdminScreens.colAction')}</th>
+            <th scope="col">{t('PlatformAdminScreens.colTarget')}</th>
+            <th scope="col">{t('PlatformAdminScreens.colReason')}</th>
           </tr>
         </thead>
         <tbody>

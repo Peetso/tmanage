@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/projects.css';
 
 export type ProjectTabId = 'overview' | 'plan' | 'work' | 'team' | 'risks' | 'objectives';
@@ -20,18 +23,19 @@ export interface ProjectTabsProps {
  * tabs have no route yet, so they are not drawn rather than drawn as dead links.
  */
 export function ProjectTabs({ organizationSlug, projectId, current, end }: ProjectTabsProps) {
+  const t = useT();
   const base = `/${organizationSlug}/projects/${encodeURIComponent(projectId ?? '')}`;
   const tabs: readonly { id: ProjectTabId; label: string; href: string }[] = [
-    { id: 'overview', label: 'Overview', href: base },
-    { id: 'plan', label: 'Plan', href: `${base}/baselines` },
+    { id: 'overview', label: t('ProjectTabs.overview'), href: base },
+    { id: 'plan', label: t('ProjectTabs.plan'), href: `${base}/baselines` },
     {
       id: 'work',
-      label: 'Work',
+      label: t('ProjectTabs.work'),
       href: `/${organizationSlug}/work?project=${encodeURIComponent(projectId ?? '')}`,
     },
-    { id: 'team', label: 'Team', href: `${base}/members` },
-    { id: 'risks', label: 'Risks', href: `${base}/risks` },
-    { id: 'objectives', label: 'Objectives', href: `${base}/objectives` },
+    { id: 'team', label: t('ProjectTabs.team'), href: `${base}/members` },
+    { id: 'risks', label: t('ProjectTabs.risks'), href: `${base}/risks` },
+    { id: 'objectives', label: t('ProjectTabs.objectives'), href: `${base}/objectives` },
   ];
 
   return (
@@ -40,10 +44,10 @@ export function ProjectTabs({ organizationSlug, projectId, current, end }: Proje
         <span className="tm-prj-tabs__back-orb" aria-hidden="true">
           ←
         </span>
-        Portfolio
+        {t('ProjectTabs.portfolio')}
       </Link>
       {projectId !== undefined ? (
-        <nav className="tm-segmented tm-prj-tabs__nav" aria-label="Project sections">
+        <nav className="tm-segmented tm-prj-tabs__nav" aria-label={t('ProjectTabs.sectionsLabel')}>
           {tabs.map((tab) => (
             <Link
               key={tab.id}

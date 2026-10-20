@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { fetchPlatformMe } from '../../lib/api/platform-admin';
 
 /**
@@ -12,6 +13,7 @@ import { fetchPlatformMe } from '../../lib/api/platform-admin';
  * Mount it only where a `QueryClient` is in the tree.
  */
 export function PlatformAdminLink() {
+  const t = useT();
   const me = useQuery({
     queryKey: ['platform', 'me', 'menu'],
     queryFn: () => fetchPlatformMe(browserApiClient()),
@@ -25,7 +27,7 @@ export function PlatformAdminLink() {
       <span className="tm-rail__orb" aria-hidden="true">
         ◎
       </span>
-      <span className="tm-rail__label">Platform admin</span>
+      <span className="tm-rail__label">{t('PlatformAdminLink.label')}</span>
     </Link>
   );
 }

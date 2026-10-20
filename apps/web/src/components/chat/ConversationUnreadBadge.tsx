@@ -1,4 +1,7 @@
+'use client';
+
 import type { ReactElement } from 'react';
+import { useT } from '../../lib/i18n/use-t';
 import type { ConversationUnreadView } from '../../lib/api/conversation-read-state';
 
 /**
@@ -22,6 +25,7 @@ export function ConversationUnreadBadge({
   unread,
   max = 99,
 }: ConversationUnreadBadgeProps): ReactElement | null {
+  const t = useT();
   const count = unread.unreadCount;
   if (!Number.isFinite(count) || count <= 0) return null;
 
@@ -29,7 +33,7 @@ export function ConversationUnreadBadge({
   return (
     <span
       role="status"
-      aria-label={`${count} unread ${count === 1 ? 'message' : 'messages'}`}
+      aria-label={`${count} ${count === 1 ? t('ConversationUnreadBadge.unreadMessage') : t('ConversationUnreadBadge.unreadMessages')}`}
       data-unread-badge=""
       style={{
         display: 'inline-flex',

@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import {
   addDocBookmark,
   getDocBookmarkStatus,
@@ -30,6 +31,7 @@ export interface BookmarkToggleProps {
  */
 export function BookmarkToggle({ organizationSlug, documentId, client }: BookmarkToggleProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
 
   const status = useQuery({
@@ -67,24 +69,24 @@ export function BookmarkToggle({ organizationSlug, documentId, client }: Bookmar
         size="accessible"
         aria-pressed={bookmarked}
         loading={toggle.isPending}
-        loadingLabel={bookmarked ? 'Removing' : 'Saving'}
+        loadingLabel={bookmarked ? t('BookmarkToggle.removing') : t('BookmarkToggle.saving')}
         disabled={status.isPending}
         onClick={() => toggle.mutate()}
       >
-        {bookmarked ? 'Bookmarked' : 'Bookmark'}
+        {bookmarked ? t('BookmarkToggle.bookmarked') : t('BookmarkToggle.bookmark')}
       </Button>
 
       {toggle.isError ? (
-        <InlineAlert tone="danger" title="Could not update the bookmark" live>
-          {describeError(toggle.error)}
+        <InlineAlert tone="danger" title={t('BookmarkToggle.errorTitle')} live>
+          {describeError(toggle.error, t)}
         </InlineAlert>
       ) : null}
     </div>
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: ReturnType<typeof useT>): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('BookmarkToggle.apiNoAnswer');
+  return t('BookmarkToggle.genericError');
 }

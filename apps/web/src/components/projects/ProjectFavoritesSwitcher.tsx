@@ -3,6 +3,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { listProjectFavorites } from '../../lib/api/project-favorites';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -31,6 +32,7 @@ export function ProjectFavoritesSwitcher({
   client,
 }: ProjectFavoritesSwitcherProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const favorites = useQuery({
     queryKey: ['project-favorites', organizationSlug],
@@ -42,30 +44,30 @@ export function ProjectFavoritesSwitcher({
   return (
     <nav className="tm-panel tm-stack" aria-labelledby="tm-project-favorites-heading">
       <h2 id="tm-project-favorites-heading" className="tm-eyebrow">
-        Favorite projects
+        {t('ProjectFavoritesSwitcher.heading')}
       </h2>
 
       {favorites.isError ? (
-        <InlineAlert tone="danger" title="Could not load your favorite projects" live>
-          {describeError(favorites.error)}
+        <InlineAlert tone="danger" title={t('ProjectFavoritesSwitcher.loadErrorTitle')} live>
+          {describeError(favorites.error, t)}
         </InlineAlert>
       ) : null}
 
       {favorites.isPending ? (
-        <LoadingRegion label="Loading your favorite projects.">
+        <LoadingRegion label={t('ProjectFavoritesSwitcher.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!favorites.isPending && !favorites.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No favorite projects yet">
-          Favorite a project to keep it on your switcher. Use the star beside a project to add it.
+        <InlineAlert tone="neutral" title={t('ProjectFavoritesSwitcher.emptyTitle')}>
+          {t('ProjectFavoritesSwitcher.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {rows.length > 0 ? (
-        <ul className="tm-list" aria-label="Favorite projects, newest first">
+        <ul className="tm-list" aria-label={t('ProjectFavoritesSwitcher.listLabel')}>
           {rows.map((favorite) => (
             <li key={favorite.id}>
               <a
@@ -82,8 +84,8 @@ export function ProjectFavoritesSwitcher({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: ReturnType<typeof useT>): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('ProjectFavoritesSwitcher.apiNoAnswer');
+  return t('ProjectFavoritesSwitcher.genericError');
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { Combobox } from '@tmanage/ui';
+import { useT } from '../lib/i18n/use-t';
 import { memberOptions } from '../lib/members-presentation';
 import type { MemberSummary } from '../lib/api/members';
 
@@ -103,6 +104,7 @@ export function MemberSelect({
   disabled,
   openOnFocus = false,
 }: MemberSelectProps) {
+  const t = useT();
   const options = memberOptions(members, value === '' ? null : value, loading);
 
   const [typed, setTyped] = useState('');
@@ -113,9 +115,9 @@ export function MemberSelect({
   }, [typed, onSearchChange]);
 
   const stateHint = loading
-    ? 'Loading the people in this organization.'
+    ? t('MemberSelect.loadingPeople')
     : failed
-      ? 'The member list could not be loaded. Names are unavailable; the field still accepts a member you already have.'
+      ? t('MemberSelect.listUnavailable')
       : undefined;
 
   return (
@@ -126,7 +128,7 @@ export function MemberSelect({
       onValueChange={onChange}
       onQueryChange={setTyped}
       openOnFocus={openOnFocus}
-      emptyLabel={loading ? 'Loading members' : 'No member of this organization matches'}
+      emptyLabel={loading ? t('MemberSelect.loadingMembers') : t('MemberSelect.noMatch')}
       {...(name === undefined ? {} : { name })}
       {...(required === undefined ? {} : { required })}
       {...(disabled === undefined ? {} : { disabled })}

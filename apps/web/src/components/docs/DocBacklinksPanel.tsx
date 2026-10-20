@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { useT } from '../../lib/i18n/use-t';
 import { addDocLink, listDocBacklinks, listDocLinks, removeDocLink } from '../../lib/api/doc-links';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
@@ -33,6 +34,7 @@ export function DocBacklinksPanel({
   client,
 }: DocBacklinksPanelProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const queryClient = useQueryClient();
   const [targetDocId, setTargetDocId] = useState('');
 
@@ -71,7 +73,7 @@ export function DocBacklinksPanel({
     <div className="tm-stack">
       <section className="tm-panel tm-stack" aria-labelledby="tm-doc-links-heading">
         <h2 id="tm-doc-links-heading" className="tm-eyebrow">
-          Links
+          {t('DocBacklinksPanel.linksHeading')}
         </h2>
 
         <form
@@ -84,13 +86,13 @@ export function DocBacklinksPanel({
           }}
         >
           <label className="tm-field" htmlFor="tm-doc-link-target">
-            <span className="tm-field__label">Link to a document</span>
+            <span className="tm-field__label">{t('DocBacklinksPanel.linkToDocument')}</span>
             <input
               id="tm-doc-link-target"
               className="tm-input"
               value={targetDocId}
               onChange={(event) => setTargetDocId(event.target.value)}
-              placeholder="Target document id"
+              placeholder={t('DocBacklinksPanel.targetPlaceholder')}
               autoComplete="off"
             />
           </label>
@@ -99,43 +101,43 @@ export function DocBacklinksPanel({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Linking"
+            loadingLabel={t('DocBacklinksPanel.linkingLabel')}
             disabled={trimmed === ''}
           >
-            Add link
+            {t('DocBacklinksPanel.addLink')}
           </Button>
         </form>
 
         {add.isError ? (
-          <InlineAlert tone="danger" title="Could not add the link" live>
-            {describeError(add.error)}
+          <InlineAlert tone="danger" title={t('DocBacklinksPanel.addErrorTitle')} live>
+            {describeError(add.error, t)}
           </InlineAlert>
         ) : null}
 
         <LinkList
-          label="Linked documents"
-          caption="The documents this one links to, newest first."
-          empty="No links yet. Add one above."
+          label={t('DocBacklinksPanel.linkedDocumentsLabel')}
+          caption={t('DocBacklinksPanel.linkedCaption')}
+          empty={t('DocBacklinksPanel.linkedEmpty')}
           query={links}
           removable
           onRemove={(target) => remove.mutate(target)}
           removePending={remove.isPending}
         />
         {remove.isError ? (
-          <InlineAlert tone="danger" title="Could not remove the link" live>
-            {describeError(remove.error)}
+          <InlineAlert tone="danger" title={t('DocBacklinksPanel.removeErrorTitle')} live>
+            {describeError(remove.error, t)}
           </InlineAlert>
         ) : null}
       </section>
 
       <section className="tm-panel tm-stack" aria-labelledby="tm-doc-backlinks-heading">
         <h2 id="tm-doc-backlinks-heading" className="tm-eyebrow">
-          Linked from
+          {t('DocBacklinksPanel.linkedFromHeading')}
         </h2>
         <LinkList
-          label="Documents linking here"
-          caption="The documents that link to this one, newest first."
-          empty="No documents link here yet."
+          label={t('DocBacklinksPanel.backlinksLabel')}
+          caption={t('DocBacklinksPanel.backlinksCaption')}
+          empty={t('DocBacklinksPanel.backlinksEmpty')}
           query={backlinks}
         />
       </section>
@@ -167,25 +169,26 @@ function LinkList({
   onRemove,
   removePending = false,
 }: LinkListProps) {
+  const t = useT();
   const rows = query.data ?? [];
 
   return (
     <>
       {query.isError ? (
-        <InlineAlert tone="danger" title="Could not load the links" live>
-          {describeError(query.error)}
+        <InlineAlert tone="danger" title={t('DocBacklinksPanel.loadErrorTitle')} live>
+          {describeError(query.error, t)}
         </InlineAlert>
       ) : null}
 
       {query.isPending ? (
-        <LoadingRegion label="Loading links.">
+        <LoadingRegion label={t('DocBacklinksPanel.loadingLinks')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!query.isPending && !query.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title="No links">
+        <InlineAlert tone="neutral" title={t('DocBacklinksPanel.noLinksTitle')}>
           {empty}
         </InlineAlert>
       ) : null}
@@ -202,13 +205,13 @@ function LinkList({
         >
           <table className="tm-table">
             <caption className="tm-visually-hidden">
-              {caption} {rows.length} shown.
+              {caption} {rows.length} {t('DocBacklinksPanel.shownSuffix')}
             </caption>
             <thead>
               <tr>
-                <th scope="col">Document</th>
-                <th scope="col">Linked at</th>
-                {removable ? <th scope="col">Actions</th> : null}
+                <th scope="col">{t('DocBacklinksPanel.columnDocument')}</th>
+                <th scope="col">{t('DocBacklinksPanel.columnLinkedAt')}</th>
+                {removable ? <th scope="col">{t('DocBacklinksPanel.columnActions')}</th> : null}
               </tr>
             </thead>
             <tbody>
@@ -227,7 +230,7 @@ function LinkList({
                         disabled={removePending}
                         onClick={() => onRemove?.(link.docId)}
                       >
-                        Remove
+                        {t('DocBacklinksPanel.remove')}
                       </Button>
                     </td>
                   ) : null}
@@ -241,8 +244,8 @@ function LinkList({
   );
 }
 
-function describeError(error: unknown): string {
+function describeError(error: unknown, t: ReturnType<typeof useT>): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof NetworkError) return t('DocBacklinksPanel.apiNoAnswer');
+  return t('DocBacklinksPanel.genericError');
 }
