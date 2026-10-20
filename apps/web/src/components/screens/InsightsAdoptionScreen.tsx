@@ -34,7 +34,7 @@ export interface InsightsAdoptionScreenProps {
  * **Adoption** — INS-06, the org-wide adoption read turned into a proven screen. It reads
  * `GET /v1/organizations/:orgSlug/insights/adoption` (gated on the server by `work.read`) and
  * renders the INS-06 frame: three system-quality figures (committed dates, channels feeding no work,
- * deliverables sent without a matching version hash), the data-gap table, and where decisions get
+ * deliverables sent without a tracked version), the data-gap table, and where decisions get
  * recorded.
  *
  * The decisions are the sibling insights screens':
@@ -175,8 +175,8 @@ function AdoptionReport({
             ? {}
             : { badge: hashDelta > 0 ? `down ${hashDelta}` : `up ${-hashDelta}` })}
           badgeTone={hashDelta > 0 ? 'lime' : 'warning'}
-          label="deliverables sent without a version hash"
-          note="approval cannot be tied to a file"
+          label="deliverables sent without a tracked version"
+          note="approval cannot be tied to a specific file"
         />
       </InsightsMetrics>
 
@@ -241,12 +241,16 @@ function AdoptionReport({
                 a login count and it is not attributed to individuals.
               </p>
               <div className="tm-ins-callout__actions">
-                <a
-                  className="tm-button tm-button--ink tm-ins-callout__primary"
-                  href="#tm-adoption-gaps"
-                >
-                  Open the {totalGaps} {totalGaps === 1 ? 'gap' : 'gaps'}
-                </a>
+                {totalGaps > 0 ? (
+                  <a
+                    className="tm-button tm-button--ink tm-ins-callout__primary"
+                    href="#tm-adoption-gaps"
+                  >
+                    Open the {totalGaps} {totalGaps === 1 ? 'gap' : 'gaps'}
+                  </a>
+                ) : (
+                  <span className="tm-ins-callout__primary tm-muted">No data gaps right now.</span>
+                )}
                 <Link
                   className="tm-button tm-button--outline"
                   href={`/${organizationSlug}/policies`}

@@ -1,9 +1,25 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import { InsightsAdoptionScreen } from '../src/components/screens/InsightsAdoptionScreen';
 import { expectNoAxeViolations } from './axe';
+
+// The app shell mounts MembershipGoneGate, which calls useRouter; jsdom has no Next app-router
+// context, so the router is stubbed for the mount.
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+  usePathname: () => '/',
+  useSearchParams: () => new URLSearchParams(),
+  useParams: () => ({}),
+}));
 
 /**
  * INS-06 — the org-wide adoption screen (x133). The screen reads a single endpoint; the fake fetch
@@ -79,6 +95,21 @@ describe('InsightsAdoptionScreen', () => {
     expect(screen.getByText(/1–14 August/)).toBeTruthy();
 
     await expectNoAxeViolations(container);
+  });
+
+  it('does not offer a link to open zero gaps', async () => {
+    const clean = {
+      ...ADOPTION,
+      gaps: [
+        { id: 'chat_work_untriaged', count: 0, projectCount: 0, projectName: null },
+        { id: 'client_files_internal', count: 0, projectCount: 0, projectName: null },
+        { id: 'requests_uncommitted', count: 0, projectCount: 0, projectName: null },
+      ],
+    };
+    mount({ body: clean });
+
+    expect(await screen.findByText('No data gaps right now.')).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /open the .* gap/i })).toBeNull();
   });
 
   it('surfaces a work.read refusal rather than rendering blank', async () => {

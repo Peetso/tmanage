@@ -119,9 +119,6 @@ export function StorageUsageScreen({
                 Only owners. Project managers and members never see the plan, its usage or its
                 invoices.
               </p>
-              <p className="tm-bil-card__foot">
-                Storage is measured in binary units — 1 GiB is 1,024 MiB.
-              </p>
             </section>
           </div>
         </div>
@@ -196,9 +193,9 @@ function UsagePanel({ usage, plan }: { usage: OrganizationUsage; plan: Subscript
 
         <p className="tm-bil-card__foot">
           {usage.reconciledAt === null
-            ? 'Never reconciled against the storage ledger.'
-            : `Last reconciled ${formatMoment(usage.reconciledAt)}.`}{' '}
-          Nothing here throttles work.
+            ? "We haven't checked this total against your files yet."
+            : `Last checked ${formatMoment(usage.reconciledAt)}.`}{' '}
+          Nothing here slows down your work.
         </p>
       </section>
     </div>
@@ -267,11 +264,11 @@ function describe(error: unknown): string {
 }
 
 /**
- * Bytes as the person who owns the quota reads them — binary units, because storage is sold and
- * measured in powers of 1024. A whole multiple loses its decimal (`3 GiB`, not `3.0 GiB`); a
- * partial one keeps one place. Zero is `0 B`, never the largest unit at `0`.
+ * Bytes as the person who owns the quota reads them — the familiar GB/MB labels every operating
+ * system shows, scaled in powers of 1024. A whole multiple loses its decimal (`3 GB`, not
+ * `3.0 GB`); a partial one keeps one place. Zero is `0 B`, never the largest unit at `0`.
  */
-const UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'] as const;
+const UNITS = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'] as const;
 
 function formatBytes(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';

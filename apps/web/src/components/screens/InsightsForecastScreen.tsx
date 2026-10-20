@@ -84,7 +84,11 @@ export function InsightsForecastScreen({
 
 function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
   const { totals } = forecast;
-  const firstOver = forecast.weeks.find((week) => week.overCapacity);
+  // With no one carrying open work the capacity basis is zero, which would otherwise flag every week
+  // as "over" and alarm the reader for no reason (BIL-05). When that is the case we stop drawing the
+  // over-capacity verdict and show a plain setup prompt instead of a false alarm.
+  const capacityKnown = totals.capacity > 0;
+  const firstOver = capacityKnown ? forecast.weeks.find((week) => week.overCapacity) : undefined;
 
   return (
     <>
@@ -96,13 +100,22 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
         />
         <ul className="tm-ins-capacity" aria-hidden="true">
           {forecast.weeks.map((week) => (
-            <CapacityRow key={week.weekIndex} week={week} />
+            <CapacityRow key={week.weekIndex} week={week} capacityKnown={capacityKnown} />
           ))}
         </ul>
         <p className="tm-ins-card__body">
-          A slot is one committed work item with a date. Capacity is a constant{' '}
-          {perMemberCapacity(totals)} items per member per week across {totals.memberCount}{' '}
-          {totals.memberCount === 1 ? 'member' : 'members'} carrying open work.
+          {capacityKnown ? (
+            <>
+              A slot is one committed work item with a date. Capacity is a constant{' '}
+              {perMemberCapacity(totals)} {perMemberCapacity(totals) === 1 ? 'item' : 'items'} per
+              member per week across {count(totals.memberCount, 'member')} carrying open work.
+            </>
+          ) : (
+            <>
+              A slot is one committed work item with a date. No weekly capacity is set yet, so we
+              show committed work only and do not call any week over capacity.
+            </>
+          )}
         </p>
       </InsightsCard>
 
@@ -143,7 +156,7 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
               </thead>
               <tbody>
                 {forecast.weeks.map((week) => (
-                  <WeekRow key={week.weekIndex} week={week} />
+                  <WeekRow key={week.weekIndex} week={week} capacityKnown={capacityKnown} />
                 ))}
               </tbody>
             </table>
@@ -153,17 +166,41 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
         side={
           <>
             <InsightsCard variant="callout">
-              <p className="tm-ins-eyebrow">The one thing to fix first</p>
-              <p className="tm-ins-callout__title">
-                {firstOver
-                  ? `Week ${firstOver.weekIndex} carries ${firstOver.committedItemCount} committed items against ~${firstOver.capacity} slots.`
-                  : 'Every week in the window is within capacity.'}
-              </p>
-              <p className="tm-ins-card__body">
-                {totals.overCapacityWeekCount > 0
-                  ? `${totals.overCapacityWeekCount} of ${totals.weeks} weeks are over. Moving one date now is a conversation; moving it on the day is a missed commitment.`
-                  : `${totals.committedItemCount} committed items across ${totals.weeks} weeks, against ${totals.capacity} slots.`}
-              </p>
+              {capacityKnown ? (
+                <>
+                  <p className="tm-ins-eyebrow">The one thing to fix first</p>
+                  <p className="tm-ins-callout__title">
+                    {firstOver
+                      ? `Week ${firstOver.weekIndex} carries ${count(
+                          firstOver.committedItemCount,
+                          'committed item',
+                        )} against ~${count(firstOver.capacity, 'slot')}.`
+                      : 'Every week in the window is within capacity.'}
+                  </p>
+                  <p className="tm-ins-card__body">
+                    {totals.overCapacityWeekCount > 0
+                      ? `${totals.overCapacityWeekCount} of ${count(
+                          totals.weeks,
+                          'week',
+                        )} are over. Moving one date now is a conversation; moving it on the day is a missed commitment.`
+                      : `${count(totals.committedItemCount, 'committed item')} across ${count(
+                          totals.weeks,
+                          'week',
+                        )}, against ${count(totals.capacity, 'slot')}.`}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="tm-ins-eyebrow">Set a weekly capacity</p>
+                  <p className="tm-ins-callout__title">
+                    We cannot say which weeks are overloaded until a weekly capacity is set.
+                  </p>
+                  <p className="tm-ins-card__body">
+                    For now this shows {count(totals.committedItemCount, 'committed item')} across{' '}
+                    {count(totals.weeks, 'week')}, with no week called over capacity.
+                  </p>
+                </>
+              )}
             </InsightsCard>
             <InsightsNote eyebrow="Not a productivity view">
               No hours tracked, no output counted, no person ranked. Capacity is what the team
@@ -176,16 +213,25 @@ function ForecastPanel({ forecast }: { forecast: WorkloadForecastView }) {
   );
 }
 
-/** INS-05's capacity row: the week, its committed share of the slots, and the "over" flag. */
-function CapacityRow({ week }: { week: WorkloadForecastWeek }) {
+/**
+ * INS-05's capacity row: the week, its committed share of the slots, and the "over" flag. With no
+ * capacity set (BIL-05) the "over" verdict is withheld and the slot figure is dropped, because a
+ * zero denominator makes every week look full.
+ */
+function CapacityRow({
+  week,
+  capacityKnown,
+}: {
+  week: WorkloadForecastWeek;
+  capacityKnown: boolean;
+}) {
+  const over = capacityKnown && week.overCapacity;
   const width =
     week.capacity === 0
-      ? week.committedItemCount > 0
-        ? 100
-        : 0
+      ? 0
       : Math.min(100, Math.round((week.committedItemCount / week.capacity) * 100));
   return (
-    <li className="tm-ins-capacity__row" data-over={week.overCapacity || undefined}>
+    <li className="tm-ins-capacity__row" data-over={over || undefined}>
       <span className="tm-ins-capacity__name">
         Week {week.weekIndex}
         <span className="tm-ins-capacity__sub">starting {formatDay(week.startsAt)}</span>
@@ -194,28 +240,36 @@ function CapacityRow({ week }: { week: WorkloadForecastWeek }) {
         <span className="tm-ins-capacity__fill" style={{ inlineSize: `${width}%` }} />
       </span>
       <span className="tm-ins-capacity__value">
-        {week.committedItemCount} of ~{week.capacity} slots{week.overCapacity ? ' · over' : ''}
+        {capacityKnown
+          ? `${count(week.committedItemCount, 'item')} of ~${count(week.capacity, 'slot')}${over ? ' · over' : ''}`
+          : count(week.committedItemCount, 'item')}
       </span>
     </li>
   );
 }
 
-function WeekRow({ week }: { week: WorkloadForecastWeek }) {
+function WeekRow({ week, capacityKnown }: { week: WorkloadForecastWeek; capacityKnown: boolean }) {
+  const over = capacityKnown && week.overCapacity;
   return (
-    <tr data-tone={week.overCapacity ? 'danger' : 'quiet'}>
+    <tr data-tone={over ? 'danger' : 'quiet'}>
       <th scope="row">Week {week.weekIndex}</th>
       <td>{formatDay(week.startsAt)}</td>
-      <td className="tm-ins-table__num" {...(week.overCapacity ? { 'data-tone': 'danger' } : {})}>
+      <td className="tm-ins-table__num" {...(over ? { 'data-tone': 'danger' } : {})}>
         {week.committedItemCount}
       </td>
-      <td className="tm-ins-table__num">{week.capacity}</td>
+      <td className="tm-ins-table__num">{capacityKnown ? week.capacity : '—'}</td>
       <td>
-        <span className="tm-ins-badge" data-tone={week.overCapacity ? 'danger' : 'quiet'}>
-          {week.overCapacity ? 'Over capacity' : 'Within capacity'}
+        <span className="tm-ins-badge" data-tone={over ? 'danger' : 'quiet'}>
+          {!capacityKnown ? 'No capacity set' : over ? 'Over capacity' : 'Within capacity'}
         </span>
       </td>
     </tr>
   );
+}
+
+/** "1 item" / "2 items" — a count then its noun, pluralised with a trailing "s". */
+function count(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
 /** The per-member weekly capacity, recovered from the totals so the copy never hard-codes the constant. */

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import { fetchAdminOverview } from '../../lib/api/admin-overview';
 import {
   assignBillingSeat,
   listBillingSeats,
@@ -46,6 +47,15 @@ export function BillingSeatsScreen({
     queryKey: ['billing-seats', organizationSlug],
     queryFn: () => listBillingSeats(api, organizationSlug),
   });
+
+  // The organization's active-member count, so the seat roster is read in context: the overview
+  // counts members, this screen counts seats assigned by hand, and showing both together stops the
+  // "0 seats but 4 members" contradiction a reader otherwise hits (BIL-02). Same org.manage gate.
+  const overview = useQuery({
+    queryKey: ['admin-overview', organizationSlug],
+    queryFn: () => fetchAdminOverview(api, organizationSlug),
+  });
+  const activeMembers = overview.data?.activeMembers;
 
   const [membershipId, setMembershipId] = useState('');
 
@@ -130,6 +140,14 @@ export function BillingSeatsScreen({
           <h2 id="tm-seat-list-heading" className="tm-eyebrow">
             Active seats {seats.isSuccess ? `(${seats.data.activeCount})` : ''}
           </h2>
+
+          {seats.isSuccess && activeMembers !== undefined ? (
+            <p className="tm-muted">
+              {activeMembers === 1 ? '1 person is' : `${activeMembers} people are`} active in this
+              workspace. Seats are assigned here by hand and are separate from that count — no one
+              needs a seat to use TManage, so an empty list is normal.
+            </p>
+          ) : null}
 
           {seats.isError ? (
             <InlineAlert tone="danger" title="Could not load the seats" live>
