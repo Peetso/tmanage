@@ -8,6 +8,7 @@ import { submitPortalDeliverableFeedback } from '../../lib/api/portal-deliverabl
 import type { PortalDeliverableFeedback } from '../../lib/api/portal-deliverable-feedback';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PortalDeliverableFeedbackViewProps {
   organizationSlug: string;
@@ -34,6 +35,7 @@ export function PortalDeliverableFeedbackView({
   deliverableId,
   client = browserApiClient(),
 }: PortalDeliverableFeedbackViewProps) {
+  const t = useT();
   const commentId = useId();
   const [rating, setRating] = useState<number | null>(null);
   const [comment, setComment] = useState('');
@@ -57,23 +59,32 @@ export function PortalDeliverableFeedbackView({
   const saved: PortalDeliverableFeedback | undefined = submit.data;
 
   return (
-    <section className="tm-stack tm-stack--tight" aria-label="Leave feedback on this deliverable">
+    <section
+      className="tm-stack tm-stack--tight"
+      aria-label={t('PortalDeliverableFeedbackView.sectionLabel')}
+    >
       {submit.isError ? (
-        <InlineAlert tone="danger" title="Could not save your feedback" live>
+        <InlineAlert tone="danger" title={t('PortalDeliverableFeedbackView.saveErrorTitle')} live>
           {describe(submit.error)}
         </InlineAlert>
       ) : null}
 
       {saved ? (
-        <InlineAlert tone="success" title="Thanks — your feedback was saved" live>
-          You rated this deliverable {saved.rating} out of 5. You can change your rating at any
-          time.
+        <InlineAlert tone="success" title={t('PortalDeliverableFeedbackView.savedTitle')} live>
+          {t('PortalDeliverableFeedbackView.ratedPrefix')} {saved.rating}{' '}
+          {t('PortalDeliverableFeedbackView.ratedSuffix')}
         </InlineAlert>
       ) : null}
 
       <fieldset className="tm-field" aria-invalid={ratingRequired ? true : undefined}>
-        <legend className="tm-field__label">Your rating</legend>
-        <div className="tm-row tm-row--wrap" role="radiogroup" aria-label="Rating from 1 to 5">
+        <legend className="tm-field__label">
+          {t('PortalDeliverableFeedbackView.ratingLegend')}
+        </legend>
+        <div
+          className="tm-row tm-row--wrap"
+          role="radiogroup"
+          aria-label={t('PortalDeliverableFeedbackView.ratingGroupLabel')}
+        >
           {RATINGS.map((value) => (
             <Button
               key={value}
@@ -89,13 +100,13 @@ export function PortalDeliverableFeedbackView({
         </div>
         {ratingRequired ? (
           <span className="tm-field__error" role="alert">
-            Choose a rating from 1 to 5.
+            {t('PortalDeliverableFeedbackView.ratingRequiredError')}
           </span>
         ) : null}
       </fieldset>
 
       <label className="tm-field" htmlFor={commentId}>
-        <span className="tm-field__label">A comment (optional)</span>
+        <span className="tm-field__label">{t('PortalDeliverableFeedbackView.commentLabel')}</span>
         <textarea
           id={commentId}
           className="tm-input"
@@ -115,7 +126,9 @@ export function PortalDeliverableFeedbackView({
           disabled={submit.isPending}
           onClick={onSubmit}
         >
-          {saved ? 'Update feedback' : 'Send feedback'}
+          {saved
+            ? t('PortalDeliverableFeedbackView.updateFeedback')
+            : t('PortalDeliverableFeedbackView.sendFeedback')}
         </Button>
       </div>
     </section>

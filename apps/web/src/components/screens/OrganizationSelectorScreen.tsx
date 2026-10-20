@@ -10,6 +10,7 @@ import { listOrganizations, type OrganizationSummary } from '../../lib/api/organ
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { describeInternalRole } from '../../lib/roles';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/identity.css';
 
 export interface OrganizationSelectorScreenProps {
@@ -65,6 +66,7 @@ export function OrganizationSelectorScreen({
   navigate = (href) => window.location.assign(href),
 }: OrganizationSelectorScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const [query, setQuery] = useState('');
 
   /**
@@ -115,11 +117,13 @@ export function OrganizationSelectorScreen({
   if (soleClientOrganization) {
     const name = soleClientOrganization.clientOrganizationName ?? soleClientOrganization.name;
     return (
-      <IdentityShell eyebrow="Choose where you are working">
+      <IdentityShell eyebrow={t('OrganizationSelectorScreen.eyebrow')}>
         <div className="tm-id-bare tm-id-orgs tm-stack">
-          <h1 className="tm-identity__title">Opening your portal</h1>
-          <LoadingRegion label={`Taking you to ${name}.`}>
-            <p className="tm-id-lede">Taking you to {name}…</p>
+          <h1 className="tm-identity__title">{t('OrganizationSelectorScreen.openingPortal')}</h1>
+          <LoadingRegion label={`${t('OrganizationSelectorScreen.takingYouTo')} ${name}.`}>
+            <p className="tm-id-lede">
+              {t('OrganizationSelectorScreen.takingYouTo')} {name}…
+            </p>
           </LoadingRegion>
         </div>
       </IdentityShell>
@@ -127,32 +131,38 @@ export function OrganizationSelectorScreen({
   }
 
   return (
-    <IdentityShell eyebrow="Choose where you are working">
+    <IdentityShell eyebrow={t('OrganizationSelectorScreen.eyebrow')}>
       <div className="tm-id-bare tm-id-orgs tm-stack">
         <h1 className="tm-identity__title">{heading(organizations.data, accessRemoved)}</h1>
 
         {organizations.isPending ? (
-          <LoadingRegion label="Loading your organizations." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('OrganizationSelectorScreen.loadingOrgs')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="88px" />
             <Skeleton height="88px" />
           </LoadingRegion>
         ) : null}
 
         {organizations.isError ? (
-          <InlineAlert tone="danger" title="Could not load your organizations" live>
+          <InlineAlert tone="danger" title={t('OrganizationSelectorScreen.loadError')} live>
             {describe(organizations.error)}
           </InlineAlert>
         ) : null}
 
         {organizations.isSuccess && organizations.data.length === 0 && accessRemoved ? (
           <div className="tm-id-card">
-            <InlineAlert tone="warning" title="Your access was removed" live>
-              Your access was removed by an administrator. If you think this is a mistake, ask
-              whoever manages the organization to invite you again.
+            <InlineAlert
+              tone="warning"
+              title={t('OrganizationSelectorScreen.accessRemovedTitle')}
+              live
+            >
+              {t('OrganizationSelectorScreen.accessRemovedBody')}
             </InlineAlert>
             <div className="tm-row">
               <Link className="tm-button tm-button--ink tm-button--accessible" href="/sign-in">
-                Sign in with a different account
+                {t('OrganizationSelectorScreen.signInDifferent')}
               </Link>
             </div>
           </div>
@@ -160,15 +170,15 @@ export function OrganizationSelectorScreen({
 
         {organizations.isSuccess && organizations.data.length === 0 && !accessRemoved ? (
           <div className="tm-id-card">
-            <InlineAlert tone="neutral" title="You are not in an organization yet">
-              An organization is the space your team works in. Create one and you become its owner.
+            <InlineAlert tone="neutral" title={t('OrganizationSelectorScreen.noOrgTitle')}>
+              {t('OrganizationSelectorScreen.noOrgBody')}
             </InlineAlert>
             <div className="tm-row">
               <Link
                 className="tm-button tm-button--ink tm-button--accessible"
                 href="/onboarding/organization"
               >
-                Create an organization
+                {t('OrganizationSelectorScreen.createOrg')}
               </Link>
             </div>
           </div>
@@ -177,15 +187,15 @@ export function OrganizationSelectorScreen({
         {organizations.isSuccess && organizations.data.length > 0 ? (
           <>
             <SearchField
-              label="Search organizations"
+              label={t('OrganizationSelectorScreen.searchLabel')}
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search organizations"
+              placeholder={t('OrganizationSelectorScreen.searchLabel')}
             />
 
             {matches.length === 0 ? (
               <InlineAlert tone="neutral" live>
-                No organization matches “{query}”.
+                {t('OrganizationSelectorScreen.noMatch')} “{query}”.
               </InlineAlert>
             ) : (
               <ul className="tm-id-org-list">
@@ -207,13 +217,19 @@ export function OrganizationSelectorScreen({
                         <span className="tm-id-org__text">
                           <span className="tm-id-org__name">{name}</span>
                           <span className="tm-id-org__meta">
-                            <span>{isClient ? 'Client portal' : 'Internal member'}</span>
+                            <span>
+                              {isClient
+                                ? t('OrganizationSelectorScreen.clientPortal')
+                                : t('OrganizationSelectorScreen.internalMember')}
+                            </span>
                             {' · '}
                             <span>{roleLabel(organization.role)}</span>
                             {isClient ? (
                               <>
                                 {' · '}
-                                <span>Delivered by {organization.name}</span>
+                                <span>
+                                  {t('OrganizationSelectorScreen.deliveredBy')} {organization.name}
+                                </span>
                               </>
                             ) : null}
                           </span>
@@ -233,8 +249,7 @@ export function OrganizationSelectorScreen({
         ) : null}
 
         <InlineAlert className="tm-id-footnote" tone="neutral">
-          Each organization is a separate space. Nothing is shared between them — not search, not
-          files, not notifications.
+          {t('OrganizationSelectorScreen.footnote')}
         </InlineAlert>
       </div>
     </IdentityShell>

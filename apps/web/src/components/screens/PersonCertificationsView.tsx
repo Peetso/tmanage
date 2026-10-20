@@ -11,6 +11,7 @@ import {
 } from '../../lib/api/people-certifications';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PersonCertificationsViewProps {
   organizationSlug: string;
@@ -40,6 +41,7 @@ export function PersonCertificationsView({
   api,
 }: PersonCertificationsViewProps) {
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['person-certifications', organizationSlug, userId] as const;
   const [name, setName] = useState('');
   const [issuer, setIssuer] = useState('');
@@ -103,42 +105,45 @@ export function PersonCertificationsView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-person-certifications">
       <h2 id="tm-person-certifications" className="tm-eyebrow">
-        Certifications
+        {t('PersonCertificationsView.heading')}
       </h2>
 
       {certifications.isPending ? (
-        <LoadingRegion label="Loading this person’s certifications.">
+        <LoadingRegion label={t('PersonCertificationsView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {certifications.isError ? (
-        <InlineAlert tone="danger" title="Could not load the certifications" live>
+        <InlineAlert tone="danger" title={t('PersonCertificationsView.loadError')} live>
           {describe(certifications.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('PersonCertificationsView.failureTitle')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {certifications.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No certifications yet. Add the first one below.</p>
+          <p className="tm-prose">{t('PersonCertificationsView.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Person certifications">
+          <ul className="tm-list" aria-label={t('PersonCertificationsView.listLabel')}>
             {items.map((certification) => (
               <li key={certification.id} className="tm-row">
                 <span>
-                  {certification.name} · {certification.issuer} · issued {certification.issuedOn}
-                  {certification.expiresOn ? ` · expires ${certification.expiresOn}` : ''}
+                  {certification.name} · {certification.issuer} ·{' '}
+                  {t('PersonCertificationsView.issuedWord')} {certification.issuedOn}
+                  {certification.expiresOn
+                    ? ` · ${t('PersonCertificationsView.expiresWord')} ${certification.expiresOn}`
+                    : ''}
                   {certification.expired ? (
                     <>
                       {' '}
-                      <Badge>Expired</Badge>
+                      <Badge>{t('PersonCertificationsView.expired')}</Badge>
                     </>
                   ) : null}
                 </span>
@@ -147,11 +152,14 @@ export function PersonCertificationsView({
                   tone="text"
                   size="accessible"
                   loading={remove.isPending && remove.variables?.id === certification.id}
-                  loadingLabel="Removing"
+                  loadingLabel={t('PersonCertificationsView.removing')}
                   onClick={() => remove.mutate(certification)}
                 >
-                  Remove{' '}
-                  <span className="tm-visually-hidden">the {certification.name} certification</span>
+                  {t('PersonCertificationsView.remove')}{' '}
+                  <span className="tm-visually-hidden">
+                    {t('PersonCertificationsView.removeSrPrefix')} {certification.name}{' '}
+                    {t('PersonCertificationsView.removeSrSuffix')}
+                  </span>
                 </Button>
               </li>
             ))}
@@ -161,33 +169,33 @@ export function PersonCertificationsView({
 
       <form className="tm-stack" noValidate onSubmit={submit}>
         <Field
-          label="Certification name"
+          label={t('PersonCertificationsView.certNameLabel')}
           name="certificationName"
           value={name}
           maxLength={200}
           onChange={(event) => setName(event.target.value)}
-          hint="The credential, e.g. AWS Solutions Architect."
+          hint={t('PersonCertificationsView.certNameHint')}
         />
         <Field
-          label="Issuer"
+          label={t('PersonCertificationsView.issuerLabel')}
           name="certificationIssuer"
           value={issuer}
           maxLength={200}
           onChange={(event) => setIssuer(event.target.value)}
-          hint="Who issued it, e.g. Amazon Web Services."
+          hint={t('PersonCertificationsView.issuerHint')}
         />
         <DateField
-          label="Issued on"
+          label={t('PersonCertificationsView.issuedOnLabel')}
           name="certificationIssuedOn"
           value={issuedOn}
           onValueChange={setIssuedOn}
         />
         <DateField
-          label="Expires on"
+          label={t('PersonCertificationsView.expiresOnLabel')}
           name="certificationExpiresOn"
           value={expiresOn}
           onValueChange={setExpiresOn}
-          hint="Leave blank if the credential does not expire."
+          hint={t('PersonCertificationsView.expiresOnHint')}
         />
         <div className="tm-row">
           <Button
@@ -195,10 +203,10 @@ export function PersonCertificationsView({
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('PersonCertificationsView.adding')}
             disabled={!canSubmit}
           >
-            Add certification
+            {t('PersonCertificationsView.addCertification')}
           </Button>
         </div>
       </form>

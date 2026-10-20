@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { getPersonCapacity, setPersonCapacity } from '../../lib/api/person-capacity';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PersonCapacitySectionProps {
   organizationSlug: string;
@@ -34,6 +35,7 @@ export function PersonCapacitySection({
 }: PersonCapacitySectionProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['people', 'capacity', organizationSlug, membershipId];
 
   const capacity = useQuery({
@@ -72,36 +74,36 @@ export function PersonCapacitySection({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-person-capacity-heading">
       <h2 id="tm-person-capacity-heading" className="tm-eyebrow">
-        Weekly capacity
+        {t('PersonCapacitySection.heading')}
       </h2>
 
       {capacity.isError ? (
-        <InlineAlert tone="danger" title="Could not load this member's capacity" live>
+        <InlineAlert tone="danger" title={t('PersonCapacitySection.loadErrorTitle')} live>
           {describeError(capacity.error)}
         </InlineAlert>
       ) : null}
 
       {capacity.isPending ? (
-        <LoadingRegion label="Loading capacity.">
+        <LoadingRegion label={t('PersonCapacitySection.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {!capacity.isPending && !capacity.isError && capacity.data === null ? (
-        <InlineAlert tone="neutral" title="No capacity set yet">
-          Set how many hours a week this member is available. Allocation reads against this figure.
+        <InlineAlert tone="neutral" title={t('PersonCapacitySection.emptyTitle')}>
+          {t('PersonCapacitySection.emptyBody')}
         </InlineAlert>
       ) : null}
 
       {save.isError ? (
-        <InlineAlert tone="danger" title="Could not save capacity" live>
+        <InlineAlert tone="danger" title={t('PersonCapacitySection.saveErrorTitle')} live>
           {describeError(save.error)}
         </InlineAlert>
       ) : null}
 
       {save.isSuccess ? (
-        <InlineAlert tone="success" title="Capacity saved" live>
-          This member's weekly capacity has been updated.
+        <InlineAlert tone="success" title={t('PersonCapacitySection.savedTitle')} live>
+          {t('PersonCapacitySection.savedBody')}
         </InlineAlert>
       ) : null}
 
@@ -114,7 +116,7 @@ export function PersonCapacitySection({
         }}
       >
         <Field
-          label="Hours a week"
+          label={t('PersonCapacitySection.hoursLabel')}
           name="weeklyHours"
           type="number"
           min={0}
@@ -123,29 +125,29 @@ export function PersonCapacitySection({
           inputMode="numeric"
           value={weeklyHours}
           onChange={(event) => setWeeklyHours(event.target.value)}
-          hint="A whole number of hours, 0 to 168."
+          hint={t('PersonCapacitySection.hoursHint')}
           error={
-            weeklyHours !== '' && !hoursValid
-              ? 'Enter a whole number between 0 and 168.'
-              : undefined
+            weeklyHours !== '' && !hoursValid ? t('PersonCapacitySection.hoursError') : undefined
           }
           required
         />
 
         <Field
-          label="Effective from"
+          label={t('PersonCapacitySection.effectiveLabel')}
           name="effectiveFrom"
           type="date"
           value={effectiveFrom}
           onChange={(event) => setEffectiveFrom(event.target.value)}
-          hint="The day this figure takes effect."
-          error={effectiveFrom !== '' && !dateValid ? 'Enter a valid date.' : undefined}
+          hint={t('PersonCapacitySection.effectiveHint')}
+          error={
+            effectiveFrom !== '' && !dateValid ? t('PersonCapacitySection.dateError') : undefined
+          }
           required
         />
 
         <div className="tm-row">
           <Button type="submit" disabled={!canSave} loading={save.isPending}>
-            {save.isPending ? 'Saving…' : 'Save capacity'}
+            {save.isPending ? t('PersonCapacitySection.saving') : t('PersonCapacitySection.save')}
           </Button>
         </div>
       </form>

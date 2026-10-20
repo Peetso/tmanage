@@ -8,6 +8,7 @@ import { listPortalAnnouncements } from '../../lib/api/portal-announcements';
 import type { ClientPortalAnnouncement } from '../../lib/api/portal-announcements';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PortalAnnouncementViewProps {
   organizationSlug: string;
@@ -36,6 +37,7 @@ export function PortalAnnouncementView({
   client,
 }: PortalAnnouncementViewProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const announcements = useQuery({
     queryKey: ['portal-announcements', organizationSlug, clientId],
@@ -48,15 +50,15 @@ export function PortalAnnouncementView({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="home"
-      title="Home"
-      description="Notices your team has pinned to your portal."
+      title={t('PortalAnnouncementView.title')}
+      description={t('PortalAnnouncementView.description')}
     >
       {announcements.isError ? (
-        <InlineAlert tone="danger" title="Could not load announcements" live>
+        <InlineAlert tone="danger" title={t('PortalAnnouncementView.loadErrorTitle')} live>
           {describe(announcements.error)}
         </InlineAlert>
       ) : announcements.isPending ? (
-        <LoadingRegion label="Loading announcements">
+        <LoadingRegion label={t('PortalAnnouncementView.loading')}>
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : (
@@ -71,9 +73,10 @@ function AnnouncementBanners({
 }: {
   announcements: readonly ClientPortalAnnouncement[];
 }) {
+  const t = useT();
   if (announcements.length === 0) return null;
   return (
-    <section className="tm-stack" aria-label="Announcements">
+    <section className="tm-stack" aria-label={t('PortalAnnouncementView.announcementsLabel')}>
       {announcements.map((announcement) => (
         <InlineAlert key={announcement.id} tone="neutral" title={announcement.title}>
           <p className="tm-prose">{announcement.body}</p>

@@ -7,6 +7,7 @@ import { listPins, unpinMessage } from '../../lib/api/message-pins';
 import type { PinnedMessage } from '../../lib/api/message-pins';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PinnedMessagesViewProps {
   organizationSlug: string;
@@ -38,6 +39,7 @@ export function PinnedMessagesView({
 }: PinnedMessagesViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
   const queryKey = ['conversation', conversationId, 'pins'] as const;
 
   const pins = useQuery({
@@ -56,40 +58,42 @@ export function PinnedMessagesView({
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-conversation-pins">
       <h2 id="tm-conversation-pins" className="tm-eyebrow">
-        Pinned messages
+        {t('PinnedMessagesView.heading')}
       </h2>
 
       {pins.isLoading ? (
-        <LoadingRegion label="Loading pinned messages.">
+        <LoadingRegion label={t('PinnedMessagesView.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : pins.isError ? (
-        <InlineAlert tone="danger" title="Could not load pinned messages" live>
+        <InlineAlert tone="danger" title={t('PinnedMessagesView.loadErrorTitle')} live>
           {pins.error instanceof NetworkError
-            ? 'The network dropped. Try again.'
+            ? t('PinnedMessagesView.networkError')
             : pins.error instanceof ApiRequestError
               ? pins.error.message
-              : 'Something went wrong.'}
+              : t('PinnedMessagesView.genericError')}
         </InlineAlert>
       ) : items.length === 0 ? (
-        <InlineAlert tone="neutral" title="No pinned messages">
-          Nothing is pinned to this conversation yet.
+        <InlineAlert tone="neutral" title={t('PinnedMessagesView.emptyTitle')}>
+          {t('PinnedMessagesView.emptyBody')}
         </InlineAlert>
       ) : (
-        <ul className="tm-stack" aria-label="Pinned messages">
+        <ul className="tm-stack" aria-label={t('PinnedMessagesView.heading')}>
           {items.map((pin: PinnedMessage) => (
             <li key={pin.id} className="tm-row">
-              <span className="tm-row__main">Message {pin.messageId}</span>
+              <span className="tm-row__main">
+                {t('PinnedMessagesView.messageWord')} {pin.messageId}
+              </span>
               {canModerate ? (
                 <Button
                   tone="text"
                   size="compact"
                   onClick={() => unpin.mutate(pin.messageId)}
                   loading={unpin.isPending}
-                  loadingLabel="Unpinning the message."
+                  loadingLabel={t('PinnedMessagesView.unpinning')}
                 >
-                  Unpin
+                  {t('PinnedMessagesView.unpin')}
                 </Button>
               ) : null}
             </li>
@@ -98,10 +102,10 @@ export function PinnedMessagesView({
       )}
 
       {unpin.isError ? (
-        <InlineAlert tone="danger" title="Could not unpin the message" live>
+        <InlineAlert tone="danger" title={t('PinnedMessagesView.unpinErrorTitle')} live>
           {unpin.error instanceof ApiRequestError
             ? unpin.error.message
-            : 'Something went wrong. Try again.'}
+            : t('PinnedMessagesView.unpinGenericError')}
         </InlineAlert>
       ) : null}
     </section>

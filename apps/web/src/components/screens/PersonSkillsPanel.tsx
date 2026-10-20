@@ -12,6 +12,7 @@ import {
 } from '../../lib/api/people-skills';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PersonSkillsPanelProps {
   organizationSlug: string;
@@ -43,6 +44,7 @@ function describe(error: unknown): string {
  */
 export function PersonSkillsPanel({ organizationSlug, membershipId, api }: PersonSkillsPanelProps) {
   const queries = useQueryClient();
+  const t = useT();
   const queryKey = ['person-skills', organizationSlug, membershipId] as const;
   const [label, setLabel] = useState('');
   const [level, setLevel] = useState<PersonSkillLevel>('proficient');
@@ -91,33 +93,33 @@ export function PersonSkillsPanel({ organizationSlug, membershipId, api }: Perso
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-person-skills">
       <h2 id="tm-person-skills" className="tm-eyebrow">
-        Skills
+        {t('PersonSkillsPanel.heading')}
       </h2>
 
       {skills.isPending ? (
-        <LoadingRegion label="Loading this member’s skills.">
+        <LoadingRegion label={t('PersonSkillsPanel.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : null}
 
       {skills.isError ? (
-        <InlineAlert tone="danger" title="Could not load the skills" live>
+        <InlineAlert tone="danger" title={t('PersonSkillsPanel.loadError')} live>
           {describe(skills.error)}
         </InlineAlert>
       ) : null}
 
       {failure ? (
-        <InlineAlert tone="danger" title="That did not go through" live>
+        <InlineAlert tone="danger" title={t('PersonSkillsPanel.failureTitle')} live>
           {failure}
         </InlineAlert>
       ) : null}
 
       {skills.data ? (
         items.length === 0 ? (
-          <p className="tm-prose">No skills yet. Add the first one below.</p>
+          <p className="tm-prose">{t('PersonSkillsPanel.empty')}</p>
         ) : (
-          <ul className="tm-list" aria-label="Member skills">
+          <ul className="tm-list" aria-label={t('PersonSkillsPanel.listLabel')}>
             {items.map((skill) => (
               <li key={skill.id} className="tm-row">
                 <span>
@@ -128,10 +130,14 @@ export function PersonSkillsPanel({ organizationSlug, membershipId, api }: Perso
                   tone="text"
                   size="accessible"
                   loading={remove.isPending && remove.variables?.id === skill.id}
-                  loadingLabel="Removing"
+                  loadingLabel={t('PersonSkillsPanel.removing')}
                   onClick={() => remove.mutate(skill)}
                 >
-                  Remove <span className="tm-visually-hidden">the {skill.label} skill</span>
+                  {t('PersonSkillsPanel.remove')}{' '}
+                  <span className="tm-visually-hidden">
+                    {t('PersonSkillsPanel.removeSrPrefix')} {skill.label}{' '}
+                    {t('PersonSkillsPanel.removeSrSuffix')}
+                  </span>
                 </Button>
               </li>
             ))}
@@ -141,15 +147,15 @@ export function PersonSkillsPanel({ organizationSlug, membershipId, api }: Perso
 
       <form className="tm-stack" noValidate onSubmit={submit}>
         <Field
-          label="Add a skill"
+          label={t('PersonSkillsPanel.addSkillLabel')}
           name="skillLabel"
           value={label}
           maxLength={80}
           onChange={(event) => setLabel(event.target.value)}
-          hint="A short skill or tag, e.g. TypeScript or Copywriting."
+          hint={t('PersonSkillsPanel.addSkillHint')}
         />
         <Select
-          label="Level"
+          label={t('PersonSkillsPanel.levelLabel')}
           name="skillLevel"
           value={level}
           onChange={(event) => setLevel(event.target.value as PersonSkillLevel)}
@@ -166,10 +172,10 @@ export function PersonSkillsPanel({ organizationSlug, membershipId, api }: Perso
             tone="ink"
             size="accessible"
             loading={add.isPending}
-            loadingLabel="Adding"
+            loadingLabel={t('PersonSkillsPanel.adding')}
             disabled={label.trim() === ''}
           >
-            Add skill
+            {t('PersonSkillsPanel.addSkill')}
           </Button>
         </div>
       </form>

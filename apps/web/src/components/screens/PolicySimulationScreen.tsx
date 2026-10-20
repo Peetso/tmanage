@@ -11,6 +11,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PolicySimulationScreenProps {
   organizationSlug: string;
@@ -40,6 +41,7 @@ export function PolicySimulationScreen({
   client,
 }: PolicySimulationScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   // The standing barrier `useHydrated` documents: these are controlled inputs with no query to
   // gate on, so the fieldset below ships disabled in the server render and enables only once React
   // is live. Without it, on a cold compile the Simulate click can land before the submit handler is
@@ -68,28 +70,31 @@ export function PolicySimulationScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="policy-simulation"
-      crumbs={['Access policy', 'Simulation']}
-      title="Can this person do this?"
-      description="A dry run over the stored roles and policies. It changes nothing."
+      crumbs={[
+        t('PolicySimulationScreen.crumbAccessPolicy'),
+        t('PolicySimulationScreen.crumbSimulation'),
+      ]}
+      title={t('PolicySimulationScreen.title')}
+      description={t('PolicySimulationScreen.description')}
       actions={
         <Link
           href={`/${organizationSlug}/policies`}
           className="tm-button tm-button--outline tm-button--compact"
         >
-          Access policy
+          {t('PolicySimulationScreen.accessPolicyLink')}
         </Link>
       }
     >
       <div className="tm-cc-split tm-cc-split--even">
         <section className="tm-cc-card" aria-labelledby="tm-policy-simulate-heading">
           <h2 id="tm-policy-simulate-heading" className="tm-cc-eyebrow">
-            Can this member do this?
+            {t('PolicySimulationScreen.heading')}
           </h2>
 
           <form
             className="tm-stack"
             noValidate
-            aria-label="Policy simulation"
+            aria-label={t('PolicySimulationScreen.formLabel')}
             onSubmit={(event: FormEvent<HTMLFormElement>) => {
               event.preventDefault();
               setResult(null);
@@ -98,19 +103,19 @@ export function PolicySimulationScreen({
           >
             <fieldset className="tm-fieldset tm-cc-form" disabled={!hydrated}>
               <Field
-                label="Member id"
+                label={t('PolicySimulationScreen.memberIdLabel')}
                 name="memberId"
                 value={memberId}
                 onChange={(event) => setMemberId(event.target.value)}
-                hint="The membership id of the person to evaluate."
+                hint={t('PolicySimulationScreen.memberIdHint')}
                 required
               />
               <Select
-                label="Capability"
+                label={t('PolicySimulationScreen.capabilityLabel')}
                 name="capability"
                 value={capability}
                 onChange={(event) => setCapability(event.target.value)}
-                hint="The action to test."
+                hint={t('PolicySimulationScreen.capabilityHint')}
               >
                 {CAPABILITIES_BY_AREA.map((cap) => (
                   <option key={cap} value={cap}>
@@ -119,15 +124,15 @@ export function PolicySimulationScreen({
                 ))}
               </Select>
               <Field
-                label="Project id (optional)"
+                label={t('PolicySimulationScreen.projectIdLabel')}
                 name="projectId"
                 value={projectId}
                 onChange={(event) => setProjectId(event.target.value)}
-                hint="Leave empty to evaluate an organization-level action."
+                hint={t('PolicySimulationScreen.projectIdHint')}
               />
 
               {simulate.isError ? (
-                <InlineAlert tone="danger" title="Could not run the simulation" live>
+                <InlineAlert tone="danger" title={t('PolicySimulationScreen.simErrorTitle')} live>
                   {describeError(simulate.error)}
                 </InlineAlert>
               ) : null}
@@ -138,9 +143,9 @@ export function PolicySimulationScreen({
                   tone="ink"
                   size="accessible"
                   loading={simulate.isPending}
-                  loadingLabel="Simulating"
+                  loadingLabel={t('PolicySimulationScreen.simulating')}
                 >
-                  Simulate
+                  {t('PolicySimulationScreen.simulate')}
                 </Button>
               </div>
             </fieldset>
@@ -156,29 +161,35 @@ export function PolicySimulationScreen({
             <>
               <p className="tm-cc-eyebrow">
                 <span className="tm-cc-orb" aria-hidden="true" />
-                Result
+                {t('PolicySimulationScreen.resultEyebrow')}
               </p>
               <h2 id="tm-policy-simulate-result" className="tm-cc-card__lead">
-                {result.allowed ? 'Allowed' : 'Denied'}
+                {result.allowed
+                  ? t('PolicySimulationScreen.allowed')
+                  : t('PolicySimulationScreen.denied')}
               </h2>
               <p className="tm-cc-card__body">
-                Role <strong>{result.role}</strong> — {result.detail}
+                {t('PolicySimulationScreen.roleWord')} <strong>{result.role}</strong> —{' '}
+                {result.detail}
               </p>
               <hr className="tm-cc-rule" />
               <p className="tm-cc-card__body">
-                Deciding rule: <code>{result.decidingRule}</code>
-                {result.denialCode ? <> (code {result.denialCode})</> : null}
+                {t('PolicySimulationScreen.decidingRule')} <code>{result.decidingRule}</code>
+                {result.denialCode ? (
+                  <>
+                    {' '}
+                    ({t('PolicySimulationScreen.codeWord')} {result.denialCode})
+                  </>
+                ) : null}
               </p>
             </>
           ) : (
             <>
-              <p className="tm-cc-eyebrow">No simulation yet</p>
+              <p className="tm-cc-eyebrow">{t('PolicySimulationScreen.noSimEyebrow')}</p>
               <h2 id="tm-policy-simulate-result" className="tm-cc-card__title">
-                The answer and the rule that decided it appear here
+                {t('PolicySimulationScreen.noSimTitle')}
               </h2>
-              <p className="tm-cc-card__body">
-                Choose a member and an action, then run the simulation.
-              </p>
+              <p className="tm-cc-card__body">{t('PolicySimulationScreen.noSimBody')}</p>
             </>
           )}
         </section>

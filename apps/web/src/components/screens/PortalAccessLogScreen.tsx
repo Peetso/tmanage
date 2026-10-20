@@ -13,6 +13,7 @@ import type {
 } from '../../lib/api/portal-access-log';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PortalAccessLogScreenProps {
   organizationSlug: string;
@@ -55,6 +56,7 @@ export function PortalAccessLogScreen({
   client,
 }: PortalAccessLogScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const events = useInfiniteQuery({
     queryKey: ['portal-access-log', organizationSlug, projectId],
@@ -74,14 +76,17 @@ export function PortalAccessLogScreen({
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      title="Portal access log"
-      description="What this project's clients accessed in the portal, newest first."
-      eyebrow="Project · Client portal"
+      title={t('PortalAccessLogScreen.title')}
+      description={t('PortalAccessLogScreen.description')}
+      eyebrow={t('PortalAccessLogScreen.eyebrow')}
       topBar={<ProjectTabs organizationSlug={organizationSlug} projectId={projectId} />}
     >
       <div className="tm-prj tm-prj--sub">
         {events.isPending ? (
-          <LoadingRegion label="Loading the access log." className="tm-stack tm-stack--tight">
+          <LoadingRegion
+            label={t('PortalAccessLogScreen.loading')}
+            className="tm-stack tm-stack--tight"
+          >
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
@@ -89,28 +94,26 @@ export function PortalAccessLogScreen({
         ) : null}
 
         {events.isError ? (
-          <InlineAlert tone="danger" title="Could not load the access log" live>
+          <InlineAlert tone="danger" title={t('PortalAccessLogScreen.loadErrorTitle')} live>
             {describe(events.error)}
           </InlineAlert>
         ) : null}
 
         {!events.isPending && !events.isError && rows.length === 0 ? (
-          <InlineAlert tone="neutral">
-            No client access has been recorded for this project.
-          </InlineAlert>
+          <InlineAlert tone="neutral">{t('PortalAccessLogScreen.empty')}</InlineAlert>
         ) : null}
 
         {rows.length > 0 ? (
           <section className="tm-card tm-prj-card" aria-labelledby="tm-portal-access-heading">
             <h2 id="tm-portal-access-heading" className="tm-prj-eyebrow">
-              Access events
+              {t('PortalAccessLogScreen.accessEventsHeading')}
             </h2>
-            <table className="tm-table" aria-label="Client portal access events, newest first">
+            <table className="tm-table" aria-label={t('PortalAccessLogScreen.tableLabel')}>
               <thead>
                 <tr>
-                  <th scope="col">When</th>
-                  <th scope="col">Client member</th>
-                  <th scope="col">Resource</th>
+                  <th scope="col">{t('PortalAccessLogScreen.thWhen')}</th>
+                  <th scope="col">{t('PortalAccessLogScreen.thClientMember')}</th>
+                  <th scope="col">{t('PortalAccessLogScreen.thResource')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -129,7 +132,9 @@ export function PortalAccessLogScreen({
                   onClick={() => void events.fetchNextPage()}
                   disabled={events.isFetchingNextPage}
                 >
-                  {events.isFetchingNextPage ? 'Loading…' : 'Load more'}
+                  {events.isFetchingNextPage
+                    ? t('PortalAccessLogScreen.loadingMore')
+                    : t('PortalAccessLogScreen.loadMore')}
                 </Button>
               </div>
             ) : null}

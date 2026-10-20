@@ -15,6 +15,7 @@ import type {
 } from '../../lib/api/person-time-off';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PersonTimeOffViewProps {
   organizationSlug: string;
@@ -62,6 +63,7 @@ export function PersonTimeOffView({
 }: PersonTimeOffViewProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const [chip, setChip] = useState<RangeChip>('all');
 
@@ -115,7 +117,7 @@ export function PersonTimeOffView({
   return (
     <section className="tm-stack" aria-labelledby="tm-time-off-heading">
       <h2 id="tm-time-off-heading" className="tm-eyebrow">
-        Time off
+        {t('PersonTimeOffView.heading')}
       </h2>
 
       {canManage ? (
@@ -128,12 +130,12 @@ export function PersonTimeOffView({
           }}
         >
           <h3 id="tm-time-off-add-heading" className="tm-eyebrow">
-            Record time off
+            {t('PersonTimeOffView.recordHeading')}
           </h3>
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-time-off-start">
-              Start date
+              {t('PersonTimeOffView.startDate')}
             </label>
             <input
               id="tm-time-off-start"
@@ -147,7 +149,7 @@ export function PersonTimeOffView({
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-time-off-end">
-              End date
+              {t('PersonTimeOffView.endDate')}
             </label>
             <input
               id="tm-time-off-end"
@@ -161,7 +163,7 @@ export function PersonTimeOffView({
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-time-off-kind">
-              Kind
+              {t('PersonTimeOffView.kind')}
             </label>
             <select
               id="tm-time-off-kind"
@@ -179,7 +181,7 @@ export function PersonTimeOffView({
 
           <div className="tm-field">
             <label className="tm-field__label" htmlFor="tm-time-off-note">
-              Note (optional)
+              {t('PersonTimeOffView.noteLabel')}
             </label>
             <input
               id="tm-time-off-note"
@@ -192,14 +194,16 @@ export function PersonTimeOffView({
           </div>
 
           {add.isError ? (
-            <InlineAlert tone="danger" title="We could not record the time off">
+            <InlineAlert tone="danger" title={t('PersonTimeOffView.recordErrorTitle')}>
               {errorMessage(add.error)}
             </InlineAlert>
           ) : null}
 
           <div>
             <Button type="submit" disabled={add.isPending}>
-              {add.isPending ? 'Recording…' : 'Record time off'}
+              {add.isPending
+                ? t('PersonTimeOffView.recording')
+                : t('PersonTimeOffView.recordButton')}
             </Button>
           </div>
         </form>
@@ -207,10 +211,10 @@ export function PersonTimeOffView({
 
       <div className="tm-panel tm-stack" aria-labelledby="tm-time-off-list-heading">
         <h3 id="tm-time-off-list-heading" className="tm-eyebrow">
-          Recorded time off
+          {t('PersonTimeOffView.recordedHeading')}
         </h3>
 
-        <div className="tm-button-row" role="group" aria-label="Filter time off by range">
+        <div className="tm-button-row" role="group" aria-label={t('PersonTimeOffView.filterLabel')}>
           {CHIPS.map((entry) => (
             <Button
               key={entry.key}
@@ -225,15 +229,15 @@ export function PersonTimeOffView({
         </div>
 
         {entries.isPending ? (
-          <LoadingRegion label="Loading time off">
+          <LoadingRegion label={t('PersonTimeOffView.loading')}>
             <Skeleton />
           </LoadingRegion>
         ) : entries.isError ? (
-          <InlineAlert tone="danger" title="We could not load the time off">
+          <InlineAlert tone="danger" title={t('PersonTimeOffView.loadErrorTitle')}>
             {errorMessage(entries.error)}
           </InlineAlert>
         ) : list.length === 0 ? (
-          <p className="tm-muted">No time off recorded for this range.</p>
+          <p className="tm-muted">{t('PersonTimeOffView.emptyRange')}</p>
         ) : (
           <ul className="tm-list">
             {list.map((entry) => (
@@ -249,7 +253,7 @@ export function PersonTimeOffView({
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(entry.id)}
                   >
-                    Remove
+                    {t('PersonTimeOffView.remove')}
                   </Button>
                 ) : null}
               </li>
@@ -258,7 +262,7 @@ export function PersonTimeOffView({
         )}
 
         {remove.isError ? (
-          <InlineAlert tone="danger" title="We could not remove the entry">
+          <InlineAlert tone="danger" title={t('PersonTimeOffView.removeErrorTitle')}>
             {errorMessage(remove.error)}
           </InlineAlert>
         ) : null}

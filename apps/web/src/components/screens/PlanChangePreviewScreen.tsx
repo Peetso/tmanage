@@ -9,6 +9,7 @@ import { fetchPlanChangePreview } from '../../lib/api/plan-preview';
 import type { PlanChangePreviewView } from '../../lib/api/plan-preview';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface PlanChangePreviewScreenProps {
@@ -47,6 +48,7 @@ export function PlanChangePreviewScreen({
   client,
 }: PlanChangePreviewScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
   const [target, setTarget] = useState<string>('pro');
   const [seats, setSeats] = useState<string>('1');
 
@@ -65,10 +67,10 @@ export function PlanChangePreviewScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing · Change plan"
-      title="Plan-change preview"
-      description="Estimate what moving to another plan would cost, before you request the change."
-      headerAside={<p className="tm-bil-aside-note">Nothing is charged until you request it</p>}
+      eyebrow={t('PlanChangePreviewScreen.eyebrow')}
+      title={t('PlanChangePreviewScreen.title')}
+      description={t('PlanChangePreviewScreen.description')}
+      headerAside={<p className="tm-bil-aside-note">{t('PlanChangePreviewScreen.headerNote')}</p>}
     >
       <form
         className="tm-bil-stack"
@@ -79,11 +81,13 @@ export function PlanChangePreviewScreen({
         }}
       >
         <h2 id="tm-plan-preview-heading" className="tm-visually-hidden">
-          Estimate a change
+          {t('PlanChangePreviewScreen.estimateHeading')}
         </h2>
 
         <fieldset className="tm-bil-plans">
-          <legend className="tm-visually-hidden">Target plan</legend>
+          <legend className="tm-visually-hidden">
+            {t('PlanChangePreviewScreen.targetPlanLegend')}
+          </legend>
           {PLAN_OPTIONS.map((plan) => (
             <label key={plan.id} className="tm-bil-plan">
               <input
@@ -94,15 +98,19 @@ export function PlanChangePreviewScreen({
                 onChange={() => setTarget(plan.id)}
               />
               <span className="tm-bil-plan__head">
-                <span className="tm-bil-eyebrow">Plan</span>
+                <span className="tm-bil-eyebrow">{t('PlanChangePreviewScreen.planEyebrow')}</span>
                 {preview.data?.currentPlanId === plan.id ? (
-                  <span className="tm-bil-status tm-bil-status--lime">Current</span>
+                  <span className="tm-bil-status tm-bil-status--lime">
+                    {t('PlanChangePreviewScreen.current')}
+                  </span>
                 ) : null}
               </span>
               <span className="tm-bil-plan__name">{plan.label}</span>
               <span className="tm-bil-plan__foot">
                 <span className="tm-bil-pill-wide">
-                  {target === plan.id ? 'Selected for the estimate' : `Estimate ${plan.label}`}
+                  {target === plan.id
+                    ? t('PlanChangePreviewScreen.selectedForEstimate')
+                    : `${t('PlanChangePreviewScreen.estimateWord')} ${plan.label}`}
                 </span>
               </span>
             </label>
@@ -115,23 +123,26 @@ export function PlanChangePreviewScreen({
               <PreviewResult preview={preview.data} />
             ) : (
               <>
-                <p className="tm-bil-eyebrow">Pick a plan and a seat count</p>
-                <p className="tm-bil-card__lead">
-                  See the new monthly figure and the change against today before anything is
-                  requested.
-                </p>
+                <p className="tm-bil-eyebrow">{t('PlanChangePreviewScreen.pickPlanEyebrow')}</p>
+                <p className="tm-bil-card__lead">{t('PlanChangePreviewScreen.pickPlanLead')}</p>
               </>
             )}
 
             {preview.isError ? (
-              <InlineAlert tone="danger" title="Could not estimate the change" live>
+              <InlineAlert
+                tone="danger"
+                title={t('PlanChangePreviewScreen.estimateErrorTitle')}
+                live
+              >
                 {describe(preview.error)}
               </InlineAlert>
             ) : null}
 
             <div className="tm-bil-actions tm-bil-actions--foot">
               <Button type="submit" tone="lime" disabled={preview.isPending}>
-                {preview.isPending ? 'Estimating…' : 'Preview change'}
+                {preview.isPending
+                  ? t('PlanChangePreviewScreen.estimating')
+                  : t('PlanChangePreviewScreen.previewChange')}
               </Button>
             </div>
           </section>
@@ -141,20 +152,20 @@ export function PlanChangePreviewScreen({
             aria-labelledby="tm-plan-seats-heading"
           >
             <h3 id="tm-plan-seats-heading" className="tm-bil-card__title">
-              Seats for {planLabel(target)}
+              {t('PlanChangePreviewScreen.seatsFor')} {planLabel(target)}
             </h3>
             <div className="tm-bil-stepper">
               <button
                 type="button"
                 className="tm-bil-stepper__button"
-                aria-label="One seat fewer"
+                aria-label={t('PlanChangePreviewScreen.oneSeatFewer')}
                 disabled={seatCount <= 1}
                 onClick={() => stepSeats(-1)}
               >
                 −
               </button>
               <Field
-                label="Seats"
+                label={t('PlanChangePreviewScreen.seatsLabel')}
                 type="number"
                 min={1}
                 max={1000}
@@ -166,19 +177,15 @@ export function PlanChangePreviewScreen({
               <button
                 type="button"
                 className="tm-bil-stepper__button"
-                aria-label="One seat more"
+                aria-label={t('PlanChangePreviewScreen.oneSeatMore')}
                 disabled={seatCount >= 1000}
                 onClick={() => stepSeats(1)}
               >
                 +
               </button>
             </div>
-            <p className="tm-bil-card__body">
-              Previewing does not charge you. Billing is arranged separately.
-            </p>
-            <p className="tm-bil-card__foot">
-              Request the change on the subscription screen once the estimate looks right.
-            </p>
+            <p className="tm-bil-card__body">{t('PlanChangePreviewScreen.previewNote')}</p>
+            <p className="tm-bil-card__foot">{t('PlanChangePreviewScreen.requestNote')}</p>
           </section>
         </div>
       </form>
@@ -187,17 +194,19 @@ export function PlanChangePreviewScreen({
 }
 
 function PreviewResult({ preview }: { preview: PlanChangePreviewView }) {
+  const t = useT();
   const delta = preview.estimatedDeltaCents;
   const direction = delta > 0 ? 'more' : delta < 0 ? 'less' : 'the same';
   const lead =
     delta === 0
-      ? 'The same each month. Nothing is charged by this estimate.'
+      ? t('PlanChangePreviewScreen.sameEachMonth')
       : `${money(Math.abs(delta), preview.currency, false)} ${direction} a month. Nothing is charged by this estimate.`;
 
   return (
     <>
       <p className="tm-bil-eyebrow">
-        If you go from {planLabel(preview.currentPlanId)} to {planLabel(preview.targetPlanId)}
+        {t('PlanChangePreviewScreen.ifYouGoFrom')} {planLabel(preview.currentPlanId)}{' '}
+        {t('PlanChangePreviewScreen.toWord')} {planLabel(preview.targetPlanId)}
       </p>
       <p className="tm-bil-card__lead">{lead}</p>
       <ul className="tm-bil-points">

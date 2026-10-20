@@ -11,6 +11,7 @@ import { readOrgSettings, setOrgSetting } from '../../lib/api/org-settings';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface OrgSettingsScreenProps {
   organizationSlug: string;
@@ -63,6 +64,7 @@ export function OrgSettingsScreen({
   const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   // ACT-13: `/settings` is the organization's settings, behind `org.manage`. A person whose role
   // cannot manage the organization (a member who typed the address) is sent to their own
@@ -114,39 +116,39 @@ export function OrgSettingsScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       section="organization"
-      crumbs={['Organization']}
+      crumbs={[t('OrgSettingsScreen.crumbOrganization')]}
       title={organizationName}
       actions={
         <Link
           href={`/${organizationSlug}/admin`}
           className="tm-button tm-button--outline tm-button--compact"
         >
-          Control center
+          {t('OrgSettingsScreen.controlCenter')}
         </Link>
       }
     >
       <div className="tm-cc-split tm-cc-split--even">
         <section className="tm-cc-card" aria-labelledby="tm-org-settings-heading">
           <h2 id="tm-org-settings-heading" className="tm-cc-eyebrow">
-            Identity, time and policy · applies to everyone
+            {t('OrgSettingsScreen.settingsHeading')}
           </h2>
 
           {settings.isError ? (
-            <InlineAlert tone="danger" title="Could not load the settings" live>
+            <InlineAlert tone="danger" title={t('OrgSettingsScreen.loadErrorTitle')} live>
               {describeError(settings.error)}
             </InlineAlert>
           ) : null}
 
           {settings.isPending ? (
-            <LoadingRegion label="Loading the settings.">
+            <LoadingRegion label={t('OrgSettingsScreen.loading')}>
               <Skeleton height="var(--row)" />
               <Skeleton height="var(--row)" />
             </LoadingRegion>
           ) : null}
 
           {!settings.isPending && !settings.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title="No settings available">
-              There are no organization settings to configure yet.
+            <InlineAlert tone="neutral" title={t('OrgSettingsScreen.emptyTitle')}>
+              {t('OrgSettingsScreen.emptyBody')}
             </InlineAlert>
           ) : null}
 
@@ -159,7 +161,7 @@ export function OrgSettingsScreen({
                     <form
                       className="tm-stack tm-cc-rows__grow"
                       noValidate
-                      aria-label={`${meta?.label ?? entry.key} setting`}
+                      aria-label={`${meta?.label ?? entry.key} ${t('OrgSettingsScreen.settingSuffix')}`}
                       onSubmit={(event: FormEvent<HTMLFormElement>) => {
                         event.preventDefault();
                         if (!save.isPending) save.mutate(entry.key);
@@ -183,19 +185,23 @@ export function OrgSettingsScreen({
                           tone="ink"
                           size="default"
                           loading={save.isPending && save.variables === entry.key}
-                          loadingLabel="Saving"
+                          loadingLabel={t('OrgSettingsScreen.saving')}
                         >
-                          Save
+                          {t('OrgSettingsScreen.save')}
                         </Button>
                       </div>
                       {save.isError && save.variables === entry.key ? (
-                        <InlineAlert tone="danger" title="Could not save the setting" live>
+                        <InlineAlert
+                          tone="danger"
+                          title={t('OrgSettingsScreen.saveErrorTitle')}
+                          live
+                        >
                           {describeError(save.error)}
                         </InlineAlert>
                       ) : null}
                       {savedKey === entry.key && !save.isPending && !save.isError ? (
-                        <InlineAlert tone="success" title="Saved" live>
-                          This setting has been updated for the whole organization.
+                        <InlineAlert tone="success" title={t('OrgSettingsScreen.savedTitle')} live>
+                          {t('OrgSettingsScreen.savedBody')}
                         </InlineAlert>
                       ) : null}
                     </form>
@@ -209,45 +215,43 @@ export function OrgSettingsScreen({
         <div className="tm-cc-column">
           <section className="tm-cc-card" aria-labelledby="tm-org-settings-elsewhere">
             <h2 id="tm-org-settings-elsewhere" className="tm-cc-card__title">
-              Set elsewhere in the Control Center
+              {t('OrgSettingsScreen.elsewhereTitle')}
             </h2>
             <ul className="tm-cc-rows">
               <li>
                 <div className="tm-cc-rows__text">
-                  <p className="tm-cc-rows__title">Sign-in and two-factor</p>
-                  <p className="tm-cc-rows__sub">How people get in</p>
+                  <p className="tm-cc-rows__title">{t('OrgSettingsScreen.signInTitle')}</p>
+                  <p className="tm-cc-rows__sub">{t('OrgSettingsScreen.signInSub')}</p>
                 </div>
                 <Link
                   href={`/${organizationSlug}/admin/security`}
                   className="tm-button tm-button--outline tm-button--compact"
                 >
-                  Security
+                  {t('OrgSettingsScreen.security')}
                 </Link>
               </li>
               <li>
                 <div className="tm-cc-rows__text">
-                  <p className="tm-cc-rows__title">Session length and invitations</p>
-                  <p className="tm-cc-rows__sub">
-                    Who may be invited and for how long they stay in
-                  </p>
+                  <p className="tm-cc-rows__title">{t('OrgSettingsScreen.sessionTitle')}</p>
+                  <p className="tm-cc-rows__sub">{t('OrgSettingsScreen.sessionSub')}</p>
                 </div>
                 <Link
                   href={`/${organizationSlug}/policies`}
                   className="tm-button tm-button--outline tm-button--compact"
                 >
-                  Access policy
+                  {t('OrgSettingsScreen.accessPolicy')}
                 </Link>
               </li>
               <li>
                 <div className="tm-cc-rows__text">
-                  <p className="tm-cc-rows__title">Optional modules</p>
-                  <p className="tm-cc-rows__sub">Chat, docs, portal and the rest</p>
+                  <p className="tm-cc-rows__title">{t('OrgSettingsScreen.modulesTitle')}</p>
+                  <p className="tm-cc-rows__sub">{t('OrgSettingsScreen.modulesSub')}</p>
                 </div>
                 <Link
                   href={`/${organizationSlug}/admin/feature-flags`}
                   className="tm-button tm-button--outline tm-button--compact"
                 >
-                  Modules
+                  {t('OrgSettingsScreen.modules')}
                 </Link>
               </li>
             </ul>
@@ -257,12 +261,13 @@ export function OrgSettingsScreen({
             className="tm-cc-card tm-cc-card--quiet tm-cc-card--fill"
             aria-labelledby="tm-org-settings-effect"
           >
-            <p className="tm-cc-eyebrow">Changing a setting</p>
+            <p className="tm-cc-eyebrow">{t('OrgSettingsScreen.effectEyebrow')}</p>
             <h2 id="tm-org-settings-effect" className="tm-cc-card__title">
-              Each setting saves on its own
+              {t('OrgSettingsScreen.effectTitle')}
             </h2>
             <p className="tm-cc-card__body">
-              A change applies to everyone in {organizationName} as soon as it is saved.
+              {t('OrgSettingsScreen.effectBodyPrefix')} {organizationName}{' '}
+              {t('OrgSettingsScreen.effectBodySuffix')}
             </p>
           </section>
         </div>

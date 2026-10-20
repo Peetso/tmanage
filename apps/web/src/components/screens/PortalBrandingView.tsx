@@ -12,6 +12,7 @@ import {
 import type { PortalBranding } from '../../lib/api/portal-branding';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PortalBrandingViewProps {
   organizationSlug: string;
@@ -42,6 +43,7 @@ export function PortalBrandingView({
 }: PortalBrandingViewProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
+  const t = useT();
 
   const branding = useQuery({
     queryKey: ['portal-branding', organizationSlug, clientOrganizationId],
@@ -78,7 +80,7 @@ export function PortalBrandingView({
 
   if (branding.isPending) {
     return (
-      <LoadingRegion label="Loading portal branding">
+      <LoadingRegion label={t('PortalBrandingView.loading')}>
         <Skeleton />
       </LoadingRegion>
     );
@@ -86,7 +88,7 @@ export function PortalBrandingView({
 
   if (branding.isError) {
     return (
-      <InlineAlert tone="danger" title="We could not load the portal branding">
+      <InlineAlert tone="danger" title={t('PortalBrandingView.loadErrorTitle')}>
         {errorMessage(branding.error)}
       </InlineAlert>
     );
@@ -104,12 +106,12 @@ export function PortalBrandingView({
       }}
     >
       <h2 id="tm-portal-branding-heading" className="tm-eyebrow">
-        Client portal branding
+        {t('PortalBrandingView.heading')}
       </h2>
 
       <div className="tm-field">
         <label className="tm-field__label" htmlFor="tm-branding-accent">
-          Accent colour
+          {t('PortalBrandingView.accentLabel')}
         </label>
         <input
           id="tm-branding-accent"
@@ -121,13 +123,13 @@ export function PortalBrandingView({
           onChange={(event) => setAccentColor(event.target.value)}
         />
         {!accentValid ? (
-          <p className="tm-field__error">Enter a #RGB or #RRGGBB hex colour.</p>
+          <p className="tm-field__error">{t('PortalBrandingView.accentError')}</p>
         ) : null}
       </div>
 
       <div className="tm-field">
         <label className="tm-field__label" htmlFor="tm-branding-heading-input">
-          Welcome heading
+          {t('PortalBrandingView.welcomeHeadingLabel')}
         </label>
         <input
           id="tm-branding-heading-input"
@@ -135,14 +137,14 @@ export function PortalBrandingView({
           type="text"
           maxLength={MAX_HEADING}
           value={welcomeHeading}
-          placeholder="Shown at the top of the client portal"
+          placeholder={t('PortalBrandingView.welcomeHeadingPlaceholder')}
           onChange={(event) => setWelcomeHeading(event.target.value)}
         />
       </div>
 
       <div className="tm-field">
         <label className="tm-field__label" htmlFor="tm-branding-text">
-          Welcome text
+          {t('PortalBrandingView.welcomeTextLabel')}
         </label>
         <textarea
           id="tm-branding-text"
@@ -150,26 +152,26 @@ export function PortalBrandingView({
           rows={3}
           maxLength={MAX_TEXT}
           value={welcomeText}
-          placeholder="A short message for this client"
+          placeholder={t('PortalBrandingView.welcomeTextPlaceholder')}
           onChange={(event) => setWelcomeText(event.target.value)}
         />
       </div>
 
       {save.isError ? (
-        <InlineAlert tone="danger" title="We could not save the portal branding">
+        <InlineAlert tone="danger" title={t('PortalBrandingView.saveErrorTitle')}>
           {errorMessage(save.error)}
         </InlineAlert>
       ) : null}
 
       {saved && !save.isPending && !save.isError ? (
-        <InlineAlert tone="success" title="Saved">
-          The client portal branding has been saved.
+        <InlineAlert tone="success" title={t('PortalBrandingView.savedTitle')}>
+          {t('PortalBrandingView.savedBody')}
         </InlineAlert>
       ) : null}
 
       <div>
         <Button type="submit" disabled={save.isPending || !accentValid}>
-          {save.isPending ? 'Saving…' : 'Save branding'}
+          {save.isPending ? t('PortalBrandingView.saving') : t('PortalBrandingView.saveButton')}
         </Button>
       </div>
     </form>

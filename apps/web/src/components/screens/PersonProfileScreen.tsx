@@ -10,6 +10,7 @@ import type { PersonProfileView } from '../../lib/api/person-profile';
 import { describeInternalRole } from '../../lib/roles';
 import type { ApiClient } from '../../lib/api/client';
 import { describePeopleError, firstNameOf, initialsOf } from './peopleShared';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/people.css';
 
 export interface PersonProfileScreenProps {
@@ -46,25 +47,28 @@ export function PersonProfileScreen({
   client,
 }: PersonProfileScreenProps) {
   const api = client ?? browserApiClient();
+  const t = useT();
 
   const profile = useQuery({
     queryKey: ['person-profile', organizationSlug, membershipId],
     queryFn: () => fetchPersonProfile(api, organizationSlug, membershipId),
   });
 
-  const name = profile.isSuccess ? profile.data.displayName : 'Person';
+  const name = profile.isSuccess
+    ? profile.data.displayName
+    : t('PersonProfileScreen.personFallback');
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="people"
-      eyebrow="People"
+      eyebrow={t('PersonProfileScreen.people')}
       title={name}
     >
       <div className="ppl-screen ppl-screen--own-header">
         <p className="ppl-crumbs">
-          <Link href={`/${organizationSlug}/people`}>People</Link>
+          <Link href={`/${organizationSlug}/people`}>{t('PersonProfileScreen.people')}</Link>
           {' · '}
           {name}
         </p>
@@ -72,21 +76,24 @@ export function PersonProfileScreen({
         {profile.isSuccess ? (
           <ProfileBody profile={profile.data} organizationSlug={organizationSlug} />
         ) : (
-          <h1 className="ppl-hero__title">Person</h1>
+          <h1 className="ppl-hero__title">{t('PersonProfileScreen.personFallback')}</h1>
         )}
         {profile.isSuccess ? null : (
           <section className="ppl-card" aria-labelledby="tm-person-heading">
             <h2 id="tm-person-heading" className="ppl-mono">
-              Profile
+              {t('PersonProfileScreen.profileHeading')}
             </h2>
             {profile.isPending ? (
-              <LoadingRegion label="Loading the profile." className="tm-stack tm-stack--tight">
+              <LoadingRegion
+                label={t('PersonProfileScreen.loading')}
+                className="tm-stack tm-stack--tight"
+              >
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
             {profile.isError ? (
-              <InlineAlert tone="danger" title="Could not load the profile" live>
+              <InlineAlert tone="danger" title={t('PersonProfileScreen.loadError')} live>
                 {describePeopleError(profile.error)}
               </InlineAlert>
             ) : null}
@@ -104,6 +111,7 @@ function ProfileBody({
   profile: PersonProfileView;
   organizationSlug: string;
 }) {
+  const t = useT();
   const role = describeInternalRole(profile.role);
   const first = firstNameOf(profile.displayName);
   const active = profile.projects.filter((project) => project.status === 'active').length;
@@ -121,7 +129,7 @@ function ProfileBody({
           <h1 className="ppl-hero__title">{profile.displayName}</h1>
           <p className="ppl-hero__lede">
             {profile.projects.length === 0
-              ? `${first} is not on any projects yet.`
+              ? `${first} ${t('PersonProfileScreen.notOnProjects')}`
               : `On ${profile.projects.length} ${
                   profile.projects.length === 1 ? 'project' : 'projects'
                 } in this organization, ${active} of them active.`}
@@ -134,19 +142,23 @@ function ProfileBody({
           <section className="ppl-card" aria-labelledby="tm-person-projects">
             <div className="ppl-card__head">
               <h2 id="tm-person-projects" className="ppl-card__title ppl-card__title--lg">
-                Where {first} is committed
+                {t('PersonProfileScreen.whereCommittedPrefix')} {first}{' '}
+                {t('PersonProfileScreen.whereCommittedSuffix')}
               </h2>
               <span className="ppl-mono ppl-mono--meta">
-                {profile.projects.length} {profile.projects.length === 1 ? 'project' : 'projects'} ·{' '}
-                {profile.openWorkCount} open
+                {profile.projects.length}{' '}
+                {profile.projects.length === 1
+                  ? t('PersonProfileScreen.projectWord')
+                  : t('PersonProfileScreen.projectsWord')}{' '}
+                · {profile.openWorkCount} {t('PersonProfileScreen.openWord')}
               </span>
             </div>
             {profile.projects.length === 0 ? (
-              <p className="ppl-note">This member is not on any projects.</p>
+              <p className="ppl-note">{t('PersonProfileScreen.noProjectsNote')}</p>
             ) : (
               <ul
                 className="ppl-commitments"
-                aria-label={`Projects ${profile.displayName} belongs to`}
+                aria-label={`${t('PersonProfileScreen.projectsAriaPrefix')} ${profile.displayName} ${t('PersonProfileScreen.projectsAriaSuffix')}`}
               >
                 {profile.projects.map((project, index) => (
                   <li
@@ -167,7 +179,8 @@ function ProfileBody({
                         {project.name}
                       </Link>
                       <span className="ppl-commitment__sub">
-                        {describeInternalRole(project.role).label} on this project
+                        {describeInternalRole(project.role).label}{' '}
+                        {t('PersonProfileScreen.onThisProject')}
                       </span>
                     </span>
                     <span
@@ -188,7 +201,7 @@ function ProfileBody({
           <div className="ppl-pair">
             <section className="ppl-card" aria-labelledby="tm-person-authority">
               <h2 id="tm-person-authority" className="ppl-card__title">
-                Authority
+                {t('PersonProfileScreen.authority')}
               </h2>
               <ul className="ppl-authority">
                 {role.grants.map((grant) => (
@@ -211,18 +224,18 @@ function ProfileBody({
 
             <section className="ppl-card" aria-labelledby="tm-person-open">
               <h2 id="tm-person-open" className="ppl-card__title">
-                Open work
+                {t('PersonProfileScreen.openWork')}
               </h2>
               <div className="ppl-metric">
                 <span className="ppl-metric__value">{profile.openWorkCount}</span>
                 <span className="ppl-metric__label">
-                  {profile.openWorkCount === 1 ? 'open item' : 'open items'} {first} owns
+                  {profile.openWorkCount === 1
+                    ? t('PersonProfileScreen.openItem')
+                    : t('PersonProfileScreen.openItems')}{' '}
+                  {first} {t('PersonProfileScreen.owns')}
                 </span>
               </div>
-              <p className="ppl-note">
-                A count of ownership, not a measure of output. It changes when work is committed,
-                handed over or closed.
-              </p>
+              <p className="ppl-note">{t('PersonProfileScreen.openWorkNote')}</p>
             </section>
           </div>
         </div>
@@ -230,37 +243,32 @@ function ProfileBody({
         <div className="ppl-aside ppl-aside--352">
           <section className="ppl-card" aria-labelledby="tm-person-glance">
             <h2 id="tm-person-glance" className="ppl-mono">
-              {first} at a glance
+              {first} {t('PersonProfileScreen.atAGlance')}
             </h2>
             <ul className="ppl-soft-list">
               <li className="ppl-soft-row ppl-soft-row--roomy">
-                Role
+                {t('PersonProfileScreen.roleLabel')}
                 <span className="ppl-soft-row__end ppl-soft-row__end--text">{role.label}</span>
               </li>
               <li className="ppl-soft-row ppl-soft-row--roomy">
-                Status
+                {t('PersonProfileScreen.statusLabel')}
                 <span className="ppl-soft-row__end ppl-soft-row__end--text">{profile.status}</span>
               </li>
               <li className="ppl-soft-row ppl-soft-row--roomy">
-                Projects
+                {t('PersonProfileScreen.projectsLabel')}
                 <span className="ppl-soft-row__end ppl-soft-row__end--text">
                   {profile.projects.length}
                 </span>
               </li>
             </ul>
-            <p className="ppl-note">
-              Roles are granted on record by an organization admin, never inferred from activity.
-            </p>
+            <p className="ppl-note">{t('PersonProfileScreen.rolesNote')}</p>
           </section>
 
           <section className="ppl-card ppl-card--ink" aria-labelledby="tm-person-never">
             <h2 id="tm-person-never" className="ppl-mono">
-              What this profile will never show
+              {t('PersonProfileScreen.neverTitle')}
             </h2>
-            <p className="ppl-note ppl-note--ink">
-              No performance score, no ranking, no task throughput, no online status or last-seen
-              time. A profile answers what someone owns and what they may decide.
-            </p>
+            <p className="ppl-note ppl-note--ink">{t('PersonProfileScreen.neverBody')}</p>
           </section>
         </div>
       </div>

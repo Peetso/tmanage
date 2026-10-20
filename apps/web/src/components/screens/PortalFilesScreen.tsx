@@ -11,6 +11,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { shortDay } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PortalFilesScreenProps {
   organizationSlug: string;
@@ -53,6 +54,7 @@ export function PortalFilesScreen({
     passedProviderName,
   );
   const api = client ?? browserApiClient();
+  const t = useT();
   const [search, setSearch] = useState('');
 
   const projects = useQuery({
@@ -89,16 +91,18 @@ export function PortalFilesScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="files"
-      title="Everything the studio has sent"
-      eyebrow={`Files shared with you · ${totalFiles} ${totalFiles === 1 ? 'item' : 'items'}`}
+      title={t('PortalFilesScreen.title')}
+      eyebrow={`${t('PortalFilesScreen.eyebrowPrefix')} · ${totalFiles} ${
+        totalFiles === 1 ? t('PortalFilesScreen.itemWord') : t('PortalFilesScreen.itemsWord')
+      }`}
       headerAside={
         totalFiles > 0 ? (
           <label className="tm-pt-aside-row">
-            <span className="tm-pt-visually-hidden">Search files</span>
+            <span className="tm-pt-visually-hidden">{t('PortalFilesScreen.searchLabel')}</span>
             <input
               type="search"
               className="tm-pt-search"
-              placeholder="Search files"
+              placeholder={t('PortalFilesScreen.searchLabel')}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
@@ -108,19 +112,19 @@ export function PortalFilesScreen({
     >
       <div className="tm-pt tm-pt--compact">
         {projects.isError ? (
-          <InlineAlert tone="danger" title="Could not load your files" live>
+          <InlineAlert tone="danger" title={t('PortalFilesScreen.loadErrorTitle')} live>
             {describe(projects.error)}
           </InlineAlert>
         ) : null}
 
         {anyFilesError && !projects.isError ? (
-          <InlineAlert tone="danger" title="Some files could not be loaded" live>
-            Part of your files list did not load. Try again shortly.
+          <InlineAlert tone="danger" title={t('PortalFilesScreen.partialErrorTitle')} live>
+            {t('PortalFilesScreen.partialErrorBody')}
           </InlineAlert>
         ) : null}
 
         {anyFilesLoading && !projects.isError ? (
-          <LoadingRegion label="Loading your files.">
+          <LoadingRegion label={t('PortalFilesScreen.loading')}>
             <Skeleton height="var(--row)" />
             <Skeleton height="var(--row)" />
           </LoadingRegion>
@@ -128,24 +132,29 @@ export function PortalFilesScreen({
 
         {!anyFilesLoading && !projects.isError && !anyFilesError && totalFiles === 0 ? (
           <div className="tm-pt-card tm-pt-card--dashed tm-pt-card--lg">
-            <h2 className="tm-pt-card__title">No files yet</h2>
+            <h2 className="tm-pt-card__title">{t('PortalFilesScreen.emptyTitle')}</h2>
             <p className="tm-pt-card__body">
-              When {providerName} shares a file with you it will appear here. You do not have to
-              keep checking — you will be told when something arrives.
+              {t('PortalFilesScreen.emptyPrefix')} {providerName}{' '}
+              {t('PortalFilesScreen.emptySuffix')}
             </p>
           </div>
         ) : null}
 
         {totalFiles > 0 ? (
           <div className="tm-pt-table-wrap">
-            <table className="tm-pt-table" aria-label={`Files from ${providerName}`}>
+            <table
+              className="tm-pt-table"
+              aria-label={`${t('PortalFilesScreen.filesFrom')} ${providerName}`}
+            >
               <thead>
                 <tr>
-                  <th scope="col">File</th>
-                  <th scope="col">Belongs to</th>
-                  <th scope="col">Shared</th>
+                  <th scope="col">{t('PortalFilesScreen.thFile')}</th>
+                  <th scope="col">{t('PortalFilesScreen.thBelongsTo')}</th>
+                  <th scope="col">{t('PortalFilesScreen.thShared')}</th>
                   <th scope="col">
-                    <span className="tm-pt-visually-hidden">Download</span>
+                    <span className="tm-pt-visually-hidden">
+                      {t('PortalFilesScreen.downloadLabel')}
+                    </span>
                   </th>
                 </tr>
               </thead>
@@ -169,14 +178,16 @@ export function PortalFilesScreen({
                         href={`${apiBaseUrl()}${portalFileDownloadPath(organizationSlug, file.id)}`}
                         download={file.name}
                       >
-                        Download
+                        {t('PortalFilesScreen.download')}
                       </a>
                     </td>
                   </tr>
                 ))}
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>No file matches “{search}”.</td>
+                    <td colSpan={4}>
+                      {t('PortalFilesScreen.noMatch')} “{search}”.
+                    </td>
                   </tr>
                 ) : null}
               </tbody>
@@ -185,8 +196,8 @@ export function PortalFilesScreen({
         ) : null}
 
         <p className="tm-pt-eyebrow">
-          ⊘ Only files {providerName} shared with {clientName} appear here · working drafts stay
-          internal
+          ⊘ {t('PortalFilesScreen.footPrefix')} {providerName} {t('PortalFilesScreen.footMid')}{' '}
+          {clientName} {t('PortalFilesScreen.footSuffix')}
         </p>
       </div>
     </ClientPortalShell>

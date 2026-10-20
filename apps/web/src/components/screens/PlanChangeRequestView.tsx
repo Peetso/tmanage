@@ -14,6 +14,7 @@ import {
 import { fetchSubscription } from '../../lib/api/subscription';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
 
 export interface PlanChangeRequestViewProps {
@@ -61,6 +62,7 @@ export function PlanChangeRequestView({
 }: PlanChangeRequestViewProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const requests = useQuery({
     queryKey: ['plan-change-requests', organizationSlug],
@@ -115,11 +117,9 @@ export function PlanChangeRequestView({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow="Control center · Billing · Change plan"
-      title="Change plan"
-      headerAside={
-        <p className="tm-bil-aside-note">Nothing is charged — billing is arranged separately</p>
-      }
+      eyebrow={t('PlanChangeRequestView.eyebrow')}
+      title={t('PlanChangeRequestView.title')}
+      headerAside={<p className="tm-bil-aside-note">{t('PlanChangeRequestView.headerNote')}</p>}
     >
       <form
         className="tm-bil-stack"
@@ -132,7 +132,7 @@ export function PlanChangeRequestView({
       >
         <fieldset className="tm-bil-plans" aria-labelledby="tm-plan-catalog-heading">
           <legend id="tm-plan-catalog-heading" className="tm-visually-hidden">
-            Available plans
+            {t('PlanChangeRequestView.availablePlansLegend')}
           </legend>
           {PLAN_OPTIONS.map((plan) => (
             <label key={plan.id} className="tm-bil-plan">
@@ -144,19 +144,21 @@ export function PlanChangeRequestView({
                 onChange={() => setTarget(plan.id)}
               />
               <span className="tm-bil-plan__head">
-                <span className="tm-bil-eyebrow">Plan</span>
+                <span className="tm-bil-eyebrow">{t('PlanChangeRequestView.planEyebrow')}</span>
                 {plan.id === currentPlanId ? (
-                  <span className="tm-bil-status tm-bil-status--lime">Current</span>
+                  <span className="tm-bil-status tm-bil-status--lime">
+                    {t('PlanChangeRequestView.current')}
+                  </span>
                 ) : null}
               </span>
               <span className="tm-bil-plan__name">{plan.label}</span>
               <span className="tm-bil-plan__foot">
                 <span className="tm-bil-pill-wide">
                   {plan.id === currentPlanId
-                    ? 'The plan the studio is on'
+                    ? t('PlanChangeRequestView.planOn')
                     : target === plan.id
-                      ? 'Selected'
-                      : `Move to ${plan.label}`}
+                      ? t('PlanChangeRequestView.selected')
+                      : `${t('PlanChangeRequestView.moveTo')} ${plan.label}`}
                 </span>
               </span>
             </label>
@@ -170,39 +172,40 @@ export function PlanChangeRequestView({
           >
             <h2 id="tm-plan-request-heading" className="tm-bil-eyebrow">
               {currentPlanId && currentPlanId !== target
-                ? `If you go from ${planLabel(currentPlanId)} to ${planLabel(target)}`
-                : `Request a change to ${planLabel(target)}`}
+                ? `${t('PlanChangeRequestView.ifYouGoFrom')} ${planLabel(currentPlanId)} ${t('PlanChangeRequestView.toWord')} ${planLabel(target)}`
+                : `${t('PlanChangeRequestView.requestChangeTo')} ${planLabel(target)}`}
             </h2>
-            <p className="tm-bil-card__lead">
-              Nothing is charged and nobody loses access when the request is recorded.
-            </p>
+            <p className="tm-bil-card__lead">{t('PlanChangeRequestView.recordLead')}</p>
             <ul className="tm-bil-points">
-              <li>The change is recorded for {effectiveOn || 'the date you pick'}</li>
-              <li>Billing is arranged separately, after the request</li>
-              <li data-tone="warning">Only one request can be pending at a time</li>
+              <li>
+                {t('PlanChangeRequestView.recordedFor')}{' '}
+                {effectiveOn || t('PlanChangeRequestView.theDateYouPick')}
+              </li>
+              <li>{t('PlanChangeRequestView.billingSeparately')}</li>
+              <li data-tone="warning">{t('PlanChangeRequestView.onlyOnePending')}</li>
             </ul>
 
             <div className="tm-row tm-row--wrap tm-bil-request-fields">
               <Field
-                label="Effective date"
+                label={t('PlanChangeRequestView.effectiveDateLabel')}
                 type="date"
                 min={todayIso()}
                 value={effectiveOn}
                 onChange={(event) => setEffectiveOn(event.target.value)}
-                hint="When the change should take effect — today or later."
+                hint={t('PlanChangeRequestView.effectiveDateHint')}
                 required
               />
 
               <Field
-                label="Note"
+                label={t('PlanChangeRequestView.noteLabel')}
                 value={note}
                 onChange={(event) => setNote(event.target.value)}
-                hint="Optional — why you are requesting this change."
+                hint={t('PlanChangeRequestView.noteHint')}
               />
             </div>
 
             {create.isError ? (
-              <InlineAlert tone="danger" title="Could not record the request" live>
+              <InlineAlert tone="danger" title={t('PlanChangeRequestView.recordErrorTitle')} live>
                 {describeError(create.error)}
               </InlineAlert>
             ) : null}
@@ -213,10 +216,10 @@ export function PlanChangeRequestView({
                 tone="lime"
                 size="accessible"
                 loading={create.isPending}
-                loadingLabel="Requesting"
+                loadingLabel={t('PlanChangeRequestView.requesting')}
                 disabled={!canRequest}
               >
-                Request {planLabel(target)}
+                {t('PlanChangeRequestView.requestWord')} {planLabel(target)}
               </Button>
             </div>
           </section>
@@ -226,38 +229,37 @@ export function PlanChangeRequestView({
             aria-labelledby="tm-plan-request-list-heading"
           >
             <h2 id="tm-plan-request-list-heading" className="tm-bil-card__title">
-              Requests {requests.isSuccess ? `(${rows.length})` : ''}
+              {t('PlanChangeRequestView.requestsHeading')}{' '}
+              {requests.isSuccess ? `(${rows.length})` : ''}
             </h2>
 
             {requests.isError ? (
-              <InlineAlert tone="danger" title="Could not load the requests" live>
+              <InlineAlert tone="danger" title={t('PlanChangeRequestView.loadErrorTitle')} live>
                 {describeError(requests.error)}
               </InlineAlert>
             ) : null}
 
             {cancel.isError ? (
-              <InlineAlert tone="danger" title="Could not cancel the request" live>
+              <InlineAlert tone="danger" title={t('PlanChangeRequestView.cancelErrorTitle')} live>
                 {describeError(cancel.error)}
               </InlineAlert>
             ) : null}
 
             {requests.isPending ? (
-              <LoadingRegion label="Loading the requests.">
+              <LoadingRegion label={t('PlanChangeRequestView.loading')}>
                 <Skeleton height="var(--row)" />
                 <Skeleton height="var(--row)" />
               </LoadingRegion>
             ) : null}
 
             {requests.isSuccess && rows.length === 0 ? (
-              <p className="tm-bil-card__body">
-                No plan-change requests yet. Pick a plan and request it to record where you would
-                like to move.
-              </p>
+              <p className="tm-bil-card__body">{t('PlanChangeRequestView.emptyBody')}</p>
             ) : null}
 
             {pending ? (
               <p className="tm-bil-card__body">
-                {planLabel(pending.targetPlanCode)} is requested from {pending.effectiveOn}.
+                {planLabel(pending.targetPlanCode)} {t('PlanChangeRequestView.isRequestedFrom')}{' '}
+                {pending.effectiveOn}.
               </p>
             ) : null}
 
@@ -265,16 +267,18 @@ export function PlanChangeRequestView({
               <div className="tm-bil-table-card">
                 <table className="tm-table">
                   <caption className="tm-visually-hidden">
-                    The organization&rsquo;s plan-change requests.
+                    {t('PlanChangeRequestView.caption')}
                   </caption>
                   <thead>
                     <tr>
-                      <th scope="col">Target plan</th>
-                      <th scope="col">Effective date</th>
-                      <th scope="col">Status</th>
-                      <th scope="col">Note</th>
+                      <th scope="col">{t('PlanChangeRequestView.thTargetPlan')}</th>
+                      <th scope="col">{t('PlanChangeRequestView.thEffectiveDate')}</th>
+                      <th scope="col">{t('PlanChangeRequestView.thStatus')}</th>
+                      <th scope="col">{t('PlanChangeRequestView.thNote')}</th>
                       <th scope="col">
-                        <span className="tm-visually-hidden">Actions</span>
+                        <span className="tm-visually-hidden">
+                          {t('PlanChangeRequestView.actionsLabel')}
+                        </span>
                       </th>
                     </tr>
                   </thead>
@@ -298,13 +302,15 @@ export function PlanChangeRequestView({
                               tone="destructive"
                               size="compact"
                               loading={cancel.isPending && cancel.variables?.id === request.id}
-                              loadingLabel="Cancelling"
+                              loadingLabel={t('PlanChangeRequestView.cancelling')}
                               onClick={() => cancel.mutate(request)}
                             >
-                              Cancel
+                              {t('PlanChangeRequestView.cancel')}
                             </Button>
                           ) : (
-                            <span className="tm-visually-hidden">No actions</span>
+                            <span className="tm-visually-hidden">
+                              {t('PlanChangeRequestView.noActions')}
+                            </span>
                           )}
                         </td>
                       </tr>
@@ -314,10 +320,7 @@ export function PlanChangeRequestView({
               </div>
             ) : null}
 
-            <p className="tm-bil-card__foot">
-              Recording a request does not charge you or change your plan. Billing is arranged
-              separately.
-            </p>
+            <p className="tm-bil-card__foot">{t('PlanChangeRequestView.footNote')}</p>
           </section>
         </div>
       </form>

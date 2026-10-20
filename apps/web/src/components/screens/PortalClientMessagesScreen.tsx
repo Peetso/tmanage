@@ -10,6 +10,7 @@ import type { ClientMessage } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { usePortalNames } from '../../lib/use-organization-names';
+import { useT } from '../../lib/i18n/use-t';
 
 export interface PortalClientMessagesScreenProps {
   organizationSlug: string;
@@ -40,6 +41,7 @@ export function PortalClientMessagesScreen({
   );
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
+  const t = useT();
 
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -67,16 +69,16 @@ export function PortalClientMessagesScreen({
       clientName={clientName}
       providerName={providerName}
       activeNavigationId="messages"
-      title="Messages"
-      description={`Send a message to ${providerName} and see the ones you have already sent.`}
+      title={t('PortalClientMessagesScreen.title')}
+      description={`${t('PortalClientMessagesScreen.descPrefix')} ${providerName} ${t('PortalClientMessagesScreen.descSuffix')}`}
     >
       <section className="tm-panel tm-stack" aria-labelledby="tm-portal-messages-compose">
         <h2 id="tm-portal-messages-compose" className="tm-eyebrow">
-          Send a message
+          {t('PortalClientMessagesScreen.composeHeading')}
         </h2>
 
         {send.isError ? (
-          <InlineAlert tone="danger" title="Could not send your message" live>
+          <InlineAlert tone="danger" title={t('PortalClientMessagesScreen.sendErrorTitle')} live>
             {describe(send.error)}
           </InlineAlert>
         ) : null}
@@ -89,7 +91,7 @@ export function PortalClientMessagesScreen({
           }}
         >
           <label className="tm-field">
-            <span className="tm-field__label">Subject</span>
+            <span className="tm-field__label">{t('PortalClientMessagesScreen.subjectLabel')}</span>
             <input
               className="tm-input"
               type="text"
@@ -100,7 +102,7 @@ export function PortalClientMessagesScreen({
             />
           </label>
           <label className="tm-field">
-            <span className="tm-field__label">Message</span>
+            <span className="tm-field__label">{t('PortalClientMessagesScreen.messageLabel')}</span>
             <textarea
               className="tm-input"
               value={body}
@@ -112,7 +114,9 @@ export function PortalClientMessagesScreen({
           </label>
           <div className="tm-row">
             <Button type="submit" disabled={!canSend}>
-              {send.isPending ? 'Sending…' : 'Send message'}
+              {send.isPending
+                ? t('PortalClientMessagesScreen.sending')
+                : t('PortalClientMessagesScreen.sendButton')}
             </Button>
           </div>
         </form>
@@ -138,25 +142,26 @@ interface ThreadSectionProps {
 }
 
 function ThreadSection({ providerName, messages, isPending, isError, error }: ThreadSectionProps) {
+  const t = useT();
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-portal-messages-thread">
       <h2 id="tm-portal-messages-thread" className="tm-eyebrow">
-        Your messages
+        {t('PortalClientMessagesScreen.threadHeading')}
       </h2>
 
       {isError ? (
-        <InlineAlert tone="danger" title="Could not load your messages" live>
+        <InlineAlert tone="danger" title={t('PortalClientMessagesScreen.loadErrorTitle')} live>
           {describe(error)}
         </InlineAlert>
       ) : isPending ? (
-        <LoadingRegion label="Loading your messages">
+        <LoadingRegion label={t('PortalClientMessagesScreen.loading')}>
           <Skeleton height="var(--row)" />
           <Skeleton height="var(--row)" />
         </LoadingRegion>
       ) : messages.length === 0 ? (
         <p className="tm-prose">
-          You have not sent {providerName} a message yet. Use the form above to start a
-          conversation.
+          {t('PortalClientMessagesScreen.emptyPrefix')} {providerName}{' '}
+          {t('PortalClientMessagesScreen.emptySuffix')}
         </p>
       ) : (
         <ol className="tm-list tm-stack">
