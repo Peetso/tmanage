@@ -90,13 +90,40 @@ describe('ID-04 organization selector', () => {
   });
 
   it('leads a client row with the client organization’s own name', async () => {
-    const { client } = clientOver(() => json({ organizations: [ATLAS] }));
-    render(withQuery(<OrganizationSelectorScreen client={client} />));
+    // Alongside an internal org so the list renders — a lone client org is taken straight in,
+    // which the next test covers.
+    const { client } = clientOver(() => json({ organizations: [NORTHSTAR, ATLAS] }));
+    const navigate = vi.fn();
+    render(withQuery(<OrganizationSelectorScreen client={client} navigate={navigate} />));
 
     expect(await screen.findByText('Atlas Hospitality')).toBeInTheDocument();
     expect(screen.getByText('Client portal')).toBeInTheDocument();
     // The delivery team is named, but underneath.
     expect(screen.getByText(/Delivered by Northstar Studio/)).toBeInTheDocument();
+  });
+
+  /**
+   * ACC-12: a client cannot create an organization and has only their portal to go to, so a
+   * client with a single organization is taken straight in rather than made to pick it from a
+   * list of one.
+   */
+  it('takes a client with one organization straight into their portal', async () => {
+    const { client } = clientOver(() => json({ organizations: [ATLAS] }));
+    const navigate = vi.fn();
+    render(withQuery(<OrganizationSelectorScreen client={client} navigate={navigate} />));
+
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith('/northstar/portal'));
+    expect(screen.queryByLabelText('Search organizations')).toBeNull();
+  });
+
+  /** An internal member with one organization still sees the chooser (to create another). */
+  it('still shows the chooser for an internal member with one organization', async () => {
+    const { client } = clientOver(() => json({ organizations: [NORTHSTAR] }));
+    const navigate = vi.fn();
+    render(withQuery(<OrganizationSelectorScreen client={client} navigate={navigate} />));
+
+    await screen.findByLabelText('Search organizations');
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   it('sends a client row to the portal and an internal row to the app', async () => {
@@ -154,6 +181,25 @@ describe('ID-04 organization selector', () => {
       '/onboarding/organization',
     );
     expect(screen.queryByText(/could not load/i)).toBeNull();
+  });
+
+  /**
+   * ACC-15: a removed member arrives with `?removed` and an empty list. They used to be offered
+   * "Create an organization" as though they had never joined one; they are now told their access
+   * was removed.
+   */
+  it('tells a removed member their access was removed, not to create an organization', async () => {
+    const originalSearch = window.location.search;
+    window.history.replaceState({}, '', '/organizations?removed');
+    try {
+      const { client } = clientOver(() => json({ organizations: [] }));
+      render(withQuery(<OrganizationSelectorScreen client={client} />));
+
+      expect(await screen.findByText(/removed by an administrator/)).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Create an organization' })).toBeNull();
+    } finally {
+      window.history.replaceState({}, '', `/organizations${originalSearch}`);
+    }
   });
 
   it('reports a refusal instead of an empty list', async () => {

@@ -180,7 +180,7 @@ describe('ClientPortalShell', () => {
 });
 
 describe('IdentityShell', () => {
-  it('renders the mark, the screen id and a main landmark', () => {
+  it('renders the mark, the human eyebrow and a main landmark — and no internal screen code', () => {
     render(
       <IdentityShell screenId="ID-01" eyebrow="Sign in" footer={<a href="/legal">Privacy</a>}>
         <h1>Sign in</h1>
@@ -188,7 +188,9 @@ describe('IdentityShell', () => {
     );
 
     expect(screen.getByRole('img', { name: 'TManage' })).toBeInTheDocument();
-    expect(screen.getByText(/ID-01/)).toBeInTheDocument();
+    // TXT-01: the screen id ("ID-01") used to sit in the eyebrow beside the mark and read as an
+    // internal build label to people signing in. The eyebrow now shows only its human label.
+    expect(screen.queryByText(/ID-01/)).toBeNull();
     expect(screen.getByRole('main')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Privacy' })).toBeInTheDocument();
   });
@@ -235,6 +237,29 @@ describe('OnboardingShell', () => {
   it('counts the steps in words as well as in shape', () => {
     renderShell('ON-03');
     expect(screen.getByText('Step 3 of 4')).toBeInTheDocument();
+  });
+
+  /**
+   * ACC-08: a skippable step that is behind the current one was marked "done" even when it had
+   * been skipped. The required first step is still "done" once passed; a skipped one says so,
+   * and a caller that recorded it as completed gets "done" back.
+   */
+  it('distinguishes a skipped earlier step from a done one', () => {
+    renderShell('ON-04');
+    const steps = screen.getAllByRole('listitem');
+    expect(steps[0]).toHaveTextContent('done'); // ON-01 is required, so passing it means done
+    expect(steps[1]).toHaveTextContent('not done or skipped'); // ON-02 was skippable, not recorded
+    expect(steps[1]).not.toHaveTextContent('— done');
+  });
+
+  it('marks a recorded skippable step as done', () => {
+    render(
+      <OnboardingShell current="ON-04" signedInAs="o@n.studio" title="Step" completed={['ON-02']}>
+        <p>Body</p>
+      </OnboardingShell>,
+    );
+    const steps = screen.getAllByRole('listitem');
+    expect(steps[1]).toHaveTextContent('done');
   });
 
   /** Nothing in the sequence can be jumped to, so nothing in it is a link. */

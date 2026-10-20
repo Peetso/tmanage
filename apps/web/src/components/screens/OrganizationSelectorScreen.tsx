@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
@@ -14,6 +14,19 @@ import '../../styles/screens/identity.css';
 
 export interface OrganizationSelectorScreenProps {
   client?: ApiClient;
+  /**
+   * How to leave for a chosen organization. Injected in tests so the auto-enter below can be
+   * asserted without a router; the default is a full navigation, which starts the destination
+   * on a clean client cache.
+   */
+  navigate?: (href: string) => void;
+}
+
+/** Where a membership opens: a client lands in the portal, everyone else in the app. */
+function destinationFor(organization: OrganizationSummary): string {
+  return organization.audience === 'client'
+    ? `/${organization.slug}/portal`
+    : `/${organization.slug}/home`;
 }
 
 /**
@@ -37,17 +50,36 @@ export interface OrganizationSelectorScreenProps {
  *
  * ## Two states that are not errors
  *
- * **Empty** is what every person sees between signing up and creating their first
- * organization. It gets its own copy and a link to `ON-01`, not an error.
+ * **Empty** is what a person sees between signing up and creating their first organization. It
+ * gets its own copy and a link to `ON-01`, not an error — unless they arrived here with
+ * `?removed` because an administrator removed their last membership, in which case it says so
+ * (ACC-15) rather than inviting them to found something.
  *
- * **One** organization still renders the list rather than redirecting into it. Skipping the
- * screen would be convenient and would also mean a person with one organization never sees
- * that they can create another — and would make the "last opened" affordance the
- * specification asks for unreachable.
+ * **One** organization renders the list for an internal member — skipping it would mean they
+ * never see that they can create another, and would make the "last opened" affordance
+ * unreachable. A **client** with one organization is the exception: a client cannot create an
+ * organization and has only their portal to go to, so they are taken straight in (ACC-12).
  */
-export function OrganizationSelectorScreen({ client }: OrganizationSelectorScreenProps) {
+export function OrganizationSelectorScreen({
+  client,
+  navigate = (href) => window.location.assign(href),
+}: OrganizationSelectorScreenProps) {
   const api = client ?? browserApiClient();
   const [query, setQuery] = useState('');
+
+  /**
+   * A removed member is sent here with `?removed`; the org list is then empty, and without this
+   * flag the empty state would offer them "Create an organization" as though they had simply
+   * never joined one (ACC-15). Read once — the value does not change while the screen is open.
+   */
+  const [accessRemoved] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return new URLSearchParams(window.location.search).has('removed');
+    } catch {
+      return false;
+    }
+  });
 
   const organizations = useQuery({
     queryKey: ['organizations'],
@@ -61,10 +93,43 @@ export function OrganizationSelectorScreen({ client }: OrganizationSelectorScree
     return rows.filter((organization) => organization.name.toLocaleLowerCase().includes(needle));
   }, [organizations.data, query]);
 
+  /**
+   * A client has exactly one place to be — their portal — and no reason to pick it from a list
+   * of one or to see "create an organization", which a client cannot do. So a client with a
+   * single organization is taken straight in (ACC-12). Internal members still see the chooser,
+   * because for them the list is also where a second organization is created and "last opened"
+   * lives. Not run while access was removed.
+   */
+  const soleClientOrganization =
+    organizations.isSuccess &&
+    organizations.data.length === 1 &&
+    organizations.data[0]!.audience === 'client' &&
+    !accessRemoved
+      ? organizations.data[0]!
+      : undefined;
+
+  useEffect(() => {
+    if (soleClientOrganization) navigate(destinationFor(soleClientOrganization));
+  }, [soleClientOrganization, navigate]);
+
+  if (soleClientOrganization) {
+    const name = soleClientOrganization.clientOrganizationName ?? soleClientOrganization.name;
+    return (
+      <IdentityShell eyebrow="Choose where you are working">
+        <div className="tm-id-bare tm-id-orgs tm-stack">
+          <h1 className="tm-identity__title">Opening your portal</h1>
+          <LoadingRegion label={`Taking you to ${name}.`}>
+            <p className="tm-id-lede">Taking you to {name}…</p>
+          </LoadingRegion>
+        </div>
+      </IdentityShell>
+    );
+  }
+
   return (
-    <IdentityShell screenId="ID-04" eyebrow="Choose where you are working">
+    <IdentityShell eyebrow="Choose where you are working">
       <div className="tm-id-bare tm-id-orgs tm-stack">
-        <h1 className="tm-identity__title">{heading(organizations.data)}</h1>
+        <h1 className="tm-identity__title">{heading(organizations.data, accessRemoved)}</h1>
 
         {organizations.isPending ? (
           <LoadingRegion label="Loading your organizations." className="tm-stack tm-stack--tight">
@@ -79,7 +144,21 @@ export function OrganizationSelectorScreen({ client }: OrganizationSelectorScree
           </InlineAlert>
         ) : null}
 
-        {organizations.isSuccess && organizations.data.length === 0 ? (
+        {organizations.isSuccess && organizations.data.length === 0 && accessRemoved ? (
+          <div className="tm-id-card">
+            <InlineAlert tone="warning" title="Your access was removed" live>
+              Your access was removed by an administrator. If you think this is a mistake, ask
+              whoever manages the organization to invite you again.
+            </InlineAlert>
+            <div className="tm-row">
+              <Link className="tm-button tm-button--ink tm-button--accessible" href="/sign-in">
+                Sign in with a different account
+              </Link>
+            </div>
+          </div>
+        ) : null}
+
+        {organizations.isSuccess && organizations.data.length === 0 && !accessRemoved ? (
           <div className="tm-id-card">
             <InlineAlert tone="neutral" title="You are not in an organization yet">
               An organization is the space your team works in. Create one and you become its owner.
@@ -120,9 +199,7 @@ export function OrganizationSelectorScreen({ client }: OrganizationSelectorScree
                     <li key={`${organization.id}-${organization.audience}`}>
                       <Link
                         className={isClient ? 'tm-id-org tm-id-org--client' : 'tm-id-org'}
-                        href={
-                          isClient ? `/${organization.slug}/portal` : `/${organization.slug}/home`
-                        }
+                        href={destinationFor(organization)}
                       >
                         <span className="tm-id-org__orb" aria-hidden="true">
                           {initials(name)}
@@ -141,7 +218,8 @@ export function OrganizationSelectorScreen({ client }: OrganizationSelectorScree
                             ) : null}
                           </span>
                         </span>
-                        {isClient ? <span className="tm-id-org__chip">portal mode</span> : null}
+                        {/* The meta line already says "Client portal" in plain words; the old
+                            "portal mode" chip was jargon on top of it (ACC-12), so it is gone. */}
                         <span className="tm-id-org__go" aria-hidden="true">
                           →
                         </span>
@@ -171,9 +249,12 @@ function initials(name: string): string {
   return letters.toLocaleUpperCase();
 }
 
-function heading(organizations: readonly OrganizationSummary[] | undefined): string {
+function heading(
+  organizations: readonly OrganizationSummary[] | undefined,
+  accessRemoved: boolean,
+): string {
   if (!organizations) return 'Choose where you are working';
-  if (organizations.length === 0) return 'Nowhere to go yet';
+  if (organizations.length === 0) return accessRemoved ? 'No access' : 'Nowhere to go yet';
   if (organizations.length === 1) return 'One organization uses your email';
   return `${organizations.length} organizations use your email`;
 }

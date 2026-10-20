@@ -188,7 +188,9 @@ export function FirstOwnerSetupScreen({
       api.rememberCsrfToken(outcome.csrfToken);
       boundary.announce('signed-in');
       if (onCompleted) onCompleted(outcome.organizationSlug);
-      else window.location.assign(`/${encodeURIComponent(outcome.organizationSlug)}`);
+      // Land on the organization's home, not on `/${slug}` — that bare path has no page and
+      // answered "We couldn't find that page" right after a successful setup (ACC-03).
+      else window.location.assign(`/${encodeURIComponent(outcome.organizationSlug)}/home`);
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 404) {
         // Setup closed between the check and the submit (or someone else finished it first).
@@ -217,7 +219,8 @@ export function FirstOwnerSetupScreen({
   const footer = (
     <>
       <Link href="/legal/privacy">Privacy</Link>
-      <Link href="/support">Support</Link>
+      {/* `/support` is not a published route (ACC-13); Contact is the live page. */}
+      <Link href="/contact">Support</Link>
     </>
   );
 

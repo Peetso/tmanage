@@ -14,10 +14,14 @@ import { Wordmark } from '../brand/Wordmark';
  * neither document has to be edited to agree with the other.
  */
 export const ONBOARDING_STEPS = [
-  { id: 'ON-01', slug: 'organization', label: 'Organization' },
-  { id: 'ON-02', slug: 'template', label: 'Operating template' },
-  { id: 'ON-03', slug: 'project', label: 'First project' },
-  { id: 'ON-04', slug: 'team', label: 'Team' },
+  // `required` steps cannot be passed without finishing them (you cannot reach ON-02 without the
+  // organization ON-01 creates), so once they are behind you they are genuinely done. The others
+  // can be skipped — "Skip for now" on the team step, and template/project are optional — so a
+  // step that is merely *behind* the current one is not necessarily *done* (ACC-08).
+  { id: 'ON-01', slug: 'organization', label: 'Organization', required: true },
+  { id: 'ON-02', slug: 'template', label: 'Operating template', required: false },
+  { id: 'ON-03', slug: 'project', label: 'First project', required: false },
+  { id: 'ON-04', slug: 'team', label: 'Team', required: false },
 ] as const;
 
 export type OnboardingStepId = (typeof ONBOARDING_STEPS)[number]['id'];
@@ -28,6 +32,13 @@ export interface OnboardingShellProps {
   signedInAs: string;
   title: string;
   description?: ReactNode;
+  /**
+   * The skippable steps that were actually completed. A skippable step that is behind the
+   * current one but absent here is shown as "not done or skipped" rather than "done" (ACC-08) —
+   * the stepper used to claim every earlier step was done, which was untrue for a template or
+   * first project that had been skipped. Required steps (ON-01) are always "done" once passed.
+   */
+  completed?: readonly OnboardingStepId[];
   children: ReactNode;
 }
 
@@ -49,9 +60,11 @@ export function OnboardingShell({
   signedInAs,
   title,
   description,
+  completed,
   children,
 }: OnboardingShellProps) {
   const currentIndex = ONBOARDING_STEPS.findIndex((step) => step.id === current);
+  const completedSet = new Set(completed ?? []);
 
   return (
     <LiveAnnouncer>
@@ -71,7 +84,16 @@ export function OnboardingShell({
             <ol className="tm-onboarding__step-list">
               {ONBOARDING_STEPS.map((step, index) => {
                 const state =
-                  index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'future';
+                  index === currentIndex
+                    ? 'current'
+                    : index > currentIndex
+                      ? 'future'
+                      : // Behind the current step: "done" only if it had to be finished to get here
+                        // (required) or was explicitly recorded as completed; otherwise it was
+                        // skipped, and the stepper says so rather than claiming it was done.
+                        step.required || completedSet.has(step.id)
+                        ? 'done'
+                        : 'skipped';
                 return (
                   <li
                     key={step.id}
@@ -80,7 +102,7 @@ export function OnboardingShell({
                     {...(state === 'current' ? { 'aria-current': 'step' as const } : {})}
                   >
                     <span className="tm-onboarding__step-index tm-mono" aria-hidden="true">
-                      {state === 'done' ? '✓' : index + 1}
+                      {state === 'done' ? '✓' : state === 'skipped' ? '–' : index + 1}
                     </span>
                     <span className="tm-onboarding__step-label">{step.label}</span>
                     <span className="tm-visually-hidden">
@@ -88,7 +110,9 @@ export function OnboardingShell({
                         ? ' — done'
                         : state === 'current'
                           ? ' — current step'
-                          : ' — not started'}
+                          : state === 'skipped'
+                            ? ' — not done or skipped'
+                            : ' — not started'}
                     </span>
                   </li>
                 );

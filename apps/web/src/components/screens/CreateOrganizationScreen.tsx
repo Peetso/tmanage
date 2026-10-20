@@ -26,16 +26,27 @@ import { useHydrated } from '../../lib/use-hydrated';
  * remains when the platform cannot enumerate them, and the field stays a free-text-backed
  * select so a value outside it can still be reached by a later ticket.
  */
-function timezones(): readonly string[] {
+function timezones(current: string): readonly string[] {
   const intl = Intl as typeof Intl & { supportedValuesOf?: (key: string) => string[] };
+  let zones: readonly string[] = [
+    'UTC',
+    'Africa/Cairo',
+    'Europe/London',
+    'America/New_York',
+    'Asia/Dubai',
+  ];
   if (typeof intl.supportedValuesOf === 'function') {
     try {
-      return intl.supportedValuesOf('timeZone');
+      zones = intl.supportedValuesOf('timeZone');
     } catch {
-      // fall through
+      // keep the fallback
     }
   }
-  return ['UTC', 'Africa/Cairo', 'Europe/London', 'America/New_York', 'Asia/Dubai'];
+  // The select is controlled by `current` (the browser's guessed zone). If that value is not
+  // one of the options, the browser shows the first option instead — which, alphabetically, is
+  // Africa/Abidjan — making the field look like it defaulted there (ACC-09). Guarantee the
+  // current value is always present so the guessed zone is the one shown.
+  return current !== '' && !zones.includes(current) ? [current, ...zones] : zones;
 }
 
 /** `19-SEED-DATA-AND-COPY` ships English and Arabic. Nothing else is translated yet. */
@@ -418,7 +429,7 @@ export function CreateOrganizationScreen({
                   value={timezone}
                   onChange={(event) => setTimezone(event.target.value)}
                 >
-                  {timezones().map((zone) => (
+                  {timezones(timezone).map((zone) => (
                     <option key={zone} value={zone}>
                       {zone}
                     </option>

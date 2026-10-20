@@ -3,8 +3,12 @@ import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 
 export interface IdentityShellProps {
-  /** The screen id, e.g. `ID-01`. Rendered in the eyebrow beside the mark, as in the export. */
-  screenId: string;
+  /**
+   * The screen id, e.g. `ID-01`. Kept on the component so callers and the design export still
+   * agree on which artboard a screen is, but **no longer rendered** (TXT-01): the codes read as
+   * internal build labels to people signing in, so the eyebrow now shows only the human label.
+   */
+  screenId?: string;
   /** The eyebrow label, e.g. `Sign in`. Uppercased by CSS, not by the caller. */
   eyebrow: string;
   children: ReactNode;
@@ -25,7 +29,7 @@ export interface IdentityShellProps {
  * `27-TEST-CATALOG` — skip link, `<main>`, one `<h1>` — is satisfied structurally instead of
  * nine times by hand.
  */
-export function IdentityShell({ screenId, eyebrow, children, footer }: IdentityShellProps) {
+export function IdentityShell({ eyebrow, children, footer }: IdentityShellProps) {
   return (
     <LiveAnnouncer>
       <div className="tm-identity">
@@ -34,9 +38,7 @@ export function IdentityShell({ screenId, eyebrow, children, footer }: IdentityS
         <div className="tm-identity__card">
           <header className="tm-identity__brand">
             <Wordmark />
-            <p className="tm-identity__eyebrow tm-mono">
-              {screenId} · {eyebrow}
-            </p>
+            <p className="tm-identity__eyebrow tm-mono">{eyebrow}</p>
           </header>
 
           <main id="tm-main" className="tm-identity__body" tabIndex={-1}>

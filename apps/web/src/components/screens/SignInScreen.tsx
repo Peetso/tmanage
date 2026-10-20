@@ -225,8 +225,10 @@ export function SignInScreen({
       footer={
         <>
           <Link href="/legal/privacy">Privacy</Link>
-          <Link href="/support">Support</Link>
-          <Link href="/legal/accessibility">Accessibility</Link>
+          {/* `/support` and `/legal/accessibility` are not published routes — both 404'd (ACC-13).
+              Contact is the live page that reaches a person, so both point there. */}
+          <Link href="/contact">Support</Link>
+          <Link href="/contact">Accessibility</Link>
         </>
       }
     >
@@ -340,7 +342,8 @@ export function SignInScreen({
       ) : null}
 
       <InlineAlert tone="neutral">
-        Client reviewers usually arrive from a portal link and do not need a password.
+        Client reviewers usually arrive through an invitation or portal link — open that link to set
+        up your access.
       </InlineAlert>
 
       {developmentSignInEnabled ? (
