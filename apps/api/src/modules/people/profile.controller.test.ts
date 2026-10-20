@@ -42,6 +42,20 @@ function orgWide(): Principal {
   };
 }
 
+function memberScoped(projectIds: readonly string[]): Principal {
+  return {
+    userId: 'user-0000-0000-0000-0000-000000000002',
+    organizationId: ORG,
+    kind: 'internal',
+    role: 'member',
+    membershipId: 'membership-0000-0000-000000000002',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds,
+    hasOrgWideScope: false,
+  };
+}
+
 function client(): Principal {
   return {
     userId: 'user-0000-0000-0000-0000-000000000003',
@@ -86,8 +100,14 @@ const MEMBER: PersonProfileMemberRow = {
 describe('PersonProfileController.personProfile', () => {
   it('projects a resolved member: role, projects, and open-work count (non-sensitive fields)', async () => {
     const projects: PersonProfileProjectRow[] = [
-      { projectId: 'p1', name: 'Apollo', status: 'active', role: 'lead' },
-      { projectId: 'p2', name: 'Zephyr', status: 'archived', role: 'member' },
+      { projectId: 'p1', name: 'Apollo', status: 'active', role: 'lead', archivedAt: null },
+      {
+        projectId: 'p2',
+        name: 'Zephyr',
+        status: 'archived',
+        role: 'member',
+        archivedAt: new Date(),
+      },
     ];
 
     const view = await controllerWith(MEMBER, projects, 4).personProfile(
@@ -112,6 +132,25 @@ describe('PersonProfileController.personProfile', () => {
     expect(typeof view.computedAt).toBe('string');
     // No sensitive fields leak through the projection.
     expect(view).not.toHaveProperty('email');
+  });
+
+  it('shows only the projects the viewer can see, not every project the member is on (ADM-18)', async () => {
+    const projects: PersonProfileProjectRow[] = [
+      { projectId: 'p1', name: 'Apollo', status: 'active', role: 'lead', archivedAt: null },
+      { projectId: 'p2', name: 'Zephyr', status: 'active', role: 'member', archivedAt: null },
+    ];
+
+    // The viewer is a member of p1 only. The profiled member is on both, but the viewer must not
+    // learn p2 exists through the profile — the same relation rule the projects list applies.
+    const view = await controllerWith(MEMBER, projects, 0).personProfile(
+      context,
+      memberScoped(['p1']),
+      MEMBERSHIP,
+    );
+
+    expect(view.projects).toEqual([
+      { projectId: 'p1', name: 'Apollo', status: 'active', role: 'lead' },
+    ]);
   });
 
   it('answers a cross-tenant or unknown membership id with a 404, resolved before authorize (Known-trap)', async () => {

@@ -22,9 +22,31 @@ export interface AvatarProps {
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  // A single-word name gives its first two letters rather than one, so "Mostafa" reads as "MO"
+  // not a lone "M" — the same rule the web People screens' `initialsOf` uses (ADM-19).
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
   const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  const last = parts[parts.length - 1]?.[0] ?? '';
   return (first + last).toUpperCase();
+}
+
+/**
+ * How many distinct initials orbs can share before two look identical. ADM-19: two people whose
+ * names both reduce to "MM" were drawn as the same ink disc, so a stack of people read as one
+ * repeated avatar. A tint derived from the whole name gives same-initial people a different colour,
+ * so colour disambiguates where the two letters cannot. The colour is decorative — initials and the
+ * accessible name still carry the identity — so it is never the only signal.
+ */
+const AVATAR_TINTS = 6;
+
+/** A stable index 0..AVATAR_TINTS-1 from the full name, so one person always keeps one colour. */
+function tintIndex(name: string): number {
+  let hash = 0;
+  for (let index = 0; index < name.length; index += 1) {
+    hash = (hash * 31 + name.charCodeAt(index)) >>> 0;
+  }
+  return hash % AVATAR_TINTS;
 }
 
 export function Avatar({
@@ -35,10 +57,15 @@ export function Avatar({
   decorative = false,
   className,
 }: AvatarProps) {
+  // Tint only the initials orbs. A client avatar keeps its violet boundary ring (a semantic colour,
+  // not a per-person one), and an image avatar needs no tint — the photo is the distinguisher.
+  const tinted = !src && audience !== 'client';
+
   const classes = [
     'tm-avatar',
     `tm-orb-button--${size}`,
     audience === 'client' ? 'tm-avatar--client' : null,
+    tinted ? `tm-avatar--tint-${tintIndex(name)}` : null,
     className,
   ]
     .filter(Boolean)

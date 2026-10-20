@@ -997,6 +997,43 @@
   color: var(--ink-650);
 }
 
+/*
+ * Per-person tints for initials orbs (ADM-19). Two people whose names both reduce to the same two
+ * letters were drawn as the same ink disc; a colour keyed on the whole name makes them distinct.
+ * `Avatar` picks one of these six by hashing the name, and applies it only to initials orbs — never
+ * to a client avatar (its violet ring is a semantic colour) or an image avatar.
+ *
+ * The orb carries light text in both themes (`--paper-50` in light, `--ink-950` in dark, both near
+ * white), so each tint is a single dark fill that clears AA (>= 4.5:1) against that text; the
+ * `.tm-avatar.tm-avatar--tint-N` specificity (0,2,0) is what lets the fill win over the dark-theme
+ * `[data-theme='dark'] .tm-avatar` rule (0,1,1). Values are deliberately muted to sit with the ink
+ * palette and steer clear of the client violet and the status hues; they are a code-only stop-gap and
+ * want confirming against Figma / promoting to design tokens.
+ */
+.tm-avatar.tm-avatar--tint-0 {
+  background: #2f4b6b;
+}
+
+.tm-avatar.tm-avatar--tint-1 {
+  background: #1f5a52;
+}
+
+.tm-avatar.tm-avatar--tint-2 {
+  background: #3b5a2a;
+}
+
+.tm-avatar.tm-avatar--tint-3 {
+  background: #6b4a1e;
+}
+
+.tm-avatar.tm-avatar--tint-4 {
+  background: #6b3030;
+}
+
+.tm-avatar.tm-avatar--tint-5 {
+  background: #6b2f52;
+}
+
 .tm-avatar__image {
   inline-size: 100%;
   block-size: 100%;

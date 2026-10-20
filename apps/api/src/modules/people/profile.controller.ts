@@ -120,9 +120,27 @@ export class PersonProfileController {
       displayName: resolved.member.displayName,
       role: resolved.member.role,
       status: resolved.member.status,
-      // Belt-and-braces tenant filter before projecting (Known-trap: scope before the projection).
+      // ADM-18: show only the projects the **viewer** can see, not every project the member is on.
+      // The member may belong to projects this principal has no relation to; listing them here leaked
+      // the existence of work the viewer is not part of. The filter is the same `authorize('work.read')`
+      // relation rule `ProjectsService.list` applies — a member-scoped viewer sees the projects on their
+      // own `projectIds`, an org-wide one sees all — so the two cannot drift. The belt-and-braces tenant
+      // check (scope before the projection, the Known-trap) is kept as the first clause.
       projects: resolved.projects
-        .filter(() => resolved.member.organizationId === org)
+        .filter(
+          (row) =>
+            resolved.member.organizationId === org &&
+            authorize({
+              principal,
+              capability: 'work.read',
+              resource: {
+                organizationId: org,
+                projectId: row.projectId,
+                audience: 'internal',
+                lifecycle: row.archivedAt ? 'archived' : 'active',
+              },
+            }).allowed,
+        )
         .map((row) => ({
           projectId: row.projectId,
           name: row.name,

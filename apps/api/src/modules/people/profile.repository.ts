@@ -58,12 +58,18 @@ export interface PersonProfileMemberRow {
   readonly status: string;
 }
 
-/** One project the member belongs to — id, name, the project's status, and the member's project role. */
+/**
+ * One project the member belongs to — id, name, the project's status, and the member's project role.
+ * `archivedAt` is the project's lifecycle marker, carried so the controller can apply the **viewer's**
+ * own `work.read` relation check per project (ADM-18) with the same `lifecycle` the projects list uses
+ * — it is not projected onto the wire.
+ */
 export interface PersonProfileProjectRow {
   readonly projectId: string;
   readonly name: string;
   readonly status: string;
   readonly role: string;
+  readonly archivedAt: Date | null;
 }
 
 export class PersonProfileRepository {
@@ -114,6 +120,7 @@ export class PersonProfileRepository {
         name: projects.name,
         status: projects.status,
         role: projectMemberships.role,
+        archivedAt: projects.archivedAt,
       })
       .from(projectMemberships)
       .innerJoin(
