@@ -17,6 +17,7 @@ import {
   requestStatusMeaning,
 } from '../../lib/client-request-presentation';
 import { Tag } from './PortalParts';
+import { RequestMessageThread } from '../requests/RequestMessageThread';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -54,13 +55,11 @@ export interface ClientRequestDetailScreenProps {
  * When it is absent the screen says why, because a control that silently disappears reads as a
  * bug rather than as a rule.
  *
- * ## What the design draws and this does not
+ * ## The conversation
  *
- * The artifact's largest panel is a conversation with the studio — two messages, timestamps,
- * a reply box. That is `CHAT-001` and it does not exist; there is no `messages` table and no
- * endpoint. What does exist is the clarification question, which is the one thing the studio can
- * actually say to a client today, and it is rendered as prominently as the artifact renders the
- * thread. Attachments are `FILE-001`, also absent.
+ * The artifact's largest panel is the conversation with the studio. It is `RequestMessageThread`
+ * over the portal's `/requests/:id/messages`: the studio's internal notes never reach this side.
+ * Attachments are `FILE-001`, still absent.
  */
 export function ClientRequestDetailScreen({
   organizationSlug,
@@ -258,6 +257,17 @@ export function ClientRequestDetailScreen({
                   </div>
                 </dl>
               </section>
+
+              <RequestMessageThread
+                side="client"
+                className="tm-pt-card tm-pt-card--lg"
+                headingClassName="tm-pt-eyebrow"
+                organizationSlug={organizationSlug}
+                clientRequestId={found.id}
+                client={api}
+                studioName={providerName}
+                clientName={clientName}
+              />
 
               <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-dates">
                 <h2 id="tm-request-dates" className="tm-pt-eyebrow">

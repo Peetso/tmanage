@@ -115,15 +115,6 @@ const EXEMPT = new Map([
     'GrantView',
     'Not a wire shape: the oauth-tokens repository row (revokedAt is a Date) read only inside the token and revoke paths; no route serialises it. The Connected apps response is ConnectedAppsView, paired.',
   ],
-  // BG3 (0212) request messages: API-only until the request thread screens land.
-  [
-    'RequestMessageView',
-    'No web consumer yet: BG3 request messages (team thread) are API-only; the screen is a follow-up.',
-  ],
-  [
-    'RequestMessageClientView',
-    'No web consumer yet: BG3 request messages (portal thread) are API-only; the screen is a follow-up.',
-  ],
   // Wave 2026-10-22 backend lanes: API-only until their screens land after Figma approval.
   [
     'BuiltInRoleView',

@@ -2939,3 +2939,18 @@ type _deliverableVersion = Assert<Exact<ApiDeliverableVersionView, WebDeliverabl
 type _deliverableDetail = Assert<Exact<ApiDeliverableDetailView, WebDeliverableDetailView>>;
 type _approver = Assert<Exact<ApiApproverView, WebApproverView>>;
 type _sendForApproval = Assert<Exact<ApiSendForApprovalView, WebSendForApprovalView>>;
+
+// P8 / BG3 (0212): the request conversation — both views leave EXEMPT now that
+// `apps/web/src/lib/api/request-messages.ts` consumes them.
+import type {
+  RequestMessageClientView as ApiRequestMessageClientView,
+  RequestMessageView as ApiRequestMessageView,
+} from '../../apps/api/src/modules/requests/request-messages.service.js';
+import type {
+  RequestMessageClientView as WebRequestMessageClientView,
+  RequestMessageView as WebRequestMessageView,
+} from '../../apps/web/src/lib/api/request-messages';
+type _requestMessage = Assert<Exact<ApiRequestMessageView, WebRequestMessageView>>;
+type _requestMessageClient = Assert<
+  Exact<ApiRequestMessageClientView, WebRequestMessageClientView>
+>;

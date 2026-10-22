@@ -39,7 +39,12 @@ function clientOver(
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
     fetch: ((input: RequestInfo | URL, init?: RequestInit) =>
-      Promise.resolve(handler(String(input), init))) as typeof globalThis.fetch,
+      // The request conversation (P8) has its own suite; here it is an empty thread.
+      Promise.resolve(
+        String(input).endsWith('/messages') && init?.method !== 'POST'
+          ? json({ messages: [] })
+          : handler(String(input), init),
+      )) as typeof globalThis.fetch,
     readCsrfToken: () => 'csrf-token',
     newCorrelationId: () => 'correlation-fixed',
   });

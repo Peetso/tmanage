@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { RequestMessageThread } from '../requests/RequestMessageThread';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import {
@@ -346,6 +347,17 @@ export function RequestTriageScreen({
               {found.state === 'triage' && outcome !== null ? (
                 <OutcomeForm {...outcomeProps} />
               ) : null}
+
+              <RequestMessageThread
+                side="team"
+                className="wp-outcome-form"
+                headingClassName="wp-mono-label"
+                organizationSlug={organizationSlug}
+                clientRequestId={found.id}
+                client={api}
+                studioName={organizationName}
+                clientName={found.clientOrganizationName ?? t('RequestTriageScreen.clientRequest')}
+              />
             </>
           )}
 
