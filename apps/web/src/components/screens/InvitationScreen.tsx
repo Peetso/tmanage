@@ -3,7 +3,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Avatar, Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Avatar, Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -18,6 +18,8 @@ import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { GETTING_IN_MIN_PASSWORD, gettingIn, type GettingInKey } from '../../lib/public-signup';
 import { GoogleSignInButton, googleErrorKey, useGoogleAvailability } from './GoogleSignInButton';
 import '../../styles/screens/identity.css';
 
@@ -31,48 +33,29 @@ export interface InvitationScreenProps {
   boundary?: AuthBoundary;
 }
 
-/** `PASSWORD_MIN_LENGTH` in `apps/api/src/modules/identity/password.ts`. */
-const MIN_PASSWORD = 8;
 /** `users.display_name` is `VARCHAR(190)`. */
 const MAX_NAME = 190;
 
+/** The button row of the frames: the primary button at its own width, the text link beside it. */
+const ACTION_ROW = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: 'var(--s5)',
+} as const;
+
 /**
- * **ID-03 Invitation acceptance.**
+ * **Invitation** (`/invitations/[token]`), Figma t1-a (369:1215 EN, 369:1381 AR).
  *
- * `22-SCREEN-BY-SCREEN` §3: "Show inviter, organization, project, role, exact access summary,
- * expiry, account-switch option. Client invitation prominently states 'client portal access,'
- * not team membership."
+ * The token is previewed (`POST /v1/invitations/previews`) and the card names who invited the
+ * person, to which organization and as which role. An address with no account gets the t1-a
+ * form — work email (locked, from the invitation), full name, password, confirmation and the
+ * terms — and one call (`/registrations`) creates the account, joins and signs in. An address
+ * that already has an account gets the same card with the Accept button (`/acceptances`).
  *
- * It previews the token, renders what the API returns, and then does one of two things:
- *
- * - **The address has no account** (`hasAccount: false`, ACC-01): it asks for a name and a
- *   password, and one call creates the account, joins, and signs the person in. Before this a
- *   brand-new invitee was sent to a sign-in screen they could never pass.
- * - **The address has an account**: the Accept button, as before. A signed-out person who
- *   presses it is sent to sign-in and brought back here afterwards.
- *
- * ## The token is never in the document
- *
- * It arrives in the route — that is where an emailed link puts it — and goes straight into a
- * request body. It is not rendered, not put in a hidden field, and not echoed in any error.
- * A token in the DOM is in every screenshot and every crash report, and this one grants
- * membership in an organization. The same rule `ID-02`'s MFA challenge token follows, and a
- * test asserts it for both.
- *
- * ## Refusals
- *
- * The API answers 404 for a token that never existed, one that was revoked, one that expired
- * and one already used; this screen does not try to guess which — distinguishing them would
- * rebuild the oracle the API refuses to be. What the API *does* distinguish is said plainly:
- * 409 "already a member" (ACC-04, which used to read as "cannot be accepted any more"), 409
- * "an account already uses this address" on registration, 401 "sign in first", 429. The
- * sentences are in `lib/i18n/messages` in English and Arabic.
- *
- * ## What is still missing, and is said rather than implied
- *
- * `22` §3 lists a **project** on this screen. An invitation names none — `0005_invitations.sql`
- * has no column for one and `23-ERD` §9 does not give it one — so the screen names the
- * organization and the role and does not invent a project.
+ * The token is never rendered: it goes from the route straight into request bodies. The API
+ * answers 404 for every unusable token alike, and this screen does not guess which case it is;
+ * what the API does distinguish (409 already a member, 409 account exists, 401, 429) is said.
  */
 export function InvitationScreen({
   token,
@@ -85,8 +68,6 @@ export function InvitationScreen({
   const [failure, setFailure] = useState<string | undefined>(undefined);
 
   const preview = useQuery({
-    // The token is the identity of this query and never leaves the browser's memory: React
-    // Query keys are not persisted anywhere by this application.
     queryKey: ['invitation', token],
     queryFn: () => previewInvitation(api, token),
     retry: false,
@@ -100,12 +81,7 @@ export function InvitationScreen({
 
   if (preview.isPending) {
     return (
-      <IdentityShell screenId="ID-03" eyebrow={t('InvitationScreen.eyebrow')}>
-        {/*
-          A heading in every state, including this one. `22-SCREEN-BY-SCREEN` §1 gives every
-          screen exactly one `<h1>`, and a document whose only heading appears once a request
-          resolves has no heading for the moment a screen reader lands on it.
-        */}
+      <IdentityShell brand={false}>
         <h1 className="tm-identity__title">{t('InvitationScreen.yourInvitation')}</h1>
         <LoadingRegion label={t('InvitationScreen.loading')}>
           <Skeleton height="var(--row)" />
@@ -117,7 +93,7 @@ export function InvitationScreen({
 
   if (preview.isError || !preview.data) {
     return (
-      <IdentityShell screenId="ID-03" eyebrow={t('InvitationScreen.eyebrow')}>
+      <IdentityShell brand={false}>
         <h1 className="tm-identity__title">{t('InvitationScreen.yourInvitation')}</h1>
         <InlineAlert tone="danger" title={t('InvitationScreen.linkNotUsable')} live>
           {preview.error instanceof NetworkError
@@ -128,33 +104,36 @@ export function InvitationScreen({
     );
   }
 
+  const invitation = preview.data;
+  const registering = invitation.hasAccount === false;
+
   return (
-    <Details invitation={preview.data} failure={failure}>
-      {preview.data.hasAccount === false ? (
+    <Card invitation={invitation} registering={registering} failure={failure}>
+      {registering ? (
         <Registration
           api={api}
           token={token}
-          invitation={preview.data}
+          invitation={invitation}
           boundary={boundary}
           {...(onAccepted ? { onAccepted } : {})}
         />
       ) : (
-        <div className="tm-id-action-row">
+        <div style={ACTION_ROW}>
           <Button
             tone="ink"
             size="accessible"
             loading={accept.isPending}
-            loadingLabel={t('InvitationScreen.accepting')}
+            loadingLabel={gettingIn(t, 'GettingIn.accepting')}
             onClick={() => {
               setFailure(undefined);
               accept.mutate();
             }}
           >
-            {t('InvitationScreen.acceptInvitation')}
+            {gettingIn(t, 'GettingIn.accept')}
           </Button>
         </div>
       )}
-    </Details>
+    </Card>
   );
 }
 
@@ -181,25 +160,41 @@ interface RegistrationProps {
   onAccepted?: (organizationId: string) => void;
 }
 
-/**
- * ACC-01: name and password for somebody who has never had an account. The email is the
- * invitation's own and is shown, not editable — the API takes it from the invitation row.
- */
+type RegistrationField = 'displayName' | 'password' | 'confirm' | 'agree';
+
+/** t1-a: name and password for somebody who has never had an account. */
 function Registration({ api, token, invitation, boundary, onAccepted }: RegistrationProps) {
   const t = useT();
+  const g = (key: GettingInKey) => gettingIn(t, key);
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
-  const [fieldErrors, setFieldErrors] = useState<{ displayName?: string; password?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<RegistrationField, string>>>({});
   const google = useGoogleAvailability(api);
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   useEffect(() => setGoogleError(googleErrorKey(window.location.search)), []);
 
+  function check(): Partial<Record<RegistrationField, string>> {
+    const problems: Partial<Record<RegistrationField, string>> = {};
+    if (displayName.trim() === '') problems.displayName = g('GettingIn.nameMissing');
+    if (password.length < GETTING_IN_MIN_PASSWORD) problems.password = g('GettingIn.passwordShort');
+    else if (confirm !== password) problems.confirm = g('GettingIn.passwordMismatch');
+    if (!agreed) problems.agree = g('GettingIn.mustAgree');
+    return problems;
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFailure(undefined);
-    setFieldErrors({});
+    const problems = check();
+    setFieldErrors(problems);
+    if (Object.keys(problems).length > 0) {
+      setFailure(g('GettingIn.fieldsNeedAttention'));
+      return;
+    }
     setSubmitting(true);
     try {
       const outcome = await registerForInvitation(api, token, {
@@ -207,13 +202,14 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
         password,
       });
       setPassword('');
+      setConfirm('');
       api.rememberCsrfToken(outcome.csrfToken);
       boundary.announce('signed-in');
       onAccepted?.(outcome.organizationId);
     } catch (error) {
       if (error instanceof ApiRequestError && [400, 422].includes(error.status)) {
         const byField = error.fieldErrors();
-        const next: { displayName?: string; password?: string } = {};
+        const next: Partial<Record<RegistrationField, string>> = {};
         const name = byField.get('displayName');
         const pass = byField.get('password');
         if (name !== undefined) next.displayName = name;
@@ -230,7 +226,6 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
 
   return (
     <form className="tm-stack" noValidate onSubmit={(event) => void submit(event)}>
-      <p className="tm-id-inviter__meta">{t('InvitationScreen.newToTManage')}</p>
       {googleError ? (
         <InlineAlert tone="danger" live>
           {t(googleError)}
@@ -248,13 +243,9 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
           <p className="tm-divider">{t('google.or')}</p>
         </>
       ) : null}
-      {/*
-        The invited address, filled in and locked: the API creates the account for the
-        invitation's own email and ignores anything else, so an editable field would only
-        mislead. `readOnly` (not `disabled`) keeps it focusable and read by screen readers.
-      */}
+      {/* The invitation's own address, locked: the API ignores any other. */}
       <Field
-        label={t('InvitationScreen.emailLabel')}
+        label={g('GettingIn.workEmail')}
         type="email"
         name="email"
         autoComplete="username"
@@ -262,10 +253,10 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
         value={invitation.inviteeEmail}
         readOnly
         aria-readonly="true"
-        hint={t('InvitationScreen.emailHint')}
+        hint={g('GettingIn.fromInvitation')}
       />
       <Field
-        label={t('InvitationScreen.yourName')}
+        label={g('GettingIn.fullName')}
         name="displayName"
         autoComplete="name"
         maxLength={MAX_NAME}
@@ -273,77 +264,108 @@ function Registration({ api, token, invitation, boundary, onAccepted }: Registra
         onChange={(event) => setDisplayName(event.target.value)}
         required
         disabled={submitting}
-        {...(fieldErrors.displayName ? { error: fieldErrors.displayName } : {})}
+        {...errorProp(fieldErrors.displayName)}
       />
       <Field
-        label={t('InvitationScreen.passwordLabel')}
+        label={g('GettingIn.password')}
         type="password"
         name="password"
         autoComplete="new-password"
-        minLength={MIN_PASSWORD}
+        minLength={GETTING_IN_MIN_PASSWORD}
         value={password}
         onChange={(event) => setPassword(event.target.value)}
-        hint={`${t('InvitationScreen.atLeast')} ${MIN_PASSWORD} ${t('InvitationScreen.charactersSuffix')}`}
+        hint={g('GettingIn.passwordHint')}
         required
         disabled={submitting}
-        {...(fieldErrors.password ? { error: fieldErrors.password } : {})}
+        {...errorProp(fieldErrors.password)}
+      />
+      <Field
+        label={g('GettingIn.confirmPassword')}
+        type="password"
+        name="confirmPassword"
+        autoComplete="new-password"
+        placeholder={g('GettingIn.confirmPlaceholder')}
+        value={confirm}
+        onChange={(event) => setConfirm(event.target.value)}
+        required
+        disabled={submitting}
+        {...errorProp(fieldErrors.confirm)}
+      />
+      <Checkbox
+        label={g('GettingIn.agree')}
+        name="agree"
+        checked={agreed}
+        onChange={(event) => setAgreed(event.target.checked)}
+        disabled={submitting}
+        {...errorProp(fieldErrors.agree)}
       />
       {failure ? (
         <InlineAlert tone="danger" title={t('InvitationScreen.didNotGoThrough')} live>
           {failure}
         </InlineAlert>
       ) : null}
-      <div className="tm-id-action-row">
+      <div style={ACTION_ROW}>
         <Button
           type="submit"
           tone="ink"
           size="accessible"
           loading={submitting}
-          loadingLabel={t('InvitationScreen.creatingAccount')}
+          loadingLabel={g('GettingIn.creatingAccount')}
         >
-          {t('InvitationScreen.createAndJoin')}
+          {g('GettingIn.createAndJoin')}
         </Button>
+        <Link className="tm-id-link" href="/sign-in">
+          {g('GettingIn.signInInstead')}
+        </Link>
       </div>
-      <p className="tm-id-inviter__meta">
-        {t('InvitationScreen.alreadyHaveAccount')}{' '}
-        <Link href="/sign-in">{t('InvitationScreen.signIn')}</Link>
-        {t('InvitationScreen.thenOpenAgain')}
-      </p>
     </form>
   );
 }
 
-interface DetailsProps {
+interface CardProps {
   invitation: InvitationPreview;
+  registering: boolean;
   failure: string | undefined;
   children: ReactNode;
 }
 
-function Details({ invitation, failure, children }: DetailsProps) {
+/** The t1-a card: inviter line, title, the role sentence, the form, the expiry note. */
+function Card({ invitation, registering, failure, children }: CardProps) {
   const t = useT();
+  const locale = useActiveLocale();
   const isClient = invitation.audience === 'client';
-  const role = describeInternalRole(invitation.role);
+  const role = describeInternalRole(invitation.role).label;
 
   return (
-    <IdentityShell screenId="ID-03" eyebrow={t('InvitationScreen.eyebrow')}>
+    <IdentityShell brand={false}>
       <div className="tm-id-inviter">
         <Avatar name={invitation.inviterName} audience={invitation.audience} decorative />
         <div>
           <p className="tm-id-inviter__name">
-            {invitation.inviterName} {t('InvitationScreen.invitedYou')}
+            {gettingIn(t, 'GettingIn.invitedLine', {
+              inviter: invitation.inviterName,
+              organization: invitation.organizationName,
+            })}
           </p>
           <p className="tm-id-inviter__meta">
-            {invitation.inviterEmail} · {formatDay(invitation.invitedAt)}
+            <span dir="ltr">{invitation.inviterEmail}</span> ·{' '}
+            {formatDay(invitation.invitedAt, locale, 'short')}
           </p>
         </div>
       </div>
 
-      <h1 className="tm-identity__title">
-        {t('InvitationScreen.join')} <span>{invitation.organizationName}</span>
-        {isClient && invitation.clientOrganizationName
-          ? ` ${t('InvitationScreen.asPartOf')} ${invitation.clientOrganizationName}`
-          : ''}
-      </h1>
+      <div className="tm-id-intro">
+        <h1 className="tm-identity__title">
+          {registering
+            ? gettingIn(t, 'GettingIn.createTitle')
+            : gettingIn(t, 'GettingIn.joinTitle', { organization: invitation.organizationName })}
+        </h1>
+        <p className="tm-id-lede">
+          {gettingIn(t, registering ? 'GettingIn.joiningAs' : 'GettingIn.joiningAsExisting', {
+            role,
+          })}
+        </p>
+      </div>
 
       {isClient ? (
         <InlineAlert tone="client" title={t('InvitationScreen.clientPortalTitle')}>
@@ -351,32 +373,6 @@ function Details({ invitation, failure, children }: DetailsProps) {
           {t('InvitationScreen.clientPortalAfter')}
         </InlineAlert>
       ) : null}
-
-      <div className="tm-id-panels">
-        <section className="tm-id-panel tm-id-panel--row" aria-labelledby="tm-invitation-role">
-          <h2 id="tm-invitation-role" className="tm-id-panel__label">
-            {t('InvitationScreen.role')}
-          </h2>
-          <span className="tm-id-panel__value">{role.label}</span>
-          <span className={isClient ? 'tm-id-capsule tm-id-capsule--client' : 'tm-id-capsule'}>
-            {isClient
-              ? t('InvitationScreen.clientPortalCapsule')
-              : t('InvitationScreen.internalTeamCapsule')}
-          </span>
-        </section>
-
-        <section className="tm-id-panel" aria-labelledby="tm-invitation-access">
-          <h2 id="tm-invitation-access" className="tm-id-panel__label">
-            {t('InvitationScreen.exactlyWhatYouSee')}
-          </h2>
-          <ul className="tm-id-grants">
-            {role.grants.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-          <p className="tm-id-withholds">{role.withholds}</p>
-        </section>
-      </div>
 
       {failure ? (
         <InlineAlert tone="danger" title={t('InvitationScreen.didNotGoThrough')} live>
@@ -386,17 +382,23 @@ function Details({ invitation, failure, children }: DetailsProps) {
 
       {children}
 
-      <InlineAlert className="tm-id-note--dashed" tone="warning">
-        {t('InvitationScreen.expiresOn')} {formatDay(invitation.expiresAt)}.{' '}
-        {t('InvitationScreen.afterThatAsk')} {invitation.inviterName}{' '}
-        {t('InvitationScreen.forNewOne')}
+      <InlineAlert tone="neutral">
+        {gettingIn(t, 'GettingIn.expiresOn', {
+          date: formatDay(invitation.expiresAt, locale, 'long'),
+        })}
       </InlineAlert>
     </IdentityShell>
   );
 }
 
-function formatDay(value: string): string {
+function errorProp(message: string | undefined): { error?: string } {
+  return message === undefined ? {} : { error: message };
+}
+
+/** "13 Aug" / "20 August" as the frames write it; Arabic keeps Latin digits like the AR frame. */
+function formatDay(value: string, locale: string, month: 'short' | 'long'): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'long' }).format(parsed);
+  const tag = locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
+  return new Intl.DateTimeFormat(tag, { day: 'numeric', month }).format(parsed);
 }

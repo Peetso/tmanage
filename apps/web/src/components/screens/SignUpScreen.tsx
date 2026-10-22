@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { Button, Field, InlineAlert } from '@tmanage/ui';
+import { Badge, Button, Checkbox, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSignupAvailability, signUp } from '../../lib/api/sign-up';
@@ -13,37 +13,48 @@ import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { GETTING_IN_MIN_PASSWORD, gettingIn, type GettingInKey } from '../../lib/public-signup';
 import { GoogleSignInButton, googleErrorKey, useGoogleAvailability } from './GoogleSignInButton';
 import '../../styles/screens/identity.css';
 
-/** `PASSWORD_MIN_LENGTH` in `apps/api/src/modules/identity/password.ts`. */
-const MIN_PASSWORD = 8;
 const MAX_NAME = 190;
 const MAX_EMAIL = 254;
 
-type SignUpField = 'displayName' | 'email' | 'password' | 'organizationName';
-const FIELDS: readonly SignUpField[] = ['displayName', 'email', 'password', 'organizationName'];
+type SignUpField = 'displayName' | 'email' | 'password' | 'organizationName' | 'agree';
+const API_FIELDS: readonly SignUpField[] = ['displayName', 'email', 'password', 'organizationName'];
 
 type Availability = 'checking' | 'available' | 'unavailable' | 'failed';
 
+/** What the check-your-email state needs once the workspace exists. */
+interface Created {
+  readonly email: string;
+  readonly organizationName: string;
+  readonly organizationSlug: string;
+}
+
+/** The button row of the frame: the button at its own width, not stretched. */
+const ACTION_ROW = { display: 'flex', alignItems: 'center', gap: 'var(--s5)' } as const;
+
 export interface SignUpScreenProps {
   client?: ApiClient;
-  /** Called with the new workspace's slug once signed in. Default: full navigation to its home. */
+  /**
+   * Called with the new workspace's slug when the person leaves the check-your-email state.
+   * Default: full navigation to its home.
+   */
   onCompleted?: (organizationSlug: string) => void;
   boundary?: AuthBoundary;
-  /** Rendered under the form's intro — the "Continue with Google" button when configured. */
+  /** Rendered above the form — the "Continue with Google" button when configured. */
   alternatives?: ReactNode;
 }
 
 /**
- * **Sign up.** Public self-service account creation: name, email, password and a workspace
- * name create the person and a new organization they own, and sign them in.
+ * **Start free** (`/sign-up`), Figma t1-c (369:1289 EN, 369:1459 AR).
  *
- * The layout is first-owner setup's (`FirstOwnerSetupScreen`) — the same identity shell, fields
- * and button — with the setup token, web link, timezone and language removed: the API derives
- * the web link from the workspace name and the timezone/language come from the browser. After
- * success the screen does what setup does: remember the CSRF token, announce `signed-in`, and
- * navigate to the new workspace (its My day / onboarding).
+ * Public self-service account creation on `lib/api/sign-up.ts`: full name, work email,
+ * organization name and password create the person and a new organization they own, and sign
+ * them in. The API sends a welcome email, so success shows the check-your-email state with a
+ * button into the new workspace. With the API's `PUBLIC_SIGNUP` switch off (404) the screen
+ * says sign-up is not open and shows no form.
  */
 export function SignUpScreen({
   client,
@@ -54,6 +65,7 @@ export function SignUpScreen({
   const api = client ?? browserApiClient();
   const hydrated = useHydrated();
   const t = useT();
+  const g = (key: GettingInKey) => gettingIn(t, key);
   const locale = useActiveLocale();
 
   const [availability, setAvailability] = useState<Availability>('checking');
@@ -61,11 +73,13 @@ export function SignUpScreen({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [organizationName, setOrganizationName] = useState('');
+  const [agreed, setAgreed] = useState(false);
   const [website, setWebsite] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [accountExists, setAccountExists] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<SignUpField, string>>>({});
+  const [created, setCreated] = useState<Created | undefined>(undefined);
   const google = useGoogleAvailability(api);
   const [googleError, setGoogleError] = useState<MessageKey | undefined>(undefined);
   useEffect(() => setGoogleError(googleErrorKey(window.location.search)), []);
@@ -96,6 +110,11 @@ export function SignUpScreen({
     });
   }
 
+  function complete(organizationSlug: string) {
+    if (onCompleted) onCompleted(organizationSlug);
+    else window.location.assign(`/${encodeURIComponent(organizationSlug)}/home`);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setFailure(undefined);
@@ -103,13 +122,16 @@ export function SignUpScreen({
     setFieldErrors({});
 
     const missing: Partial<Record<SignUpField, string>> = {};
-    if (displayName.trim() === '') missing.displayName = t('signUp.missingName');
-    if (email.trim() === '') missing.email = t('signUp.missingEmail');
-    if (password.length < MIN_PASSWORD) missing.password = t('signUp.shortPassword');
-    if (organizationName.trim() === '') missing.organizationName = t('signUp.missingWorkspace');
+    if (displayName.trim() === '') missing.displayName = g('GettingIn.nameMissing');
+    if (email.trim() === '') missing.email = g('GettingIn.emailMissing');
+    if (organizationName.trim() === '') {
+      missing.organizationName = g('GettingIn.organizationMissing');
+    }
+    if (password.length < GETTING_IN_MIN_PASSWORD) missing.password = g('GettingIn.passwordShort');
+    if (!agreed) missing.agree = g('GettingIn.mustAgree');
     if (Object.keys(missing).length > 0) {
       setFieldErrors(missing);
-      setFailure(t('signUp.fieldsNeedAttention'));
+      setFailure(g('GettingIn.fieldsNeedAttention'));
       return;
     }
 
@@ -127,8 +149,11 @@ export function SignUpScreen({
       setPassword('');
       api.rememberCsrfToken(outcome.csrfToken);
       boundary.announce('signed-in');
-      if (onCompleted) onCompleted(outcome.organizationSlug);
-      else window.location.assign(`/${encodeURIComponent(outcome.organizationSlug)}/home`);
+      setCreated({
+        email: email.trim(),
+        organizationName: organizationName.trim(),
+        organizationSlug: outcome.organizationSlug,
+      });
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 404) {
         setAvailability('unavailable');
@@ -143,7 +168,7 @@ export function SignUpScreen({
       if (error instanceof ApiRequestError && [400, 422].includes(error.status)) {
         const byField = error.fieldErrors();
         const next: Partial<Record<SignUpField, string>> = {};
-        for (const field of FIELDS) {
+        for (const field of API_FIELDS) {
           const message = byField.get(field);
           if (message !== undefined) next[field] = message;
         }
@@ -155,32 +180,51 @@ export function SignUpScreen({
     }
   }
 
-  const footer = (
-    <>
-      <Link href="/legal/privacy">Privacy</Link>
-      <Link href="/legal/terms">Terms</Link>
-      <Link href="/support">Support</Link>
-    </>
-  );
-
   if (availability === 'unavailable') {
     return (
-      <IdentityShell screenId="ID-00" eyebrow={t('signUp.eyebrow')} footer={footer}>
+      <IdentityShell brand={false}>
         <div className="tm-id-intro">
           <h1 className="tm-identity__title">{t('signUp.unavailableTitle')}</h1>
           <p className="tm-id-lede">
-            {t('signUp.unavailableBody')} <Link href="/sign-in">{t('signUp.signIn')}</Link>
+            {t('signUp.unavailableBody')}{' '}
+            <Link className="tm-id-link" href="/sign-in">
+              {t('signUp.signIn')}
+            </Link>
           </p>
         </div>
       </IdentityShell>
     );
   }
 
+  if (created) {
+    return (
+      <IdentityShell brand={false}>
+        <div className="tm-id-intro">
+          <h1 className="tm-identity__title">{g('GettingIn.checkEmailTitle')}</h1>
+          <p className="tm-id-lede">
+            {gettingIn(t, 'GettingIn.checkEmailBody', {
+              email: created.email,
+              organization: created.organizationName,
+            })}
+          </p>
+        </div>
+        <div style={ACTION_ROW}>
+          <Button tone="lime" size="accessible" onClick={() => complete(created.organizationSlug)}>
+            {g('GettingIn.openWorkspace')}
+          </Button>
+        </div>
+      </IdentityShell>
+    );
+  }
+
   return (
-    <IdentityShell screenId="ID-00" eyebrow={t('signUp.eyebrow')} footer={footer}>
+    <IdentityShell brand={false}>
       <div className="tm-id-intro">
-        <h1 className="tm-identity__title">{t('signUp.title')}</h1>
-        <p className="tm-id-lede">{t('signUp.lede')}</p>
+        <p>
+          <Badge>{g('GettingIn.freePlan')}</Badge>
+        </p>
+        <h1 className="tm-identity__title">{g('GettingIn.startTitle')}</h1>
+        <p className="tm-id-lede">{g('GettingIn.startLede')}</p>
       </div>
 
       {availability === 'checking' ? (
@@ -222,7 +266,7 @@ export function SignUpScreen({
           <form className="tm-stack tm-stack--loose" noValidate onSubmit={submit}>
             <fieldset className="tm-fieldset tm-stack" disabled={!hydrated || submitting}>
               <Field
-                label={t('signUp.name')}
+                label={g('GettingIn.fullName')}
                 name="displayName"
                 autoComplete="name"
                 maxLength={MAX_NAME}
@@ -235,7 +279,7 @@ export function SignUpScreen({
                 {...errorProp(fieldErrors.displayName)}
               />
               <Field
-                label={t('signUp.email')}
+                label={g('GettingIn.workEmail')}
                 type="email"
                 name="email"
                 autoComplete="username"
@@ -251,32 +295,43 @@ export function SignUpScreen({
                 {...errorProp(fieldErrors.email)}
               />
               <Field
-                label={t('signUp.password')}
-                type="password"
-                name="password"
-                autoComplete="new-password"
-                minLength={MIN_PASSWORD}
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value);
-                  clearFieldError('password');
-                }}
-                hint={t('signUp.passwordHint')}
-                required
-                {...errorProp(fieldErrors.password)}
-              />
-              <Field
-                label={t('signUp.workspace')}
+                label={g('GettingIn.organizationName')}
                 name="organizationName"
+                autoComplete="organization"
                 maxLength={MAX_NAME}
                 value={organizationName}
                 onChange={(event) => {
                   setOrganizationName(event.target.value);
                   clearFieldError('organizationName');
                 }}
-                hint={t('signUp.workspaceHint')}
+                hint={g('GettingIn.organizationHint')}
                 required
                 {...errorProp(fieldErrors.organizationName)}
+              />
+              <Field
+                label={g('GettingIn.password')}
+                type="password"
+                name="password"
+                autoComplete="new-password"
+                minLength={GETTING_IN_MIN_PASSWORD}
+                placeholder={g('GettingIn.passwordHint')}
+                value={password}
+                onChange={(event) => {
+                  setPassword(event.target.value);
+                  clearFieldError('password');
+                }}
+                required
+                {...errorProp(fieldErrors.password)}
+              />
+              <Checkbox
+                label={g('GettingIn.agree')}
+                name="agree"
+                checked={agreed}
+                onChange={(event) => {
+                  setAgreed(event.target.checked);
+                  clearFieldError('agree');
+                }}
+                {...errorProp(fieldErrors.agree)}
               />
               {/* Honeypot: hidden from people and from assistive technology; bots fill it. */}
               <div hidden aria-hidden="true">
@@ -303,16 +358,16 @@ export function SignUpScreen({
               </InlineAlert>
             ) : null}
 
-            <div className="tm-id-action-row">
+            <div style={ACTION_ROW}>
               <Button
                 type="submit"
-                tone="ink"
+                tone="lime"
                 size="accessible"
                 loading={submitting}
-                loadingLabel={t('signUp.submitting')}
+                loadingLabel={g('GettingIn.creatingWorkspace')}
                 disabled={!hydrated}
               >
-                {t('signUp.submit')}
+                {g('GettingIn.createWorkspace')}
               </Button>
             </div>
           </form>
@@ -320,7 +375,10 @@ export function SignUpScreen({
       ) : null}
 
       <p className="tm-id-lede">
-        {t('signUp.haveAccount')} <Link href="/sign-in">{t('signUp.signIn')}</Link>
+        {t('signUp.haveAccount')}{' '}
+        <Link className="tm-id-link" href="/sign-in">
+          {t('signUp.signIn')}
+        </Link>
       </p>
     </IdentityShell>
   );

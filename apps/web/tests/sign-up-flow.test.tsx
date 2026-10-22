@@ -50,18 +50,21 @@ const open = (post: () => Response) =>
   clientOver((call) => (call.method === 'POST' ? post() : json({ available: true })));
 
 async function fill(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(/Your name/), 'Mona Adel');
+  await user.type(screen.getByLabelText(/^Full name/), 'Mona Adel');
   await user.type(screen.getByLabelText(/^Work email/), 'mona@example.com');
+  await user.type(screen.getByLabelText(/^Organization name/), 'Nile Studio');
   await user.type(screen.getByLabelText(/^Password/), 'violet-harbour-lantern-41');
-  await user.type(screen.getByLabelText(/^Workspace name/), 'Nile Studio');
+  await user.click(screen.getByLabelText(/I agree to the Terms/));
 }
 
 async function ready() {
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Create account' })).toBeEnabled());
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Create my workspace' })).toBeEnabled(),
+  );
 }
 
 describe('SignUpScreen', () => {
-  it('creates the account and goes to the new workspace, signed in', async () => {
+  it('Start free creates the workspace, signs in and shows the check-your-email state', async () => {
     const user = userEvent.setup();
     const onCompleted = vi.fn();
     const boundary = new AuthBoundary();
@@ -81,9 +84,15 @@ describe('SignUpScreen', () => {
     render(<SignUpScreen client={client} boundary={boundary} onCompleted={onCompleted} />);
     await ready();
     await fill(user);
-    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    await user.click(screen.getByRole('button', { name: 'Create my workspace' }));
 
-    await waitFor(() => expect(onCompleted).toHaveBeenCalledWith('nile-studio'));
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Check your email' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/mona@example.com/)).toBeInTheDocument();
+    expect(onCompleted).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Open my workspace' }));
+    expect(onCompleted).toHaveBeenCalledWith('nile-studio');
     const post = calls.find((c) => c.method === 'POST');
     expect(post?.url).toBe('https://api.example.test/v1/public/sign-up');
     expect(post?.body).toMatchObject({
@@ -112,7 +121,7 @@ describe('SignUpScreen', () => {
     render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
     await ready();
     await fill(user);
-    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    await user.click(screen.getByRole('button', { name: 'Create my workspace' }));
 
     expect(await screen.findByText(/You already have an account/)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: 'Sign in' }).length).toBeGreaterThan(0);
@@ -124,7 +133,7 @@ describe('SignUpScreen', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Sign-up is not open' }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Create account' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Create my workspace' })).toBeNull();
   });
 
   it('has no axe violations once open', async () => {
@@ -198,7 +207,7 @@ describe('Continue with Google', () => {
       });
       render(<SignUpScreen client={client} boundary={new AuthBoundary()} />);
       await ready();
-      await user.type(screen.getByLabelText(/^Workspace name/), 'Nile Studio');
+      await user.type(screen.getByLabelText(/^Organization name/), 'Nile Studio');
       await user.click(await screen.findByRole('button', { name: /Continue with Google/ }));
       await waitFor(() =>
         expect(assign).toHaveBeenCalledWith('https://accounts.google.com/o/oauth2/v2/auth?x=1'),

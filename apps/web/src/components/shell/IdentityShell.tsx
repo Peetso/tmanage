@@ -10,7 +10,12 @@ export interface IdentityShellProps {
    */
   screenId?: string;
   /** The eyebrow label, e.g. `Sign in`. Uppercased by CSS, not by the caller. */
-  eyebrow: string;
+  eyebrow?: string;
+  /**
+   * Whether the wordmark header sits above the card body. The getting-in frames (t1-a invite
+   * sign-up, t1-c Start free) are the bare card, so those screens pass `false`.
+   */
+  brand?: boolean;
   children: ReactNode;
   /** The privacy and support links `22-SCREEN-BY-SCREEN` §3 requires on ID-01. */
   footer?: ReactNode;
@@ -29,17 +34,19 @@ export interface IdentityShellProps {
  * `27-TEST-CATALOG` — skip link, `<main>`, one `<h1>` — is satisfied structurally instead of
  * nine times by hand.
  */
-export function IdentityShell({ eyebrow, children, footer }: IdentityShellProps) {
+export function IdentityShell({ eyebrow, brand = true, children, footer }: IdentityShellProps) {
   return (
     <LiveAnnouncer>
       <div className="tm-identity">
         <SkipLink targetId="tm-main" />
 
         <div className="tm-identity__card">
-          <header className="tm-identity__brand">
-            <Wordmark />
-            <p className="tm-identity__eyebrow tm-mono">{eyebrow}</p>
-          </header>
+          {brand ? (
+            <header className="tm-identity__brand">
+              <Wordmark />
+              {eyebrow ? <p className="tm-identity__eyebrow tm-mono">{eyebrow}</p> : null}
+            </header>
+          ) : null}
 
           <main id="tm-main" className="tm-identity__body" tabIndex={-1}>
             {children}

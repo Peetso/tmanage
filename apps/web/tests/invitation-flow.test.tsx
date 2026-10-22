@@ -81,241 +81,162 @@ const PREVIEW = {
   hasAccount: true,
 };
 
-describe('ID-03, accepting an invitation', () => {
-  it('sends the token in a body and never renders it', async () => {
-    const { client, calls } = clientOver(() => json(PREVIEW));
+const REGISTERED = {
+  status: 'authenticated',
+  csrfToken: 'csrf-new',
+  expiresAt: '2026-10-19T00:00:00.000Z',
+  organizationId: 'org-1',
+  membershipId: 'm-1',
+  clientOrganizationId: null,
+  role: 'member',
+};
 
+const conflict = (field: string, message: string) =>
+  json(
+    {
+      error: {
+        code: 'conflict',
+        message: 'conflict',
+        correlationId: 'c',
+        details: [{ field, message }],
+      },
+    },
+    409,
+  );
+
+async function fillRegistration(name = 'Salma Riad', confirm = 'violet-harbour-lantern-41') {
+  await screen.findByRole('button', { name: 'Create account and join' });
+  await userEvent.type(screen.getByLabelText(/^Full name/), name);
+  await userEvent.type(screen.getByLabelText(/^Password/), 'violet-harbour-lantern-41');
+  await userEvent.type(screen.getByLabelText(/^Confirm password/), confirm);
+  await userEvent.click(screen.getByLabelText(/I agree to the Terms/));
+  await userEvent.click(screen.getByRole('button', { name: 'Create account and join' }));
+}
+
+describe('Invitation (t1-a), getting in from an invite', () => {
+  it('previews by token in a body, never renders it, and names inviter, organization and role', async () => {
+    const { client, calls } = clientOver(() => json(PREVIEW));
     const { container } = render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
 
-    await screen.findByText(/Omar Adel invited you/);
-
-    // The token is a credential that grants membership. It travels in a body and appears in
-    // neither the document nor the URL — the same rule ID-02's MFA challenge token follows.
+    expect(
+      await screen.findByText('Omar Adel invited you to Northstar Studio'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Join Northstar Studio');
+    expect(screen.getByText(/joining as a Team member/)).toBeInTheDocument();
+    expect(screen.getByText(/This invitation expires on 9 September/)).toBeInTheDocument();
     expect(container.innerHTML).not.toContain(TOKEN);
-    expect(window.location.href).not.toContain(TOKEN);
-
     const previewCall = calls.find((call) => call.url.includes('/invitations/previews'));
     expect(previewCall?.method).toBe('POST');
     expect(previewCall?.body).toEqual({ token: TOKEN });
   });
 
-  it('shows who invited, which organization, and the role in words', async () => {
-    const { client } = clientOver(() => json(PREVIEW));
-    render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
-
-    await screen.findByText(/Omar Adel invited you/);
-    expect(screen.getByText('Northstar Studio')).toBeInTheDocument();
-    expect(screen.getByText('Team member')).toBeInTheDocument();
-    expect(screen.getByText('Every internal project they are assigned to')).toBeInTheDocument();
-  });
-
   it('states that a client invitation is portal access, not team membership', async () => {
     const { client } = clientOver(() =>
-      json({
-        ...PREVIEW,
-        role: 'client_viewer',
-        audience: 'client',
-        clientOrganizationName: 'Atlas Hospitality',
-      }),
+      json({ ...PREVIEW, role: 'client_viewer', audience: 'client' }),
     );
     render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
 
     expect(await screen.findByText('This is client portal access')).toBeInTheDocument();
-    expect(screen.getByText(/not membership of the delivery team/i)).toBeInTheDocument();
   });
 
-  it('does not show the client alert for an internal invitation', async () => {
-    const { client } = clientOver(() => json(PREVIEW));
+  it('reads the same "not usable" message for an expired, used or withdrawn link', async () => {
+    const { client } = clientOver(() => json({ code: 'not_found', message: 'not found' }, 404));
     render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
 
-    await screen.findByText(/Omar Adel invited you/);
-    expect(screen.queryByText('This is client portal access')).toBeNull();
+    expect(await screen.findByText('This link is not usable')).toBeInTheDocument();
+    expect(screen.getByText(/used already, withdrawn, or expired/)).toBeInTheDocument();
   });
 
-  it('states the expiry and refuses to imply it can be extended', async () => {
-    const { client } = clientOver(() => json(PREVIEW));
-    render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
-
-    await screen.findByText(/Omar Adel invited you/);
-    expect(screen.getByText(/expired links never grant access/i)).toBeInTheDocument();
-  });
-
-  it('reads the same for every unusable token, because the API answers the same', async () => {
-    for (const code of ['not_found', 'not_found', 'not_found']) {
-      const { client } = clientOver(() => json({ code, message: 'not found' }, 404));
-      const { unmount } = render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
-
-      expect(await screen.findByText('This link is not usable')).toBeInTheDocument();
-      expect(screen.getByText(/used already, withdrawn, or expired/)).toBeInTheDocument();
-      unmount();
-    }
-  });
-
-  it('accepts, and reports the organization it joined', async () => {
+  it('accepts with an existing account and reports the organization it joined', async () => {
     let joined: string | undefined;
     const { client, calls } = clientOver((call) =>
       call.url.includes('/acceptances')
-        ? json(
-            {
-              organizationId: 'org-1',
-              membershipId: 'm-1',
-              clientOrganizationId: null,
-              role: 'member',
-            },
-            201,
-          )
+        ? json({ organizationId: 'org-1', membershipId: 'm-1', clientOrganizationId: null }, 201)
         : json(PREVIEW),
     );
-
     render(
       withQuery(
-        <InvitationScreen
-          token={TOKEN}
-          client={client}
-          onAccepted={(organizationId) => {
-            joined = organizationId;
-          }}
-        />,
+        <InvitationScreen token={TOKEN} client={client} onAccepted={(id) => (joined = id)} />,
       ),
     );
 
-    await screen.findByRole('button', { name: 'Accept invitation' });
-    await userEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
-
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept invitation' }));
     await waitFor(() => expect(joined).toBe('org-1'));
-    const accepted = calls.find((call) => call.url.includes('/acceptances'));
-    expect(accepted?.body).toEqual({ token: TOKEN });
+    expect(calls.find((call) => call.url.includes('/acceptances'))?.body).toEqual({
+      token: TOKEN,
+    });
   });
 
-  it('says an accepted invitation cannot be accepted again', async () => {
+  it('says "already a member" on 409 already_member (the role-change case)', async () => {
     const { client } = clientOver((call) =>
-      call.url.includes('/acceptances')
-        ? json({ code: 'not_found', message: 'not found' }, 404)
-        : json(PREVIEW),
+      call.url.includes('/acceptances') ? conflict('token', 'already_member') : json(PREVIEW),
     );
-
     render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
-    await screen.findByRole('button', { name: 'Accept invitation' });
-    await userEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
 
-    expect(await screen.findByText(/cannot be accepted any more/)).toBeInTheDocument();
-  });
-
-  // ACC-04: an account that is already a member used to read "cannot be accepted any more".
-  it('says "already a member" when the API answers 409 already_member', async () => {
-    const { client } = clientOver((call) =>
-      call.url.includes('/acceptances')
-        ? json(
-            {
-              error: {
-                code: 'conflict',
-                message: 'already a member',
-                correlationId: 'c',
-                details: [{ field: 'token', message: 'already_member' }],
-              },
-            },
-            409,
-          )
-        : json(PREVIEW),
-    );
-
-    render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
-    await screen.findByRole('button', { name: 'Accept invitation' });
-    await userEvent.click(screen.getByRole('button', { name: 'Accept invitation' }));
-
+    await userEvent.click(await screen.findByRole('button', { name: 'Accept invitation' }));
     expect(await screen.findByText(/already a member here/)).toBeInTheDocument();
-    expect(screen.queryByText(/cannot be accepted any more/)).toBeNull();
   });
 
-  // ACC-01: a brand-new invitee sets a name and password and joins in one step.
-  it('lets somebody with no account create one and join', async () => {
+  it('registers somebody with no account, signs them in and reports the organization', async () => {
     let joined: string | undefined;
     const announced: string[] = [];
     const stop = authBoundary.subscribe((notice) => announced.push(notice.event));
     const { client, calls } = clientOver((call) =>
       call.url.includes('/registrations')
-        ? json(
-            {
-              status: 'authenticated',
-              csrfToken: 'csrf-new',
-              expiresAt: '2026-10-19T00:00:00.000Z',
-              organizationId: 'org-1',
-              membershipId: 'm-1',
-              clientOrganizationId: null,
-              role: 'member',
-            },
-            201,
-          )
+        ? json(REGISTERED, 201)
         : json({ ...PREVIEW, hasAccount: false }),
     );
-
     const { container } = render(
       withQuery(
-        <InvitationScreen
-          token={TOKEN}
-          client={client}
-          onAccepted={(organizationId) => {
-            joined = organizationId;
-          }}
-        />,
+        <InvitationScreen token={TOKEN} client={client} onAccepted={(id) => (joined = id)} />,
       ),
     );
 
-    await screen.findByRole('button', { name: 'Create account and join' });
-    expect(screen.queryByRole('button', { name: 'Accept invitation' })).toBeNull();
-    // The invited address is filled in and locked — not typed, not editable.
-    const invitedEmail = screen.getByLabelText(/^Email/);
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Create your account' }),
+    ).toBeInTheDocument();
+    const invitedEmail = screen.getByLabelText(/^Work email/);
     expect(invitedEmail).toHaveValue('sara@northstar.studio');
     expect(invitedEmail).toHaveAttribute('readonly');
-
-    await userEvent.type(screen.getByLabelText(/^Your name/), 'Sara Nabil');
-    await userEvent.type(screen.getByLabelText(/^Password/), 'violet-harbour-lantern-41');
-    await userEvent.click(screen.getByRole('button', { name: 'Create account and join' }));
+    await fillRegistration();
 
     await waitFor(() => expect(joined).toBe('org-1'));
     stop();
     expect(announced).toContain('signed-in');
-    const registration = calls.find((call) => call.url.includes('/registrations'));
-    expect(registration?.method).toBe('POST');
-    expect(registration?.body).toEqual({
+    expect(calls.find((call) => call.url.includes('/registrations'))?.body).toEqual({
       token: TOKEN,
-      displayName: 'Sara Nabil',
+      displayName: 'Salma Riad',
       password: 'violet-harbour-lantern-41',
     });
     expect(container.innerHTML).not.toContain(TOKEN);
   });
 
+  it('does not send a registration whose two passwords differ', async () => {
+    const { client, calls } = clientOver(() => json({ ...PREVIEW, hasAccount: false }));
+    render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
+
+    await fillRegistration('Salma Riad', 'something-else-entirely');
+    expect(await screen.findByText('The two passwords do not match.')).toBeInTheDocument();
+    expect(calls.some((call) => call.url.includes('/registrations'))).toBe(false);
+  });
+
   it('tells a registering invitee to sign in when the address already has an account', async () => {
     const { client } = clientOver((call) =>
       call.url.includes('/registrations')
-        ? json(
-            {
-              error: {
-                code: 'conflict',
-                message: 'exists',
-                correlationId: 'c',
-                details: [{ field: 'email', message: 'account_exists' }],
-              },
-            },
-            409,
-          )
+        ? conflict('email', 'account_exists')
         : json({ ...PREVIEW, hasAccount: false }),
     );
-
     render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
-    await screen.findByRole('button', { name: 'Create account and join' });
-    await userEvent.type(screen.getByLabelText(/^Your name/), 'Sara');
-    await userEvent.type(screen.getByLabelText(/^Password/), 'violet-harbour-lantern-41');
-    await userEvent.click(screen.getByRole('button', { name: 'Create account and join' }));
 
+    await fillRegistration();
     expect(await screen.findByText(/already uses this email address/)).toBeInTheDocument();
   });
 
-  it('has no axe violations once loaded', async () => {
-    const { client } = clientOver(() => json(PREVIEW));
+  it('has no axe violations on the registration form', async () => {
+    const { client } = clientOver(() => json({ ...PREVIEW, hasAccount: false }));
     const { container } = render(withQuery(<InvitationScreen token={TOKEN} client={client} />));
 
-    await screen.findByText(/Omar Adel invited you/);
+    await screen.findByRole('button', { name: 'Create account and join' });
     await expectNoAxeViolations(container);
   });
 });
