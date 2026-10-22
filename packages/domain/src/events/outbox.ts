@@ -451,7 +451,6 @@ export interface ProjectMemberAddedV1 {
   readonly addedByUserId: string;
 }
 
-/** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 /**
  * 0211: ids only. `reviewerUserIds` narrows who is told (the client contacts the sender picked);
  * the worker still re-checks each one's access to the project at delivery.
@@ -464,6 +463,7 @@ export interface ApprovalRequestedV1 {
   readonly reviewerUserIds: readonly string[];
 }
 
+/** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
   readonly 'client_request.transitioned.v1': ClientRequestTransitionedV1;

@@ -123,6 +123,17 @@ import type {
   PlatformAuditEventView as ApiPlatformAuditEventView,
 } from '../../apps/api/src/modules/platform-admin/platform-admin.service.js';
 import type {
+  StorageStatusView as ApiStorageStatusView,
+  DriveAttachmentView as ApiDriveAttachmentView,
+  PickerSessionView as ApiPickerSessionView,
+} from '../../apps/api/src/modules/google-drive/google-drive.service.js';
+import type { ConsentView as ApiConsentView } from '../../apps/api/src/modules/oauth/consent.controller.js';
+import type {
+  ConnectedAppView as ApiConnectedAppView,
+  ConnectedAppsView as ApiConnectedAppsView,
+} from '../../apps/api/src/modules/oauth/grants.service.js';
+import type { PendingAiActionView as ApiPendingAiActionView } from '../../apps/api/src/modules/mcp/pending-actions.service.js';
+import type {
   GoogleAvailabilityView as ApiGoogleAvailabilityView,
   GooglePendingMfaView as ApiGooglePendingMfaView,
   GoogleStartView as ApiGoogleStartView,
@@ -677,6 +688,17 @@ import type {
   PlatformSettingsView as WebPlatformSettingsView,
   PlatformAuditEventView as WebPlatformAuditEventView,
 } from '../../apps/web/src/lib/api/platform-admin';
+import type {
+  StorageStatusView as WebStorageStatusView,
+  DriveAttachmentView as WebDriveAttachmentView,
+  PickerSessionView as WebPickerSessionView,
+} from '../../apps/web/src/lib/api/google-drive';
+import type { ConsentView as WebConsentView } from '../../apps/web/src/lib/api/oauth-consent';
+import type {
+  ConnectedApp as WebConnectedApp,
+  ConnectedAppsView as WebConnectedAppsView,
+} from '../../apps/web/src/lib/api/connected-apps';
+import type { AiApprovalView as WebAiApprovalView } from '../../apps/web/src/lib/api/ai-approvals';
 import type {
   GoogleAvailabilityView as WebGoogleAvailabilityView,
   GooglePendingMfaView as WebGooglePendingMfaView,
@@ -2884,3 +2906,14 @@ type _platformCompanyDetailView = Assert<
 type _platformPersonView = Assert<Exact<ApiPlatformPersonView, WebPlatformPersonView>>;
 type _platformSettingsView = Assert<Exact<ApiPlatformSettingsView, WebPlatformSettingsView>>;
 type _platformAuditEventView = Assert<Exact<ApiPlatformAuditEventView, WebPlatformAuditEventView>>;
+
+// Google Drive storage (0210): the Storage screen and "Attach from Google Drive".
+type _storageStatus = Assert<Exact<ApiStorageStatusView, WebStorageStatusView>>;
+type _driveAttachment = Assert<Exact<ApiDriveAttachmentView, WebDriveAttachmentView>>;
+type _pickerSession = Assert<Exact<ApiPickerSessionView, WebPickerSessionView>>;
+// MCP connector S9–S11: the consent page, Connected apps and the AI approve page. Their element
+// shapes (`ConsentClient`, `AiApprovalSummary`, `AiApprovalField`) are covered through these.
+type _consent = Assert<Exact<ApiConsentView, WebConsentView>>;
+type _connectedApp = Assert<Exact<ApiConnectedAppView, WebConnectedApp>>;
+type _connectedApps = Assert<Exact<ApiConnectedAppsView, WebConnectedAppsView>>;
+type _aiApproval = Assert<Exact<ApiPendingAiActionView, WebAiApprovalView>>;

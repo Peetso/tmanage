@@ -111,6 +111,32 @@ const EXEMPT = new Map([
     'PortalSettingsClientView',
     'No web consumer: SEC / Client portal settings (x238) client projection (welcome/accent/toggles only, no updatedBy). The internal PortalSettingsView is the paired one (PortalSettingsScreen); the client-portal render that reads this projection is a later slice. Pair it when that render lands.',
   ],
+  [
+    'GrantView',
+    'Not a wire shape: the oauth-tokens repository row (revokedAt is a Date) read only inside the token and revoke paths; no route serialises it. The Connected apps response is ConnectedAppsView, paired.',
+  ],
+  // BG2 (0211) deliverables and send-for-client-approval: API-only until the screens land after
+  // Figma approval. Pair each when apps/web/src/lib/api gains the deliverables client.
+  [
+    'DeliverableView',
+    'No web consumer yet: BG2 deliverables are API-only; the screen is a follow-up.',
+  ],
+  ['DeliverableVersionView', 'No web consumer yet: same as DeliverableView (BG2, API-only).'],
+  ['DeliverableDetailView', 'No web consumer yet: same as DeliverableView (BG2, API-only).'],
+  [
+    'ApproverView',
+    'No web consumer yet: the send-for-approval approver picker (BG2) has no screen.',
+  ],
+  ['SendForApprovalView', 'No web consumer yet: the send-for-approval action (BG2) has no screen.'],
+  // BG3 (0212) request messages: API-only until the request thread screens land.
+  [
+    'RequestMessageView',
+    'No web consumer yet: BG3 request messages (team thread) are API-only; the screen is a follow-up.',
+  ],
+  [
+    'RequestMessageClientView',
+    'No web consumer yet: BG3 request messages (portal thread) are API-only; the screen is a follow-up.',
+  ],
 ]);
 
 /**
@@ -217,6 +243,18 @@ const WEB_EXEMPT = new Map([
   [
     'PersonTimeOffRange',
     'x325 — the optional from/to filter passed as query params on the list read (name ends in `Range`, not a dropped request suffix); a request shape, not a response projection. The response `PersonTimeOffView` is paired Exact.',
+  ],
+  [
+    'ConsentClient',
+    'MCP S9 — the consent client element. The API names it `ConsentClientView` in consent.ts (not a *.service/controller/repository file), and the wrapper `ConsentView` is paired Exact, so the shape is covered there.',
+  ],
+  [
+    'AiApprovalSummary',
+    'MCP S10 — the server-built summary. The API names it `ApprovalSummary` (not a …View), and the wrapper `AiApprovalView` is paired Exact with `PendingAiActionView`, so the shape is covered there.',
+  ],
+  [
+    'AiApprovalField',
+    'MCP S10 — one summary field, the element of `AiApprovalSummary`; covered transitively by the paired `AiApprovalView`.',
   ],
   // class-1-lift (MemberSummary, WorkspaceSummary, AuthenticatedResponse, MfaRequiredResponse)
   // was exempted here while its API interface was unexported. x79 exported each interface
