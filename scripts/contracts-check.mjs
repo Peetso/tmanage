@@ -132,6 +132,26 @@ const EXEMPT = new Map([
     'DirectReadStateView',
     'No web consumer yet: BK3-left direct-message mark-read is API-only; the DM screen is a follow-up.',
   ],
+  [
+    'MeetingClientAttendeeView',
+    'No web consumer yet: BK5 client attendees (0217) are API-only; the meeting edit screen (Figma 374:1985) is a follow-up.',
+  ],
+  [
+    'ClientAttendeeCandidateView',
+    'No web consumer yet: BK5 "Clients on <project>" picker is API-only; the meeting edit screen is a follow-up.',
+  ],
+  [
+    'PortalMeetingView',
+    'No web consumer yet: BK5 portal meetings list is API-only; the portal meetings screen is a follow-up.',
+  ],
+  [
+    'PortalMeetingAttendeeView',
+    'No web consumer yet: BK5 portal meeting detail is API-only; the portal meetings screen is a follow-up.',
+  ],
+  [
+    'PortalMeetingDetailView',
+    'No web consumer yet: BK5 portal meeting detail is API-only; the portal meetings screen is a follow-up.',
+  ],
 ]);
 
 /**

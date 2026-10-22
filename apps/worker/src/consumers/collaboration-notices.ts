@@ -47,7 +47,8 @@ import type {
  * |----------------------------------------|-------------------------------------|--------|-------|
  * | `message.created.v1` (with mentions)   | each person mentioned               | yes    | yes   |
  * | `document.comment_created.v1`          | the people mentioned, the author    | yes    | yes   |
- * | `meeting.attendee_invited.v1`          | the invitee                         | yes    | yes   |
+ * | `meeting.attendee_invited.v1`          | the invitee (a member or a client)  | yes    | yes   |
+ * | `meeting.changed.v1` (BK5)             | the attendees when it changed       | yes    | yes   |
  * | `project.member_added.v1`              | the person added                    | yes    | yes   |
  * | `work_item.client_action_requested.v1` | client people who may decide        | portal | yes   |
  * | `approval.requested.v1` (NT1)          | the picked client deciders          | yes    | yes   |
@@ -248,7 +249,26 @@ export const planCommentNotices: NoticePlanner = async (event, tx, mailer) => {
   return notices;
 };
 
-/** `meeting.attendee_invited.v1` → the invitee. */
+/**
+ * BK5: is a client person still allowed to hear about a meeting on `projectId` — their client
+ * membership active and unexpired, and the project still shared with their company.
+ */
+async function clientMayBeTold(
+  tx: WorkerTransaction,
+  organizationId: string,
+  userId: string,
+  clientOrganizationId: string,
+  projectId: string,
+): Promise<boolean> {
+  return clientRecipientStillPermitted(tx, {
+    organizationId,
+    userId,
+    clientOrganizationId,
+    projectId,
+  });
+}
+
+/** `meeting.attendee_invited.v1` → the invitee — a member, or (BK5) a client person. */
 export const planMeetingInviteNotices: NoticePlanner = async (event, tx, mailer) => {
   const raw = payloadOf(event);
   const meetingId = stringField(raw, 'meetingId', event.id);
@@ -257,6 +277,59 @@ export const planMeetingInviteNotices: NoticePlanner = async (event, tx, mailer)
   const invitedByUserId = stringField(raw, 'invitedByUserId', event.id);
   if (attendeeUserId === invitedByUserId) return [];
 
+  const mail = (portal: boolean) => async (): Promise<MailSubject | null> => {
+    if (mailer === null) return null;
+    const org = await organizationOf(tx, event.organizationId);
+    const meeting = await findMeetingFacts(tx, event.organizationId, meetingId);
+    if (org === null || meeting === null) return null;
+    const actor = await findDisplayName(tx, invitedByUserId);
+    const project = await findProjectName(tx, event.organizationId, projectId);
+    return {
+      organizationName: org.name,
+      ...(actor === null ? {} : { actorName: actor }),
+      subjectTitle: meeting.title,
+      ...(project === null ? {} : { projectName: project }),
+      when: formatUtc(meeting.startsAt),
+      link: mailer.linkTo(
+        portal
+          ? `/${org.slug}/portal/meetings/${meetingId}`
+          : `/${org.slug}/calendar/meetings/${meetingId}`,
+      ),
+    };
+  };
+  const inApp = {
+    type: 'meeting.attendee_invited.v1',
+    objectType: 'meeting',
+    objectId: meetingId,
+    // The event id: an invite after a removal is news again; a redelivery is not.
+    dedupeKey: `meeting.invited:${event.id}`,
+  };
+
+  if (raw['attendeeKind'] === 'client') {
+    const clientOrganizationId = stringField(raw, 'clientOrganizationId', event.id);
+    if (
+      !(await clientMayBeTold(
+        tx,
+        event.organizationId,
+        attendeeUserId,
+        clientOrganizationId,
+        projectId,
+      ))
+    ) {
+      return [];
+    }
+    return [
+      {
+        recipientUserId: attendeeUserId,
+        optOutKind: null,
+        membershipId: null,
+        inApp,
+        mailKind: 'meeting_invite',
+        mail: mail(true),
+      },
+    ];
+  }
+
   const reach = await findInternalReach(tx, event.organizationId, attendeeUserId, projectId);
   if (!mayBeTold(reach, 'work.read') || reach === null) return [];
   return [
@@ -264,32 +337,93 @@ export const planMeetingInviteNotices: NoticePlanner = async (event, tx, mailer)
       recipientUserId: attendeeUserId,
       optOutKind: null,
       membershipId: reach.membershipId,
-      inApp: {
-        type: 'meeting.attendee_invited.v1',
-        objectType: 'meeting',
-        objectId: meetingId,
-        // The event id: an invite after a removal is news again; a redelivery is not.
-        dedupeKey: `meeting.invited:${event.id}`,
-      },
+      inApp,
       mailKind: 'meeting_invite',
-      mail: async () => {
-        if (mailer === null) return null;
-        const org = await organizationOf(tx, event.organizationId);
-        const meeting = await findMeetingFacts(tx, event.organizationId, meetingId);
-        if (org === null || meeting === null) return null;
-        const actor = await findDisplayName(tx, invitedByUserId);
-        const project = await findProjectName(tx, event.organizationId, projectId);
-        return {
-          organizationName: org.name,
-          ...(actor === null ? {} : { actorName: actor }),
-          subjectTitle: meeting.title,
-          ...(project === null ? {} : { projectName: project }),
-          when: formatUtc(meeting.startsAt),
-          link: mailer.linkTo(`/${org.slug}/calendar/meetings/${meetingId}`),
-        };
-      },
+      mail: mail(false),
     },
   ];
+};
+
+/**
+ * `meeting.changed.v1` → BK5. The title, date or time of a meeting changed: everyone who was on the
+ * roster at that moment (the payload's snapshot — a person added afterwards gets the invitation
+ * instead) is told, except whoever made the change. Each is re-checked from the current rows: a
+ * member must still reach the project with `work.read`, a client person must still hold an active
+ * client membership whose company the project is shared with. The email carries the new time.
+ */
+export const planMeetingChangedNotices: NoticePlanner = async (event, tx, mailer) => {
+  const raw = payloadOf(event);
+  const meetingId = stringField(raw, 'meetingId', event.id);
+  const projectId = stringField(raw, 'projectId', event.id);
+  const changedByUserId = stringField(raw, 'changedByUserId', event.id);
+  const meeting = await findMeetingFacts(tx, event.organizationId, meetingId);
+  if (meeting === null) return []; // Gone: nothing safe to reference.
+
+  const inApp = {
+    type: 'meeting.changed.v1',
+    objectType: 'meeting',
+    objectId: meetingId,
+    // One change, one notice per person; a redelivery is not news.
+    dedupeKey: `meeting.changed:${event.id}`,
+  };
+  const mail = (portal: boolean) => async (): Promise<MailSubject | null> => {
+    if (mailer === null) return null;
+    const org = await organizationOf(tx, event.organizationId);
+    if (org === null) return null;
+    const actor = await findDisplayName(tx, changedByUserId);
+    const project = await findProjectName(tx, event.organizationId, projectId);
+    return {
+      organizationName: org.name,
+      ...(actor === null ? {} : { actorName: actor }),
+      subjectTitle: meeting.title,
+      ...(project === null ? {} : { projectName: project }),
+      when: formatUtc(meeting.startsAt),
+      link: mailer.linkTo(
+        portal
+          ? `/${org.slug}/portal/meetings/${meetingId}`
+          : `/${org.slug}/calendar/meetings/${meetingId}`,
+      ),
+    };
+  };
+
+  const notices: PlannedNotice[] = [];
+  const told = new Set<string>([changedByUserId]);
+  for (const userId of idList(raw, 'memberUserIds')) {
+    if (told.has(userId)) continue;
+    const reach = await findInternalReach(tx, event.organizationId, userId, projectId);
+    if (!mayBeTold(reach, 'work.read') || reach === null) continue;
+    told.add(userId);
+    notices.push({
+      recipientUserId: userId,
+      optOutKind: null,
+      membershipId: reach.membershipId,
+      inApp,
+      mailKind: 'meeting_changed',
+      mail: mail(false),
+    });
+  }
+  const clients = Array.isArray(raw['clientAttendees']) ? raw['clientAttendees'] : [];
+  for (const entry of clients) {
+    if (entry === null || typeof entry !== 'object') continue;
+    const { userId, clientOrganizationId } = entry as Record<string, unknown>;
+    if (typeof userId !== 'string' || typeof clientOrganizationId !== 'string') continue;
+    if (told.has(userId)) continue;
+    if (
+      !(await clientMayBeTold(tx, event.organizationId, userId, clientOrganizationId, projectId))
+    ) {
+      continue;
+    }
+    told.add(userId);
+    notices.push({
+      recipientUserId: userId,
+      optOutKind: null,
+      membershipId: null,
+      inApp,
+      mailKind: 'meeting_changed',
+      mail: mail(true),
+    });
+  }
+  return notices;
 };
 
 /** `project.member_added.v1` → the person put on the project. */
@@ -570,6 +704,7 @@ export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'message.created.v1': planMentionNotices,
   'document.comment_created.v1': planCommentNotices,
   'meeting.attendee_invited.v1': planMeetingInviteNotices,
+  'meeting.changed.v1': planMeetingChangedNotices,
   'project.member_added.v1': planProjectAddedNotices,
   'work_item.client_action_requested.v1': planClientActionNotices,
   'approval.requested.v1': planApprovalRequestedNotices,

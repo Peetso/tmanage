@@ -369,6 +369,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // membership, and an unscoped `SELECT ... FROM meeting_attendees` would be who is invited to
   // every studio's meetings on the server. The guard must scope its reads and its writes.
   meeting_attendees: 'organization_id',
+  // BK5 (0217). Client people invited to a meeting; an unscoped read would be which client
+  // contacts attend every studio's meetings on the server.
+  meeting_client_attendees: 'organization_id',
   // A meeting RSVP is a member's own answer, tenant- and meeting-scoped by its composite keys, and an
   // unscoped `SELECT ... FROM meeting_rsvps` would be who is coming to every studio's meetings on the
   // server (x240).

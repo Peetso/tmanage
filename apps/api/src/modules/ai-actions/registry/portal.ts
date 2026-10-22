@@ -6,6 +6,7 @@
  * are plain reads but carry the `client_safe` redaction profile because they surface client-facing
  * content. `openWorldHint` (notifies) is set on the ops that send a message or publish to a client.
  */
+import { z } from 'zod';
 import { det, listArgs, pathOnly, bodyArgs, f, type AiActionDetail } from './detail.js';
 
 export const portalDetails: readonly AiActionDetail[] = [
@@ -296,6 +297,31 @@ export const portalDetails: readonly AiActionDetail[] = [
     redact: 'client_safe',
     notifies: true,
     examples: [{ summary: 'Reply', args: { clientRequestId: 'cr_1', body: 'Looks good.' } }],
+  }),
+  // BK5 (0217): the meetings a client person attends.
+  det({
+    id: 'portal.meetings.list',
+    title: 'List my portal meetings',
+    description: 'The meetings the calling client person attends.',
+    input: listArgs(),
+    redact: 'client_safe',
+    examples: [{ summary: 'All', args: {} }],
+  }),
+  det({
+    id: 'portal.meetings.get',
+    title: 'Get a portal meeting',
+    description: 'One meeting the calling client person attends, with who else is on it.',
+    input: pathOnly('meetingId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'By id', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'portal.meetings.rsvp.set',
+    title: 'Answer a portal meeting invite',
+    description: 'Accept or decline a meeting as the calling client person. Confirm-class.',
+    input: bodyArgs(['meetingId'], { rsvp: z.enum(['accepted', 'declined']) }),
+    redact: 'client_safe',
+    examples: [{ summary: 'Accept', args: { meetingId: 'mtg_1', rsvp: 'accepted' } }],
   }),
   det({
     id: 'portal.upload_sessions.list',

@@ -18,6 +18,7 @@ import type {
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { MeetingNoteRow, MeetingRow } from '../../common/database/schema.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { MeetingClientAttendeesRepository } from './meeting-client-attendees.repository.js';
 
 /**
  * The application service for CAL-01 / MTG-01 (x90) — the object-level decision the route guard
@@ -106,6 +107,27 @@ function toNoteView(row: MeetingNoteRow): MeetingNoteView {
   };
 }
 
+/**
+ * BK5: which of the fields attendees are told about an edit actually changes — title, start, end.
+ * An agenda-note edit, or a PATCH that re-sends the current values, is not news.
+ */
+export function meetingChangedFields(
+  meeting: MeetingRow,
+  input: UpdateMeetingInput,
+): ('title' | 'startsAt' | 'endsAt')[] {
+  const changed: ('title' | 'startsAt' | 'endsAt')[] = [];
+  if (input.title !== undefined && input.title !== meeting.title) changed.push('title');
+  if (input.startsAt !== undefined && input.startsAt.getTime() !== meeting.startsAt.getTime()) {
+    changed.push('startsAt');
+  }
+  if (input.endsAt !== undefined) {
+    const before = meeting.endsAt ? meeting.endsAt.getTime() : null;
+    const after = input.endsAt ? input.endsAt.getTime() : null;
+    if (before !== after) changed.push('endsAt');
+  }
+  return changed;
+}
+
 export class MeetingsService {
   constructor(
     private readonly database: TenantDatabase,
@@ -135,6 +157,11 @@ export class MeetingsService {
      */
     private readonly attendees?: MeetingAttendeesRepository,
     private readonly memberships?: MembershipsRepository,
+    /**
+     * BK5: the roster reads the "meeting changed" notice snapshots — who attends (members and client
+     * people) at the moment of the edit. Optional; without it an edit notifies nobody.
+     */
+    private readonly clientAttendees?: MeetingClientAttendeesRepository,
   ) {}
 
   /**
@@ -282,9 +309,35 @@ export class MeetingsService {
       input.endsAt === undefined ? (meeting.endsAt ?? null) : input.endsAt,
     );
 
-    const row = await this.database.transaction(context, (tx) =>
-      this.meetings.update(tx, context, meetingId, input),
-    );
+    const changedFields = meetingChangedFields(meeting, input);
+    const row = await this.database.transaction(context, async (tx) => {
+      const updated = await this.meetings.update(tx, context, meetingId, input);
+      // BK5: a new title, date or time is news to everyone already attending. The recipients are
+      // the roster at this moment, so a person added afterwards gets the invitation, not this.
+      const roster = this.clientAttendees;
+      if (changedFields.length > 0 && this.outbox && roster) {
+        const memberUserIds = await roster.listMemberUserIds(tx, context, meetingId);
+        const clients = await roster.listForMeeting(tx, context, meetingId);
+        if (memberUserIds.length > 0 || clients.length > 0) {
+          await this.outbox.append(tx, context, {
+            type: 'meeting.changed.v1',
+            aggregateId: meetingId,
+            payload: {
+              meetingId,
+              projectId: meeting.projectId,
+              changedByUserId: context.userId,
+              changedFields,
+              memberUserIds,
+              clientAttendees: clients.map((client) => ({
+                userId: client.userId,
+                clientOrganizationId: client.clientOrganizationId,
+              })),
+            },
+          });
+        }
+      }
+      return updated;
+    });
     return toView(row);
   }
 

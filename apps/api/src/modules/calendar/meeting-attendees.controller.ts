@@ -16,7 +16,12 @@ import { ApiError } from '../../common/http/errors.js';
 import { MEETING_ATTENDEES_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { AttendeeRsvp } from './meeting-attendees.repository.js';
-import type { MeetingAttendeeView, MeetingAttendeesService } from './meeting-attendees.service.js';
+import type {
+  ClientAttendeeCandidateView,
+  MeetingAttendeeView,
+  MeetingAttendeesService,
+  MeetingClientAttendeeView,
+} from './meeting-attendees.service.js';
 
 /**
  * CAL-01 / MTG-01 attendees + RSVP (x126). The calendar module's attendee endpoints: invite a
@@ -33,6 +38,8 @@ const RSVPS: readonly AttendeeRsvp[] = ['invited', 'accepted', 'declined'];
 
 interface InviteAttendeeBody {
   readonly userId?: unknown;
+  /** BK5: a client person of the meeting's project, instead of `userId`. */
+  readonly clientUserId?: unknown;
 }
 
 interface SetRsvpBody {
@@ -53,7 +60,10 @@ export class MeetingAttendeesController {
     @Param('meetingId') meetingId: string,
     @Query('after') after?: string,
     @Query('limit') limit?: string,
-  ): Promise<{ readonly attendees: readonly MeetingAttendeeView[] }> {
+  ): Promise<{
+    readonly attendees: readonly MeetingAttendeeView[];
+    readonly clientAttendees: readonly MeetingClientAttendeeView[];
+  }> {
     if (typeof meetingId !== 'string' || meetingId === '') {
       throw new ApiError(400, 'validation_failed', 'meetingId is required', [
         { field: 'meetingId', message: 'must be a non-empty string' },
@@ -67,12 +77,33 @@ export class MeetingAttendeesController {
       ]);
     }
 
+    const attendees = await this.attendees.listAttendees(context, principal, {
+      meetingId,
+      ...(after ? { after } : {}),
+      ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
+    });
+    // BK5: client people ride beside the members on the first page only (they are few).
+    const clientAttendees = after
+      ? []
+      : await this.attendees.listClientAttendees(context, principal, meetingId);
+    return { attendees, clientAttendees };
+  }
+
+  /** BK5: the client people of this meeting's project who may be added. */
+  @Get('client-candidates')
+  @RequireCapability('meeting.read')
+  async clientCandidates(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+  ): Promise<{ readonly candidates: readonly ClientAttendeeCandidateView[] }> {
+    if (!meetingId) {
+      throw new ApiError(400, 'validation_failed', 'meetingId is required', [
+        { field: 'meetingId', message: 'must be a non-empty string' },
+      ]);
+    }
     return {
-      attendees: await this.attendees.listAttendees(context, principal, {
-        meetingId,
-        ...(after ? { after } : {}),
-        ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
-      }),
+      candidates: await this.attendees.listClientCandidates(context, principal, meetingId),
     };
   }
 
@@ -84,7 +115,22 @@ export class MeetingAttendeesController {
     @CurrentPrincipal() principal: Principal,
     @Param('meetingId') meetingId: string,
     @Body() body: InviteAttendeeBody,
-  ): Promise<MeetingAttendeeView> {
+  ): Promise<MeetingAttendeeView | MeetingClientAttendeeView> {
+    // BK5: exactly one of `userId` (a member) or `clientUserId` (a client of this project).
+    const clientUserId = typeof body?.clientUserId === 'string' ? body.clientUserId : undefined;
+    if (body?.clientUserId !== undefined && body?.userId !== undefined) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'clientUserId', message: 'send either userId or clientUserId, not both' },
+      ]);
+    }
+    if (clientUserId !== undefined && meetingId) {
+      if (clientUserId === '') {
+        throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+          { field: 'clientUserId', message: 'must be a non-empty string' },
+        ]);
+      }
+      return this.attendees.inviteClient(context, principal, { meetingId, userId: clientUserId });
+    }
     const userId = typeof body?.userId === 'string' ? body.userId : undefined;
 
     const details = [

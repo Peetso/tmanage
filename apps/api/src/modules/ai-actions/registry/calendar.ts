@@ -208,11 +208,20 @@ export const calendarDetails: readonly AiActionDetail[] = [
   det({
     id: 'meetings.attendees.create',
     title: 'Invite a meeting attendee',
-    description: 'Invite a person to a meeting. They are notified.',
-    input: bodyArgs(['meetingId'], { userId: f.id() }),
+    description:
+      'Invite a team member (userId) or a client person of the project (clientUserId). They are notified.',
+    input: bodyArgs(['meetingId'], { userId: f.id().optional(), clientUserId: f.id().optional() }),
     redact: 'standard',
     notifies: true,
     examples: [{ summary: 'Invite', args: { meetingId: 'mtg_1', userId: 'user_3' } }],
+  }),
+  det({
+    id: 'meetings.attendees.client_candidates.list',
+    title: 'List client people who can attend',
+    description: 'Client people of the meeting’s project who may be added as attendees.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    examples: [{ summary: 'Candidates', args: { meetingId: 'mtg_1' } }],
   }),
   det({
     id: 'meetings.attendees.delete',

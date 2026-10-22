@@ -527,6 +527,9 @@ GRANT INSERT                 ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%
 -- Audit gap 8 (COL-06/09): an organiser removes an attendee (DELETE …/attendees/:attendeeId), so
 -- DELETE lands with the code that writes it. No table references meeting_attendees.
 GRANT INSERT, UPDATE, DELETE  ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@'%';
+-- BK5 (0217): client people invited to a meeting. Invited (INSERT), their own RSVP from the portal
+-- (UPDATE; 0217's trigger pins the identity columns), and removed by the organiser (DELETE).
+GRANT INSERT, UPDATE, DELETE  ON `tmanage`.`meeting_client_attendees` TO 'tmanage_app'@'%';
 -- CAL meeting RSVP (x240). A member records their own response (INSERT) and re-answers in place
 -- (UPDATE) — this slice ships an idempotent upsert PUT and a read (the database-wide SELECT) — so
 -- INSERT and UPDATE and **no DELETE**: there is no un-answer endpoint, least privilege, and 0112's
@@ -1509,12 +1512,12 @@ GRANT SELECT ON `tmanage`.`project_clients`          TO 'tmanage_worker'@'%';
 -- socket needs — so `messages` is named nowhere here.
 GRANT SELECT ON `tmanage`.`conversations`            TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`conversation_memberships` TO 'tmanage_worker'@'%';
-
--- CQ-12: the collaboration notices and the automation runner (`collaboration-store.ts`). The
--- recipient's mail toggle, quiet hours and per-kind opt-out (`notification_preferences`,
 -- BK3-left: the direct-message pair row (participants, cursor) for the socket subscription check
 -- and the recipient re-check (`direct-message-store.ts`). `direct_messages` is not read.
 GRANT SELECT ON `tmanage`.`direct_conversations`     TO 'tmanage_worker'@'%';
+
+-- CQ-12: the collaboration notices and the automation runner (`collaboration-store.ts`). The
+-- recipient's mail toggle, quiet hours and per-kind opt-out (`notification_preferences`,
 -- `notification_kind_prefs` — the quiet-hours read already needed the first); the title an
 -- email names (`documents`, `meetings`); the enabled rules for a trigger (`workflow_templates`)
 -- and the run history the runner appends to (`workflow_runs`, read where it writes). No message

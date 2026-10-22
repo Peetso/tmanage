@@ -974,6 +974,41 @@ export const meetingAttendees = mysqlTable(
   ],
 );
 
+/**
+ * BK5 (0217). A client person invited to a meeting — named by `client_membership_id`, beside the
+ * internal roster. Only client people of a company the meeting's project is shared with (checked in
+ * the service). `0217_meeting_client_attendees.sql` is the source of truth; this is its typed mirror.
+ */
+export const meetingClientAttendees = mysqlTable(
+  'meeting_client_attendees',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    clientMembershipId: char('client_membership_id', { length: 36 }).notNull(),
+    rsvp: mysqlEnum('rsvp', MEETING_ATTENDEE_RSVPS).notNull().default('invited'),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_client_attendees_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_meeting_client_attendees_person').on(
+      table.organizationId,
+      table.meetingId,
+      table.clientMembershipId,
+    ),
+    index('ix_meeting_client_attendees_meeting').on(
+      table.organizationId,
+      table.meetingId,
+      table.id,
+    ),
+    index('ix_meeting_client_attendees_member').on(
+      table.organizationId,
+      table.clientMembershipId,
+      table.meetingId,
+    ),
+  ],
+);
+
 export const MEETING_RSVP_RESPONSES = ['accepted', 'declined', 'tentative'] as const;
 
 /**
@@ -5814,6 +5849,19 @@ export const directConversations = mysqlTable(
     nextSequenceNo: bigint('next_sequence_no', { mode: 'number', unsigned: true })
       .notNull()
       .default(1),
+    // 0216: each participant's last-read sequence number (BK3-left unread counts).
+    userLowLastReadSequenceNo: bigint('user_low_last_read_sequence_no', {
+      mode: 'number',
+      unsigned: true,
+    })
+      .notNull()
+      .default(0),
+    userHighLastReadSequenceNo: bigint('user_high_last_read_sequence_no', {
+      mode: 'number',
+      unsigned: true,
+    })
+      .notNull()
+      .default(0),
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     lastMessageAt: datetime('last_message_at', { mode: 'date', fsp: 3 }),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -5849,19 +5897,6 @@ export const directMessages = mysqlTable(
       table.organizationId,
       table.directConversationId,
       table.sequenceNo,
-    // 0216: each participant's last-read sequence number (BK3-left unread counts).
-    userLowLastReadSequenceNo: bigint('user_low_last_read_sequence_no', {
-      mode: 'number',
-      unsigned: true,
-    })
-      .notNull()
-      .default(0),
-    userHighLastReadSequenceNo: bigint('user_high_last_read_sequence_no', {
-      mode: 'number',
-      unsigned: true,
-    })
-      .notNull()
-      .default(0),
     ),
     uniqueIndex('uq_direct_messages_client_generated').on(
       table.organizationId,
@@ -8591,6 +8626,7 @@ export const TABLES = {
   import_rows: importRows,
   meeting_notes: meetingNotes,
   meeting_attendees: meetingAttendees,
+  meeting_client_attendees: meetingClientAttendees,
   meeting_rsvps: meetingRsvps,
   meeting_action_items: meetingActionItems,
   meeting_time_polls: meetingTimePolls,
@@ -8753,6 +8789,7 @@ export type ProjectRiskRow = typeof projectRisks.$inferSelect;
 export type PortalAccessLogRow = typeof portalAccessLog.$inferSelect;
 export type MeetingNoteRow = typeof meetingNotes.$inferSelect;
 export type MeetingAttendeeRow = typeof meetingAttendees.$inferSelect;
+export type MeetingClientAttendeeRow = typeof meetingClientAttendees.$inferSelect;
 export type MeetingRsvpRow = typeof meetingRsvps.$inferSelect;
 export type MeetingActionItemRow = typeof meetingActionItems.$inferSelect;
 export type MeetingTimePollRow = typeof meetingTimePolls.$inferSelect;

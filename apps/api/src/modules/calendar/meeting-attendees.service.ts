@@ -12,6 +12,11 @@ import type {
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import type { MeetingRow } from '../../common/database/schema.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type {
+  ClientAttendeeWithPerson,
+  ClientCandidateRow,
+  MeetingClientAttendeesRepository,
+} from './meeting-client-attendees.repository.js';
 
 /**
  * The application service for CAL-01 / MTG-01 attendees + RSVP (x126) — the object-level decision
@@ -65,6 +70,51 @@ function toView(row: AttendeeWithUser): MeetingAttendeeView {
   };
 }
 
+/**
+ * BK5 (0217): a client person on a meeting. Named by `userId` like a member, plus the name and
+ * company the roster shows (the member directory cannot resolve a client).
+ */
+export interface MeetingClientAttendeeView {
+  readonly id: string;
+  readonly meetingId: string;
+  readonly userId: string;
+  readonly displayName: string;
+  readonly clientOrganizationId: string;
+  readonly clientOrganizationName: string;
+  readonly rsvp: AttendeeRsvp;
+  readonly createdAt: string;
+}
+
+/** BK5: a client person of the meeting's project who may be added ("Clients on <project>"). */
+export interface ClientAttendeeCandidateView {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly clientOrganizationId: string;
+  readonly clientOrganizationName: string;
+}
+
+function toClientView(row: ClientAttendeeWithPerson): MeetingClientAttendeeView {
+  return {
+    id: row.id,
+    meetingId: row.meetingId,
+    userId: row.userId,
+    displayName: row.displayName,
+    clientOrganizationId: row.clientOrganizationId,
+    clientOrganizationName: row.clientOrganizationName,
+    rsvp: row.rsvp,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toCandidateView(row: ClientCandidateRow): ClientAttendeeCandidateView {
+  return {
+    userId: row.userId,
+    displayName: row.displayName,
+    clientOrganizationId: row.clientOrganizationId,
+    clientOrganizationName: row.clientOrganizationName,
+  };
+}
+
 export interface InviteAttendeeCommand {
   readonly meetingId: string;
   /** The member to invite, named by user id (the roster's identity). */
@@ -100,6 +150,8 @@ export class MeetingAttendeesService {
     private readonly memberships: MembershipsRepository = new MembershipsRepository(),
     /** CQ-12 (COL-05): the invite notification. Optional for suites. */
     private readonly outbox?: OutboxEventsRepository,
+    /** BK5 (0217): client people as attendees. Optional; without it no client can be added. */
+    private readonly clientAttendees?: MeetingClientAttendeesRepository,
   ) {}
 
   /**
@@ -302,12 +354,135 @@ export class MeetingAttendeesService {
     const attendee = await this.database.read(context, (runner) =>
       this.attendees.findById(runner, context, command.attendeeId),
     );
-    if (!attendee || attendee.meetingId !== command.meetingId) {
-      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'attendee_not_visible');
+    if (attendee && attendee.meetingId === command.meetingId) {
+      await this.database.transaction(context, (tx) =>
+        this.attendees.remove(tx, context, command.meetingId, command.attendeeId),
+      );
+      return;
     }
 
+    // BK5: the id may name a client attendee instead — the same 404 when it names neither.
+    const clientAttendees = this.clientAttendees;
+    const clientRow = clientAttendees
+      ? await this.database.read(context, (runner) =>
+          clientAttendees.findById(runner, context, command.attendeeId),
+        )
+      : null;
+    if (!clientAttendees || !clientRow || clientRow.meetingId !== command.meetingId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'attendee_not_visible');
+    }
     await this.database.transaction(context, (tx) =>
-      this.attendees.remove(tx, context, command.meetingId, command.attendeeId),
+      clientAttendees.remove(tx, context, command.meetingId, command.attendeeId),
     );
+  }
+
+  /** BK5: a meeting's client attendees, for a caller who may read the meeting. */
+  async listClientAttendees(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+  ): Promise<readonly MeetingClientAttendeeView[]> {
+    await this.resolveMeetingFor(context, principal, meetingId, 'work.read');
+    const clientAttendees = this.clientAttendees;
+    if (!clientAttendees) return [];
+    const rows = await this.database.read(context, (runner) =>
+      clientAttendees.listForMeeting(runner, context, meetingId),
+    );
+    return rows.map(toClientView);
+  }
+
+  /**
+   * BK5: the client people who may be added — active, unexpired client memberships of the companies
+   * the meeting's project is shared with. Clients of any other company never appear.
+   */
+  async listClientCandidates(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+  ): Promise<readonly ClientAttendeeCandidateView[]> {
+    const meeting = await this.resolveMeetingFor(context, principal, meetingId, 'work.read');
+    const clientAttendees = this.clientAttendees;
+    if (!clientAttendees) return [];
+    const rows = await this.database.read(context, (runner) =>
+      clientAttendees.listCandidates(runner, context, meeting.projectId),
+    );
+    return rows.map(toCandidateView);
+  }
+
+  /**
+   * BK5: add a client person to a meeting the principal may write to.
+   *
+   * Known-trap order: the meeting is resolved tenant-scoped and relation-checked first. The person
+   * must then be a client of a company the meeting's project is shared with (active, unexpired) —
+   * resolved by one query whose predicates are exactly that rule, so a client of another company, an
+   * unknown or a cross-tenant user is the same 400. A person already on the meeting is a 409. They
+   * are told through the existing invite notice, marked as a client invite.
+   */
+  async inviteClient(
+    context: TenantContext,
+    principal: Principal,
+    command: InviteAttendeeCommand,
+  ): Promise<MeetingClientAttendeeView> {
+    const meeting = await this.resolveMeetingFor(
+      context,
+      principal,
+      command.meetingId,
+      'work.create',
+    );
+    const clientAttendees = this.clientAttendees;
+    const candidates = clientAttendees
+      ? await this.database.read(context, (runner) =>
+          clientAttendees.listCandidates(runner, context, meeting.projectId, command.userId),
+        )
+      : [];
+    const candidate = candidates[0];
+    if (!clientAttendees || !candidate) {
+      throw new ApiError(
+        400,
+        'validation_failed',
+        'The request body is invalid',
+        [{ field: 'clientUserId', message: 'must name a client person on this project' }],
+        'client_not_on_project',
+      );
+    }
+
+    const existing = await this.database.read(context, (runner) =>
+      clientAttendees.findByClientMembership(
+        runner,
+        context,
+        meeting.id,
+        candidate.clientMembershipId,
+      ),
+    );
+    if (existing) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'That person is already an attendee of this meeting',
+        undefined,
+        'attendee_already_invited',
+      );
+    }
+
+    const row = await this.database.transaction(context, async (tx) => {
+      const invited = await clientAttendees.invite(tx, context, {
+        meetingId: meeting.id,
+        clientMembershipId: candidate.clientMembershipId,
+      });
+      await this.outbox?.append(tx, context, {
+        type: 'meeting.attendee_invited.v1',
+        aggregateId: meeting.id,
+        payload: {
+          meetingId: meeting.id,
+          projectId: meeting.projectId,
+          attendeeUserId: candidate.userId,
+          invitedByUserId: context.userId,
+          attendeeKind: 'client',
+          clientOrganizationId: candidate.clientOrganizationId,
+        },
+      });
+      return invited;
+    });
+    return toClientView(row);
   }
 }

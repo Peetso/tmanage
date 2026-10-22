@@ -14,6 +14,7 @@ export type CollaborationMailKind =
   | 'mention'
   | 'comment'
   | 'meeting_invite'
+  | 'meeting_changed'
   | 'project_added'
   | 'client_action'
   | 'approval_requested'
@@ -295,11 +296,46 @@ export function composeApprovalDecidedEmail(facts: CollaborationEmailFacts): Mai
   };
 }
 
+/**
+ * BK5 — the meeting invite and the "meeting changed" notice in Arabic, for an `ar*` locale. Same
+ * facts, same link; the time is the readable UTC string, kept left-to-right inside the line.
+ */
+function composeArabicMeetingEmail(
+  kind: 'meeting_invite' | 'meeting_changed',
+  facts: CollaborationEmailFacts,
+): MailMessage {
+  const name = oneLine(facts.recipientName);
+  const actor = oneLine(facts.actorName ?? facts.organizationName);
+  const title = oneLine(facts.subjectTitle);
+  const studio = oneLine(facts.organizationName);
+  const where = facts.projectName === undefined ? '' : ` في ${oneLine(facts.projectName)}`;
+  const when = facts.when === undefined ? '' : `، في ${facts.when}`;
+  const subject =
+    kind === 'meeting_invite' ? `${RLM}دعاك ${actor} إلى ${title}` : `${RLM}تغيّر موعد ${title}`;
+  const middle =
+    kind === 'meeting_invite'
+      ? `${RLM}دعاك ${actor} إلى الاجتماع ${title}${where}${when}. يمكنك القبول أو الاعتذار من صفحة الاجتماع.`
+      : `${RLM}عدّل ${actor} الاجتماع ${title}${where}. الموعد الآن${when === '' ? '' : `: ${facts.when}`}.`;
+  return {
+    to: facts.recipientEmail,
+    subject,
+    text: [
+      `مرحبًا ${name}،`,
+      middle,
+      `افتحه من هنا: ${facts.link}`,
+      `${RLM}تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`,
+    ].join('\n\n'),
+  };
+}
+
 export function composeCollaborationEmail(
   kind: CollaborationMailKind,
   facts: CollaborationEmailFacts,
 ): MailMessage {
   if (kind === 'approval_requested') return composeApprovalRequestedEmail(facts);
+  if ((kind === 'meeting_invite' || kind === 'meeting_changed') && isArabicLocale(facts.locale)) {
+    return composeArabicMeetingEmail(kind, facts);
+  }
   if (kind === 'approval_decided') return composeApprovalDecidedEmail(facts);
   if (kind === 'request_message' && isArabicLocale(facts.locale)) {
     return composeArabicRequestMessage(facts);
@@ -325,6 +361,12 @@ export function composeCollaborationEmail(
         `${actor} invited you to the meeting ${title}${inProject(facts)}` +
         (facts.when === undefined ? '.' : `, on ${facts.when}.`) +
         ' You can accept or decline from the meeting page.';
+      break;
+    case 'meeting_changed':
+      subject = `${title} has changed`;
+      middle =
+        `${actor} changed the meeting ${title}${inProject(facts)}.` +
+        (facts.when === undefined ? '' : ` It is now on ${facts.when}.`);
       break;
     case 'project_added':
       subject = `${actor} added you to ${title}`;

@@ -20,6 +20,9 @@ import { MeetingAttendeesRepository } from './meeting-attendees.repository.js';
 import { MeetingAttendeesService } from './meeting-attendees.service.js';
 import { MeetingAttendeesController } from './meeting-attendees.controller.js';
 import { MeetingIcsController } from './meeting-ics.controller.js';
+import { MeetingClientAttendeesRepository } from './meeting-client-attendees.repository.js';
+import { PortalMeetingsService } from './portal-meetings.service.js';
+import { PortalMeetingsController, PORTAL_MEETINGS_SERVICE } from './portal-meetings.controller.js';
 import { MeetingSeriesRepository } from './meeting-series.repository.js';
 import { MeetingSeriesService } from './meeting-series.service.js';
 import { MeetingSeriesController } from './meeting-series.controller.js';
@@ -64,6 +67,8 @@ export class CalendarModule {
           // Audit gap 8 (COL-09): organizer + chosen attendees are added in the create transaction.
           new MeetingAttendeesRepository(),
           new MembershipsRepository(),
+          // BK5: the roster snapshot the "meeting changed" notice is sent to.
+          new MeetingClientAttendeesRepository(),
         ),
     };
 
@@ -90,7 +95,17 @@ export class CalendarModule {
           new MeetingsRepository(),
           new MembershipsRepository(),
           outbox,
+          // BK5 (0217): client people of the meeting's project as attendees.
+          new MeetingClientAttendeesRepository(),
         ),
+    };
+
+    // BK5 (0217): the client portal's own meetings — only the ones the client person attends.
+    const portalMeetingsService: Provider = {
+      provide: PORTAL_MEETINGS_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) =>
+        new PortalMeetingsService(database, new MeetingClientAttendeesRepository()),
     };
 
     // CAL recurrence (x129). The meeting-series slice: a stateless repository under its token and a
@@ -129,6 +144,7 @@ export class CalendarModule {
         seriesRepository,
         seriesService,
         focusBlocksService,
+        portalMeetingsService,
       ],
       exports: [service, attendeesService, seriesService],
       controllers: [
@@ -137,6 +153,7 @@ export class CalendarModule {
         MeetingIcsController,
         MeetingSeriesController,
         FocusBlocksController,
+        PortalMeetingsController,
       ],
     };
   }

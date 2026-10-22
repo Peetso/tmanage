@@ -2817,6 +2817,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // BK5 (0217): the client people of the meeting's project who may be added.
+  {
+    id: 'meetings.attendees.client_candidates.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/attendees/client-candidates',
+    capability: 'meeting.read',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'meetings.attendees.create',
     method: 'POST',
@@ -3488,6 +3497,31 @@ export const OPS: readonly AiActionOp[] = [
     id: 'portal.inbox.read.create',
     method: 'POST',
     path: '/v1/organizations/:orgSlug/portal/inbox/:bundleId/read',
+    capability: 'client_request.submit',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  // BK5 (0217): the meetings a client person attends, and their own RSVP.
+  {
+    id: 'portal.meetings.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/meetings/',
+    capability: 'client_projection.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'portal.meetings.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/portal/meetings/:meetingId',
+    capability: 'client_projection.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'portal.meetings.rsvp.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/portal/meetings/:meetingId/rsvp',
     capability: 'client_request.submit',
     risk: 'confirm',
     scope: 'manage',

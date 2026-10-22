@@ -51,6 +51,7 @@ describe('the handler registry', () => {
       'document.comment_created.v1',
       'document.published.v1',
       'meeting.attendee_invited.v1',
+      'meeting.changed.v1',
       'meeting.scheduled.v1',
       'message.created.v1',
       'project.member_added.v1',

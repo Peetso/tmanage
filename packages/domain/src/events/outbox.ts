@@ -177,6 +177,11 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'meeting',
     catalog: '§4 meeting invite — notification, email',
   },
+  /** BK5: a meeting's title, date or time changed — the attendees at that moment are told. */
+  'meeting.changed.v1': {
+    aggregateType: 'meeting',
+    catalog: '§4 meeting changed — notification, email',
+  },
   /** CQ-12 (COL-05): somebody was put on a project — they are told. */
   'project.member_added.v1': {
     aggregateType: 'project',
@@ -198,11 +203,6 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'approval',
     catalog: '§4 approval.decided — team notification, email',
   },
-} as const satisfies Record<string, OutboxEventDefinition>;
-
-export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
-
-export const OUTBOX_EVENT_TYPES = Object.keys(OUTBOX_EVENT_CATALOG) as readonly OutboxEventType[];
   /**
    * BK3-left: a message was posted in a one-to-one direct conversation (0214). The aggregate is
    * the direct conversation, so ordering is per pair. Realtime fan-out and the recipient's notice.
@@ -211,6 +211,11 @@ export const OUTBOX_EVENT_TYPES = Object.keys(OUTBOX_EVENT_CATALOG) as readonly 
     aggregateType: 'direct_conversation',
     catalog: '§4 message.created.v1 (direct) — realtime, recipient notification',
   },
+} as const satisfies Record<string, OutboxEventDefinition>;
+
+export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
+
+export const OUTBOX_EVENT_TYPES = Object.keys(OUTBOX_EVENT_CATALOG) as readonly OutboxEventType[];
 
 export function isOutboxEventType(value: string): value is OutboxEventType {
   return Object.hasOwn(OUTBOX_EVENT_CATALOG, value);
@@ -458,6 +463,23 @@ export interface MeetingAttendeeInvitedV1 {
   readonly projectId: string;
   readonly attendeeUserId: string;
   readonly invitedByUserId: string;
+  /** BK5: `client` when the invitee is a client person of the project's client company. */
+  readonly attendeeKind?: 'member' | 'client';
+  /** BK5: the invitee's client company, for a `client` invitee. */
+  readonly clientOrganizationId?: string;
+}
+
+/** BK5: who was attending when the meeting changed, and what changed. */
+export interface MeetingChangedV1 {
+  readonly meetingId: string;
+  readonly projectId: string;
+  readonly changedByUserId: string;
+  readonly changedFields: readonly ('title' | 'startsAt' | 'endsAt')[];
+  readonly memberUserIds: readonly string[];
+  readonly clientAttendees: readonly {
+    readonly userId: string;
+    readonly clientOrganizationId: string;
+  }[];
 }
 
 /** CQ-12 (COL-05). */
@@ -493,6 +515,18 @@ export interface ApprovalDecidedV1 {
   readonly requestedByUserId: string;
 }
 
+/**
+ * BK3-left: ids and the pair's order only — the body stays on the row. `recipientUserId` is the
+ * other participant, the one person the notice may go to; the worker re-checks them at delivery.
+ */
+export interface DirectMessageCreatedV1 {
+  readonly directConversationId: string;
+  readonly messageId: string;
+  readonly sequenceNo: number;
+  readonly authorUserId: string;
+  readonly recipientUserId: string;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -515,22 +549,12 @@ export interface OutboxEventPayloads {
   readonly 'document.comment_created.v1': DocumentCommentCreatedV1;
   readonly 'document.published.v1': DocumentPublishedV1;
   readonly 'meeting.scheduled.v1': MeetingScheduledV1;
-/**
- * BK3-left: ids and the pair's order only — the body stays on the row. `recipientUserId` is the
- * other participant, the one person the notice may go to; the worker re-checks them at delivery.
- */
-export interface DirectMessageCreatedV1 {
-  readonly directConversationId: string;
-  readonly messageId: string;
-  readonly sequenceNo: number;
-  readonly authorUserId: string;
-  readonly recipientUserId: string;
-}
-
   readonly 'meeting.attendee_invited.v1': MeetingAttendeeInvitedV1;
+  readonly 'meeting.changed.v1': MeetingChangedV1;
   readonly 'project.member_added.v1': ProjectMemberAddedV1;
   readonly 'approval.requested.v1': ApprovalRequestedV1;
   readonly 'approval.decided.v1': ApprovalDecidedV1;
+  readonly 'direct_message.created.v1': DirectMessageCreatedV1;
 }
 
 /**
@@ -552,4 +576,3 @@ export function extractMentionedUserIds(text: string): readonly string[] {
   }
   return ids;
 }
-  readonly 'direct_message.created.v1': DirectMessageCreatedV1;

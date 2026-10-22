@@ -23,14 +23,15 @@ import {
   planApprovalRequestedNotices,
   planClientActionNotices,
   planCommentNotices,
+  planMeetingChangedNotices,
   planMeetingInviteNotices,
   planMentionNotices,
   planProjectAddedNotices,
   planRequestMessageNotices,
 } from './collaboration-notices.js';
 import { automationRunsConsumer } from './automation-runs.js';
-import type { CollaborationMailer } from '../notifications/collaboration-mailer.js';
 import { directMessageNoticesConsumer } from './direct-message-notices.js';
+import type { CollaborationMailer } from '../notifications/collaboration-mailer.js';
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
 import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
 import type { UsageThresholdMailer } from '../notifications/usage-threshold-mailer.js';
@@ -142,10 +143,10 @@ export function createWorkerOutboxHandlers(
     // CQ-12 (COL-05, APR-03) — see `collaboration-notices.ts`. `message.created.v1` is composed
     // with the realtime fan-out in `main.ts` when the socket server runs.
     'message.created.v1': createCollaborationNotices(planMentionNotices, collaborationMails),
-    'document.comment_created.v1': createCollaborationNotices(
     // BK3-left: a direct message tells the other participant (in-app). Composed with the DM
     // realtime fan-out in `main.ts` when the socket server runs.
     'direct_message.created.v1': directMessageNoticesConsumer,
+    'document.comment_created.v1': createCollaborationNotices(
       planCommentNotices,
       collaborationMails,
     ),
@@ -153,6 +154,8 @@ export function createWorkerOutboxHandlers(
       planMeetingInviteNotices,
       collaborationMails,
     ),
+    // BK5: a meeting's title/date/time changed — the attendees at that moment are told.
+    'meeting.changed.v1': createCollaborationNotices(planMeetingChangedNotices, collaborationMails),
     'project.member_added.v1': createCollaborationNotices(
       planProjectAddedNotices,
       collaborationMails,
