@@ -13,6 +13,14 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDictation } from '../voice/useDictation';
+import {
+  MicButton,
+  MicNotice,
+  ReadAloudButton,
+  ReadAloudSwitch,
+  useReadAloudPreference,
+} from '../voice/VoiceControls';
 import '../../styles/screens/search-ai.css';
 
 export interface CopilotAnswerViewProps {
@@ -61,6 +69,8 @@ export function CopilotAnswerView({
   const t = useT();
   const [draft, setDraft] = useState<string>(initialQuestion ?? '');
   const [question, setQuestion] = useState<string>(initialQuestion?.trim() ?? '');
+  const dictation = useDictation({ value: draft, onChange: setDraft });
+  const [readAnswersAloud, setReadAnswersAloud] = useReadAloudPreference();
 
   const result = useQuery({
     queryKey: ['copilot-ask', organizationSlug, question],
@@ -73,6 +83,7 @@ export function CopilotAnswerView({
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (dictation.status === 'listening') dictation.stop();
     setQuestion(draft.trim());
   }
 
@@ -113,7 +124,13 @@ export function CopilotAnswerView({
             </LoadingRegion>
           ) : null}
 
-          {answer ? <AnswerCard answer={answer} organizationSlug={organizationSlug} /> : null}
+          {answer ? (
+            <AnswerCard
+              answer={answer}
+              organizationSlug={organizationSlug}
+              readAloud={readAnswersAloud}
+            />
+          ) : null}
 
           <form className="tm-sa-composer" onSubmit={onSubmit} role="search">
             <label className="tm-visually-hidden" htmlFor="tm-copilot-q">
@@ -128,9 +145,13 @@ export function CopilotAnswerView({
               placeholder={t('CopilotAnswerView.composerPlaceholder')}
               aria-describedby="tm-copilot-hint"
             />
-            <span id="tm-copilot-hint" className="tm-sa-eyebrow">
+            <span
+              id="tm-copilot-hint"
+              className={dictation.status === 'listening' ? 'tm-visually-hidden' : 'tm-sa-eyebrow'}
+            >
               {t('CopilotAnswerView.scopeHint')}
             </span>
+            <MicButton dictation={dictation} />
             <button
               type="submit"
               className="tm-sa-send"
@@ -140,6 +161,7 @@ export function CopilotAnswerView({
               <span aria-hidden="true">↑</span>
             </button>
           </form>
+          <MicNotice dictation={dictation} showIdleHint />
         </div>
 
         <aside className="tm-sa-panel" aria-labelledby="tm-copilot-evidence">
@@ -189,6 +211,8 @@ export function CopilotAnswerView({
             ) : null}
             <p>{t('CopilotAnswerView.cannotActNote')}</p>
           </section>
+
+          <ReadAloudSwitch checked={readAnswersAloud} onChange={setReadAnswersAloud} />
         </aside>
       </div>
     </AppShell>
@@ -199,9 +223,11 @@ export function CopilotAnswerView({
 function AnswerCard({
   answer,
   organizationSlug,
+  readAloud,
 }: {
   answer: CopilotAnswer;
   organizationSlug: string;
+  readAloud: boolean;
 }) {
   const t = useT();
   const nextActionHref =
@@ -216,6 +242,7 @@ function AnswerCard({
         <h2 id="tm-copilot-answer" className="tm-sa-eyebrow">
           {t('CopilotAnswerView.answerHeading')}
         </h2>
+        <ReadAloudButton text={answer.answer} autoRead={readAloud} />
       </div>
       <p className="tm-sa-answer__text">{answer.answer}</p>
       <p className="tm-sa-answer__provider">

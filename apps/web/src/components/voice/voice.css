@@ -1,0 +1,146 @@
+/*
+ * Microphone and read-aloud controls (Figma "Extras · Microphone (A)", 346:1309).
+ * TManage tokens only; logical properties so Arabic mirrors without extra rules.
+ */
+
+.tm-mic {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-mic__button {
+  gap: var(--s2);
+  white-space: nowrap;
+}
+
+.tm-mic .tm-button--text {
+  color: var(--ink-950);
+}
+
+.tm-mic__glyph {
+  inline-size: 16px;
+  block-size: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The ring the design draws on Stop and "Reading… stop". */
+.tm-mic__ring {
+  inline-size: 14px;
+  block-size: 14px;
+  flex: none;
+  border: var(--b-structural) solid currentColor;
+  border-radius: var(--r-capsule);
+}
+
+/* Processing: the pale lime capsule with a turning ring. */
+.tm-mic__button--working.tm-button--lime,
+.tm-mic__button--working.tm-button--lime:hover {
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-mic__spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  flex: none;
+  border: var(--b-structural) solid currentColor;
+  border-block-start-color: transparent;
+  border-radius: var(--r-capsule);
+  animation: tm-mic-turn 900ms linear infinite;
+}
+
+/* Listening: five lime sound bars beside the Stop capsule. */
+.tm-mic__bars {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  block-size: 20px;
+}
+
+.tm-mic__bars i {
+  inline-size: 3px;
+  block-size: 100%;
+  border-radius: var(--r-capsule);
+  background: var(--lime-600);
+  transform-origin: center;
+  animation: tm-mic-bar 900ms var(--ease) infinite;
+}
+
+.tm-mic__bars i:nth-child(1),
+.tm-mic__bars i:nth-child(5) {
+  transform: scaleY(0.35);
+  animation-delay: -300ms;
+}
+
+.tm-mic__bars i:nth-child(2),
+.tm-mic__bars i:nth-child(4) {
+  transform: scaleY(0.7);
+  animation-delay: -150ms;
+}
+
+.tm-mic--compact .tm-mic__button {
+  padding-inline: var(--s3);
+}
+
+.tm-mic-hint {
+  margin: 0;
+  padding-inline: var(--s2);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-mic-alert {
+  margin-block-start: var(--s2);
+}
+
+.tm-mic-switch {
+  margin-block-start: var(--s4);
+}
+
+/* AI workspace placements: the speaker sits at the end of the answer head, the switch at the
+   foot of the evidence panel under LIMITS. */
+.tm-sa-answer__head .tm-mic__button {
+  margin-inline-start: auto;
+}
+
+.tm-sa-panel .tm-mic-switch {
+  margin: 0;
+  padding: var(--s4) 22px;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+/* New work: the microphone sits under the title field, at its start. */
+.tm-capture__capsule > .tm-mic {
+  align-self: flex-start;
+}
+
+@keyframes tm-mic-bar {
+  0%,
+  100% {
+    transform: scaleY(0.35);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@keyframes tm-mic-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-mic__bars i,
+  .tm-mic__spinner {
+    animation: none;
+  }
+}

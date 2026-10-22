@@ -17,6 +17,8 @@ import type { UploadAttachmentOptions } from '../../lib/api/uploads';
 import { CaptureAttachmentPicker, CaptureLabelPicker } from './CaptureExtras';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDictation } from '../voice/useDictation';
+import { MicButton, MicNotice } from '../voice/VoiceControls';
 import '../../styles/screens/home.css';
 
 /**
@@ -147,6 +149,10 @@ export function QuickCaptureScreen({
   });
 
   const [title, setTitle] = useState(draft?.title ?? '');
+  const dictation = useDictation({
+    value: title,
+    onChange: (next) => setTitle(next.slice(0, 500)),
+  });
   const [note, setNote] = useState(draft?.note ?? '');
   const labelsKey = ['capture-labels', organizationSlug];
   const labels = useQuery({
@@ -291,6 +297,8 @@ export function QuickCaptureScreen({
               maxLength={500}
               onChange={(event) => setTitle(event.target.value)}
             />
+            <MicButton dictation={dictation} compact />
+            <MicNotice dictation={dictation} />
 
             <div
               className="tm-capture__chips"

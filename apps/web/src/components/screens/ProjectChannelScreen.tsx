@@ -38,6 +38,8 @@ import type { ApiClient } from '../../lib/api/client';
 import { workItemKeys } from '../../lib/query-keys';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDictation } from '../voice/useDictation';
+import { MicButton, MicNotice } from '../voice/VoiceControls';
 import '../../styles/screens/chat.css';
 
 type Translate = ReturnType<typeof useT>;
@@ -858,6 +860,10 @@ function Composer({
   const queries = useQueryClient();
   const t = useT();
   const [draft, setDraft] = useState('');
+  const dictation = useDictation({
+    value: draft,
+    onChange: (next) => setDraft(next.slice(0, 16000)),
+  });
   const [attemptId, setAttemptId] = useState<string | undefined>(undefined);
   const [inadmissible, setInadmissible] = useState<string | undefined>(undefined);
   const controlRef = useRef<HTMLTextAreaElement | null>(null);
@@ -1049,6 +1055,7 @@ function Composer({
             </button>
           ))}
         </div>
+        <MicButton dictation={dictation} compact />
         <button
           type="submit"
           className="tm-chat-send"
@@ -1061,6 +1068,7 @@ function Composer({
           {send.isPending ? t('ProjectChannelScreen.sending') : t('ProjectChannelScreen.send')}
         </button>
       </div>
+      <MicNotice dictation={dictation} />
     </form>
   );
 }

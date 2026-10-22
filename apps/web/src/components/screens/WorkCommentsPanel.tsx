@@ -7,6 +7,8 @@ import { addWorkComment, listWorkComments, type WorkComment } from '../../lib/ap
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDictation } from '../voice/useDictation';
+import { MicButton, MicNotice } from '../voice/VoiceControls';
 
 export interface WorkCommentsPanelProps {
   organizationSlug: string;
@@ -46,6 +48,10 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
   const queryKey = ['work-item-comments', organizationSlug, workItemId] as const;
   const bodyId = useId();
   const [body, setBody] = useState('');
+  const dictation = useDictation({
+    value: body,
+    onChange: (next) => setBody(next.slice(0, MAX_BODY_LENGTH)),
+  });
   const [failure, setFailure] = useState<string | undefined>(undefined);
 
   const comments = useQuery({
@@ -145,7 +151,9 @@ export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCom
           >
             {t('WorkCommentsPanel.add')}
           </Button>
+          <MicButton dictation={dictation} compact />
         </div>
+        <MicNotice dictation={dictation} />
       </form>
     </section>
   );
