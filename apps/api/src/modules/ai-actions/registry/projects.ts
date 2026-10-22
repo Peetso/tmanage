@@ -120,6 +120,17 @@ export const projectsDetails: readonly AiActionDetail[] = [
     ],
   }),
   det({
+    id: 'projects.client.update',
+    title: 'Set project client',
+    description:
+      "Set a project's client company, or none; replaces any existing share. Confirm-class: client-facing.",
+    input: bodyArgs(['projectId'], { clientOrganizationId: f.id().nullable() }),
+    redact: 'standard',
+    examples: [
+      { summary: 'Set client', args: { projectId: 'proj_1', clientOrganizationId: 'co_1' } },
+    ],
+  }),
+  det({
     id: 'projects.clients.list',
     title: 'List project clients',
     description: 'List project clients.',

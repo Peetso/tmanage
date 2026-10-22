@@ -78,6 +78,15 @@ export interface ProjectClientView {
   readonly createdAt: string;
 }
 
+/** One row of the New project client picker (PRJ-02). */
+export interface ClientOrganizationOption {
+  readonly id: string;
+  readonly name: string;
+}
+
+/** The repository's page cap — a picker lists every active client in one read. */
+const OPTIONS_LIMIT = 200;
+
 /**
  * Explicit projections, never a serialised row — `25-AUTH-AND-TENANT-ISOLATION` §7.
  * `organization_id` is absent from all three: the caller already knows which organization they
@@ -152,6 +161,28 @@ export class ClientsService {
       this.organizations.list(runner, context, options),
     );
     return rows.map(toOrganizationView);
+  }
+
+  /**
+   * BK1 / PRJ-02 — the New project client picker: active client companies, id and name only,
+   * sorted by name.
+   *
+   * `project.create` rather than `org.manage`: whoever may create a project may choose its client
+   * without being able to manage the client list itself, and the projection is the two fields a
+   * picker needs and nothing more.
+   */
+  async listOrganizationOptions(
+    context: TenantContext,
+    principal: Principal,
+  ): Promise<readonly ClientOrganizationOption[]> {
+    this.requireCapability(principal, context, 'project.create', 'client_organization.options');
+
+    const rows = await this.database.read(context, (runner) =>
+      this.organizations.list(runner, context, { limit: OPTIONS_LIMIT }),
+    );
+    return rows
+      .map((row) => ({ id: row.id, name: row.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   }
 
   async getOrganization(
@@ -553,6 +584,73 @@ export class ClientsService {
         },
       });
     });
+  }
+
+  /**
+   * BK1 / PRJ-02 — set a project's client, as the New project and Edit project forms mean it:
+   * one client or none.
+   *
+   * Replaces every existing share in one transaction, so changing the client is never a moment
+   * where the project is shared with both or with neither. Each removal and the new link are
+   * audited exactly as `unshare` and `share` audit them; re-setting the current client writes
+   * nothing.
+   */
+  async setProjectClient(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    clientOrganizationId: string | null,
+  ): Promise<readonly ProjectClientView[]> {
+    this.requireProjectManage(principal, context, projectId, 'project_client.set');
+    await this.readProject(context, projectId);
+    if (clientOrganizationId !== null) {
+      const clientOrganization = await this.readOrganization(context, clientOrganizationId);
+      if (clientOrganization.archivedAt !== null) {
+        throw new ApiError(422, 'validation_failed', 'That client organization is archived', [
+          { field: 'clientOrganizationId', message: 'is archived' },
+        ]);
+      }
+    }
+
+    const rows = await this.writing(() =>
+      this.database.transaction(context, async (tx) => {
+        const existing = await this.shares.list(tx, context, { projectId, limit: OPTIONS_LIMIT });
+        for (const share of existing) {
+          if (share.clientOrganizationId === clientOrganizationId) continue;
+          await this.shares.unshare(tx, context, {
+            projectId,
+            clientOrganizationId: share.clientOrganizationId,
+          });
+          await this.audit?.record(tx, context, {
+            action: 'project.client_unlinked',
+            objectId: share.id,
+            result: 'allowed',
+            metadata: {
+              project_id: projectId,
+              client_organization_id: share.clientOrganizationId,
+              was_shared: true,
+            },
+          });
+        }
+        if (clientOrganizationId === null) return [];
+
+        const kept = existing.find((share) => share.clientOrganizationId === clientOrganizationId);
+        if (kept) return [kept];
+        const shared = await this.shares.share(tx, context, { projectId, clientOrganizationId });
+        await this.audit?.record(tx, context, {
+          action: 'project.client_linked',
+          objectId: shared.id,
+          result: 'allowed',
+          metadata: {
+            project_id: shared.projectId,
+            client_organization_id: shared.clientOrganizationId,
+          },
+        });
+        return [shared];
+      }),
+    );
+
+    return rows.map(toShareView);
   }
 
   // ── The parts every method above leans on ─────────────────────────────────

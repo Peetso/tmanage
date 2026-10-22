@@ -93,4 +93,21 @@ export const clientsDetails: readonly AiActionDetail[] = [
     redact: 'client_safe',
     examples: [{ summary: 'Suspend', args: { clientMembershipId: 'cm_1', status: 'suspended' } }],
   }),
+  det({
+    id: 'client_organizations.invitations.list',
+    title: 'List client company invitations',
+    description:
+      'Invitations issued into one client company; pending ones unless status says otherwise.',
+    input: listArgs(['clientOrganizationId'], { status: f.shortText(80).optional() }),
+    redact: 'client_safe',
+    examples: [{ summary: 'Pending', args: { clientOrganizationId: 'co_123' } }],
+  }),
+  det({
+    id: 'client_organizations.options.list',
+    title: 'List client companies to pick from',
+    description: 'Id and name of every active client company, for choosing a project client.',
+    input: listArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'All', args: {} }],
+  }),
 ];

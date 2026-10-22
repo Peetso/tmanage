@@ -8,21 +8,25 @@ import {
   Param,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { CLIENTS_SERVICE } from '../../common/http/tokens.js';
+import { CLIENTS_SERVICE, INVITATIONS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { isClientRole } from './clients.service.js';
 import type {
   ClientMembershipView,
+  ClientOrganizationOption,
   ClientOrganizationView,
   ClientsService,
   ProjectClientView,
 } from './clients.service.js';
 import type { ClientMembershipStatus } from './client-memberships.repository.js';
+import type { InvitationStatus } from '../tenancy/invitations.repository.js';
+import type { InvitationView, InvitationsService } from '../tenancy/invitations.service.js';
 
 /**
  * CLIENT-001's HTTP surface.
@@ -74,6 +78,18 @@ interface ShareBody {
   readonly clientOrganizationId?: unknown;
 }
 
+interface SetClientBody {
+  /** A client organization id, or `null` for "no client". */
+  readonly clientOrganizationId?: unknown;
+}
+
+const INVITATION_STATUSES: readonly InvitationStatus[] = [
+  'pending',
+  'accepted',
+  'expired',
+  'revoked',
+];
+
 /** `client_organizations.name` is `VARCHAR(190)`. */
 const MAX_NAME_LENGTH = 190;
 
@@ -86,7 +102,10 @@ const STATUSES: readonly ClientMembershipStatus[] = [
 
 @Controller('v1/organizations/:orgSlug')
 export class ClientsController {
-  constructor(@Inject(CLIENTS_SERVICE) private readonly clients: ClientsService) {}
+  constructor(
+    @Inject(CLIENTS_SERVICE) private readonly clients: ClientsService,
+    @Inject(INVITATIONS_SERVICE) private readonly invitations: InvitationsService,
+  ) {}
 
   // ── Client organizations ──────────────────────────────────────────────────
 
@@ -101,6 +120,59 @@ export class ClientsController {
       clientOrganizations: await this.clients.listOrganizations(context, principal, {
         includeArchived: includeArchived === 'true',
       }),
+    };
+  }
+
+  /** BK1 / PRJ-02: the New project client picker — id and name of every active client. */
+  @Get('client-organization-options')
+  @RequireCapability('project.create')
+  async listOrganizationOptions(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<{ readonly clientOrganizations: readonly ClientOrganizationOption[] }> {
+    return {
+      clientOrganizations: await this.clients.listOrganizationOptions(context, principal),
+    };
+  }
+
+  /**
+   * BK1 / ADM-02: the invitations issued into one client company — pending ones unless `status`
+   * says otherwise. Issue, resend and revoke stay on `/invitations` (`clientOrganizationId` in
+   * the body, `:id/reissues`, `DELETE :id`); this is the per-company read the Clients screen needs.
+   */
+  @Get('client-organizations/:clientOrganizationId/invitations')
+  @RequireCapability('org.manage')
+  async listOrganizationInvitations(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('clientOrganizationId') clientOrganizationId: string,
+    @Query('status') status?: string,
+  ): Promise<{ readonly invitations: readonly InvitationView[] }> {
+    const statuses = status === undefined ? ['pending'] : status.split(',').map((v) => v.trim());
+    const invalid = statuses.filter(
+      (candidate) => !(INVITATION_STATUSES as readonly string[]).includes(candidate),
+    );
+    if (invalid.length > 0) {
+      throw new ApiError(
+        400,
+        'validation_failed',
+        'The query is invalid',
+        invalid.map((candidate) => ({
+          field: 'status',
+          message: `${candidate} is not an invitation status`,
+        })),
+      );
+    }
+
+    // 404 for a client company that is not this tenant's, before any invitation is read.
+    await this.clients.getOrganization(context, principal, clientOrganizationId);
+    const all = await this.invitations.list(context, principal, {
+      statuses: statuses as InvitationStatus[],
+    });
+    return {
+      invitations: all.filter(
+        (invitation) => invitation.clientOrganizationId === clientOrganizationId,
+      ),
     };
   }
 
@@ -337,6 +409,28 @@ export class ClientsController {
     }
 
     return this.clients.share(context, principal, projectId, clientOrganizationId);
+  }
+
+  /**
+   * BK1 / PRJ-02: set the project's client (or `null` for none), replacing any existing share —
+   * what the New project and Edit project forms send after the project itself is saved.
+   */
+  @Put('projects/:projectId/client')
+  @RequireCapability('project.manage')
+  async setClient(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Body() body: SetClientBody,
+  ): Promise<{ readonly clients: readonly ProjectClientView[] }> {
+    const raw = body?.clientOrganizationId;
+    if (raw !== null && (typeof raw !== 'string' || raw === '')) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'clientOrganizationId', message: 'must be a string or null' },
+      ]);
+    }
+
+    return { clients: await this.clients.setProjectClient(context, principal, projectId, raw) };
   }
 
   @Delete('projects/:projectId/clients/:clientOrganizationId')
