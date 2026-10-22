@@ -155,6 +155,13 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
+  // Wave 2026-10-22 P5: the own-profile card calls GET/PUT v1/organizations/:orgSlug/me/profile,
+  // which no API controller serves yet (the screen shows its load-failed state). Pair it when the
+  // backend slice adds that route.
+  [
+    'MyProfileView',
+    'No API counterpart yet: P5 me/profile endpoint is unbuilt; pair when the backend route lands.',
+  ],
   // Design-gaps pass (2026-10-18): the CH-01 channel browser. The API side is the pure projection in
   // apps/api/src/modules/conversations/channel-directory.ts (same names, not a …View in a *.service.ts),
   // so the checker cannot pair it; the shapes are built field-for-field from that file.

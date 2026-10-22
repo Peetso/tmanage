@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { RecoveryScreen } from '../src/components/screens/RecoveryScreen';
 import { ApiClient } from '../src/lib/api/client';
 
@@ -39,6 +39,13 @@ function json(body: unknown, status = 200): Response {
 
 const TOKEN = 'R'.repeat(43);
 
+/** t1-b: the new password, its confirmation, then "Save password and sign in". */
+async function submitNewPassword(password: string): Promise<void> {
+  await userEvent.type(screen.getByLabelText(/^New password/), password);
+  await userEvent.type(screen.getByLabelText(/^Confirm new password/), password);
+  await userEvent.click(screen.getByRole('button', { name: 'Save password and sign in' }));
+}
+
 describe('ID-05 password reset', () => {
   it('asks for a link and then says, without confirming the account, that one may be on its way', async () => {
     const { client, calls } = clientOver(() => json({ status: 'requested' }, 202));
@@ -52,14 +59,16 @@ describe('ID-05 password reset', () => {
     expect(calls[0]?.body).toEqual({ email: 'sara@example.com' });
   });
 
-  it('sets a new password from the link and reports it, never rendering the token', async () => {
+  it('sets a new password from the link and goes to sign-in, never rendering the token', async () => {
     const { client, calls } = clientOver(() => new Response(null, { status: 204 }));
-    const { container } = render(<RecoveryScreen token={TOKEN} client={client} />);
+    const navigate = vi.fn();
+    const { container } = render(
+      <RecoveryScreen token={TOKEN} client={client} navigate={navigate} />,
+    );
 
-    await userEvent.type(screen.getByLabelText(/New password/), 'violet-harbour-lantern-41');
-    await userEvent.click(screen.getByRole('button', { name: 'Save new password' }));
+    await submitNewPassword('violet-harbour-lantern-41');
 
-    expect(await screen.findByText('Your password was changed')).toBeInTheDocument();
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith('/sign-in'));
     expect(calls[0]?.url).toContain('/v1/password-resets/completions');
     expect(calls[0]?.body).toEqual({ token: TOKEN, password: 'violet-harbour-lantern-41' });
     expect(container.innerHTML).not.toContain(TOKEN);
@@ -71,8 +80,7 @@ describe('ID-05 password reset', () => {
     );
     render(<RecoveryScreen token={TOKEN} client={client} />);
 
-    await userEvent.type(screen.getByLabelText(/New password/), 'violet-harbour-lantern-41');
-    await userEvent.click(screen.getByRole('button', { name: 'Save new password' }));
+    await submitNewPassword('violet-harbour-lantern-41');
 
     expect(await screen.findByText('That link has expired')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Request a new link' }));
@@ -95,8 +103,7 @@ describe('ID-05 password reset', () => {
     );
     render(<RecoveryScreen token={TOKEN} client={client} />);
 
-    await userEvent.type(screen.getByLabelText(/New password/), 'short');
-    await userEvent.click(screen.getByRole('button', { name: 'Save new password' }));
+    await submitNewPassword('harbour-violet-99');
 
     expect(await screen.findByText('Use at least 8 characters.')).toBeInTheDocument();
   });
