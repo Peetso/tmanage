@@ -44,6 +44,7 @@
 
 .tm-wc-hero__visual {
   min-inline-size: 0;
+  padding: var(--s8);
 }
 
 /* ── Rows, facts, cards, quote ───────────────────────────────────────────── */
@@ -56,28 +57,55 @@
   padding: var(--s12);
 }
 
-.tm-wc-visual--lime {
-  background: var(--lime-100);
-}
-
 .tm-wc-grid3 {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--s6);
 }
 
-.tm-wc-quote {
-  max-inline-size: calc(var(--s24) * 9);
-  margin-inline: auto;
+.tm-wc-quote .tm-web-quote {
+  padding: var(--s16) var(--s12);
 }
 
-.tm-wc-quote .tm-web-quote {
-  padding: var(--s12);
+/* The designed band is quote and attribution only: no quote orb. */
+.tm-wc-quote .tm-web-orb {
+  display: none;
 }
 
 .tm-wc-quote .tm-web-quote__text {
+  max-inline-size: calc(var(--s24) * 8);
   font-size: var(--t-heading-page);
   line-height: var(--t-heading-page-line);
+}
+
+/* Quiet by design: three paper cards on the sunken band — orb, mono label, Heading/Card line. */
+.tm-wc-quiet__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-wc-quiet-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s3);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-wc-quiet-card .tm-web-orb {
+  margin-block-end: var(--s4);
+}
+
+.tm-wc-quiet-card__body {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
 }
 
 /* ── Scene shell ─────────────────────────────────────────────────────────── */
@@ -796,8 +824,13 @@
     padding-block: var(--s10) var(--s16);
   }
 
-  .tm-wc-visual {
+  .tm-wc-visual,
+  .tm-wc-hero__visual {
     padding: var(--s4);
+  }
+
+  .tm-wc-quiet-card {
+    padding: var(--s5);
   }
 
   .tm-wc-grid3 {

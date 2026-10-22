@@ -6,7 +6,7 @@ import {
   ButtonLink,
   CtaBand,
   Eyebrow,
-  GraphCard,
+  IconOrb,
   ProductVisualFrame,
   SectionHeader,
   TestimonialCard,
@@ -19,7 +19,6 @@ import {
   CalendarScene,
   ChannelScene,
   ChannelsScene,
-  DigestScene,
   MeetingScene,
   MessageToWorkScene,
 } from './scenes';
@@ -28,8 +27,9 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Features · Chat & calendar (SITE-SPEC "PAGE: Features · Chat & calendar", WEB-04).
- * No Figma frame exists for this page; it is drawn in the same visual language as the designed
- * Features · Docs page, from the shared website layer and packages/ui parts only.
+ * Matches the round-2 Figma frame "WEB-04 Features · Chat & calendar" (node 308:29): chat clone on
+ * an ink panel, sunken backdrops, the "Quiet by design" band, a full-width ink quote and the
+ * standard CTA band with the Delivery risk crop.
  */
 
 const ANCHORS: readonly { labelKey: MessageKey; href: string }[] = [
@@ -129,20 +129,20 @@ export function FeaturesCommunicationPage() {
               </ButtonLink>
             </div>
             <nav className="tm-wc-anchors" aria-label={t('FeaturesCommunicationPage.anchorsAria')}>
-              {ANCHORS.map((anchor, index) => (
+              {ANCHORS.map((anchor) => (
                 <Link
                   key={anchor.href}
                   href={anchor.href}
-                  className={cx('tm-web-chip', 'tm-wc-anchor', index === 0 && 'tm-web-chip--on')}
+                  className={cx('tm-web-chip', 'tm-wc-anchor')}
                 >
                   {t(anchor.labelKey)}
                 </Link>
               ))}
             </nav>
           </SectionHeader>
-          <div className="tm-wc-hero__visual">
+          <ProductVisualFrame tone="ink" className="tm-wc-hero__visual">
             <ChannelScene />
-          </div>
+          </ProductVisualFrame>
         </div>
       </WebSection>
 
@@ -162,7 +162,6 @@ export function FeaturesCommunicationPage() {
       <WebSection id="message-to-work" aria-labelledby="wc-m2w-title">
         <Row
           reverse
-          backdrop="lime"
           eyebrow={t('FeaturesCommunicationPage.m2wEyebrow')}
           titleId="wc-m2w-title"
           title={t('FeaturesCommunicationPage.m2wTitle')}
@@ -172,24 +171,22 @@ export function FeaturesCommunicationPage() {
       </WebSection>
 
       {/* 5 · Quiet by design */}
-      <WebSection className="tm-wc-quiet" aria-labelledby="wc-quiet-title">
+      <WebSection tone="sunken" className="tm-wc-quiet" aria-labelledby="wc-quiet-title">
         <SectionHeader
           align="center"
           id="wc-quiet-title"
-          eyebrow={t('FeaturesCommunicationPage.quietEyebrow')}
-          title={t('FeaturesCommunicationPage.quietTitle')}
-          lede={t('FeaturesCommunicationPage.quietLede')}
+          eyebrow={t('FeaturesCommunicationPage.quietNotificationsEyebrow')}
+          title={t('FeaturesCommunicationPage.quietDesignTitle')}
         />
-        <div className="tm-wc-grid3">
+        <ul className="tm-wc-grid3 tm-wc-quiet__list">
           {QUIET.map((card) => (
-            <GraphCard
-              key={card.titleKey}
-              icon={card.icon}
-              title={t(card.titleKey)}
-              body={t(card.bodyKey)}
-            />
+            <li key={card.titleKey} className="tm-wc-quiet-card">
+              <IconOrb icon={card.icon} tone="lime" />
+              <span className="tm-wc-mono">{t(card.titleKey)}</span>
+              <h3 className="tm-wc-quiet-card__body">{t(card.bodyKey)}</h3>
+            </li>
           ))}
-        </div>
+        </ul>
       </WebSection>
 
       {/* 6 · Calendar */}
@@ -230,7 +227,11 @@ export function FeaturesCommunicationPage() {
       </WebSection>
 
       {/* 9 · CTA band */}
-      <CtaBand title={t('FeaturesCommunicationPage.ctaTitle')} visual={<DigestScene />} />
+      <CtaBand
+        title={t('FeaturesCommunicationPage.ctaRequestTitle')}
+        lede={t('FeaturesCommunicationPage.ctaRequestLede')}
+        note={t('FeaturesCommunicationPage.ctaRequestNote')}
+      />
     </div>
   );
 }

@@ -3,17 +3,14 @@
 import type { ReactNode } from 'react';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';
-import { ArrowLink, ButtonLink, Eyebrow, cx } from '../../primitives';
+import { ButtonLink, Eyebrow, cx } from '../../primitives';
 import { CtaBand, ProductVisualFrame, SectionHeader, WebSection } from '../../sections';
 import {
-  ApprovalCycleScene,
   AssistantScene,
   AutomationScene,
-  HealthCropScene,
   PortfolioScene,
   PulseScene,
   ScoreWorkingScene,
-  StagesScene,
   WorkloadScene,
 } from './scenes';
 import './features-insights.css';
@@ -21,11 +18,11 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
  * Features · Insights & automations (WEB-06, SITE-SPEC "PAGE: Features · Insights &
- * automations"). No Figma frame exists for this page; it follows the designed sibling
- * Features · Docs, decisions & approvals (shots/05-features-knowledge.png) section for section:
- * a hero with a floating product card and anchor pills (the first one on), alternating rows with
- * the dotted mono eyebrow on paper/150 frames, a paper/150 band, an ink panel for the signature
- * feature, then the CTA band. Every pill points at a section of the same name.
+ * automations"). Matches the round-2 Figma frame "WEB-06" (node 308:31) section for section:
+ * hero with the portfolio card and anchor pills (the first one on), Explainable health, Pulse on
+ * a lime frame, the centred Workload band, the Automations ink panel, the AI assistant row, then
+ * the standard CTA band. Every pill points at the section that shows that view: Portfolio and
+ * Approval cycle land on the hero's portfolio card and the health breakdown respectively.
  */
 
 const PILLS: readonly { id: string; labelKey: MessageKey }[] = [
@@ -36,12 +33,6 @@ const PILLS: readonly { id: string; labelKey: MessageKey }[] = [
   { id: 'assistant', labelKey: 'FeaturesInsightsPage.pillAssistant' },
 ];
 
-const TEMPLATES: readonly MessageKey[] = [
-  'FeaturesInsightsPage.templateRemind',
-  'FeaturesInsightsPage.templateMove',
-  'FeaturesInsightsPage.templateNotify',
-];
-
 function InsightsRow({
   id,
   eyebrow,
@@ -50,7 +41,7 @@ function InsightsRow({
   visual,
   reverse = false,
   tone = 'sunken',
-  children,
+  visualId,
 }: {
   id: string;
   eyebrow: string;
@@ -59,7 +50,7 @@ function InsightsRow({
   visual: ReactNode;
   reverse?: boolean;
   tone?: 'sunken' | 'lime';
-  children?: ReactNode;
+  visualId?: string;
 }) {
   const headingId = `${id}-title`;
   return (
@@ -78,41 +69,14 @@ function InsightsRow({
           {title}
         </h2>
         <p className="tm-web-feature__body">{body}</p>
-        {children}
       </div>
-      <ProductVisualFrame
-        className={cx('tm-web-fi-visual', tone === 'lime' && 'tm-web-fi-visual--lime')}
-      >
-        {visual}
-      </ProductVisualFrame>
-    </section>
-  );
-}
-
-function InsightsCard({
-  id,
-  eyebrow,
-  title,
-  body,
-  visual,
-}: {
-  id: string;
-  eyebrow: string;
-  title: string;
-  body: string;
-  visual: ReactNode;
-}) {
-  const headingId = `${id}-title`;
-  return (
-    <section id={id} aria-labelledby={headingId} className="tm-web-fi-pair__card">
-      <div className="tm-web-fi-pair__text">
-        <Eyebrow>{eyebrow}</Eyebrow>
-        <h2 id={headingId} className="tm-web-fi-pair__title">
-          {title}
-        </h2>
-        <p className="tm-web-fi-pair__body">{body}</p>
+      <div id={visualId} className="tm-web-fi-visual-anchor">
+        <ProductVisualFrame
+          className={cx('tm-web-fi-visual', tone === 'lime' && 'tm-web-fi-visual--lime')}
+        >
+          {visual}
+        </ProductVisualFrame>
       </div>
-      {visual}
     </section>
   );
 }
@@ -153,13 +117,13 @@ export function FeaturesInsightsPage() {
               ))}
             </nav>
           </div>
-          <div className="tm-web-fi-hero__visual">
+          <div className="tm-web-fi-hero__visual" id="portfolio">
             <PortfolioScene />
           </div>
         </div>
       </WebSection>
 
-      {/* 3 · Explainable health, then its two views: portfolio and approval cycle; 4 · Pulse */}
+      {/* 3 · Explainable health; 4 · Pulse */}
       <WebSection className="tm-web-fi-stack">
         <InsightsRow
           id="health"
@@ -167,28 +131,8 @@ export function FeaturesInsightsPage() {
           title={t('FeaturesInsightsPage.healthTitle')}
           body={t('FeaturesInsightsPage.healthBody')}
           visual={<ScoreWorkingScene />}
-        >
-          <ArrowLink href="/product" underline={false}>
-            {t('FeaturesInsightsPage.healthLink')}
-          </ArrowLink>
-        </InsightsRow>
-
-        <div className="tm-web-fi-pair">
-          <InsightsCard
-            id="portfolio"
-            eyebrow={t('FeaturesInsightsPage.portfolioEyebrow')}
-            title={t('FeaturesInsightsPage.portfolioTitle')}
-            body={t('FeaturesInsightsPage.portfolioBody')}
-            visual={<StagesScene />}
-          />
-          <InsightsCard
-            id="approval-cycle"
-            eyebrow={t('FeaturesInsightsPage.approvalCycleEyebrow')}
-            title={t('FeaturesInsightsPage.approvalCycleTitle')}
-            body={t('FeaturesInsightsPage.approvalCycleBody')}
-            visual={<ApprovalCycleScene />}
-          />
-        </div>
+          visualId="approval-cycle"
+        />
 
         <InsightsRow
           id="pulse"
@@ -198,17 +142,14 @@ export function FeaturesInsightsPage() {
           visual={<PulseScene />}
           reverse
           tone="lime"
-        >
-          <ArrowLink href="/client-portal" underline={false}>
-            {t('FeaturesInsightsPage.pulseLink')}
-          </ArrowLink>
-        </InsightsRow>
+        />
       </WebSection>
 
       {/* 5 · No surveillance (paper/150 band) */}
       <WebSection tone="sunken" aria-labelledby="fi-fair-title">
         <div className="tm-web-fi-fair">
           <SectionHeader
+            align="center"
             eyebrow={t('FeaturesInsightsPage.workloadEyebrow')}
             title={t('FeaturesInsightsPage.workloadTitle')}
             lede={t('FeaturesInsightsPage.workloadLede')}
@@ -232,18 +173,8 @@ export function FeaturesInsightsPage() {
               title={t('FeaturesInsightsPage.automationsTitle')}
               lede={t('FeaturesInsightsPage.automationsLede')}
             />
-            <ul
-              className="tm-web-fi-panel__templates"
-              aria-label={t('FeaturesInsightsPage.templatesAria')}
-            >
-              {TEMPLATES.map((templateKey) => (
-                <li key={templateKey} className="tm-web-fi-panel__template">
-                  {t(templateKey)}
-                </li>
-              ))}
-            </ul>
             <ButtonLink href={SIGN_UP_HREF} tone="lime">
-              {t('FeaturesInsightsPage.automationsTry')}
+              {t('FeaturesInsightsPage.automationsSeeTemplates')}
             </ButtonLink>
           </div>
           <div className="tm-web-fi-panel__visual">
@@ -260,19 +191,11 @@ export function FeaturesInsightsPage() {
           title={t('FeaturesInsightsPage.assistantTitle')}
           body={t('FeaturesInsightsPage.assistantBody')}
           visual={<AssistantScene />}
-        >
-          <ArrowLink href="/security" underline={false}>
-            {t('FeaturesInsightsPage.assistantLink')}
-          </ArrowLink>
-        </InsightsRow>
+        />
       </WebSection>
 
       {/* 8 · CTA band (9 · Footer comes from the layout) */}
-      <CtaBand
-        title={t('FeaturesInsightsPage.ctaTitle')}
-        lede={t('FeaturesInsightsPage.ctaLede')}
-        visual={<HealthCropScene />}
-      />
+      <CtaBand title={t('FeaturesInsightsPage.ctaApprovalTitle')} />
     </div>
   );
 }

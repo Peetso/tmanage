@@ -8137,5 +8137,20 @@
   "ProductPage.bilingualBody": "كل شاشة معكوسة لليمين إلى اليسار، والعربية مكتوبة كلغة منتج — لا ترجمة حرفية.",
   "ProductPage.ctaTitle": "اجمع مشروع العميل القادم في قصة واحدة.",
   "ProductPage.ctaLede": "ابدأ مجاناً مع فريقك. وادعُ عميلك حين يجهز أول تسليم.",
-  "ProductPage.ctaNote": "دون بطاقة ائتمان · مستخدمو العميل مجانيون دائماً"
+  "ProductPage.ctaNote": "دون بطاقة ائتمان · مستخدمو العميل مجانيون دائماً",
+  "FeaturesCommunicationPage.quietNotificationsEyebrow": "الإشعارات",
+  "FeaturesCommunicationPage.quietDesignTitle": "هادئ بطبيعته.",
+  "FeaturesCommunicationPage.ctaRequestTitle": "حوّل طلبك التالي إلى عمل له مسؤول.",
+  "FeaturesCommunicationPage.ctaRequestLede": "ابدأ مجانًا مع فريقك، وادعُ عملاءك دون تكلفة، وتابع طلبًا واحدًا حتى يصل إلى الاعتماد.",
+  "FeaturesCommunicationPage.ctaRequestNote": "مجاني لشخصين · مستخدمو العملاء مجانيون دائمًا · دون بطاقة ائتمان",
+  "FeaturesInsightsPage.automationsSeeTemplates": "اطّلع على قوالب الأتمتة",
+  "FeaturesInsightsPage.ctaApprovalTitle": "امنح كل اعتماد اسمًا وتاريخًا وإصدارًا.",
+  "ClientPortalPage.thirtyTitleDesign": "أين وصلت الأمور، في ثلاثين ثانية.",
+  "ClientPortalPage.thirtyLedeDesign": "يرى كل عميل الأشياء الثلاثة نفسها أولًا، بكلمات واضحة.",
+  "ClientPortalPage.freeTitleDesign": "مستخدمو العملاء مجانيون دائمًا.",
+  "ClientPortalPage.freePricingLink": "اطّلع على الأسعار",
+  "ClientPortalPage.freeStatRoles": "الرعاة · المراجعون · المشاهدون",
+  "ClientPortalPage.arabicEyebrow": "ثنائي اللغة",
+  "ClientPortalPage.arabicBodyDesign": "كل شاشة في البوابة تنعكس من اليمين إلى اليسار، بتسميات وتواريخ وأرقام عربية.",
+  "ClientPortalPage.arabicLink": "شاهد البوابة بالعربية"
 }

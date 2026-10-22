@@ -4,52 +4,29 @@ import { Badge, StateCapsule } from '@tmanage/ui';
 import type { ReactNode } from 'react';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';
-import { ArrowLink, ButtonLink, Eyebrow, IconOrb, cx } from '../../primitives';
+import { ArrowLink, ButtonLink, Eyebrow, cx } from '../../primitives';
 import { CtaBand, ProductVisualFrame, SectionHeader, Stat, WebSection } from '../../sections';
-import type { WebIconName } from '../../WebIcon';
 import {
   ApprovalScene,
   ArabicPortalScene,
-  ClientSeatsScene,
-  MiniActionPeek,
-  MiniMetricPeek,
-  MiniStagePeek,
-  PortalCtaScene,
   PortalOverviewScene,
   RequestsScene,
 } from './PortalScenes';
 import './client-portal.css';
 
 /**
- * WEB-07 · Client portal. No Figma frame exists for this page yet, so it is composed in code
- * from SITE-SPEC.md in the visual language of the designed pages (Features · Docs & approvals,
- * Solutions): ink hero, centred section header over three cards, alternating feature rows,
- * a sunken band, a stat with a product scene, a lime feature card, then the ink CTA band.
+ * WEB-07 · Client portal, matching the round-2 Figma frame (node 308:32): centred ink hero with
+ * the portal overview cropped below it, three numbered "thirty seconds" cards, the approvals and
+ * requests rows, the audience list on a sunken band, the "always free" stat, the bilingual card
+ * and the standard CTA band with the Delivery risk crop.
  */
 
-const THIRTY_SECONDS: readonly {
-  icon: WebIconName;
-  titleKey: MessageKey;
-  bodyKey: MessageKey;
-  peek: ReactNode;
-}[] = [
+const THIRTY_SECONDS: readonly { titleKey: MessageKey; bodyKey: MessageKey }[] = [
+  { titleKey: 'ClientPortalPage.thirtyStageTitle', bodyKey: 'ClientPortalPage.thirtyStageBody' },
+  { titleKey: 'ClientPortalPage.thirtyMetricTitle', bodyKey: 'ClientPortalPage.thirtyMetricBody' },
   {
-    icon: 'flag',
-    titleKey: 'ClientPortalPage.thirtyStageTitle',
-    bodyKey: 'ClientPortalPage.thirtyStageBody',
-    peek: <MiniStagePeek />,
-  },
-  {
-    icon: 'pulse',
-    titleKey: 'ClientPortalPage.thirtyMetricTitle',
-    bodyKey: 'ClientPortalPage.thirtyMetricBody',
-    peek: <MiniMetricPeek />,
-  },
-  {
-    icon: 'check',
     titleKey: 'ClientPortalPage.thirtyActionsTitle',
     bodyKey: 'ClientPortalPage.thirtyActionsBody',
-    peek: <MiniActionPeek />,
   },
 ];
 
@@ -88,25 +65,21 @@ function PortalFeatureRow({
 }
 
 const AUDIENCES: readonly {
-  icon: WebIconName;
   titleKey: MessageKey;
   bodyKey: MessageKey;
   marker: 'internal' | 'client' | 'action';
 }[] = [
   {
-    icon: 'lock',
     titleKey: 'ClientPortalPage.audienceInternalTitle',
     bodyKey: 'ClientPortalPage.audienceInternalBody',
     marker: 'internal',
   },
   {
-    icon: 'portal',
     titleKey: 'ClientPortalPage.audienceClientTitle',
     bodyKey: 'ClientPortalPage.audienceClientBody',
     marker: 'client',
   },
   {
-    icon: 'bolt',
     titleKey: 'ClientPortalPage.audienceActionTitle',
     bodyKey: 'ClientPortalPage.audienceActionBody',
     marker: 'action',
@@ -127,11 +100,12 @@ export function ClientPortalPage() {
     <>
       {/* 2 · Hero (ink) */}
       <WebSection tone="ink" id="demo" className="tm-cp-hero" aria-labelledby="cp-hero-title">
-        <div className="tm-cp-hero__grid">
+        <div className="tm-cp-hero__stack">
           <SectionHeader
             as="h1"
             size="page"
             tone="ink"
+            align="center"
             id="cp-hero-title"
             eyebrow={t('ClientPortalPage.heroEyebrow')}
             title={t('ClientPortalPage.heroTitle')}
@@ -147,9 +121,9 @@ export function ClientPortalPage() {
               </ButtonLink>
             </div>
           </SectionHeader>
-          <div className="tm-cp-hero__visual">
+          <ProductVisualFrame className="tm-cp-hero__visual">
             <PortalOverviewScene />
-          </div>
+          </ProductVisualFrame>
         </div>
       </WebSection>
 
@@ -159,19 +133,20 @@ export function ClientPortalPage() {
           align="center"
           id="cp-thirty-title"
           eyebrow={t('ClientPortalPage.thirtyEyebrow')}
-          title={t('ClientPortalPage.thirtyTitle')}
-          lede={t('ClientPortalPage.thirtyLede')}
+          title={t('ClientPortalPage.thirtyTitleDesign')}
+          lede={t('ClientPortalPage.thirtyLedeDesign')}
         />
-        <div className="tm-cp-three">
-          {THIRTY_SECONDS.map((item) => (
-            <div key={item.titleKey} className="tm-web-graph-card tm-cp-glance">
-              <IconOrb icon={item.icon} tone="lime" />
+        <ol className="tm-cp-three">
+          {THIRTY_SECONDS.map((item, index) => (
+            <li key={item.titleKey} className="tm-web-graph-card tm-cp-glance">
+              <span className="tm-cp-step" aria-hidden="true">
+                {index + 1}
+              </span>
               <h3 className="tm-web-graph-card__title">{t(item.titleKey)}</h3>
               <p className="tm-web-graph-card__body">{t(item.bodyKey)}</p>
-              <div className="tm-cp-glance__peek">{item.peek}</div>
-            </div>
+            </li>
           ))}
-        </div>
+        </ol>
       </WebSection>
 
       {/* 4 · Approvals · 5 · Requests */}
@@ -206,10 +181,6 @@ export function ClientPortalPage() {
           <ul className="tm-cp-audiences">
             {AUDIENCES.map((audience) => (
               <li key={audience.titleKey} className="tm-cp-audience">
-                <IconOrb
-                  icon={audience.icon}
-                  tone={audience.marker === 'internal' ? 'outline' : 'lime'}
-                />
                 <span className="tm-cp-audience__text">
                   <span className="tm-cp-audience__title">{t(audience.titleKey)}</span>
                   <span className="tm-cp-audience__body">{t(audience.bodyKey)}</span>
@@ -227,17 +198,18 @@ export function ClientPortalPage() {
           <div className="tm-cp-free__text">
             <Eyebrow>{t('ClientPortalPage.freeEyebrow')}</Eyebrow>
             <h2 id="cp-free-title" className="tm-web-feature__title">
-              {t('ClientPortalPage.freeTitle')}
+              {t('ClientPortalPage.freeTitleDesign')}
             </h2>
-            <Stat
-              value="0"
-              label={t('ClientPortalPage.freeStatLabel')}
-              note={t('ClientPortalPage.freeStatNote')}
-            />
+            <p className="tm-web-feature__body">{t('ClientPortalPage.freeStatNote')}</p>
+            <ArrowLink href="/pricing" underline={false}>
+              {t('ClientPortalPage.freePricingLink')}
+            </ArrowLink>
           </div>
-          <ProductVisualFrame>
-            <ClientSeatsScene />
-          </ProductVisualFrame>
+          <Stat
+            value="0"
+            label={t('ClientPortalPage.freeStatLabel')}
+            note={t('ClientPortalPage.freeStatRoles')}
+          />
         </div>
       </WebSection>
 
@@ -245,24 +217,24 @@ export function ClientPortalPage() {
       <WebSection spacing="flush" aria-labelledby="cp-arabic-title">
         <div className="tm-cp-arabic">
           <div className="tm-cp-arabic__text">
-            <Eyebrow>
-              <span>{t('ClientPortalPage.arabicEyebrowEnglish')}</span>
-              <span aria-hidden="true">·</span>
-              <span lang="ar">العربية</span>
-            </Eyebrow>
+            <Eyebrow>{t('ClientPortalPage.arabicEyebrow')}</Eyebrow>
             <h2 id="cp-arabic-title" className="tm-web-header__title tm-cp-arabic__title">
               {t('ClientPortalPage.arabicTitle')}
             </h2>
-            <p className="tm-cp-arabic__body">{t('ClientPortalPage.arabicBody')}</p>
+            <p className="tm-cp-arabic__body">{t('ClientPortalPage.arabicBodyDesign')}</p>
+            {/* No public Arabic demo portal exists yet; a demo is booked from /contact. */}
+            <ArrowLink href="/contact" underline={false}>
+              {t('ClientPortalPage.arabicLink')}
+            </ArrowLink>
           </div>
-          <div className="tm-cp-arabic__visual">
+          <ProductVisualFrame className="tm-cp-arabic__visual">
             <ArabicPortalScene />
-          </div>
+          </ProductVisualFrame>
         </div>
       </WebSection>
 
       {/* 9 · CTA band */}
-      <CtaBand title={t('ClientPortalPage.ctaTitle')} visual={<PortalCtaScene />} />
+      <CtaBand title={t('ClientPortalPage.ctaTitle')} />
     </>
   );
 }

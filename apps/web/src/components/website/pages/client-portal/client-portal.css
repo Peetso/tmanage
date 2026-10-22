@@ -6,11 +6,20 @@
 
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
-.tm-cp-hero__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+/* Centred copy, then the portal overview on a paper/150 frame, cropped by the band's end. */
+.tm-cp-hero.tm-web-section--ink {
+  padding-block-end: 0;
+}
+
+.tm-cp-hero__stack {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: var(--s16);
+  gap: var(--s12);
+}
+
+.tm-cp-hero .tm-web-header {
+  max-inline-size: calc(var(--s24) * 8);
 }
 
 .tm-cp-hero .tm-web-header__lede {
@@ -20,16 +29,23 @@
 .tm-cp-hero__actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: var(--s3);
   margin-block-start: var(--s4);
 }
 
-.tm-cp-hero__visual {
-  min-inline-size: 0;
+.tm-cp-hero__visual.tm-web-visual {
+  place-items: start stretch;
+  inline-size: 100%;
+  max-block-size: calc(var(--s24) * 5);
+  padding: var(--s8) var(--s8) 0;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
 }
 
 .tm-cp-hero__visual .tm-cp-card {
-  box-shadow: var(--tm-overlay-shadow);
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
 }
 
 /* ── Thirty seconds ──────────────────────────────────────────────────────── */
@@ -40,14 +56,26 @@
   gap: var(--s6);
 }
 
-/* Each card ends in a peek of the portal fragment it names, bottom-aligned across the row. */
-/* The peek takes the rest of the card, so the three peeks share one height and baseline. */
-.tm-cp-glance__peek {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  inline-size: 100%;
-  padding-block-start: var(--s8);
+ol.tm-cp-three {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The numbered lime step that opens each card (1, 2, 3 in the design). */
+.tm-cp-step {
+  display: inline-grid;
+  place-items: center;
+  inline-size: var(--orb-default);
+  block-size: var(--orb-default);
+  margin-block-end: var(--s8);
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--tm-on-lime);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
 }
 
 .tm-cp-peek {
@@ -82,11 +110,15 @@
 
 /* ── Invisible, not hidden ───────────────────────────────────────────────── */
 
+/* Header on top, then the three audiences as one paper list with hairline dividers. */
 .tm-cp-split {
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  align-items: center;
-  gap: var(--s16);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s10);
+}
+
+.tm-cp-split .tm-web-header {
+  max-inline-size: calc(var(--s24) * 7);
 }
 
 .tm-cp-split .tm-web-header + * {
@@ -96,17 +128,24 @@
 .tm-cp-audiences {
   display: flex;
   flex-direction: column;
-  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  overflow: hidden;
 }
 
 .tm-cp-audience {
   display: flex;
   align-items: center;
   gap: var(--s5);
-  padding: var(--s6);
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-card);
-  background: var(--paper-0);
+  padding: var(--s5) var(--s6);
+}
+
+.tm-cp-audience + .tm-cp-audience {
+  border-block-start: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-cp-audience__text {
@@ -135,8 +174,8 @@
 .tm-cp-free {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  align-items: center;
-  gap: var(--s24);
+  align-items: start;
+  gap: var(--s8);
 }
 
 .tm-cp-free__text {
@@ -146,25 +185,22 @@
   gap: var(--s5);
 }
 
-.tm-cp-free__text .tm-web-stat {
-  margin-block-start: var(--s6);
+.tm-cp-free__text .tm-web-feature__body {
+  max-inline-size: 44ch;
 }
 
-.tm-cp-free__text .tm-web-stat__note {
-  max-inline-size: 36ch;
-}
-
-/* ── Bilingual lime card ─────────────────────────────────────────────────── */
+/* ── Bilingual card: paper card, Arabic portal on a paper/150 frame ────────── */
 
 .tm-cp-arabic {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
   align-items: center;
   gap: var(--s16);
-  padding: var(--s16);
+  padding: var(--s10) var(--s16);
+  border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-feature);
-  background: var(--lime-500);
-  color: var(--tm-on-lime);
+  background: var(--paper-0);
+  color: var(--ink-950);
 }
 
 .tm-cp-arabic__text {
@@ -174,31 +210,18 @@
   gap: var(--s5);
 }
 
-.tm-cp-arabic .tm-web-eyebrow {
-  color: var(--tm-on-lime);
-}
-
-/* The lime dot would vanish on the lime card, so it takes the ink it sits on. */
-.tm-cp-arabic .tm-web-eyebrow__dot {
-  background: var(--tm-on-lime);
-}
-
-.tm-cp-arabic .tm-web-eyebrow [lang='ar'] {
-  font-family: var(--font-arabic);
-  letter-spacing: 0;
-}
-
 .tm-cp-arabic__title {
-  font-size: var(--t-display-lg);
-  line-height: var(--t-display-lg-line);
-  color: var(--tm-on-lime);
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  color: var(--ink-950);
   text-wrap: balance;
 }
 
 .tm-cp-arabic__body {
   max-inline-size: 44ch;
-  font-size: var(--t-body-lg);
-  line-height: var(--t-body-lg-line);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
 }
 
 .tm-cp-arabic__visual {
@@ -544,7 +567,7 @@
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 1279px) {
-  .tm-cp-hero__grid,
+  .tm-cp-hero__stack,
   .tm-cp-split,
   .tm-cp-free,
   .tm-cp-arabic {
@@ -566,7 +589,7 @@
 }
 
 @media (max-width: 767px) {
-  .tm-cp-hero__grid,
+  .tm-cp-hero__stack,
   .tm-cp-split,
   .tm-cp-free,
   .tm-cp-arabic {
@@ -588,12 +611,11 @@
   }
 
   .tm-cp-audience__text {
-    flex-basis: calc(100% - var(--orb-default) - var(--s5));
+    flex-basis: 100%;
   }
 
-  .tm-cp-audience .tm-badge,
-  .tm-cp-audience .tm-state-capsule {
-    margin-inline-start: calc(var(--orb-default) + var(--s5));
+  .tm-cp-hero__visual.tm-web-visual {
+    padding: var(--s4) var(--s4) 0;
   }
 
   .tm-cp-pad {

@@ -8137,5 +8137,20 @@
   "ProductPage.bilingualBody": "Every screen is mirrored for right-to-left, with Arabic written as product language — not literal translation.",
   "ProductPage.ctaTitle": "Bring the next client project into one story.",
   "ProductPage.ctaLede": "Start free with your team. Invite your client when the first deliverable is ready.",
-  "ProductPage.ctaNote": "No credit card · Client users are always free"
+  "ProductPage.ctaNote": "No credit card · Client users are always free",
+  "FeaturesCommunicationPage.quietNotificationsEyebrow": "Notifications",
+  "FeaturesCommunicationPage.quietDesignTitle": "Quiet by design.",
+  "FeaturesCommunicationPage.ctaRequestTitle": "Turn your next request into owned work.",
+  "FeaturesCommunicationPage.ctaRequestLede": "Start free with your team, invite clients at no cost, and watch one request travel all the way to approval.",
+  "FeaturesCommunicationPage.ctaRequestNote": "Free for 2 people · Client users always free · No credit card",
+  "FeaturesInsightsPage.automationsSeeTemplates": "See automation templates",
+  "FeaturesInsightsPage.ctaApprovalTitle": "Give every approval a name, a date and a version.",
+  "ClientPortalPage.thirtyTitleDesign": "Where things stand, in thirty seconds.",
+  "ClientPortalPage.thirtyLedeDesign": "Every client sees the same three things first, in plain words.",
+  "ClientPortalPage.freeTitleDesign": "Client users are always free.",
+  "ClientPortalPage.freePricingLink": "See pricing",
+  "ClientPortalPage.freeStatRoles": "Sponsors · Reviewers · Viewers",
+  "ClientPortalPage.arabicEyebrow": "Bilingual",
+  "ClientPortalPage.arabicBodyDesign": "Every portal screen mirrors right to left, with Arabic labels, dates and numbers.",
+  "ClientPortalPage.arabicLink": "See the Arabic portal"
 }

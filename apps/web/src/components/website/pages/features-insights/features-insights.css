@@ -577,10 +577,28 @@
 /* ── No-surveillance band ─────────────────────────────────────────────────── */
 
 .tm-web-fi-fair {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   align-items: center;
   gap: var(--s12);
+}
+
+/* The designed band: centred header, then the workload card on a paper/50 frame below it. */
+.tm-web-fi-fair__visual {
+  inline-size: 100%;
+  max-inline-size: calc(var(--s24) * 9);
+  padding: var(--s8);
+  border-radius: var(--r-feature);
+  background: var(--paper-50);
+}
+
+.tm-web-fi-visual-anchor {
+  min-inline-size: 0;
+  scroll-margin-block-start: var(--s24);
+}
+
+.tm-web-fi-hero__visual {
+  scroll-margin-block-start: var(--s24);
 }
 
 .tm-web-fi-fair .tm-web-header + * {
