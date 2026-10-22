@@ -44,6 +44,25 @@ and make a new one.
 Every tool call runs through the API's own authentication, tenant and permission checks, and each
 token is rate limited. The AI assistant page in TManage shows the exact steps for each assistant.
 
+**Local stdio bridge, downloaded from TManage.** For a client that only speaks stdio and cannot
+reach the hosted endpoint, run this package as a local bridge straight from your TManage host — no
+npm account and nothing to clone:
+
+```
+TMANAGE_API_URL=https://<host>/api TMANAGE_TOKEN=<token> \
+  npx -y https://<host>/downloads/tmanage-mcp.tgz
+```
+
+It runs over stdio (the default transport) and talks to the same HTTP API with your token. The
+tarball is published by the deploy step `pnpm --filter @tmanage/mcp-server pack:bridge`, whose
+output is placed at the path the API reads from `TMANAGE_MCP_BRIDGE_PATH`; until then the download
+route answers `503` with that guidance rather than serving a missing file.
+
+**OpenAPI / GPT Actions.** Clients that call an OpenAPI tool instead of MCP read
+`https://<host>/openapi/ai.json` (generated from the same action registry) and call the REST API
+with the same personal access token. Confirm-class actions return an approval link to open in
+TManage rather than running from the call.
+
 **Self-run (below):** the server needs two environment variables:
 
 - `TMANAGE_API_URL` — your TManage API base URL, e.g. `https://app.yourdomain.com/api`

@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { ConfigError, loadConfig } from './config.js';
 import { runStdio } from './transports/stdio.js';
 import { runHttp } from './transports/http.js';
