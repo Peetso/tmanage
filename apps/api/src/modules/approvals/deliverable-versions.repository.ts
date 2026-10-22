@@ -30,6 +30,11 @@ export interface CreateDeliverableVersionInput {
   /** A validated lowercase hex SHA-256 digest (`content-hash.ts`). */
   readonly contentHash: string;
   readonly createdByUserId: string;
+  /** 0211. The per-deliverable number, the attached file version and the team's note. */
+  readonly versionNo?: number;
+  readonly fileAssetId?: string | null;
+  readonly fileVersionId?: string | null;
+  readonly note?: string | null;
 }
 
 export class DeliverableVersionsRepository {
@@ -40,15 +45,21 @@ export class DeliverableVersionsRepository {
     input: CreateDeliverableVersionInput,
   ): Promise<DeliverableVersionRow> {
     const id = uuidv7();
-    await tenantDrizzle(runner).insert(deliverableVersions).values({
-      id,
-      organizationId: context.organizationId,
-      projectId: input.projectId,
-      deliverableId: input.deliverableId,
-      contentHash: input.contentHash,
-      createdByUserId: input.createdByUserId,
-      createdAt: new Date(),
-    });
+    await tenantDrizzle(runner)
+      .insert(deliverableVersions)
+      .values({
+        id,
+        organizationId: context.organizationId,
+        projectId: input.projectId,
+        deliverableId: input.deliverableId,
+        contentHash: input.contentHash,
+        versionNo: input.versionNo ?? null,
+        fileAssetId: input.fileAssetId ?? null,
+        fileVersionId: input.fileVersionId ?? null,
+        note: input.note ?? null,
+        createdByUserId: input.createdByUserId,
+        createdAt: new Date(),
+      });
     return this.requireById(runner, context, id);
   }
 
@@ -78,6 +89,24 @@ export class DeliverableVersionsRepository {
     const found = await this.findById(runner, context, deliverableVersionId);
     if (!found) throw new DeliverableVersionNotFoundError(deliverableVersionId);
     return found;
+  }
+
+  /** 0211. Every version of one deliverable, newest first — the detail screen's history. */
+  async listForDeliverable(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    deliverableId: string,
+  ): Promise<readonly DeliverableVersionRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(deliverableVersions)
+      .where(
+        and(
+          eq(deliverableVersions.organizationId, context.organizationId),
+          eq(deliverableVersions.deliverableId, deliverableId),
+        ),
+      )
+      .orderBy(desc(deliverableVersions.createdAt), desc(deliverableVersions.id));
   }
 
   /**

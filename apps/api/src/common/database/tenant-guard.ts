@@ -172,6 +172,8 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // decisions.
   deliverable_versions: 'organization_id',
   approvals: 'organization_id',
+  // 0211. The deliverable a version belongs to: one studio's named piece of work on a project.
+  deliverables: 'organization_id',
   // Sequential approval steps (0183, x315). Org-owned: a step is one tenant's ordered chain over one
   // approval, and an unscoped `SELECT ... FROM approval_steps` would be every studio's approval chains
   // on the server. The layer-3 guard fails OPEN on an unregistered table, so this entry is what scopes

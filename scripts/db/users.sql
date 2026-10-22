@@ -225,6 +225,9 @@ GRANT INSERT, UPDATE         ON `tmanage`.`client_requests`      TO 'tmanage_app
 -- 0027 refuses UPDATE for every credential. No DELETE: the exact bytes a reviewer saw are the
 -- evidence an approval binds to, so a runtime credential must not be able to erase them.
 GRANT INSERT                 ON `tmanage`.`deliverable_versions`  TO 'tmanage_app'@'%';
+-- 0211 deliverables (audit gap 1). INSERT to create one, UPDATE for its title/description and
+-- `updated_at` when a new version lands. No DELETE: approvals and client projections refer to it.
+GRANT INSERT, UPDATE         ON `tmanage`.`deliverables`          TO 'tmanage_app'@'%';
 -- FR-05 (x92) approvals. **No DELETE**, and for the same reason as client_requests: a decision is
 -- the record that it was taken. UPDATE is needed for the lifecycle (view, decide, invalidate) and
 -- for nothing else — the trigger in 0027 refuses the identity columns and refuses any change to a

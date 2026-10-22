@@ -355,6 +355,43 @@ export const planClientActionNotices: NoticePlanner = async (event, tx, mailer) 
     }));
 };
 
+/**
+ * `approval.requested.v1` → APR-01/02 (0211). A deliverable version was sent to the client for
+ * approval: each client person on the project who may decide (`approval.decide`, never a viewer)
+ * and — when the sender picked reviewers — is one of them, is emailed a link to the portal's
+ * Approve screen for that exact version. Email only, like the client-action notice; the subject is
+ * the project, since the worker holds no read on `deliverables`.
+ */
+export const planApprovalRequestedNotices: NoticePlanner = async (event, tx, mailer) => {
+  if (mailer === null) return [];
+  const raw = payloadOf(event);
+  const projectId = stringField(raw, 'projectId', event.id);
+  const versionId = stringField(raw, 'deliverableVersionId', event.id);
+  const picked = new Set(idList(raw, 'reviewerUserIds'));
+
+  const people = await listProjectClientPeople(tx, event.organizationId, projectId);
+  return people
+    .filter((person) => isRole(person.role) && hasCapability(person.role, 'approval.decide'))
+    .filter((person) => picked.size === 0 || picked.has(person.userId))
+    .map((person): PlannedNotice => ({
+      recipientUserId: person.userId,
+      optOutKind: null,
+      membershipId: null,
+      inApp: null,
+      mailKind: 'client_action',
+      mail: async () => {
+        const org = await organizationOf(tx, event.organizationId);
+        const project = await findProjectName(tx, event.organizationId, projectId);
+        if (org === null || project === null) return null;
+        return {
+          organizationName: org.name,
+          subjectTitle: project,
+          link: mailer.linkTo(`/${org.slug}/portal/deliverables/${versionId}`),
+        };
+      },
+    }));
+};
+
 /** The planners by event type — the set `registry.ts` registers and the resume path re-plans. */
 export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'message.created.v1': planMentionNotices,
@@ -362,6 +399,7 @@ export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'meeting.attendee_invited.v1': planMeetingInviteNotices,
   'project.member_added.v1': planProjectAddedNotices,
   'work_item.client_action_requested.v1': planClientActionNotices,
+  'approval.requested.v1': planApprovalRequestedNotices,
 };
 
 // ─── Delivery ──────────────────────────────────────────────────────────────────

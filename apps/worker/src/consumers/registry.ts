@@ -19,6 +19,7 @@ import { createCredentialChangeMail } from './credential-change-mail.js';
 import {
   createCollaborationMailResume,
   createCollaborationNotices,
+  planApprovalRequestedNotices,
   planClientActionNotices,
   planCommentNotices,
   planMeetingInviteNotices,
@@ -152,6 +153,11 @@ export function createWorkerOutboxHandlers(
     ),
     'work_item.client_action_requested.v1': createCollaborationNotices(
       planClientActionNotices,
+      collaborationMails,
+    ),
+    // 0211 (APR-01/02): a version sent for client approval — the deciding client people are emailed.
+    'approval.requested.v1': createCollaborationNotices(
+      planApprovalRequestedNotices,
       collaborationMails,
     ),
     'client_request.transitioned.v1':

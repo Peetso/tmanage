@@ -177,6 +177,14 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'project',
     catalog: '§4 project membership granted — notification, email',
   },
+  /**
+   * 0211 (audit gap 1, APR-01/02): a deliverable version was sent to the client for approval. The
+   * client people who may decide are emailed a link to the portal's Approve screen.
+   */
+  'approval.requested.v1': {
+    aggregateType: 'approval',
+    catalog: '§4 approval.requested — client email',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -424,6 +432,18 @@ export interface ProjectMemberAddedV1 {
 }
 
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
+/**
+ * 0211: ids only. `reviewerUserIds` narrows who is told (the client contacts the sender picked);
+ * the worker still re-checks each one's access to the project at delivery.
+ */
+export interface ApprovalRequestedV1 {
+  readonly approvalId: string;
+  readonly deliverableId: string;
+  readonly deliverableVersionId: string;
+  readonly projectId: string;
+  readonly reviewerUserIds: readonly string[];
+}
+
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
   readonly 'client_request.transitioned.v1': ClientRequestTransitionedV1;
@@ -446,6 +466,7 @@ export interface OutboxEventPayloads {
   readonly 'meeting.scheduled.v1': MeetingScheduledV1;
   readonly 'meeting.attendee_invited.v1': MeetingAttendeeInvitedV1;
   readonly 'project.member_added.v1': ProjectMemberAddedV1;
+  readonly 'approval.requested.v1': ApprovalRequestedV1;
 }
 
 /**

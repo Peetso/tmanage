@@ -158,4 +158,75 @@ export const approvalsDetails: readonly AiActionDetail[] = [
       { summary: 'Client approves', args: { deliverableVersionId: 'dv_1', decision: 'approve' } },
     ],
   }),
+  // 0211 (audit gap 1): deliverables — create, version, send for client approval.
+  det({
+    id: 'approvals.deliverables.list',
+    title: 'List deliverables',
+    description: 'List a project’s deliverables with their approval state and latest version.',
+    input: listArgs([], { projectId: f.id() }),
+    redact: 'standard',
+    examples: [{ summary: 'In a project', args: { projectId: 'proj_1' } }],
+  }),
+  det({
+    id: 'approvals.deliverables.create',
+    title: 'Create a deliverable',
+    description: 'Create a named deliverable on a project, ready for its first version.',
+    input: bodyArgs([], {
+      projectId: f.id(),
+      title: f.shortText(300),
+      description: f.text(5_000).nullish(),
+    }),
+    redact: 'standard',
+    examples: [{ summary: 'Create', args: { projectId: 'proj_1', title: 'Homepage concept' } }],
+  }),
+  det({
+    id: 'approvals.deliverables.get',
+    title: 'Get a deliverable',
+    description: 'Read a deliverable with every version, its note, file and approval outcome.',
+    input: pathOnly('deliverableId'),
+    redact: 'standard',
+    examples: [{ summary: 'By id', args: { deliverableId: 'dlv_1' } }],
+  }),
+  det({
+    id: 'approvals.deliverables.versions.create',
+    title: 'Upload a deliverable version',
+    description:
+      'Add the next version (an uploaded deliverable file and/or a note). Any approval still ' +
+      'pending on an older version is invalidated.',
+    input: bodyArgs(['deliverableId'], {
+      fileAssetId: f.id().nullish(),
+      note: f.text(5_000).nullish(),
+    }),
+    redact: 'standard',
+    examples: [{ summary: 'New version', args: { deliverableId: 'dlv_1', note: 'Bigger logo' } }],
+  }),
+  det({
+    id: 'approvals.deliverables.approvers.list',
+    title: 'List possible approvers',
+    description: 'List the client people on the project who have approval authority.',
+    input: pathOnly('deliverableId'),
+    redact: 'standard',
+    examples: [{ summary: 'Approvers', args: { deliverableId: 'dlv_1' } }],
+  }),
+  det({
+    id: 'approvals.deliverables.send.create',
+    title: 'Send a version for client approval',
+    description:
+      'Publish the newest version to the client and ask the chosen approvers to decide. ' +
+      'Confirm-class; the approvers are emailed unless notify is false.',
+    input: bodyArgs(['deliverableId', 'versionId'], {
+      approverIds: z.array(f.id()).min(1).max(50),
+      dueDate: f.iso().nullish(),
+      checkNote: f.text(2_000).nullish(),
+      notify: f.bool().optional(),
+    }),
+    redact: 'client_safe',
+    notifies: true,
+    examples: [
+      {
+        summary: 'Send v2',
+        args: { deliverableId: 'dlv_1', versionId: 'dv_2', approverIds: ['user_9'] },
+      },
+    ],
+  }),
 ];

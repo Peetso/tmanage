@@ -3072,6 +3072,29 @@ export type NewRequestTagRow = typeof requestTags.$inferInsert;
 export const APPROVAL_POLICIES = ['all_required', 'any_one', 'ordered_sequence'] as const;
 
 /**
+ * 0211 (audit gap 1). One named piece of work on a project that the team versions and sends to the
+ * client for approval. No lifecycle column — the state is derived from the newest version's
+ * approval, so it can never disagree with the append-only `approvals` record.
+ */
+export const deliverables = mysqlTable(
+  'deliverables',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    title: varchar('title', { length: 300 }).notNull(),
+    description: text('description'),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_deliverables_org_id').on(table.organizationId, table.id),
+    index('ix_deliverables_org_project').on(table.organizationId, table.projectId, table.createdAt),
+  ],
+);
+
+/**
  * FR-05. The immutable identity of governed content: an exact deliverable at an exact
  * `contentHash`. There is no `deliverables` table yet (the aggregate is domain-only), so
  * `deliverableId` is a logical reference, not a foreign key. A version is immutable — the
@@ -3085,13 +3108,25 @@ export const deliverableVersions = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     projectId: char('project_id', { length: 36 }).notNull(),
     deliverableId: char('deliverable_id', { length: 36 }).notNull(),
+    /** 0211. 1, 2, 3 … per deliverable; NULL on versions written before 0211. */
+    versionNo: int('version_no', { unsigned: true }),
     /** A lowercase hex SHA-256 digest (`content-hash.ts`). */
     contentHash: char('content_hash', { length: 64 }).notNull(),
+    /** 0211. The attached file and the exact file version the reviewer saw. */
+    fileAssetId: char('file_asset_id', { length: 36 }),
+    fileVersionId: char('file_version_id', { length: 36 }),
+    /** 0211. The team's note for this version ("what changed"). */
+    note: text('note'),
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [
     uniqueIndex('uq_deliverable_versions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_deliverable_versions_org_deliverable_no').on(
+      table.organizationId,
+      table.deliverableId,
+      table.versionNo,
+    ),
     index('ix_deliverable_versions_org_deliverable').on(
       table.organizationId,
       table.deliverableId,
@@ -8375,6 +8410,7 @@ export const TABLES = {
   work_blockers: workBlockers,
   client_requests: clientRequests,
   request_tags: requestTags,
+  deliverables,
   deliverable_versions: deliverableVersions,
   approvals,
   approval_steps: approvalSteps,
@@ -8566,6 +8602,7 @@ export type NewWorkItemLinkRow = typeof workItemLinks.$inferInsert;
 export type WorkItemFileRow = typeof workItemFiles.$inferSelect;
 export type NewWorkItemFileRow = typeof workItemFiles.$inferInsert;
 export type ClientRequestRow = typeof clientRequests.$inferSelect;
+export type DeliverableRow = typeof deliverables.$inferSelect;
 export type DeliverableVersionRow = typeof deliverableVersions.$inferSelect;
 export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;
 export type ApprovalRow = typeof approvals.$inferSelect;

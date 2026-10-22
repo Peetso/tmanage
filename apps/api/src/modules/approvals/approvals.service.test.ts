@@ -85,7 +85,11 @@ function versionRow(contentHash: string): DeliverableVersionRow {
     organizationId: ORG,
     projectId: PROJECT,
     deliverableId: DELIVERABLE,
+    versionNo: 1,
     contentHash,
+    fileAssetId: null,
+    fileVersionId: null,
+    note: null,
     createdByUserId: REVIEWER,
     createdAt: new Date('2026-09-20T00:00:00.000Z'),
   };

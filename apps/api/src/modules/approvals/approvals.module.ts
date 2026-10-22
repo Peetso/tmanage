@@ -1,6 +1,12 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
-import { APPROVALS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import {
+  APPROVALS_SERVICE,
+  OUTBOX_EVENTS_REPOSITORY,
+  TENANT_DATABASE,
+} from '../../common/http/tokens.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApprovalsRepository } from './approvals.repository.js';
 import { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
@@ -16,6 +22,9 @@ import {
 import { ApprovalStepsRepository } from './steps.repository.js';
 import { APPROVAL_STEPS_SERVICE, ApprovalStepsService } from './steps.service.js';
 import { ApprovalStepsController } from './steps.controller.js';
+import { DeliverablesRepository } from './deliverables.repository.js';
+import { DeliverablesService } from './deliverables.service.js';
+import { DELIVERABLES_SERVICE, DeliverablesController } from './deliverables.controller.js';
 
 /**
  * FR-05's wiring.
@@ -64,11 +73,33 @@ export class ApprovalsModule {
         ),
     };
 
+    // 0211 (audit gap 1) — deliverables: create, version, send for client approval. The outbox
+    // writer is the global `PlatformModule`'s, so the send's `approval.requested.v1` commits with it.
+    const deliverablesService: Provider = {
+      provide: DELIVERABLES_SERVICE,
+      inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (database: TenantDatabase, outbox: OutboxEventsRepository) =>
+        new DeliverablesService(
+          database,
+          new DeliverablesRepository(),
+          new DeliverableVersionsRepository(),
+          new ApprovalsRepository(),
+          new ClientProjectionsRepository(),
+          new ProjectsRepository(),
+          outbox,
+        ),
+    };
+
     return {
       module: ApprovalsModule,
-      providers: [service, delegationService, stepsService],
+      providers: [service, delegationService, stepsService, deliverablesService],
       exports: [service, stepsService],
-      controllers: [ApprovalsController, ApprovalDelegationController, ApprovalStepsController],
+      controllers: [
+        ApprovalsController,
+        ApprovalDelegationController,
+        ApprovalStepsController,
+        DeliverablesController,
+      ],
     };
   }
 }
