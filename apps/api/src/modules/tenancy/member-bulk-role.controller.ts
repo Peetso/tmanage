@@ -5,9 +5,15 @@ import type { Capability, Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
+import { BuiltInRolesController, MemberRoleController } from './member-role.controller.js';
+import { MembershipsRepository } from './memberships.repository.js';
 
 /**
  * Admin bulk role assignment (Administration module 18, x222) — the deeper flow the audit named after
@@ -85,6 +91,9 @@ export class MemberBulkRoleController {
     @Inject(MemberBulkRoleRepository)
     private readonly repository: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
     @Optional() @Inject(AUDIT_SERVICE) private readonly audit?: AuditService,
+    @Optional()
+    @Inject(MembershipsRepository)
+    private readonly memberships: MembershipsRepository = new MembershipsRepository(),
   ) {}
 
   /**
@@ -124,6 +133,7 @@ export class MemberBulkRoleController {
       //    since the organization admin also holds `org.manage` (ADM-03), an admin could otherwise
       //    demote every owner and keep the organization. Each landed change is audited (ADM-11).
       const keepOwners = !(principal.kind === 'internal' && principal.role === 'owner');
+      if (!keepOwners) await this.requireAnOwnerRemains(tx, context, membershipIds);
       const outcomes: MemberBulkRoleView['assignments'][number][] = [];
       for (const membershipId of membershipIds) {
         const applied = await this.repository.assignRole(tx, context, membershipId, roleId, {
@@ -143,6 +153,31 @@ export class MemberBulkRoleController {
     });
 
     return { roleId, assignments };
+  }
+
+  /**
+   * ADM-01: an owner's batch may not demote every active owner (409, no write) — an organization
+   * nobody owns cannot be recovered from inside. Counts the active owners outside the batch.
+   */
+  private async requireAnOwnerRemains(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    membershipIds: readonly string[],
+  ): Promise<void> {
+    const ownersInBatch: string[] = [];
+    for (const id of membershipIds) {
+      const row = await this.memberships.findById(tx, context, id);
+      if (row?.role === 'owner' && row.status === 'active') ownersInBatch.push(row.id);
+    }
+    if (ownersInBatch.length === 0) return;
+    const allOwners = await this.memberships.countActiveHoldersOfRoles(tx, context, ['owner']);
+    if (allOwners - ownersInBatch.length <= 0) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'Make someone else an owner before changing the last owner’s role.',
+      );
+    }
   }
 
   /**
@@ -262,7 +297,8 @@ export class MemberBulkRoleModule {
       providers: [
         { provide: MemberBulkRoleRepository, useFactory: () => new MemberBulkRoleRepository() },
       ],
-      controllers: [MemberBulkRoleController],
+      // ADM-01: the single role change and the built-in role catalogue share this module.
+      controllers: [MemberBulkRoleController, MemberRoleController, BuiltInRolesController],
     };
   }
 }

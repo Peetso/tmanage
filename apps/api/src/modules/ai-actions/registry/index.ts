@@ -138,6 +138,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // BK2 / ADM-01: the built-in role catalogue (read) for the invite and People screens.
+  {
+    id: 'admin.roles.built_in.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/roles/built-in/',
+    capability: 'org.manage',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'admin.overview.list',
     method: 'GET',
@@ -2883,6 +2892,15 @@ export const OPS: readonly AiActionOp[] = [
     method: 'GET',
     path: '/v1/organizations/:orgSlug/members/:userId/offboarding-impact',
     capability: 'member.offboard',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  // BK2 / ADM-01: change one member's built-in role — a privilege change, so confirm-class.
+  {
+    id: 'members.role.update',
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/members/:userId/role',
+    capability: 'org.manage',
     risk: 'confirm',
     scope: 'manage',
   },

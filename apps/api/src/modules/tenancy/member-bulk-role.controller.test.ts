@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { MemberBulkRoleController } from './member-bulk-role.controller.js';
 import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
+import type { MembershipsRepository } from './memberships.repository.js';
 import { ApiError } from '../../common/http/errors.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -99,12 +100,29 @@ class FakeBulkRoleRepository {
   }
 }
 
-function controllerWith(repo: FakeBulkRoleRepository): MemberBulkRoleController {
+/** Active owner memberships, for the last-owner guard's reads. */
+function fakeMemberships(activeOwners: readonly string[]): MembershipsRepository {
+  return {
+    findById: (_r: unknown, _c: unknown, id: string) =>
+      Promise.resolve(activeOwners.includes(id) ? { id, role: 'owner', status: 'active' } : null),
+    countActiveHoldersOfRoles: () => Promise.resolve(activeOwners.length),
+  } as unknown as MembershipsRepository;
+}
+
+function controllerWith(
+  repo: FakeBulkRoleRepository,
+  activeOwners: readonly string[] = [],
+): MemberBulkRoleController {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
-  return new MemberBulkRoleController(database, repo as unknown as MemberBulkRoleRepository);
+  return new MemberBulkRoleController(
+    database,
+    repo as unknown as MemberBulkRoleRepository,
+    undefined,
+    fakeMemberships(activeOwners),
+  );
 }
 
 async function expectStatus<T>(promise: Promise<T>, status: number): Promise<void> {
@@ -229,6 +247,21 @@ describe('MemberBulkRoleController (ADM bulk role assignment, x222)', () => {
     await controller.assign(context, orgAdmin(), 'org', { roleId: 'r1', membershipIds: ['m1'] });
     await controller.assign(context, owner(), 'org', { roleId: 'r1', membershipIds: ['m1'] });
     expect(repo.keepOwners).toEqual([true, false]);
+  });
+
+  it('409s an owner batch that would leave no active owner (ADM-01), no write', async () => {
+    const repo = new FakeBulkRoleRepository(
+      [role('r1', 'Coordinator', ['work.read'])],
+      new Set(['m1', 'm2']),
+    );
+    await expectStatus(
+      controllerWith(repo, ['m1']).assign(context, owner(), 'org', {
+        roleId: 'r1',
+        membershipIds: ['m1', 'm2'],
+      }),
+      409,
+    );
+    expect(repo.applied).toHaveLength(0);
   });
 
   it('guards the route with org.manage, so CapabilityGuard refuses a caller without it', () => {

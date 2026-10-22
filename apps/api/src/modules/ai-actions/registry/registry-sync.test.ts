@@ -61,7 +61,7 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  under /v1/organizations/:orgSlug/deliverables (list, create, get, versions, approvers, send).
  *  0212 (request messages, audit gap 4): +4 ops, GET/POST .../client-requests/:id/messages and
  *  GET/POST .../portal/requests/:id/messages. */
-const EXPECTED_ROUTE_COUNT = 753;
+const EXPECTED_ROUTE_COUNT = 755;
 
 interface LiveRoute {
   readonly method: string;
