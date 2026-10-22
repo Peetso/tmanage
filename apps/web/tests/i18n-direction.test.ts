@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { DISPLAY_LOCALES } from '../src/lib/api/display-preferences';
 import { localeDirection } from '../src/lib/i18n/direction';
-import { DEFAULT_LOCALE, LocaleStore } from '../src/lib/i18n/locale-store';
+import { DEFAULT_LOCALE, LOCALE_STORAGE_KEY, LocaleStore } from '../src/lib/i18n/locale-store';
 
 /**
  * i18n Slice 1 — Arabic is selectable, and the active locale drives the writing direction.
@@ -56,5 +56,37 @@ describe('the active-locale store', () => {
     unsubscribe();
     store.set('en-US');
     expect(seen).toEqual(['ar-EG']);
+  });
+});
+
+describe('the active-locale store boots from ?lang= and the cached locale (L12)', () => {
+  afterEach(() => {
+    window.history.replaceState(null, '', '/');
+    window.localStorage.clear();
+  });
+
+  it('reads ?lang=ar as ar-EG and persists it for the next reload', () => {
+    window.history.replaceState(null, '', '/pricing?lang=ar');
+    const store = new LocaleStore();
+    expect(store.get()).toBe('ar-EG');
+    expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('ar-EG');
+  });
+
+  it('rejects an off-allowlist ?lang=xx and falls back to the default', () => {
+    window.history.replaceState(null, '', '/pricing?lang=xx');
+    expect(new LocaleStore().get()).toBe(DEFAULT_LOCALE);
+    expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBeNull();
+  });
+
+  it('keeps a persisted ar-EG across a new store (a reload)', () => {
+    new LocaleStore('en-US').set('ar-EG');
+    expect(new LocaleStore().get()).toBe('ar-EG');
+  });
+
+  it('lets ?lang=en override a cached Arabic choice', () => {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, 'ar-EG');
+    window.history.replaceState(null, '', '/resources?lang=en');
+    expect(new LocaleStore().get()).toBe('en-US');
+    expect(window.localStorage.getItem(LOCALE_STORAGE_KEY)).toBe('en-US');
   });
 });

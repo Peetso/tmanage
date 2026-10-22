@@ -8,6 +8,7 @@ import { LocaleDirectionProvider } from '../components/providers/LocaleDirection
 import { QueryProvider } from '../components/providers/QueryProvider';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 import { UpdateToast } from '../components/pwa/UpdateToast';
+import { localeBootScript } from '../lib/i18n/locale-boot';
 
 /**
  * Manrope, self-hosted.
@@ -77,6 +78,9 @@ export const viewport: Viewport = {
   themeColor: '#090a09',
 };
 
+/** Serialised once per server process; the same bytes in every static page. */
+const LOCALE_BOOT_SCRIPT = localeBootScript();
+
 /**
  * The document.
  *
@@ -87,9 +91,14 @@ export const viewport: Viewport = {
  * deliberately not used here.
  *
  * `lang="en" dir="ltr"` is the server-rendered baseline: correct with no JavaScript and for
- * every Latin-script member. `LocaleDirectionProvider` (mounted just inside `<body>`) moves
- * `lang`/`dir` to the active locale once it is known and whenever a member changes it, so
- * `ar-EG` reads right-to-left without a reload. The CSS throughout uses logical properties, so
+ * every Latin-script member. The pages stay static (no `cookies()` here — shared hosting), so the
+ * tab's own locale is applied in the browser: the inline `<head>` script from `locale-boot.ts`
+ * reads an allowlisted `?lang=` (persisting it) or the cached locale and sets `lang`/`dir` before
+ * the first paint, and `LocaleDirectionProvider` (mounted just inside `<body>`) keeps them in step
+ * whenever a member changes locale, so `ar-EG` reads right-to-left on reload and without one.
+ * `suppressHydrationWarning` covers only `<html>`'s own attributes, which that script changes by
+ * design. There is no script-src CSP yet (`next.config.ts`), so the inline script needs no nonce;
+ * when one lands it must allow this script's hash or nonce. The CSS throughout uses logical properties, so
  * that switch is a value change rather than a rewrite. The Arabic face the tokens name
  * (Alexandria) is still not packaged — recorded as open in `docs/implementation-status.md`.
  */
@@ -101,7 +110,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       className={manrope.variable}
       data-theme="light"
       data-density="balanced"
+      suppressHydrationWarning
     >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: LOCALE_BOOT_SCRIPT }} />
+      </head>
       <body>
         <QueryProvider>
           <LocaleDirectionProvider>

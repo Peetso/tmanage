@@ -1,4 +1,5 @@
 import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences';
+import { LOCALE_STORAGE_KEY, resolveBootLocale } from './locale-boot';
 
 /**
  * i18n (NFR-02, I18N-01) — the one place the tab's *active* locale lives.
@@ -10,9 +11,11 @@ import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences'
  * read or changed, and the things that must react — {@link LocaleDirectionProvider}, the
  * formatters, `t()` — subscribe here. No screen reaches into the DOM or re-reads the preference.
  *
- * The initial value is read once from `localStorage` so a reload paints the right direction
- * before the preference query resolves (no left-to-right flash for an Arabic member); it falls
- * back to the shipped default. `localStorage` is a per-browser convenience here, never the
+ * The initial value is decided once, by the same rules as the inline `<head>` boot script
+ * (`locale-boot.ts`): an allowlisted `?lang=` first (and persisted), then the locale cached in
+ * `localStorage`, then the shipped default. So a reload, or a link carrying `?lang=ar`, paints the
+ * right direction before the preference query resolves, and the store agrees with what the boot
+ * script already set on `<html>`. `localStorage` is a per-browser convenience here, never the
  * source of truth — the server preference is — so a read that throws (private mode, blocked
  * storage) simply yields the default. Nothing is stored that identifies the member.
  */
@@ -20,7 +23,7 @@ import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences'
 export const DEFAULT_LOCALE: DisplayLocale = 'en-US';
 
 /** The key the active locale is cached under, for a flash-free reload. */
-export const LOCALE_STORAGE_KEY = 'tmanage:locale';
+export { LOCALE_STORAGE_KEY };
 
 const ALLOWED: ReadonlySet<string> = new Set(DISPLAY_LOCALES);
 
@@ -35,7 +38,7 @@ export class LocaleStore {
   private readonly listeners = new Set<LocaleListener>();
 
   constructor(initial?: DisplayLocale) {
-    this.current = initial ?? readPersisted() ?? DEFAULT_LOCALE;
+    this.current = initial ?? readBoot() ?? DEFAULT_LOCALE;
   }
 
   /** The active locale right now. */
@@ -71,14 +74,22 @@ export class LocaleStore {
   }
 }
 
-function readPersisted(): DisplayLocale | undefined {
-  if (typeof globalThis.localStorage === 'undefined') return undefined;
+function readPersisted(): string | null {
+  if (typeof globalThis.localStorage === 'undefined') return null;
   try {
-    const raw = globalThis.localStorage.getItem(LOCALE_STORAGE_KEY);
-    return isDisplayLocale(raw) ? raw : undefined;
+    return globalThis.localStorage.getItem(LOCALE_STORAGE_KEY);
   } catch {
-    return undefined;
+    return null;
   }
+}
+
+/** The boot locale: `?lang=` (persisted when it wins), else the cached locale. */
+function readBoot(): DisplayLocale | undefined {
+  const search = typeof globalThis.location === 'undefined' ? '' : globalThis.location.search;
+  const boot = resolveBootLocale(search, readPersisted());
+  if (!boot) return undefined;
+  if (boot.fromQuery) persist(boot.locale);
+  return boot.locale;
 }
 
 function persist(locale: DisplayLocale): void {
