@@ -1,45 +1,60 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import {
+  Button,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+  StateCapsule,
+  type CapsuleState,
+} from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
+import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
+  DEFAULT_TOKEN_EXPIRY,
+  TOKEN_EXPIRY_CHOICES,
   createPersonalAccessToken,
   listPersonalAccessTokens,
   revokePersonalAccessToken,
+  tokenStatus,
 } from '../../lib/api/personal-access-tokens';
 import type {
   CreatedPersonalAccessTokenView,
   PersonalAccessTokenView,
+  TokenExpiryDays,
+  TokenStatus,
 } from '../../lib/api/personal-access-tokens';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
-import '../../styles/screens/preferences.css';
+import '../../styles/screens/access-security.css';
 
 export interface SecurityScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
+  /** "Now", for the expiry status. Injected by tests. */
+  now?: () => Date;
 }
 
 /**
- * **Security — personal access tokens (module 20 Preferences & accessibility).**
+ * **Access tokens (t2-d) — the one place a member creates, reads and revokes their tokens.**
  *
- * The member's own API credentials for the TManage MCP server (and any other programmatic
- * client). A member creates a token (naming it, optionally with an expiry), copies the plaintext
- * — shown once, right after creation, and never again — and revokes any token they no longer
- * want. Everything is scoped to the caller's own membership by the server, behind `work.read`.
- *
- * The organization name is still a fixture, the reason every sibling settings screen gives: no
- * endpoint returns the current organization's profile by slug.
+ * A token lets another tool (Claude, ChatGPT, a script) work in TManage as the member. Every token
+ * expires: the create dialog requires 30, 90 or 365 days and never sends `null`. The plaintext is
+ * shown once, in the dialog, right after creation. Revoking (or removing an expired token) asks
+ * first. Revoked tokens leave the list. The server scopes everything to the caller's membership.
  */
 export function SecurityScreen({
   organizationSlug,
   organizationName,
   client,
+  now = () => new Date(),
 }: SecurityScreenProps) {
   const t = useT();
   const api = client ?? browserApiClient();
@@ -51,191 +66,359 @@ export function SecurityScreen({
     queryFn: () => listPersonalAccessTokens(api, organizationSlug),
   });
 
-  const [name, setName] = useState('');
-  const [expiry, setExpiry] = useState('');
-  const [created, setCreated] = useState<CreatedPersonalAccessTokenView | null>(null);
-
-  const create = useMutation({
-    mutationFn: (): Promise<CreatedPersonalAccessTokenView> => {
-      const trimmedExpiry = expiry.trim();
-      const expiresInDays = trimmedExpiry === '' ? null : Number(trimmedExpiry);
-      return createPersonalAccessToken(api, organizationSlug, {
-        name: name.trim(),
-        expiresInDays,
-      });
-    },
-    onSuccess: (result) => {
-      setCreated(result);
-      setName('');
-      setExpiry('');
-      void queries.invalidateQueries({ queryKey });
-    },
-  });
+  const [creating, setCreating] = useState<{ name: string } | null>(null);
+  const [confirming, setConfirming] = useState<PersonalAccessTokenView | null>(null);
 
   const revoke = useMutation({
     mutationFn: (tokenId: string) => revokePersonalAccessToken(api, organizationSlug, tokenId),
-    onSuccess: () => {
+    onSuccess: (_, tokenId) => {
+      queries.setQueryData<readonly PersonalAccessTokenView[]>(queryKey, (old) =>
+        old?.filter((token) => token.id !== tokenId),
+      );
+      setConfirming(null);
       void queries.invalidateQueries({ queryKey });
     },
   });
+
+  const at = now();
+  const visible = (tokens.data ?? []).filter((token) => token.revokedAt === null);
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      eyebrow={t('SecurityScreen.eyebrow')}
-      title={t('SecurityScreen.title')}
-      description={t('SecurityScreen.description')}
+      eyebrow={t('AccessTokens.eyebrow')}
+      title={t('AccessTokens.title')}
+      description={t('AccessTokens.description')}
     >
-      <div className="tm-prefs">
-        <section className="tm-prefs__main" aria-labelledby="tm-pat-list-heading">
-          <div className="tm-prefs-card">
-            <h2 id="tm-pat-list-heading" className="tm-prefs-eyebrow">
-              {t('SecurityScreen.yourTokensHeading')}
-            </h2>
-
-            {tokens.isPending ? (
-              <LoadingRegion label={t('SecurityScreen.loading')}>
-                <Skeleton />
-              </LoadingRegion>
-            ) : tokens.isError ? (
-              <InlineAlert tone="danger" title={t('SecurityScreen.loadError')}>
-                {errorMessage(tokens.error)}
-              </InlineAlert>
-            ) : tokens.data.length === 0 ? (
-              <p className="tm-prefs-card__body">{t('SecurityScreen.emptyBody')}</p>
-            ) : (
-              <ul className="tm-prefs-tokens">
-                {tokens.data.map((token) => (
-                  <li key={token.id} className="tm-prefs-token">
-                    <TokenRow token={token} />
-                    {token.revokedAt === null ? (
-                      <button
-                        type="button"
-                        className="tm-prefs-capsule"
-                        disabled={revoke.isPending}
-                        onClick={() => revoke.mutate(token.id)}
-                      >
-                        {t('SecurityScreen.revoke')}
-                      </button>
-                    ) : (
-                      <span className="tm-prefs-token__meta">{t('SecurityScreen.revoked')}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {revoke.isError ? (
-              <InlineAlert tone="danger" title={t('SecurityScreen.revokeError')}>
-                {errorMessage(revoke.error)}
-              </InlineAlert>
-            ) : null}
+      <div className="tm-sec">
+        <section className="tm-sec-card" aria-label={t('AccessTokens.title')}>
+          <div>
+            <Button tone="ink" onClick={() => setCreating({ name: '' })}>
+              {t('AccessTokens.newToken')}
+            </Button>
           </div>
+
+          {tokens.isPending ? (
+            <LoadingRegion label={t('AccessTokens.loading')}>
+              <Skeleton />
+            </LoadingRegion>
+          ) : tokens.isError ? (
+            <InlineAlert tone="danger" title={t('AccessTokens.loadError')}>
+              {errorMessage(tokens.error)}
+            </InlineAlert>
+          ) : visible.length === 0 ? (
+            <p className="tm-sec-card__body">{t('AccessTokens.empty')}</p>
+          ) : (
+            <ul className="tm-sec-tokens">
+              {visible.map((token) => {
+                const status = tokenStatus(token, at);
+                return (
+                  <li key={token.id} className="tm-sec-token" data-testid="tm-token-row">
+                    <TokenText token={token} status={status} now={at} />
+                    <StateCapsule state={CAPSULE[status]}>{t(STATUS_LABEL[status])}</StateCapsule>
+                    <Button
+                      tone="text"
+                      className="tm-sec-token__action"
+                      aria-label={`${t(ACTION_LABEL[status])} ${token.name}`}
+                      onClick={() =>
+                        status === 'expiring'
+                          ? setCreating({ name: token.name })
+                          : setConfirming(token)
+                      }
+                    >
+                      {t(ACTION_LABEL[status])}
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          <InlineAlert tone="neutral">{t('AccessTokens.defaultNote')}</InlineAlert>
         </section>
-
-        <div className="tm-prefs__side">
-          <form
-            className="tm-prefs-card"
-            aria-labelledby="tm-pat-create-heading"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setCreated(null);
-              create.mutate();
-            }}
-          >
-            <h2 id="tm-pat-create-heading" className="tm-prefs-card__title">
-              {t('SecurityScreen.createHeading')}
-            </h2>
-
-            <div className="tm-prefs-field">
-              <label className="tm-prefs-field__label" htmlFor="tm-pat-name">
-                {t('SecurityScreen.nameLabel')}
-              </label>
-              <input
-                id="tm-pat-name"
-                className="tm-prefs-field__control"
-                type="text"
-                value={name}
-                maxLength={190}
-                placeholder={t('SecurityScreen.namePlaceholder')}
-                onChange={(event) => setName(event.target.value)}
-                required
-              />
-            </div>
-
-            <div className="tm-prefs-field">
-              <label className="tm-prefs-field__label" htmlFor="tm-pat-expiry">
-                {t('SecurityScreen.expiryLabel')}
-              </label>
-              <input
-                id="tm-pat-expiry"
-                className="tm-prefs-field__control"
-                type="number"
-                min={1}
-                max={365}
-                value={expiry}
-                placeholder={t('SecurityScreen.expiryPlaceholder')}
-                onChange={(event) => setExpiry(event.target.value)}
-              />
-            </div>
-
-            {create.isError ? (
-              <InlineAlert tone="danger" title={t('SecurityScreen.createError')}>
-                {errorMessage(create.error)}
-              </InlineAlert>
-            ) : null}
-
-            {created ? (
-              <InlineAlert tone="success" title={t('SecurityScreen.createdTitle')}>
-                <p>{t('SecurityScreen.createdBody')}</p>
-                <code className="tm-prefs-secret" data-testid="tm-pat-secret">
-                  {created.token}
-                </code>
-              </InlineAlert>
-            ) : null}
-
-            <div>
-              <button
-                type="submit"
-                className="tm-prefs-capsule tm-prefs-capsule--ink"
-                disabled={create.isPending || name.trim() === ''}
-              >
-                {create.isPending ? t('SecurityScreen.creating') : t('SecurityScreen.createButton')}
-              </button>
-            </div>
-          </form>
-        </div>
       </div>
+
+      {creating ? (
+        <CreateTokenDialog
+          initialName={creating.name}
+          onClose={() => setCreating(null)}
+          create={(input) => createPersonalAccessToken(api, organizationSlug, input)}
+          onCreated={() => void queries.invalidateQueries({ queryKey })}
+        />
+      ) : null}
+
+      {confirming ? (
+        <Dialog
+          title={
+            tokenStatus(confirming, at) === 'expired'
+              ? t('AccessTokens.confirmRemoveTitle')
+              : t('AccessTokens.confirmRevokeTitle')
+          }
+          onClose={() => setConfirming(null)}
+        >
+          <p className="tm-sec-card__body">
+            <strong>{confirming.name}</strong> · {t('AccessTokens.confirmRevokeBody')}
+          </p>
+          {revoke.isError ? (
+            <InlineAlert tone="danger" title={t('AccessTokens.revokeError')} live>
+              {errorMessage(revoke.error)}
+            </InlineAlert>
+          ) : null}
+          <div className="tm-sec-actions">
+            <Button tone="outline" onClick={() => setConfirming(null)}>
+              {t('AccessTokens.cancel')}
+            </Button>
+            <Button
+              tone="destructive"
+              loading={revoke.isPending}
+              loadingLabel={t('AccessTokens.revoking')}
+              onClick={() => revoke.mutate(confirming.id)}
+            >
+              {tokenStatus(confirming, at) === 'expired'
+                ? t('AccessTokens.remove')
+                : t('AccessTokens.revoke')}
+            </Button>
+          </div>
+        </Dialog>
+      ) : null}
     </AppShell>
   );
 }
 
-function TokenRow({ token }: { token: PersonalAccessTokenView }) {
+const CAPSULE: Record<TokenStatus, CapsuleState> = {
+  active: 'done',
+  expiring: 'waiting',
+  expired: 'archived',
+  revoked: 'archived',
+};
+
+const STATUS_LABEL: Record<TokenStatus, MessageKey> = {
+  active: 'AccessTokens.statusActive',
+  expiring: 'AccessTokens.statusExpiring',
+  expired: 'AccessTokens.statusExpired',
+  revoked: 'AccessTokens.statusExpired',
+};
+
+const ACTION_LABEL: Record<TokenStatus, MessageKey> = {
+  active: 'AccessTokens.revoke',
+  expiring: 'AccessTokens.renew',
+  expired: 'AccessTokens.remove',
+  revoked: 'AccessTokens.remove',
+};
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function TokenText({
+  token,
+  status,
+  now,
+}: {
+  token: PersonalAccessTokenView;
+  status: TokenStatus;
+  now: Date;
+}) {
   const t = useT();
+  const format = useDisplayFormatters();
+  const day = (iso: string) => format.day(iso, { day: 'numeric', month: 'short' });
+  const parts: string[] = [];
+  if (status === 'expired' && token.expiresAt) {
+    parts.push(`${t('AccessTokens.expiredOn')} ${day(token.expiresAt)}`);
+  } else {
+    parts.push(`${t('AccessTokens.createdOn')} ${day(token.createdAt)}`);
+    if (token.expiresAt && status === 'expiring') {
+      const days = Math.max(
+        1,
+        Math.ceil((new Date(token.expiresAt).getTime() - now.getTime()) / DAY_MS),
+      );
+      parts.push(
+        `${t('AccessTokens.expiresInPrefix')} ${days} ${t('AccessTokens.expiresInSuffix')}`,
+      );
+    } else if (token.expiresAt) {
+      parts.push(`${t('AccessTokens.expiresOn')} ${day(token.expiresAt)}`);
+    }
+    if (token.lastUsedAt) {
+      parts.push(
+        new Date(token.lastUsedAt).toDateString() === now.toDateString()
+          ? t('AccessTokens.usedToday')
+          : `${t('AccessTokens.usedOn')} ${day(token.lastUsedAt)}`,
+      );
+    }
+  }
   return (
-    <span className="tm-prefs-token__text">
-      <span className="tm-prefs-token__name">{token.name}</span>
-      <code className="tm-prefs-kbd">{token.tokenPrefix}</code>
-      <span className="tm-prefs-token__meta">
-        {t('SecurityScreen.createdWord')} {formatDate(token.createdAt)}
-        {token.expiresAt
-          ? ` · ${t('SecurityScreen.expiresWord')} ${formatDate(token.expiresAt)}`
-          : ` · ${t('SecurityScreen.noExpiry')}`}
-        {token.lastUsedAt
-          ? ` · ${t('SecurityScreen.lastUsedWord')} ${formatDate(token.lastUsedAt)}`
-          : ` · ${t('SecurityScreen.neverUsed')}`}
-      </span>
+    <span className="tm-sec-token__text">
+      <span className="tm-sec-token__name">{token.name}</span>
+      <span className="tm-sec-token__meta">{parts.join(' · ')}</span>
     </span>
   );
 }
 
-function formatDate(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toLocaleDateString();
+function CreateTokenDialog({
+  initialName,
+  onClose,
+  create,
+  onCreated,
+}: {
+  initialName: string;
+  onClose: () => void;
+  create: (input: {
+    name: string;
+    expiresInDays: TokenExpiryDays;
+  }) => Promise<CreatedPersonalAccessTokenView>;
+  onCreated: () => void;
+}) {
+  const t = useT();
+  const [name, setName] = useState(initialName);
+  const [expiry, setExpiry] = useState<TokenExpiryDays>(DEFAULT_TOKEN_EXPIRY);
+  const [created, setCreated] = useState<CreatedPersonalAccessTokenView | null>(null);
+  const [copied, setCopied] = useState(false);
+  const nameId = useId();
+
+  const mutation = useMutation({
+    mutationFn: () => create({ name: name.trim(), expiresInDays: expiry }),
+    onSuccess: (result) => {
+      setCreated(result);
+      onCreated();
+    },
+  });
+
+  if (created) {
+    return (
+      <Dialog title={t('AccessTokens.createdTitle')} onClose={onClose}>
+        <p className="tm-sec-card__body">{t('AccessTokens.createdBody')}</p>
+        <code className="tm-sec-secret" dir="ltr" data-testid="tm-token-secret">
+          {created.token}
+        </code>
+        <div className="tm-sec-actions">
+          <Button
+            tone="outline"
+            onClick={() => {
+              void navigator.clipboard?.writeText(created.token).then(() => setCopied(true));
+            }}
+          >
+            {copied ? t('AccessTokens.copied') : t('AccessTokens.copy')}
+          </Button>
+          <Button tone="ink" onClick={onClose}>
+            {t('AccessTokens.done')}
+          </Button>
+        </div>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog title={t('AccessTokens.dialogTitle')} onClose={onClose}>
+      <form
+        className="tm-sec-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          mutation.mutate();
+        }}
+      >
+        <div className="tm-sec-field">
+          <label className="tm-sec-field__label" htmlFor={nameId}>
+            {t('AccessTokens.nameLabel')}
+          </label>
+          <input
+            id={nameId}
+            className="tm-sec-input"
+            type="text"
+            value={name}
+            maxLength={190}
+            placeholder={t('AccessTokens.namePlaceholder')}
+            onChange={(event) => setName(event.target.value)}
+            required
+          />
+        </div>
+        <fieldset className="tm-sec-field tm-sec-fieldset">
+          <legend className="tm-sec-field__label">{t('AccessTokens.expiryLabel')}</legend>
+          <div className="tm-sec-choices">
+            {TOKEN_EXPIRY_CHOICES.map((days) => (
+              <label key={days} className="tm-sec-choice">
+                <input
+                  type="radio"
+                  name="tm-token-expiry"
+                  value={days}
+                  checked={expiry === days}
+                  onChange={() => setExpiry(days)}
+                  required
+                />
+                {t(EXPIRY_LABEL[days])}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {mutation.isError ? (
+          <InlineAlert tone="danger" title={t('AccessTokens.createError')} live>
+            {errorMessage(mutation.error)}
+          </InlineAlert>
+        ) : null}
+        <div className="tm-sec-actions">
+          <Button tone="outline" onClick={onClose}>
+            {t('AccessTokens.cancel')}
+          </Button>
+          <Button
+            tone="ink"
+            type="submit"
+            disabled={name.trim() === ''}
+            loading={mutation.isPending}
+            loadingLabel={t('AccessTokens.creating')}
+          >
+            {t('AccessTokens.create')}
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
 }
 
-function errorMessage(error: unknown): string {
+const EXPIRY_LABEL: Record<TokenExpiryDays, MessageKey> = {
+  30: 'AccessTokens.days30',
+  90: 'AccessTokens.days90',
+  365: 'AccessTokens.days365',
+};
+
+/** A modal card on a scrim: labelled, Escape closes it, focus starts inside it. */
+export function Dialog({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const titleId = useId();
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const node = ref.current;
+    if (node && !node.contains(document.activeElement)) node.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div className="tm-sec-dialog-scrim">
+      <div
+        ref={ref}
+        className="tm-sec-card"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+      >
+        <h2 id={titleId} className="tm-sec-card__title">
+          {title}
+        </h2>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+export function errorMessage(error: unknown): string {
   if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
   return 'Something went wrong. Please try again.';
 }

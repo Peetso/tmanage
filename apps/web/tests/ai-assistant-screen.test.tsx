@@ -106,51 +106,23 @@ describe('AiAssistantScreen', () => {
     expect(screen.getByRole('tab', { name: 'ChatGPT' }).getAttribute('aria-selected')).toBe('true');
   });
 
-  it('creates a key, shows it once, and fills it into the settings', async () => {
-    let tokens: PersonalAccessTokenView[] = [];
-    const { calls } = mount((call) => {
-      if (call.method === 'POST') {
-        const created = token({ id: 'new', name: 'Laptop' });
-        tokens = [created];
-        return { status: 201, body: { ...created, token: 'tmanage_pat_secretvalue' } };
-      }
-      return { status: 200, body: { tokens } };
-    });
-
+  it('creates no token itself and links to the Access tokens page', async () => {
+    const { calls, container } = mount(() => ({ status: 200, body: { tokens: [] } }));
     await waitFor(() => expect(screen.getByText('Not connected')).toBeTruthy());
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Laptop' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Create key' }));
-
-    await waitFor(() =>
-      expect(screen.getByTestId('tm-ai-secret').textContent).toBe('tmanage_pat_secretvalue'),
-    );
-    fireEvent.click(screen.getByRole('tab', { name: 'Claude Code' }));
-    expect(screen.getByTestId('tm-ai-snippet').textContent).toContain(
-      '--header "Authorization: Bearer tmanage_pat_secretvalue"',
-    );
-    const post = calls.find((call) => call.method === 'POST');
-    expect(post?.url).toContain('/v1/organizations/northstar/me/personal-access-tokens');
-    expect(JSON.parse(post?.body ?? '{}')).toEqual({ name: 'Laptop', expiresInDays: null });
-    await waitFor(() => expect(screen.getByText('Waiting for your assistant')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: 'Create key' })).toBeNull();
+    expect(container.querySelectorAll('a[href="/northstar/settings/security"]').length).toBe(2);
+    expect(calls.every((call) => call.method === 'GET')).toBe(true);
   });
 
-  it('shows connected with the last use, and revokes a key', async () => {
-    let tokens = [token({ lastUsedAt: '2026-10-18T09:30:00.000Z' })];
-    const { calls } = mount((call) => {
-      if (call.method === 'DELETE') {
-        tokens = [];
-        return { status: 204 };
-      }
-      return { status: 200, body: { tokens } };
-    });
-
+  it('shows connected with the last use of an active key', async () => {
+    mount(() => ({
+      status: 200,
+      body: { tokens: [token({ lastUsedAt: '2026-10-18T09:30:00.000Z' })] },
+    }));
     const status = await screen.findByTestId('tm-ai-status');
     await waitFor(() => expect(within(status).getByText('Connected')).toBeTruthy());
     expect(status.textContent).toContain('Claude on my laptop');
-
-    fireEvent.click(screen.getByRole('button', { name: 'Revoke Claude on my laptop' }));
-    await waitFor(() => expect(screen.getByText('Not connected')).toBeTruthy());
-    expect(calls.some((call) => call.method === 'DELETE' && call.url.endsWith('/t1'))).toBe(true);
+    expect(screen.queryByRole('button', { name: /Revoke/u })).toBeNull();
   });
 
   it('renders the API refusal rather than a blank page', async () => {

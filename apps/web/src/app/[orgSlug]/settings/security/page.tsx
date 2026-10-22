@@ -5,10 +5,9 @@ import { SecurityScreen } from '../../../../components/screens/SecurityScreen';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
 
 /**
- * **Security — personal access tokens (module 20 Preferences & accessibility).**
- *
- * The member's own API tokens for the TManage MCP server and other programmatic clients, at
- * `/{orgSlug}/settings/security`. The organization name is still a fixture, the reason every
+ * **Access tokens (t2-d)** — the one page where a member creates, reads and revokes their own API
+ * tokens for the TManage MCP server and other programmatic clients, at
+ * `/{orgSlug}/settings/security`. Every token expires. The organization name is still a fixture, the reason every
  * sibling settings screen gives: no endpoint returns the current organization's profile by slug.
  */
 export default function SecurityPage({ params }: { params: Promise<{ orgSlug: string }> }) {

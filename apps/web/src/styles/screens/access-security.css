@@ -1,0 +1,236 @@
+/*
+ * Two-step sign-in (t2-c) and Access tokens (t2-d) — Figma frames 371:1901 / 371:2333 and
+ * 371:2126 / 371:2558. TManage tokens only. Layout uses logical properties so the Arabic frames
+ * mirror on their own; the QR, the key and the codes stay LTR through `dir="ltr"` in the markup.
+ */
+
+.tm-sec {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  max-inline-size: 720px;
+}
+
+.tm-sec-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  margin: 0;
+  padding: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  min-inline-size: 0;
+}
+
+.tm-sec-card--dialog {
+  max-inline-size: 560px;
+}
+
+.tm-sec-card__title {
+  margin: 0;
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-sec-card__body {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+  text-wrap: pretty;
+}
+
+.tm-sec-qr {
+  align-self: flex-start;
+  inline-size: 168px;
+  block-size: 168px;
+  padding: var(--s1);
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+}
+
+.tm-sec-qr svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.tm-sec-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-sec-field__label {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-sec-field__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-sec-input {
+  box-sizing: border-box;
+  flex: 1;
+  inline-size: 100%;
+  min-block-size: 48px;
+  padding: 0 var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.tm-sec-input:focus-visible {
+  outline: none;
+  border-color: var(--ink-950);
+  box-shadow: var(--focus-ring);
+}
+
+.tm-sec-input--readout {
+  background: var(--paper-150);
+  color: var(--ink-500);
+  letter-spacing: 0.04em;
+}
+
+.tm-sec-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s3);
+}
+
+.tm-sec-codes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2) var(--s6);
+  margin: 0;
+  padding: var(--s4);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-950);
+}
+
+.tm-sec-secret {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: var(--s3) var(--s4);
+  border-radius: var(--r-control);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: var(--t-ui-sm);
+  color: var(--ink-950);
+}
+
+/* Access tokens list (t2-d). */
+.tm-sec-tokens {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-sec-token {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding-block: var(--s6);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-sec-token__text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-sec-token__name {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-sec-token__meta {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-sec-token__action {
+  min-inline-size: 64px;
+}
+
+.tm-sec-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-sec-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-sec-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-sec-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: 10px var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  font-size: var(--t-ui-sm);
+  cursor: pointer;
+}
+
+.tm-sec-choice:has(input:checked) {
+  border-color: var(--ink-950);
+  color: var(--ink-950);
+}
+
+.tm-sec-choice:has(input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.tm-sec-dialog-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: color-mix(in srgb, var(--ink-950) 32%, transparent);
+}
+
+.tm-sec-dialog-scrim .tm-sec-card {
+  inline-size: min(100%, 520px);
+}

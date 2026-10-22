@@ -2,22 +2,15 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { PreferencesNav } from './PreferencesScreen';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { connectorAddress, deploymentAddress } from '../../lib/ai-connector-address';
 import { useOrganizationName } from '../../lib/use-organization-names';
-import {
-  createPersonalAccessToken,
-  listPersonalAccessTokens,
-  revokePersonalAccessToken,
-} from '../../lib/api/personal-access-tokens';
-import type {
-  CreatedPersonalAccessTokenView,
-  PersonalAccessTokenView,
-} from '../../lib/api/personal-access-tokens';
+import { listPersonalAccessTokens } from '../../lib/api/personal-access-tokens';
+import type { PersonalAccessTokenView } from '../../lib/api/personal-access-tokens';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
@@ -42,8 +35,9 @@ export interface AiAssistantScreenProps {
  * TManage runs no paid AI model of its own. Instead, the TManage MCP server (`apps/mcp-server`)
  * lets the assistant a person already uses work in TManage over the ordinary HTTP API, signed in
  * with a personal access token. This screen is the front door to that: what it does in plain
- * words, the connection details for this deployment, the token itself (created here, shown once,
- * revocable here), and whether an assistant has used it.
+ * words, the connection details for this deployment, the member's active tokens and whether an
+ * assistant has used one. Tokens are created and revoked on the one Access tokens page
+ * (`/{org}/settings/security`, t2-d), where every token gets an expiry; this screen links there.
  *
  * Everything rides the existing personal-access-token routes (`…/me/personal-access-tokens`,
  * behind `work.read`, scoped by the server to the caller's own membership), so a token can only
@@ -57,7 +51,6 @@ export function AiAssistantScreen({
   now = () => new Date(),
 }: AiAssistantScreenProps) {
   const api = client ?? browserApiClient();
-  const queries = useQueryClient();
   const t = useT();
   const queryKey = ['personal-access-tokens', organizationSlug] as const;
 
@@ -90,28 +83,8 @@ export function AiAssistantScreen({
     queryFn: () => listPersonalAccessTokens(api, organizationSlug),
   });
 
-  const [name, setName] = useState('');
-  const [created, setCreated] = useState<CreatedPersonalAccessTokenView | null>(null);
   const [assistant, setAssistant] = useState<AssistantId>('claude');
   const workspaceName = useOrganizationName(organizationSlug, organizationName);
-
-  const create = useMutation({
-    mutationFn: (): Promise<CreatedPersonalAccessTokenView> =>
-      createPersonalAccessToken(api, organizationSlug, { name: name.trim(), expiresInDays: null }),
-    onSuccess: (result) => {
-      setCreated(result);
-      setName('');
-      void queries.invalidateQueries({ queryKey });
-    },
-  });
-
-  const revoke = useMutation({
-    mutationFn: (tokenId: string) => revokePersonalAccessToken(api, organizationSlug, tokenId),
-    onSuccess: (_, tokenId) => {
-      if (created?.id === tokenId) setCreated(null);
-      void queries.invalidateQueries({ queryKey });
-    },
-  });
 
   const active = (tokens.data ?? []).filter((token) => isActive(token, now()));
   const status = connectionStatus(active);
@@ -204,7 +177,7 @@ export function AiAssistantScreen({
             <AssistantPanel
               assistant={assistant}
               address={address}
-              token={created?.token ?? null}
+              token={null}
               workspaceName={workspaceName}
             />
 
@@ -213,10 +186,6 @@ export function AiAssistantScreen({
                 {t('AiAssistantScreen.helpLink')}
               </Link>
             </p>
-
-            {created === null ? (
-              <p className="tm-prefs-card__note">{t('AiAssistantScreen.keyFilledNote')}</p>
-            ) : null}
           </section>
         </div>
 
@@ -247,62 +216,20 @@ export function AiAssistantScreen({
             )}
           </section>
 
-          <form
-            className="tm-prefs-card"
-            aria-labelledby="tm-ai-create-heading"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setCreated(null);
-              create.mutate();
-            }}
-          >
+          <section className="tm-prefs-card" aria-labelledby="tm-ai-create-heading">
             <h2 id="tm-ai-create-heading" className="tm-prefs-card__title">
               {t('AiAssistantScreen.createKeyHeading')}
             </h2>
-            <div className="tm-prefs-field">
-              <label className="tm-prefs-field__label" htmlFor="tm-ai-key-name">
-                {t('AiAssistantScreen.nameLabel')}
-              </label>
-              <input
-                id="tm-ai-key-name"
-                className="tm-prefs-field__control"
-                type="text"
-                value={name}
-                maxLength={190}
-                placeholder={t('AiAssistantScreen.namePlaceholder')}
-                onChange={(event) => setName(event.target.value)}
-                required
-              />
-            </div>
-
-            {create.isError ? (
-              <InlineAlert tone="danger" title={t('AiAssistantScreen.createKeyError')}>
-                {errorMessage(create.error)}
-              </InlineAlert>
-            ) : null}
-
-            {created ? (
-              <InlineAlert tone="success" title={t('AiAssistantScreen.keyCreatedTitle')}>
-                <p>{t('AiAssistantScreen.keyCreatedBody')}</p>
-                <code className="tm-prefs-secret" data-testid="tm-ai-secret">
-                  {created.token}
-                </code>
-                <CopyButton text={created.token} label={t('AiAssistantScreen.copyKey')} />
-              </InlineAlert>
-            ) : null}
-
+            <p className="tm-prefs-card__body">{t('AccessTokens.aiCreateBody')}</p>
             <div>
-              <button
-                type="submit"
+              <Link
                 className="tm-prefs-capsule tm-prefs-capsule--ink"
-                disabled={create.isPending || name.trim() === ''}
+                href={`/${organizationSlug}/settings/security`}
               >
-                {create.isPending
-                  ? t('AiAssistantScreen.creating')
-                  : t('AiAssistantScreen.createKey')}
-              </button>
+                {t('AccessTokens.aiCreateLink')}
+              </Link>
             </div>
-          </form>
+          </section>
 
           <section className="tm-prefs-card" aria-labelledby="tm-ai-keys-heading">
             <h2 id="tm-ai-keys-heading" className="tm-prefs-card__title">
@@ -326,23 +253,9 @@ export function AiAssistantScreen({
                           : ''}
                       </span>
                     </span>
-                    <button
-                      type="button"
-                      className="tm-prefs-capsule"
-                      aria-label={`${t('AiAssistantScreen.revokeAria')} ${token.name}`}
-                      disabled={revoke.isPending}
-                      onClick={() => revoke.mutate(token.id)}
-                    >
-                      {t('AiAssistantScreen.revoke')}
-                    </button>
                   </li>
                 ))}
               </ul>
-            ) : null}
-            {revoke.isError ? (
-              <InlineAlert tone="danger" title={t('AiAssistantScreen.revokeKeyError')}>
-                {errorMessage(revoke.error)}
-              </InlineAlert>
             ) : null}
             <p className="tm-prefs-card__note">
               {t('AiAssistantScreen.revokeNotePrefix')}{' '}

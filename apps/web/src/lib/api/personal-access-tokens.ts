@@ -28,6 +28,27 @@ export interface CreatedPersonalAccessTokenView extends PersonalAccessTokenView 
   readonly token: string;
 }
 
+/**
+ * The expiry choices the Access tokens page offers (t2-d). Every token expires: the client never
+ * sends `null`, even though the route still accepts it for older callers.
+ */
+export const TOKEN_EXPIRY_CHOICES = [30, 90, 365] as const;
+export type TokenExpiryDays = (typeof TOKEN_EXPIRY_CHOICES)[number];
+export const DEFAULT_TOKEN_EXPIRY: TokenExpiryDays = 90;
+
+/** How a token reads on the page: in use, close to its end (seven days or less), or finished. */
+export type TokenStatus = 'active' | 'expiring' | 'expired' | 'revoked';
+
+const EXPIRING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function tokenStatus(token: PersonalAccessTokenView, now: Date): TokenStatus {
+  if (token.revokedAt !== null) return 'revoked';
+  if (token.expiresAt === null) return 'active';
+  const left = new Date(token.expiresAt).getTime() - now.getTime();
+  if (left <= 0) return 'expired';
+  return left <= EXPIRING_WINDOW_MS ? 'expiring' : 'active';
+}
+
 function collectionPath(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/me/personal-access-tokens`;
 }
@@ -45,7 +66,7 @@ export async function listPersonalAccessTokens(
 export async function createPersonalAccessToken(
   client: ApiClient,
   organizationSlug: string,
-  input: { name: string; expiresInDays: number | null },
+  input: { name: string; expiresInDays: TokenExpiryDays },
 ): Promise<CreatedPersonalAccessTokenView> {
   const { data } = await client.request<CreatedPersonalAccessTokenView>({
     method: 'POST',
