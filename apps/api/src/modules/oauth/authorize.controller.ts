@@ -1,4 +1,5 @@
-import { Controller, Get, Inject, Query, Req, Res } from '@nestjs/common';
+import { Controller, Get, Inject, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { AiPlatformSwitchGuard } from './ai-access.js';
 import { NoTenant, Public } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { OAuthError, type OAuthService } from './oauth.service.js';
@@ -29,6 +30,8 @@ interface ReplyLike {
  * challenge is also fatal with no redirect (T-OA-02). Only errors discovered after the redirect is
  * trusted (response_type, resource, scope) are sent back to the client, always carrying `iss`.
  */
+// S11: 503 while the platform AI switch is off.
+@UseGuards(AiPlatformSwitchGuard)
 @Controller('oauth')
 export class OAuthAuthorizeController {
   constructor(

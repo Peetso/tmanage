@@ -1,5 +1,22 @@
 import { randomUUID } from 'node:crypto';
-import { Body, Controller, Get, HttpCode, Inject, Post, Query, Req, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
+import {
+  AI_ACCESS_SWITCHES,
+  AiPlatformSwitchGuard,
+  aiWorkspaceDisabledError,
+} from './ai-access.js';
+import type { AiAccessSwitches } from './ai-access.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import { Ctx, CurrentSession, NoTenant, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
@@ -67,11 +84,14 @@ export interface ConsentView {
  * All three refuse anything but a cookie session: a personal access token or an AI grant must
  * never approve an OAuth client (B3, "cannot create OAuth clients or change its own grant").
  */
+// S11: 503 while the platform AI switch is off.
+@UseGuards(AiPlatformSwitchGuard)
 @Controller()
 export class OAuthConsentController {
   constructor(
     @Inject(OAUTH_SERVICE) private readonly oauth: OAuthService,
     @Inject(CONSENT_TICKETS) private readonly tickets: ConsentTickets,
+    @Inject(AI_ACCESS_SWITCHES) private readonly aiAccess: AiAccessSwitches,
   ) {}
 
   @Get('v1/oauth/consent')
@@ -107,6 +127,10 @@ export class OAuthConsentController {
     const validated = await this.validate(body ?? {}, state.correlationId);
     if (!this.tickets.verify(body?.ticket, bindingOf(session, validated))) {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'consent_ticket_invalid');
+    }
+    // S11: no new connection while the workspace owner has AI apps turned off.
+    if (!(await this.aiAccess.organizationOn(context.organizationId, state.correlationId))) {
+      throw aiWorkspaceDisabledError();
     }
     const role = state.membership?.role ?? '';
     const granted = resolveGrantedScopes(body?.scopes, role);

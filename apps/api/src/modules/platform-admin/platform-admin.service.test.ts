@@ -50,6 +50,7 @@ function harness() {
     signOutEverywhere: vi.fn(async (_i: string, a: PlatformAuditInput) => (keep(a), 2)),
     recordAudit: vi.fn(async (a: PlatformAuditInput) => keep(a)),
     writeSetting: vi.fn(async (_k: string, _v: string, a: PlatformAuditInput) => keep(a)),
+    readSetting: vi.fn(async () => null),
   } as unknown as PlatformAdminRepository;
   const resets = { request: vi.fn(async () => ({})) };
   const service = new PlatformAdminService(
@@ -70,11 +71,13 @@ describe('PlatformAdminService', () => {
     await service.signOutEverywhere(actor, PERSON, { reason: REASON }, ctx);
     await service.sendPasswordReset(actor, PERSON, { reason: REASON }, ctx);
     await service.setPublicSignup(actor, { open: false, reason: REASON }, ctx);
+    await service.setAiAccess(actor, { on: false, reason: REASON }, ctx);
     expect(audits.map((a) => [a.action, a.targetId, a.reason, a.actorEmail])).toEqual([
       ['platform.company_suspended', ORG, REASON, 'peter@example.com'],
       ['platform.user_signed_out', PERSON, REASON, 'peter@example.com'],
       ['platform.password_reset_sent', PERSON, REASON, 'peter@example.com'],
       ['platform.public_signup_closed', null, REASON, 'peter@example.com'],
+      ['platform.ai_access_off', null, REASON, 'peter@example.com'],
     ]);
     expect(resets.request).toHaveBeenCalledWith('sara@x.test', ctx);
   });
@@ -86,6 +89,7 @@ describe('PlatformAdminService', () => {
       () => service.signOutEverywhere(actor, PERSON, { reason: ' no ' }, ctx),
       () => service.sendPasswordReset(actor, PERSON, {}, ctx),
       () => service.setPublicSignup(actor, { open: true }, ctx),
+      () => service.setAiAccess(actor, { on: false }, ctx),
     ];
     for (const run of tries) await expect(run()).rejects.toMatchObject({ status: 400 });
     expect(repository.setSuspended).not.toHaveBeenCalled();

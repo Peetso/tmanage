@@ -64,6 +64,15 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/ai/approvals/:id/decline',
     reason: 'mcp_endpoint',
   },
+  // S11: the Connected apps page's API — list, disconnect, and the workspace AI switch. A cookie
+  // session only; an AI principal must never change its own connection or switch (B3).
+  { method: 'GET', path: '/v1/organizations/:orgSlug/oauth/grants', reason: 'oauth' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/oauth/grants/:grantId/revoke',
+    reason: 'oauth',
+  },
+  { method: 'PUT', path: '/v1/organizations/:orgSlug/oauth/ai-access', reason: 'oauth' },
   { method: 'GET', path: '/public/setup/', reason: 'setup' },
   { method: 'POST', path: '/public/setup/', reason: 'setup' },
   { method: 'POST', path: '/public/site/contact', reason: 'public_site' },
@@ -275,6 +284,7 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/v1/platform/people/:userId/sign-out', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/settings', reason: 'platform_admin' },
   { method: 'PUT', path: '/v1/platform/settings/public-signup', reason: 'platform_admin' },
+  { method: 'PUT', path: '/v1/platform/settings/ai-access', reason: 'platform_admin' },
   { method: 'POST', path: '/v1/platform/step-up', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/public/sign-up/', reason: 'signup' },
   { method: 'POST', path: '/v1/public/sign-up/', reason: 'signup' },

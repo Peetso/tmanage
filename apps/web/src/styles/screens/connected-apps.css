@@ -1,0 +1,309 @@
+/*
+ * S0-2 Connected apps (MCP connector S11) — Figma 366:1214 (EN) / 366:1352 (AR), empty state
+ * 366:1490 / 366:1499. Tokens only; logical properties so the Arabic frame mirrors through the
+ * document direction.
+ */
+
+.tm-connected {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  color: var(--ink-950);
+}
+
+/* Mono/Caption: "Owner view · …", "Connected · 4". */
+.tm-connected__caption,
+.tm-connected__owner-eyebrow,
+.tm-connected__meta {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-connected__caption,
+.tm-connected__owner-eyebrow {
+  text-transform: uppercase;
+}
+
+/* Owner control: the ink card with the lime switch. */
+.tm-connected__owner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s5);
+  padding: var(--s5) var(--s6);
+  background: var(--ink-950);
+  border-radius: var(--r-compact);
+}
+
+.tm-connected__owner-text {
+  display: flex;
+  flex: 1 1 0;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-connected__owner-eyebrow {
+  color: var(--lime-500);
+}
+
+/* Heading/Card. */
+.tm-connected__owner-title {
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--paper-0);
+  cursor: pointer;
+}
+
+/* UI/SM. */
+.tm-connected__owner-hint {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--line-300);
+}
+
+.tm-connected__switch {
+  appearance: none;
+  position: relative;
+  flex: none;
+  inline-size: 46px;
+  block-size: 28px;
+  margin: 0;
+  border-radius: var(--r-capsule);
+  background: var(--line-700);
+  border: var(--b-quiet) solid var(--ink-500);
+  cursor: pointer;
+  transition: background 120ms var(--ease);
+}
+
+.tm-connected__switch::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 3px;
+  inset-inline-start: 3px;
+  inline-size: 20px;
+  block-size: 20px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  transition: inset-inline-start 120ms var(--ease);
+}
+
+.tm-connected__switch:checked {
+  background: var(--lime-500);
+  border-color: var(--lime-500);
+}
+
+.tm-connected__switch:checked::after {
+  inset-inline-start: 21px;
+}
+
+.tm-connected__switch:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-connected__switch[aria-busy='true'] {
+  cursor: progress;
+}
+
+/* The app cards. */
+.tm-connected__list,
+.tm-connected__scopes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-connected__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.tm-connected__app {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+}
+
+.tm-connected__app-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-connected__app-identity {
+  display: flex;
+  flex: 1 1 0;
+  min-inline-size: 0;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-connected__monogram {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 44px;
+  block-size: 44px;
+  background: var(--ink-950);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  color: var(--paper-0);
+  font-family: var(--font-latin);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-connected__app-text {
+  display: flex;
+  min-inline-size: 0;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-connected__app-name-row,
+.tm-connected__scopes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-connected__app-name {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+/* Capsules: Verified (lime), Unverified (danger outline), scope chips (lime-100). Caption type. */
+.tm-connected__badge,
+.tm-connected__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-capsule);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tm-connected__badge--verified {
+  background: var(--lime-500);
+  color: var(--ink-950);
+}
+
+.tm-connected__badge--unverified {
+  background: var(--paper-50);
+  border: var(--b-quiet) solid var(--danger-600);
+  color: var(--danger-600);
+}
+
+.tm-connected__scope {
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+/* Revoke: the outline capsule with danger ink. */
+.tm-connected__revoke.tm-button {
+  flex: none;
+  border-radius: var(--r-capsule);
+  color: var(--danger-600);
+}
+
+.tm-connected__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s1) var(--s3);
+}
+
+/* Empty state. */
+.tm-connected__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s8);
+  background: var(--paper-0);
+  border: var(--b-structural) dashed var(--line-300);
+  border-radius: var(--r-compact);
+  text-align: center;
+}
+
+.tm-connected__empty-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 48px;
+  block-size: 48px;
+  background: var(--paper-50);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  color: var(--ink-500);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-connected__empty-title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-connected__empty-body {
+  margin: 0;
+  max-inline-size: 480px;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-connected__connect {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s5);
+  background: var(--ink-950);
+  border-radius: var(--r-capsule);
+  color: var(--paper-0);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tm-connected__connect:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (max-width: 640px) {
+  .tm-connected__owner {
+    padding: var(--s5);
+  }
+
+  .tm-connected__app-row {
+    flex-wrap: wrap;
+  }
+}

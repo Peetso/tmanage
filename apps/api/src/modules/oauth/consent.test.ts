@@ -142,7 +142,12 @@ describe('OAuthConsentController', () => {
     buildRedirect: (uri: string) => `${uri}?error=access_denied`,
   } as unknown as OAuthService;
   const tickets = new ConsentTickets(Buffer.alloc(32, 1));
-  const controller = new OAuthConsentController(oauth, tickets);
+  const aiOn = {
+    platformOn: async () => true,
+    organizationOn: async () => true,
+    forget: () => undefined,
+  };
+  const controller = new OAuthConsentController(oauth, tickets, aiOn);
   const reply = { header: () => reply };
   const context = { organizationId: 'org', userId: 'user-1', membershipId: 'm' } as TenantContext;
 

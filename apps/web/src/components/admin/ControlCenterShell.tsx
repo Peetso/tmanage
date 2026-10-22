@@ -18,6 +18,7 @@ export type ControlCenterSection =
   | 'offboarding'
   | 'automations'
   | 'integrations'
+  | 'connected-apps'
   | 'storage'
   | 'modules'
   | 'security'
@@ -101,6 +102,14 @@ const GROUPS: readonly { label: string; labelKey?: MessageKey; items: readonly S
         labelKey: 'ControlCenterShell.integrations',
         href: '/automations/apps',
         capability: 'org.manage',
+      },
+      // S11 (Figma S0-2): every internal member manages the AI apps they connected.
+      {
+        id: 'connected-apps',
+        label: 'Connected apps',
+        labelKey: 'ControlCenterShell.connectedApps',
+        href: '/settings/connected-apps',
+        capability: 'work.read',
       },
       {
         id: 'storage',

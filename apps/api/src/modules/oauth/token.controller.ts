@@ -1,4 +1,5 @@
-import { Body, Controller, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { AiPlatformSwitchGuard } from './ai-access.js';
 import { NoTenant, Public } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { OAuthError, type OAuthService, type TokenResponse } from './oauth.service.js';
@@ -23,6 +24,8 @@ interface ReplyLike {
  * failure is the RFC error shape `{error, error_description}`, never TManage's own error body.
  * Public and no-tenant: the client proves itself with the code/verifier, not a session.
  */
+// S11: 503 while the platform AI switch is off.
+@UseGuards(AiPlatformSwitchGuard)
 @Controller('oauth')
 export class OAuthTokenController {
   constructor(@Inject(OAUTH_SERVICE) private readonly oauth: OAuthService) {}

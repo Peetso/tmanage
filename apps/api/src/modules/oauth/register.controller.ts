@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { Body, Controller, Inject, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Inject, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { AiPlatformSwitchGuard } from './ai-access.js';
 import { NoTenant, Public } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { DcrValidationError, validateDcrRegistration } from './dcr-metadata.js';
@@ -27,6 +28,8 @@ interface ReplyLike {
  * it survives a restart. Public and no-tenant: registration establishes an identity rather than
  * exercising one.
  */
+// S11: 503 while the platform AI switch is off.
+@UseGuards(AiPlatformSwitchGuard)
 @Controller('oauth')
 export class OAuthRegisterController {
   constructor(@Inject(OAUTH_SERVICE) private readonly oauth: OAuthService) {}

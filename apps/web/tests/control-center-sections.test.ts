@@ -17,7 +17,7 @@ describe('controlCenterSectionsFor', () => {
   });
 
   it('hides the pages a member would be refused, and everything gated while the role is unknown', () => {
-    expect(hrefs('member')).toEqual(['/people', '/admin/audit']);
+    expect(hrefs('member')).toEqual(['/people', '/settings/connected-apps', '/admin/audit']);
     expect(hrefs(undefined)).toEqual(['/people']);
   });
 

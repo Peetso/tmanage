@@ -7,6 +7,11 @@ import type {
   PlatformCompanyRow,
 } from './platform-admin.repository.js';
 import { MAX_PLATFORM_AUDIT } from './platform-admin.repository.js';
+import {
+  environmentAiDisabled,
+  PLATFORM_AI_ACCESS_SETTING,
+  platformAiAccessOn,
+} from '../oauth/ai-access.js';
 import { PUBLIC_SIGNUP_SETTING, publicSignupFromSetting } from './platform-settings.js';
 
 /**
@@ -111,6 +116,14 @@ export interface PlatformSettingsView {
     readonly open: boolean;
     readonly source: 'environment' | 'platform_setting';
     readonly environmentDefault: boolean;
+  };
+  /**
+   * The platform AI kill switch (MCP connector S11): when off, `/mcp` and the OAuth endpoints
+   * answer 503 for every company. `TMANAGE_MCP_DISABLED=1` forces it off whatever is stored.
+   */
+  readonly aiAccess: {
+    readonly on: boolean;
+    readonly environmentDisabled: boolean;
   };
 }
 
@@ -339,7 +352,34 @@ export class PlatformAdminService {
 
   async settings(context: RequestContext): Promise<PlatformSettingsView> {
     const stored = await this.repository.readSetting(PUBLIC_SIGNUP_SETTING, context.correlationId);
-    return this.settingsView(stored);
+    const ai = await this.repository.readSetting(PLATFORM_AI_ACCESS_SETTING, context.correlationId);
+    return this.settingsView(stored, ai);
+  }
+
+  /** S11: turn every AI app off (or back on) for the whole platform. Audited with a reason. */
+  async setAiAccess(
+    actor: PlatformAdminActor,
+    body: { readonly on?: unknown; readonly reason?: unknown },
+    context: RequestContext,
+  ): Promise<PlatformSettingsView> {
+    if (typeof body?.on !== 'boolean') {
+      throw new ApiError(400, 'validation_failed', 'Choose on or off.', [
+        { field: 'on', message: 'must be a boolean' },
+      ]);
+    }
+    const reason = requireReason(body?.reason);
+    await this.repository.writeSetting(
+      PLATFORM_AI_ACCESS_SETTING,
+      body.on ? 'on' : 'off',
+      this.audit(actor, context, {
+        action: body.on ? 'platform.ai_access_on' : 'platform.ai_access_off',
+        targetType: 'setting',
+        targetId: null,
+        targetLabel: PLATFORM_AI_ACCESS_SETTING,
+        reason,
+      }),
+    );
+    return this.settings(context);
   }
 
   async setPublicSignup(
@@ -365,7 +405,7 @@ export class PlatformAdminService {
         reason,
       }),
     );
-    return this.settingsView(value);
+    return this.settings(context);
   }
 
   async auditLog(
@@ -386,8 +426,13 @@ export class PlatformAdminService {
     };
   }
 
-  private settingsView(stored: string | null): PlatformSettingsView {
+  private settingsView(stored: string | null, aiStored: string | null): PlatformSettingsView {
+    const environmentDisabled = environmentAiDisabled(process.env['TMANAGE_MCP_DISABLED']);
     return {
+      aiAccess: {
+        on: platformAiAccessOn(aiStored, environmentDisabled),
+        environmentDisabled,
+      },
       publicSignup: {
         open: publicSignupFromSetting(stored, this.publicSignupDefault),
         source: stored === null ? ('environment' as const) : ('platform_setting' as const),

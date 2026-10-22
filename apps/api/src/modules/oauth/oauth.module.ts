@@ -15,6 +15,14 @@ import { CimdFetcher } from './cimd-fetcher.js';
 import { OAuthService } from './oauth.service.js';
 import { OauthTokensRepository } from './oauth-tokens.repository.js';
 import { OAUTH_OPTIONS, OAUTH_SERVICE } from './oauth.tokens.js';
+import {
+  AI_ACCESS_SWITCHES,
+  AiPlatformSwitchGuard,
+  aiAccessSwitchesProvider,
+} from './ai-access.js';
+import type { AiAccessSwitches } from './ai-access.js';
+import { CONNECTED_APPS_SERVICE, ConnectedAppsController } from './grants.controller.js';
+import { ConnectedAppsService } from './grants.service.js';
 
 /** Runtime options the controllers read (the consent page the authorize endpoint hands off to). */
 export interface OAuthOptions {
@@ -52,11 +60,12 @@ export class OAuthModule {
     };
     const service: Provider = {
       provide: OAUTH_SERVICE,
-      inject: [TENANT_DATABASE, API_CONFIG, CimdFetcher],
+      inject: [TENANT_DATABASE, API_CONFIG, CimdFetcher, AI_ACCESS_SWITCHES],
       useFactory: (
         database: TenantDatabase,
         config: ApiConfig,
         cimdFetcher: CimdFetcher,
+        aiAccess: AiAccessSwitches,
       ): OAuthService => {
         const issuer = issuerOrigin(config);
         return new OAuthService({
@@ -65,12 +74,21 @@ export class OAuthModule {
           issuer,
           canonicalResource: `${issuer}/mcp`,
           cimdFetcher,
+          aiAccess,
         });
       },
     };
     return {
       module: OAuthModule,
       providers: [
+        aiAccessSwitchesProvider,
+        AiPlatformSwitchGuard,
+        {
+          provide: CONNECTED_APPS_SERVICE,
+          inject: [TENANT_DATABASE, AI_ACCESS_SWITCHES],
+          useFactory: (database: TenantDatabase, switches: AiAccessSwitches) =>
+            new ConnectedAppsService(database, switches),
+        },
         options,
         service,
         OAuthFormBodyParser,
@@ -85,6 +103,8 @@ export class OAuthModule {
         OAuthTokenController,
         OAuthRevokeController,
         OAuthConsentController,
+        // S11: the Connected apps page's API (list, disconnect, the workspace AI switch).
+        ConnectedAppsController,
       ],
     };
   }

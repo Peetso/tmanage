@@ -11,6 +11,7 @@ import { CimdError, type CimdFetcher } from './cimd-fetcher.js';
 import { verifyPkceS256 } from './pkce.js';
 import { matchesRegisteredRedirect } from './redirect-uri.js';
 import { parseScopes, scopesToString } from './scopes.js';
+import type { AiAccessSwitches } from './ai-access.js';
 
 /**
  * The OAuth 2.1 authorization server logic (MCP connector S7).
@@ -44,6 +45,12 @@ export interface OAuthServiceOptions {
    * service without it; when absent, an https `client_id` that is not already cached is refused.
    */
   readonly cimdFetcher?: CimdFetcher;
+  /**
+   * The AI kill switches (S11). When present, a workspace whose owner turned AI off gets no new
+   * tokens (403 `access_denied`); the code or refresh token is not spent, so the connection works
+   * again once the switch is back on. Optional so the protocol-core tests need no database.
+   */
+  readonly aiAccess?: AiAccessSwitches;
 }
 
 /** DCR rate limit — threat model B1: 10 registrations per IP per hour, 1000 per day overall. */
@@ -125,6 +132,7 @@ export class OAuthService {
   private readonly issuer: string;
   private readonly canonicalResource: string;
   private readonly cimdFetcher: CimdFetcher | undefined;
+  private readonly aiAccess: AiAccessSwitches | undefined;
 
   constructor(options: OAuthServiceOptions) {
     this.database = options.database;
@@ -132,6 +140,7 @@ export class OAuthService {
     this.issuer = options.issuer;
     this.canonicalResource = options.canonicalResource;
     this.cimdFetcher = options.cimdFetcher;
+    this.aiAccess = options.aiAccess;
   }
 
   get issuerUrl(): string {
@@ -436,6 +445,7 @@ export class OAuthService {
     if (!verifyPkceS256(verifier, codeRow.challenge)) {
       throw new OAuthError('invalid_grant', 'PKCE verification failed.', false);
     }
+    await this.assertWorkspaceAllowsAi(grant.organizationId, correlationId);
 
     const familyId = randomBytes(16).toString('hex');
     return this.mintTokens(correlationId, {
@@ -498,6 +508,7 @@ export class OAuthService {
       );
       throw new OAuthError('invalid_grant', 'The grant has been revoked.', false);
     }
+    await this.assertWorkspaceAllowsAi(grant.organizationId, correlationId);
 
     return this.mintTokens(correlationId, {
       grantId: grant.id,
@@ -520,6 +531,18 @@ export class OAuthService {
    * Revoke the family a presented token belongs to (RFC 7009). Works for an access token or a
    * refresh token; an unknown token is a silent success, as RFC 7009 §2.2 requires.
    */
+  /** S11: no tokens for a workspace whose owner turned AI apps off. Nothing is spent first. */
+  private async assertWorkspaceAllowsAi(organizationId: string, correlationId: string) {
+    if (this.aiAccess && !(await this.aiAccess.organizationOn(organizationId, correlationId))) {
+      throw new OAuthError(
+        'access_denied',
+        'AI apps are turned off for this workspace.',
+        false,
+        403,
+      );
+    }
+  }
+
   async revoke(token: unknown, correlationId: string): Promise<void> {
     if (typeof token !== 'string' || token === '') return;
     const tokenHash = hashToken(token);

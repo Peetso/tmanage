@@ -165,6 +165,16 @@ export class PlatformAdminController {
     return this.service.setPublicSignup(actor, body ?? {}, contextOf(request));
   }
 
+  /** S11: the platform AI kill switch — `/mcp` and the OAuth endpoints answer 503 while off. */
+  @Put('settings/ai-access')
+  setAiAccess(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Body() body: { on?: unknown; reason?: unknown },
+    @Req() request: RequestLike,
+  ) {
+    return this.service.setAiAccess(actor, body ?? {}, contextOf(request));
+  }
+
   @Get('audit')
   audit(@Req() request: RequestLike) {
     return this.service.auditLog(contextOf(request));

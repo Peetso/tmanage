@@ -83,6 +83,11 @@ export interface PlatformSettingsView {
     readonly source: 'environment' | 'platform_setting';
     readonly environmentDefault: boolean;
   };
+  /** S11: the platform AI kill switch; `TMANAGE_MCP_DISABLED=1` forces it off. */
+  readonly aiAccess: {
+    readonly on: boolean;
+    readonly environmentDisabled: boolean;
+  };
 }
 
 export interface PlatformAuditEventView {

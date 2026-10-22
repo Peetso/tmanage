@@ -119,6 +119,37 @@ describe('hosted MCP endpoint — authentication refusals', () => {
   });
 });
 
+describe('hosted MCP endpoint — AI kill switches (S11, T-KILL-01)', () => {
+  function patRequest(): Request {
+    const request = mcpRequest(`Bearer ${LIVE}`);
+    const state = requireRequestState(request);
+    state.session = { sessionId: 'pat:t9', userId: USER };
+    state.authScheme = 'personal_access_token';
+    state.personalAccessToken = { organizationId: 'org-1', membershipId: 'mem-1' };
+    return request;
+  }
+  function withSwitches(platform: boolean, organization: boolean): McpEndpointController {
+    const host = { httpAdapter: { getInstance: () => ({}) } } as unknown as HttpAdapterHost;
+    return new McpEndpointController(host, {
+      platformOn: async () => platform,
+      organizationOn: async () => organization,
+      forget: () => undefined,
+    });
+  }
+
+  it('answers 503 while the platform switch is off', async () => {
+    await expect(
+      withSwitches(false, true).handle(patRequest() as never, reply),
+    ).rejects.toMatchObject({ status: 503 });
+  });
+
+  it('answers 403 while the workspace owner has AI apps turned off', async () => {
+    await expect(
+      withSwitches(true, false).handle(patRequest() as never, reply),
+    ).rejects.toMatchObject({ status: 403 });
+  });
+});
+
 describe('hosted MCP endpoint — tool calls run via a one-time internal grant, never the caller’s token', () => {
   const options = (overrides: Partial<Parameters<typeof inProcessFetch>[1]> = {}) => ({
     mintGrant: vi.fn(() => 'nonce-123'),

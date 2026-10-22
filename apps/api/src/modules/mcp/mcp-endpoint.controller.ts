@@ -1,5 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Controller, Delete, Get, Inject, Logger, Module, Post, Req, Res } from '@nestjs/common';
+import {
+  Controller,
+  Delete,
+  Get,
+  Inject,
+  Logger,
+  Module,
+  Optional,
+  Post,
+  Req,
+  Res,
+} from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { buildServer, createHttpApiClient, serveMcpRequest } from '@tmanage/mcp-server';
@@ -11,6 +22,13 @@ import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import type { RequestAdmission } from '../../common/http/rate-limiter.js';
 import { argsSha256, INTERNAL_GRANT_HEADER, internalGrants } from './internal-grant.js';
 import type { InternalGrantPayload } from './internal-grant.js';
+import {
+  AI_ACCESS_SWITCHES,
+  aiAccessSwitchesProvider,
+  aiPlatformDisabledError,
+  aiWorkspaceDisabledError,
+} from '../oauth/ai-access.js';
+import type { AiAccessSwitches } from '../oauth/ai-access.js';
 
 /**
  * **Hosted MCP endpoint — `POST /mcp` (Streamable HTTP, stateless).**
@@ -179,7 +197,13 @@ export class McpEndpointController {
   /** The per-call audit trail (architecture B6 / T-LOG-01). Redacted by construction. */
   private readonly logger = new Logger('McpCall');
 
-  constructor(@Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost) {}
+  constructor(
+    @Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost,
+    /** S11: the platform and workspace AI kill switches. Absent only in unit tests. */
+    @Optional()
+    @Inject(AI_ACCESS_SWITCHES)
+    private readonly aiAccess?: AiAccessSwitches,
+  ) {}
 
   @Post()
   async handle(@Req() request: FastifyRequestLike, @Res() reply: FastifyReplyLike): Promise<void> {
@@ -195,6 +219,18 @@ export class McpEndpointController {
         undefined,
         'mcp_requires_personal_access_token',
       );
+    }
+    // S11 kill switches, read on every request (cached under a second): the platform switch
+    // answers 503, a workspace whose owner turned AI off answers 403.
+    if (this.aiAccess) {
+      if (!(await this.aiAccess.platformOn(state.correlationId))) throw aiPlatformDisabledError();
+      const organizationId = state.personalAccessToken?.organizationId;
+      if (
+        organizationId === undefined ||
+        !(await this.aiAccess.organizationOn(organizationId, state.correlationId))
+      ) {
+        throw aiWorkspaceDisabledError();
+      }
     }
     // Keyed by the token row's id (`pat:<id>`), never by the token itself.
     if (!this.admit(state.session.sessionId)) {
@@ -264,6 +300,10 @@ export class McpEndpointController {
 @Module({})
 export class McpEndpointModule {
   static register(): DynamicModule {
-    return { module: McpEndpointModule, controllers: [McpEndpointController] };
+    return {
+      module: McpEndpointModule,
+      providers: [aiAccessSwitchesProvider],
+      controllers: [McpEndpointController],
+    };
   }
 }
