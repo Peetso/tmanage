@@ -8,6 +8,8 @@ What you need before you start:
 
 - **The ZIP file** `tmanage-hostinger.zip` (the team builds it with `pnpm deploy:hostinger`; it is
   in `deploy/hostinger/out/`). This guide, `.env.example` and `generate-secret.mjs` are inside it.
+  The build refuses to run while the team's copy has unsaved changes, so the ZIP always matches
+  one saved version of the code (details: `docs/runbooks/deploy.md`).
 - **About 30 minutes**, and a notepad to write down the database names and passwords you choose.
 
 There are three parts: **Part 1** prepares the subdomain and the database, **Part 2** creates the

@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url';
 import { createPool } from 'mysql2/promise';
 import { hash as argonHash } from '@node-rs/argon2';
 import { startMariaDb } from '../../scripts/db/mariadb-server.mjs';
+import { ROUTE_CONTENT, routeContentProblems } from './build.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../..');
@@ -345,6 +346,17 @@ async function main() {
     const health = await hit('/healthz');
     const healthBody = await health.text();
     check('GET /healthz ok', health.status === 200 && /"status":"ok"/.test(healthBody));
+    // Each public page serves its own content, not another page's (live-check 014a9d51 reported
+    // /features/communication as the Privacy Policy and /status as the setup screen).
+    for (const { path } of ROUTE_CONTENT) {
+      const page = await hit(path);
+      const problems = page.status === 200 ? routeContentProblems(path, await page.text()) : [];
+      check(
+        `GET ${path} serves its own page`,
+        page.status === 200 && problems.length === 0,
+        `status ${page.status}${problems.length ? `; ${problems.join('; ')}` : ''}`,
+      );
+    }
     // First-owner setup is an API route: the API answers it (JSON; 404 here, as SETUP_TOKEN is
     // unset), never the web app's HTML.
     const setup = await hit('/public/setup');

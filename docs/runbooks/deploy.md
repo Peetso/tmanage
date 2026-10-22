@@ -14,6 +14,26 @@ never from the passwords in that file, which exist for local development only.
 
 ---
 
+## Building the Hostinger bundle from a clean checkout
+
+`pnpm deploy:hostinger` builds from the working checkout, so it now **refuses to start** when any
+bundle input (`apps/`, `packages/`, `package.json`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
+`tsconfig.base.json`) differs from `HEAD` or has untracked files, and lists them. Build from a
+clean export instead: `git archive HEAD | tar -x -C <dir>`, then `pnpm install --frozen-lockfile`
+and `pnpm deploy:hostinger` in that directory. `TMANAGE_BUNDLE_ALLOW_DIRTY=1` builds anyway and
+prints every included change; a bundle built that way is not the commit it is named after.
+
+After the web build it also stops when `apps/web/.next/BUILD_ID` is older than the run (the old
+build would ship), or when a prerendered page holds the wrong content: `/features/communication`
+must say "Chat & calendar" and not "Privacy Policy", `/status` must carry its Status eyebrow and
+not the setup screen, `/legal/privacy` must hold the policy. `pnpm deploy:hostinger:smoke` asks
+the running bundle the same questions over HTTP.
+
+When a live check reports one page showing another page's content, compare against the server
+before blaming the build: `curl -s <url> | grep -o '<h1[^>]*>[^<]*'` per URL, each into its own
+file. Live check 014a9d51 reported exactly that for two pages; the bundle, a clean build of
+`HEAD` and the live server all served the right pages.
+
 ## First-owner setup (fresh install)
 
 **Read this before the first sign-in on any new environment.** There is no public sign-up, so a

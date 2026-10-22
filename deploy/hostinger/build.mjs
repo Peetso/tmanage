@@ -8,6 +8,12 @@
 // are referenced by `file:` so npm links them without a registry.
 //
 // Usage: pnpm deploy:hostinger   (from the repo root)
+//
+// The bundle is built from the working checkout, so it refuses to start while the files that feed
+// it (apps/, packages/, the lockfile, the root manifests) differ from HEAD: a zip built from other
+// runs' uncommitted edits is not the commit it is named after. TMANAGE_BUNDLE_ALLOW_DIRTY=1
+// overrides that and prints what was included. After the build it checks that .next is fresh and
+// that the prerendered pages hold their own content (live-check 014a9d51, routes L2).
 import { spawnSync } from 'node:child_process';
 import {
   cpSync,
@@ -16,6 +22,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -29,6 +36,127 @@ const REPO = resolve(HERE, '../..');
 const OUT = join(HERE, 'out');
 const STAGE = join(OUT, 'stage');
 const ZIP = join(OUT, 'tmanage-hostinger.zip');
+
+/** Paths whose uncommitted changes would change what the bundle contains. */
+const BUNDLE_INPUTS = [
+  'apps/',
+  'packages/',
+  'package.json',
+  'pnpm-lock.yaml',
+  'pnpm-workspace.yaml',
+  'tsconfig.base.json',
+];
+
+/**
+ * The bundle inputs that `git status --porcelain` reports as changed or untracked.
+ *
+ * @param {string} porcelain  the output of `git status --porcelain` (v1)
+ * @returns {string[]} the changed paths under BUNDLE_INPUTS, forward-slashed
+ */
+export function dirtyBundleInputs(porcelain) {
+  return porcelain
+    .split(/\r?\n/)
+    .filter((line) => line.length > 3)
+    .map((line) => {
+      const path = line.slice(3).trim();
+      // A rename reads `old -> new`; the new path is what the build sees.
+      const target = path.includes(' -> ') ? path.split(' -> ').pop() : path;
+      return target.replace(/^"|"$/g, '');
+    })
+    .filter((path) =>
+      BUNDLE_INPUTS.some((input) =>
+        input.endsWith('/') ? path.startsWith(input) : path === input,
+      ),
+    );
+}
+
+/**
+ * Pages whose prerendered HTML is checked in the bundle and on the running server. Each page
+ * must hold its own text and none of the page it was once confused with (live-check 014a9d51:
+ * /features/communication was reported as the Privacy Policy and /status as the setup screen).
+ * HTML entities are decoded for `&amp;` only, which is all these strings need.
+ */
+export const ROUTE_CONTENT = [
+  {
+    path: '/features/communication',
+    file: 'features/communication.html',
+    has: ['Chat & calendar'],
+    hasNot: ['Privacy Policy', 'setup token'],
+  },
+  {
+    path: '/status',
+    file: 'status.html',
+    has: ['tm-pub-eyebrow">Status<', 'Service status'],
+    hasNot: ['setup token', 'Create the owner account', 'Privacy Policy'],
+  },
+  {
+    path: '/legal/privacy',
+    file: 'legal/privacy.html',
+    has: ['Privacy Policy', 'Effective'],
+    hasNot: ['setup token'],
+  },
+];
+
+/**
+ * What is wrong with `html` as the page at `path`, or `[]` when it holds its own content.
+ *
+ * @param {string} path  one of ROUTE_CONTENT's paths
+ * @param {string} html  the page's HTML (server response or prerendered file)
+ * @returns {string[]} one sentence per problem
+ */
+export function routeContentProblems(path, html) {
+  const rule = ROUTE_CONTENT.find((entry) => entry.path === path);
+  if (!rule) return [`no content rule for ${path}`];
+  const text = html.replaceAll('&amp;', '&');
+  return [
+    ...rule.has.filter((s) => !text.includes(s)).map((s) => `${path} is missing '${s}'`),
+    ...rule.hasNot.filter((s) => text.includes(s)).map((s) => `${path} contains '${s}'`),
+  ];
+}
+
+/**
+ * Whether the web build in `.next` was produced by this run: its BUILD_ID must be written at or
+ * after `startedAtMs`. A BUILD_ID older than the run means the build step did not replace it and
+ * an earlier build would be shipped.
+ */
+export function isFreshBuild(buildIdMtimeMs, startedAtMs) {
+  return buildIdMtimeMs >= startedAtMs;
+}
+
+function refuseDirtyCheckout() {
+  const status = spawnSync('git', ['status', '--porcelain', '--untracked-files=all'], {
+    cwd: REPO,
+    encoding: 'utf8',
+  });
+  if (status.status !== 0) throw new Error(`git status failed: ${status.stderr}`);
+  const dirty = dirtyBundleInputs(status.stdout);
+  if (dirty.length === 0) return;
+  const list = dirty.map((p) => `  ${p}`).join('\n');
+  if (process.env['TMANAGE_BUNDLE_ALLOW_DIRTY'] === '1') {
+    process.stdout.write(`\nTMANAGE_BUNDLE_ALLOW_DIRTY=1 — the bundle includes:\n${list}\n`);
+    return;
+  }
+  throw new Error(
+    `the checkout differs from HEAD in ${dirty.length} bundle input(s); commit them or build ` +
+      `from a clean export (TMANAGE_BUNDLE_ALLOW_DIRTY=1 to include them anyway):\n${list}`,
+  );
+}
+
+function verifyWebBuild(startedAtMs) {
+  const next = join(REPO, 'apps/web/.next');
+  const buildId = join(next, 'BUILD_ID');
+  if (!existsSync(buildId) || !isFreshBuild(statSync(buildId).mtimeMs, startedAtMs)) {
+    throw new Error(`${buildId} predates this run — the web build did not replace .next`);
+  }
+  const problems = ROUTE_CONTENT.flatMap((rule) => {
+    const file = join(next, 'server/app', rule.file);
+    if (!existsSync(file)) return [`${rule.path} was not prerendered (${rule.file} missing)`];
+    return routeContentProblems(rule.path, readFileSync(file, 'utf8'));
+  });
+  if (problems.length > 0) {
+    throw new Error(`the web build serves the wrong content:\n  ${problems.join('\n  ')}`);
+  }
+}
 
 /** Value (non-`import type`) relative imports of a TS module: `from './x'` → `./x`. */
 function relativeValueImports(source) {
@@ -369,7 +497,10 @@ const samePath = (a, b) =>
   process.platform === 'win32' ? a.toLowerCase() === b.toLowerCase() : a === b;
 if (process.argv[1] && samePath(resolve(process.argv[1]), fileURLToPath(import.meta.url))) {
   mkdirSync(OUT, { recursive: true });
+  refuseDirtyCheckout();
+  const startedAtMs = Date.now();
   buildArtifacts();
+  verifyWebBuild(startedAtMs);
   assemble();
   zip();
 
