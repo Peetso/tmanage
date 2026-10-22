@@ -718,6 +718,26 @@ a.tm-wk-chip:hover {
   border: var(--b-structural) solid var(--client-500);
 }
 
+/* P9: owner / due / edit / delete chips are buttons that open the inline editor. */
+button.tm-wk-chip {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+button.tm-wk-chip:hover,
+button.tm-wk-chip[aria-expanded='true'] {
+  background: var(--tm-hover-surface);
+  border-color: var(--tm-hover-edge);
+}
+
+.tm-wk-chip[data-tone='warning'] {
+  color: var(--warning-600);
+}
+
+.tm-wk-chip[data-tone='danger'] {
+  color: var(--danger-600);
+}
+
 .tm-wk-chip .tm-wk-halo__ring {
   inline-size: 18px;
   block-size: 18px;

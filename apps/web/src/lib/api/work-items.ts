@@ -131,6 +131,21 @@ export async function updateWorkItem(
   return data;
 }
 
+/**
+ * Soft-delete — `DELETE :id`, answered `204`. The API takes no version here: removing an item
+ * is not a field edit that could silently overwrite somebody else's change.
+ */
+export async function deleteWorkItem(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}`,
+  });
+}
+
 export interface TransitionWorkItemInput {
   readonly version: number;
   readonly to: WorkItemState;

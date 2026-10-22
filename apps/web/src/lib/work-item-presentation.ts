@@ -110,6 +110,25 @@ export function formatDay(value: string | null): string {
 }
 
 /**
+ * The `YYYY-MM-DD` a date control holds for a stored instant, or `''` for none. The UTC calendar
+ * day of the instant, which is the day {@link dayToInstant} wrote.
+ */
+export function instantToDay(value: string | null): string {
+  if (value === null) return '';
+  return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : '';
+}
+
+/**
+ * The instant the API stores for a picked calendar day, or `null` when the control is cleared.
+ * Noon UTC, so the day {@link formatDay} prints back is the day picked in every zone from
+ * UTC-11 to UTC+11 rather than sliding to the day before or after.
+ */
+export function dayToInstant(day: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+  return `${day}T12:00:00.000Z`;
+}
+
+/**
  * Is this item past its due date and not finished?
  *
  * `done` and `archived` are excluded deliberately. An item delivered a day late is not

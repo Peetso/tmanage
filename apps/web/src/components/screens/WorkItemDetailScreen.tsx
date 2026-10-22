@@ -14,8 +14,17 @@ import { WorkChecklistPanel } from './WorkChecklistPanel';
 import { WorkCommentsPanel } from './WorkCommentsPanel';
 import { WorkWatchersPanel } from './WorkWatchersPanel';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { getWorkItem, transitionWorkItem, updateWorkItem } from '../../lib/api/work-items';
-import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
+import {
+  deleteWorkItem,
+  getWorkItem,
+  transitionWorkItem,
+  updateWorkItem,
+} from '../../lib/api/work-items';
+import type {
+  UpdateWorkItemInput,
+  WorkItemAudience,
+  WorkItemSummary,
+} from '../../lib/api/work-items';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
 import { memberDisplayName } from '../../lib/members-presentation';
@@ -23,8 +32,10 @@ import { useMembers } from '../../lib/use-members';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import {
   audienceLabel,
+  dayToInstant,
   formatDay,
   formatInstant,
+  instantToDay,
   isClientFacing,
   isOverdue,
   stateCapsule,
@@ -33,12 +44,18 @@ import {
 import type { ApiClient } from '../../lib/api/client';
 import { WorkItemTagsAndFiles } from './WorkItemTagsAndFiles';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface WorkItemDetailScreenProps {
   organizationSlug: string;
   organizationName: string;
   workItemId: string;
   client?: ApiClient;
+  /**
+   * Where to go once the item is deleted. The page passes the router; without it the screen
+   * falls back to a full navigation to the work list.
+   */
+  onDeleted?: () => void;
 }
 
 /** The label a person reads for each fact the machine can require. */
@@ -157,6 +174,7 @@ export function WorkItemDetailScreen({
   organizationName,
   workItemId,
   client,
+  onDeleted,
 }: WorkItemDetailScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -212,6 +230,11 @@ export function WorkItemDetailScreen({
           onConflict={() => {
             void item.refetch();
           }}
+          onDeleted={() => {
+            void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+            if (onDeleted) onDeleted();
+            else window.location.assign(`/${organizationSlug}/work`);
+          }}
         />
       ) : null}
     </AppShell>
@@ -224,10 +247,30 @@ interface WorkItemBodyProps {
   organizationSlug: string;
   onChanged: (next: WorkItemSummary) => void;
   onConflict: () => void;
+  onDeleted: () => void;
 }
 
-function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: WorkItemBodyProps) {
+/** Which inline editor is open under the chip row — at most one at a time. */
+type EditorKind = 'owner' | 'dates' | 'details' | 'delete';
+
+function WorkItemBody({
+  item,
+  api,
+  organizationSlug,
+  onChanged,
+  onConflict,
+  onDeleted,
+}: WorkItemBodyProps) {
   const t = useT();
+  // P9's keys arrive through the wave's i18n fragment and are merged into the catalogs by the
+  // committer; until then `translate` falls back to the key, so the cast is only a type bridge.
+  const te = (key: `WorkItemEdit.${string}`) => t(key as MessageKey);
+  const [editor, setEditor] = useState<EditorKind | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<ReadonlyMap<string, string>>(new Map());
+  const [draftTitle, setDraftTitle] = useState('');
+  const [draftType, setDraftType] = useState('');
+  const [draftStart, setDraftStart] = useState('');
+  const [draftDue, setDraftDue] = useState('');
   const [target, setTarget] = useState<WorkItemState | ''>('');
   const [facts, setFacts] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | undefined>(undefined);
@@ -317,6 +360,75 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
     onError: handleWriteError,
   });
 
+  /**
+   * Every inline edit is one PATCH with the version this screen read. A field refusal (`400` /
+   * `422` naming fields) is shown on the field that caused it and keeps the editor open; a
+   * version `409` closes it and goes through {@link handleWriteError}, which reloads the item and
+   * says somebody else changed it.
+   */
+  const edit = useMutation({
+    mutationFn: (input: Omit<UpdateWorkItemInput, 'version'>) =>
+      updateWorkItem(api, organizationSlug, item.id, { ...input, version: item.version }),
+    onSuccess: (next) => {
+      onChanged(next);
+      setEditor(null);
+      setFieldErrors(new Map());
+      setFailure(undefined);
+      setConflict(false);
+    },
+    onError: (error) => {
+      if (
+        error instanceof ApiRequestError &&
+        (error.status === 400 || error.status === 422) &&
+        error.fieldErrors().size > 0
+      ) {
+        setFieldErrors(error.fieldErrors());
+        setFailure(undefined);
+        return;
+      }
+      setEditor(null);
+      setFieldErrors(new Map());
+      handleWriteError(error);
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: () => deleteWorkItem(api, organizationSlug, item.id),
+    onSuccess: () => onDeleted(),
+    onError: (error) => {
+      setEditor(null);
+      setFailure(describe(error));
+    },
+  });
+
+  function openEditor(kind: EditorKind) {
+    if (editor === kind) {
+      setEditor(null);
+      return;
+    }
+    setFieldErrors(new Map());
+    setDraftTitle(item.title);
+    setDraftType(item.type);
+    setDraftStart(instantToDay(item.startAt));
+    setDraftDue(instantToDay(item.dueAt));
+    setEditor(kind);
+  }
+
+  function submitDates(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    edit.mutate({ startAt: dayToInstant(draftStart), dueAt: dayToInstant(draftDue) });
+  }
+
+  function submitDetails(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const title = draftTitle.trim();
+    if (title === '') {
+      setFieldErrors(new Map([['title', te('WorkItemEdit.titleRequired')]]));
+      return;
+    }
+    edit.mutate({ title, type: draftType.trim() });
+  }
+
   const changeAudience = useMutation({
     mutationFn: (audience: WorkItemAudience) =>
       updateWorkItem(api, organizationSlug, item.id, { version: item.version, audience }),
@@ -398,7 +510,14 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
             D16's acceptance sentence: a member "can see who is accountable". The chip says who
             by name; "Unassigned" when nobody is.
           */}
-          <span className="tm-wk-chip">
+          <button
+            type="button"
+            className="tm-wk-chip"
+            aria-expanded={editor === 'owner'}
+            aria-controls="tm-work-editor"
+            aria-label={`${t('WorkItemDetailScreen.ownerLabel')} ${owner}. ${te('WorkItemEdit.changeOwner')}`}
+            onClick={() => openEditor('owner')}
+          >
             <span
               className="tm-wk-avatar"
               aria-hidden="true"
@@ -406,9 +525,22 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
             >
               {item.ownerUserId === null ? '?' : initialsOf(owner)}
             </span>
-            <span className="tm-visually-hidden">{t('WorkItemDetailScreen.ownerLabel')}</span>
             {owner}
-          </span>
+          </button>
+          <button
+            type="button"
+            className="tm-wk-chip"
+            aria-expanded={editor === 'dates'}
+            aria-controls="tm-work-editor"
+            aria-label={`${te('WorkItemEdit.changeDue')} ${formatDay(item.dueAt)}`}
+            onClick={() => openEditor('dates')}
+            {...(overdue ? { 'data-tone': 'warning' } : {})}
+          >
+            <span className="tm-wk-chip__orb" aria-hidden="true">
+              ◷
+            </span>
+            {item.dueAt === null ? te('WorkItemEdit.noDue') : formatDay(item.dueAt)}
+          </button>
           <span
             className="tm-wk-chip"
             {...(isClientFacing(item.audience) ? { 'data-tone': 'client' } : {})}
@@ -420,7 +552,169 @@ function WorkItemBody({ item, api, organizationSlug, onChanged, onConflict }: Wo
             </span>
             {audienceLabel(item.audience)}
           </span>
+          <button
+            type="button"
+            className="tm-wk-chip"
+            aria-expanded={editor === 'details'}
+            aria-controls="tm-work-editor"
+            onClick={() => openEditor('details')}
+          >
+            {te('WorkItemEdit.edit')}
+          </button>
+          <button
+            type="button"
+            className="tm-wk-chip"
+            data-tone="danger"
+            aria-expanded={editor === 'delete'}
+            aria-controls="tm-work-editor"
+            onClick={() => openEditor('delete')}
+          >
+            {te('WorkItemEdit.delete')}
+          </button>
         </div>
+
+        {editor !== null ? (
+          <section id="tm-work-editor" className="tm-wk-card tm-stack">
+            {editor === 'owner' ? (
+              <>
+                <h2 className="tm-wk-card__eyebrow">{te('WorkItemEdit.ownerTitle')}</h2>
+                <MemberSelect
+                  label={te('WorkItemEdit.ownerLabel')}
+                  name="ownerUserId"
+                  members={directory.members}
+                  value={item.ownerUserId ?? ''}
+                  onChange={(userId) => {
+                    if (userId !== '' && userId !== item.ownerUserId) {
+                      edit.mutate({ ownerUserId: userId });
+                    }
+                  }}
+                  onSearchChange={setMemberSearch}
+                  loading={directory.isPending}
+                  failed={directory.isError}
+                  disabled={edit.isPending}
+                  openOnFocus
+                />
+                {fieldErrors.has('ownerUserId') ? (
+                  <span className="tm-field__error" role="alert">
+                    {fieldErrors.get('ownerUserId')}
+                  </span>
+                ) : null}
+                <div className="tm-row">
+                  {item.ownerUserId !== null ? (
+                    <Button
+                      tone="outline"
+                      size="accessible"
+                      loading={edit.isPending}
+                      loadingLabel={te('WorkItemEdit.saving')}
+                      onClick={() => edit.mutate({ ownerUserId: null })}
+                    >
+                      {te('WorkItemEdit.unassign')}
+                    </Button>
+                  ) : null}
+                  <Button tone="outline" size="accessible" onClick={() => setEditor(null)}>
+                    {te('WorkItemEdit.cancel')}
+                  </Button>
+                </div>
+              </>
+            ) : null}
+
+            {editor === 'dates' ? (
+              <form className="tm-stack" noValidate onSubmit={submitDates}>
+                <h2 className="tm-wk-card__eyebrow">{te('WorkItemEdit.datesTitle')}</h2>
+                <Field
+                  label={te('WorkItemEdit.startLabel')}
+                  name="startAt"
+                  type="date"
+                  value={draftStart}
+                  onChange={(event) => setDraftStart(event.target.value)}
+                  {...(fieldErrors.has('startAt') ? { error: fieldErrors.get('startAt') } : {})}
+                />
+                <Field
+                  label={te('WorkItemEdit.dueLabel')}
+                  name="dueAt"
+                  type="date"
+                  value={draftDue}
+                  {...(draftStart === '' ? {} : { min: draftStart })}
+                  onChange={(event) => setDraftDue(event.target.value)}
+                  {...(fieldErrors.has('dueAt') ? { error: fieldErrors.get('dueAt') } : {})}
+                />
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={edit.isPending}
+                    loadingLabel={te('WorkItemEdit.saving')}
+                  >
+                    {te('WorkItemEdit.saveDates')}
+                  </Button>
+                  <Button tone="outline" size="accessible" onClick={() => setEditor(null)}>
+                    {te('WorkItemEdit.cancel')}
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+
+            {editor === 'details' ? (
+              <form className="tm-stack" noValidate onSubmit={submitDetails}>
+                <h2 className="tm-wk-card__eyebrow">{te('WorkItemEdit.detailsTitle')}</h2>
+                <Field
+                  label={te('WorkItemEdit.titleLabel')}
+                  name="title"
+                  value={draftTitle}
+                  maxLength={300}
+                  required
+                  onChange={(event) => setDraftTitle(event.target.value)}
+                  {...(fieldErrors.has('title') ? { error: fieldErrors.get('title') } : {})}
+                />
+                <Field
+                  label={te('WorkItemEdit.typeLabel')}
+                  name="type"
+                  value={draftType}
+                  maxLength={32}
+                  onChange={(event) => setDraftType(event.target.value)}
+                  {...(fieldErrors.has('type') ? { error: fieldErrors.get('type') } : {})}
+                />
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={edit.isPending}
+                    loadingLabel={te('WorkItemEdit.saving')}
+                  >
+                    {te('WorkItemEdit.save')}
+                  </Button>
+                  <Button tone="outline" size="accessible" onClick={() => setEditor(null)}>
+                    {te('WorkItemEdit.cancel')}
+                  </Button>
+                </div>
+              </form>
+            ) : null}
+
+            {editor === 'delete' ? (
+              <InlineAlert tone="danger" title={te('WorkItemEdit.deleteTitle')} live>
+                <p className="tm-prose">
+                  “{item.title}” {te('WorkItemEdit.deleteBody')}
+                </p>
+                <div className="tm-row">
+                  <Button
+                    tone="destructive"
+                    size="accessible"
+                    loading={remove.isPending}
+                    loadingLabel={te('WorkItemEdit.deleting')}
+                    onClick={() => remove.mutate()}
+                  >
+                    {te('WorkItemEdit.confirmDelete')}
+                  </Button>
+                  <Button tone="outline" size="accessible" onClick={() => setEditor(null)}>
+                    {te('WorkItemEdit.keep')}
+                  </Button>
+                </div>
+              </InlineAlert>
+            ) : null}
+          </section>
+        ) : null}
 
         <nav
           className="tm-segmented tm-wk-subnav"
