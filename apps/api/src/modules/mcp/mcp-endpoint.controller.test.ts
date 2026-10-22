@@ -13,6 +13,10 @@ import {
   inProcessFetch,
 } from './mcp-endpoint.controller.js';
 import type { InjectCapable } from './mcp-endpoint.controller.js';
+import { auditedRuntime, auditResultFor, mcpToolCallMetadata } from './mcp-call-audit.js';
+import type { McpToolCallAudit } from './mcp-call-audit.js';
+import { isSafeAuditMetadata } from '@tmanage/domain';
+import type { CatalogRuntime, CatalogTool } from '@tmanage/mcp-server';
 
 /**
  * The hosted MCP endpoint's refusals, without a server or database: the real `SessionAuthGuard`
@@ -196,5 +200,57 @@ describe('hosted MCP endpoint — tool calls run via a one-time internal grant, 
     expect(record.status).toBe(204);
     expect(record.argsSha256).toMatch(/^[0-9a-f]{64}$/);
     expect(JSON.stringify(record)).not.toContain('"a":1');
+  });
+});
+
+describe('hosted MCP endpoint — one audit event per tool call (plan §4.4)', () => {
+  it('records each tool call once with tool, op, outcome and an args hash — never the args or a token', async () => {
+    const inner: CatalogRuntime = {
+      runTool: vi.fn(async (tool: CatalogTool) =>
+        tool.name === 'work_items_get' ? { data: { ok: true } } : { isError: true, data: 'no' },
+      ),
+      readResource: vi.fn(async () => ({ data: null })),
+    };
+    const calls: McpToolCallAudit[] = [];
+    const runtime = auditedRuntime(inner, (call) => calls.push(call));
+    const secretArgs = { workItemId: 'wi-1', note: `Bearer ${LIVE}` };
+
+    await runtime.runTool(
+      { name: 'work_items_get', opId: 'work_items.get' } as CatalogTool,
+      secretArgs,
+    );
+    await runtime.runTool({ name: 'tmanage_run_action' } as CatalogTool, {
+      action_id: 'projects.create',
+      args: {},
+    });
+    await runtime.readResource({} as never, new URL('tmanage://me/today'), {});
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).toMatchObject({
+      tool: 'work_items_get',
+      opId: 'work_items.get',
+      outcome: 'ok',
+    });
+    expect(calls[1]).toMatchObject({ opId: 'projects.create', outcome: 'tool_error' });
+    expect(calls[0]!.argsSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(auditResultFor(calls[1]!.outcome)).toBe('error');
+
+    // The row a PAT call writes: safe for the audit gate, attributed to the client, no secrets.
+    const metadata = mcpToolCallMetadata(
+      {
+        userId: USER,
+        organizationId: 'org-1',
+        membershipId: 'mem-1',
+        clientId: 'https://claude.ai/oauth/mcp-client.json',
+        correlationId: 'c-1',
+      },
+      calls[0]!,
+    );
+    expect(isSafeAuditMetadata(metadata)).toBe(true);
+    expect(metadata).toMatchObject({ actor_kind: 'ai', tool: 'work_items_get', outcome: 'ok' });
+    expect(metadata['client_id']).toMatch(/^sha256:[0-9a-f]{32}$/);
+    const serialised = JSON.stringify([calls, metadata]);
+    expect(serialised).not.toContain(LIVE);
+    expect(serialised).not.toContain('wi-1');
   });
 });

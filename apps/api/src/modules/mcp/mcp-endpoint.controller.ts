@@ -44,6 +44,8 @@ import {
   mcpUnauthenticated,
 } from './mcp-auth.js';
 import { DatabaseMcpWorkspaceResolver, MCP_WORKSPACE_RESOLVER } from './mcp-workspace.js';
+import { DatabaseMcpCallAuditor, MCP_CALL_AUDITOR, auditedRuntime } from './mcp-call-audit.js';
+import type { McpCallAuditor } from './mcp-call-audit.js';
 import type { McpWorkspaceResolver } from './mcp-workspace.js';
 
 /**
@@ -237,6 +239,10 @@ export class McpEndpointController {
     @Optional()
     @Inject(API_CONFIG)
     private readonly config: Pick<ApiConfig, 'apiPublicUrl' | 'webPublicUrl'> = {},
+    /** Plan §4.4: one `audit_events` row per tool call. Absent only in unit tests. */
+    @Optional()
+    @Inject(MCP_CALL_AUDITOR)
+    private readonly callAudit?: McpCallAuditor,
   ) {}
 
   @Post()
@@ -317,10 +323,20 @@ export class McpEndpointController {
           ),
       }),
     });
+    // Plan §4.4. One audit event per tool call, attributed to the token's user and AI client:
+    // tool, op, outcome, args hash and latency — never the token or an argument value.
+    const auditScope = {
+      userId: principal.userId,
+      organizationId: principal.organizationId,
+      membershipId: principal.membershipId,
+      clientId: principal.clientId,
+      correlationId: state.correlationId,
+    };
+    const audited = auditedRuntime(runtime, (call) => this.callAudit?.record(auditScope, call));
     // From here the MCP transport writes the response itself.
     reply.hijack();
     await serveMcpRequest(
-      buildCatalogServer(catalog, runtime),
+      buildCatalogServer(catalog, audited),
       request.raw,
       reply.raw,
       request.body,
@@ -367,6 +383,11 @@ export class McpEndpointModule {
           inject: [TENANT_DATABASE, API_CONFIG],
           useFactory: (database: TenantDatabase, config: ApiConfig) =>
             new McpOAuthAuthenticator(database, mcpResourceUri(config)),
+        },
+        {
+          provide: MCP_CALL_AUDITOR,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) => new DatabaseMcpCallAuditor(database),
         },
       ],
       exports: [MCP_OAUTH_AUTHENTICATOR],

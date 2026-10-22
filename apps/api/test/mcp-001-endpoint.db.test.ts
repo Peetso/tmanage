@@ -14,6 +14,10 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * Refusals: no token, an unknown token, a revoked token, and a browser session are all 401 before
  * any tool runs. Scope: a valid token's tools act in the token's own organization only — another
  * tenant's work item is not found through MCP exactly as it is not found over REST.
+ *
+ * Since S14 FX2 the tools are the scope-filtered S5 catalogue (a PAT keeps every scope): tool names
+ * are the registry op ids with `_` for `.` (`work_items_get`, argument `workItemId`), and the retired
+ * `list_organizations` tool (it read the NEVER org-directory route) is not offered at all.
  */
 
 let app: NestFastifyApplication;
@@ -108,14 +112,18 @@ describe('MCP-001 hosted MCP endpoint', () => {
     const names = response
       .json<{ result: { tools: { name: string }[] } }>()
       .result.tools.map((tool) => tool.name);
-    expect(names).toContain('get_work_item');
+    expect(names).toContain('work_items_get');
+    expect(names).toContain('projects_list');
+    expect(names).toContain('tmanage_find_actions');
+    expect(names).not.toContain('get_work_item');
+    expect(names).not.toContain('list_organizations');
   });
 
   it("reads a work item in the token's own organization", async () => {
     const response = await mcp(
       {
         method: 'tools/call',
-        params: { name: 'get_work_item', arguments: { work_item_id: world.northstar.workItemId } },
+        params: { name: 'work_items_get', arguments: { workItemId: world.northstar.workItemId } },
       },
       bearer(liveToken),
     );
@@ -129,7 +137,7 @@ describe('MCP-001 hosted MCP endpoint', () => {
     const response = await mcp(
       {
         method: 'tools/call',
-        params: { name: 'get_work_item', arguments: { work_item_id: world.brightops.workItemId } },
+        params: { name: 'work_items_get', arguments: { workItemId: world.brightops.workItemId } },
       },
       bearer(liveToken),
     );
@@ -140,14 +148,15 @@ describe('MCP-001 hosted MCP endpoint', () => {
     expect(result.text).not.toContain(world.brightops.workItemTitle);
   });
 
-  it('only lists the organization the token is bound to', async () => {
+  it('only lists projects of the organization the token is bound to', async () => {
     const response = await mcp(
-      { method: 'tools/call', params: { name: 'list_organizations', arguments: {} } },
+      { method: 'tools/call', params: { name: 'projects_list', arguments: {} } },
       bearer(liveToken),
     );
+    expect(response.statusCode, response.body).toBe(200);
     const result = toolText(response);
     expect(result.isError, result.text).toBe(false);
-    expect(response.body).toContain('northstar-studio');
-    expect(response.body).not.toContain('brightops');
+    expect(response.body).toContain(world.northstar.projectName);
+    expect(response.body).not.toContain(world.brightops.projectName);
   });
 });
