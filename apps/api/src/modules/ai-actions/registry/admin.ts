@@ -161,6 +161,24 @@ export const adminDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'Set role', args: { roleId: 'role_2', membershipIds: ['m_1', 'm_2'] } }],
   }),
+  // BK2 / ADM-01: the built-in role catalogue and changing one member's built-in role.
+  det({
+    id: 'admin.roles.built_in.list',
+    title: 'List built-in roles',
+    description: 'The built-in staff roles you may assign in this workspace.',
+    input: noArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'Read', args: {} }],
+  }),
+  det({
+    id: 'members.role.update',
+    title: "Change a member's role",
+    description:
+      'Set one member to a built-in staff role (owner seat owner-only; the last owner stays). Confirm-class.',
+    input: bodyArgs(['userId'], { role: f.id(40), version: f.int(1).optional() }),
+    redact: 'standard',
+    examples: [{ summary: 'Make manager', args: { userId: 'u_1', role: 'manager' } }],
+  }),
   det({
     id: 'admin.sessions.list',
     title: 'List active sessions',

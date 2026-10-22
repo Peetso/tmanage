@@ -124,6 +124,24 @@ const EXEMPT = new Map([
     'RequestMessageClientView',
     'No web consumer yet: BG3 request messages (portal thread) are API-only; the screen is a follow-up.',
   ],
+  // Wave 2026-10-22 backend lanes: API-only until their screens land after Figma approval.
+  [
+    'BuiltInRoleView',
+    'No web consumer yet: BK2 built-in role catalogue is API-only; the role picker screen is a follow-up.',
+  ],
+  [
+    'MemberRoleChangeView',
+    "No web consumer yet: BK2 change-a-member's-role response is API-only; the screen is a follow-up.",
+  ],
+  [
+    'MentionCandidateView',
+    'No web consumer yet: BK3 @mention candidate search is API-only; the composer picker is a follow-up.',
+  ],
+  [
+    'DirectConversationView',
+    'No web consumer yet: BK3 one-to-one direct messages are API-only; the DM screen is a follow-up.',
+  ],
+  ['DirectMessageView', 'No web consumer yet: same as DirectConversationView (BK3, API-only).'],
 ]);
 
 /**

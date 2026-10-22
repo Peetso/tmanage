@@ -21,6 +21,8 @@ export interface MeetingView {
   readonly title: string;
   /** An ISO-8601 instant on the wire. */
   readonly startsAt: string;
+  /** An ISO-8601 instant, or `null` when no end was recorded (BK5, migration 0213). */
+  readonly endsAt: string | null;
   /** The agenda note, or `null` when none was given. `TEXT` on the API. */
   readonly agendaNote: string | null;
   readonly createdByUserId: string;
