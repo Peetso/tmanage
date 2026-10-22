@@ -1058,3 +1058,19 @@
     padding-block: var(--s8) var(--s16);
   }
 }
+
+/*
+ * Arabic (dir=rtl): letter-spacing breaks Arabic letter joining and the mono face has no Arabic
+ * glyphs, so the scene captions and caps labels drop the tracking and read in the Arabic face.
+ * Work Story captions may wrap instead of running past the timeline on a phone.
+ */
+[dir='rtl'] .tm-consult-window .tm-consult-mono,
+[dir='rtl'] .tm-consult-register__row--head,
+[dir='rtl'] .tm-consult-detail__facts dt {
+  font-family: var(--font-arabic);
+  letter-spacing: normal;
+}
+
+[dir='rtl'] .tm-consult-story .tm-consult-mono {
+  white-space: normal;
+}

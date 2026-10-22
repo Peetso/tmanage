@@ -924,3 +924,15 @@
     margin-block-start: var(--s16);
   }
 }
+
+/*
+ * Arabic (dir=rtl): letter-spacing breaks Arabic letter joining and the mono face has no Arabic
+ * glyphs, so the scene captions and caps labels drop the tracking and read in the Arabic face.
+ */
+[dir='rtl'] .tm-web-ag-scene .tm-web-scene__mono,
+[dir='rtl'] .tm-web-ag-table__row--head,
+[dir='rtl'] .tm-web-ag-table__client,
+[dir='rtl'] .tm-web-ag-track {
+  font-family: var(--font-arabic);
+  letter-spacing: normal;
+}

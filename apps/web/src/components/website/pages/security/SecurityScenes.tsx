@@ -4,13 +4,27 @@ import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, Checkbox, InlineAlert } from '@tmanage/ui';
 import { cx } from '../../primitives';
 import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 
 /**
  * Security page product visuals — cropped clones of the admin offboarding run, the audit log,
  * the publication safety check and the client approval card, composed from packages/ui
  * components. Each scene is an illustration: inert, hidden from assistive tech, with one
- * sentence of alternative text in the caption.
+ * sentence of alternative text in the caption. Every visible string is a `SecurityScenes.*`
+ * catalog key; names, IDs, hashes and version tags stay Latin.
  */
+
+type Values = Readonly<Record<string, string | number>>;
+
+/** `t()` scoped to `SecurityScenes.*`, with `{name}` placeholders filled from `values`. */
+function useSceneT(): (key: string, values?: Values) => string {
+  const t = useT();
+  return (key, values = {}) =>
+    t(`SecurityScenes.${key}` as MessageKey).replace(/\{(\w+)\}/g, (match, name: string) =>
+      Object.prototype.hasOwnProperty.call(values, name) ? String(values[name]) : match,
+    );
+}
+
 function Scene({
   label,
   className,
@@ -54,62 +68,53 @@ function KeyValues({ rows }: { rows: readonly (readonly [string, string])[] }) {
   );
 }
 
-/* ── Offboarding run (AD offboarding, step 3 of 3) ─────────────────────────────── */
+/* ── Offboarding run (AD offboarding, the step now running) ────────────────────── */
 
-const OFFBOARDING_STEPS: readonly {
-  title: string;
-  note: string;
-  state: 'done' | 'now' | 'next';
-}[] = [
-  {
-    title: '14 work items moved',
-    note: '9 to Lina Samir, 5 to Omar Adel · owners notified in Inbox',
-    state: 'done',
-  },
-  {
-    title: 'Homepage direction milestone reassigned to Omar Adel',
-    note: 'Committed date 18 Aug unchanged · client sees no change',
-    state: 'done',
-  },
-  {
-    title: '6 automations repointed to Maya Hassan',
-    note: 'None paused · next run 15:00 today',
-    state: 'done',
-  },
-  {
-    title: 'Deploy runbook given to Omar Adel as editor',
-    note: 'Karim keeps read access until 22 Aug',
-    state: 'done',
-  },
-  {
-    title: 'Revoking 3 sessions and 1 personal device',
-    note: 'Running now · he will be signed out within a minute',
-    state: 'now',
-  },
-  {
-    title: 'Account becomes read-only on 22 Aug, closed on 21 Sep',
-    note: 'His name stays on everything he did',
-    state: 'next',
-  },
+type StepState = 'done' | 'now' | 'next';
+
+/** The six offboarding steps; `id` names the `SecurityScenes.step<Id>Title/Note` keys. */
+export const OFFBOARDING_STEPS: readonly { id: string; state: StepState }[] = [
+  { id: 'Moved', state: 'done' },
+  { id: 'Milestone', state: 'done' },
+  { id: 'Automations', state: 'done' },
+  { id: 'Runbook', state: 'done' },
+  { id: 'Sessions', state: 'now' },
+  { id: 'Readonly', state: 'next' },
 ];
+
+/**
+ * The progress both the breadcrumb and the panel read, so they cannot disagree: how many steps
+ * are done, which step is running (1-based) and how many there are.
+ */
+export function offboardingProgress(steps: readonly { state: StepState }[] = OFFBOARDING_STEPS): {
+  done: number;
+  current: number;
+  total: number;
+} {
+  const done = steps.filter((step) => step.state === 'done').length;
+  const running = steps.findIndex((step) => step.state === 'now');
+  return { done, current: running === -1 ? done : running + 1, total: steps.length };
+}
 
 export function OffboardingScene() {
   const t = useT();
+  const s = useSceneT();
+  const progress = offboardingProgress();
   return (
     <Scene label={t('SecurityScenes.offboardingAlt')} className="tm-sec-scene--window">
       <div className="tm-sec-window">
-        <WindowBar crumb="Control center / Offboarding / Karim Nabil · Step 3 of 3 · RUN-OFF-0347" />
+        <WindowBar crumb={s('offCrumb', progress)} />
         <div className="tm-sec-window__body tm-sec-split">
           <div className="tm-sec-split__main">
-            <p className="tm-web-scene__mono">Started 09:44 · 4 of 6 steps done</p>
-            <p className="tm-sec-scene__title">Handing over Karim’s work</p>
+            <p className="tm-web-scene__mono">{s('offStarted', progress)}</p>
+            <p className="tm-sec-scene__title">{s('offTitle')}</p>
             <ol className="tm-sec-card tm-sec-steps">
               {OFFBOARDING_STEPS.map((step) => (
-                <li key={step.title} className={cx('tm-sec-step', `tm-sec-step--${step.state}`)}>
+                <li key={step.id} className={cx('tm-sec-step', `tm-sec-step--${step.state}`)}>
                   <span className="tm-sec-step__mark">{step.state === 'done' ? '✓' : null}</span>
                   <span className="tm-sec-step__text">
-                    <span className="tm-sec-step__title">{step.title}</span>
-                    <span className="tm-sec-step__note">{step.note}</span>
+                    <span className="tm-sec-step__title">{s(`step${step.id}Title`)}</span>
+                    <span className="tm-sec-step__note">{s(`step${step.id}Note`)}</span>
                   </span>
                 </li>
               ))}
@@ -117,33 +122,28 @@ export function OffboardingScene() {
           </div>
           <div className="tm-sec-split__side">
             <div className="tm-sec-card tm-sec-receipt">
-              <p className="tm-web-scene__mono">Receipt · Immutable</p>
-              <p className="tm-sec-card__title">Offboarding of Karim Nabil</p>
+              <p className="tm-web-scene__mono">{s('receiptEyebrow')}</p>
+              <p className="tm-sec-card__title">{s('receiptTitle')}</p>
               <KeyValues
                 rows={[
-                  ['Requested', 'Maya Hassan · today 09:44'],
-                  ['Moved', '14 items · 1 milestone · 2 documents'],
-                  ['Unchanged', 'every committed date, every approval'],
-                  ['Revoked', '3 sessions · 1 unmanaged device'],
-                  ['Hash', 'c30d·1f56'],
+                  [s('kvRequested'), s('vRequested')],
+                  [s('kvMoved'), s('vMoved')],
+                  [s('kvUnchanged'), s('vUnchanged')],
+                  [s('kvRevoked'), s('vRevoked')],
+                  [s('kvHash'), 'c30d·1f56'],
                 ]}
               />
-              <p className="tm-sec-scene__note">
-                The receipt is written to the audit log as its own entry so a future reader can see
-                exactly what moved.
-              </p>
+              <p className="tm-sec-scene__note">{s('receiptNote')}</p>
               <span className="tm-sec-actions">
                 <Button tone="ink" size="compact">
-                  Download receipt
+                  {s('downloadReceipt')}
                 </Button>
                 <Button tone="outline" size="compact">
-                  Open in audit log
+                  {s('openInAudit')}
                 </Button>
               </span>
             </div>
-            <p className="tm-sec-card tm-sec-scene__note">
-              A transfer can be undone for 24 hours. After that it stays in the history.
-            </p>
+            <p className="tm-sec-card tm-sec-scene__note">{s('undoNote')}</p>
           </div>
         </div>
       </div>
@@ -155,126 +155,79 @@ export function OffboardingScene() {
 
 type AuditClass = 'Client' | 'Content' | 'Policy';
 
-const AUDIT_ROWS: readonly {
-  when: string;
-  what: string;
-  note: string;
-  id: string;
-  kind: AuditClass;
-}[] = [
-  {
-    when: 'Today 09:40',
-    what: 'Maya Hassan turned off “who did what” for Atlas Hospitality',
-    note: 'client visibility default · was on since 4 Jul',
-    id: 'EV-9C41',
-    kind: 'Client',
-  },
-  {
-    when: 'Today 08:02',
-    what: 'Automation “Remind reviewer” notified Youssef Kamal',
-    note: 'enabled by Maya Hassan · run RUN-4806',
-    id: 'EV-9C38',
-    kind: 'Content',
-  },
-  {
-    when: 'Yest 18:12',
-    what: 'Omar Adel added stage “Content migration” to Website relaunch',
-    note: 'template edit · 3 seeded items',
-    id: 'EV-9C11',
-    kind: 'Policy',
-  },
-  {
-    when: 'Yest 11:30',
-    what: 'Youssef Kamal approved Homepage Concept v2',
-    note: 'version 8f2c·d41a · signed from a trusted device',
-    id: 'EV-9BF7',
-    kind: 'Client',
-  },
-  {
-    when: '13 Aug 18:04',
-    what: 'Maya Hassan required two-factor for approval authority',
-    note: 'security policy · affected 2 people',
-    id: 'EV-9A12',
-    kind: 'Policy',
-  },
-  {
-    when: '12 Aug 14:09',
-    what: 'Omar Adel moved the Content migration forecast to 8 Sep',
-    note: 'committed date 1 Sep unchanged · reason recorded',
-    id: 'EV-9A88',
-    kind: 'Content',
-  },
-  {
-    when: '11 Aug 09:15',
-    what: 'Maya Hassan set chat retention to 24 months',
-    note: 'first deletion pass queued for 1 Sep',
-    id: 'EV-9A31',
-    kind: 'Policy',
-  },
+/** `key` names the `SecurityScenes.audit<Key>When/What/Note` keys; `id` is the event id. */
+const AUDIT_ROWS: readonly { key: string; id: string; kind: AuditClass }[] = [
+  { key: 'Visibility', id: 'EV-9C41', kind: 'Client' },
+  { key: 'Reminder', id: 'EV-9C38', kind: 'Content' },
+  { key: 'Stage', id: 'EV-9C11', kind: 'Policy' },
+  { key: 'Approved', id: 'EV-9BF7', kind: 'Client' },
+  { key: 'TwoFactor', id: 'EV-9A12', kind: 'Policy' },
+  { key: 'Forecast', id: 'EV-9A88', kind: 'Content' },
+  { key: 'Retention', id: 'EV-9A31', kind: 'Policy' },
 ];
 
 export function AuditLogScene() {
   const t = useT();
+  const s = useSceneT();
   return (
     <Scene
       label={t('SecurityScenes.auditLogAlt')}
       className="tm-sec-scene--window tm-sec-scene--dense"
     >
       <div className="tm-sec-window">
-        <WindowBar crumb="Control center / Audit log">
-          <span className="tm-web-chip">Last 30 days</span>
-          <span className="tm-web-chip">Policy changes</span>
-          <span className="tm-web-chip tm-sec-chip--ink">Export signed CSV</span>
+        <WindowBar crumb={s('auditCrumb')}>
+          <span className="tm-web-chip">{s('chipLast30')}</span>
+          <span className="tm-web-chip">{s('chipPolicy')}</span>
+          <span className="tm-web-chip tm-sec-chip--ink">{s('chipExport')}</span>
         </WindowBar>
         <div className="tm-sec-window__body tm-sec-split">
           <div className="tm-sec-split__main tm-sec-card tm-sec-audit">
             <p className="tm-sec-audit__count">
-              <span className="tm-sec-scene__title">612 events</span>
-              <span className="tm-sec-scene__note">41 policy · 108 access · 463 content</span>
+              <span className="tm-sec-scene__title">{s('auditCount')}</span>
+              <span className="tm-sec-scene__note">{s('auditBreakdown')}</span>
             </p>
             <div className="tm-sec-audit__table">
               <div className="tm-sec-audit__row tm-sec-audit__row--head">
-                <span className="tm-web-scene__mono">When</span>
-                <span className="tm-web-scene__mono">Who · what changed</span>
-                <span className="tm-web-scene__mono">Event</span>
-                <span className="tm-web-scene__mono">Class</span>
+                <span className="tm-web-scene__mono">{s('colWhen')}</span>
+                <span className="tm-web-scene__mono">{s('colWho')}</span>
+                <span className="tm-web-scene__mono">{s('colEvent')}</span>
+                <span className="tm-web-scene__mono">{s('colClass')}</span>
               </div>
               {AUDIT_ROWS.map((row, index) => (
                 <div
                   key={row.id}
                   className={cx('tm-sec-audit__row', index === 0 && 'tm-sec-audit__row--on')}
                 >
-                  <span className="tm-web-scene__mono">{row.when}</span>
+                  <span className="tm-web-scene__mono">{s(`audit${row.key}When`)}</span>
                   <span className="tm-sec-step__text">
-                    <span className="tm-sec-step__title">{row.what}</span>
-                    <span className="tm-sec-step__note">{row.note}</span>
+                    <span className="tm-sec-step__title">{s(`audit${row.key}What`)}</span>
+                    <span className="tm-sec-step__note">{s(`audit${row.key}Note`)}</span>
                   </span>
                   <span className="tm-web-scene__mono">{row.id}</span>
-                  <Badge tone={row.kind === 'Client' ? 'client' : 'neutral'}>{row.kind}</Badge>
+                  <Badge tone={row.kind === 'Client' ? 'client' : 'neutral'}>
+                    {s(`class${row.kind}`)}
+                  </Badge>
                 </div>
               ))}
             </div>
           </div>
           <div className="tm-sec-split__side tm-sec-card tm-sec-receipt">
-            <p className="tm-web-scene__mono">Event EV-9C41</p>
-            <p className="tm-sec-card__title">Client visibility changed</p>
+            <p className="tm-web-scene__mono">{s('eventEyebrow', { id: 'EV-9C41' })}</p>
+            <p className="tm-sec-card__title">{s('eventTitle')}</p>
             <KeyValues
               rows={[
-                ['Actor', 'Maya Hassan · Owner'],
-                ['Target', 'Atlas Hospitality'],
-                ['Before', '“who did what” on'],
-                ['After', '“who did what” off'],
-                ['Device', 'managed laptop'],
-                ['Hash', 'a71e·0c94'],
+                [s('kvActor'), s('vActor')],
+                [s('kvTarget'), 'Atlas Hospitality'],
+                [s('kvBefore'), s('vBefore')],
+                [s('kvAfter'), s('vAfter')],
+                [s('kvDevice'), s('vDevice')],
+                [s('kvHash'), 'a71e·0c94'],
               ]}
             />
-            <p className="tm-sec-scene__note">
-              Audit entries cannot be edited or deleted, not even by an owner. Export them as a
-              signed file.
-            </p>
+            <p className="tm-sec-scene__note">{s('auditNote')}</p>
             <span className="tm-sec-actions">
               <Button tone="outline" size="compact">
-                Copy hash
+                {s('copyHash')}
               </Button>
             </span>
           </div>
@@ -286,19 +239,16 @@ export function AuditLogScene() {
 
 /* ── Publication safety check (DOC publish preview + portal projection) ────────── */
 
-const RECIPIENTS: readonly { name: string; role: string; chip: string; lime?: boolean }[] = [
-  {
-    name: 'Youssef Kamal',
-    role: 'Client Reviewer · approval authority · action required',
-    chip: 'Will be asked to approve',
-    lime: true,
-  },
-  { name: 'Salma Riad', role: 'Client Admin · watcher · notified', chip: 'Can view' },
-  { name: 'Dina Ashraf', role: 'Client Viewer · not included by the project policy', chip: '' },
+/** `key` names the `SecurityScenes.recipient<Key>Role/Chip` keys. */
+const RECIPIENTS: readonly { name: string; key: string; chip: boolean; lime?: boolean }[] = [
+  { name: 'Youssef Kamal', key: 'Youssef', chip: true, lime: true },
+  { name: 'Salma Riad', key: 'Salma', chip: true },
+  { name: 'Dina Ashraf', key: 'Dina', chip: false },
 ];
 
 export function PublicationScene() {
   const t = useT();
+  const s = useSceneT();
   return (
     <Scene
       label={t('SecurityScenes.publicationAlt')}
@@ -307,57 +257,49 @@ export function PublicationScene() {
       <div className="tm-sec-window tm-sec-window--plain">
         <div className="tm-sec-window__body tm-sec-split tm-sec-split--publish">
           <div className="tm-sec-split__main tm-sec-card tm-sec-publish">
-            <p className="tm-web-scene__mono">Safety check before publication</p>
-            <p className="tm-sec-scene__title">
-              You’re about to publish Homepage Concept v2 to 2 client reviewers.
-            </p>
-            <p className="tm-sec-scene__note">
-              Internal comments and cost fields will not be shared.
-            </p>
-            <p className="tm-web-scene__mono">Recipients</p>
+            <p className="tm-web-scene__mono">{s('pubEyebrow')}</p>
+            <p className="tm-sec-scene__title">{s('pubTitle')}</p>
+            <p className="tm-sec-scene__note">{s('pubNote')}</p>
+            <p className="tm-web-scene__mono">{s('recipients')}</p>
             <ul className="tm-sec-recipients">
               {RECIPIENTS.map((person) => (
                 <li key={person.name} className="tm-sec-recipient">
                   <Avatar name={person.name} audience="client" size="compact" decorative />
                   <span className="tm-sec-step__text">
                     <span className="tm-sec-step__title">{person.name}</span>
-                    <span className="tm-sec-step__note">{person.role}</span>
+                    <span className="tm-sec-step__note">{s(`recipient${person.key}Role`)}</span>
                   </span>
                   {person.chip ? (
                     <span className={cx('tm-web-chip', person.lime && 'tm-sec-chip--lime')}>
-                      {person.chip}
+                      {s(`recipient${person.key}Chip`)}
                     </span>
                   ) : null}
                 </li>
               ))}
             </ul>
-            <p className="tm-web-scene__mono">What is excluded from the projection</p>
+            <p className="tm-web-scene__mono">{s('excluded')}</p>
             <span className="tm-sec-chips">
-              <span className="tm-web-chip">4 internal comments</span>
-              <span className="tm-web-chip">Cost field · production estimate</span>
-              <span className="tm-web-chip">v1 history</span>
+              <span className="tm-web-chip">{s('chipComments')}</span>
+              <span className="tm-web-chip">{s('chipCost')}</span>
+              <span className="tm-web-chip">{s('chipHistory')}</span>
             </span>
-            <InlineAlert tone="warning" title="One linked item points to internal-only content">
-              The artifact links to “Booking provider decision (draft)”. The link will be removed
-              from the client projection.
+            <InlineAlert tone="warning" title={s('alertTitle')}>
+              {s('alertBody')}
             </InlineAlert>
           </div>
           <div className="tm-sec-split__side tm-sec-projection">
-            <span className="tm-web-chip tm-sec-chip--ink">True projection as Youssef Kamal</span>
+            <span className="tm-web-chip tm-sec-chip--ink">{s('projectionChip')}</span>
             <div className="tm-sec-card tm-sec-portal">
-              <p className="tm-web-scene__mono">Atlas Hospitality portal</p>
-              <p className="tm-web-scene__mono">Action required from you</p>
-              <p className="tm-sec-scene__title">Approve the homepage direction</p>
-              <p className="tm-sec-scene__note">
-                Reviewing takes about 10 minutes. Approve this week and we start the build on
-                Monday.
-              </p>
+              <p className="tm-web-scene__mono">{s('portalEyebrow')}</p>
+              <p className="tm-web-scene__mono">{s('portalAction')}</p>
+              <p className="tm-sec-scene__title">{s('portalTitle')}</p>
+              <p className="tm-sec-scene__note">{s('portalNote')}</p>
               <span className="tm-sec-actions">
                 <Button tone="lime" size="compact">
-                  Approve v2
+                  {s('approveV2')}
                 </Button>
                 <Button tone="outline" size="compact">
-                  Request changes
+                  {s('requestChanges')}
                 </Button>
               </span>
             </div>
@@ -370,33 +312,32 @@ export function PublicationScene() {
 
 /* ── Client approval card (CTA band visual) ────────────────────────────────────── */
 
+const CHECKS = ['checkBrand', 'checkBooking', 'checkLanguages', 'checkPhone'] as const;
+
 export function ApprovalScene() {
   const t = useT();
+  const s = useSceneT();
   return (
     <Scene label={t('SecurityScenes.approvalAlt')} className="tm-sec-scene--approval">
       <div className="tm-sec-card tm-sec-approval">
-        <p className="tm-web-scene__mono">What you are deciding on</p>
+        <p className="tm-web-scene__mono">{s('decidingOn')}</p>
         <p className="tm-sec-version">
           <span className="tm-sec-version__id">v2 · 8f2c·d41a</span>
-          <span className="tm-web-scene__mono">13 Aug 09:12</span>
+          <span className="tm-web-scene__mono">{s('versionDate')}</span>
         </p>
-        <p className="tm-sec-scene__note">
-          Your decision is recorded against this exact version. If the file changes, the approval
-          stops being valid and we ask you again.
-        </p>
+        <p className="tm-sec-scene__note">{s('versionNote')}</p>
         <hr className="tm-sec-rule" />
-        <p className="tm-web-scene__mono">What you are confirming</p>
+        <p className="tm-web-scene__mono">{s('confirming')}</p>
         <div className="tm-sec-checks">
-          <Checkbox label="The brand feels right" readOnly tabIndex={-1} />
-          <Checkbox label="Booking is easy to find" readOnly tabIndex={-1} />
-          <Checkbox label="Arabic and English match" readOnly tabIndex={-1} />
-          <Checkbox label="The phone layout works" readOnly tabIndex={-1} />
+          {CHECKS.map((key) => (
+            <Checkbox key={key} label={s(key)} readOnly tabIndex={-1} />
+          ))}
         </div>
         <Button tone="lime" size="accessible" className="tm-sec-approval__button">
-          Approve version 2
+          {s('approveVersion2')}
         </Button>
         <Button tone="outline" size="accessible" className="tm-sec-approval__button">
-          Request changes
+          {s('requestChanges')}
         </Button>
       </div>
     </Scene>

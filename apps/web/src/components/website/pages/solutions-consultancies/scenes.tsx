@@ -5,13 +5,22 @@ import { Avatar, Badge, Button, StateCapsule } from '@tmanage/ui';
 import { WebIcon } from '../../WebIcon';
 import { cx } from '../../primitives';
 import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 
 /**
  * Product scenes for Solutions · Consultancies — small, real TManage screens composed from
  * packages/ui parts (StateCapsule, Badge, Avatar, Button) inside a browser-window frame. They are
  * illustrations: the body is `inert` and hidden from assistive tech, and `label` gives one
- * sentence of alternative text instead.
+ * sentence of alternative text instead. Every visible string is a `ConsultanciesScenes.*` catalog
+ * key; names, IDs and version tags stay Latin.
  */
+
+/** `t()` scoped to `ConsultanciesScenes.*`. */
+function useSceneT(): (key: string) => string {
+  const t = useT();
+  return (key) => t(`ConsultanciesScenes.${key}` as MessageKey);
+}
+
 function AppWindow({
   url,
   label,
@@ -47,39 +56,17 @@ function AppWindow({
 
 /* ── Hero: the decision register ──────────────────────────────────────────────── */
 
+/** `key` names the `ConsultanciesScenes.dec<Key>Text/Date/Affects` keys. */
 const DECISIONS = [
-  {
-    id: 'DEC-41',
-    text: 'Offers strip moves below the rooms grid',
-    owner: 'Lina Samir',
-    date: '24 Aug',
-    affects: '2 items',
-  },
-  {
-    id: 'DEC-40',
-    text: 'Booking CTA stays above the fold on mobile',
-    owner: 'Omar Adel',
-    date: '21 Aug',
-    affects: '4 items',
-  },
-  {
-    id: 'DEC-37',
-    text: 'Launch commits to 30 September',
-    owner: 'Omar Adel',
-    date: '12 Jul',
-    affects: '1 milestone',
-  },
-  {
-    id: 'DEC-33',
-    text: 'Arabic is in scope for phase one',
-    owner: 'Maya Hassan',
-    date: '18 Jul',
-    affects: '3 items',
-  },
+  { id: 'DEC-41', key: '41', owner: 'Lina Samir' },
+  { id: 'DEC-40', key: '40', owner: 'Omar Adel' },
+  { id: 'DEC-37', key: '37', owner: 'Omar Adel' },
+  { id: 'DEC-33', key: '33', owner: 'Maya Hassan' },
 ] as const;
 
 export function DecisionRegisterScene() {
   const t = useT();
+  const s = useSceneT();
   return (
     <AppWindow
       url="app.tmanage.com/decisions"
@@ -88,11 +75,11 @@ export function DecisionRegisterScene() {
     >
       <div className="tm-consult-register">
         <div className="tm-consult-register__row tm-consult-register__row--head">
-          <span>ID</span>
-          <span>Statement</span>
-          <span>Owner</span>
-          <span>Effective</span>
-          <span>Affects</span>
+          <span>{s('colId')}</span>
+          <span>{s('colStatement')}</span>
+          <span>{s('colOwner')}</span>
+          <span>{s('colEffective')}</span>
+          <span>{s('colAffects')}</span>
         </div>
         {DECISIONS.map((decision, index) => (
           <div
@@ -104,26 +91,26 @@ export function DecisionRegisterScene() {
           >
             <span className="tm-consult-mono">{decision.id}</span>
             <span className="tm-consult-register__text">
-              <span className="tm-consult-clip">{decision.text}</span>
+              <span className="tm-consult-clip">{s(`dec${decision.key}Text`)}</span>
             </span>
             <span className="tm-consult-register__owner">{decision.owner}</span>
-            <span className="tm-consult-mono">{decision.date}</span>
-            <span className="tm-consult-register__affects">{decision.affects}</span>
+            <span className="tm-consult-mono">{s(`dec${decision.key}Date`)}</span>
+            <span className="tm-consult-register__affects">{s(`dec${decision.key}Affects`)}</span>
           </div>
         ))}
         <div className="tm-consult-register__row tm-consult-register__row--superseded">
           <span className="tm-consult-mono">DEC-29</span>
           <span className="tm-consult-register__text">
-            <span className="tm-consult-clip">Offers hero above the rooms grid</span>
-            <Badge mono>Superseded by DEC-41</Badge>
+            <span className="tm-consult-clip">{s('dec29Text')}</span>
+            <Badge mono>{s('supersededBy')}</Badge>
           </span>
           <span className="tm-consult-register__owner">Lina Samir</span>
-          <span className="tm-consult-mono">6 Jul</span>
+          <span className="tm-consult-mono">{s('dec29Date')}</span>
           <span className="tm-consult-register__affects">—</span>
         </div>
         <div className="tm-consult-register__foot">
-          <span className="tm-consult-mono">5 decisions · 1 superseded</span>
-          <StateCapsule state="client">2 visible to Atlas Hospitality</StateCapsule>
+          <span className="tm-consult-mono">{s('registerCount')}</span>
+          <StateCapsule state="client">{s('visibleToAtlas')}</StateCapsule>
         </div>
       </div>
     </AppWindow>
@@ -134,35 +121,19 @@ export function DecisionRegisterScene() {
 
 type StoryTone = 'done' | 'collapsed' | 'now' | 'next';
 
-const STORY: readonly { tone: StoryTone; meta: string; title: string; sub?: string }[] = [
-  {
-    tone: 'done',
-    meta: 'Scoped · 22 Jul · Omar Adel',
-    title: 'Project created with a 30 September launch commitment',
-  },
-  {
-    tone: 'done',
-    meta: 'Decided · 28 Jul · Maya Hassan',
-    title: 'Discovery closed with three findings',
-    sub: 'Evidence: discovery summary v3, approved by Salma Riad',
-  },
-  { tone: 'collapsed', meta: '12 earlier chapters collapsed', title: 'Show them' },
-  {
-    tone: 'done',
-    meta: 'Published · 13 Aug · Omar Adel',
-    title: 'Homepage Concept v2 sent to Atlas Hospitality',
-    sub: 'v2 · 8f3c-d41a · 2 recipients · 4 internal comments excluded',
-  },
-  {
-    tone: 'now',
-    meta: 'Now · awaiting a client decision',
-    title: 'Youssef Kamal has not opened the approval · 26h',
-  },
-  { tone: 'next', meta: 'Next', title: 'Content migration begins on approval' },
+/** `key` names the `ConsultanciesScenes.story<Key>Meta/Title/Sub` keys. */
+const STORY: readonly { tone: StoryTone; key: string; sub?: boolean }[] = [
+  { tone: 'done', key: 'Scoped' },
+  { tone: 'done', key: 'Discovery', sub: true },
+  { tone: 'collapsed', key: 'Collapsed' },
+  { tone: 'done', key: 'Published', sub: true },
+  { tone: 'now', key: 'Now' },
+  { tone: 'next', key: 'Next' },
 ];
 
 export function EngagementStoryScene() {
   const t = useT();
+  const s = useSceneT();
   return (
     <AppWindow
       url="app.tmanage.com/engagements/story"
@@ -170,11 +141,13 @@ export function EngagementStoryScene() {
     >
       <ol className="tm-consult-story">
         {STORY.map((step) => (
-          <li key={step.meta} className={cx('tm-consult-story__step', `is-${step.tone}`)}>
+          <li key={step.key} className={cx('tm-consult-story__step', `is-${step.tone}`)}>
             <span className="tm-consult-story__dot" />
-            <span className="tm-consult-mono">{step.meta}</span>
-            <span className="tm-consult-story__title">{step.title}</span>
-            {step.sub ? <span className="tm-consult-story__sub">{step.sub}</span> : null}
+            <span className="tm-consult-mono">{s(`story${step.key}Meta`)}</span>
+            <span className="tm-consult-story__title">{s(`story${step.key}Title`)}</span>
+            {step.sub ? (
+              <span className="tm-consult-story__sub">{s(`story${step.key}Sub`)}</span>
+            ) : null}
           </li>
         ))}
       </ol>
@@ -186,6 +159,7 @@ export function EngagementStoryScene() {
 
 export function DecisionDetailScene() {
   const t = useT();
+  const s = useSceneT();
   return (
     <AppWindow
       url="app.tmanage.com/decisions/detail"
@@ -195,77 +169,72 @@ export function DecisionDetailScene() {
       <div className="tm-consult-detail">
         <div className="tm-consult-detail__main">
           <p className="tm-consult-detail__crumbs">
-            <span className="tm-consult-mono">DEC-40 · Atlas Website Relaunch</span>
-            <StateCapsule state="done">Active</StateCapsule>
-            <Badge tone="client">Client visible</Badge>
+            <span className="tm-consult-mono">{s('detailCrumb')}</span>
+            <StateCapsule state="done">{s('detailActive')}</StateCapsule>
+            <Badge tone="client">{s('detailClientVisible')}</Badge>
           </p>
-          <p className="tm-consult-detail__title">
-            The booking call to action stays above the fold on mobile
-          </p>
+          <p className="tm-consult-detail__title">{s('detailTitle')}</p>
           <div className="tm-consult-detail__card">
             <dl className="tm-consult-detail__facts">
               <div>
-                <dt>Owner</dt>
+                <dt>{s('colOwner')}</dt>
                 <dd>Omar Adel</dd>
               </div>
               <div>
-                <dt>Effective</dt>
-                <dd>21 Aug 2026</dd>
+                <dt>{s('colEffective')}</dt>
+                <dd>{s('detailEffective')}</dd>
               </div>
               <div>
-                <dt>Affects</dt>
-                <dd>4 work items</dd>
+                <dt>{s('colAffects')}</dt>
+                <dd>{s('detailAffects')}</dd>
               </div>
               <div>
-                <dt>Source</dt>
-                <dd>Client approval</dd>
+                <dt>{s('detailSourceLabel')}</dt>
+                <dd>{s('detailSource')}</dd>
               </div>
             </dl>
-            <p className="tm-consult-mono">Rationale</p>
-            <p className="tm-consult-detail__text">
-              Mobile guests book from the first screen; every test session lost a step when the
-              button moved below the offers strip.
-            </p>
-            <p className="tm-consult-mono">Supporting evidence · 2</p>
+            <p className="tm-consult-mono">{s('detailRationaleLabel')}</p>
+            <p className="tm-consult-detail__text">{s('detailRationale')}</p>
+            <p className="tm-consult-mono">{s('detailEvidenceLabel')}</p>
             <div className="tm-consult-detail__evidence">
-              <span>Mobile usability test</span>
-              <span>Linked to finding F-07</span>
+              <span>{s('evidenceUsability')}</span>
+              <span>{s('evidenceUsabilityNote')}</span>
             </div>
             <div className="tm-consult-detail__evidence">
-              <span>Booking funnel review</span>
-              <span>Approved by Salma Riad</span>
+              <span>{s('evidenceFunnel')}</span>
+              <span>{s('evidenceFunnelNote')}</span>
             </div>
           </div>
         </div>
         <div className="tm-consult-detail__side">
           <div className="tm-consult-detail__related">
-            <p className="tm-consult-mono">Related · 4</p>
+            <p className="tm-consult-mono">{s('relatedLabel')}</p>
             <span>
               <WebIcon name="doc" size={14} />
-              Homepage Concept v2
+              {s('relatedConcept')}
             </span>
             <span>
               <WebIcon name="work" size={14} />
-              Mobile booking flow
+              {s('relatedFlow')}
             </span>
             <span>
               <WebIcon name="flag" size={14} />
-              Discovery findings
+              {s('relatedFindings')}
             </span>
           </div>
           <div className="tm-consult-detail__audit">
-            <p className="tm-consult-mono">Audit trail</p>
+            <p className="tm-consult-mono">{s('auditLabel')}</p>
             <span className="is-lime">
-              <b>21 Aug · 10:14</b>
-              Recorded by Omar Adel
+              <b>{s('audit1When')}</b>
+              {s('audit1What')}
             </span>
             <span>
-              <b>21 Aug · 11:02</b>
-              Approved by Salma Riad, client
+              <b>{s('audit2When')}</b>
+              {s('audit2What')}
             </span>
             <span>
-              <b>22 Aug · 09:30</b>
-              Linked to 4 work items
+              <b>{s('audit3When')}</b>
+              {s('audit3What')}
             </span>
           </div>
         </div>
@@ -276,25 +245,26 @@ export function DecisionDetailScene() {
 
 /* ── Row 3: the steering-committee health view ─────────────────────────────────── */
 
+/** `key` names the `ConsultanciesScenes.health<Key>Name` keys; `label` a `state<Label>` key. */
 const HEALTH = [
   {
-    name: 'Atlas Website Relaunch',
+    key: 'Atlas',
     client: 'Atlas Hospitality',
     done: 2,
     current: 1,
     left: 2,
-    state: { tone: 'waiting', label: 'At risk' },
+    state: { tone: 'waiting', label: 'AtRisk' },
   },
   {
-    name: 'Pricing review',
+    key: 'Pricing',
     client: 'Northstar Studio',
     done: 1,
     current: 1,
     left: 3,
-    state: { tone: 'current', label: 'On track' },
+    state: { tone: 'current', label: 'OnTrack' },
   },
   {
-    name: 'Operating model study',
+    key: 'Operating',
     client: 'Atlas Hospitality',
     done: 3,
     current: 1,
@@ -305,6 +275,7 @@ const HEALTH = [
 
 export function SteeringHealthScene() {
   const t = useT();
+  const s = useSceneT();
   return (
     <AppWindow
       url="app.tmanage.com/insights/health"
@@ -313,30 +284,30 @@ export function SteeringHealthScene() {
     >
       <div className="tm-consult-health">
         <div className="tm-consult-health__head">
-          <p className="tm-consult-health__title">Which promises are still true</p>
-          <span className="tm-web-chip">Clients</span>
-          <span className="tm-web-chip tm-web-chip--on">This week</span>
+          <p className="tm-consult-health__title">{s('healthTitle')}</p>
+          <span className="tm-web-chip">{s('chipClients')}</span>
+          <span className="tm-web-chip tm-web-chip--on">{s('chipThisWeek')}</span>
         </div>
         <div className="tm-consult-health__metrics">
           <div>
             <b>2</b>
-            <span>projects at risk</span>
+            <span>{s('metricAtRisk')}</span>
           </div>
           <div>
             <b>6</b>
-            <span>decisions waiting on the client</span>
+            <span>{s('metricWaiting')}</span>
           </div>
           <div>
             <b>9</b>
-            <span>committed dates this week</span>
+            <span>{s('metricCommitted')}</span>
           </div>
         </div>
         <div className="tm-consult-health__grid">
           <div className="tm-consult-health__table">
             {HEALTH.map((row) => (
-              <div key={row.name} className="tm-consult-health__row">
+              <div key={row.key} className="tm-consult-health__row">
                 <span className="tm-consult-health__name">
-                  <span className="tm-consult-clip">{row.name}</span>
+                  <span className="tm-consult-clip">{s(`health${row.key}Name`)}</span>
                   <small className="tm-consult-clip">{row.client}</small>
                 </span>
                 <span className="tm-consult-health__bar">
@@ -350,21 +321,19 @@ export function SteeringHealthScene() {
                     <i key={`l${i}`} />
                   ))}
                 </span>
-                <StateCapsule state={row.state.tone}>{row.state.label}</StateCapsule>
+                <StateCapsule state={row.state.tone}>{s(`state${row.state.label}`)}</StateCapsule>
               </div>
             ))}
           </div>
           <div className="tm-consult-health__draft">
-            <p className="tm-consult-mono">Update · draft</p>
-            <p className="tm-consult-health__draft-title">
-              One decision from Youssef Kamal returns 2 days to the plan.
-            </p>
+            <p className="tm-consult-mono">{s('draftLabel')}</p>
+            <p className="tm-consult-health__draft-title">{s('draftTitle')}</p>
             <div className="tm-consult-health__draft-by">
               <Avatar name="Omar Adel" size="compact" decorative />
               <span>Omar Adel</span>
             </div>
             <Button tone="ink" size="feature">
-              Send to portal
+              {s('sendToPortal')}
             </Button>
           </div>
         </div>
