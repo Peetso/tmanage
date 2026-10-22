@@ -115,19 +115,6 @@ const EXEMPT = new Map([
     'GrantView',
     'Not a wire shape: the oauth-tokens repository row (revokedAt is a Date) read only inside the token and revoke paths; no route serialises it. The Connected apps response is ConnectedAppsView, paired.',
   ],
-  // BG2 (0211) deliverables and send-for-client-approval: API-only until the screens land after
-  // Figma approval. Pair each when apps/web/src/lib/api gains the deliverables client.
-  [
-    'DeliverableView',
-    'No web consumer yet: BG2 deliverables are API-only; the screen is a follow-up.',
-  ],
-  ['DeliverableVersionView', 'No web consumer yet: same as DeliverableView (BG2, API-only).'],
-  ['DeliverableDetailView', 'No web consumer yet: same as DeliverableView (BG2, API-only).'],
-  [
-    'ApproverView',
-    'No web consumer yet: the send-for-approval approver picker (BG2) has no screen.',
-  ],
-  ['SendForApprovalView', 'No web consumer yet: the send-for-approval action (BG2) has no screen.'],
   // BG3 (0212) request messages: API-only until the request thread screens land.
   [
     'RequestMessageView',

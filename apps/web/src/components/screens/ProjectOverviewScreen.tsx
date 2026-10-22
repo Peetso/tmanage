@@ -163,6 +163,12 @@ export function ProjectOverviewScreen({
             <>
               <Link
                 className="tm-button tm-button--outline tm-button--accessible"
+                href={`/${organizationSlug}/projects/${encodeURIComponent(projectId)}/deliverables`}
+              >
+                {t('Deliverables.overviewLink' as MessageKey)}
+              </Link>
+              <Link
+                className="tm-button tm-button--outline tm-button--accessible"
                 href={`/${organizationSlug}/work?project=${encodeURIComponent(projectId)}`}
               >
                 {t('ProjectOverviewScreen.updateWork')}

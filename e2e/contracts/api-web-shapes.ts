@@ -2917,3 +2917,25 @@ type _consent = Assert<Exact<ApiConsentView, WebConsentView>>;
 type _connectedApp = Assert<Exact<ApiConnectedAppView, WebConnectedApp>>;
 type _connectedApps = Assert<Exact<ApiConnectedAppsView, WebConnectedAppsView>>;
 type _aiApproval = Assert<Exact<ApiPendingAiActionView, WebAiApprovalView>>;
+
+// P7 / BG2 (0211): team deliverables and Send for approval — the five views leave EXEMPT now that
+// `apps/web/src/lib/api/deliverables.ts` consumes them.
+import type {
+  ApproverView as ApiApproverView,
+  DeliverableDetailView as ApiDeliverableDetailView,
+  DeliverableVersionView as ApiDeliverableVersionView,
+  DeliverableView as ApiDeliverableView,
+  SendForApprovalView as ApiSendForApprovalView,
+} from '../../apps/api/src/modules/approvals/deliverables.service.js';
+import type {
+  ApproverView as WebApproverView,
+  DeliverableDetailView as WebDeliverableDetailView,
+  DeliverableVersionView as WebDeliverableVersionView,
+  DeliverableView as WebDeliverableView,
+  SendForApprovalView as WebSendForApprovalView,
+} from '../../apps/web/src/lib/api/deliverables';
+type _deliverable = Assert<Exact<ApiDeliverableView, WebDeliverableView>>;
+type _deliverableVersion = Assert<Exact<ApiDeliverableVersionView, WebDeliverableVersionView>>;
+type _deliverableDetail = Assert<Exact<ApiDeliverableDetailView, WebDeliverableDetailView>>;
+type _approver = Assert<Exact<ApiApproverView, WebApproverView>>;
+type _sendForApproval = Assert<Exact<ApiSendForApprovalView, WebSendForApprovalView>>;
