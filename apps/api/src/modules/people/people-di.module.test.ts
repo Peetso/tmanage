@@ -6,7 +6,7 @@ import { uuidv7 } from '@tmanage/domain';
 import { analyzeStatement } from '../../common/database/tenant-guard.js';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type { TenantQueryRunner } from '../../common/database/tenant-context.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import {
   PersonCertificationsController,
   PersonCertificationsModule,
@@ -24,7 +24,14 @@ import { PersonTimeOffController, PersonTimeOffModule } from './time-off.control
  * construct controllers by hand and never saw it; this compiles each module through Nest's injector.
  */
 @Global()
-@Module({ providers: [{ provide: TENANT_DATABASE, useValue: {} }], exports: [TENANT_DATABASE] })
+@Module({
+  providers: [
+    { provide: TENANT_DATABASE, useValue: {} },
+    // The member profile module's own-profile controller (t2-b) audits through the global service.
+    { provide: AUDIT_SERVICE, useValue: {} },
+  ],
+  exports: [TENANT_DATABASE, AUDIT_SERVICE],
+})
 class FakeGlobalsModule {}
 
 async function instanceOf(module: unknown, controller: new (...args: never[]) => unknown) {

@@ -76,6 +76,24 @@ export const preferencesDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Save', args: { settings: {} } }],
   }),
   det({
+    id: 'me.profile.list',
+    title: 'Your profile',
+    description: 'Your name, sign-in email (read-only) and job title in this workspace.',
+    input: noArgs(),
+    redact: 'people',
+    examples: [{ summary: 'Read', args: {} }],
+  }),
+  det({
+    id: 'me.profile.set',
+    title: 'Update your profile',
+    description: 'Change your own name and job title. The sign-in email cannot be changed here.',
+    input: bodyArgs([], { displayName: f.shortText(190), jobTitle: f.shortText(120).nullish() }),
+    redact: 'people',
+    examples: [
+      { summary: 'Rename', args: { displayName: 'Mona Saleh', jobTitle: 'Art director' } },
+    ],
+  }),
+  det({
     id: 'me.shortcuts.list',
     title: 'Your shortcuts',
     description: 'Your keyboard-shortcut overrides.',

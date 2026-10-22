@@ -7,6 +7,8 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MemberProfileRepository } from './member-profile.repository.js';
+import { MyProfileController } from './my-profile.controller.js';
+import { MyProfileRepository } from './my-profile.repository.js';
 import type { MemberProfileInput } from './member-profile.repository.js';
 
 /**
@@ -214,8 +216,10 @@ export class MemberProfileModule {
       module: MemberProfileModule,
       providers: [
         { provide: MemberProfileRepository, useFactory: () => new MemberProfileRepository() },
+        // t2-b: the signed-in member's own profile card (`…/me/profile`), same tenant store.
+        { provide: MyProfileRepository, useFactory: () => new MyProfileRepository() },
       ],
-      controllers: [MemberProfileController],
+      controllers: [MemberProfileController, MyProfileController],
     };
   }
 }

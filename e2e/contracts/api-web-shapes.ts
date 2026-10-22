@@ -267,6 +267,7 @@ import type { RequestTagsView as ApiRequestTagsView } from '../../apps/api/src/m
 import type { PublicChangelogView as ApiPublicChangelogView } from '../../apps/api/src/modules/public-site/changelog.controller.js';
 import type { PersonProfileView as ApiPersonProfileView } from '../../apps/api/src/modules/people/profile.controller.js';
 import type { MemberProfileView as ApiMemberProfileView } from '../../apps/api/src/modules/people/member-profile.controller.js';
+import type { MyProfileView as ApiMyProfileView } from '../../apps/api/src/modules/people/my-profile.controller.js';
 import type {
   TeamView as ApiTeamView,
   TeamMemberView as ApiTeamMemberView,
@@ -743,7 +744,10 @@ import type { RequestComment as WebRequestComment } from '../../apps/web/src/lib
 import type { RequestTagsView as WebRequestTagsView } from '../../apps/web/src/lib/api/request-tags';
 import type { PublicChangelogView as WebPublicChangelogView } from '../../apps/web/src/lib/api/public-changelog';
 import type { PersonProfileView as WebPersonProfileView } from '../../apps/web/src/lib/api/person-profile';
-import type { MemberProfileView as WebMemberProfileView } from '../../apps/web/src/lib/api/member-profile';
+import type {
+  MemberProfileView as WebMemberProfileView,
+  MyProfileView as WebMyProfileView,
+} from '../../apps/web/src/lib/api/member-profile';
 import type {
   TeamView as WebTeamView,
   TeamMemberView as WebTeamMemberView,
@@ -1620,6 +1624,13 @@ type _insightComparison = Assert<Exact<ApiPeriodComparisonView, WebPeriodCompari
  * saves it — so this is a live `Exact` pair, not an exemption.
  */
 type _memberProfile = Assert<Exact<ApiMemberProfileView, WebMemberProfileView>>;
+
+/**
+ * t2-b — `GET/PUT …/me/profile`. The signed-in member's own profile card: `displayName`, the
+ * read-only sign-in `email`, and the tenant-local `jobTitle` (nullable). Paired with the real web
+ * consumer — the Profile & preferences screen reads and saves it — so a live `Exact` pair.
+ */
+type _myProfile = Assert<Exact<ApiMyProfileView, WebMyProfileView>>;
 
 /**
  * x262 — `…/people/teams`. People teams (module 14, planning PEO-03). `TeamView` (`GET`/`POST`

@@ -2633,6 +2633,22 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'write',
   },
   {
+    id: 'me.profile.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/me/profile/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'me.profile.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/me/profile/',
+    capability: 'work.read',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
     id: 'me.shortcuts.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/me/shortcuts/',

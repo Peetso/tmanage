@@ -3739,6 +3739,8 @@ export const memberProfiles = mysqlTable(
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
     userId: char('user_id', { length: 36 }).notNull(),
+    /** The member's own job title in this studio (0215), edited only via `PUT …/me/profile`. */
+    jobTitle: varchar('job_title', { length: 120 }),
     department: varchar('department', { length: 120 }),
     bio: varchar('bio', { length: 2000 }),
     contactEmail: varchar('contact_email', { length: 320 }),
