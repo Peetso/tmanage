@@ -11,7 +11,13 @@ import type { Mailer, MailMessage } from '@tmanage/mail';
  */
 
 export type CollaborationMailKind =
-  'mention' | 'comment' | 'meeting_invite' | 'project_added' | 'client_action';
+  | 'mention'
+  | 'comment'
+  | 'meeting_invite'
+  | 'project_added'
+  | 'client_action'
+  | 'approval_requested'
+  | 'request_message';
 
 export interface CollaborationEmailFacts {
   readonly recipientEmail: string;
@@ -28,6 +34,16 @@ export interface CollaborationEmailFacts {
   readonly when?: string;
   /** The absolute link to the screen that shows it. */
   readonly link: string;
+  /**
+   * NT1 — the recipient's `users.locale`. `approval_requested` and `request_message` are written
+   * in Arabic for an `ar*` locale and in English otherwise; the older kinds are English-only yet.
+   */
+  readonly locale?: string;
+}
+
+/** Whether a BCP-47 locale asks for Arabic copy. */
+export function isArabicLocale(locale: string | undefined): boolean {
+  return locale !== undefined && /^ar(?:-|$)/iu.test(locale);
 }
 
 /** Flattened before it reaches a header or a line: these are strings people typed. */
@@ -39,10 +55,49 @@ function inProject(facts: CollaborationEmailFacts): string {
   return facts.projectName === undefined ? '' : ` in ${oneLine(facts.projectName)}`;
 }
 
+/**
+ * NT1 — the two kinds that have Arabic copy (`approval_requested`, `request_message`), in Arabic.
+ * Same facts, same lines, same link; never what anybody wrote.
+ */
+function composeArabicEmail(
+  kind: 'approval_requested' | 'request_message',
+  facts: CollaborationEmailFacts,
+): MailMessage {
+  const name = oneLine(facts.recipientName);
+  const actor = oneLine(facts.actorName ?? facts.organizationName);
+  const title = oneLine(facts.subjectTitle);
+  const studio = oneLine(facts.organizationName);
+  const where = facts.projectName === undefined ? '' : ` في ${oneLine(facts.projectName)}`;
+  const subject =
+    kind === 'approval_requested'
+      ? `يرجى المراجعة: نسخة جديدة في ${title}`
+      : `رسالة جديدة على ${title}`;
+  const middle =
+    kind === 'approval_requested'
+      ? `أرسل ${studio} نسخة جديدة في ${title} لموافقتك. يرجى مراجعتها ثم الموافقة أو طلب تعديلات.`
+      : `نشر ${actor} رسالة جديدة على الطلب ${title}${where}.`;
+  return {
+    to: facts.recipientEmail,
+    subject,
+    text: [
+      `مرحبًا ${name}،`,
+      middle,
+      `افتحه من هنا: ${facts.link}`,
+      `تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`,
+    ].join('\n\n'),
+  };
+}
+
 export function composeCollaborationEmail(
   kind: CollaborationMailKind,
   facts: CollaborationEmailFacts,
 ): MailMessage {
+  if (
+    (kind === 'approval_requested' || kind === 'request_message') &&
+    isArabicLocale(facts.locale)
+  ) {
+    return composeArabicEmail(kind, facts);
+  }
   const name = oneLine(facts.recipientName);
   const actor = oneLine(facts.actorName ?? facts.organizationName);
   const title = oneLine(facts.subjectTitle);
@@ -72,6 +127,14 @@ export function composeCollaborationEmail(
     case 'client_action':
       subject = `${studio} needs your input on ${title}`;
       middle = `${studio} is waiting on you for ${title}${inProject(facts)}.`;
+      break;
+    case 'approval_requested':
+      subject = `Please review: a new version in ${title}`;
+      middle = `${studio} sent a new version in ${title} for your approval. Please review it, then approve it or request changes.`;
+      break;
+    case 'request_message':
+      subject = `New message on ${title}`;
+      middle = `${actor} posted a new message on the request ${title}${inProject(facts)}.`;
       break;
   }
   return {

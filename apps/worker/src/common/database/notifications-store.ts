@@ -214,6 +214,8 @@ export interface UsageMailRecipient {
   /** NOTIF-001's mail-channel toggle. Default TRUE when no preferences row exists — "reachable". */
   readonly emailEnabled: boolean;
   readonly quietHours: QuietHoursPreferences;
+  /** `users.locale` (BCP-47, default 'en') — the language an email is written in (NT1). */
+  readonly locale: string;
 }
 
 /**
@@ -235,13 +237,14 @@ export async function findUsageMailRecipient(
   interface Row {
     readonly email: string;
     readonly display_name: string;
+    readonly locale?: string | null;
     readonly email_enabled: number | null;
     readonly quiet_hours_start: string | null;
     readonly quiet_hours_end: string | null;
     readonly quiet_hours_timezone: string | null;
   }
   const rows = await tx.query<readonly Row[]>(
-    `SELECT u.email, u.display_name,
+    `SELECT u.email, u.display_name, u.locale,
             np.email_enabled, np.quiet_hours_start, np.quiet_hours_end, np.quiet_hours_timezone
        FROM users u
        LEFT JOIN notification_preferences np
@@ -261,6 +264,7 @@ export async function findUsageMailRecipient(
       quietHoursEnd: row.quiet_hours_end,
       quietHoursTimezone: row.quiet_hours_timezone,
     },
+    locale: row.locale ?? 'en',
   };
 }
 

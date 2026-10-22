@@ -43,6 +43,8 @@ describe('requestTransitionFor', () => {
 describe('the handler registry', () => {
   it('answers to exactly the types its consumers read', () => {
     expect(Object.keys(WORKER_OUTBOX_HANDLERS).sort()).toEqual([
+      'approval.requested.v1',
+      'client_request.message_posted.v1',
       'client_request.submitted.v1',
       'client_request.transitioned.v1',
       'document.comment_created.v1',

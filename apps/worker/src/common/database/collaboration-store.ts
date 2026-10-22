@@ -124,6 +124,56 @@ export async function findProjectName(
   return rows[0]?.name ?? null;
 }
 
+/** NT1 — what a request-message notice names: the request's title and who filed it. */
+export interface ClientRequestFacts {
+  readonly title: string;
+  readonly submittedByUserId: string;
+}
+
+/** The request a message was posted on, or null when the row is gone. Never the message body. */
+export async function findClientRequestFacts(
+  tx: WorkerTransaction,
+  organizationId: string,
+  requestId: string,
+): Promise<ClientRequestFacts | null> {
+  const rows = await tx.query<readonly { title: string; submitted_by_user_id: string }[]>(
+    `SELECT title, submitted_by_user_id FROM client_requests
+      WHERE organization_id = ? AND id = ?`,
+    [organizationId, requestId],
+  );
+  const row = rows[0];
+  return row === undefined
+    ? null
+    : { title: row.title, submittedByUserId: row.submitted_by_user_id };
+}
+
+/**
+ * NT1 — the display name behind a message author's membership: a client membership for a client
+ * author, an internal one otherwise. Null when the membership or the user row is gone.
+ */
+export async function findMembershipDisplayName(
+  tx: WorkerTransaction,
+  organizationId: string,
+  membershipId: string,
+  kind: 'internal' | 'client',
+): Promise<string | null> {
+  const sql =
+    kind === 'client'
+      ? `SELECT u.display_name
+           FROM client_memberships m
+           JOIN users u ON u.id = m.user_id
+          WHERE m.organization_id = ? AND m.id = ?`
+      : `SELECT u.display_name
+           FROM memberships m
+           JOIN users u ON u.id = m.user_id
+          WHERE m.organization_id = ? AND m.id = ?`;
+  const rows = await tx.query<readonly { display_name: string }[]>(sql, [
+    organizationId,
+    membershipId,
+  ]);
+  return rows[0]?.display_name ?? null;
+}
+
 export async function findConversationFacts(
   tx: WorkerTransaction,
   organizationId: string,

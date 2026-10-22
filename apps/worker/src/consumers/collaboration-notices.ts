@@ -2,17 +2,21 @@ import { hasCapability, isInQuietHours, isRole, quietHoursResumeAt } from '@tman
 import type { Capability } from '@tmanage/domain';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
 import {
+  clientRecipientStillPermitted,
   decodeQuietHoursMailResume,
   enqueueQuietHoursMailResume,
   findUsageMailRecipient,
   insertNotification,
+  listActiveInternalMemberships,
 } from '../common/database/notifications-store.js';
 import {
+  findClientRequestFacts,
   findConversationFacts,
   findDisplayName,
   findDocumentFacts,
   findInternalReach,
   findMeetingFacts,
+  findMembershipDisplayName,
   findOrganizationFacts,
   findProjectName,
   findWorkItemFacts,
@@ -40,6 +44,8 @@ import type {
  * | `meeting.attendee_invited.v1`          | the invitee                         | yes    | yes   |
  * | `project.member_added.v1`              | the person added                    | yes    | yes   |
  * | `work_item.client_action_requested.v1` | client people who may decide        | portal | yes   |
+ * | `approval.requested.v1` (NT1)          | the picked client deciders          | yes    | yes   |
+ * | `client_request.message_posted.v1`     | the other side of the request (NT1) | yes    | yes   |
  *
  * ## One shape for all five
  *
@@ -58,7 +64,7 @@ import type {
  */
 
 /** The subject half of an email; the recipient half is read at delivery. */
-type MailSubject = Omit<CollaborationEmailFacts, 'recipientEmail' | 'recipientName'>;
+type MailSubject = Omit<CollaborationEmailFacts, 'recipientEmail' | 'recipientName' | 'locale'>;
 
 export interface PlannedNotice {
   readonly recipientUserId: string;
@@ -356,17 +362,17 @@ export const planClientActionNotices: NoticePlanner = async (event, tx, mailer) 
 };
 
 /**
- * `approval.requested.v1` → APR-01/02 (0211). A deliverable version was sent to the client for
+ * `approval.requested.v1` → APR-01/02 (0211), NT1. A deliverable version was sent to the client for
  * approval: each client person on the project who may decide (`approval.decide`, never a viewer)
- * and — when the sender picked reviewers — is one of them, is emailed a link to the portal's
- * Approve screen for that exact version. Email only, like the client-action notice; the subject is
- * the project, since the worker holds no read on `deliverables`.
+ * and — when the sender picked reviewers — is one of them, gets an in-app row and a "please review"
+ * email linking the portal's Approve screen for that exact version. The subject is the project,
+ * since the worker holds no read on `deliverables`.
  */
 export const planApprovalRequestedNotices: NoticePlanner = async (event, tx, mailer) => {
-  if (mailer === null) return [];
   const raw = payloadOf(event);
   const projectId = stringField(raw, 'projectId', event.id);
   const versionId = stringField(raw, 'deliverableVersionId', event.id);
+  const approvalId = typeof raw['approvalId'] === 'string' ? raw['approvalId'] : event.id;
   const picked = new Set(idList(raw, 'reviewerUserIds'));
 
   const people = await listProjectClientPeople(tx, event.organizationId, projectId);
@@ -377,9 +383,16 @@ export const planApprovalRequestedNotices: NoticePlanner = async (event, tx, mai
       recipientUserId: person.userId,
       optOutKind: null,
       membershipId: null,
-      inApp: null,
-      mailKind: 'client_action',
+      inApp: {
+        type: 'approval.requested.v1',
+        objectType: 'deliverable_version',
+        objectId: versionId,
+        // One approval per send: a re-send after changes is a new approval, so news again.
+        dedupeKey: `approval.requested:${approvalId}`,
+      },
+      mailKind: 'approval_requested',
       mail: async () => {
+        if (mailer === null) return null;
         const org = await organizationOf(tx, event.organizationId);
         const project = await findProjectName(tx, event.organizationId, projectId);
         if (org === null || project === null) return null;
@@ -392,6 +405,94 @@ export const planApprovalRequestedNotices: NoticePlanner = async (event, tx, mai
     }));
 };
 
+/**
+ * `client_request.message_posted.v1` → NT1 (BG3). A message on a client request tells the other
+ * side, re-checked from the current rows:
+ *
+ * - a **client** posted → every internal member who may triage the request and reaches its
+ *   project (`client_request.triage`, org-wide scope or a project seat — the submitted notice's
+ *   rule), honouring the "message" opt-out; the email names the client author;
+ * - a **team member** posted a client-visible message → the person who filed the request, while
+ *   their client membership is active and the project still shared; the email names the studio,
+ *   never a staff member (the portal shows "from studio");
+ * - an internal-only message (`clientVisible: false`) → nobody.
+ */
+export const planRequestMessageNotices: NoticePlanner = async (event, tx, mailer) => {
+  const raw = payloadOf(event);
+  const requestId = stringField(raw, 'requestId', event.id);
+  const messageId = stringField(raw, 'messageId', event.id);
+  const projectId = stringField(raw, 'projectId', event.id);
+  const clientOrganizationId = stringField(raw, 'clientOrganizationId', event.id);
+  const authorMembershipId = stringField(raw, 'authorMembershipId', event.id);
+  const authorKind = raw['authorKind'] === 'client' ? 'client' : 'internal';
+  if (authorKind === 'internal' && raw['clientVisible'] !== true) return [];
+
+  const request = await findClientRequestFacts(tx, event.organizationId, requestId);
+  if (request === null) return []; // Gone: nothing safe to reference.
+  const inApp = {
+    type: 'client_request.message_posted.v1',
+    objectType: 'client_request',
+    objectId: requestId,
+    dedupeKey: `client_request.message:${messageId}`,
+  };
+  const subject = async (portal: boolean): Promise<MailSubject | null> => {
+    if (mailer === null) return null;
+    const org = await organizationOf(tx, event.organizationId);
+    if (org === null) return null;
+    const actor = portal
+      ? null
+      : await findMembershipDisplayName(tx, event.organizationId, authorMembershipId, 'client');
+    const project = await findProjectName(tx, event.organizationId, projectId);
+    return {
+      organizationName: org.name,
+      ...(actor === null ? {} : { actorName: actor }),
+      subjectTitle: request.title,
+      ...(project === null ? {} : { projectName: project }),
+      link: mailer.linkTo(
+        portal
+          ? `/${org.slug}/portal/requests/${requestId}`
+          : `/${org.slug}/work/requests/${requestId}`,
+      ),
+    };
+  };
+
+  if (authorKind === 'internal') {
+    const permitted = await clientRecipientStillPermitted(tx, {
+      organizationId: event.organizationId,
+      userId: request.submittedByUserId,
+      clientOrganizationId,
+      projectId,
+    });
+    if (!permitted) return [];
+    return [
+      {
+        recipientUserId: request.submittedByUserId,
+        optOutKind: null,
+        membershipId: null,
+        inApp,
+        mailKind: 'request_message',
+        mail: () => subject(true),
+      },
+    ];
+  }
+
+  const candidates = await listActiveInternalMemberships(tx, event.organizationId, projectId);
+  const notices: PlannedNotice[] = [];
+  for (const candidate of candidates) {
+    const reach = await findInternalReach(tx, event.organizationId, candidate.userId, projectId);
+    if (!mayBeTold(reach, 'client_request.triage') || reach === null) continue;
+    notices.push({
+      recipientUserId: candidate.userId,
+      optOutKind: 'message',
+      membershipId: reach.membershipId,
+      inApp,
+      mailKind: 'request_message',
+      mail: () => subject(false),
+    });
+  }
+  return notices;
+};
+
 /** The planners by event type — the set `registry.ts` registers and the resume path re-plans. */
 export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'message.created.v1': planMentionNotices,
@@ -400,6 +501,7 @@ export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'project.member_added.v1': planProjectAddedNotices,
   'work_item.client_action_requested.v1': planClientActionNotices,
   'approval.requested.v1': planApprovalRequestedNotices,
+  'client_request.message_posted.v1': planRequestMessageNotices,
 };
 
 // ─── Delivery ──────────────────────────────────────────────────────────────────
@@ -435,6 +537,7 @@ async function stageMail(input: {
       ...subject,
       recipientEmail: recipient.email,
       recipientName: recipient.displayName,
+      locale: recipient.locale,
     });
   });
 }

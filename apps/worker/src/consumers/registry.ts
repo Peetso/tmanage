@@ -25,6 +25,7 @@ import {
   planMeetingInviteNotices,
   planMentionNotices,
   planProjectAddedNotices,
+  planRequestMessageNotices,
 } from './collaboration-notices.js';
 import { automationRunsConsumer } from './automation-runs.js';
 import type { CollaborationMailer } from '../notifications/collaboration-mailer.js';
@@ -155,9 +156,15 @@ export function createWorkerOutboxHandlers(
       planClientActionNotices,
       collaborationMails,
     ),
-    // 0211 (APR-01/02): a version sent for client approval — the deciding client people are emailed.
+    // 0211 (APR-01/02), NT1: a version sent for client approval — the picked client deciders get
+    // an in-app row and a "please review" email.
     'approval.requested.v1': createCollaborationNotices(
       planApprovalRequestedNotices,
+      collaborationMails,
+    ),
+    // 0212 (BG3), NT1: a message on a client request tells the other side — see the planner.
+    'client_request.message_posted.v1': createCollaborationNotices(
+      planRequestMessageNotices,
       collaborationMails,
     ),
     'client_request.transitioned.v1':

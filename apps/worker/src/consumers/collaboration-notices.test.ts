@@ -3,9 +3,19 @@ import { INTERNAL_ROLES } from '@tmanage/domain';
 import { expectedCeilingGrants } from '@tmanage/test-kit';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
-import { mayBeTold, planClientActionNotices, planMentionNotices } from './collaboration-notices.js';
+import {
+  mayBeTold,
+  planApprovalRequestedNotices,
+  planClientActionNotices,
+  planMentionNotices,
+  planRequestMessageNotices,
+} from './collaboration-notices.js';
 import { automationRunsConsumer, notRunReason } from './automation-runs.js';
-import { CollaborationMailer } from '../notifications/collaboration-mailer.js';
+import {
+  CollaborationMailer,
+  composeCollaborationEmail,
+  isArabicLocale,
+} from '../notifications/collaboration-mailer.js';
 
 /**
  * CQ-12 — the recipient rules of the collaboration notices and the automation runner, over a fake
@@ -169,5 +179,128 @@ describe('automation runs (AUT-01)', () => {
     expect(notice?.params).toEqual(expect.arrayContaining(['mona', 'client_request', 'req-1']));
     const run = writes.find((write) => write.sql.includes('INTO workflow_runs'));
     expect(run?.params).toEqual(expect.arrayContaining(['rule-1', 'succeeded']));
+  });
+});
+
+describe('planApprovalRequestedNotices (NT1)', () => {
+  it('gives the picked client deciders an in-app row even with no mail transport', async () => {
+    const { tx } = fakeTx((sql) => {
+      if (sql.includes('FROM client_memberships')) {
+        return [
+          { user_id: 'rami', role: 'client_reviewer' },
+          { user_id: 'vera', role: 'client_viewer' },
+          { user_id: 'omar', role: 'client_reviewer' },
+        ];
+      }
+      return [];
+    });
+    const notices = await planApprovalRequestedNotices(
+      event('approval.requested.v1', {
+        approvalId: 'apr-1',
+        deliverableId: 'del-1',
+        deliverableVersionId: 'ver-1',
+        projectId: 'proj-1',
+        reviewerUserIds: ['rami', 'vera'],
+      }),
+      tx,
+      null,
+    );
+    expect(notices.map((notice) => notice.recipientUserId)).toEqual(['rami']);
+    expect(notices[0]).toMatchObject({
+      mailKind: 'approval_requested',
+      inApp: {
+        objectType: 'deliverable_version',
+        objectId: 'ver-1',
+        dedupeKey: 'approval.requested:apr-1',
+      },
+    });
+  });
+});
+
+describe('planRequestMessageNotices (NT1)', () => {
+  const payload = {
+    requestId: 'req-1',
+    messageId: 'rm-1',
+    projectId: 'proj-1',
+    clientOrganizationId: 'acme',
+    authorMembershipId: 'cm-1',
+  };
+  const answer = (sql: string, params: readonly unknown[]): unknown => {
+    if (sql.includes('FROM client_requests')) {
+      return [{ title: 'New logo', submitted_by_user_id: 'rami' }];
+    }
+    if (sql.includes('AS permitted')) return [{ permitted: 1 }];
+    if (sql.includes('FROM memberships m') && params.length === 2) {
+      return [
+        { user_id: 'mona', role: 'manager', has_org_wide_scope: 0, on_project: 1 },
+        { user_id: 'off', role: 'manager', has_org_wide_scope: 0, on_project: 0 },
+        { user_id: 'sam', role: 'member', has_org_wide_scope: 0, on_project: 1 },
+      ];
+    }
+    if (sql.includes('FROM memberships m')) {
+      const userId = String(params[2]);
+      return [
+        { ...member(userId, userId !== 'off'), role: userId === 'sam' ? 'member' : 'manager' },
+      ];
+    }
+    return [];
+  };
+
+  it('a client message tells the team on the project; a team reply tells the submitter; an internal note tells nobody', async () => {
+    const { tx } = fakeTx(answer);
+    const fromClient = await planRequestMessageNotices(
+      event('client_request.message_posted.v1', {
+        ...payload,
+        authorKind: 'client',
+        clientVisible: true,
+      }),
+      tx,
+      null,
+    );
+    expect(fromClient.map((notice) => notice.recipientUserId)).toEqual(['mona']);
+    expect(fromClient[0]).toMatchObject({
+      optOutKind: 'message',
+      inApp: { objectType: 'client_request', dedupeKey: 'client_request.message:rm-1' },
+    });
+
+    const fromTeam = await planRequestMessageNotices(
+      event('client_request.message_posted.v1', {
+        ...payload,
+        authorKind: 'internal',
+        clientVisible: true,
+      }),
+      tx,
+      null,
+    );
+    expect(fromTeam.map((notice) => notice.recipientUserId)).toEqual(['rami']);
+
+    const note = await planRequestMessageNotices(
+      event('client_request.message_posted.v1', {
+        ...payload,
+        authorKind: 'internal',
+        clientVisible: false,
+      }),
+      tx,
+      null,
+    );
+    expect(note).toEqual([]);
+  });
+});
+
+describe('composeCollaborationEmail locale (NT1)', () => {
+  it('writes the review and message emails in Arabic for an ar locale, English otherwise', () => {
+    const facts = {
+      recipientEmail: 'rami@example.com',
+      recipientName: 'Rami',
+      organizationName: 'Studio',
+      subjectTitle: 'Website',
+      link: 'https://app.example/s/portal/deliverables/ver-1',
+    };
+    const arabic = composeCollaborationEmail('approval_requested', { ...facts, locale: 'ar-EG' });
+    expect(arabic.subject).toContain('يرجى المراجعة');
+    expect(arabic.text).toContain(facts.link);
+    const english = composeCollaborationEmail('approval_requested', { ...facts, locale: 'en' });
+    expect(english.subject).toBe('Please review: a new version in Website');
+    expect(isArabicLocale('arabic')).toBe(false);
   });
 });
