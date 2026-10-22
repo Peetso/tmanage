@@ -4,6 +4,8 @@ import { API_CONFIG, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { OAuthAuthorizeController } from './authorize.controller.js';
+import { CONSENT_TICKETS, OAuthConsentController } from './consent.controller.js';
+import { ConsentTickets } from './consent.js';
 import { OAuthMetadataController } from './metadata.controller.js';
 import { OAuthRegisterController } from './register.controller.js';
 import { OAuthRevokeController } from './revoke.controller.js';
@@ -35,7 +37,7 @@ function issuerOrigin(config: ApiConfig): string {
  * The OAuth 2.1 authorization server (MCP connector S7, extended in S8). Mounts discovery
  * metadata, the authorize, token, register and revoke endpoints, registers the form-urlencoded
  * body parser the token/revoke endpoints need, and provides the SSRF-guarded CIMD fetcher the
- * service resolves https `client_id`s through. The consent page is a later slice (S9).
+ * service resolves https `client_id`s through, and (S9) the consent page's API.
  */
 @Module({})
 export class OAuthModule {
@@ -68,13 +70,21 @@ export class OAuthModule {
     };
     return {
       module: OAuthModule,
-      providers: [options, service, OAuthFormBodyParser, CimdFetcher],
+      providers: [
+        options,
+        service,
+        OAuthFormBodyParser,
+        CimdFetcher,
+        // S9: one in-memory signer per process; a restart simply expires open consent pages.
+        { provide: CONSENT_TICKETS, useValue: new ConsentTickets() },
+      ],
       controllers: [
         OAuthMetadataController,
         OAuthAuthorizeController,
         OAuthRegisterController,
         OAuthTokenController,
         OAuthRevokeController,
+        OAuthConsentController,
       ],
     };
   }

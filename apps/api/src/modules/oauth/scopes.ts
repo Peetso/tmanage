@@ -55,3 +55,41 @@ export function scopesToString(scopes: readonly string[]): string {
 export class InvalidScopeError extends Error {
   override name = 'InvalidScopeError';
 }
+
+/** The registry's short scope names (`AiActionOp.scope`) mapped to the OAuth scope strings. */
+const SHORT_TO_SCOPE: Readonly<Record<string, string>> = Object.freeze({
+  read: SCOPE_READ,
+  write: SCOPE_WRITE,
+  manage: SCOPE_MANAGE,
+  billing: SCOPE_BILLING,
+});
+
+/** The OAuth scope an op needs, from its registry scope (`read`, `write`, `manage`, `billing`). */
+export function requiredScopeFor(opScope: string): string | null {
+  return SHORT_TO_SCOPE[opScope] ?? null;
+}
+
+/** Does a grant's scope string (space-delimited, as stored) cover the required scope? */
+export function grantCoversScope(grantedScopes: string, required: string): boolean {
+  return grantedScopes.split(/\s+/).includes(required);
+}
+
+/**
+ * The step-up challenge for a call the grant does not cover (MCP authorization "scope
+ * challenge", T-SCP-01): HTTP 403 with `WWW-Authenticate: Bearer error="insufficient_scope"`
+ * naming the scopes the client should ask for — what it already holds plus the one it lacks —
+ * and the protected-resource metadata, so it can send the person back through consent.
+ */
+export function insufficientScopeChallenge(input: {
+  readonly grantedScopes: string;
+  readonly required: string;
+  readonly resourceMetadataUrl: string;
+}): { readonly status: 403; readonly wwwAuthenticate: string } {
+  const wanted = parseScopes(`${input.grantedScopes} ${input.required}`);
+  return {
+    status: 403,
+    wwwAuthenticate:
+      `Bearer error="insufficient_scope", scope="${scopesToString(wanted)}", ` +
+      `resource_metadata="${input.resourceMetadataUrl}"`,
+  };
+}

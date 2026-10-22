@@ -46,6 +46,11 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'POST', path: '/oauth/register', reason: 'oauth' },
   { method: 'POST', path: '/oauth/revoke', reason: 'oauth' },
   { method: 'POST', path: '/oauth/token', reason: 'oauth' },
+  // S9: the consent page's API — view, approve (org-bound) and deny. Only a cookie session may
+  // call them; an AI principal must never approve its own or another client (architecture B3).
+  { method: 'GET', path: '/v1/oauth/consent', reason: 'oauth' },
+  { method: 'POST', path: '/v1/oauth/consent/deny', reason: 'oauth' },
+  { method: 'POST', path: '/v1/organizations/:orgSlug/oauth/consent', reason: 'oauth' },
   { method: 'GET', path: '/public/setup/', reason: 'setup' },
   { method: 'POST', path: '/public/setup/', reason: 'setup' },
   { method: 'POST', path: '/public/site/contact', reason: 'public_site' },

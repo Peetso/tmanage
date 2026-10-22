@@ -1,0 +1,491 @@
+/*
+ * S0-1 Consent — "Allow <app> to connect?" (MCP connector S9).
+ *
+ * Built from Figma 364:1214 (EN), 364:1285 (AR) and the unverified variants 364:1356 / 364:1382.
+ * Every value maps to a TManage token: the card is `--paper-0` on `--line-300` at the sheet
+ * radius, the inner panels `--paper-50` at the compact radius, the verified badge and the "on"
+ * switch `--lime-500`, warnings `--danger-600`. Logical properties throughout, so the Arabic
+ * frame is the same CSS read right-to-left. Scoped under `.tm-consent`.
+ */
+
+.tm-consent {
+  min-block-size: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--s8) var(--s4);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-family: var(--font-latin);
+}
+
+.tm-consent__card {
+  inline-size: 100%;
+  max-inline-size: 680px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  padding: var(--s8);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+}
+
+.tm-consent__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  outline: none;
+}
+
+.tm-consent p {
+  margin: 0;
+}
+
+/* ── Brand row and captions ────────────────────────────────────────── */
+
+.tm-consent__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-consent__mark {
+  position: relative;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-consent__mark::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 6px;
+  inset-inline-start: 50%;
+  translate: -50% 0;
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+}
+
+[dir='rtl'] .tm-consent__mark::after {
+  translate: 50% 0;
+}
+
+.tm-consent__product {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.tm-consent__caption {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.tm-consent__caption--danger {
+  color: var(--danger-600);
+}
+
+/* ── Headings ──────────────────────────────────────────────────────── */
+
+.tm-consent__title {
+  margin: 0;
+  font-size: 36px;
+  line-height: 42px;
+  font-weight: 600;
+}
+
+.tm-consent__section {
+  margin: 0;
+  font-size: 24px;
+  line-height: 31px;
+  font-weight: 600;
+}
+
+/* ── Client card ───────────────────────────────────────────────────── */
+
+.tm-consent__client {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  padding: var(--s5);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+}
+
+.tm-consent__avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  inline-size: 56px;
+  block-size: 56px;
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-family: var(--font-latin);
+  font-size: 20px;
+  line-height: 27px;
+  font-weight: 600;
+}
+
+.tm-consent__client-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-consent__client-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-consent__client-name {
+  font-size: 20px;
+  line-height: 27px;
+  font-weight: 600;
+}
+
+.tm-consent__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-capsule);
+  font-size: 12px;
+  line-height: 17px;
+  font-weight: 500;
+}
+
+.tm-consent__badge--verified {
+  background: var(--lime-500);
+  color: var(--ink-950);
+}
+
+.tm-consent__badge--unverified {
+  border: 1px solid var(--danger-600);
+  background: var(--paper-50);
+  color: var(--danger-600);
+}
+
+.tm-consent__client-sub {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-500);
+  overflow-wrap: anywhere;
+}
+
+/* ── Unverified gate ───────────────────────────────────────────────── */
+
+.tm-consent__check {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s5);
+  border: 2px solid var(--danger-600);
+  border-radius: var(--r-control);
+  background: var(--paper-50);
+}
+
+.tm-consent__check-body {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+/* ── Workspace picker ──────────────────────────────────────────────── */
+
+.tm-consent__workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-consent__picker {
+  inline-size: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-consent__picker:disabled {
+  cursor: default;
+}
+
+.tm-consent__picker:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-consent__picker-text {
+  flex: 1 0 0;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-consent__picker-name {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-consent__picker-sub,
+.tm-consent__chevron {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-consent__chevron {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+[dir='rtl'] .tm-consent__chevron {
+  transform: scaleX(-1);
+}
+
+.tm-consent__options {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+/* ── Scopes ────────────────────────────────────────────────────────── */
+
+.tm-consent__scopes {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+}
+
+.tm-consent__scope {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+}
+
+.tm-consent__switch {
+  appearance: none;
+  flex: none;
+  position: relative;
+  margin: 0;
+  inline-size: 46px;
+  block-size: 28px;
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  cursor: pointer;
+}
+
+.tm-consent__switch::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 3px;
+  translate: 0 -50%;
+  inline-size: 21px;
+  block-size: 21px;
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  transition: inset-inline-start var(--t-micro) var(--ease);
+}
+
+.tm-consent__switch:checked {
+  border-color: var(--lime-500);
+  background: var(--lime-500);
+}
+
+.tm-consent__switch:checked::before {
+  inset-inline-start: 20px;
+}
+
+.tm-consent__switch[aria-readonly='true'] {
+  cursor: default;
+}
+
+.tm-consent__switch:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tm-consent__switch:focus-visible {
+  outline: 2px solid var(--ink-950);
+  outline-offset: 2px;
+}
+
+.tm-consent__scope-text {
+  flex: 1 0 0;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-consent__scope-title {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+  white-space: pre;
+}
+
+.tm-consent__scope-body {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-consent__rule {
+  margin: 0;
+  block-size: 1px;
+  border: 0;
+  background: var(--line-300);
+}
+
+/* ── What it can never do ──────────────────────────────────────────── */
+
+.tm-consent__never {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+  border-radius: var(--r-compact);
+  background: var(--paper-50);
+}
+
+.tm-consent__never-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-consent__never-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-consent__dash {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--danger-600);
+}
+
+/* ── Actions and note ──────────────────────────────────────────────── */
+
+.tm-consent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s3);
+}
+
+.tm-consent .tm-consent__button {
+  --tm-control-h: 44px;
+  padding-inline: var(--s6);
+  border-radius: var(--r-capsule);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+
+.tm-consent__note {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+/* ── Arabic (364:1285, 364:1382): Alexandria, regular weight, taller lines ── */
+
+[dir='rtl'] .tm-consent {
+  font-family: var(--font-arabic);
+}
+
+[dir='rtl'] .tm-consent__title {
+  line-height: 53px;
+}
+
+[dir='rtl'] .tm-consent__section {
+  line-height: 35px;
+}
+
+[dir='rtl'] .tm-consent__client-name {
+  line-height: 29px;
+}
+
+[dir='rtl'] .tm-consent__picker-name,
+[dir='rtl'] .tm-consent__scope-title,
+[dir='rtl'] .tm-consent .tm-consent__button {
+  font-weight: 400;
+  line-height: 21px;
+}
+
+[dir='rtl'] .tm-consent__badge,
+[dir='rtl'] .tm-consent__client-sub,
+[dir='rtl'] .tm-consent__picker-sub,
+[dir='rtl'] .tm-consent__scope-body,
+[dir='rtl'] .tm-consent__never-item,
+[dir='rtl'] .tm-consent__check-body,
+[dir='rtl'] .tm-consent__note {
+  font-weight: 400;
+  line-height: 19px;
+}
+
+[dir='rtl'] .tm-consent__badge {
+  line-height: 18px;
+}
+
+@media (max-width: 560px) {
+  .tm-consent {
+    padding: var(--s4);
+  }
+
+  .tm-consent__card {
+    padding: var(--s6) var(--s5);
+  }
+
+  .tm-consent__title {
+    font-size: 28px;
+    line-height: 34px;
+  }
+}

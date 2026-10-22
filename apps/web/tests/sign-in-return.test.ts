@@ -25,4 +25,21 @@ describe('sign-in return path', () => {
     }
     expect(signInPathFor('/acme/home')).toBe('/sign-in');
   });
+
+  it('returns to the AI-app consent page with its query, and only that same-origin form (S9)', () => {
+    const consent = '/connect/authorize?client_id=https%3A%2F%2Fclaude.ai%2Fm&state=a-b_c.d~';
+    expect(safeReturnPath(consent)).toBe(consent);
+    expect(signInPathFor('/connect/authorize', consent.slice('/connect/authorize'.length))).toBe(
+      `/sign-in?next=${encodeURIComponent(consent)}`,
+    );
+    for (const next of [
+      '/connect/authorize?x=https://evil.example',
+      '/connect/authorize?x=1#frag',
+      '//connect/authorize?x=1',
+      '/connect/authorize/../admin?x=1',
+      `/connect/authorize?${'a'.repeat(4001)}`,
+    ]) {
+      expect(safeReturnPath(next)).toBe('/organizations');
+    }
+  });
 });

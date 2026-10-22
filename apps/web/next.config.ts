@@ -84,6 +84,15 @@ const config: NextConfig = {
           },
         ],
       },
+      // S9: the AI-app consent page decides what an outside app may do, so it is never framed
+      // (threat model B2, clickjacking) and never cached. Enforced here, not report-only.
+      {
+        source: '/connect/:path*',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
       // Long-lived caching for the content-hashed build assets (and the self-hosted font). The
       // catch-all rule above still matches these paths, so a static asset keeps the security
       // headers and gains `Cache-Control`. See `src/lib/static-headers.ts` for why `public/`,

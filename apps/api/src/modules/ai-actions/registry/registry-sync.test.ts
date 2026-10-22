@@ -51,8 +51,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  710 at S1; +6 at S7 (the OAuth AS: three discovery metadata GETs and /oauth authorize, token,
  *  revoke); +1 at S8 (POST /oauth/register, DCR); +2 at S13 (GET /openapi/ai.json and
  *  GET /downloads/tmanage-mcp.tgz, the connector's discovery/distribution surface), all withheld
- *  via NEVER. */
-const EXPECTED_ROUTE_COUNT = 719;
+ *  via NEVER. S9: +3 (GET /v1/oauth/consent, POST /v1/oauth/consent/deny and
+ *  POST /v1/organizations/:orgSlug/oauth/consent, the consent page's API), also NEVER. */
+const EXPECTED_ROUTE_COUNT = 722;
 
 interface LiveRoute {
   readonly method: string;

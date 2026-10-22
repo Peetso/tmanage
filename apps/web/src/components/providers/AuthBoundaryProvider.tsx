@@ -36,8 +36,13 @@ export function useAuthBoundaryEffects(
         void queryClient.cancelQueries();
         queryClient.clear();
         if (sendsToSignIn(notice)) {
-          // An invitation page comes back after sign-in (ACC-01); every other page does not.
-          navigate(signInPathFor(typeof window === 'undefined' ? '' : window.location.pathname));
+          // An invitation page (ACC-01) or the AI-app consent page (S9) comes back after sign-in;
+          // every other page does not.
+          navigate(
+            typeof window === 'undefined'
+              ? signInPathFor('')
+              : signInPathFor(window.location.pathname, window.location.search),
+          );
         }
       }),
     [boundary, navigate, queryClient],
