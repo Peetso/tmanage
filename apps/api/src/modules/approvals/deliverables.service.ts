@@ -14,6 +14,7 @@ import type {
 } from '../../common/database/schema.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { ApprovalVersionConflictError } from './approvals.repository.js';
 import type { ApprovalsRepository } from './approvals.repository.js';
 import type { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
@@ -176,6 +177,8 @@ export class DeliverablesService {
     private readonly projections: ClientProjectionsRepository,
     private readonly projects: ProjectsRepository,
     private readonly outbox?: OutboxEventsRepository,
+    /** Q3: deliverable actions leave an audit row in their own transaction (ids only). */
+    private readonly audit?: AuditService,
   ) {}
 
   async create(
@@ -195,6 +198,12 @@ export class DeliverablesService {
         const row = await this.deliverables.create(tx, context, {
           ...input,
           createdByUserId: principal.userId,
+        });
+        await this.audit?.record(tx, context, {
+          action: 'deliverable.created',
+          objectId: row.id,
+          result: 'allowed',
+          metadata: { project_id: project.id },
         });
         return toView(row, [], []);
       }),
@@ -304,6 +313,17 @@ export class DeliverablesService {
           createdByUserId: principal.userId,
         });
         await this.deliverables.touch(tx, context, deliverable.id);
+        await this.audit?.record(tx, context, {
+          action: 'deliverable.version_added',
+          objectId: deliverable.id,
+          result: 'allowed',
+          metadata: {
+            project_id: deliverable.projectId,
+            deliverable_version_id: created.id,
+            version_no: versionNo,
+            file_asset_id: input.fileAssetId,
+          },
+        });
         return toVersionView(created, []);
       }),
     );
@@ -439,6 +459,18 @@ export class DeliverablesService {
           });
         }
         await this.deliverables.touch(tx, context, deliverable.id);
+        await this.audit?.record(tx, context, {
+          action: 'deliverable.sent_for_approval',
+          objectId: deliverable.id,
+          result: 'allowed',
+          metadata: {
+            project_id: deliverable.projectId,
+            deliverable_version_id: latest.id,
+            approval_id: approval.id,
+            reviewer_count: approverIds.length,
+            due_date: input.dueDate,
+          },
+        });
 
         return {
           approvalId: approval.id,
@@ -480,6 +512,16 @@ export class DeliverablesService {
       if (approval.state !== 'requested' && approval.state !== 'viewed') continue;
       await this.approvals.transition(tx, context, approval.id, approval.version, 'invalidated', {
         invalidationReason: 'a new version was uploaded',
+      });
+      await this.audit?.record(tx, context, {
+        action: 'approval.invalidated',
+        objectId: approval.id,
+        result: 'allowed',
+        metadata: {
+          deliverable_id: deliverableId,
+          deliverable_version_id: approval.deliverableVersionId,
+          project_id: approval.projectId,
+        },
       });
     }
   }

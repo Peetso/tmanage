@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@tmanage/domain';
-import { approvalStateMachine } from '@tmanage/domain';
+import { approvalStateMachine, assertSafeAuditMetadata } from '@tmanage/domain';
 import type { ApprovalState } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -544,5 +544,110 @@ describe('ApprovalsService.open', () => {
     expect((error as ApiError).code).toBe('not_found');
     expect((error as ApiError).message).toBe(MESSAGES.notFound);
     expect((error as ApiError).details).toBeUndefined();
+  });
+});
+
+// ── Q3: the team is told, and the decision is audited ──────────────────────────
+
+const SENDER = '00000000-0000-7000-8000-0000000000f7';
+
+function recorders() {
+  return {
+    outbox: { append: vi.fn() },
+    audit: {
+      record: vi.fn(async (_t: unknown, _c: unknown, input: { metadata: unknown }) => {
+        assertSafeAuditMetadata(input.metadata);
+      }),
+    },
+  };
+}
+
+function wiredService(approvals: FakeApprovals, versions: FakeVersions) {
+  const { outbox, audit } = recorders();
+  const published = { ...projectionRow([CLIENT_CONTACT]), publishedByUserId: SENDER };
+  const projections = {
+    requireByVersion: async () => published,
+    findByVersion: async () => published,
+  };
+  const svc = new ApprovalsService(
+    fakeDatabase(),
+    approvals as unknown as ApprovalsRepository,
+    versions as unknown as DeliverableVersionsRepository,
+    projections as unknown as ClientProjectionsRepository,
+    outbox as never,
+    audit as never,
+  );
+  return { svc, outbox, audit };
+}
+
+describe('ApprovalsService decisions (Q3)', () => {
+  it('a client approval appends approval.decided.v1 for the sender and an approval.approved row', async () => {
+    const { svc, outbox, audit } = wiredService(
+      new FakeApprovals(approvalRow()),
+      new FakeVersions(versionRow(HASH_A)),
+    );
+    await svc.clientDecide(context, clientReviewer(CLIENT_CONTACT), VERSION, {
+      decision: 'approve',
+    });
+
+    expect(outbox.append).toHaveBeenCalledOnce();
+    expect(outbox.append.mock.calls[0]?.[2]).toEqual({
+      type: 'approval.decided.v1',
+      aggregateId: approvalRow().id,
+      payload: {
+        approvalId: approvalRow().id,
+        deliverableId: DELIVERABLE,
+        deliverableVersionId: VERSION,
+        projectId: PROJECT,
+        decision: 'approved',
+        decidedByUserId: CLIENT_CONTACT,
+        requestedByUserId: SENDER,
+      },
+    });
+    expect(audit.record.mock.calls[0]?.[2]).toEqual({
+      action: 'approval.approved',
+      objectId: approvalRow().id,
+      result: 'allowed',
+      metadata: {
+        deliverable_id: DELIVERABLE,
+        deliverable_version_id: VERSION,
+        project_id: PROJECT,
+      },
+    });
+  });
+
+  it('a staff change request records approval.changes_requested and never the feedback', async () => {
+    const { svc, outbox, audit } = wiredService(
+      new FakeApprovals(approvalRow()),
+      new FakeVersions(versionRow(HASH_A)),
+    );
+    await svc.decide(context, reviewer(REVIEWER), approvalRow().id, {
+      decision: 'request_changes',
+      expectedVersion: 1,
+      feedback: 'Tighten the hero headline.',
+    });
+
+    expect(outbox.append.mock.calls[0]?.[2]).toMatchObject({
+      payload: { decision: 'changes_requested', requestedByUserId: SENDER },
+    });
+    expect(audit.record.mock.calls[0]?.[2]).toMatchObject({ action: 'approval.changes_requested' });
+    expect(JSON.stringify([outbox.append.mock.calls, audit.record.mock.calls])).not.toContain(
+      'Tighten',
+    );
+  });
+
+  it('an invalidated decision (governed content changed) tells nobody and writes no decision row', async () => {
+    const { svc, outbox, audit } = wiredService(
+      new FakeApprovals(approvalRow({ contentHash: HASH_A })),
+      new FakeVersions(versionRow(HASH_B)),
+    );
+    const view = await svc.decide(context, reviewer(REVIEWER), approvalRow().id, {
+      decision: 'approve',
+      expectedVersion: 1,
+    });
+
+    expect(view.state).toBe('invalidated');
+    expect(outbox.append).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
   });
 });

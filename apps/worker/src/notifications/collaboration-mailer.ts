@@ -17,7 +17,8 @@ export type CollaborationMailKind =
   | 'project_added'
   | 'client_action'
   | 'approval_requested'
-  | 'request_message';
+  | 'request_message'
+  | 'approval_decided';
 
 export interface CollaborationEmailFacts {
   readonly recipientEmail: string;
@@ -45,6 +46,8 @@ export interface CollaborationEmailFacts {
   readonly dueDate?: string;
   /** t8-b — `approval_requested` only: what the reviewer should check, as the sender wrote it. */
   readonly checkNote?: string;
+  /** Q3 — `approval_decided` only: what the client decided. */
+  readonly decision?: 'approved' | 'changes_requested';
 }
 
 /** Whether a BCP-47 locale asks for Arabic copy. */
@@ -251,11 +254,53 @@ export function composeApprovalRequestedEmail(facts: CollaborationEmailFacts): M
   };
 }
 
+/**
+ * Q3 — `approval_decided`, English or Arabic by the recipient's locale: "<who> approved / requested
+ * changes on a deliverable in <project>", and the link to the deliverable. Never the feedback text:
+ * the deliverable page shows it to people who may read it.
+ */
+export function composeApprovalDecidedEmail(facts: CollaborationEmailFacts): MailMessage {
+  const name = oneLine(facts.recipientName);
+  const actor = oneLine(facts.actorName ?? facts.organizationName);
+  const project = oneLine(facts.projectName ?? facts.subjectTitle);
+  const studio = oneLine(facts.organizationName);
+  const approved = facts.decision === 'approved';
+  if (isArabicLocale(facts.locale)) {
+    const line = approved
+      ? `اعتمد ${actor} تسليمًا في ${project}`
+      : `طلب ${actor} تعديلات على تسليم في ${project}`;
+    return {
+      to: facts.recipientEmail,
+      subject: `${RLM}${line}`,
+      text: [
+        `مرحبًا ${name}،`,
+        `${RLM}${line}.`,
+        `افتحه من هنا: ${facts.link}`,
+        `${RLM}تصلك هذه الرسالة بسبب إعدادات الإشعارات لديك في ${studio} على TManage.`,
+      ].join('\n\n'),
+    };
+  }
+  const subject = approved
+    ? `${actor} approved a deliverable in ${project}`
+    : `${actor} requested changes on a deliverable in ${project}`;
+  return {
+    to: facts.recipientEmail,
+    subject,
+    text: [
+      `Hello ${name},`,
+      `${subject}.`,
+      `Open it here: ${facts.link}`,
+      `You are receiving this because of your notification settings in ${studio} on TManage.`,
+    ].join('\n\n'),
+  };
+}
+
 export function composeCollaborationEmail(
   kind: CollaborationMailKind,
   facts: CollaborationEmailFacts,
 ): MailMessage {
   if (kind === 'approval_requested') return composeApprovalRequestedEmail(facts);
+  if (kind === 'approval_decided') return composeApprovalDecidedEmail(facts);
   if (kind === 'request_message' && isArabicLocale(facts.locale)) {
     return composeArabicRequestMessage(facts);
   }

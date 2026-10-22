@@ -5,6 +5,7 @@ import type { WorkerTransaction } from '../common/database/worker-database.js';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import {
   mayBeTold,
+  planApprovalDecidedNotices,
   planApprovalRequestedNotices,
   planClientActionNotices,
   planMentionNotices,
@@ -302,5 +303,92 @@ describe('composeCollaborationEmail locale (NT1)', () => {
     const english = composeCollaborationEmail('approval_requested', { ...facts, locale: 'en' });
     expect(english.subject).toBe('Your approval is needed: Website');
     expect(isArabicLocale('arabic')).toBe(false);
+  });
+});
+
+describe('planApprovalDecidedNotices (Q3)', () => {
+  const roles: Record<string, { role: string; onProject: boolean }> = {
+    gina: { role: 'guest', onProject: true }, // the sender: told although a guest
+    gus: { role: 'guest', onProject: true }, // cannot create deliverables: not told
+    mona: { role: 'manager', onProject: true },
+    off: { role: 'manager', onProject: false }, // cannot reach the project
+    dina: { role: 'manager', onProject: true }, // decided herself: not told
+  };
+  const answer = (sql: string, params: readonly unknown[]): unknown => {
+    if (sql.includes('FROM memberships m') && params.length === 2) {
+      return Object.entries(roles).map(([userId, r]) => ({
+        user_id: userId,
+        role: r.role,
+        has_org_wide_scope: 0,
+        on_project: r.onProject ? 1 : 0,
+      }));
+    }
+    if (sql.includes('FROM memberships m')) {
+      const r = roles[String(params[2])];
+      return r === undefined ? [] : [{ ...member(String(params[2]), r.onProject), role: r.role }];
+    }
+    return [];
+  };
+  const payload = {
+    approvalId: 'appr-1',
+    deliverableId: 'del-1',
+    deliverableVersionId: 'ver-1',
+    projectId: 'proj-1',
+    decision: 'approved',
+    decidedByUserId: 'dina',
+    requestedByUserId: 'gina',
+  };
+
+  it('tells the sender and the deliverable makers on the project, never the decider or a client', async () => {
+    const { tx } = fakeTx(answer);
+    const notices = await planApprovalDecidedNotices(
+      event('approval.decided.v1', payload),
+      tx,
+      null,
+    );
+    expect(notices.map((notice) => notice.recipientUserId)).toEqual(['gina', 'mona']);
+    expect(notices[0]).toMatchObject({
+      optOutKind: 'message',
+      membershipId: 'membership-gina',
+      mailKind: 'approval_decided',
+      inApp: {
+        type: 'approval.decided.v1',
+        objectType: 'deliverable_version',
+        objectId: 'ver-1',
+        dedupeKey: 'approval.decided:appr-1',
+      },
+    });
+    // A client decider has no internal membership: the requester alone is never a client.
+    const fromClient = await planApprovalDecidedNotices(
+      event('approval.decided.v1', { ...payload, decidedByUserId: 'youssef' }),
+      tx,
+      null,
+    );
+    expect(fromClient.map((notice) => notice.recipientUserId)).toEqual(['gina', 'mona', 'dina']);
+  });
+
+  it('emails in English or Arabic by locale, links the deliverable, and names the decision', () => {
+    const facts = {
+      recipientEmail: 'mona@example.com',
+      recipientName: 'Mona',
+      organizationName: 'Studio',
+      actorName: 'Youssef',
+      subjectTitle: 'Website',
+      projectName: 'Website',
+      link: 'https://app.example/s/projects/proj-1/deliverables/del-1',
+    };
+    const approved = composeCollaborationEmail('approval_decided', {
+      ...facts,
+      decision: 'approved',
+    });
+    expect(approved.subject).toBe('Youssef approved a deliverable in Website');
+    expect(approved.text).toContain(facts.link);
+    const changes = composeCollaborationEmail('approval_decided', {
+      ...facts,
+      decision: 'changes_requested',
+      locale: 'ar',
+    });
+    expect(changes.subject).toContain('طلب Youssef تعديلات');
+    expect(changes.text).toContain(facts.link);
   });
 });

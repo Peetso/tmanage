@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
   APPROVALS_SERVICE,
+  AUDIT_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApprovalsRepository } from './approvals.repository.js';
@@ -39,13 +41,21 @@ export class ApprovalsModule {
   static register(): DynamicModule {
     const service: Provider = {
       provide: APPROVALS_SERVICE,
-      inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) =>
+      // Q3: a decision appends `approval.decided.v1` and an audit row in its own transaction. Both
+      // are global providers; the audit service is optional (the custom-roles posture).
+      inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY, { token: AUDIT_SERVICE, optional: true }],
+      useFactory: (
+        database: TenantDatabase,
+        outbox: OutboxEventsRepository,
+        audit?: AuditService,
+      ) =>
         new ApprovalsService(
           database,
           new ApprovalsRepository(),
           new DeliverableVersionsRepository(),
           new ClientProjectionsRepository(),
+          outbox,
+          audit,
         ),
     };
 
@@ -77,8 +87,12 @@ export class ApprovalsModule {
     // writer is the global `PlatformModule`'s, so the send's `approval.requested.v1` commits with it.
     const deliverablesService: Provider = {
       provide: DELIVERABLES_SERVICE,
-      inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY],
-      useFactory: (database: TenantDatabase, outbox: OutboxEventsRepository) =>
+      inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY, { token: AUDIT_SERVICE, optional: true }],
+      useFactory: (
+        database: TenantDatabase,
+        outbox: OutboxEventsRepository,
+        audit?: AuditService,
+      ) =>
         new DeliverablesService(
           database,
           new DeliverablesRepository(),
@@ -87,6 +101,7 @@ export class ApprovalsModule {
           new ClientProjectionsRepository(),
           new ProjectsRepository(),
           outbox,
+          audit,
         ),
     };
 

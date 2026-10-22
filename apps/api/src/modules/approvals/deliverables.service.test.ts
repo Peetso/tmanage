@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { assertSafeAuditMetadata } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { DeliverablesService } from './deliverables.service.js';
@@ -19,7 +20,13 @@ const admin = {
 } as Principal;
 const deliverable = { id: 'd-1', projectId: 'p-1', title: 'Homepage' };
 const v2 = { id: 'v-2', deliverableId: 'd-1', versionNo: 2, contentHash: 'h'.repeat(64) };
-const pending = { id: 'a-1', state: 'requested', version: 1, deliverableVersionId: 'v-1' };
+const pending = {
+  id: 'a-1',
+  state: 'requested',
+  version: 1,
+  deliverableVersionId: 'v-1',
+  projectId: 'p-1',
+};
 
 function build() {
   const db = {
@@ -29,6 +36,13 @@ function build() {
   const repos = {
     deliverables: {
       requireById: vi.fn(async () => deliverable),
+      create: vi.fn(async () => ({
+        ...deliverable,
+        description: null,
+        createdByUserId: 'u-1',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })),
       touch: vi.fn(),
       approvalsFor: vi.fn(async () => [pending]),
       clientPeopleFor: vi.fn(async () => [
@@ -60,6 +74,13 @@ function build() {
     },
     projections: { findByVersion: vi.fn(async () => null), publish: vi.fn() },
     outbox: { append: vi.fn() },
+    projects: { findById: vi.fn(async () => ({ id: 'p-1', archivedAt: null })) },
+    // Q3: the real metadata rule runs, so an unsafe key or value fails the test.
+    audit: {
+      record: vi.fn(async (_t: unknown, _c: unknown, input: { metadata: unknown }) => {
+        assertSafeAuditMetadata(input.metadata);
+      }),
+    },
   };
   const service = new DeliverablesService(
     db,
@@ -67,8 +88,9 @@ function build() {
     repos.versions as never,
     repos.approvals as never,
     repos.projections as never,
-    {} as never,
+    repos.projects as never,
     repos.outbox as never,
+    repos.audit as never,
   );
   return { service, ...repos };
 }
@@ -115,5 +137,56 @@ describe('DeliverablesService (0211)', () => {
     expect(approvals.transition.mock.calls[0]?.slice(2, 5)).toEqual(['a-1', 1, 'invalidated']);
     expect(created.versionNo).toBe(3);
     expect(versions.create).toHaveBeenCalledOnce();
+  });
+
+  it('Q3: audits creating a deliverable with ids only', async () => {
+    const { service, audit } = build();
+    await service.create(ctx, admin, { projectId: 'p-1', title: 'Homepage', description: 'x' });
+    expect(audit.record.mock.calls[0]?.[2]).toEqual({
+      action: 'deliverable.created',
+      objectId: 'd-1',
+      result: 'allowed',
+      metadata: { project_id: 'p-1' },
+    });
+  });
+
+  it('Q3: audits a new version and the approval it cancelled', async () => {
+    const { service, audit } = build();
+    await service.addVersion(ctx, admin, 'd-1', { fileAssetId: null, note: 'Bigger logo' });
+    const actions = audit.record.mock.calls.map((call) => call[2] as unknown as { action: string });
+    expect(actions.map((a) => a.action)).toEqual([
+      'approval.invalidated',
+      'deliverable.version_added',
+    ]);
+    expect(audit.record.mock.calls[0]?.[2]).toMatchObject({
+      objectId: 'a-1',
+      metadata: { deliverable_id: 'd-1', deliverable_version_id: 'v-1', project_id: 'p-1' },
+    });
+    expect(audit.record.mock.calls[1]?.[2]).toMatchObject({
+      objectId: 'd-1',
+      metadata: { version_no: 3, file_asset_id: null, deliverable_version_id: 'v-3' },
+    });
+  });
+
+  it('Q3: audits a send with the approval, the reviewer count and the due date', async () => {
+    const { service, audit } = build();
+    await service.send(ctx, admin, 'd-1', 'v-2', {
+      approverIds: ['c-1', 'c-1'],
+      dueDate: '2026-08-18',
+      checkNote: 'Brand feel',
+      notify: false,
+    });
+    expect(audit.record.mock.calls[0]?.[2]).toEqual({
+      action: 'deliverable.sent_for_approval',
+      objectId: 'd-1',
+      result: 'allowed',
+      metadata: {
+        project_id: 'p-1',
+        deliverable_version_id: 'v-2',
+        approval_id: 'a-2',
+        reviewer_count: 1,
+        due_date: '2026-08-18',
+      },
+    });
   });
 });

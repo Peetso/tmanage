@@ -19,6 +19,7 @@ import { createCredentialChangeMail } from './credential-change-mail.js';
 import {
   createCollaborationMailResume,
   createCollaborationNotices,
+  planApprovalDecidedNotices,
   planApprovalRequestedNotices,
   planClientActionNotices,
   planCommentNotices,
@@ -160,6 +161,12 @@ export function createWorkerOutboxHandlers(
     // an in-app row and a "please review" email.
     'approval.requested.v1': createCollaborationNotices(
       planApprovalRequestedNotices,
+      collaborationMails,
+    ),
+    // Q3: the client (or a staff reviewer) decided — the sender and the project's deliverable
+    // makers get an in-app row and an email that bypasses quiet hours (yes-critical).
+    'approval.decided.v1': createCollaborationNotices(
+      planApprovalDecidedNotices,
       collaborationMails,
     ),
     // 0212 (BG3), NT1: a message on a client request tells the other side — see the planner.

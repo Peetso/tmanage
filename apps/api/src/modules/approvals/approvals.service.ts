@@ -1,7 +1,11 @@
 import { approvalStateMachine, authorize, contentHashEquals } from '@tmanage/domain';
 import type { ApprovalPolicy, ApprovalState, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type {
+  TenantContext,
+  TenantDatabase,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 import type {
   ApprovalRow,
   ClientProjectionPayload,
@@ -20,6 +24,8 @@ import {
   ClientProjectionNotFoundError,
 } from './client-projections.repository.js';
 import type { ClientProjectionsRepository } from './client-projections.repository.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * FR-05's application service — the immutable-decision heart, authorized at the object layer.
@@ -182,6 +188,9 @@ export class ApprovalsService {
     private readonly approvals: ApprovalsRepository,
     private readonly deliverableVersions: DeliverableVersionsRepository,
     private readonly clientProjections: ClientProjectionsRepository,
+    /** Q3: optional so the fakes-only tests construct without them; the module injects both. */
+    private readonly outbox?: OutboxEventsRepository,
+    private readonly audit?: AuditService,
   ) {}
 
   /**
@@ -331,12 +340,32 @@ export class ApprovalsService {
         }
 
         const to: ApprovalState = input.decision === 'approve' ? 'approved' : 'changes_requested';
-        return this.approvals.transition(tx, context, approvalId, current.version, to, {
-          decidedByUserId: principal.userId,
-          decidedAt: new Date(),
-          contentHash: current.contentHash,
-          ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
-        });
+        const decided = await this.approvals.transition(
+          tx,
+          context,
+          approvalId,
+          current.version,
+          to,
+          {
+            decidedByUserId: principal.userId,
+            decidedAt: new Date(),
+            contentHash: current.contentHash,
+            ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
+          },
+        );
+        // The sender is the projection's publisher; a version never published (a staff-only
+        // review) falls back to whoever uploaded it.
+        const projection =
+          this.outbox || this.audit
+            ? await this.clientProjections.findByVersion(tx, context, decided.deliverableVersionId)
+            : null;
+        await this.recordDecision(
+          tx,
+          context,
+          decided,
+          projection?.publishedByUserId ?? governed.createdByUserId,
+        );
+        return decided;
       }),
     );
 
@@ -461,12 +490,21 @@ export class ApprovalsService {
         }
 
         const to: ApprovalState = input.decision === 'approve' ? 'approved' : 'changes_requested';
-        return this.approvals.transition(tx, context, approval.id, current.version, to, {
-          decidedByUserId: principal.userId,
-          decidedAt: new Date(),
-          contentHash: current.contentHash,
-          ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
-        });
+        const decided = await this.approvals.transition(
+          tx,
+          context,
+          approval.id,
+          current.version,
+          to,
+          {
+            decidedByUserId: principal.userId,
+            decidedAt: new Date(),
+            contentHash: current.contentHash,
+            ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
+          },
+        );
+        await this.recordDecision(tx, context, decided, projection.publishedByUserId);
+        return decided;
       }),
     );
 
@@ -568,6 +606,48 @@ export class ApprovalsService {
     );
 
     return toProjectionView(row);
+  }
+
+  /**
+   * Q3: tell the team and leave the trail, inside the decision's own transaction. The outbox event
+   * `approval.decided.v1` lets the worker notify the sender and the project's deliverable makers;
+   * the audit row records who decided what. Neither ever carries the feedback text.
+   *
+   * There is no `requested_by` column on `approvals`, so the requester is resolved by the caller:
+   * the client projection's publisher (the person who pressed Send).
+   */
+  private async recordDecision(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    decided: ApprovalRow,
+    requestedByUserId: string,
+  ): Promise<void> {
+    if (decided.state !== 'approved' && decided.state !== 'changes_requested') return;
+    const decision = decided.state;
+    const decidedByUserId = decided.decidedByUserId ?? context.userId;
+    await this.outbox?.append(tx, context, {
+      type: 'approval.decided.v1',
+      aggregateId: decided.id,
+      payload: {
+        approvalId: decided.id,
+        deliverableId: decided.deliverableId,
+        deliverableVersionId: decided.deliverableVersionId,
+        projectId: decided.projectId,
+        decision,
+        decidedByUserId,
+        requestedByUserId,
+      },
+    });
+    await this.audit?.record(tx, context, {
+      action: decision === 'approved' ? 'approval.approved' : 'approval.changes_requested',
+      objectId: decided.id,
+      result: 'allowed',
+      metadata: {
+        deliverable_id: decided.deliverableId,
+        deliverable_version_id: decided.deliverableVersionId,
+        project_id: decided.projectId,
+      },
+    });
   }
 
   /**

@@ -592,6 +592,40 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'mcp_tool_call',
     clause: '§12 API credentials — an AI client acting with a token',
   },
+  /**
+   * Q3. Deliverables and client approval (0211). What the studio sent the client, and what the
+   * client decided, is the disclosure trail §12 asks for. Metadata is ids, a version number, a
+   * reviewer count and a due date — never the title, the note or the client's feedback.
+   */
+  'deliverable.created': {
+    objectType: 'deliverable',
+    clause: '§12 — a deliverable is the record a client approval hangs off',
+  },
+  'deliverable.version_added': {
+    objectType: 'deliverable',
+    clause: '§12 — a new version changes what the client is asked to approve',
+  },
+  'deliverable.sent_for_approval': {
+    objectType: 'deliverable',
+    clause: '§12 disclosure — publishing a version to the client and naming who decides',
+  },
+  'approval.approved': {
+    objectType: 'approval',
+    clause: '§12 — a client sign-off is a decision the organization relies on',
+  },
+  'approval.changes_requested': {
+    objectType: 'approval',
+    clause: '§12 — a client change request is the same decision, answered the other way',
+  },
+  'approval.invalidated': {
+    objectType: 'approval',
+    clause: '§12 — a newer version cancelled an approval still waiting on an older one',
+  },
+  /** Q4. A workspace admin sent a member a password-reset email (ids only, never the address). */
+  'member.password_reset_sent': {
+    objectType: 'membership',
+    clause: '§12 security — starting a credential reset on somebody else is a sensitive action',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -681,6 +715,13 @@ const AUDIT_ACTION_LABELS = {
   'plan_change_request.submitted': 'Requested a plan change',
   'plan_change_request.cancelled': 'Cancelled a plan-change request',
   'mcp.tool_called': 'An AI app ran an action',
+  'deliverable.created': 'Created a deliverable',
+  'deliverable.version_added': 'Uploaded a new deliverable version',
+  'deliverable.sent_for_approval': 'Sent a deliverable for client approval',
+  'approval.approved': 'Approved a deliverable',
+  'approval.changes_requested': 'Requested changes on a deliverable',
+  'approval.invalidated': 'Cancelled an approval after a new version',
+  'member.password_reset_sent': 'Sent a member a password reset',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

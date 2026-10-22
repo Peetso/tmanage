@@ -1,4 +1,10 @@
-import { hasCapability, isInQuietHours, isRole, quietHoursResumeAt } from '@tmanage/domain';
+import {
+  eventTypeBypassesQuietHours,
+  hasCapability,
+  isInQuietHours,
+  isRole,
+  quietHoursResumeAt,
+} from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
 import {
@@ -46,6 +52,7 @@ import type {
  * | `work_item.client_action_requested.v1` | client people who may decide        | portal | yes   |
  * | `approval.requested.v1` (NT1)          | the picked client deciders          | yes    | yes   |
  * | `client_request.message_posted.v1`     | the other side of the request (NT1) | yes    | yes   |
+ * | `approval.decided.v1` (Q3)             | the sender, the deliverable makers  | yes    | yes   |
  *
  * ## One shape for all five
  *
@@ -493,6 +500,71 @@ export const planRequestMessageNotices: NoticePlanner = async (event, tx, mailer
   return notices;
 };
 
+/**
+ * `approval.decided.v1` → Q3. A client (or a staff reviewer) approved or requested changes: the
+ * internal side is told — the person who sent it (`requestedByUserId`) and every internal member
+ * who may create deliverables (`deliverable.create`) and reaches the project. Never a client, and
+ * never the person who decided. Uses the "message" opt-out; the email bypasses quiet hours because
+ * `approval.decided.v1` is `yes-critical` in domain `quiet-hours.ts`. The worker holds no read on
+ * `deliverables`, so the email names the decider and the project, never the deliverable title.
+ */
+export const planApprovalDecidedNotices: NoticePlanner = async (event, tx, mailer) => {
+  const raw = payloadOf(event);
+  const approvalId = stringField(raw, 'approvalId', event.id);
+  const deliverableId = stringField(raw, 'deliverableId', event.id);
+  const versionId = stringField(raw, 'deliverableVersionId', event.id);
+  const projectId = stringField(raw, 'projectId', event.id);
+  const decidedByUserId = stringField(raw, 'decidedByUserId', event.id);
+  const requestedByUserId =
+    typeof raw['requestedByUserId'] === 'string' ? raw['requestedByUserId'] : null;
+  const decision = raw['decision'] === 'approved' ? 'approved' : 'changes_requested';
+
+  const recipients: { readonly userId: string; readonly membershipId: string }[] = [];
+  const consider = async (userId: string, capability: Capability): Promise<void> => {
+    if (userId === decidedByUserId || recipients.some((r) => r.userId === userId)) return;
+    const reach = await findInternalReach(tx, event.organizationId, userId, projectId);
+    if (!mayBeTold(reach, capability) || reach === null) return;
+    recipients.push({ userId, membershipId: reach.membershipId });
+  };
+  if (requestedByUserId !== null) await consider(requestedByUserId, 'work.read');
+  for (const candidate of await listActiveInternalMemberships(
+    tx,
+    event.organizationId,
+    projectId,
+  )) {
+    await consider(candidate.userId, 'deliverable.create');
+  }
+
+  const mail = async (): Promise<MailSubject | null> => {
+    if (mailer === null) return null;
+    const org = await organizationOf(tx, event.organizationId);
+    const project = await findProjectName(tx, event.organizationId, projectId);
+    if (org === null || project === null) return null;
+    const actor = await findDisplayName(tx, decidedByUserId);
+    return {
+      organizationName: org.name,
+      actorName: actor ?? project,
+      subjectTitle: project,
+      projectName: project,
+      decision,
+      link: mailer.linkTo(`/${org.slug}/projects/${projectId}/deliverables/${deliverableId}`),
+    };
+  };
+  return recipients.map((recipient): PlannedNotice => ({
+    recipientUserId: recipient.userId,
+    optOutKind: 'message',
+    membershipId: recipient.membershipId,
+    inApp: {
+      type: 'approval.decided.v1',
+      objectType: 'deliverable_version',
+      objectId: versionId,
+      dedupeKey: `approval.decided:${approvalId}`,
+    },
+    mailKind: 'approval_decided',
+    mail,
+  }));
+};
+
 /** The planners by event type — the set `registry.ts` registers and the resume path re-plans. */
 export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'message.created.v1': planMentionNotices,
@@ -502,6 +574,7 @@ export const COLLABORATION_PLANNERS: Readonly<Record<string, NoticePlanner>> = {
   'work_item.client_action_requested.v1': planClientActionNotices,
   'approval.requested.v1': planApprovalRequestedNotices,
   'client_request.message_posted.v1': planRequestMessageNotices,
+  'approval.decided.v1': planApprovalDecidedNotices,
 };
 
 // ─── Delivery ──────────────────────────────────────────────────────────────────
@@ -571,7 +644,15 @@ export function createCollaborationNotices(
         });
       }
       if (mails !== null) {
-        await stageMail({ event, tx, effects, mailer: mails, notice, deferForQuietHours: true });
+        await stageMail({
+          event,
+          tx,
+          effects,
+          mailer: mails,
+          notice,
+          // A `yes-critical` type (domain quiet-hours.ts) interrupts through the window.
+          deferForQuietHours: !eventTypeBypassesQuietHours(event.type),
+        });
       }
     }
   };
