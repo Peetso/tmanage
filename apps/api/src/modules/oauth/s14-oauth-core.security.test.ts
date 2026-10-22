@@ -416,7 +416,10 @@ describe('S14A authorization code single use, binding and expiry (T-OA-05)', () 
     expect(accessRow(first)?.revokedAt).not.toBeNull();
     expect(refreshRow(first)?.revokedAt).not.toBeNull();
     await expect(
-      service.refresh({ refreshToken: first.refresh_token, resource: RESOURCE }, 'c'),
+      service.refresh(
+        { refreshToken: first.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+        'c',
+      ),
     ).rejects.toMatchObject({ code: 'invalid_grant' });
   });
 
@@ -462,7 +465,7 @@ describe('S14A refresh token rotation and reuse detection (T-OA-06)', () => {
   it('rotates: a new pair in the same family, the old token spent, absolute expiry carried', async () => {
     const first = await exchange(await issueCode());
     const second = await service.refresh(
-      { refreshToken: first.refresh_token, resource: RESOURCE },
+      { refreshToken: first.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
       'c',
     );
     expect(second.refresh_token).not.toBe(first.refresh_token);
@@ -478,18 +481,24 @@ describe('S14A refresh token rotation and reuse detection (T-OA-06)', () => {
   it('reusing a rotated refresh token revokes the whole family', async () => {
     const first = await exchange(await issueCode());
     const second = await service.refresh(
-      { refreshToken: first.refresh_token, resource: RESOURCE },
+      { refreshToken: first.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
       'c',
     );
     const reuse = await rejection(
-      service.refresh({ refreshToken: first.refresh_token, resource: RESOURCE }, 'c'),
+      service.refresh(
+        { refreshToken: first.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+        'c',
+      ),
     );
     expect(reuse.code).toBe('invalid_grant');
     expect(refreshRow(second)?.revokedAt).not.toBeNull();
     expect(accessRow(second)?.revokedAt).not.toBeNull();
     expect(accessRow(first)?.revokedAt).not.toBeNull();
     await expect(
-      service.refresh({ refreshToken: second.refresh_token, resource: RESOURCE }, 'c'),
+      service.refresh(
+        { refreshToken: second.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+        'c',
+      ),
     ).rejects.toMatchObject({ code: 'invalid_grant' });
   });
 
@@ -514,7 +523,10 @@ describe('S14A refresh token rotation and reuse detection (T-OA-06)', () => {
       return stale;
     };
     const error = await rejection(
-      service.refresh({ refreshToken: first.refresh_token, resource: RESOURCE }, 'c'),
+      service.refresh(
+        { refreshToken: first.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+        'c',
+      ),
     );
     expect(error.code).toBe('invalid_grant');
     expect(accessRow(first)?.revokedAt).not.toBeNull();
@@ -526,7 +538,10 @@ describe('S14A refresh token rotation and reuse detection (T-OA-06)', () => {
     store.now += (REFRESH_IDLE_TTL_SECONDS + 1) * 1000;
     const before = store.state.refresh.size;
     const error = await rejection(
-      service.refresh({ refreshToken: first.refresh_token, resource: RESOURCE }, 'c'),
+      service.refresh(
+        { refreshToken: first.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+        'c',
+      ),
     );
     expect(error.code).toBe('invalid_grant');
     expect(store.state.refresh.size).toBe(before);
@@ -537,23 +552,66 @@ describe('S14A refresh token rotation and reuse detection (T-OA-06)', () => {
     expect(
       (
         await rejection(
-          service.refresh({ refreshToken: first.refresh_token, resource: 'https://evil/mcp' }, 'c'),
+          service.refresh(
+            {
+              refreshToken: first.refresh_token,
+              resource: 'https://evil/mcp',
+              clientId: CLIENT_ID,
+            },
+            'c',
+          ),
         )
       ).code,
     ).toBe('invalid_target');
     expect(
-      (await rejection(service.refresh({ refreshToken: 'garbage', resource: RESOURCE }, 'c'))).code,
+      (
+        await rejection(
+          service.refresh(
+            { refreshToken: 'garbage', resource: RESOURCE, clientId: CLIENT_ID },
+            'c',
+          ),
+        )
+      ).code,
     ).toBe('invalid_grant');
     const grant = store.state.grants.get(refreshRow(first)?.grantId ?? '');
     if (grant) store.state.grants.set(grant.id, { ...grant, revokedAt: new Date(store.now) });
     expect(
       (
         await rejection(
-          service.refresh({ refreshToken: first.refresh_token, resource: RESOURCE }, 'c'),
+          service.refresh(
+            { refreshToken: first.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+            'c',
+          ),
         )
       ).code,
     ).toBe('invalid_grant');
     expect(accessRow(first)?.revokedAt).not.toBeNull();
+  });
+});
+
+describe('S14A refresh token client binding (OAuth 2.1 §4.3.1, FU2)', () => {
+  it('refuses a refresh token presented by another client or without client_id, and spends nothing', async () => {
+    const first = await exchange(await issueCode());
+    const before = store.state.refresh.size;
+    const foreign = await rejection(
+      service.refresh(
+        { refreshToken: first.refresh_token, resource: RESOURCE, clientId: OTHER_CLIENT_ID },
+        'c',
+      ),
+    );
+    expect(foreign.code).toBe('invalid_grant');
+    const missing = await rejection(
+      service.refresh({ refreshToken: first.refresh_token, resource: RESOURCE }, 'c'),
+    );
+    expect(missing.code).toBe('invalid_request');
+    expect(refreshRow(first)?.usedAt).toBeNull();
+    expect(store.state.refresh.size).toBe(before);
+    // The owning client can still rotate it.
+    const rotated = await service.refresh(
+      { refreshToken: first.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+      'c',
+    );
+    expect(rotated.refresh_token).not.toBe(first.refresh_token);
   });
 });
 
@@ -563,7 +621,10 @@ describe('S14A revocation (RFC 7009)', () => {
     await service.revoke(tokens.refresh_token, 'c');
     expect(accessRow(tokens)?.revokedAt).not.toBeNull();
     await expect(
-      service.refresh({ refreshToken: tokens.refresh_token, resource: RESOURCE }, 'c'),
+      service.refresh(
+        { refreshToken: tokens.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+        'c',
+      ),
     ).rejects.toMatchObject({ code: 'invalid_grant' });
   });
 
@@ -572,7 +633,10 @@ describe('S14A revocation (RFC 7009)', () => {
     await service.revoke(tokens.access_token, 'c');
     expect(refreshRow(tokens)?.revokedAt).not.toBeNull();
     await expect(
-      service.refresh({ refreshToken: tokens.refresh_token, resource: RESOURCE }, 'c'),
+      service.refresh(
+        { refreshToken: tokens.refresh_token, resource: RESOURCE, clientId: CLIENT_ID },
+        'c',
+      ),
     ).rejects.toMatchObject({ code: 'invalid_grant' });
   });
 

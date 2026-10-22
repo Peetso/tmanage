@@ -55,7 +55,11 @@ export class OAuthTokenController {
         );
       } else if (grantType === 'refresh_token') {
         result = await this.oauth.refresh(
-          { refreshToken: body['refresh_token'], resource: body['resource'] },
+          {
+            refreshToken: body['refresh_token'],
+            resource: body['resource'],
+            clientId: body['client_id'],
+          },
           correlationId,
         );
       } else {

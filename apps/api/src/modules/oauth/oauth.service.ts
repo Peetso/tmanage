@@ -466,10 +466,16 @@ export class OAuthService {
    * Rotate a refresh token. Reuse detection (threat model B1, T-OA-06): presenting an
    * already-used refresh token revokes the whole family and returns `invalid_grant`. Otherwise the
    * presented token is spent and a fresh access + refresh pair is issued in the same family, with
-   * the absolute expiry carried forward unchanged.
+   * the absolute expiry carried forward unchanged. OAuth 2.1 §4.3.1: the token is bound to the public
+   * client it was issued to, so `client_id` is required and a token issued to another client is
+   * refused (`invalid_grant`) without being spent.
    */
   async refresh(
-    input: { readonly refreshToken: unknown; readonly resource: unknown },
+    input: {
+      readonly refreshToken: unknown;
+      readonly resource: unknown;
+      readonly clientId?: unknown;
+    },
     correlationId: string,
   ): Promise<TokenResponse> {
     const refreshToken = typeof input.refreshToken === 'string' ? input.refreshToken : '';
@@ -509,6 +515,20 @@ export class OAuthService {
       throw new OAuthError('invalid_grant', 'The grant has been revoked.', false);
     }
     await this.assertWorkspaceAllowsAi(grant.organizationId, correlationId);
+
+    // Bind the refresh token to the public client it was issued to (OAuth 2.1 §4.3.1). Checked
+    // before the spend, so a foreign client cannot burn — or rotate — another client's token.
+    const clientId = typeof input.clientId === 'string' ? input.clientId : '';
+    if (clientId === '') {
+      throw new OAuthError('invalid_request', 'Missing client_id.', false);
+    }
+    const client = await this.database.identityRead(
+      { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
+      (db) => this.repo.findClientByClientId(db, clientId),
+    );
+    if (!client || client.id !== grant.clientPk) {
+      throw new OAuthError('invalid_grant', 'client_id does not match the refresh token.', false);
+    }
 
     let lostRace = false;
     try {
