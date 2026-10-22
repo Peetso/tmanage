@@ -3,7 +3,7 @@ import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ApiError, MESSAGES } from '../errors.js';
 import { SKIPS_TENANT, IS_PUBLIC } from '../decorators.js';
-import { requireRequestState } from '../request-state.js';
+import { isBoundTokenScheme, requireRequestState } from '../request-state.js';
 import { MEMBERSHIP_RESOLVER, PRINCIPAL_REPOSITORY, TENANT_DATABASE } from '../tokens.js';
 import {
   MembershipNotResolvedError,
@@ -116,7 +116,7 @@ export class TenantContextGuard implements CanActivate {
     // cause travels to the log on the audit code, exactly as `MembershipNotResolvedError` does.
     const patBinding = state.personalAccessToken;
     if (
-      state.authScheme === 'personal_access_token' &&
+      isBoundTokenScheme(state.authScheme) &&
       patBinding !== undefined &&
       resolved.context.organizationId !== patBinding.organizationId
     ) {
@@ -130,14 +130,14 @@ export class TenantContextGuard implements CanActivate {
     }
 
     state.membership = resolved;
-    // AUT-08. A personal access token is the AI-assistant / MCP channel, so tag the context the
-    // services will act under; the audit append stamps it onto the metadata it writes, and the
-    // item's activity feed reads that back as "via AI assistant". A cookie session is untagged,
-    // leaving its context — and every audit row it writes — exactly as before.
-    state.tenant =
-      state.authScheme === 'personal_access_token'
-        ? withActorChannel(resolved.context, 'ai_assistant')
-        : resolved.context;
+    // AUT-08. A personal access token, and the MCP connector's internal grant (S6), are the
+    // AI-assistant / MCP channel, so tag the context the services will act under; the audit append
+    // stamps it onto the metadata it writes, and the item's activity feed reads that back as "via
+    // AI assistant". A cookie session is untagged, leaving its context — and every audit row it
+    // writes — exactly as before.
+    state.tenant = isBoundTokenScheme(state.authScheme)
+      ? withActorChannel(resolved.context, 'ai_assistant')
+      : resolved.context;
     state.principal = await this.database.read(resolved.context, (runner) =>
       this.principals.load(runner, resolved),
     );

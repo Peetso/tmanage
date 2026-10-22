@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import { ApiError } from '../../common/http/errors.js';
 import { CurrentSession, NoTenant } from '../../common/http/decorators.js';
-import { requireRequestState } from '../../common/http/request-state.js';
+import { isBoundTokenScheme, requireRequestState } from '../../common/http/request-state.js';
 import {
   ORGANIZATION_DIRECTORY_REPOSITORY,
   PROVISIONING_SERVICE,
@@ -137,14 +137,15 @@ export class OrganizationsController {
       correlationId: state.correlationId,
     });
 
-    // A personal access token is bound to one organization (0202). This route is `@NoTenant()`,
-    // so `TenantContextGuard` never runs to enforce that binding — a token would otherwise list
-    // every organization its member belongs to, disclosing the member's whole org graph and
-    // letting an MCP client point the token at an org it cannot actually reach. So under a PAT the
-    // directory is narrowed to the token's own organization; a cookie session still sees them all.
+    // A personal access token is bound to one organization (0202), and so is the MCP connector's
+    // internal grant (S6). This route is `@NoTenant()`, so `TenantContextGuard` never runs to
+    // enforce that binding — a token would otherwise list every organization its member belongs
+    // to, disclosing the member's whole org graph and letting an MCP client point the token at an
+    // org it cannot actually reach. So under a bound-token scheme the directory is narrowed to the
+    // bound organization; a cookie session still sees them all.
     const binding = state.personalAccessToken;
     const visible =
-      state.authScheme === 'personal_access_token' && binding !== undefined
+      isBoundTokenScheme(state.authScheme) && binding !== undefined
         ? rows.filter((row) => row.organizationId === binding.organizationId)
         : rows;
 

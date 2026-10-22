@@ -18,6 +18,12 @@ import type { SessionService } from '../../../modules/identity/session.service.j
 import { readCookie } from '../../../modules/identity/session-token.js';
 import { PersonalAccessTokenNotAuthenticatedError } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
 import type { PersonalAccessTokensService } from '../../../modules/personal-access-tokens/personal-access-tokens.service.js';
+import {
+  INTERNAL_GRANT_HEADER,
+  internalGrants,
+  isInProcessRequest,
+} from '../../../modules/mcp/internal-grant.js';
+import type { InternalGrantStore } from '../../../modules/mcp/internal-grant.js';
 
 /**
  * Spec §3 step 1 — "authenticate the current session and validate revocation/cutoff".
@@ -53,6 +59,13 @@ export class SessionAuthGuard implements CanActivate {
     private readonly personalAccessTokens: PersonalAccessTokensService,
   ) {}
 
+  /**
+   * The process-wide internal-grant store (S6). Not injected: it is in-process memory shared with
+   * the MCP endpoint, deliberately with no DI or database seam behind it. A field so a test can
+   * substitute a store with a controllable clock.
+   */
+  private internalGrants: Pick<InternalGrantStore, 'consume'> = internalGrants;
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
       context.getHandler(),
@@ -63,8 +76,58 @@ export class SessionAuthGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<{
       readonly ip?: string;
       readonly headers: Record<string, string | string[] | undefined>;
+      readonly raw?: unknown;
     }>();
     const state = requireRequestState(request);
+
+    // MCP connector S6 — the one-time internal grant. The hosted MCP endpoint executes each tool
+    // call as an in-process inject carrying a nonce in `x-tmanage-internal-grant` and NO
+    // `Authorization` header: the AI client's own token is never forwarded (architecture B1). The
+    // nonce stands in for the principal the outer request already proved. Two gates before it is
+    // trusted (architecture B3): the request must be an in-process inject — a real network request
+    // bearing the header is refused here even if the edge did not strip it (`T-B3-01`) — and the
+    // nonce must redeem, which it does at most once and within 30 seconds (`T-B3-02`).
+    const grantHeader = request.headers[INTERNAL_GRANT_HEADER];
+    if (typeof grantHeader === 'string') {
+      if (!isInProcessRequest(request.raw)) {
+        this.recordRefusal(request, state.correlationId);
+        throw new ApiError(
+          401,
+          'unauthenticated',
+          MESSAGES.unauthenticated,
+          undefined,
+          'internal_grant_from_network',
+        );
+      }
+      const payload = this.internalGrants.consume(grantHeader);
+      if (payload === undefined) {
+        this.recordRefusal(request, state.correlationId);
+        throw new ApiError(
+          401,
+          'unauthenticated',
+          MESSAGES.unauthenticated,
+          undefined,
+          'internal_grant_invalid',
+        );
+      }
+      // The same bound-token principal a PAT would produce, so every downstream tenant rule
+      // (org binding, directory narrowing, the AI-assistant audit channel) applies unchanged —
+      // the grant is a different proof of the same member, not a different member. The AI client
+      // it acts for is recorded separately on `aiGrant`, for attribution, never for access.
+      state.session = { sessionId: `ai:${payload.grantId}`, userId: payload.userId };
+      state.authScheme = 'ai_grant';
+      state.personalAccessToken = {
+        organizationId: payload.organizationId,
+        membershipId: payload.membershipId,
+      };
+      state.aiGrant = {
+        grantId: payload.grantId,
+        clientId: payload.clientId,
+        clientName: payload.clientName,
+        opId: payload.opId,
+      };
+      return true;
+    }
 
     const cookieHeader = request.headers['cookie'];
     const accessToken = readCookie(

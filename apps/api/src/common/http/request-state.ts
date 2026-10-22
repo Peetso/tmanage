@@ -41,10 +41,24 @@ export interface RequestState {
   /**
    * How `SessionAuthGuard` authenticated this request (0202). `'cookie'` for the session cookie,
    * `'personal_access_token'` only for the successful Bearer path, which runs exclusively when
-   * there is no cookie. `CsrfGuard` reads it to skip CSRF for bearer tokens — which are not
-   * ambient credentials — and must trust it only because a guard, not the request, sets it.
+   * there is no cookie. `'ai_grant'` for the MCP connector's one-time internal grant (S6): an
+   * in-process inject the hosted MCP endpoint makes on an AI client's behalf, carrying a nonce
+   * instead of the client's token. `CsrfGuard` reads it to skip CSRF for the two non-ambient
+   * token schemes, and must trust it only because a guard, not the request, sets it.
    */
-  authScheme?: 'cookie' | 'personal_access_token';
+  authScheme?: 'cookie' | 'personal_access_token' | 'ai_grant';
+  /**
+   * The AI client this request is attributed to, set by `SessionAuthGuard` only on the
+   * internal-grant path (S6) and only on an in-process inject. It records who the action is
+   * *for* — never a way in, which is `authScheme`/`personalAccessToken` — so the audit trail and
+   * the activity feed can show "via <client>". Absent on every other request.
+   */
+  aiGrant?: {
+    readonly grantId: string;
+    readonly clientId: string;
+    readonly clientName: string;
+    readonly opId: string;
+  };
   /**
    * The organization and membership a personal access token is bound to (0202). Set by
    * `SessionAuthGuard` only on the successful Bearer path, from the token row itself — never read
@@ -97,6 +111,20 @@ export function requestState(request: object): RequestState | undefined {
 
 /** Alias kept for call sites that read better as an assertion than as a constructor. */
 export const requireRequestState = ensureRequestState;
+
+/**
+ * Whether the request authenticated with a credential bound to one organization and membership —
+ * a personal access token (0202) or the MCP connector's internal grant (S6) — rather than an
+ * ambient cookie session.
+ *
+ * The two share every tenant rule: CSRF does not apply (neither is attached by a browser to a
+ * cross-site request), the directory listing is narrowed to the bound org, and the tenant guard
+ * refuses any other org and tags the context as the AI-assistant channel. Keeping the test in one
+ * place is what stops a future scheme from being added to one call site and missed at another.
+ */
+export function isBoundTokenScheme(authScheme: RequestState['authScheme']): boolean {
+  return authScheme === 'personal_access_token' || authScheme === 'ai_grant';
+}
 
 export function requireTenantContext(request: object): TenantContext {
   const tenant = requireRequestState(request).tenant;

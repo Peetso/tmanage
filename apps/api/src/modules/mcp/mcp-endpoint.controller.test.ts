@@ -119,37 +119,51 @@ describe('hosted MCP endpoint — authentication refusals', () => {
   });
 });
 
-describe('hosted MCP endpoint — tool calls are ordinary API requests with the caller’s token', () => {
-  it('forwards the caller’s Bearer header and the path to the in-process API', async () => {
-    const inject = vi.fn(async () => ({
+describe('hosted MCP endpoint — tool calls run via a one-time internal grant, never the caller’s token', () => {
+  const options = (overrides: Partial<Parameters<typeof inProcessFetch>[1]> = {}) => ({
+    mintGrant: vi.fn(() => 'nonce-123'),
+    correlationId: '0198f4a2-1c00-7000-8000-0000000000c1',
+    ...overrides,
+  });
+
+  it('strips the caller’s Bearer header and injects the internal grant instead (B1/B3, T-B3-03)', async () => {
+    const inject = vi.fn(async (_opts: Parameters<InjectCapable['inject']>[0]) => ({
       statusCode: 404,
       body: '{"code":"not_found","message":"The requested resource was not found"}',
       headers: { 'content-type': 'application/json' },
     }));
-    const fetchImpl = inProcessFetch({ inject });
-    const response = await fetchImpl(
+    const opts = options();
+    const response = await inProcessFetch({ inject }, opts)(
       'http://tmanage.internal/v1/organizations/other-org/work-items/x?a=1',
       { method: 'GET', headers: { authorization: `Bearer ${LIVE}` } },
     );
     expect(response.status).toBe(404);
-    expect(inject).toHaveBeenCalledWith({
-      method: 'GET',
-      url: '/v1/organizations/other-org/work-items/x?a=1',
-      headers: { authorization: `Bearer ${LIVE}` },
-    });
+    const call = inject.mock.calls[0]![0] as { headers: Record<string, string>; url: string };
+    expect(call.url).toBe('/v1/organizations/other-org/work-items/x?a=1');
+    // The caller's token is gone; the single-use grant and the correlation id take its place.
+    expect(call.headers['authorization']).toBeUndefined();
+    expect(call.headers['x-tmanage-internal-grant']).toBe('nonce-123');
+    expect(call.headers['x-correlation-id']).toBe(opts.correlationId);
+    expect(opts.mintGrant).toHaveBeenCalledWith('GET /v1/organizations/other-org/work-items/x');
   });
 
-  it('passes a JSON body through and returns an empty 204 as no body', async () => {
+  it('passes a JSON body through, returns an empty 204 as no body, and records a redacted call', async () => {
     const inject = vi.fn(async () => ({ statusCode: 204, body: '', headers: {} }));
-    const response = await inProcessFetch({ inject })('http://tmanage.internal/v1/x', {
-      method: 'post',
-      headers: { 'content-type': 'application/json' },
-      body: '{"a":1}',
-    });
+    const onCall = vi.fn();
+    const response = await inProcessFetch({ inject }, options({ onCall }))(
+      'http://tmanage.internal/v1/x',
+      { method: 'post', headers: { 'content-type': 'application/json' }, body: '{"a":1}' },
+    );
     expect(response.status).toBe(204);
     expect(await response.text()).toBe('');
     expect(inject).toHaveBeenCalledWith(
       expect.objectContaining({ method: 'POST', payload: '{"a":1}' }),
     );
+    // The audit record carries the op, the status and an args hash — never the body.
+    const record = onCall.mock.calls[0]![0] as { opId: string; status: number; argsSha256: string };
+    expect(record.opId).toBe('POST /v1/x');
+    expect(record.status).toBe(204);
+    expect(record.argsSha256).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(record)).not.toContain('"a":1');
   });
 });

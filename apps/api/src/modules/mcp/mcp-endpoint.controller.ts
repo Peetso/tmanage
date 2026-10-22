@@ -1,13 +1,16 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { Controller, Delete, Get, Inject, Module, Post, Req, Res } from '@nestjs/common';
+import { Controller, Delete, Get, Inject, Logger, Module, Post, Req, Res } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import { buildServer, createHttpApiClient, serveMcpRequest } from '@tmanage/mcp-server';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { NoTenant } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
+import { CORRELATION_HEADER } from '../../common/http/correlation.js';
 import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import type { RequestAdmission } from '../../common/http/rate-limiter.js';
+import { argsSha256, INTERNAL_GRANT_HEADER, internalGrants } from './internal-grant.js';
+import type { InternalGrantPayload } from './internal-grant.js';
 
 /**
  * **Hosted MCP endpoint — `POST /mcp` (Streamable HTTP, stateless).**
@@ -57,25 +60,73 @@ export interface InjectCapable {
   }): Promise<InjectResponse>;
 }
 
+/** One redacted record of an inner tool call, for the audit trail (architecture B6). */
+export interface McpCallRecord {
+  readonly opId: string;
+  /** A SHA-256 of the call's inputs. Never the inputs themselves, a body, or a token. */
+  readonly argsSha256: string;
+  readonly status: number;
+  readonly latencyMs: number;
+}
+
+export interface InProcessFetchOptions {
+  /** Mint a one-time internal grant for one inner call, named by its op id. */
+  readonly mintGrant: (opId: string) => string;
+  /** Threaded onto each inner inject so its audit rows tie back to the MCP request. */
+  readonly correlationId: string;
+  /** Called once per inner call with the redacted record. */
+  readonly onCall?: (record: McpCallRecord) => void;
+}
+
 /**
  * A `fetch` that answers from this API in-process. The MCP API client is written against
  * `fetch`; this hands its requests to `fastify.inject`, so they go through the same router,
  * guards and filters as a network request — without leaving the process.
+ *
+ * **The AI client's credential is never forwarded (architecture B1/B3).** Whatever `Authorization`
+ * the API client set is stripped, and a one-time internal grant nonce is carried in its place.
+ * The inner inject therefore reaches the REST guard chain with no bearer token at all (`T-B3-03`),
+ * and `SessionAuthGuard` turns the nonce back into the principal the outer request already proved.
+ * Each inner call is recorded through {@link InProcessFetchOptions.onCall} with only its op id, an
+ * args hash, the status and the latency — never a token or a body (architecture B6).
  */
-export function inProcessFetch(app: InjectCapable): typeof fetch {
+export function inProcessFetch(app: InjectCapable, options: InProcessFetchOptions): typeof fetch {
   return (async (input: string | URL | Request, init?: RequestInit): Promise<Response> => {
     const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
     const url = new URL(href);
+    const method = (init?.method ?? 'GET').toUpperCase();
+    const opId = `${method} ${url.pathname}`;
     const headers: Record<string, string> = {};
     new Headers(init?.headers).forEach((value, key) => {
       headers[key] = value;
     });
+    // B1/B3. Drop the client's own credential and stand in a single-use internal grant. `Headers`
+    // has already lower-cased the key, so this removes whatever the API client set.
+    delete headers['authorization'];
+    headers[INTERNAL_GRANT_HEADER] = options.mintGrant(opId);
+    headers[CORRELATION_HEADER] = options.correlationId;
+
+    const body = typeof init?.body === 'string' ? init.body : undefined;
+    const startedAt = Date.now();
     const response = await app.inject({
-      method: (init?.method ?? 'GET').toUpperCase(),
+      method,
       url: `${url.pathname}${url.search}`,
       headers,
-      ...(typeof init?.body === 'string' ? { payload: init.body } : {}),
+      ...(body !== undefined ? { payload: body } : {}),
     });
+    options.onCall?.({
+      opId,
+      // A hash of the call's inputs — the path, the query and the parsed body — so two identical
+      // calls hash alike, with nothing sensitive recorded.
+      argsSha256: argsSha256({
+        path: url.pathname,
+        search: url.search,
+        body: body !== undefined ? safeJson(body) : null,
+      }),
+      status: response.statusCode,
+      latencyMs: Date.now() - startedAt,
+    });
+
     const contentType = response.headers['content-type'];
     return new Response(
       response.statusCode === 204 || response.body.length === 0 ? null : response.body,
@@ -87,6 +138,14 @@ export function inProcessFetch(app: InjectCapable): typeof fetch {
       },
     );
   }) as typeof fetch;
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
 }
 
 function bearerToken(header: string | string[] | undefined): string | undefined {
@@ -117,6 +176,9 @@ export class McpEndpointController {
     max: MCP_MAX_REQUESTS_PER_WINDOW,
   });
 
+  /** The per-call audit trail (architecture B6 / T-LOG-01). Redacted by construction. */
+  private readonly logger = new Logger('McpCall');
+
   constructor(@Inject(HttpAdapterHost) private readonly adapterHost: HttpAdapterHost) {}
 
   @Post()
@@ -139,10 +201,39 @@ export class McpEndpointController {
       throw new ApiError(429, 'rate_limited', MESSAGES.rateLimited, undefined, 'mcp_rate_limited');
     }
 
+    // The principal the outer request proved — the one every inner call will act as. Captured now,
+    // before the transport takes over the reply, so the grant minter below can run per inner call.
+    const binding = state.personalAccessToken;
+    const principal: Omit<InternalGrantPayload, 'opId'> = {
+      grantId: state.session.sessionId,
+      userId: state.session.userId,
+      // Bound by `SessionAuthGuard` on the PAT path; the outer check above guarantees it is set.
+      membershipId: binding?.membershipId ?? '',
+      organizationId: binding?.organizationId ?? '',
+      clientId: state.session.sessionId,
+      clientName: 'AI assistant',
+    };
+
     const client = createHttpApiClient({
       baseUrl: IN_PROCESS_BASE_URL,
       token,
-      fetch: inProcessFetch(this.adapterHost.httpAdapter.getInstance<InjectCapable>()),
+      fetch: inProcessFetch(this.adapterHost.httpAdapter.getInstance<InjectCapable>(), {
+        // B1/B3. One single-use grant per inner call; the client's token is never forwarded.
+        mintGrant: (opId) => internalGrants.mint({ ...principal, opId }),
+        correlationId: state.correlationId,
+        onCall: (record) =>
+          // B6. One redacted line per call: op, args hash, outcome, latency, and the AI client it
+          // is attributed to — never a token or a body (T-LOG-01).
+          this.logger.log(
+            JSON.stringify({
+              event: 'mcp.tool_call',
+              actorKind: 'ai',
+              clientId: principal.clientId,
+              correlationId: state.correlationId,
+              ...record,
+            }),
+          ),
+      }),
     });
     // From here the MCP transport writes the response itself.
     reply.hijack();

@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { ApiError, MESSAGES } from '../errors.js';
 import { IS_PUBLIC } from '../decorators.js';
 import { CSRF_HEADER, isSafeMethod, verifyCsrfToken } from '../csrf.js';
-import { requireRequestState } from '../request-state.js';
+import { isBoundTokenScheme, requireRequestState } from '../request-state.js';
 import { API_CONFIG, AUTHENTICATION_EVENT_RECORDER } from '../tokens.js';
 import type { ApiConfig } from '../api-config.js';
 import { GUARD_REFUSAL_ACTIONS, GUARD_REFUSAL_REASONS } from '../authentication-event-recorder.js';
@@ -63,13 +63,14 @@ export class CsrfGuard implements CanActivate {
     const state = requireRequestState(request);
 
     // A personal access token is not an ambient credential — a browser never attaches it to a
-    // cross-site request the way it attaches a cookie — so CSRF does not apply (0202). The skip
-    // keys strictly off the server-set `authScheme`, which `SessionAuthGuard` sets to
-    // `personal_access_token` only on the successful Bearer path, and that path runs only when
-    // there is no session cookie. A request carrying a cookie therefore never reaches this skip,
-    // even if it also carries a Bearer header. The marker is produced by a guard, never read off
-    // the request, which is why it is safe to trust here.
-    if (state.authScheme === 'personal_access_token') return true;
+    // cross-site request the way it attaches a cookie — so CSRF does not apply (0202). The MCP
+    // connector's internal grant (S6) is the same: it rides an in-process inject, never a browser.
+    // The skip keys strictly off the server-set `authScheme`, which `SessionAuthGuard` sets to a
+    // bound-token scheme only on its Bearer or internal-grant paths, and the Bearer path runs only
+    // when there is no session cookie. A request carrying a cookie therefore never reaches this
+    // skip, even if it also carries a Bearer header. The marker is produced by a guard, never read
+    // off the request, which is why it is safe to trust here.
+    if (isBoundTokenScheme(state.authScheme)) return true;
 
     const session = state.session;
     if (!session) {
