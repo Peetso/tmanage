@@ -8,6 +8,7 @@ import { CLIENT_NAVIGATION } from './navigation';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
+import { AccountMenu } from './AccountMenu';
 
 export interface ClientPortalShellProps {
   /**
@@ -39,6 +40,10 @@ export interface ClientPortalShellProps {
    * it.
    */
   preview?: boolean;
+  /** The signed-in client's initials, name and email for the account menu (Figma t2-a). */
+  accountInitials?: string;
+  accountName?: string;
+  accountEmail?: string;
 }
 
 /**
@@ -68,6 +73,9 @@ export function ClientPortalShell({
   headerAside,
   children,
   preview = false,
+  accountInitials,
+  accountName,
+  accountEmail,
 }: ClientPortalShellProps) {
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
@@ -129,6 +137,13 @@ export function ClientPortalShell({
             <Badge tone="client" mono>
               Client portal
             </Badge>
+            <AccountMenu
+              organizationSlug={organizationSlug}
+              placement="header"
+              {...(accountInitials ? { initials: accountInitials } : {})}
+              {...(accountName ? { name: accountName } : {})}
+              {...(accountEmail ? { email: accountEmail } : {})}
+            />
           </div>
         </header>
 

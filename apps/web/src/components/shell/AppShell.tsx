@@ -18,6 +18,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { PlatformAdminLink } from '../platform/PlatformAdminLink';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { MembershipGoneGate } from './MembershipGoneGate';
+import { AccountMenu } from './AccountMenu';
 
 export interface AppShellProps {
   /**
@@ -68,6 +69,9 @@ export interface AppShellProps {
   lens?: ReactNode;
   /** The signed-in person's initials for the account orb at the foot of the rail. */
   accountInitials?: string;
+  /** The signed-in person's name and email for the account menu's header (Figma t2-a). */
+  accountName?: string;
+  accountEmail?: string;
 }
 
 /** Owner and org admin reach the Control Center; `sitemap-and-role-navigation.md` hides it otherwise. */
@@ -113,14 +117,13 @@ function ControlCenterOrb({
 function RailFoot({
   organizationSlug,
   activeNavigationId,
-  accountInitials,
+  account,
 }: {
   organizationSlug: string;
   activeNavigationId: string | undefined;
-  accountInitials: string | undefined;
+  account: { initials?: string; name?: string; email?: string };
 }) {
   const queryClient = useContext(QueryClientContext);
-  const t = useT();
   return (
     <div className="tm-rail__foot">
       {queryClient ? (
@@ -131,15 +134,7 @@ function RailFoot({
       ) : null}
       {/* Only for the TManage operator (PLATFORM_ADMIN_EMAILS); nothing for anyone else. */}
       {queryClient ? <PlatformAdminLink /> : null}
-      {accountInitials ? (
-        <Link
-          href={`/${organizationSlug}/preferences`}
-          className="tm-rail__account"
-          aria-label={t('shell.account.preferences')}
-        >
-          {accountInitials}
-        </Link>
-      ) : null}
+      <AccountMenu organizationSlug={organizationSlug} placement="rail" {...account} />
     </div>
   );
 }
@@ -176,6 +171,8 @@ export function AppShell({
   children,
   lens,
   accountInitials,
+  accountName,
+  accountEmail,
 }: AppShellProps) {
   // The page hands in the design's sample name until a per-organization read exists; the
   // session's own organization list says what this organization is really called.
@@ -225,7 +222,11 @@ export function AppShell({
             <RailFoot
               organizationSlug={organizationSlug}
               activeNavigationId={activeNavigationId}
-              accountInitials={accountInitials}
+              account={{
+                ...(accountInitials ? { initials: accountInitials } : {}),
+                ...(accountName ? { name: accountName } : {}),
+                ...(accountEmail ? { email: accountEmail } : {}),
+              }}
             />
           </nav>
 

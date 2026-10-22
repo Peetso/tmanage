@@ -8793,5 +8793,15 @@
   "aiApprove.field.variableId": "المتغيّر",
   "aiApprove.field.version": "النسخة",
   "aiApprove.field.viewId": "العرض",
-  "aiApprove.field.workItemId": "العنصر"
+  "aiApprove.field.workItemId": "العنصر",
+  "AccountMenu.trigger": "قائمة الحساب",
+  "AccountMenu.menuLabel": "الحساب",
+  "AccountMenu.profile": "الملف الشخصي",
+  "AccountMenu.preferences": "التفضيلات",
+  "AccountMenu.language": "اللغة: العربية",
+  "AccountMenu.aiAssistant": "المساعد الذكي",
+  "AccountMenu.accessTokens": "رموز الوصول",
+  "AccountMenu.signOut": "تسجيل الخروج",
+  "AccountMenu.signingOut": "جارٍ تسجيل الخروج",
+  "AccountMenu.signOutFailed": "تعذّر تسجيل الخروج. حاول مرة أخرى بعد قليل."
 }

@@ -8793,5 +8793,15 @@
   "aiApprove.field.variableId": "Variable",
   "aiApprove.field.version": "Version",
   "aiApprove.field.viewId": "View",
-  "aiApprove.field.workItemId": "Work item"
+  "aiApprove.field.workItemId": "Work item",
+  "AccountMenu.trigger": "Account menu",
+  "AccountMenu.menuLabel": "Account",
+  "AccountMenu.profile": "Profile",
+  "AccountMenu.preferences": "Preferences",
+  "AccountMenu.language": "Language: English",
+  "AccountMenu.aiAssistant": "AI assistant",
+  "AccountMenu.accessTokens": "Access tokens",
+  "AccountMenu.signOut": "Sign out",
+  "AccountMenu.signingOut": "Signing out",
+  "AccountMenu.signOutFailed": "Sign-out failed. Try again in a moment."
 }

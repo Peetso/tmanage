@@ -1,0 +1,134 @@
+/* t2-a account menu (Figma 371:1809 / 371:2237). Logical properties only, so RTL mirrors. */
+
+.tm-account {
+  position: relative;
+}
+
+.tm-rail__account {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.tm-rail__account:focus-visible,
+.tm-account__item:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-account__menu {
+  position: absolute;
+  z-index: 40;
+  inline-size: 320px;
+  padding-block: var(--s2);
+  border: 1px solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+  color: var(--ink-950);
+}
+
+/* Fixed, because the rail scrolls (overflow-y) and would clip an absolute card. */
+.tm-account[data-placement='rail'] .tm-account__menu {
+  position: fixed;
+  inset-block-end: var(--s5);
+  inset-inline-start: calc(var(--rail) + var(--s3));
+}
+
+.tm-account[data-placement='header'] .tm-account__menu {
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-end: 0;
+}
+
+.tm-account__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-block: 0 var(--s1);
+  padding-inline: var(--s2) var(--s5);
+}
+
+.tm-account__avatar {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--orb-default);
+  block-size: var(--orb-default);
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+  color: var(--ink-800);
+  font-size: var(--t-ui-md);
+  font-weight: 500;
+}
+
+.tm-account__who {
+  min-inline-size: 0;
+}
+
+.tm-account__name {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-account__email {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ink-500);
+  font-family: var(--font-latin);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[dir='rtl'] .tm-account__email {
+  text-align: end;
+}
+
+.tm-account__rule {
+  margin-block: 0;
+  margin-inline: var(--s2);
+  border: 0;
+  border-block-start: 1px solid var(--line-300);
+}
+
+.tm-account__item {
+  display: flex;
+  align-items: center;
+  inline-size: 100%;
+  min-block-size: 52px;
+  padding-inline: var(--s5);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tm-account__item:hover {
+  background: var(--tm-hover-surface);
+}
+
+.tm-account__item[aria-disabled='true'] {
+  cursor: progress;
+  color: var(--ink-500);
+}
+
+.tm-account__error {
+  margin: 0;
+  padding-inline: var(--s5);
+  padding-block-end: var(--s2);
+  color: var(--danger-600);
+  font-size: var(--t-caption);
+}
+
+.tm-portal__context:has(.tm-account) {
+  align-items: center;
+}

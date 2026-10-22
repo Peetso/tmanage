@@ -1,13 +1,17 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { translate, type MessageKey } from '../src/lib/i18n/t';
 import { AppShell } from '../src/components/shell/AppShell';
 import { ClientPortalShell } from '../src/components/shell/ClientPortalShell';
 import { IdentityShell } from '../src/components/shell/IdentityShell';
 import { OnboardingShell } from '../src/components/shell/OnboardingShell';
 import { CLIENT_NAVIGATION, INTERNAL_NAVIGATION } from '../src/components/shell/navigation';
 import { expectNoAxeViolations } from './axe';
+
+// The open account menu reads the router for sign-out; jsdom has no Next app router.
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
 /**
  * The four shells.
@@ -162,6 +166,18 @@ describe('ClientPortalShell', () => {
       </ClientPortalShell>,
     );
   }
+
+  it('carries the same account menu as the internal shell', () => {
+    renderShell();
+    const en = (key: string) => translate('en-US', `AccountMenu.${key}` as MessageKey);
+    fireEvent.click(screen.getByRole('button', { name: en('trigger') }));
+    const menu = screen.getByRole('menu');
+    expect(within(menu).getByRole('menuitem', { name: en('accessTokens') })).toHaveAttribute(
+      'href',
+      '/northstar/settings/security',
+    );
+    expect(within(menu).getByRole('menuitem', { name: en('signOut') })).toBeInTheDocument();
+  });
 
   it('leads with the client, and names the delivery team beneath', () => {
     render(
