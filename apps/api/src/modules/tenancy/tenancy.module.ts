@@ -10,6 +10,7 @@ import {
   MEMBERSHIPS_REPOSITORY,
   OFFBOARDING_SERVICE,
   ORGANIZATION_DIRECTORY_REPOSITORY,
+  PASSWORD_RESET_MAILER,
   PRINCIPAL_REPOSITORY,
   PROVISIONING_SERVICE,
   TENANT_DATABASE,
@@ -18,6 +19,10 @@ import {
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { InvitationMailer } from '../../common/email/invitation-mailer.js';
 import type { AuditService } from '../audit/audit.service.js';
+import type { PasswordResetMailer } from '../../common/email/password-reset-email.js';
+import { PASSWORD_RESET_SERVICE } from '../identity/password-reset.controller.js';
+import { PasswordResetService } from '../identity/password-reset.service.js';
+import { MemberPasswordResetController } from './member-password-reset.controller.js';
 import { ClientMembershipsRepository } from '../clients/client-memberships.repository.js';
 import { InvitationsController, InvitationAcceptanceController } from './invitations.controller.js';
 import { InvitationsRepository } from './invitations.repository.js';
@@ -155,9 +160,20 @@ export class TenancyModule {
         }),
     };
 
+    // Q4. The org-admin reset sends the ordinary self-service link, so it needs a
+    // `PasswordResetService` — built here the way `PlatformAdminModule` builds one (stateless; the
+    // mailer optional) rather than widening `IdentityModule`'s exports. Module-private: not exported.
+    const memberPasswordResets: Provider = {
+      provide: PASSWORD_RESET_SERVICE,
+      inject: [TENANT_DATABASE, { token: PASSWORD_RESET_MAILER, optional: true }],
+      useFactory: (database: TenantDatabase, mailer: PasswordResetMailer | undefined) =>
+        new PasswordResetService(database, mailer ?? null),
+    };
+
     return {
       module: TenancyModule,
       providers: [
+        memberPasswordResets,
         registrationSessions,
         registrationAdmission,
         resolver,
@@ -184,6 +200,7 @@ export class TenancyModule {
         WorkspacesController,
         MembersController,
         OffboardingController,
+        MemberPasswordResetController,
         InvitationsController,
         // The route with no tenant. Its own controller so that `@NoTenant()` sits on a class
         // whose whole purpose is the pre-membership path, rather than on one method of a

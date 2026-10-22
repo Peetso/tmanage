@@ -2961,6 +2961,16 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // Q4: an org admin emails a member the ordinary reset link — it signs a person out of every
+  // device once used, so confirm-class.
+  {
+    id: 'members.password_reset.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/members/:membershipId/password-reset',
+    capability: 'org.manage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
   {
     id: 'message_bookmarks.list',
     method: 'GET',

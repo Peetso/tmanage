@@ -73,6 +73,21 @@ export const tenancyDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Set a key', args: { key: 'work.default_view', value: 'board' } }],
   }),
   det({
+    id: 'members.password_reset.create',
+    title: 'Send a member a password reset link',
+    description:
+      'Email one active member the ordinary single-use 30-minute reset link, with a reason. Never yourself. Confirm-class: it emails a person.',
+    input: bodyArgs(['membershipId'], { reason: f.shortText(500) }),
+    redact: 'standard',
+    notifies: true,
+    examples: [
+      {
+        summary: 'Reset',
+        args: { membershipId: 'm_1', reason: 'Locked out after a phone change' },
+      },
+    ],
+  }),
+  det({
     id: 'workspaces.list',
     title: 'List sub-workspaces',
     description: 'The workspaces (spaces) inside this organization.',

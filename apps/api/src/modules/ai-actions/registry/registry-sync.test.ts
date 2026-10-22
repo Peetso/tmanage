@@ -62,8 +62,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  0212 (request messages, audit gap 4): +4 ops, GET/POST .../client-requests/:id/messages and
  *  GET/POST .../portal/requests/:id/messages. BK3 (0214): +5 ops, GET .../mention-candidates
  *  and GET/POST .../direct-conversations(/:id/messages). BK5 (0213): +2 ops, PATCH .../meetings/:meetingId
- *  and DELETE .../meetings/:meetingId/attendees/:attendeeId. */
-const EXPECTED_ROUTE_COUNT = 762;
+ *  and DELETE .../meetings/:meetingId/attendees/:attendeeId.
+ *  Q4: +1 op, POST .../members/:membershipId/password-reset (org-admin reset link, confirm). */
+const EXPECTED_ROUTE_COUNT = 763;
 
 interface LiveRoute {
   readonly method: string;

@@ -1,8 +1,11 @@
 'use client';
 
 import Link from 'next/link';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { MemberPasswordResetDialog } from '../people/MemberPasswordResetDialog';
+import type { MessageKey } from '../../lib/i18n/t';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPersonProfile } from '../../lib/api/person-profile';
@@ -74,7 +77,7 @@ export function PersonProfileScreen({
         </p>
 
         {profile.isSuccess ? (
-          <ProfileBody profile={profile.data} organizationSlug={organizationSlug} />
+          <ProfileBody profile={profile.data} organizationSlug={organizationSlug} api={api} />
         ) : (
           <h1 className="ppl-hero__title">{t('PersonProfileScreen.personFallback')}</h1>
         )}
@@ -107,11 +110,14 @@ export function PersonProfileScreen({
 function ProfileBody({
   profile,
   organizationSlug,
+  api,
 }: {
   profile: PersonProfileView;
   organizationSlug: string;
+  api: ApiClient;
 }) {
   const t = useT();
+  const [resetting, setResetting] = useState(false);
   const role = describeInternalRole(profile.role);
   const first = firstNameOf(profile.displayName);
   const active = profile.projects.filter((project) => project.status === 'active').length;
@@ -135,7 +141,23 @@ function ProfileBody({
                 } in this organization, ${active} of them active.`}
           </p>
         </div>
+        {/* Q4 / t1-d. Shown to everyone; the API decides (`org.manage`) and the dialog says so. */}
+        <div className="ppl-hero__actions">
+          <Button type="button" tone="outline" onClick={() => setResetting(true)}>
+            {t('ResetMemberPassword.open' as MessageKey)}
+          </Button>
+        </div>
       </div>
+      {resetting ? (
+        <MemberPasswordResetDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          membershipId={profile.membershipId}
+          displayName={profile.displayName}
+          firstName={first}
+          onClose={() => setResetting(false)}
+        />
+      ) : null}
 
       <div className="ppl-body ppl-body--wide-gap">
         <div className="ppl-main">
