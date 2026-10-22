@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import { AboutPage } from '../../../components/website/pages/about/AboutPage';
 
 /**
- * **About** — routed at `/about` (SITE-SPEC "PAGE: About", WEB-16). No Figma frame yet: designed
- * in code in the visual language of the designed pages.
+ * **About** — routed at `/about` (WEB-16, built to the round-2 Figma frame, node 308:41).
  */
 export const metadata: Metadata = {
   title: 'About · TManage',

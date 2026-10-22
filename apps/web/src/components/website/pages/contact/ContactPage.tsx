@@ -1,12 +1,12 @@
 'use client';
 
-import { Avatar, StateCapsule } from '@tmanage/ui';
+import Link from 'next/link';
+import { Avatar } from '@tmanage/ui';
 import type { ApiClient } from '../../../../lib/api/client';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';
-import { ArrowLink, IconOrb } from '../../primitives';
 import { FaqRow, SectionHeader, WebSection } from '../../sections';
-import type { WebIconName } from '../../WebIcon';
+import { WebIcon } from '../../WebIcon';
 import { DemoRequestForm } from './DemoRequestForm';
 import './contact.css';
 
@@ -18,30 +18,23 @@ const CHECKLIST: readonly MessageKey[] = [
 ];
 
 interface OtherWay {
-  icon: WebIconName;
   titleKey: MessageKey;
   bodyKey: MessageKey;
-  link: { label?: string; labelKey?: MessageKey; href: string };
+  href: string;
 }
 
-const OTHER_WAYS: readonly OtherWay[] = [
+/** The three "Other ways" cards: the whole card is the link, with the outline orb at the end. */
+export const OTHER_WAYS: readonly OtherWay[] = [
   {
-    icon: 'briefcase',
     titleKey: 'ContactPage.salesTitle',
-    bodyKey: 'ContactPage.salesBody',
-    link: { label: 'sales@tmanage.app', href: 'mailto:sales@tmanage.app' },
+    bodyKey: 'ContactPage.salesCardBody',
+    href: 'mailto:sales@tmanage.app',
   },
+  { titleKey: 'ContactPage.supportTitle', bodyKey: 'ContactPage.supportCardBody', href: '/faq' },
   {
-    icon: 'help',
-    titleKey: 'ContactPage.supportTitle',
-    bodyKey: 'ContactPage.supportBody',
-    link: { labelKey: 'ContactPage.supportLink', href: '/faq' },
-  },
-  {
-    icon: 'shield',
     titleKey: 'ContactPage.securityTitle',
-    bodyKey: 'ContactPage.securityBody',
-    link: { labelKey: 'ContactPage.securityLink', href: '/security' },
+    bodyKey: 'ContactPage.securityCardBody',
+    href: '/security',
   },
 ];
 
@@ -52,10 +45,10 @@ const FAQ: readonly { questionKey: MessageKey; answerKey: MessageKey }[] = [
 ];
 
 /**
- * WEB-17 Book a demo / contact sales (`/contact`). No Figma frame yet: designed in code from
- * SITE-SPEC in the visual language of the designed pages (Security's centred section headers and
- * numbered cards, Pricing's FAQ). The form keeps the existing public contact API and its rate
- * limit. No CTA band on this page, by spec.
+ * WEB-17 Book a demo (`/contact`), built to the round-2 Figma frame (T-Manage Website, node
+ * 308:42): copy, checklist and quote beside the form card; three "Other ways" link cards; the
+ * three-question FAQ. The form keeps the existing public contact API and its rate limit. No CTA
+ * band on this page, by spec.
  */
 export function ContactPage({ client }: { client?: ApiClient }) {
   const t = useT();
@@ -76,7 +69,7 @@ export function ContactPage({ client }: { client?: ApiClient }) {
             <ul className="tm-web-contact-checklist">
               {CHECKLIST.map((item) => (
                 <li key={item} className="tm-web-contact-checklist__item">
-                  <IconOrb icon="check" tone="lime" size="compact" />
+                  <WebIcon name="check" size={16} className="tm-web-contact-checklist__icon" />
                   <span>{t(item)}</span>
                 </li>
               ))}
@@ -90,34 +83,41 @@ export function ContactPage({ client }: { client?: ApiClient }) {
       </WebSection>
 
       {/* 3 · Other ways to reach us */}
-      <WebSection tone="sunken" aria-labelledby="contact-ways-title">
+      <WebSection spacing="compact" aria-labelledby="contact-ways-title">
         <SectionHeader
+          align="center"
           id="contact-ways-title"
-          eyebrow={t('ContactPage.waysEyebrow')}
-          title={t('ContactPage.waysTitle')}
+          eyebrow={t('ContactPage.waysEyebrowFull')}
+          title={t('ContactPage.waysHeading')}
+          lede={t('ContactPage.waysLede')}
         />
         <ul className="tm-web-contact-ways">
           {OTHER_WAYS.map((way) => (
-            <li key={way.titleKey} className="tm-web-contact-way">
-              <IconOrb icon={way.icon} tone="lime" />
-              <h3 className="tm-web-contact-way__title">{t(way.titleKey)}</h3>
-              <p className="tm-web-contact-way__body">{t(way.bodyKey)}</p>
-              <ArrowLink href={way.link.href} underline={false}>
-                {way.link.labelKey ? t(way.link.labelKey) : way.link.label}
-              </ArrowLink>
+            <li key={way.titleKey}>
+              <Link href={way.href} className="tm-web-contact-way">
+                <span className="tm-web-contact-way__text">
+                  <span className="tm-web-contact-way__title">{t(way.titleKey)}</span>
+                  <span className="tm-web-contact-way__body">{t(way.bodyKey)}</span>
+                </span>
+                <span
+                  className="tm-web-orb tm-web-orb--outline tm-web-orb--default"
+                  aria-hidden="true"
+                >
+                  <WebIcon name="plus" size={14} />
+                </span>
+              </Link>
             </li>
           ))}
         </ul>
       </WebSection>
 
       {/* 4 · FAQ */}
-      <WebSection aria-labelledby="contact-faq-title">
+      <WebSection spacing="compact" aria-labelledby="contact-faq-title">
         <SectionHeader
           align="center"
           id="contact-faq-title"
           eyebrow={t('ContactPage.faqEyebrow')}
-          title={t('ContactPage.faqTitle')}
-          lede={t('ContactPage.faqLede')}
+          title={t('ContactPage.faqHeading')}
         />
         <div className="tm-web-faq-list tm-web-contact-faq">
           {FAQ.map((item) => (
@@ -125,6 +125,7 @@ export function ContactPage({ client }: { client?: ApiClient }) {
               key={item.questionKey}
               question={t(item.questionKey)}
               answer={t(item.answerKey)}
+              defaultOpen
             />
           ))}
         </div>
@@ -133,21 +134,20 @@ export function ContactPage({ client }: { client?: ApiClient }) {
   );
 }
 
-/** The spec's small quote card — a design-partner quote, shown without any working note. */
+/** The small placeholder quote card (sunken, no line), as drawn beside the form. */
 function QuoteCard() {
   const t = useT();
   return (
     <figure className="tm-web-contact-quote">
       <blockquote className="tm-web-contact-quote__text">
-        <p>{t('ContactPage.quoteText')}</p>
+        <p>{t('ContactPage.quoteBody')}</p>
       </blockquote>
       <figcaption className="tm-web-contact-quote__by">
-        <Avatar name="D P" audience="client" decorative />
+        <Avatar name="J R" audience="client" decorative />
         <span className="tm-web-contact-quote__who">
-          <span className="tm-web-contact-quote__role">{t('ContactPage.quoteRole')}</span>
-          <span className="tm-web-contact-quote__org">{t('ContactPage.quoteOrg')}</span>
+          <span className="tm-web-contact-quote__role">{t('ContactPage.quoteAuthorRole')}</span>
+          <span className="tm-web-contact-quote__org">{t('ContactPage.quoteAuthorOrg')}</span>
         </span>
-        <StateCapsule state="client">{t('ContactPage.quoteCapsule')}</StateCapsule>
       </figcaption>
     </figure>
   );

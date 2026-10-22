@@ -1,546 +1,226 @@
 /*
- * /about — page layout only (WEB-16, designed in code). Every value is a Limeframe token or a
- * website-layer variable from website.css; no new colours, fonts, radii, shadows or literals.
- * The hero tray is the lens width (--lens), the same tray-and-cards treatment as Customers.
+ * /about — page layout only (WEB-16, Figma node 308:41). Every value is a Limeframe token or a
+ * website-layer variable from website.css; no new colours, fonts, radii or shadows. Cards use the
+ * quiet line, never a shadow.
  */
 
-/* Grids put a header beside a visual; the header's "+ *" section rhythm must not apply there. */
-.tm-web-about__hero-grid > .tm-web-header + *,
-.tm-web-about__build-text > .tm-web-header + * {
-  margin-block-start: 0;
+/* ── Hero: editorial header, ruled underneath ─────────────────────────────── */
+
+.tm-web-about__hero.tm-web-section--compact {
+  padding-block-end: 0;
 }
 
-/* ── Hero ─────────────────────────────────────────────────────────────────── */
-
-.tm-web-about__hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, var(--lens));
-  align-items: center;
-  gap: var(--s20);
+.tm-web-about__hero-inner {
+  padding-block-end: var(--s6);
+  border-block-end: var(--b-quiet) solid var(--line-300);
 }
 
 .tm-web-about__hero .tm-web-header {
-  gap: var(--s5);
+  gap: var(--s6);
+}
+
+.tm-web-about__hero .tm-web-header__lede {
   max-inline-size: none;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
 }
 
-.tm-web-about__hero .tm-web-header__title {
-  text-wrap: balance;
-}
+/* ── Why we exist: heading column + two text columns ──────────────────────── */
 
-.tm-web-about__thread-frame {
-  padding: var(--s6);
-}
-
-/* Two levels only: the grey tray and the white row cards (no inner card). */
-.tm-web-about__thread {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-  inline-size: 100%;
-}
-
-.tm-web-about__thread-row {
+.tm-web-about__why {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s12);
   align-items: start;
-  gap: var(--s2) var(--s3);
-  padding: var(--s4);
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-card);
-  background: var(--paper-0);
+  padding-block: var(--s8);
 }
 
-.tm-web-about__thread-row > .tm-state-capsule {
-  grid-column: 2;
-  justify-self: start;
-}
-
-.tm-web-about__thread-link {
-  display: block;
-  inline-size: var(--b-structural);
-  block-size: var(--s3);
-  margin-block: calc(var(--s2) * -1);
-  margin-inline-start: calc(var(--s4) + var(--s4));
-  background: var(--line-300);
-}
-
-.tm-web-about__thread-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s1);
-  min-inline-size: 0;
-}
-
-.tm-web-about__thread-who,
-.tm-web-about__thread-meta {
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
-  color: var(--ink-650);
-}
-
-.tm-web-about__thread-title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2);
-  font-size: var(--t-ui-md);
-  line-height: var(--t-ui-md-line);
-  font-weight: 500;
-  color: var(--ink-950);
-}
-
-.tm-web-about__bubble {
-  align-self: flex-start;
-  padding: var(--s2) var(--s3);
-  border-radius: var(--r-control);
-  background: var(--paper-150);
-  font-size: var(--t-ui-md);
-  line-height: var(--t-ui-md-line);
-  color: var(--ink-950);
-}
-
-.tm-web-about__thread-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s2) var(--s3);
-  padding-block-start: var(--s1);
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
-  color: var(--ink-650);
-}
-
-/* ── Why we exist: two text columns, then the before / after ──────────────── */
-
-.tm-web-about__why-text {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s16);
-}
-
-.tm-web-about__why-para {
-  font-size: var(--t-body-lg);
-  line-height: var(--t-body-lg-line);
-  color: var(--ink-800);
-}
-
-.tm-web-about__why-visual {
-  margin-block-start: var(--s12);
-}
-
-.tm-web-about__scatter {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--s8);
-  inline-size: 100%;
-}
-
-.tm-web-about__scatter-side {
+.tm-web-about__why-head {
   display: flex;
   flex-direction: column;
   gap: var(--s4);
-  min-inline-size: 0;
 }
 
-.tm-web-about__scatter-list {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s3);
+.tm-web-about__why-head .tm-web-eyebrow__dot {
+  display: none;
 }
 
-.tm-web-about__scatter-tile {
-  display: flex;
-  align-items: center;
-  gap: var(--s3);
-  padding: var(--s4);
-  border: var(--b-quiet) dashed var(--line-300);
-  border-radius: var(--r-control);
-  background: var(--paper-0);
-}
-
-.tm-web-about__scatter-text {
-  display: flex;
-  flex-direction: column;
-  min-inline-size: 0;
-}
-
-.tm-web-about__scatter-label {
-  font-size: var(--t-ui-md);
-  line-height: var(--t-ui-md-line);
+.tm-web-about__why-title {
+  font-size: var(--t-heading-section);
+  line-height: var(--t-heading-section-line);
   font-weight: 500;
+  letter-spacing: -0.01em;
   color: var(--ink-950);
 }
 
-.tm-web-about__scatter-where {
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
+.tm-web-about__why-para {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
   color: var(--ink-650);
 }
 
-.tm-web-about__scatter-arrow {
-  display: grid;
-  place-items: center;
-  inline-size: var(--orb-default);
-  block-size: var(--orb-default);
-  border-radius: var(--r-capsule);
-  background: var(--lime-500);
-  color: var(--tm-on-lime);
+.tm-web-about__why-para:last-child {
+  color: var(--ink-800);
 }
 
-/* The thread fills its column: one row per moment, label start, state end. */
-.tm-web-about__track {
-  display: flex;
-  flex-direction: column;
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-card);
-  background: var(--paper-0);
-}
-
-.tm-web-about__track-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s2) var(--s4);
-  padding: var(--s3) var(--s4);
-}
-
-.tm-web-about__track-row + .tm-web-about__track-row {
-  border-block-start: var(--b-quiet) solid var(--line-300);
-}
-
-/* ── Principles ───────────────────────────────────────────────────────────── */
+/* ── Principles: four numbered cards ──────────────────────────────────────── */
 
 .tm-web-about__principles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--s4);
+  margin-block-start: var(--s10);
+  padding: 0;
+  list-style: none;
+}
+
+.tm-web-about__principle {
+  display: flex;
+  flex-direction: column;
   gap: var(--s6);
-}
-
-.tm-web-about__principles > li {
-  display: flex;
-}
-
-.tm-web-about__principles .tm-web-graph-card {
-  inline-size: 100%;
-}
-
-/* ── How we build ─────────────────────────────────────────────────────────── */
-
-.tm-web-about__build {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  align-items: center;
-  gap: var(--s16);
-  padding: var(--s16);
-  border-radius: var(--r-feature);
-  background: var(--web-ink);
-  color: var(--web-on-ink);
-}
-
-.tm-web-about__build-text {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--s8);
-}
-
-.tm-web-about__build-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s5);
-}
-
-.tm-web-about__build-list > li {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--s4);
-}
-
-.tm-web-about__build-list > li > span:last-child {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s1);
-}
-
-.tm-web-about__build-item {
-  font-size: var(--t-body-lg);
-  line-height: var(--t-body-lg-line);
-  font-weight: 500;
-  color: var(--web-on-ink);
-}
-
-.tm-web-about__build-body {
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
-  color: var(--web-on-ink-muted);
-}
-
-/* White cards straight on the ink band, as in the Customers featured panel. */
-.tm-web-about__lang {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s4);
-}
-
-.tm-web-about__lang-card,
-.tm-web-about__cta-card {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
-  padding: var(--s6);
+  min-block-size: calc(var(--s24) + var(--s12));
+  padding: var(--s4);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
-  color: var(--ink-950);
 }
 
-.tm-web-about__lang-card--ar {
-  font-family: var(--font-arabic);
-}
-
-.tm-web-about__lang-card--ar .tm-web-scene__mono {
-  font-family: var(--font-arabic);
-  letter-spacing: 0;
-}
-
-.tm-web-about__lang-title {
+.tm-web-about__principle-top {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: var(--s2);
+  justify-content: space-between;
+}
+
+.tm-web-about__principle-n {
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-web-about__principle-title {
   font-size: var(--t-heading-card);
   line-height: var(--t-heading-card-line);
   font-weight: 500;
+  color: var(--ink-950);
 }
 
-.tm-web-about__lang-meta {
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
-  color: var(--ink-650);
-}
+/* ── How we build: three ruled columns ────────────────────────────────────── */
 
-.tm-web-about__lang-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--s3);
-  margin-block-start: var(--s2);
-}
-
-/* ── Team ─────────────────────────────────────────────────────────────────── */
-
-.tm-web-about__team {
+.tm-web-about__build {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s6);
+  gap: var(--s8);
+  padding: 0;
+  list-style: none;
 }
 
-.tm-web-about__member {
+.tm-web-about__build-item {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: var(--s1);
-  padding: var(--s6);
+  gap: var(--s4);
+  padding-block-start: var(--s4);
+  border-block-start: var(--b-quiet) solid var(--line-700);
+}
+
+.tm-web-about__build-title {
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+/* ── Team: placeholder avatars in one card ────────────────────────────────── */
+
+.tm-web-about__team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s6);
+  padding: var(--s8) var(--s6) var(--s10);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
 }
 
-.tm-web-about__member .tm-avatar {
-  margin-block-end: var(--s4);
+.tm-web-about__team-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--s4);
+  padding: 0;
+  list-style: none;
 }
 
-/* Avatar tones cycle through the brand surfaces so the placeholders do not read as one stamp. */
-.tm-web-about__member--lime .tm-avatar {
-  background: var(--lime-500);
-  color: var(--tm-on-lime);
-}
-
-.tm-web-about__member--tint .tm-avatar {
-  background: var(--lime-100);
-  color: var(--ink-950);
-}
-
-.tm-web-about__member--paper .tm-avatar {
-  background: var(--paper-150);
-  color: var(--ink-950);
-}
-
-.tm-web-about__member-role {
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
-  font-weight: 500;
-  color: var(--ink-950);
-}
-
-.tm-web-about__member-focus {
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
-  color: var(--ink-650);
+/* Placeholder avatars stay neutral grey until real photos exist. */
+.tm-web-about__team .tm-web-about__team-avatar {
+  background: var(--paper-250);
+  color: var(--ink-800);
 }
 
 .tm-web-about__team-note {
-  margin-block-start: var(--s6);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
-  color: var(--ink-650);
+  color: var(--ink-500);
 }
 
-/* ── Careers / press ──────────────────────────────────────────────────────── */
-
-/* The CTA section below brings its own s24; this band adds no bottom padding of its own. */
-.tm-web-about__company {
-  padding-block: var(--s8) 0;
-}
+/* ── Work with us / Press & brand ─────────────────────────────────────────── */
 
 .tm-web-about__cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--s6);
-}
-
-.tm-web-about__card {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: var(--s4) var(--s5);
-  padding: var(--s8);
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-card);
-  background: var(--paper-0);
-  scroll-margin-block-start: calc(var(--web-nav-h) + var(--s6));
-}
-
-.tm-web-about__card-text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s3);
-}
-
-.tm-web-about__card > .tm-web-arrow-link {
-  grid-column: 2;
-  justify-self: start;
-}
-
-.tm-web-about__card-title {
-  font-size: var(--t-heading-section);
-  line-height: var(--t-heading-section-line);
-  font-weight: 500;
-  color: var(--ink-950);
-}
-
-.tm-web-about__card-body {
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
-  color: var(--ink-650);
-}
-
-/* ── CTA visual ───────────────────────────────────────────────────────────── */
-
-.tm-web-about__cta-scene {
-  display: flex;
-  flex-direction: column;
   gap: var(--s4);
 }
 
-/* Scene labels wrap inside their cards at phone width instead of running past the edge. */
-.tm-web-about .tm-web-scene__mono {
-  white-space: normal;
+.tm-web-about__cards > div {
+  scroll-margin-block-start: calc(var(--web-nav-h) + var(--s6));
 }
 
-/* ── Responsive ───────────────────────────────────────────────────────────── */
-
-@media (max-width: 1279px) {
-  .tm-web-about__hero-grid,
-  .tm-web-about__build {
-    gap: var(--s12);
-  }
-
-  .tm-web-about__why-text {
-    gap: var(--s10);
-  }
-
-  .tm-web-about__principles {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.tm-web-about__cards .tm-web-link-card {
+  block-size: 100%;
 }
+
+/* ── Tablet ───────────────────────────────────────────────────────────────── */
 
 @media (max-width: 1023px) {
-  .tm-web-about__hero-grid,
-  .tm-web-about__build,
-  .tm-web-about__scatter {
-    grid-template-columns: minmax(0, 1fr);
+  .tm-web-about__why {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s8);
   }
 
-  .tm-web-about__scatter-arrow {
-    justify-self: center;
-    transform: rotate(90deg);
+  .tm-web-about__why-head {
+    grid-column: 1 / -1;
   }
 
-  .tm-web-about__build {
-    padding: var(--s12);
-  }
-
-  .tm-web-about__team {
+  .tm-web-about__principles {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
+/* ── Mobile ───────────────────────────────────────────────────────────────── */
+
 @media (max-width: 767px) {
-  .tm-web-about__principles,
-  .tm-web-about__cards,
-  .tm-web-about__why-text {
+  .tm-web-about__why,
+  .tm-web-about__build,
+  .tm-web-about__cards {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .tm-web-about__why-text {
+  .tm-web-about__why {
     gap: var(--s6);
-  }
-
-  .tm-web-about__why-visual {
-    margin-block-start: var(--s8);
-  }
-
-  .tm-web-about__thread-frame {
-    padding: var(--s4);
+    padding-block: var(--s8);
   }
 
   .tm-web-about__principles {
-    gap: var(--s4);
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .tm-web-about__principles .tm-web-graph-card {
-    padding: var(--s6);
-  }
-
-  .tm-web-about__build {
-    padding: var(--s8) var(--s5);
-    border-radius: var(--r-card);
-  }
-
-  .tm-web-about__card-title {
-    font-size: var(--t-heading-card);
-    line-height: var(--t-heading-card-line);
+  .tm-web-about__principle {
+    min-block-size: 0;
   }
 
   .tm-web-about__team {
-    gap: var(--s3);
-  }
-
-  .tm-web-about__member {
-    padding: var(--s4);
-  }
-
-  .tm-web-about__card {
-    padding: var(--s6);
-  }
-}
-
-@media (max-width: 479px) {
-  .tm-web-about__scatter-list {
-    grid-template-columns: minmax(0, 1fr);
+    padding: var(--s6) var(--s4);
   }
 }

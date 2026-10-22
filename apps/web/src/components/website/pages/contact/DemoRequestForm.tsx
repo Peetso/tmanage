@@ -67,7 +67,7 @@ export function composeDemoMessage(draft: Draft): string {
 }
 
 /**
- * WEB-17 form card — Full name, Work email, Company, Team size, Role, "What would you like to
+ * WEB-17 form card (Figma node 308:42) — Full name, Work email, Company, Team size, Role, "What would you like to
  * see?", the optional updates choice and the one lime action. Posts to the existing
  * `POST /public/site/contact` through `submitContact`.
  */
@@ -140,18 +140,14 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
 
   return (
     <div className="tm-web-contact-form" id="book-demo-form">
-      <div className="tm-web-contact-form__head">
-        <h2 className="tm-web-contact-form__title">{t('DemoRequestForm.title')}</h2>
-        <p className="tm-web-contact-form__sub">{t('DemoRequestForm.sub')}</p>
-      </div>
-
       {/* `noValidate` for the reason `SignInScreen` gives: errors use the design system. */}
-      <form noValidate onSubmit={submit}>
+      <form noValidate onSubmit={submit} aria-label={t('DemoRequestForm.formLabel')}>
         <fieldset className="tm-fieldset tm-web-contact-form__fields" disabled={!hydrated}>
           <Field
             label={t('DemoRequestForm.fieldName')}
             name="name"
             autoComplete="name"
+            placeholder={t('DemoRequestForm.placeholderName')}
             maxLength={MAX_NAME}
             value={draft.name}
             onChange={(event) => set('name', event.target.value)}
@@ -164,41 +160,46 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
             autoComplete="email"
             inputMode="email"
             dir="ltr"
+            placeholder={t('DemoRequestForm.placeholderEmail')}
             maxLength={MAX_EMAIL}
             value={draft.email}
             onChange={(event) => set('email', event.target.value)}
             required
           />
-          <Field
-            label={t('DemoRequestForm.fieldCompany')}
-            name="company"
-            autoComplete="organization"
-            maxLength={MAX_SHORT}
-            value={draft.company}
-            onChange={(event) => set('company', event.target.value)}
-            required
-          />
-          <Select
-            label={t('DemoRequestForm.fieldTeamSize')}
-            name="teamSize"
-            className="tm-web-contact-form__select"
-            value={draft.teamSize}
-            onChange={(event) => set('teamSize', event.target.value)}
-            required
-          >
-            <option value="" disabled>
-              {t('DemoRequestForm.teamSizePlaceholder')}
-            </option>
-            {TEAM_SIZES.map((size) => (
-              <option key={size} value={size}>
-                {size} {t('DemoRequestForm.people')}
+          <div className="tm-web-contact-form__pair">
+            <Field
+              label={t('DemoRequestForm.fieldCompany')}
+              name="company"
+              autoComplete="organization"
+              placeholder={t('DemoRequestForm.placeholderCompany')}
+              maxLength={MAX_SHORT}
+              value={draft.company}
+              onChange={(event) => set('company', event.target.value)}
+              required
+            />
+            <Select
+              label={t('DemoRequestForm.fieldTeamSize')}
+              name="teamSize"
+              className="tm-web-contact-form__select"
+              value={draft.teamSize}
+              onChange={(event) => set('teamSize', event.target.value)}
+              required
+            >
+              <option value="" disabled>
+                {t('DemoRequestForm.teamSizeSelect')}
               </option>
-            ))}
-          </Select>
+              {TEAM_SIZES.map((size) => (
+                <option key={size} value={size}>
+                  {size} {t('DemoRequestForm.people')}
+                </option>
+              ))}
+            </Select>
+          </div>
           <Field
             label={t('DemoRequestForm.fieldRole')}
             name="role"
             autoComplete="organization-title"
+            placeholder={t('DemoRequestForm.placeholderRole')}
             maxLength={MAX_SHORT}
             value={draft.role}
             onChange={(event) => set('role', event.target.value)}
@@ -211,7 +212,8 @@ export function DemoRequestForm({ client }: DemoRequestFormProps) {
               id={noteId}
               name="note"
               className="tm-field__control tm-web-contact-form__note"
-              rows={3}
+              rows={1}
+              placeholder={t('DemoRequestForm.placeholderNote')}
               maxLength={MAX_NOTE}
               value={draft.note}
               onChange={(event) => set('note', event.target.value)}

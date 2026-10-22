@@ -1,5 +1,5 @@
 /*
- * WEB-17 Book a demo — page-only layout. Every value is a Limeframe token (tokens.css) or a
+ * WEB-17 Book a demo (Figma node 308:42) — page-only layout. Every value is a Limeframe token (tokens.css) or a
  * website-layer variable from website.css; no new colour, font, radius or shadow. Cards follow
  * the handoff rule: a quiet line, never a shadow.
  */
@@ -9,30 +9,35 @@
 .tm-web-contact-hero__grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--s16);
-  align-items: stretch;
+  gap: var(--s12);
+  align-items: start;
 }
 
-/*
- * The copy column runs the full height of the form card: header and checklist at the top,
- * the quote card anchored to the bottom, so both columns end on the same line.
- */
+/* Copy column: header, checklist, then the quote card directly beneath (as drawn). */
 .tm-web-contact-hero__copy {
   display: flex;
   flex-direction: column;
-  gap: var(--s8);
+  gap: var(--s6);
   min-inline-size: 0;
-  padding-block-start: var(--s8);
+  padding-block-start: var(--s2);
 }
 
-.tm-web-contact-hero__copy .tm-web-contact-quote {
-  margin-block-start: auto;
+.tm-web-contact-hero__copy .tm-web-header {
+  gap: var(--s6);
+}
+
+.tm-web-contact-hero__copy .tm-web-header + * {
+  margin-block-start: 0;
+}
+
+.tm-web-contact-hero__copy .tm-web-eyebrow__dot {
+  display: none;
 }
 
 .tm-web-contact-checklist {
   display: flex;
   flex-direction: column;
-  gap: var(--s5);
+  gap: var(--s3);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -42,30 +47,33 @@
   display: flex;
   gap: var(--s3);
   align-items: center;
-  font-size: var(--t-body-lg);
-  line-height: var(--t-body-lg-line);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
   color: var(--ink-950);
 }
 
-/* Small placeholder quote card */
+.tm-web-contact-checklist__icon {
+  flex: none;
+  color: var(--ink-950);
+}
+
+/* Small placeholder quote card: sunken paper, no line */
 
 .tm-web-contact-quote {
   display: flex;
   flex-direction: column;
-  gap: var(--s6);
-  margin: 0;
-  padding: var(--s8);
-  border: var(--b-quiet) solid var(--line-300);
+  gap: var(--s4);
+  margin: var(--s4) 0 0;
+  padding: var(--s6);
   border-radius: var(--r-card);
-  background: var(--paper-0);
+  background: var(--paper-150);
   color: var(--ink-950);
 }
 
 .tm-web-contact-quote__text {
   margin: 0;
-  font-size: var(--t-heading-section);
-  line-height: var(--t-heading-section-line);
-  font-weight: 500;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
 }
 
 .tm-web-contact-quote__text p {
@@ -88,7 +96,6 @@
 .tm-web-contact-quote__role {
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);
-  font-weight: 500;
 }
 
 .tm-web-contact-quote__org {
@@ -103,7 +110,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s6);
-  padding: var(--s8) var(--s10);
+  padding: var(--s8);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-sheet);
   background: var(--paper-0);
@@ -111,30 +118,17 @@
   scroll-margin-block-start: calc(var(--web-nav-h) + var(--s6));
 }
 
-.tm-web-contact-form__head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s1);
-}
-
-.tm-web-contact-form__title {
-  margin: 0;
-  font-size: var(--t-heading-card);
-  line-height: var(--t-heading-card-line);
-  font-weight: 500;
-}
-
-.tm-web-contact-form__sub {
-  margin: 0;
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
-  color: var(--ink-800);
-}
-
 .tm-web-contact-form__fields {
   display: flex;
   flex-direction: column;
   gap: var(--s5);
+}
+
+/* Company and Team size share one row. */
+.tm-web-contact-form__pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
 }
 
 /* A long option never widens the select past the card. */
@@ -145,13 +139,14 @@
 
 /* The select's drawn chevron at body size, so it reads as a dropdown at a glance. */
 .tm-web-contact-form__select .tm-select__glyph {
-  font-size: var(--t-heading-section);
-  line-height: var(--t-heading-section-line);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
   color: var(--ink-800);
 }
 
+/* Drawn one line tall; it grows as the visitor writes. */
 .tm-web-contact-form__note {
-  min-block-size: var(--s24);
+  min-block-size: var(--control);
   resize: vertical;
 }
 
@@ -175,8 +170,8 @@
 .tm-web-contact-form__caption {
   margin: 0;
   text-align: center;
-  font-size: var(--t-ui-md);
-  line-height: var(--t-ui-md-line);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
   color: var(--ink-800);
 }
 
@@ -207,49 +202,69 @@
   align-items: center;
 }
 
-/* ── Other ways: three cards ──────────────────────────────────────────── */
+/* ── Other ways: three link cards ─────────────────────────────────────── */
 
 .tm-web-contact-ways {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--s6);
-  margin: var(--s12) 0 0;
+  margin: var(--s10) 0 0;
   padding: 0;
   list-style: none;
 }
 
 .tm-web-contact-way {
   display: flex;
-  flex-direction: column;
   gap: var(--s4);
-  align-items: flex-start;
-  padding: var(--s8);
+  align-items: center;
+  justify-content: space-between;
+  block-size: 100%;
+  padding: var(--s6);
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
   color: var(--ink-950);
+  text-decoration: none;
+  transition: border-color var(--t-micro) var(--ease);
+}
+
+.tm-web-contact-way:hover {
+  border-color: var(--ink-500);
+}
+
+.tm-web-contact-way:hover .tm-web-orb--outline {
+  background: var(--lime-500);
+  border-color: var(--lime-500);
+  color: var(--tm-on-lime);
+}
+
+.tm-web-contact-way__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
 }
 
 .tm-web-contact-way__title {
-  margin: var(--s2) 0 0;
   font-size: var(--t-heading-card);
   line-height: var(--t-heading-card-line);
   font-weight: 500;
 }
 
 .tm-web-contact-way__body {
-  flex: 1;
-  margin: 0;
   font-size: var(--t-body-md);
   line-height: var(--t-body-md-line);
   color: var(--ink-650);
 }
 
+.tm-web-contact-way .tm-web-orb {
+  flex: none;
+}
+
 /* ── FAQ ──────────────────────────────────────────────────────────────── */
 
 .tm-web-contact-faq {
-  margin: var(--s12) auto 0;
-  border-block-start: var(--b-quiet) solid var(--line-300);
+  margin: var(--s10) auto 0;
 }
 
 .tm-web-contact-faq .tm-web-faq__answer {
@@ -269,10 +284,6 @@
     padding-block-start: 0;
   }
 
-  .tm-web-contact-hero__copy .tm-web-contact-quote {
-    margin-block-start: 0;
-  }
-
   .tm-web-contact-ways {
     grid-template-columns: minmax(0, 1fr);
     gap: var(--s4);
@@ -286,9 +297,8 @@
     padding: var(--s6);
   }
 
-  .tm-web-contact-checklist__item {
-    font-size: var(--t-body-md);
-    line-height: var(--t-body-md-line);
+  .tm-web-contact-form__pair {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .tm-web-contact-way {
@@ -296,12 +306,6 @@
   }
 
   .tm-web-contact-quote {
-    gap: var(--s4);
-    padding: var(--s6);
-  }
-
-  .tm-web-contact-quote__text {
-    font-size: var(--t-body-lg);
-    line-height: var(--t-body-lg-line);
+    padding: var(--s4);
   }
 }
