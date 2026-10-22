@@ -1253,6 +1253,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // BK3-left (0216): mark a direct conversation read (unread counts on the DM list).
+  {
+    id: 'conversations.direct.read_state.set',
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/direct-conversations/:directConversationId/read-state',
+    capability: 'client_projection.read',
+    risk: 'write',
+    scope: 'write',
+  },
   {
     id: 'conversations.mute.list',
     method: 'GET',

@@ -30,6 +30,7 @@ import {
 } from './collaboration-notices.js';
 import { automationRunsConsumer } from './automation-runs.js';
 import type { CollaborationMailer } from '../notifications/collaboration-mailer.js';
+import { directMessageNoticesConsumer } from './direct-message-notices.js';
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
 import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
 import type { UsageThresholdMailer } from '../notifications/usage-threshold-mailer.js';
@@ -142,6 +143,9 @@ export function createWorkerOutboxHandlers(
     // with the realtime fan-out in `main.ts` when the socket server runs.
     'message.created.v1': createCollaborationNotices(planMentionNotices, collaborationMails),
     'document.comment_created.v1': createCollaborationNotices(
+    // BK3-left: a direct message tells the other participant (in-app). Composed with the DM
+    // realtime fan-out in `main.ts` when the socket server runs.
+    'direct_message.created.v1': directMessageNoticesConsumer,
       planCommentNotices,
       collaborationMails,
     ),

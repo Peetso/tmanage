@@ -203,6 +203,14 @@ export const OUTBOX_EVENT_CATALOG = {
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
 
 export const OUTBOX_EVENT_TYPES = Object.keys(OUTBOX_EVENT_CATALOG) as readonly OutboxEventType[];
+  /**
+   * BK3-left: a message was posted in a one-to-one direct conversation (0214). The aggregate is
+   * the direct conversation, so ordering is per pair. Realtime fan-out and the recipient's notice.
+   */
+  'direct_message.created.v1': {
+    aggregateType: 'direct_conversation',
+    catalog: '§4 message.created.v1 (direct) — realtime, recipient notification',
+  },
 
 export function isOutboxEventType(value: string): value is OutboxEventType {
   return Object.hasOwn(OUTBOX_EVENT_CATALOG, value);
@@ -507,6 +515,18 @@ export interface OutboxEventPayloads {
   readonly 'document.comment_created.v1': DocumentCommentCreatedV1;
   readonly 'document.published.v1': DocumentPublishedV1;
   readonly 'meeting.scheduled.v1': MeetingScheduledV1;
+/**
+ * BK3-left: ids and the pair's order only — the body stays on the row. `recipientUserId` is the
+ * other participant, the one person the notice may go to; the worker re-checks them at delivery.
+ */
+export interface DirectMessageCreatedV1 {
+  readonly directConversationId: string;
+  readonly messageId: string;
+  readonly sequenceNo: number;
+  readonly authorUserId: string;
+  readonly recipientUserId: string;
+}
+
   readonly 'meeting.attendee_invited.v1': MeetingAttendeeInvitedV1;
   readonly 'project.member_added.v1': ProjectMemberAddedV1;
   readonly 'approval.requested.v1': ApprovalRequestedV1;
@@ -532,3 +552,4 @@ export function extractMentionedUserIds(text: string): readonly string[] {
   }
   return ids;
 }
+  readonly 'direct_message.created.v1': DirectMessageCreatedV1;

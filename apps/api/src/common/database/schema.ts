@@ -5849,6 +5849,19 @@ export const directMessages = mysqlTable(
       table.organizationId,
       table.directConversationId,
       table.sequenceNo,
+    // 0216: each participant's last-read sequence number (BK3-left unread counts).
+    userLowLastReadSequenceNo: bigint('user_low_last_read_sequence_no', {
+      mode: 'number',
+      unsigned: true,
+    })
+      .notNull()
+      .default(0),
+    userHighLastReadSequenceNo: bigint('user_high_last_read_sequence_no', {
+      mode: 'number',
+      unsigned: true,
+    })
+      .notNull()
+      .default(0),
     ),
     uniqueIndex('uq_direct_messages_client_generated').on(
       table.organizationId,

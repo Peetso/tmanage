@@ -33,7 +33,7 @@ import { CredentialChangeMailer } from './notifications/credential-change-mailer
 import { UsageThresholdMailer } from './notifications/usage-threshold-mailer.js';
 import { CollaborationMailer } from './notifications/collaboration-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
-import { createMessageFanOut } from './realtime/fan-out.js';
+import { createDirectMessageFanOut, createMessageFanOut } from './realtime/fan-out.js';
 import { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
 import { sweepOverdueInvitations } from './invitations/invitation-sweep.js';
 
@@ -388,12 +388,17 @@ async function main(): Promise<void> {
   // are composed rather than the fan-out replacing the registry's handler.
   const mentions = handlers['message.created.v1'];
   const fanOut = realtime ? createMessageFanOut(realtime.hub) : undefined;
+  // BK3-left: the same composition for direct messages — recipient notice, then the frame.
+  const directNotices = handlers['direct_message.created.v1'];
+  const directFanOut = realtime ? createDirectMessageFanOut(realtime.hub) : undefined;
   const loopHandlers =
-    fanOut === undefined
+    fanOut === undefined || directFanOut === undefined
       ? handlers
       : {
           ...handlers,
           'message.created.v1': mentions === undefined ? fanOut : both(mentions, fanOut),
+          'direct_message.created.v1':
+            directNotices === undefined ? directFanOut : both(directNotices, directFanOut),
         };
 
   // x31. Two loops, one process, one `AbortSignal`: the notice queue drains beside the outbox

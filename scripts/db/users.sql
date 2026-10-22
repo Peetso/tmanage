@@ -1512,6 +1512,9 @@ GRANT SELECT ON `tmanage`.`conversation_memberships` TO 'tmanage_worker'@'%';
 
 -- CQ-12: the collaboration notices and the automation runner (`collaboration-store.ts`). The
 -- recipient's mail toggle, quiet hours and per-kind opt-out (`notification_preferences`,
+-- BK3-left: the direct-message pair row (participants, cursor) for the socket subscription check
+-- and the recipient re-check (`direct-message-store.ts`). `direct_messages` is not read.
+GRANT SELECT ON `tmanage`.`direct_conversations`     TO 'tmanage_worker'@'%';
 -- `notification_kind_prefs` — the quiet-hours read already needed the first); the title an
 -- email names (`documents`, `meetings`); the enabled rules for a trigger (`workflow_templates`)
 -- and the run history the runner appends to (`workflow_runs`, read where it writes). No message

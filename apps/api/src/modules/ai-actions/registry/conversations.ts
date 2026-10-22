@@ -421,4 +421,19 @@ export const conversationsDetails: readonly AiActionDetail[] = [
     notifies: true,
     examples: [{ summary: 'Say hi', args: { directConversationId: 'dm_123', body: 'Hi!' } }],
   }),
+  det({
+    id: 'conversations.direct.read_state.set',
+    title: 'Mark a direct conversation read',
+    description:
+      'Mark a direct conversation read for yourself, up to a message sequence number or to the ' +
+      'latest message when none is given. Never moves backwards.',
+    input: bodyArgs(['directConversationId'], {
+      lastReadSequenceNo: z.number().int().min(0).optional(),
+    }),
+    redact: 'standard',
+    examples: [
+      { summary: 'All read', args: { directConversationId: 'dm_123' } },
+      { summary: 'Up to 12', args: { directConversationId: 'dm_123', lastReadSequenceNo: 12 } },
+    ],
+  }),
 ];

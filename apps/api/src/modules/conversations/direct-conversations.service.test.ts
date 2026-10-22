@@ -53,6 +53,8 @@ describe('DirectConversationsService', () => {
     userLowId: ME,
     userHighId: 'user-b',
     nextSequenceNo: 1,
+    userLowLastReadSequenceNo: 0,
+    userHighLastReadSequenceNo: 0,
     createdByUserId: ME,
     lastMessageAt: null,
     createdAt: new Date('2026-10-22T00:00:00Z'),

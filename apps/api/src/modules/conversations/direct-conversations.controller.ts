@@ -1,13 +1,30 @@
-import { Body, Controller, Get, Inject, Module, Param, Post, Query, Res } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Module,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+} from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { OUTBOX_EVENTS_REPOSITORY, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { DirectConversationsRepository } from './direct-conversations.repository.js';
 import { DirectConversationsService } from './direct-conversations.service.js';
-import type { DirectConversationView, DirectMessageView } from './direct-conversations.service.js';
+import type {
+  DirectConversationView,
+  DirectMessageView,
+  DirectReadStateView,
+} from './direct-conversations.service.js';
 
 /**
  * BK3 (COL-03) — direct messages over HTTP.
@@ -124,6 +141,33 @@ export class DirectConversationsController {
     reply.status(result.created ? 201 : 200);
     return result.message;
   }
+
+  /**
+   * BK3-left (0216): mark-read. Body `{ lastReadSequenceNo? }` — up to that message, or to the
+   * latest when omitted. Only ever moves forward; answers the caller's new position.
+   */
+  @Put(':directConversationId/read-state')
+  @RequireCapability('client_projection.read')
+  @HttpCode(200)
+  async markRead(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('directConversationId') directConversationId: string,
+    @Body() body: { readonly lastReadSequenceNo?: unknown } | undefined,
+  ): Promise<DirectReadStateView> {
+    const raw = body?.lastReadSequenceNo;
+    if (raw !== undefined && (typeof raw !== 'number' || !Number.isSafeInteger(raw) || raw < 0)) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'lastReadSequenceNo', message: 'must be a non-negative integer' },
+      ]);
+    }
+    return this.direct.markRead(
+      context,
+      principal,
+      directConversationId,
+      typeof raw === 'number' ? raw : undefined,
+    );
+  }
 }
 
 /** Its own module, registered in `app.module.ts`, so the chat slices stay file-disjoint. */
@@ -135,9 +179,9 @@ export class DirectConversationsModule {
       providers: [
         {
           provide: DIRECT_CONVERSATIONS_SERVICE,
-          inject: [TENANT_DATABASE],
-          useFactory: (database: TenantDatabase) =>
-            new DirectConversationsService(database, new DirectConversationsRepository()),
+          inject: [TENANT_DATABASE, OUTBOX_EVENTS_REPOSITORY],
+          useFactory: (database: TenantDatabase, outbox: OutboxEventsRepository) =>
+            new DirectConversationsService(database, new DirectConversationsRepository(), outbox),
         },
       ],
       controllers: [DirectConversationsController],

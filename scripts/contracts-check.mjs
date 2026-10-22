@@ -128,6 +128,10 @@ const EXEMPT = new Map([
     'No web consumer yet: BK3 one-to-one direct messages are API-only; the DM screen is a follow-up.',
   ],
   ['DirectMessageView', 'No web consumer yet: same as DirectConversationView (BK3, API-only).'],
+  [
+    'DirectReadStateView',
+    'No web consumer yet: BK3-left direct-message mark-read is API-only; the DM screen is a follow-up.',
+  ],
 ]);
 
 /**

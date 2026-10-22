@@ -1,13 +1,14 @@
-import { hasCapability } from '@tmanage/domain';
+import { hasCapability, mayDirectMessage } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { DirectConversationRow, DirectMessageRow } from '../../common/database/schema.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { DuplicateDirectMessageError } from './direct-conversations.repository.js';
-import type {
-  DirectConversationsRepository,
-  DirectParty,
-} from './direct-conversations.repository.js';
+import type { DirectConversationsRepository } from './direct-conversations.repository.js';
+
+/** The relation rule now lives in `@tmanage/domain` so the worker applies the same one. */
+export { mayDirectMessage };
 
 /**
  * BK3 (COL-03) — one-to-one direct messages between two members of one studio.
@@ -36,6 +37,20 @@ export interface DirectConversationView {
   readonly otherDisplayName: string | null;
   readonly lastMessageAt: string | null;
   readonly createdAt: string;
+  /** The last sequence number handed out in this conversation (0 before the first message). */
+  readonly lastSequenceNo: number;
+  /** The caller's own last-read sequence number (0216). */
+  readonly lastReadSequenceNo: number;
+  /** Messages past the caller's marker — all from the other person (posting marks read). */
+  readonly unreadCount: number;
+}
+
+/** The caller's read position in one direct conversation, after a mark-read (0216). */
+export interface DirectReadStateView {
+  readonly directConversationId: string;
+  readonly lastSequenceNo: number;
+  readonly lastReadSequenceNo: number;
+  readonly unreadCount: number;
 }
 
 export interface DirectMessageView {
@@ -51,16 +66,6 @@ const LIST_LIMIT = 100;
 const DEFAULT_PAGE = 50;
 const MAX_PAGE = 200;
 
-/** The relation rule. Pure: see the file note. */
-export function mayDirectMessage(a: DirectParty | null, b: DirectParty | null): boolean {
-  if (a === null || b === null || a.userId === b.userId) return false;
-  if (a.kind === 'internal' && b.kind === 'internal') return true;
-  if (a.kind === 'client' && b.kind === 'client') {
-    return a.clientOrganizationIds.some((id) => b.clientOrganizationIds.includes(id));
-  }
-  return a.projectIds.some((id) => b.projectIds.includes(id));
-}
-
 function sortedPair(a: string, b: string): readonly [string, string] {
   return a < b ? [a, b] : [b, a];
 }
@@ -69,6 +74,26 @@ function otherOf(row: DirectConversationRow, userId: string): string | null {
   if (row.userLowId === userId) return row.userHighId;
   if (row.userHighId === userId) return row.userLowId;
   return null;
+}
+
+/** The caller's position in `row`: last handed-out number, own marker, and the gap between. */
+export function readPositionOf(
+  row: DirectConversationRow,
+  userId: string,
+): {
+  readonly lastSequenceNo: number;
+  readonly lastReadSequenceNo: number;
+  readonly unreadCount: number;
+} {
+  const lastSequenceNo = Math.max(0, Number(row.nextSequenceNo) - 1);
+  const marker =
+    row.userLowId === userId
+      ? Number(row.userLowLastReadSequenceNo)
+      : row.userHighId === userId
+        ? Number(row.userHighLastReadSequenceNo)
+        : lastSequenceNo;
+  const lastReadSequenceNo = Math.min(marker, lastSequenceNo);
+  return { lastSequenceNo, lastReadSequenceNo, unreadCount: lastSequenceNo - lastReadSequenceNo };
 }
 
 function toMessageView(row: DirectMessageRow): DirectMessageView {
@@ -86,6 +111,8 @@ export class DirectConversationsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly repository: DirectConversationsRepository,
+    /** BK3-left: `direct_message.created.v1` for the socket fan-out and the recipient's notice. */
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   /** Create-or-get the conversation with `otherUserId`. `created` is false for an existing one. */
@@ -170,7 +197,7 @@ export class DirectConversationsService {
     command: { readonly body: string; readonly clientGeneratedId?: string },
   ): Promise<{ readonly message: DirectMessageView; readonly created: boolean }> {
     this.requireInternalCapability(principal, 'write');
-    await this.loadReachable(context, directConversationId);
+    const conversation = await this.loadReachable(context, directConversationId);
 
     if (command.clientGeneratedId !== undefined) {
       const clientGeneratedId = command.clientGeneratedId;
@@ -186,14 +213,29 @@ export class DirectConversationsService {
       if (existing) return { message: toMessageView(existing), created: false };
     }
 
+    const recipientUserId = otherOf(conversation, context.userId) as string;
     try {
-      const row = await this.database.transaction(context, (tx) =>
-        this.repository.appendMessage(tx, context, {
+      const row = await this.database.transaction(context, async (tx) => {
+        const appended = await this.repository.appendMessage(tx, context, {
           directConversationId,
           body: command.body,
           clientGeneratedId: command.clientGeneratedId ?? null,
-        }),
-      );
+        });
+        // Ids only, committed with the message (§2). The worker publishes the socket frame on
+        // this conversation and tells the recipient, after re-checking the relation (§6).
+        await this.outbox?.append(tx, context, {
+          type: 'direct_message.created.v1',
+          aggregateId: directConversationId,
+          payload: {
+            directConversationId,
+            messageId: appended.id,
+            sequenceNo: Number(appended.sequenceNo),
+            authorUserId: context.userId,
+            recipientUserId,
+          },
+        });
+        return appended;
+      });
       return { message: toMessageView(row), created: true };
     } catch (error) {
       if (error instanceof DuplicateDirectMessageError) {
@@ -201,6 +243,27 @@ export class DirectConversationsService {
       }
       throw error;
     }
+  }
+
+  /**
+   * 0216: move the caller's read marker forward — to `upToSequenceNo`, or to the latest message
+   * when omitted. Never backwards, never past the last message; a reader's act, so `read` mode.
+   */
+  async markRead(
+    context: TenantContext,
+    principal: Principal,
+    directConversationId: string,
+    upToSequenceNo?: number,
+  ): Promise<DirectReadStateView> {
+    this.requireInternalCapability(principal, 'read');
+    const row = await this.loadReachable(context, directConversationId);
+    const side = row.userLowId === context.userId ? 'low' : 'high';
+    const upTo = upToSequenceNo ?? Number.MAX_SAFE_INTEGER;
+    const updated = await this.database.transaction(context, async (tx) => {
+      await this.repository.markRead(tx, context, directConversationId, side, upTo);
+      return this.repository.findById(tx, context, directConversationId);
+    });
+    return { directConversationId, ...readPositionOf(updated ?? row, context.userId) };
   }
 
   private requireInternalCapability(principal: Principal, mode: 'read' | 'write'): void {
@@ -247,6 +310,7 @@ export class DirectConversationsService {
       otherDisplayName: names.get(other) ?? null,
       lastMessageAt: row.lastMessageAt === null ? null : row.lastMessageAt.toISOString(),
       createdAt: row.createdAt.toISOString(),
+      ...readPositionOf(row, userId),
     };
   }
 }

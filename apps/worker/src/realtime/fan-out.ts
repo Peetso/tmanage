@@ -43,3 +43,34 @@ export function createMessageFanOut(hub: RealtimeHub): OutboxHandler {
     });
   };
 }
+
+/**
+ * BK3-left: `direct_message.created.v1` becomes a hub frame on the direct conversation's id —
+ * the same hub, frame shape and at-least-once contract as a channel message above, so a client
+ * subscribes to a DM exactly as it subscribes to a channel (`server.ts` checks either). Ids and
+ * the pair's sequence only; never the body.
+ */
+export function createDirectMessageFanOut(hub: RealtimeHub): OutboxHandler {
+  return async (event: ClaimedOutboxEvent): Promise<void> => {
+    const payload = event.payload;
+    if (payload === null || typeof payload !== 'object') {
+      throw new Error(`event ${event.id} has no readable payload`);
+    }
+    const record = payload as Record<string, unknown>;
+    const directConversationId = record['directConversationId'];
+    const messageId = record['messageId'];
+    if (typeof directConversationId !== 'string' || typeof messageId !== 'string') {
+      throw new Error(`event ${event.id} has no readable directConversationId/messageId`);
+    }
+    const sequence = record['sequenceNo'];
+    const author = record['authorUserId'];
+    hub.publish(event.organizationId, directConversationId, {
+      type: 'event',
+      eventType: event.type,
+      conversationId: directConversationId,
+      objectId: messageId,
+      sequence: typeof sequence === 'number' ? sequence : null,
+      patch: { authorUserId: typeof author === 'string' ? author : null },
+    });
+  };
+}

@@ -1,5 +1,6 @@
 import { and, asc, desc, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
+import type { DirectParty } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
 import {
@@ -26,15 +27,8 @@ import type {
  * this tenant and which projects they reach, and the pair / message rows themselves.
  */
 
-/** A participant as the relation rule sees them. Null when the user is not an active member. */
-export interface DirectParty {
-  readonly userId: string;
-  readonly kind: 'internal' | 'client';
-  /** For a client person, the client organizations they belong to here. Empty for internal. */
-  readonly clientOrganizationIds: readonly string[];
-  /** Internal: projects they are a member of. Client: projects shared with their client org(s). */
-  readonly projectIds: readonly string[];
-}
+/** A participant as the relation rule sees them — the shared domain shape (worker uses it too). */
+export type { DirectParty } from '@tmanage/domain';
 
 export class DuplicateDirectMessageError extends Error {
   constructor() {
@@ -270,6 +264,30 @@ export class DirectConversationsRepository {
     return row ?? null;
   }
 
+  /**
+   * 0216: move one participant's read marker forward to `upTo`, never backwards and never past
+   * the allocator's last handed-out number. `updated_at = updated_at` keeps the activity order
+   * of the list unchanged by a read. The side is the service's to name from the row it loaded.
+   */
+  async markRead(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    directConversationId: string,
+    side: 'low' | 'high',
+    upTo: number,
+  ): Promise<void> {
+    const column =
+      side === 'low' ? 'user_low_last_read_sequence_no' : 'user_high_last_read_sequence_no';
+    const userColumn = side === 'low' ? 'user_low_id' : 'user_high_id';
+    await runner.execute(
+      `update direct_conversations
+          set ${column} = least(greatest(${column}, ?), next_sequence_no - 1),
+              updated_at = updated_at
+        where organization_id = ? and id = ? and ${userColumn} = ?`,
+      [upTo, context.organizationId, directConversationId, context.userId],
+    );
+  }
+
   /** Append under the pair row's lock: read the allocator, bump it, insert. */
   async appendMessage(
     runner: TenantQueryRunner,
@@ -289,11 +307,26 @@ export class DirectConversationsRepository {
     const sequenceNo = locked[0]?.['next_sequence_no'] as number | undefined;
     if (sequenceNo === undefined) throw new Error('direct conversation not found');
 
+    // 0216: posting is reading — the author's own marker moves to the message they send, so
+    // every message past a participant's marker is from the other person (the unread count).
     await runner.execute(
       `update direct_conversations
-          set next_sequence_no = next_sequence_no + 1, last_message_at = current_timestamp(3)
+          set next_sequence_no = next_sequence_no + 1, last_message_at = current_timestamp(3),
+              user_low_last_read_sequence_no = case when user_low_id = ?
+                then greatest(user_low_last_read_sequence_no, ?)
+                else user_low_last_read_sequence_no end,
+              user_high_last_read_sequence_no = case when user_high_id = ?
+                then greatest(user_high_last_read_sequence_no, ?)
+                else user_high_last_read_sequence_no end
         where organization_id = ? and id = ?`,
-      [context.organizationId, input.directConversationId],
+      [
+        context.userId,
+        Number(sequenceNo),
+        context.userId,
+        Number(sequenceNo),
+        context.organizationId,
+        input.directConversationId,
+      ],
     );
 
     const id = uuidv7();

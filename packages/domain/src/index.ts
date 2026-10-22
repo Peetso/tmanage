@@ -169,6 +169,10 @@ export type {
   AuditResult,
 } from './policies/audit.js';
 
+// BK3 direct-message relation rule (API + worker)
+export { mayDirectMessage } from './policies/direct-message-relation.js';
+export type { DirectParty } from './policies/direct-message-relation.js';
+
 // Outbox events — 24-EVENT-CATALOG.md, PLAT-004
 export {
   OUTBOX_EVENT_CATALOG,
@@ -179,6 +183,7 @@ export {
   outboxAggregateTypeFor,
 } from './events/outbox.js';
 export type {
+  DirectMessageCreatedV1,
   ClientRequestSubmittedV1,
   ClientRequestTransitionedV1,
   ClientRequestMessagePostedV1,

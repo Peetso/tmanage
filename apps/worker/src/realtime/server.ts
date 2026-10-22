@@ -3,7 +3,10 @@ import type { WebSocket } from 'ws';
 import { verifyRealtimeTicket } from '@tmanage/domain/realtime-ticket';
 import type { RealtimeTicketClaims } from '@tmanage/domain/realtime-ticket';
 import type { WorkerDatabase } from '../common/database/worker-database.js';
+import type { WorkerTransaction } from '../common/database/worker-database.js';
 import { checkConversationSubscription } from '../common/database/realtime-store.js';
+import type { SubscriptionVerdict } from '../common/database/realtime-store.js';
+import { checkDirectConversationSubscription } from '../common/database/direct-message-store.js';
 import { RealtimeHub } from './hub.js';
 
 /**
@@ -21,6 +24,24 @@ import { RealtimeHub } from './hub.js';
  * Frames out are the hub's: ids and sequence, never content. Presence, typing, and every
  * resource family beyond conversations are the named second half.
  */
+
+/**
+ * BK3-left: a subscribe names a channel or a direct conversation (ids never collide — both are
+ * uuidv7). The channel check runs first; only when it refuses is the id tried as a direct
+ * conversation, under the same relation rule the API applies (`direct-message-store.ts`).
+ */
+async function checkSubscription(
+  tx: WorkerTransaction,
+  input: {
+    readonly organizationId: string;
+    readonly userId: string;
+    readonly conversationId: string;
+  },
+): Promise<SubscriptionVerdict> {
+  const channel = await checkConversationSubscription(tx, input);
+  if (channel.allowed) return channel;
+  return checkDirectConversationSubscription(tx, input);
+}
 
 interface SubscribeFrame {
   readonly type: 'subscribe';
@@ -128,7 +149,7 @@ export async function createRealtimeServer(
       for (const conversationId of [...subscriptions.keys()]) {
         void options.database
           .read((tx) =>
-            checkConversationSubscription(tx, {
+            checkSubscription(tx, {
               organizationId: claims.organizationId,
               userId: claims.userId,
               conversationId,
@@ -172,7 +193,7 @@ export async function createRealtimeServer(
 
       void options.database
         .read((tx) =>
-          checkConversationSubscription(tx, {
+          checkSubscription(tx, {
             organizationId: claims.organizationId,
             userId: claims.userId,
             conversationId: frame.conversationId,
