@@ -4118,6 +4118,7 @@
   "ChangelogScreen.loadingLabel": "Loading the changelog.",
   "ChangelogScreen.emptyTitle": "Nothing here yet",
   "ChangelogScreen.emptyBody": "No product updates have been published. Check back soon.",
+  "ChangelogScreen.loadedCount": "Product updates published: {count}.",
   "ChatScreen.eyebrow": "Chat · Browse",
   "ChatScreen.title": "Channels",
   "ChatScreen.searchLabel": "Search channels",

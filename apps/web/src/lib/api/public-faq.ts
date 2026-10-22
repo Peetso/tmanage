@@ -35,9 +35,19 @@ export interface PublicFaqView {
   readonly groups: readonly FaqGroup[];
 }
 
-export async function fetchPublicFaq(client: ApiClient): Promise<PublicFaqView> {
+/** The FAQ copy language for a display locale: Arabic for `ar-*`, English for everything else. */
+export function faqLanguageOf(locale: string | undefined): 'en' | 'ar' {
+  return locale?.split('-')[0]?.toLowerCase() === 'ar' ? 'ar' : 'en';
+}
+
+/**
+ * Reads the FAQ in the language of `locale` (the active display locale, e.g. `ar-EG`). The language
+ * travels as `?lang=` — explicit, so it does not depend on the browser's `Accept-Language` — and
+ * the API answers English for anything outside its allowlist.
+ */
+export async function fetchPublicFaq(client: ApiClient, locale?: string): Promise<PublicFaqView> {
   const { data } = await client.request<PublicFaqView>({
-    path: '/v1/public/site/faq',
+    path: `/v1/public/site/faq?lang=${faqLanguageOf(locale)}`,
     authentication: 'none',
   });
   return data;

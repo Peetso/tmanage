@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { Announce, LiveAnnouncer } from '../src/components/index.js';
+import { Announce, LiveAnnouncer, LoadingRegion } from '../src/components/index.js';
 
 /**
  * The contract `LiveAnnouncer` exists for (WCAG 2.2 **4.1.3**): the live region is committed
@@ -61,5 +61,52 @@ describe('LiveAnnouncer', () => {
 
     expect(second).not.toEqual(first); // the DOM mutated, so it is announced again
     expect(second.filter(Boolean)).toEqual(['Loading more.']); // and only in one slot
+  });
+});
+
+describe('LoadingRegion', () => {
+  it('announces its label while mounted and clears it on unmount', () => {
+    const { container, rerender } = render(
+      <LiveAnnouncer>
+        <LoadingRegion label="Loading the changelog." />
+      </LiveAnnouncer>,
+    );
+    expect(slots(container, 'polite').filter(Boolean)).toEqual(['Loading the changelog.']);
+
+    rerender(<LiveAnnouncer>{null}</LiveAnnouncer>);
+
+    expect(slots(container, 'polite')).toEqual(['', '']);
+  });
+
+  it('replaces the old sentence when the label changes, leaving only the new one', () => {
+    const { container, rerender } = render(
+      <LiveAnnouncer>
+        <LoadingRegion label="Loading the changelog." />
+      </LiveAnnouncer>,
+    );
+
+    rerender(
+      <LiveAnnouncer>
+        <LoadingRegion label="جارٍ تحميل سجل التغييرات." />
+      </LiveAnnouncer>,
+    );
+
+    expect(slots(container, 'polite').filter(Boolean)).toEqual(['جارٍ تحميل سجل التغييرات.']);
+  });
+
+  it('does not clear a different sentence announced after it', () => {
+    const { container, rerender } = render(
+      <LiveAnnouncer>
+        <LoadingRegion label="Loading the changelog." />
+      </LiveAnnouncer>,
+    );
+
+    rerender(
+      <LiveAnnouncer>
+        <Announce message="Nothing here yet" />
+      </LiveAnnouncer>,
+    );
+
+    expect(slots(container, 'polite').filter(Boolean)).toEqual(['Nothing here yet']);
   });
 });

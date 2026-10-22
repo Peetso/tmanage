@@ -4118,6 +4118,7 @@
   "ChangelogScreen.loadingLabel": "جارٍ تحميل سجل التغييرات.",
   "ChangelogScreen.emptyTitle": "لا شيء هنا بعد",
   "ChangelogScreen.emptyBody": "لم تُنشَر أي تحديثات للمنتج. تحقّق مرة أخرى قريبًا.",
+  "ChangelogScreen.loadedCount": "تحديثات المنتج المنشورة: {count}.",
   "ChatScreen.eyebrow": "الدردشة · التصفّح",
   "ChatScreen.title": "القنوات",
   "ChatScreen.searchLabel": "البحث في القنوات",

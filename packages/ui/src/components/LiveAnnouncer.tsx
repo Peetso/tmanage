@@ -39,6 +39,13 @@ const noop: AnnounceFn = () => {};
 
 const LiveAnnouncerContext = createContext<AnnounceFn | null>(null);
 
+/** Clears `message` from whichever slot still holds it; a no-op when no slot does. */
+type RetractFn = (message: string) => void;
+
+const noopRetract: RetractFn = () => {};
+
+const LiveAnnouncerRetractContext = createContext<RetractFn | null>(null);
+
 /**
  * The announce function for the nearest `LiveAnnouncer`. Outside one it is a safe no-op, so a
  * component that announces can still be rendered bare in a test without a provider.
@@ -70,39 +77,54 @@ export function LiveAnnouncer({ children }: LiveAnnouncerProps) {
     }
   }, []);
 
+  // Emptying a slot is a removal, which a polite/assertive region does not read aloud (the default
+  // `aria-relevant` is additions + text) — it only stops a stale sentence from lingering in the
+  // region after the state it described is gone.
+  const retract = useCallback<RetractFn>((message) => {
+    if (message === '') return;
+    const clear = (slots: readonly [string, string]) =>
+      slots[0] === message || slots[1] === message
+        ? ([slots[0] === message ? '' : slots[0], slots[1] === message ? '' : slots[1]] as const)
+        : slots;
+    setPolite(clear);
+    setAssertive(clear);
+  }, []);
+
   return (
     <LiveAnnouncerContext.Provider value={announce}>
-      {children}
-      {/*
-       * The live-region semantics are carried by `aria-live` + `aria-atomic`, not by
-       * `role="status"`/`role="alert"`. A screen reader announces a mutation of an `aria-live`
-       * region regardless of its role, so announcements are unaffected — and the always-mounted,
-       * usually-empty slots do not register as extra `status`/`alert` roles, which would
-       * otherwise turn every screen's single real alert into "multiple elements with the role".
-       */}
-      {/*
-       * The slots render after `{children}` — outside `<main>` and every other landmark. axe's
-       * `region` rule (a best-practice rule the web axe helper leaves on) flags perceivable
-       * content that sits in no landmark, and a slot holding an announcement is exactly that. A
-       * named `role="region"` wrapper makes the whole announcer a landmark, so a scan taken while
-       * a sentence is live cannot fail `region`. (Each slot already carries `aria-live`, which axe
-       * treats as region-satisfying on its own, so this is belt-and-braces — but it keeps the
-       * guarantee from depending on that internal axe behaviour.)
-       */}
-      <div className="tm-visually-hidden" role="region" aria-label="Live announcements">
-        <div aria-live="polite" aria-atomic="true">
-          {polite[0]}
+      <LiveAnnouncerRetractContext.Provider value={retract}>
+        {children}
+        {/*
+         * The live-region semantics are carried by `aria-live` + `aria-atomic`, not by
+         * `role="status"`/`role="alert"`. A screen reader announces a mutation of an `aria-live`
+         * region regardless of its role, so announcements are unaffected — and the always-mounted,
+         * usually-empty slots do not register as extra `status`/`alert` roles, which would
+         * otherwise turn every screen's single real alert into "multiple elements with the role".
+         */}
+        {/*
+         * The slots render after `{children}` — outside `<main>` and every other landmark. axe's
+         * `region` rule (a best-practice rule the web axe helper leaves on) flags perceivable
+         * content that sits in no landmark, and a slot holding an announcement is exactly that. A
+         * named `role="region"` wrapper makes the whole announcer a landmark, so a scan taken while
+         * a sentence is live cannot fail `region`. (Each slot already carries `aria-live`, which axe
+         * treats as region-satisfying on its own, so this is belt-and-braces — but it keeps the
+         * guarantee from depending on that internal axe behaviour.)
+         */}
+        <div className="tm-visually-hidden" role="region" aria-label="Live announcements">
+          <div aria-live="polite" aria-atomic="true">
+            {polite[0]}
+          </div>
+          <div aria-live="polite" aria-atomic="true">
+            {polite[1]}
+          </div>
+          <div aria-live="assertive" aria-atomic="true">
+            {assertive[0]}
+          </div>
+          <div aria-live="assertive" aria-atomic="true">
+            {assertive[1]}
+          </div>
         </div>
-        <div aria-live="polite" aria-atomic="true">
-          {polite[1]}
-        </div>
-        <div aria-live="assertive" aria-atomic="true">
-          {assertive[0]}
-        </div>
-        <div aria-live="assertive" aria-atomic="true">
-          {assertive[1]}
-        </div>
-      </div>
+      </LiveAnnouncerRetractContext.Provider>
     </LiveAnnouncerContext.Provider>
   );
 }
@@ -126,12 +148,19 @@ export interface LoadingRegionProps {
  *
  * The wrapper carries `aria-busy` but **not** `aria-live`: the announcement is the shell's job,
  * so this element never doubles as a live region that would announce its own skeletons.
+ *
+ * The sentence belongs to the loading state, so it leaves with it: when `label` changes (the
+ * locale switched mid-load) the old sentence is cleared before the new one is written, and on
+ * unmount the slot is emptied — the region never keeps saying "Loading…" after the content
+ * arrived, nor keeps it in the language that was active when loading began.
  */
 export function LoadingRegion({ label, className, children }: LoadingRegionProps) {
   const announce = useAnnounce();
+  const retract = useContext(LiveAnnouncerRetractContext) ?? noopRetract;
   useEffect(() => {
     announce(label);
-  }, [announce, label]);
+    return () => retract(label);
+  }, [announce, retract, label]);
   return (
     <div aria-busy="true" data-loading="true" className={className}>
       {children}

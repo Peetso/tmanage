@@ -17,7 +17,7 @@ import {
   SESSION_SERVICE,
 } from '../../common/http/tokens.js';
 import type { AuthenticationEventRecorder } from '../../common/http/authentication-event-recorder.js';
-import { FaqContentController } from './faq.controller.js';
+import { FaqContentController, resolveFaqLocale } from './faq.controller.js';
 import { PUBLIC_FAQ_SERVICE, FaqContentService } from './faq.service.js';
 
 /**
@@ -111,6 +111,58 @@ describe('GET /v1/public/site/faq', () => {
     const second = await app.inject({ method: 'GET', url: FAQ_URL });
     expect(second.statusCode).toBe(200);
     expect(second.json()).toEqual(first.json());
+  });
+});
+
+describe('GET /v1/public/site/faq — language (live report line 85)', () => {
+  /** Ids and shape only: the two languages must be the same accordion with different copy. */
+  function skeleton(body: { groups: { id: string; items: { id: string }[] }[] }) {
+    return body.groups.map((group) => ({ id: group.id, items: group.items.map((i) => i.id) }));
+  }
+
+  it('answers Arabic copy for ?lang=ar, with the same groups and ids as English', async () => {
+    const en = (await app.inject({ method: 'GET', url: FAQ_URL })).json();
+    const response = await app.inject({ method: 'GET', url: `${FAQ_URL}?lang=ar` });
+
+    expect(response.statusCode).toBe(200);
+    const ar = response.json();
+    expect(skeleton(ar)).toEqual(skeleton(en));
+    expect(ar.groups[0].title).toBe('البداية');
+    expect(ar.groups[0].items[0].question).toBe('ما هو TManage؟');
+    expect(JSON.stringify(ar)).not.toContain('What is TManage?');
+    expect(response.headers.vary).toContain('Accept-Language');
+  });
+
+  it('answers Arabic copy for Accept-Language: ar when there is no ?lang=', async () => {
+    const response = await app.inject({
+      method: 'GET',
+      url: FAQ_URL,
+      headers: { 'accept-language': 'ar-EG,ar;q=0.9,en;q=0.5' },
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().groups[0].items[0].question).toBe('ما هو TManage؟');
+  });
+
+  it('lets ?lang= win over Accept-Language, and answers English by default', async () => {
+    const english = await app.inject({
+      method: 'GET',
+      url: `${FAQ_URL}?lang=en`,
+      headers: { 'accept-language': 'ar' },
+    });
+    expect(english.json().groups[0].items[0].question).toBe('What is TManage?');
+
+    const unknown = await app.inject({ method: 'GET', url: `${FAQ_URL}?lang=xx` });
+    expect(unknown.json().groups[0].items[0].question).toBe('What is TManage?');
+  });
+
+  it('resolves the language from a closed allowlist', () => {
+    expect(resolveFaqLocale(undefined, undefined)).toBe('en');
+    expect(resolveFaqLocale('AR', undefined)).toBe('ar');
+    expect(resolveFaqLocale(['ar', 'en'], undefined)).toBe('ar');
+    expect(resolveFaqLocale('fr', 'ar')).toBe('ar');
+    expect(resolveFaqLocale(undefined, 'fr-FR, en;q=0.4, ar;q=0.8')).toBe('ar');
+    expect(resolveFaqLocale(undefined, 'ar;q=0, en')).toBe('en');
+    expect(resolveFaqLocale(undefined, 'de, fr')).toBe('en');
   });
 });
 

@@ -32,11 +32,14 @@ export interface PublicFaqView {
   }[];
 }
 
+/** The FAQ languages this service holds copy for — a closed allowlist; anything else is `en`. */
+export type FaqLocale = 'en' | 'ar';
+
 /**
- * The single, frozen payload. `as const` plus `Object.freeze` on every level means neither the
+ * The English payload, frozen. `as const` plus `Object.freeze` on every level means neither the
  * service nor any consumer can mutate what every request shares.
  */
-const FAQ: PublicFaqView = Object.freeze({
+const FAQ_EN: PublicFaqView = Object.freeze({
   groups: Object.freeze([
     Object.freeze({
       id: 'getting-started',
@@ -96,12 +99,84 @@ const FAQ: PublicFaqView = Object.freeze({
 }) as PublicFaqView;
 
 /**
+ * The Arabic payload — the same groups, ids, and order as the English one (only the copy differs),
+ * so a client that switches language keeps its open accordion items keyed to the same ids.
+ */
+const FAQ_AR: PublicFaqView = Object.freeze({
+  groups: Object.freeze([
+    Object.freeze({
+      id: 'getting-started',
+      title: 'البداية',
+      items: Object.freeze([
+        Object.freeze({
+          id: 'what-is-tmanage',
+          question: 'ما هو TManage؟',
+          answer:
+            'يجمع TManage مشاريع العملاء والموافقات وبوابة العملاء في مكان واحد، فتبقى الخطوة التالية واضحة دائمًا ولا يحتاج أحد إلى السؤال عن سير العمل.',
+        }),
+        Object.freeze({
+          id: 'how-do-i-start',
+          question: 'كيف أبدأ؟',
+          answer:
+            'أنشئ مؤسسة، وادعُ فريقك، وأضف مشروعك الأول. ترشدك قائمة خطوات البدء إلى ربط بوابة العملاء ونشر أول تحديث لك.',
+        }),
+      ]),
+    }),
+    Object.freeze({
+      id: 'client-portal',
+      title: 'بوابة العملاء',
+      items: Object.freeze([
+        Object.freeze({
+          id: 'what-can-clients-see',
+          question: 'ما الذي يمكن للعملاء رؤيته؟',
+          answer:
+            'لا يرى كل عميل إلا ما تشاركه معه: التسليمات والموافقات والتحديثات الخاصة بمشاريعه فقط. أما العمل الداخلي والعملاء الآخرون والملاحظات الخاصة بفريقك فلا تظهر أبدًا.',
+        }),
+        Object.freeze({
+          id: 'do-clients-need-accounts',
+          question: 'هل يحتاج العملاء إلى حساب؟',
+          answer:
+            'يسجّل العملاء الدخول إلى بوابة محصورة فيما يُسمح لهم برؤيته بالضبط. لا يوجد ما يلزم تثبيته، ويُلغى الوصول فور إزالتهم.',
+        }),
+      ]),
+    }),
+    Object.freeze({
+      id: 'security-and-data',
+      title: 'الأمان والبيانات',
+      items: Object.freeze([
+        Object.freeze({
+          id: 'where-is-data-stored',
+          question: 'أين تُخزَّن بياناتي؟',
+          answer:
+            'بيانات العميل ملك للعميل، وهي معزولة لكل مؤسسة على حدة. تشرح صفحة الأمان الضوابط التي بُني عليها المنتج والجهات الخارجية التي يعتمد عليها.',
+        }),
+        Object.freeze({
+          id: 'can-i-export',
+          question: 'هل يمكنني تصدير بياناتي؟',
+          answer:
+            'نعم. تُقرأ أعباء العمل وسلامة التسليم ومعدلات الاستخدام مباشرةً من العمل نفسه، ويمكن تصدير سجلاتك لتكون الأرقام هي السجل الفعلي لا مجرد لقطة عابرة.',
+        }),
+      ]),
+    }),
+  ]),
+}) as PublicFaqView;
+
+const FAQ_BY_LOCALE: Readonly<Record<FaqLocale, PublicFaqView>> = Object.freeze({
+  en: FAQ_EN,
+  ar: FAQ_AR,
+});
+
+/**
  * The public FAQ content. No tenant, no database, no session — the payload is the same for everyone
  * and is served through the `@Public()` door on the controller.
  */
 export class FaqContentService {
-  /** The FAQ content. Deterministic: the same frozen payload every call. */
-  getFaq(): PublicFaqView {
-    return FAQ;
+  /**
+   * The FAQ content for `locale` (default English). Deterministic: the same frozen payload for the
+   * same locale on every call; a value outside the allowlist cannot reach here typed, and is
+   * answered in English if it does.
+   */
+  getFaq(locale: FaqLocale = 'en'): PublicFaqView {
+    return FAQ_BY_LOCALE[locale] ?? FAQ_EN;
   }
 }

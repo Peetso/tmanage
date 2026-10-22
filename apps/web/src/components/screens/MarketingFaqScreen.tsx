@@ -5,11 +5,12 @@ import Link from 'next/link';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { PublicIntro, PublicPage } from './public/PublicSite';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { fetchPublicFaq } from '../../lib/api/public-faq';
+import { faqLanguageOf, fetchPublicFaq } from '../../lib/api/public-faq';
 import type { PublicFaqView } from '../../lib/api/public-faq';
 import { NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 
 export interface MarketingFaqScreenProps {
   /** Injectable so a test drives a fake client; the browser gets the shared one. */
@@ -30,9 +31,12 @@ export interface MarketingFaqScreenProps {
 export function MarketingFaqScreen({ client }: MarketingFaqScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  // The copy language is part of the key, so switching the display language refetches the FAQ in
+  // that language instead of keeping the cached English (live report line 85).
+  const language = faqLanguageOf(useActiveLocale());
   const faq = useQuery({
-    queryKey: ['public-faq'],
-    queryFn: () => fetchPublicFaq(api),
+    queryKey: ['public-faq', language],
+    queryFn: () => fetchPublicFaq(api, language),
     retry: false,
   });
 

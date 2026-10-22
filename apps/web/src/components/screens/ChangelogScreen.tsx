@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Announce, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getPublicChangelog } from '../../lib/api/public-changelog';
 import type { PublicChangelogMonthRow } from '../../lib/api/public-changelog';
@@ -11,6 +11,7 @@ import { formatInstant } from '../../lib/work-item-presentation';
 import { PublicIntro, PublicPage } from './public/PublicSite';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 export interface ChangelogScreenProps {
   client?: ApiClient;
@@ -51,6 +52,15 @@ export function ChangelogScreen({ client }: ChangelogScreenProps) {
     () => changelog.data?.months ?? [],
     [changelog.data],
   );
+  const entryCount = months.reduce((total, month) => total + month.entries.length, 0);
+
+  // The loaded state is announced too, so the shell's live region ends on what the page now shows,
+  // in the active language — not on the loading sentence (live report line 47).
+  const loadedAnnouncement = changelog.isSuccess
+    ? entryCount === 0
+      ? t('ChangelogScreen.emptyTitle')
+      : loadedCountText(t(LOADED_COUNT_KEY), entryCount)
+    : '';
 
   return (
     <PublicPage>
@@ -65,6 +75,8 @@ export function ChangelogScreen({ client }: ChangelogScreenProps) {
               {describeError(changelog.error)}
             </InlineAlert>
           ) : null}
+
+          <Announce message={loadedAnnouncement} />
 
           {changelog.isPending ? (
             <LoadingRegion label={t('ChangelogScreen.loadingLabel')}>
@@ -115,6 +127,18 @@ export function ChangelogScreen({ client }: ChangelogScreenProps) {
       </div>
     </PublicPage>
   );
+}
+
+/** Arrives with the i18n-L9 fragment; cast until it is merged into en.json. */
+const LOADED_COUNT_KEY = 'ChangelogScreen.loadedCount' as MessageKey;
+
+/**
+ * The "{count} updates" sentence. Until the fragment is merged the lookup falls back to the key
+ * itself, and a key is never read to a screen-reader user — the empty string announces nothing.
+ */
+function loadedCountText(template: string, count: number): string {
+  if (template === LOADED_COUNT_KEY) return '';
+  return template.replace('{count}', String(count));
 }
 
 /** `YYYY-MM` → e.g. `September 2026`, in UTC so no reader's zone shifts the month. */
