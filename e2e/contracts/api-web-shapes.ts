@@ -214,6 +214,10 @@ import type { PortalAccessLogView as ApiPortalAccessLogView } from '../../apps/a
 import type { ClientRiskView as ApiClientRiskView } from '../../apps/api/src/modules/clients/project-risks.controller.js';
 import type { PortalSettingsView as ApiPortalSettingsView } from '../../apps/api/src/modules/clients/portal-settings.controller.js';
 import type { ProjectClientView as ApiProjectClientView } from '../../apps/api/src/modules/clients/clients.service.js';
+import type {
+  ClientMembershipView as ApiClientMembershipView,
+  ClientOrganizationView as ApiClientOrganizationView,
+} from '../../apps/api/src/modules/clients/clients.service.js';
 import type { ProjectMemberView as ApiProjectMemberView } from '../../apps/api/src/modules/projects/project-members.controller.js';
 import type { ProjectView as ApiProjectView } from '../../apps/api/src/modules/projects/projects.service.js';
 import type { PublicHomeView as ApiPublicHomeView } from '../../apps/api/src/modules/public-site/public-content.service.js';
@@ -484,7 +488,15 @@ import type {
   ClientRequestHistoryEntry as WebClientRequestHistoryEntry,
   ClientRequestRecord as WebClientRequestRecord,
 } from '../../apps/web/src/lib/api/client-requests';
-import type { ProjectShare as WebProjectShare } from '../../apps/web/src/lib/api/clients';
+import type {
+  ClientMembership as WebClientMembership,
+  ClientOrganization as WebClientOrganization,
+  ProjectShare as WebProjectShare,
+} from '../../apps/web/src/lib/api/clients';
+import type {
+  ClientMembershipView as WebClientMembershipView,
+  ClientOrganizationView as WebClientOrganizationView,
+} from '../../apps/web/src/lib/api/project-client';
 import type { DocumentVersionSummary as WebDocumentVersionSummary } from '../../apps/web/src/lib/api/documents';
 import type { DocRevisionSummary as WebDocRevisionSummary } from '../../apps/web/src/lib/api/doc-revisions';
 import type { DocBookmarkSummary as WebDocBookmarkSummary } from '../../apps/web/src/lib/api/doc-bookmarks';
@@ -1034,6 +1046,12 @@ type _clientMilestone = Assert<Exact<ApiClientMilestoneView, WebClientMilestone>
 // record plus `updatedAt` — the completion date). Exact against the web `MilestoneEdit`.
 type _milestoneEdit = Assert<Exact<ApiMilestoneEditView, WebMilestoneEdit>>;
 type _projectClient = Assert<Exact<ApiProjectClientView, WebProjectShare>>;
+// Wave 4 (Q1 Clients screen, Q2 New project client picker): client-organization CRUD and
+// client memberships now have web consumers in both lib/api/clients.ts and lib/api/project-client.ts.
+type _clientOrganization = Assert<Exact<ApiClientOrganizationView, WebClientOrganization>>;
+type _clientOrganizationView = Assert<Exact<ApiClientOrganizationView, WebClientOrganizationView>>;
+type _clientMembership = Assert<Exact<ApiClientMembershipView, WebClientMembership>>;
+type _clientMembershipView = Assert<Exact<ApiClientMembershipView, WebClientMembershipView>>;
 type _project = Assert<Exact<ApiProjectView, WebProjectSummary>>;
 
 /**

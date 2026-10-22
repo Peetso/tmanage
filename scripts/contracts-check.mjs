@@ -69,11 +69,6 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
-    'ClientOrganizationView',
-    'No web consumer: CLIENT-001s client-organization CRUD has no internal screen; apps/web/src/lib/api/clients.ts deliberately wraps only GET projects/:id/clients.',
-  ],
-  ['ClientMembershipView', 'No web consumer: same as ClientOrganizationView — no screen.'],
-  [
     'ConversationMemberView',
     'No web consumer: membership is never fetched by apps/web; the channel screen reads messages only.',
   ],
@@ -155,6 +150,12 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
+  // Wave 4 (Q2 New project client picker): the API side is ClientOrganizationOption in
+  // apps/api/src/modules/clients/clients.service.ts — not a …View name, so the checker cannot pair it.
+  [
+    'ClientOrganizationOption',
+    'paired by hand with apps/api/src/modules/clients/clients.service.ts ClientOrganizationOption {id, name} (not a …View).',
+  ],
   // Design-gaps pass (2026-10-18): the CH-01 channel browser. The API side is the pure projection in
   // apps/api/src/modules/conversations/channel-directory.ts (same names, not a …View in a *.service.ts),
   // so the checker cannot pair it; the shapes are built field-for-field from that file.
