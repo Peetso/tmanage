@@ -40,6 +40,7 @@ import { UsageThresholdEvaluator } from './usage-thresholds.js';
 import { FilesService } from './files.service.js';
 import { FileVerifier } from './file-verifier.js';
 import { FileScanner } from './file-scanner.js';
+import { FILE_SCAN_JOB, FileScanJob, fileScanJobEnabled } from './file-scan-job.js';
 import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
 import { FileTagsRepository } from './file-tags.repository.js';
@@ -106,6 +107,7 @@ export class FilesModule {
         API_CONFIG,
         AUDIT_SERVICE,
         OUTBOX_EVENTS_REPOSITORY,
+        FILE_SCAN_JOB,
       ],
       useFactory: (
         database: TenantDatabase,
@@ -117,6 +119,7 @@ export class FilesModule {
         config: ApiConfig,
         audit: AuditService,
         outbox: OutboxEventsRepository,
+        scanJob: FileScanJob,
       ) =>
         new FilesService(
           database,
@@ -133,6 +136,7 @@ export class FilesModule {
           // USAGE-001 slice 4. Built on the same counters, outbox and audit the reserve and
           // commit paths already use, so the band write and its event commit with the move.
           new UsageThresholdEvaluator(counters, outbox, audit),
+          scanJob,
         ),
     };
 
@@ -260,6 +264,16 @@ export class FilesModule {
       ) => new FileScanner(database, assets, store, malwareScanner, audit, outbox),
     };
 
+    // CQ-09. The verify-then-scan passes run in this process when it runs background work
+    // (`WORKER_INPROCESS=1` on Hostinger): kicked by every committed upload, once after boot,
+    // and on an interval. Off in suites and the `verify:once` CLI, which drive the passes.
+    const scanJob: Provider = {
+      provide: FILE_SCAN_JOB,
+      inject: [FILE_VERIFIER, FILE_SCANNER],
+      useFactory: (fileVerifier: FileVerifier, fileScanner: FileScanner) =>
+        new FileScanJob(fileVerifier, fileScanner, fileScanJobEnabled()),
+    };
+
     // FILE-002 slice C. The download gate: its own service, so the read path that hands
     // bytes out shares no method with the write path that takes them in.
     const downloads: Provider = {
@@ -362,6 +376,7 @@ export class FilesModule {
         cleanup,
         verifier,
         scanner,
+        scanJob,
         downloads,
         portalFileList,
       ],

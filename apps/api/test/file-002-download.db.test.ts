@@ -36,9 +36,10 @@ import type { SeedWorld } from './seed-two-tenants.js';
  * 1. **A ready file is served from the private zone**, byte for byte, with the detected type,
  *    `attachment`, `nosniff`, `private, no-store`, its length — and one `file_asset.downloaded`
  *    row (`allowed`) that names no filename.
- * 2. **Every refusal is one 404**: a file still `scanning`, a `rejected` file, an unknown id
- *    and another tenant's id answer byte-identical bodies; the cause is on the denied row's
- *    `audit_code` alone; the quarantine object is never served.
+ * 2. **Refusals**: an unknown id and another tenant's id answer byte-identical 404 bodies; a
+ *    file still `scanning` or `rejected` answers its authorized caller a typed 409
+ *    (`pending_scan` / `blocked`, CQ-09); the cause is on the denied row's `audit_code`; the
+ *    quarantine object is never served.
  * 3. **The latest version rules**: a `ready` asset whose newest version is still in
  *    quarantine is not served.
  * 4. **The client's door**: a client downloads their own request's attachment; a sibling
@@ -413,17 +414,23 @@ describe('every refusal is one 404', () => {
     const b = await download(door, rejected);
     const c = await download(door, '019203a4-5b6c-7d8e-9f01-23456789abcd');
     for (const response of [a, b, c]) {
-      expect(response.statusCode).toBe(404);
       expect(response.headers['content-disposition']).toBeUndefined();
     }
-    // Byte-identical bodies but for the per-request correlation id: the response says
-    // nothing about which door refused.
+    // CQ-09: an authorized caller is told why — pending while scanning, blocked once rejected;
+    // an unknown id stays a plain 404.
+    expect(a.statusCode).toBe(409);
+    expect(a.json<{ error: { details: unknown } }>().error.details).toEqual([
+      { field: 'status', message: 'pending_scan' },
+    ]);
+    expect(b.statusCode).toBe(409);
+    expect(b.json<{ error: { details: unknown } }>().error.details).toEqual([
+      { field: 'status', message: 'blocked' },
+    ]);
+    expect(c.statusCode).toBe(404);
     const shape = (response: InjectedResponse): string => {
       expect(response.body).toContain('correlationId');
       return response.body.replace(/"correlationId":"[^"]*"/, '"correlationId":"…"');
     };
-    expect(shape(b)).toBe(shape(a));
-    expect(shape(c)).toBe(shape(a));
     // The quarantine object is untouched and nothing was promoted.
     expect(existsSync(store.objectPath('quarantine', objectKey))).toBe(true);
     expect(existsSync(store.objectPath('private', objectKey))).toBe(false);
@@ -432,7 +439,7 @@ describe('every refusal is one 404', () => {
     const stranger = await signIn(world.brightops.owner.id);
     const d = await download({ session: stranger, prefix: '' }, scanning, BRIGHTOPS);
     expect(d.statusCode).toBe(404);
-    expect(shape(d)).toBe(shape(a));
+    expect(shape(d)).toBe(shape(c));
 
     expect(await deniedCodes()).toEqual([
       'not_servable',
@@ -464,7 +471,7 @@ describe('every refusal is one 404', () => {
     await db.admin.query('insert into file_versions select * from v2');
 
     const refused = await download(door, fileAssetId);
-    expect(refused.statusCode).toBe(404);
+    expect(refused.statusCode).toBe(409);
     expect(await deniedCodes()).toEqual(['not_servable']);
   });
 });

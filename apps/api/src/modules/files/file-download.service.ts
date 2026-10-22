@@ -35,9 +35,11 @@ import { mayDownloadFor } from './purpose-policy.js';
  * 6. The object is opened in the `private` zone — the literal, never a zone read from the
  *    row — and its size is held to the version's, as the scanner's read is.
  *
- * Every refusal is `404 not_found` with the same body, and the cause is on the audit row's
- * `audit_code` alone (`file_asset.downloaded`, `denied`): a caller must not learn whether an
- * id exists, is another client's, or is still scanning. A successful download writes one
+ * Every refusal before step 5 is `404 not_found` with the same body, and the cause is on the
+ * audit row's `audit_code` alone (`file_asset.downloaded`, `denied`): a caller must not learn
+ * whether an id exists or is another client's. Step 5 runs only for a caller already authorized
+ * for the file (who sees its status in the list anyway), so it answers a typed `409` —
+ * `pending_scan` or `blocked` (CQ-09). A successful download writes one
  * `allowed` row before the first byte leaves — `12-PERMISSION-MATRIX` §12's "restricted
  * export download" is auditable or it does not happen.
  *
@@ -152,7 +154,7 @@ export class FileDownloadService {
         trustZone: version.trustZone,
       })
     ) {
-      throw await this.refuse(context, 'not_servable');
+      throw await this.notReady(context, asset.status);
     }
     const mimeType = version.detectedMimeType;
     if (mimeType === null) throw await this.refuse(context, 'no_detected_type');
@@ -202,6 +204,30 @@ export class FileDownloadService {
     };
   }
 
+  /**
+   * CQ-09. Past every authorization step the caller may already see the file's status in its
+   * list, so the gate says why it will not serve it rather than pretending it does not exist:
+   * `409 conflict` with `status: pending_scan` while it is still being checked, or
+   * `status: blocked` once the scan rejected it. Still one denied audit row, `not_servable`.
+   */
+  private async notReady(context: TenantContext, status: string): Promise<ApiError> {
+    await this.audit.recordDenial(context, 'file_asset.downloaded', {
+      status: 409,
+      capability: DOWNLOAD_CAPABILITY,
+      auditCode: 'not_servable',
+    });
+    const state = downloadStateFor(status);
+    return new ApiError(
+      409,
+      'conflict',
+      state === 'blocked'
+        ? 'This file was blocked by the malware check and cannot be downloaded'
+        : 'This file is still being checked for malware. Try again shortly',
+      [{ field: 'status', message: state }],
+      'not_servable',
+    );
+  }
+
   /** One denied row, one indistinguishable 404. */
   private async refuse(context: TenantContext, auditCode: string): Promise<ApiError> {
     await this.audit.recordDenial(context, 'file_asset.downloaded', {
@@ -211,6 +237,15 @@ export class FileDownloadService {
     });
     return new ApiError(404, 'not_found', MESSAGES.notFound, undefined, auditCode);
   }
+}
+
+/** The typed state a refused-but-authorized download reports (CQ-09). */
+export type DownloadState = 'pending_scan' | 'blocked';
+
+export function downloadStateFor(assetStatus: string): DownloadState {
+  return assetStatus === 'rejected' || assetStatus === 'expired' || assetStatus === 'cancelled'
+    ? 'blocked'
+    : 'pending_scan';
 }
 
 function destroy(stream: unknown): void {

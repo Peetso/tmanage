@@ -24,6 +24,7 @@ import type {
 } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { ScanRequester } from './file-scan-job.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import { FileAssetTransitionError, type FileAssetsRepository } from './file-assets.repository.js';
@@ -276,6 +277,8 @@ export class FilesService {
      * beside it is: a copy built without it moves a counter across a threshold nobody is told of.
      */
     private readonly thresholds: UsageThresholdEvaluator | null,
+    /** CQ-09. Asked for a verify-then-scan pass once an upload commits; absent = cron-driven. */
+    private readonly scanJob: ScanRequester | null = null,
   ) {}
 
   // ── The studio's door ──────────────────────────────────────────────────────
@@ -765,6 +768,7 @@ export class FilesService {
         if (fresh.status === 'completed') return this.completedView(context, fresh);
         throw this.illegal(`a ${fresh.status} upload cannot be completed`);
       }
+      this.scanJob?.request();
       return toFileAssetView(result.asset, result.version, session);
     } finally {
       if (!settled) await this.unclaim(context, session);
