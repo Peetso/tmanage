@@ -510,21 +510,34 @@ export class OAuthService {
     }
     await this.assertWorkspaceAllowsAi(grant.organizationId, correlationId);
 
-    return this.mintTokens(correlationId, {
-      grantId: grant.id,
-      familyId: row.familyId,
-      scopes: grant.scopes,
-      parentHash: tokenHash,
-      absoluteExpiresAt: row.absoluteExpiresAt,
-      spend: async (tx) => {
-        const spent = await this.repo.spendRefreshToken(tx, tokenHash);
-        if (!spent) {
-          // Lost the race to another use of the same token — treat as reuse.
-          await this.repo.revokeFamily(tx, row.familyId);
-          throw new OAuthError('invalid_grant', 'Refresh token reuse detected.', false);
-        }
-      },
-    });
+    let lostRace = false;
+    try {
+      return await this.mintTokens(correlationId, {
+        grantId: grant.id,
+        familyId: row.familyId,
+        scopes: grant.scopes,
+        parentHash: tokenHash,
+        absoluteExpiresAt: row.absoluteExpiresAt,
+        spend: async (tx) => {
+          const spent = await this.repo.spendRefreshToken(tx, tokenHash);
+          if (!spent) {
+            lostRace = true;
+            throw new OAuthError('invalid_grant', 'Refresh token reuse detected.', false);
+          }
+        },
+      });
+    } catch (error) {
+      // Lost the race to another use of the same token — treat as reuse. The revocation runs in
+      // its own transaction: inside the failed one, the rollback would undo it and leave the
+      // racing winner's fresh tokens live.
+      if (lostRace) {
+        await this.database.identityTransaction(
+          { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
+          (tx) => this.repo.revokeFamily(tx, row.familyId),
+        );
+      }
+      throw error;
+    }
   }
 
   /**

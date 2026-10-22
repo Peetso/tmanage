@@ -493,14 +493,13 @@ describe('S14A refresh token rotation and reuse detection (T-OA-06)', () => {
     ).rejects.toMatchObject({ code: 'invalid_grant' });
   });
 
-  // S14 FINDING: the race branch of `OAuthService.refresh` (oauth.service.ts:520-524, "Lost the
-  // race") calls `revokeFamily` INSIDE the `mintTokens` identity transaction and then throws, so
-  // the transaction's rollback undoes the revocation. When two requests present one refresh token
-  // concurrently (both pass the unused pre-check, one spends it first), the loser gets
-  // `invalid_grant` but the family — including the winner's fresh pair — stays live: concurrent
-  // reuse is not detected, contrary to T-OA-06. Simulated here by spending the token between the
-  // service's pre-read and its spend, exactly what a racing winner does.
-  it.skip('a refresh token spent by a racing request still revokes the family (S14 FINDING)', async () => {
+  // S14 finding (fixed by FX1): the race branch of `OAuthService.refresh` ("Lost the race") once
+  // called `revokeFamily` INSIDE the `mintTokens` identity transaction and then threw, so the
+  // rollback undid the revocation. When two requests present one refresh token concurrently (both
+  // pass the unused pre-check, one spends it first), the loser must get `invalid_grant` AND the
+  // family — including the winner's fresh pair — must die (T-OA-06). Simulated here by spending
+  // the token between the service's pre-read and its spend, exactly what a racing winner does.
+  it('a refresh token spent by a racing request still revokes the family', async () => {
     const first = await exchange(await issueCode());
     const repo = store.repository as unknown as {
       findRefreshTokenByHash: (r: unknown, h: string) => Promise<RefreshRow | null>;
