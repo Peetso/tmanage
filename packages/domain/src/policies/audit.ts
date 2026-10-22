@@ -584,6 +584,14 @@ export const AUDIT_ACTION_CATALOG = {
     clause:
       '§12 organization settings — withdrawing a pending plan change is the same decision undone',
   },
+  /**
+   * MCP S14 FU1. One row per `tools/call` an AI client runs through /mcp with a token: who (the
+   * token's user), which tool, and the outcome. Metadata never carries the token, args or body.
+   */
+  'mcp.tool_called': {
+    objectType: 'mcp_tool_call',
+    clause: '§12 API credentials — an AI client acting with a token',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -672,6 +680,7 @@ const AUDIT_ACTION_LABELS = {
   'security.capability_denied': 'Blocked for a missing permission',
   'plan_change_request.submitted': 'Requested a plan change',
   'plan_change_request.cancelled': 'Cancelled a plan-change request',
+  'mcp.tool_called': 'An AI app ran an action',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

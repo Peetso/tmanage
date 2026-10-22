@@ -280,6 +280,12 @@ describe('plain-English labels (TXT-03 / ADM-11)', () => {
     // An unknown action is de-coded into words rather than shown as a raw code.
     expect(describeAuditEvent('future.new_thing', 'allowed')).toBe('Future new thing');
   });
+
+  it('catalogues the per-call MCP audit action with its label', () => {
+    expect(isAuditAction('mcp.tool_called')).toBe(true);
+    expect(auditObjectTypeFor('mcp.tool_called')).toBe('mcp_tool_call');
+    expect(auditActionLabel('mcp.tool_called')).toBe('An AI app ran an action');
+  });
 });
 
 describe('the vocabulary and the metadata rule together', () => {
