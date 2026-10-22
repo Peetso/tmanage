@@ -1,131 +1,167 @@
-import type { LogoStripPartner, TestimonialCardProps, WebIconName } from '../../index';
+import type { MessageKey } from '../../../../lib/i18n/t';
+import type { WebIconName } from '../../index';
 
 /**
- * Copy for `/customers` (SITE-SPEC "PAGE: Customers & stories"). Honesty rule: TManage has no
+ * Copy keys for `/customers` (SITE-SPEC "PAGE: Customers & stories"). Honesty rule: TManage has no
  * public customers yet, so every partner, story and quote is a marked placeholder until the
  * partner gives written consent. Outcomes are qualitative — no invented numbers.
+ *
+ * Every visible string is a catalog key resolved by `useT()` in `CustomersPage`, so the Arabic
+ * page reads Arabic (live check 014a9d51, L10). The keys arrive through the i18n-L10 fragment;
+ * `key()` keeps them typed as `MessageKey` until that fragment is merged into `en.json`.
  */
+const key = (name: string): MessageKey => `CustomersPage.${name}` as MessageKey;
 
 export type Segment = 'agencies' | 'consultancies' | 'in-house';
 
-export const SEGMENT_LABEL: Record<Segment, string> = {
-  agencies: 'Agencies & studios',
-  consultancies: 'Consultancies',
-  'in-house': 'In-house teams',
+export const SEGMENT_LABEL: Record<Segment, MessageKey> = {
+  agencies: key('segmentAgencies'),
+  consultancies: key('segmentConsultancies'),
+  'in-house': key('segmentInHouse'),
 };
 
-export const FILTERS: readonly { id: Segment | 'all'; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'agencies', label: SEGMENT_LABEL.agencies },
-  { id: 'consultancies', label: SEGMENT_LABEL.consultancies },
-  { id: 'in-house', label: SEGMENT_LABEL['in-house'] },
+export const FILTERS: readonly { id: Segment | 'all'; labelKey: MessageKey }[] = [
+  { id: 'all', labelKey: key('filterAll') },
+  { id: 'agencies', labelKey: SEGMENT_LABEL.agencies },
+  { id: 'consultancies', labelKey: SEGMENT_LABEL.consultancies },
+  { id: 'in-house', labelKey: SEGMENT_LABEL['in-house'] },
 ];
 
-export const PARTNERS: readonly LogoStripPartner[] = [
-  { name: 'Design partner 01', kind: 'Agency', icon: 'building' },
-  { name: 'Design partner 02', kind: 'Design studio', icon: 'pencil' },
-  { name: 'Design partner 03', kind: 'Consultancy', icon: 'briefcase' },
-  { name: 'Design partner 04', kind: 'In-house team', icon: 'person' },
-  { name: 'Design partner 05', kind: 'Agency', icon: 'layers' },
-  { name: 'Design partner 06', kind: 'Consultancy', icon: 'trend' },
+export interface PartnerCopy {
+  nameKey: MessageKey;
+  kindKey: MessageKey;
+  icon: WebIconName;
+}
+
+export const PARTNERS: readonly PartnerCopy[] = [
+  { nameKey: key('partner01'), kindKey: key('kindAgency'), icon: 'building' },
+  { nameKey: key('partner02'), kindKey: key('kindDesignStudio'), icon: 'pencil' },
+  { nameKey: key('partner03'), kindKey: key('kindConsultancy'), icon: 'briefcase' },
+  { nameKey: key('partner04'), kindKey: key('kindInHouse'), icon: 'person' },
+  { nameKey: key('partner05'), kindKey: key('kindAgency'), icon: 'layers' },
+  { nameKey: key('partner06'), kindKey: key('kindConsultancy'), icon: 'trend' },
 ];
 
-export const FEATURED_OUTCOMES: readonly string[] = [
-  'Clients check progress in the portal instead of waiting for Friday.',
-  'Feedback lands on the exact version it is about.',
-  'The team starts the week knowing what was promised, not guessed.',
+export const FEATURED_OUTCOMES: readonly MessageKey[] = [
+  key('outcomePortal'),
+  key('outcomeFeedback'),
+  key('outcomeWeek'),
 ];
+
+/** The two deliverable cards in the hero stack. Owner names stay Latin: they are people. */
+export const HERO_CARDS: readonly {
+  titleKey: MessageKey;
+  metaKey: MessageKey;
+  tone: 'done' | 'current';
+  stateKey: MessageKey;
+  owner: string;
+  primaryKey: MessageKey;
+}[] = [
+  {
+    titleKey: key('heroCard1Title'),
+    metaKey: key('heroCard1Meta'),
+    tone: 'done',
+    stateKey: key('stateApproved'),
+    owner: 'Maya Hassan',
+    primaryKey: key('heroCard1Primary'),
+  },
+  {
+    titleKey: key('heroCard2Title'),
+    metaKey: key('heroCard2Meta'),
+    tone: 'current',
+    stateKey: key('stateInProgress'),
+    owner: 'Omar Adel',
+    primaryKey: key('actionReview'),
+  },
+];
+
+/** Copy for the inert client-portal mock in the featured story. */
+export const PORTAL = {
+  sub: key('portalSub'),
+  badge: key('portalBadge'),
+  eyebrow: key('portalEyebrow'),
+  title: key('portalTitle'),
+  body: key('portalBody'),
+  stepDone: key('portalStepDiscovery'),
+  stepCurrent: key('portalStepHomepage'),
+  stepFuture: key('portalStepLaunch'),
+  actions: key('portalActions'),
+  cardTitle: key('portalCardTitle'),
+  cardMeta: key('portalCardMeta'),
+  cardState: key('portalCardState'),
+  approve: key('actionApprove'),
+  live: key('portalLive'),
+  liveSub: key('portalLiveSub'),
+} as const satisfies Record<string, MessageKey>;
+
+/** Shared action label on every object card. */
+export const ACTION_OPEN: MessageKey = key('actionOpen');
 
 export interface Story {
   id: string;
   segment: Segment;
-  title: string;
-  summary: string;
+  titleKey: MessageKey;
+  summaryKey: MessageKey;
   /** The "before → after" pair drawn as two state capsules on the card's visual. */
-  before: string;
-  after: string;
+  beforeKey: MessageKey;
+  afterKey: MessageKey;
+}
+
+function story(id: string, segment: Segment, stem: string): Story {
+  return {
+    id,
+    segment,
+    titleKey: key(`${stem}Title`),
+    summaryKey: key(`${stem}Summary`),
+    beforeKey: key(`${stem}Before`),
+    afterKey: key(`${stem}After`),
+  };
 }
 
 export const STORIES: readonly Story[] = [
-  {
-    id: 'studio-approvals',
-    segment: 'agencies',
-    title: 'A studio that stopped chasing approvals by email',
-    summary: 'Approvals now point at one file and one decision.',
-    before: 'Email chases',
-    after: 'One link',
-  },
-  {
-    id: 'consultancy-decisions',
-    segment: 'consultancies',
-    title: 'A consultancy that keeps every decision on the record',
-    summary: 'Decisions carry their context, so handovers stop losing it.',
-    before: 'Lost in calls',
-    after: 'On the record',
-  },
-  {
-    id: 'in-house-requests',
-    segment: 'in-house',
-    title: 'An in-house team that answers the business in one place',
-    summary: 'Requests arrive as requests, with an owner from day one.',
-    before: 'Five tools',
-    after: 'One queue',
-  },
-  {
-    id: 'bilingual-portal',
-    segment: 'agencies',
-    title: 'A bilingual client portal, in Arabic and English',
-    summary: 'Clients review in their own language, right to left.',
-    before: 'Two portals',
-    after: 'One portal',
-  },
-  {
-    id: 'committed-dates',
-    segment: 'consultancies',
-    title: 'From desired dates to committed ones',
-    summary: 'Clients see what is promised, apart from what is hoped.',
-    before: 'Desired dates',
-    after: 'Committed',
-  },
-  {
-    id: 'contractor-handover',
-    segment: 'in-house',
-    title: 'Handing over a contractor’s work without loose ends',
-    summary: 'Access, ownership and shares move in one guided flow.',
-    before: 'Loose ends',
-    after: 'Clean handover',
-  },
+  story('studio-approvals', 'agencies', 'storyApprovals'),
+  story('consultancy-decisions', 'consultancies', 'storyDecisions'),
+  story('in-house-requests', 'in-house', 'storyRequests'),
+  story('bilingual-portal', 'agencies', 'storyBilingual'),
+  story('committed-dates', 'consultancies', 'storyDates'),
+  story('contractor-handover', 'in-house', 'storyHandover'),
 ];
 
-export const QUOTES: readonly (TestimonialCardProps & { id: string })[] = [
+export const QUOTES: readonly {
+  id: string;
+  quoteKey: MessageKey;
+  authorKey: MessageKey;
+  orgKey: MessageKey;
+  tone?: 'paper' | 'ink';
+}[] = [
   {
     id: 'studio-lead',
-    quote: 'The client opens the portal before they think of calling us.',
-    author: 'Studio lead',
-    org: 'Agency · Design partner',
+    quoteKey: key('quoteStudio'),
+    authorKey: key('quoteStudioAuthor'),
+    orgKey: key('quoteStudioOrg'),
   },
   {
     id: 'delivery-director',
-    quote: 'Every approval points at one version. Nobody asks which file anymore.',
-    author: 'Delivery director',
-    org: 'Consultancy · Design partner',
+    quoteKey: key('quoteDelivery'),
+    authorKey: key('quoteDeliveryAuthor'),
+    orgKey: key('quoteDeliveryOrg'),
     tone: 'ink',
   },
   {
     id: 'operations-manager',
-    quote: 'Requests finally have an owner from the moment they arrive.',
-    author: 'Operations manager',
-    org: 'In-house team · Design partner',
+    quoteKey: key('quoteOperations'),
+    authorKey: key('quoteOperationsAuthor'),
+    orgKey: key('quoteOperationsOrg'),
   },
 ];
 
-export const PROGRAMME_BENEFITS: readonly { icon: WebIconName; title: string; body: string }[] = [
-  {
-    icon: 'trend',
-    title: 'Shape the roadmap',
-    body: 'Your workflow informs what we build next.',
-  },
-  { icon: 'layers', title: 'Early access', body: 'Try new features before everyone else.' },
-  { icon: 'help', title: 'Direct support', body: 'A named contact on our product team.' },
-  { icon: 'shield', title: 'Your story, your call', body: 'We publish only what you approve.' },
+export const PROGRAMME_BENEFITS: readonly {
+  icon: WebIconName;
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
+}[] = [
+  { icon: 'trend', titleKey: key('benefitRoadmap'), bodyKey: key('benefitRoadmapBody') },
+  { icon: 'layers', titleKey: key('benefitEarly'), bodyKey: key('benefitEarlyBody') },
+  { icon: 'help', titleKey: key('benefitSupport'), bodyKey: key('benefitSupportBody') },
+  { icon: 'shield', titleKey: key('benefitStory'), bodyKey: key('benefitStoryBody') },
 ];

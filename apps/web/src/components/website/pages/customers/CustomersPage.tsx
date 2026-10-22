@@ -20,9 +20,12 @@ import {
   WebSection,
 } from '../../index';
 import {
+  ACTION_OPEN,
   FEATURED_OUTCOMES,
   FILTERS,
+  HERO_CARDS,
   PARTNERS,
+  PORTAL,
   PROGRAMME_BENEFITS,
   QUOTES,
   SEGMENT_LABEL,
@@ -50,7 +53,11 @@ export function CustomersPage() {
         <LogoStrip
           variant="detailed"
           label={t('CustomersPage.partnersLabel')}
-          partners={PARTNERS}
+          partners={PARTNERS.map((partner) => ({
+            name: t(partner.nameKey),
+            kind: t(partner.kindKey),
+            icon: partner.icon,
+          }))}
         />
       </WebSection>
       <FeaturedStory />
@@ -91,24 +98,14 @@ function Hero() {
         </SectionHeader>
         <ObjectCardStack
           label={t('CustomersPage.heroStackLabel')}
-          cards={[
-            {
-              title: 'Homepage Concept v2',
-              meta: 'Atlas Hospitality · approved by Youssef · 18 Aug',
-              state: { tone: 'done', label: 'Approved' },
-              owner: 'Maya Hassan',
-              secondary: 'Open',
-              primary: 'Download v2',
-            },
-            {
-              title: 'Arabic FAQ page',
-              meta: 'Asked in chat · committed for 24 Aug',
-              state: { tone: 'current', label: 'In progress' },
-              owner: 'Omar Adel',
-              secondary: 'Open',
-              primary: 'Review',
-            },
-          ]}
+          cards={HERO_CARDS.map((card) => ({
+            title: t(card.titleKey),
+            meta: t(card.metaKey),
+            state: { tone: card.tone, label: t(card.stateKey) },
+            owner: card.owner,
+            secondary: t(ACTION_OPEN),
+            primary: t(card.primaryKey),
+          }))}
         />
       </div>
     </WebSection>
@@ -152,7 +149,7 @@ function FeaturedStory() {
             {FEATURED_OUTCOMES.map((line) => (
               <li key={line}>
                 <IconOrb icon="check" tone="lime" />
-                <span>{line}</span>
+                <span>{t(line)}</span>
               </li>
             ))}
           </ul>
@@ -181,37 +178,31 @@ function PortalScene() {
           <Avatar name="Atlas Hospitality" audience="client" decorative />
           <span className="tm-web-customers__portal-org">
             <span className="tm-web-customers__portal-name">Atlas Hospitality</span>
-            <span className="tm-web-customers__portal-sub">Delivered by Northstar Studio</span>
+            <span className="tm-web-customers__portal-sub">{t(PORTAL.sub)}</span>
           </span>
-          <Badge tone="client">Client portal</Badge>
+          <Badge tone="client">{t(PORTAL.badge)}</Badge>
         </div>
-        <p className="tm-web-scene__mono tm-web-customers__portal-eyebrow">
-          Your project · On track
-        </p>
-        <p className="tm-web-customers__portal-title">Website relaunch</p>
-        <p className="tm-web-customers__portal-body">
-          Everything is moving toward the 30 Sep launch. One decision from you keeps it there.
-        </p>
+        <p className="tm-web-scene__mono tm-web-customers__portal-eyebrow">{t(PORTAL.eyebrow)}</p>
+        <p className="tm-web-customers__portal-title">{t(PORTAL.title)}</p>
+        <p className="tm-web-customers__portal-body">{t(PORTAL.body)}</p>
         <div className="tm-web-customers__portal-track">
-          <StateCapsule state="done">Discovery</StateCapsule>
-          <StateCapsule state="current">Homepage direction</StateCapsule>
-          <StateCapsule state="future">Launch</StateCapsule>
+          <StateCapsule state="done">{t(PORTAL.stepDone)}</StateCapsule>
+          <StateCapsule state="current">{t(PORTAL.stepCurrent)}</StateCapsule>
+          <StateCapsule state="future">{t(PORTAL.stepFuture)}</StateCapsule>
         </div>
-        <p className="tm-web-customers__portal-actions">Your actions</p>
+        <p className="tm-web-customers__portal-actions">{t(PORTAL.actions)}</p>
         <ObjectCard
-          title="Approve the homepage direction"
-          meta="Homepage Concept v2 · waiting for you since Tue"
-          state={{ tone: 'client', label: 'Your turn' }}
+          title={t(PORTAL.cardTitle)}
+          meta={t(PORTAL.cardMeta)}
+          state={{ tone: 'client', label: t(PORTAL.cardState) }}
           owner="Maya Hassan"
-          secondary="Open"
-          primary="Approve"
+          secondary={t(ACTION_OPEN)}
+          primary={t(PORTAL.approve)}
         />
         <p className="tm-web-customers__portal-live">
           <span className="tm-web-eyebrow__dot" />
-          <span>Live now</span>
-          <span className="tm-web-customers__portal-sub">
-            Omar shared Homepage Concept v2 this morning
-          </span>
+          <span>{t(PORTAL.live)}</span>
+          <span className="tm-web-customers__portal-sub">{t(PORTAL.liveSub)}</span>
         </p>
       </div>
     </figure>
@@ -246,7 +237,7 @@ function Stories() {
               aria-pressed={option.id === filter}
               onClick={() => setFilter(option.id)}
             >
-              {option.label}
+              {t(option.labelKey)}
             </button>
           ))}
         </div>
@@ -286,22 +277,22 @@ function StoryCard({ story }: { story: Story }) {
       >
         <div className="tm-web-customers__story-row">
           <PartnerPill line1={t('CustomersPage.partnerDesignPartner')} />
-          <Badge>{SEGMENT_LABEL[story.segment]}</Badge>
+          <Badge>{t(SEGMENT_LABEL[story.segment])}</Badge>
         </div>
         <div className="tm-web-customers__story-row tm-web-customers__story-change">
-          <StateCapsule state="waiting">{story.before}</StateCapsule>
+          <StateCapsule state="waiting">{t(story.beforeKey)}</StateCapsule>
           <WebIcon name="arrow-right" size={16} className="tm-web-icon--flip" />
-          <StateCapsule state="done">{story.after}</StateCapsule>
+          <StateCapsule state="done">{t(story.afterKey)}</StateCapsule>
         </div>
       </div>
       <h3 id={titleId} className="tm-web-customers__story-title">
-        {story.title}
+        {t(story.titleKey)}
       </h3>
-      <p className="tm-web-customers__story-summary">{story.summary}</p>
+      <p className="tm-web-customers__story-summary">{t(story.summaryKey)}</p>
       <div className="tm-web-customers__story-foot">
         <ArrowLink href={APPLY_HREF} underline={false}>
           {t('CustomersPage.storyRead')}
-          <span className="tm-visually-hidden">: {story.title}</span>
+          <span className="tm-visually-hidden">: {t(story.titleKey)}</span>
         </ArrowLink>
         <span className="tm-web-customers__caption">{t('CustomersPage.storyComingSoon')}</span>
       </div>
@@ -322,8 +313,14 @@ function QuoteWall() {
         lede={t('CustomersPage.quotesLede')}
       />
       <div className="tm-web-customers__quote-grid">
-        {QUOTES.map(({ id, ...quote }) => (
-          <TestimonialCard key={id} {...quote} />
+        {QUOTES.map((quote) => (
+          <TestimonialCard
+            key={quote.id}
+            quote={t(quote.quoteKey)}
+            author={t(quote.authorKey)}
+            org={t(quote.orgKey)}
+            {...(quote.tone ? { tone: quote.tone } : {})}
+          />
         ))}
       </div>
     </WebSection>
@@ -358,7 +355,12 @@ function Programme() {
         </SectionHeader>
         <div className="tm-web-customers__benefits">
           {PROGRAMME_BENEFITS.map((benefit) => (
-            <GraphCard key={benefit.title} {...benefit} />
+            <GraphCard
+              key={benefit.titleKey}
+              icon={benefit.icon}
+              title={t(benefit.titleKey)}
+              body={t(benefit.bodyKey)}
+            />
           ))}
         </div>
       </div>

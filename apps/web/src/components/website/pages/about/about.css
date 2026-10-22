@@ -19,6 +19,13 @@
   gap: var(--s6);
 }
 
+/* The mono eyebrow is uppercased for Latin copy only: in Arabic it would turn the Latin brand
+   inside "عن TManage" into "TMANAGE", so the brand keeps its casing there. */
+.tm-web-about__hero .tm-web-eyebrow:lang(ar) {
+  letter-spacing: normal;
+  text-transform: none;
+}
+
 .tm-web-about__hero .tm-web-header__lede {
   max-inline-size: none;
   font-size: var(--t-body-md);
