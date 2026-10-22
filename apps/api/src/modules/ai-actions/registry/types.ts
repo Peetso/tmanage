@@ -43,6 +43,11 @@ export const NEVER_REASONS = [
   'billing_subscription_change',
   'google_auth',
   'invitation',
+  // S13. The connector's own discovery and distribution surface — `GET /openapi/ai.json`
+  // (the OpenAPI 3.1 description of the AI action surface) and `GET /downloads/tmanage-mcp.tgz`
+  // (the downloadable stdio bridge). Both are `@Public()` and `@NoTenant()`: they are served
+  // before any sign-in and are never an AI-driven tool, so they are withheld from the surface.
+  'mcp_discovery',
   'mcp_endpoint',
   // 0208 / S7. The OAuth 2.1 authorization server and its discovery metadata — the connector's
   // own front door. An AI principal must never drive sign-in, consent, token minting or client

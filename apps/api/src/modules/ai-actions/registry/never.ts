@@ -31,6 +31,10 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'DELETE', path: '/mcp/', reason: 'mcp_endpoint' },
   { method: 'GET', path: '/mcp/', reason: 'mcp_endpoint' },
   { method: 'POST', path: '/mcp/', reason: 'mcp_endpoint' },
+  // S13. The connector's own discovery/distribution surface — public, tenant-less, served before
+  // any sign-in; never an AI-driven tool (architecture B3). Added with slice S13.
+  { method: 'GET', path: '/openapi/ai.json', reason: 'mcp_discovery' },
+  { method: 'GET', path: '/downloads/tmanage-mcp.tgz', reason: 'mcp_discovery' },
   // 0208 / S7. OAuth authorization server and discovery metadata — public, session-establishing,
   // never an AI-driven tool (architecture B3). Added with slice S7.
   { method: 'GET', path: '/.well-known/oauth-authorization-server', reason: 'oauth' },
