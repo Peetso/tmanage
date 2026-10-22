@@ -6,6 +6,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
 import { PlatformShell } from './PlatformShell';
+import { PasswordResetDialog } from './PasswordResetDialog';
 import type { PlatformSection } from './PlatformShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
@@ -19,7 +20,6 @@ import {
   listPlatformAudit,
   listPlatformCompanies,
   searchPlatformPeople,
-  sendPlatformPasswordReset,
   setPlatformCompanySuspended,
   setPlatformPublicSignup,
   signOutPlatformPerson,
@@ -719,6 +719,7 @@ function PeopleBody({ api }: { api: ApiClient }) {
 function PersonCard({ api, person }: { api: ApiClient; person: PlatformPersonView }) {
   const t = useT();
   const [notice, setNotice] = useState<string | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
   return (
     <section className="tm-cc-card" aria-label={person.email}>
       <div className="tm-cc-card__head">
@@ -733,16 +734,21 @@ function PersonCard({ api, person }: { api: ApiClient; person: PlatformPersonVie
               setNotice(`${result.sessionsEnded} ${t('PlatformAdminScreens.sessionsEnded')}`);
             }}
           />
-          <ReasonAction
-            label={t('PlatformAdminScreens.sendPasswordReset')}
-            confirmLabel={t('PlatformAdminScreens.sendEmail')}
-            onConfirm={async (reason) => {
-              await sendPlatformPasswordReset(api, person.id, reason);
-              setNotice(t('PlatformAdminScreens.resetEmailSent'));
-            }}
-          />
+          <Button type="button" tone="outline" size="compact" onClick={() => setResetOpen(true)}>
+            {t('PlatformAdminScreens.sendPasswordReset')}
+          </Button>
         </div>
       </div>
+      {resetOpen ? (
+        <PasswordResetDialog
+          api={api}
+          person={person}
+          onClose={(sent) => {
+            setResetOpen(false);
+            if (sent) setNotice(t('PlatformAdminScreens.resetEmailSent'));
+          }}
+        />
+      ) : null}
       {notice ? (
         <InlineAlert tone="success" live>
           {notice}

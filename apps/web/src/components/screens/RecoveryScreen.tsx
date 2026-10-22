@@ -2,9 +2,10 @@
 
 import { useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { Button, Field, InlineAlert } from '@tmanage/ui';
+import { Button, Checkbox, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
+import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -24,6 +25,8 @@ export interface RecoveryScreenProps {
   /** From `/recover/[token]` — the emailed link. Starts the screen in `reset`. Never rendered. */
   token?: string;
   client?: ApiClient;
+  /** Where a saved password goes next — `/sign-in`. Tests pass a spy; the app does a full load. */
+  navigate?: (href: string) => void;
 }
 
 /** `PASSWORD_MIN_LENGTH` in `apps/api/src/modules/identity/password.ts`. */
@@ -51,15 +54,25 @@ const MIN_PASSWORD = 8;
  * states (`sent`, `completed`, `expired`) are reached only from a real API answer — a query
  * string cannot make this screen claim an email was sent or a password changed.
  */
-export function RecoveryScreen({ state: initial, token, client }: RecoveryScreenProps) {
+export function RecoveryScreen({
+  state: initial,
+  token,
+  client,
+  navigate = (href) => window.location.assign(href),
+}: RecoveryScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  /** Keys added in wave P2 (`Recovery.*`), merged into the catalogs by the committer. */
+  const tr = (key: string) => t(key as MessageKey);
+  const describe = (error: unknown) => describeFailure(error, tr);
   const adminFallback = t('RecoveryScreen.adminFallback');
   const [state, setState] = useState<RecoveryState>(
     initial ?? (token === undefined ? 'request' : 'reset'),
   );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [confirmError, setConfirmError] = useState<string | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [passwordError, setPasswordError] = useState<string | undefined>(undefined);
@@ -83,14 +96,27 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
     if (token === undefined) return;
     setFailure(undefined);
     setPasswordError(undefined);
+    setConfirmError(undefined);
+    if (password.length < MIN_PASSWORD) {
+      setPasswordError(
+        `${tr('Recovery.tooShortPrefix')}${MIN_PASSWORD}${tr('Recovery.tooShortSuffix')}`,
+      );
+      return;
+    }
+    if (confirmation !== password) {
+      setConfirmError(tr('Recovery.mismatch'));
+      return;
+    }
     setBusy(true);
     try {
       await completePasswordReset(api, token, password);
       setPassword('');
-      setState('completed');
+      setConfirmation('');
+      navigate('/sign-in');
     } catch (error) {
       if (error instanceof ApiRequestError && error.status === 404) {
         setPassword('');
+        setConfirmation('');
         setState('expired');
       } else if (error instanceof ApiRequestError && error.status === 422) {
         setPasswordError(error.fieldErrors().get('password') ?? error.message);
@@ -170,12 +196,9 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
 
       {state === 'reset' ? (
         <div className="tm-id-bare tm-stack">
-          <section className="tm-id-card tm-id-card--ink">
-            <span className="tm-id-step tm-id-step--ink">
-              {t('RecoveryScreen.stepNewPassword')}
-            </span>
+          <section className="tm-id-card">
             <h1 className="tm-id-card__title">{t('RecoveryScreen.chooseNewPassword')}</h1>
-            <p className="tm-id-card__body">{t('RecoveryScreen.resetBody')}</p>
+            <p className="tm-id-card__body">{tr('Recovery.linkNote')}</p>
             <form
               className="tm-stack tm-stack--tight"
               noValidate
@@ -189,11 +212,23 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
                 minLength={MIN_PASSWORD}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                hint={`${t('RecoveryScreen.passwordHintPrefix')}${MIN_PASSWORD}${t('RecoveryScreen.passwordHintSuffix')}`}
+                hint={`${t('RecoveryScreen.passwordHintPrefix')}${MIN_PASSWORD}${tr('Recovery.passwordHintSuffix')}`}
                 required
                 disabled={busy}
                 {...(passwordError ? { error: passwordError } : {})}
               />
+              <Field
+                label={tr('Recovery.confirmPassword')}
+                type="password"
+                name="confirm-password"
+                autoComplete="new-password"
+                value={confirmation}
+                onChange={(event) => setConfirmation(event.target.value)}
+                required
+                disabled={busy}
+                {...(confirmError ? { error: confirmError } : {})}
+              />
+              <Checkbox label={tr('Recovery.signOutOthers')} checked readOnly disabled />
               {failure ? (
                 <InlineAlert tone="danger" title={t('RecoveryScreen.didNotGoThrough')} live>
                   {failure}
@@ -206,11 +241,20 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
                   size="accessible"
                   loading={busy}
                   loadingLabel={t('RecoveryScreen.saving')}
+                  style={{ flex: 'none' }}
                 >
-                  {t('RecoveryScreen.saveNewPassword')}
+                  {tr('Recovery.saveAndSignIn')}
                 </Button>
+                <Link
+                  className="tm-button tm-button--text tm-button--accessible"
+                  href="/sign-in"
+                  style={{ flex: 'none' }}
+                >
+                  {t('RecoveryScreen.backToSignIn')}
+                </Link>
               </div>
             </form>
+            <InlineAlert tone="neutral">{tr('Recovery.expiredHint')}</InlineAlert>
           </section>
         </div>
       ) : null}
@@ -262,12 +306,8 @@ export function RecoveryScreen({ state: initial, token, client }: RecoveryScreen
   );
 }
 
-function describe(error: unknown): string {
-  if (error instanceof NetworkError) {
-    return 'The server did not answer. Check your connection and try again.';
-  }
-  if (error instanceof ApiRequestError && error.status === 429) {
-    return 'Too many attempts. Wait a few minutes and try again.';
-  }
-  return 'Something went wrong. Try again.';
+function describeFailure(error: unknown, tr: (key: string) => string): string {
+  if (error instanceof NetworkError) return tr('Recovery.noAnswer');
+  if (error instanceof ApiRequestError && error.status === 429) return tr('Recovery.tooMany');
+  return tr('Recovery.genericError');
 }
