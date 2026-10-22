@@ -114,6 +114,15 @@ function inMemory(initial: PendingAiActionRow[]) {
   return { service, execute, rows };
 }
 
+/** The AI switches, with the workspace switch fixed on or off. */
+function switches(organizationOn: boolean) {
+  return {
+    platformOn: async () => true,
+    organizationOn: vi.fn(async () => organizationOn),
+    forget: () => undefined,
+  };
+}
+
 describe('S14C approvals — only the owning member decides', () => {
   it('another member of the same workspace gets 404 on view, approve and decline; nothing runs', async () => {
     const { service, execute, rows } = inMemory([row()]);
@@ -136,7 +145,7 @@ describe('S14C approvals — only the owning member decides', () => {
 
   it('a non-cookie caller is refused by the controller before the service is reached', async () => {
     const approvals = { approve: vi.fn(), decline: vi.fn(), view: vi.fn() };
-    const controller = new PendingAiActionsController(approvals as never);
+    const controller = new PendingAiActionsController(approvals as never, switches(true));
     for (const scheme of ['ai_grant', 'personal_access_token', undefined]) {
       await expect(controller.approve(owner, 'studio', 'pa-1', scheme)).rejects.toMatchObject({
         status: 403,
@@ -226,14 +235,24 @@ describe('S14C approvals — once, and never after expiry', () => {
 });
 
 describe('S14C approvals — the AI kill switch', () => {
-  // S14 FINDING: the approve page's routes (PendingAiActionsController, and the in-process
-  // `ai_grant` inject it runs the frozen op through) are not behind the platform or workspace AI
-  // switch. An AI-requested delete/send/invite frozen before an owner or the operator turned AI
-  // off can still be approved and executed afterwards. Every other AI surface (/mcp, OAuth
-  // authorize/register/token, consent) refuses while the switch is off. Source left unchanged.
-  it.skip('approving a pending AI action is refused while AI access is off', () => {
+  // S14 finding, fixed (FX3): the approve page's routes, and the in-process `ai_grant` inject they
+  // run the frozen op through, are behind the platform and workspace AI switches like every other
+  // AI surface, so an action frozen before AI was turned off cannot be approved afterwards.
+  it('approving a pending AI action is refused while AI access is off', () => {
     const guards = (Reflect.getMetadata(GUARDS_METADATA, PendingAiActionsController) ??
       []) as unknown[];
     expect(guards).toContain(AiPlatformSwitchGuard);
+  });
+
+  it('approve answers 403 while the workspace has AI apps off, and the frozen op never runs', async () => {
+    const approvals = { approve: vi.fn(), decline: vi.fn(), view: vi.fn() };
+    const aiAccess = switches(false);
+    const controller = new PendingAiActionsController(approvals as never, aiAccess);
+    await expect(controller.approve(owner, 'studio', 'pa-1', 'cookie')).rejects.toMatchObject({
+      status: 403,
+      auditCode: 'ai_disabled',
+    });
+    expect(aiAccess.organizationOn).toHaveBeenCalledWith('org-1', 'corr-1');
+    expect(approvals.approve).not.toHaveBeenCalled();
   });
 });

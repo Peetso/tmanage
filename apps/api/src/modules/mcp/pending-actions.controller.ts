@@ -6,6 +6,7 @@ import {
   Module,
   Param,
   Post,
+  UseGuards,
   createParamDecorator,
 } from '@nestjs/common';
 import type { DynamicModule, ExecutionContext, Provider } from '@nestjs/common';
@@ -16,6 +17,13 @@ import { requestState } from '../../common/http/request-state.js';
 import { CORRELATION_HEADER } from '../../common/http/correlation.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import {
+  AI_ACCESS_SWITCHES,
+  AiPlatformSwitchGuard,
+  aiAccessSwitchesProvider,
+  aiWorkspaceDisabledError,
+} from '../oauth/ai-access.js';
+import type { AiAccessSwitches } from '../oauth/ai-access.js';
 import { INTERNAL_GRANT_HEADER, internalGrants } from './internal-grant.js';
 import type { InjectCapable } from './mcp-endpoint.controller.js';
 import { PendingAiActionsService } from './pending-actions.service.js';
@@ -39,6 +47,10 @@ import type { OpExecutor, PendingAiActionView } from './pending-actions.service.
  * own personal access tokens make. The real control is rule 2.
  *
  * These routes are in the AI registry's NEVER list: no AI tool can reach them.
+ *
+ * They are also behind the AI kill switches (S11): 503 while the platform switch is off, and an
+ * approve answers 403 while the workspace owner has AI apps turned off, so an action frozen before
+ * AI was switched off is never run through the `ai_grant` inject afterwards.
  */
 
 const PENDING_AI_ACTIONS_SERVICE = Symbol.for('tmanage.PendingAiActionsService');
@@ -61,10 +73,13 @@ export function requireCookieSession(authScheme: string | undefined): void {
   }
 }
 
+// S11: 503 while the platform AI switch is off.
+@UseGuards(AiPlatformSwitchGuard)
 @Controller('v1/organizations/:orgSlug/ai/approvals')
 export class PendingAiActionsController {
   constructor(
     @Inject(PENDING_AI_ACTIONS_SERVICE) private readonly approvals: PendingAiActionsService,
+    @Inject(AI_ACCESS_SWITCHES) private readonly aiAccess: AiAccessSwitches,
   ) {}
 
   @Get(':id')
@@ -89,6 +104,10 @@ export class PendingAiActionsController {
     @AuthScheme() authScheme: string | undefined,
   ): Promise<PendingAiActionView> {
     requireCookieSession(authScheme);
+    // S11: nothing an AI asked for runs while the workspace owner has AI apps turned off.
+    if (!(await this.aiAccess.organizationOn(context.organizationId, context.correlationId))) {
+      throw aiWorkspaceDisabledError();
+    }
     return this.approvals.approve(context, orgSlug, id);
   }
 
@@ -143,7 +162,7 @@ export class PendingAiActionsModule {
     };
     return {
       module: PendingAiActionsModule,
-      providers: [service],
+      providers: [service, aiAccessSwitchesProvider, AiPlatformSwitchGuard],
       exports: [service],
       controllers: [PendingAiActionsController],
     };
