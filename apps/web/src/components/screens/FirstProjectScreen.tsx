@@ -2,7 +2,16 @@
 
 import { useState, type FormEvent } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { hasCapability, isInternalRole } from '@tmanage/domain';
+import {
+  Button,
+  Checkbox,
+  Combobox,
+  Field,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+} from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
@@ -11,6 +20,17 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { createProject, listWorkspaces } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import {
+  createClientOrganization,
+  listClientOrganizationOptions,
+  setProjectClient,
+} from '../../lib/api/project-client';
+import { listOrganizations } from '../../lib/api/organizations';
+import { useProjectClientT } from '../projects/ShareWithClientDialog';
+
+/** The picker's two rows that are not a client company. */
+const CLIENT_INTERNAL = '__internal';
+const CLIENT_NEW = '__new';
 
 export interface FirstProjectScreenProps {
   signedInAs: string;
@@ -57,7 +77,8 @@ export interface FirstProjectScreenProps {
  *   client by linking it to a client organization in `project_clients`. `CLIENT-001` shipped
  *   that link and its endpoint, so the gap is this screen's rather than the API's: onboarding
  *   does not call it. The choice is collected, marked as not yet saved, and the default stays
- *   internal.
+ *   internal. `new` mode replaces the choice with a Client picker (BK1, Figma t5-c) that does
+ *   save it: `POST /projects`, then `PUT projects/:id/client`.
  * - **The owner.** There is no endpoint that lists the people in an organization, and
  *   `28-SPRINT-TICKETS` schedules no ticket that builds one — so the API defaults the owner to
  *   whoever created the project, and this screen says so rather than offering a picker with one
@@ -72,6 +93,7 @@ export function FirstProjectScreen({
   organizationName = '',
 }: FirstProjectScreenProps) {
   const t = useT();
+  const tc = useProjectClientT();
   const api = client ?? browserApiClient();
 
   const [name, setName] = useState('');
@@ -80,6 +102,45 @@ export function FirstProjectScreen({
   const [creating, setCreating] = useState(false);
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [serverDateError, setServerDateError] = useState<string | undefined>(undefined);
+
+  /*
+    `new` mode: the Client picker (BK1 / PRJ-02, Figma t5-c). The project is created first and its
+    client set after (`PUT projects/:id/client`), so a refusal of the second step — an archived
+    company is a 422 — leaves a project that exists. The ids made so far are kept, so pressing
+    Create again retries only the step that failed instead of making a second project or client.
+  */
+  const [clientChoice, setClientChoice] = useState('');
+  const [newClientName, setNewClientName] = useState('');
+  const [clientError, setClientError] = useState<string | undefined>(undefined);
+  const [createdProjectId, setCreatedProjectId] = useState<string | undefined>(undefined);
+  const [createdClientId, setCreatedClientId] = useState<string | undefined>(undefined);
+
+  const clientOptions = useQuery({
+    queryKey: ['client-organization-options', organizationSlug],
+    queryFn: () => listClientOrganizationOptions(api, organizationSlug),
+    enabled: mode === 'new',
+  });
+  // The caller's role, from the session's organization list, and only in `new` mode: onboarding
+  // does not offer the picker. Its own key, because the shell's reads through the browser client
+  // and this one through the injected `api`.
+  const organizations = useQuery({
+    queryKey: ['first-project', 'organizations'],
+    queryFn: () => listOrganizations(api),
+    staleTime: 5 * 60_000,
+    enabled: mode === 'new',
+  });
+  const callerRole = organizations.data?.find((org) => org.slug === organizationSlug)?.role;
+  const canAddClient =
+    callerRole !== undefined &&
+    isInternalRole(callerRole) &&
+    hasCapability(callerRole, 'org.manage');
+  const pickerOptions = [
+    ...(clientOptions.data ?? []).map((option) => ({ value: option.id, label: option.name })),
+    { value: CLIENT_INTERNAL, label: tc('ProjectClient.noClientOption') },
+    ...(canAddClient ? [{ value: CLIENT_NEW, label: tc('ProjectClient.addClientOption') }] : []),
+  ];
+  const sharesWithClient =
+    mode === 'new' && clientChoice !== '' && clientChoice !== CLIENT_INTERNAL;
 
   /**
    * The workspace the project goes in.
@@ -101,6 +162,7 @@ export function FirstProjectScreen({
     event.preventDefault();
     setFailure(undefined);
     setServerDateError(undefined);
+    setClientError(undefined);
 
     if (name.trim() === '') {
       setFailure(t('FirstProjectScreen.nameRequired'));
@@ -111,18 +173,51 @@ export function FirstProjectScreen({
       return;
     }
 
+    if (sharesWithClient && clientChoice === CLIENT_NEW && newClientName.trim() === '') {
+      setClientError(tc('ProjectClient.newClientNameRequired'));
+      return;
+    }
+
     setCreating(true);
+    let step: 'project' | 'client' = 'project';
     try {
-      const created = await createProject(api, organizationSlug, {
-        workspaceId,
-        name: name.trim(),
-        ...(targetDate === '' ? {} : { targetDate }),
-      });
-      onCreated?.(created.id);
+      let clientOrganizationId: string | undefined;
+      if (sharesWithClient) {
+        if (clientChoice === CLIENT_NEW) {
+          step = 'client';
+          clientOrganizationId =
+            createdClientId ??
+            (await createClientOrganization(api, organizationSlug, newClientName.trim())).id;
+          setCreatedClientId(clientOrganizationId);
+          step = 'project';
+        } else {
+          clientOrganizationId = clientChoice;
+        }
+      }
+
+      const projectId =
+        createdProjectId ??
+        (
+          await createProject(api, organizationSlug, {
+            workspaceId,
+            name: name.trim(),
+            ...(targetDate === '' ? {} : { targetDate }),
+          })
+        ).id;
+      setCreatedProjectId(projectId);
+
+      if (clientOrganizationId !== undefined) {
+        step = 'client';
+        await setProjectClient(api, organizationSlug, projectId, clientOrganizationId);
+      }
+      onCreated?.(projectId);
     } catch (error) {
       if (error instanceof ApiRequestError) {
-        const dateMessage = error.fieldErrors().get('targetDate');
-        if (dateMessage !== undefined) {
+        const fields = error.fieldErrors();
+        const dateMessage = fields.get('targetDate');
+        if (step === 'client') {
+          setClientError(fields.get('clientOrganizationId') ?? fields.get('name') ?? error.message);
+        } else if (dateMessage !== undefined) {
           setServerDateError(dateMessage);
         } else {
           setFailure(error.message);
@@ -178,41 +273,88 @@ export function FirstProjectScreen({
             required
           />
 
-          <fieldset className="tm-fieldset tm-field">
-            <legend className="tm-field__label tm-ob-legend">
-              {t('FirstProjectScreen.audienceLegend')}
-            </legend>
-            <div className="tm-ob-pills">
-              <label className="tm-ob-pill tm-ob-pill--client">
-                <input
-                  type="radio"
-                  name="audience"
-                  value="client"
-                  checked={audience === 'client'}
-                  onChange={() => setAudience('client')}
+          {mode === 'new' ? (
+            <>
+              <Combobox
+                label={tc('ProjectClient.clientLabel')}
+                name="clientOrganization"
+                placeholder={tc('ProjectClient.clientPlaceholder')}
+                options={pickerOptions}
+                value={clientChoice}
+                onValueChange={(value) => {
+                  setClientChoice(value);
+                  setClientError(undefined);
+                }}
+                emptyLabel={tc('ProjectClient.noMatches')}
+                openOnFocus
+                {...(clientError === undefined || clientChoice === CLIENT_NEW
+                  ? {}
+                  : { error: clientError })}
+              />
+              {clientOptions.isError ? (
+                <InlineAlert tone="danger" title={tc('ProjectClient.optionsLoadError')} live>
+                  {clientOptions.error instanceof ApiRequestError
+                    ? clientOptions.error.message
+                    : t('FirstProjectScreen.apiNoAnswer')}
+                </InlineAlert>
+              ) : null}
+              {clientChoice === CLIENT_NEW ? (
+                <Field
+                  label={tc('ProjectClient.newClientNameLabel')}
+                  name="newClientName"
+                  value={newClientName}
+                  onChange={(event) => setNewClientName(event.target.value)}
+                  hint={tc('ProjectClient.newClientNameHint')}
+                  {...(clientError === undefined ? {} : { error: clientError })}
                 />
-                <span className="tm-ob-pill__ring" aria-hidden="true">
-                  ◎
-                </span>
-                {t('FirstProjectScreen.audienceClient')}
-              </label>
-              <label className="tm-ob-pill">
-                <input
-                  type="radio"
-                  name="audience"
-                  value="internal"
-                  checked={audience === 'internal'}
-                  onChange={() => setAudience('internal')}
+              ) : null}
+              {sharesWithClient ? (
+                <Checkbox
+                  label={tc('ProjectClient.shareAfterFirstUpdate')}
+                  hint={tc('ProjectClient.shareAfterFirstUpdateHint')}
+                  checked
+                  disabled
+                  readOnly
                 />
-                {t('FirstProjectScreen.audienceInternal')}
-              </label>
-            </div>
-            <span className="tm-field__hint">
-              {audience === 'client'
-                ? t('FirstProjectScreen.audienceClientHint')
-                : t('FirstProjectScreen.audienceInternalHint')}
-            </span>
-          </fieldset>
+              ) : null}
+            </>
+          ) : (
+            <fieldset className="tm-fieldset tm-field">
+              <legend className="tm-field__label tm-ob-legend">
+                {t('FirstProjectScreen.audienceLegend')}
+              </legend>
+              <div className="tm-ob-pills">
+                <label className="tm-ob-pill tm-ob-pill--client">
+                  <input
+                    type="radio"
+                    name="audience"
+                    value="client"
+                    checked={audience === 'client'}
+                    onChange={() => setAudience('client')}
+                  />
+                  <span className="tm-ob-pill__ring" aria-hidden="true">
+                    ◎
+                  </span>
+                  {t('FirstProjectScreen.audienceClient')}
+                </label>
+                <label className="tm-ob-pill">
+                  <input
+                    type="radio"
+                    name="audience"
+                    value="internal"
+                    checked={audience === 'internal'}
+                    onChange={() => setAudience('internal')}
+                  />
+                  {t('FirstProjectScreen.audienceInternal')}
+                </label>
+              </div>
+              <span className="tm-field__hint">
+                {audience === 'client'
+                  ? t('FirstProjectScreen.audienceClientHint')
+                  : t('FirstProjectScreen.audienceInternalHint')}
+              </span>
+            </fieldset>
+          )}
 
           <div className="tm-ob-grid-2">
             {/*

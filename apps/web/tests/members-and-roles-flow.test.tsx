@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
@@ -73,11 +73,76 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
+const ORG_URL = 'https://api.example.test/v1/organizations/northstar';
+
+const SHARE = {
+  id: 'pc-1',
+  projectId: PID,
+  clientOrganizationId: 'co-1',
+  createdAt: '2026-10-01T00:00:00.000Z',
+};
+
+const PORTAL_SETTINGS = {
+  projectId: PID,
+  welcomeMessage: 'Welcome',
+  accentColor: '#7c3aed',
+  showTeam: true,
+  showTimeline: true,
+  updatedBy: null,
+  updatedAt: null,
+};
+
+/** The Client access card's reads (BK1, Figma t5-d), or undefined for the roster's. */
+function clientAccessAnswer(url: string): Response | undefined {
+  if (url === `${ORG_URL}/projects/${PID}`) {
+    return json({ id: PID, workspaceId: 'ws-1', name: 'Website relaunch', targetDate: null });
+  }
+  if (url === `${ORG_URL}/projects/${PID}/clients`) return json({ clients: [SHARE] });
+  if (url === `${ORG_URL}/projects/${PID}/portal-settings`) return json(PORTAL_SETTINGS);
+  if (url === `${ORG_URL}/client-organization-options`) {
+    return json({
+      clientOrganizations: [
+        { id: 'co-1', name: 'Atlas Hospitality' },
+        { id: 'co-2', name: 'Cedar Foods' },
+      ],
+    });
+  }
+  if (url.startsWith(`${ORG_URL}/client-memberships?`)) {
+    return json({
+      clientMemberships: [
+        {
+          id: 'cm-1',
+          clientOrganizationId: 'co-2',
+          userId: 'salma@cedar.example',
+          role: 'client_admin',
+          status: 'active',
+          expiresAt: null,
+          createdAt: '2026-10-01T00:00:00.000Z',
+          updatedAt: '2026-10-01T00:00:00.000Z',
+        },
+      ],
+    });
+  }
+  return undefined;
+}
+
+/** A label as it reads in English, or as its key while the i18n fragment is not merged yet. */
+function text(key: string, english: string): RegExp {
+  return new RegExp(`^(${english}|${key.replace('.', '\\.')})$`);
+}
+
 /** Route by URL and method: the project roster, the directory, and the three writes. */
 function defaultHandler(call: Call): Response {
   const isProjectMembers = call.url.includes(`/projects/${PID}/members`);
   if (call.method === undefined || call.method === 'GET') {
+    const share = clientAccessAnswer(call.url);
+    if (share !== undefined) return share;
     return isProjectMembers ? json(PROJECT_MEMBERS) : json(DIRECTORY);
+  }
+  if (call.method === 'PUT') {
+    return call.url.endsWith('/portal-settings')
+      ? json({ ...PORTAL_SETTINGS, showTimeline: false })
+      : json({ clients: [{ ...SHARE, clientOrganizationId: 'co-2' }] });
   }
   if (call.method === 'POST') {
     return json(
@@ -193,6 +258,57 @@ describe('ADM-02 members and roles', () => {
     await user.selectOptions(screen.getByLabelText(/Role for Omar Haddad/), 'manager');
 
     expect(await screen.findByText('That change was refused')).toBeInTheDocument();
+  });
+
+  it('shows the current client in the Client access card', async () => {
+    const { client } = clientOver(defaultHandler);
+    renderScreen(client);
+    expect(await screen.findByText('Atlas Hospitality')).toBeInTheDocument();
+  });
+
+  it('shares with a client: PUTs the client, then the portal timeline setting', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = clientOver(defaultHandler);
+    renderScreen(client);
+
+    await screen.findByText('Atlas Hospitality');
+    await user.click(
+      screen.getByRole('button', { name: text('ProjectClient.shareButton', 'Share with client') }),
+    );
+    const dialog = await screen.findByRole('dialog');
+
+    await waitFor(() => expect(within(dialog).getByRole('combobox')).toHaveValue('co-1'));
+    await user.selectOptions(within(dialog).getByRole('combobox'), 'co-2');
+    // The company's people are listed read-only: the API shares the whole company.
+    const person = await within(dialog).findByRole('checkbox', { name: /salma@cedar\.example/ });
+    expect(person).toBeChecked();
+    expect(person).toBeDisabled();
+
+    const switches = within(dialog).getAllByRole('switch');
+    expect(switches[0]).toBeChecked();
+    expect(switches[1]).toBeDisabled();
+    expect(switches[2]).not.toBeChecked();
+    await user.click(switches[0]!);
+
+    await user.click(
+      within(dialog).getByRole('button', {
+        name: text('ProjectClient.submit', 'Share with client'),
+      }),
+    );
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    const puts = calls.filter((call) => call.method === 'PUT');
+    expect(puts.map((call) => call.url)).toEqual([
+      `${ORG_URL}/projects/${PID}/client`,
+      `${ORG_URL}/projects/${PID}/portal-settings`,
+    ]);
+    expect(puts[0]?.body).toEqual({ clientOrganizationId: 'co-2' });
+    expect(puts[1]?.body).toEqual({
+      welcomeMessage: 'Welcome',
+      accentColor: '#7c3aed',
+      showTeam: true,
+      showTimeline: false,
+    });
   });
 
   it('has no axe violations once loaded', async () => {

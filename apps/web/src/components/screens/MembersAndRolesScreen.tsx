@@ -7,6 +7,11 @@ import { isProjectRole, PROJECT_ROLES } from '@tmanage/domain';
 import { Avatar, Button, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
+import {
+  ShareWithClientDialog,
+  describeProjectClientError,
+  useProjectClientT,
+} from '../projects/ShareWithClientDialog';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listMembers } from '../../lib/api/members';
 import {
@@ -16,6 +21,8 @@ import {
   removeProjectMember,
 } from '../../lib/api/project-members';
 import type { ProjectMemberSummary } from '../../lib/api/project-members';
+import { getProject } from '../../lib/api/projects';
+import { listClientOrganizationOptions, listProjectShares } from '../../lib/api/project-client';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { describeInternalRole } from '../../lib/roles';
 import type { ApiClient } from '../../lib/api/client';
@@ -67,7 +74,32 @@ export function MembersAndRolesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tc = useProjectClientT();
   const membersKey = ['project-members', projectId];
+  const sharesKey = ['project-clients', organizationSlug, projectId];
+  const [sharing, setSharing] = useState(false);
+
+  const project = useQuery({
+    queryKey: ['project', organizationSlug, projectId],
+    queryFn: () => getProject(api, organizationSlug, projectId),
+  });
+
+  const shares = useQuery({
+    queryKey: sharesKey,
+    queryFn: () => listProjectShares(api, organizationSlug, projectId),
+  });
+
+  const clientOptions = useQuery({
+    queryKey: ['client-organization-options', organizationSlug],
+    queryFn: () => listClientOrganizationOptions(api, organizationSlug),
+  });
+
+  const currentClientId = shares.data?.[0]?.clientOrganizationId;
+  const currentClientName =
+    currentClientId === undefined
+      ? undefined
+      : (clientOptions.data?.find((option) => option.id === currentClientId)?.name ??
+        currentClientId);
 
   const members = useQuery({
     queryKey: membersKey,
@@ -282,8 +314,67 @@ export function MembersAndRolesScreen({
               .
             </p>
           </section>
+
+          <section
+            className="tm-card tm-prj-card tm-prj-card--client"
+            aria-labelledby="tm-client-access"
+          >
+            <h2 id="tm-client-access" className="tm-prj-eyebrow">
+              {tc('ProjectClient.accessHeading')}
+            </h2>
+            {shares.isError ? (
+              <InlineAlert tone="danger" title={t('MembersAndRolesScreen.loadErrorTitle')} live>
+                {describeProjectClientError(shares.error, tc)}
+              </InlineAlert>
+            ) : null}
+            {shares.isPending ? (
+              <LoadingRegion label={tc('ProjectClient.accessHeading')}>
+                <Skeleton height="58px" />
+              </LoadingRegion>
+            ) : null}
+            {shares.isSuccess ? (
+              <ul className="tm-prj-people">
+                <li>
+                  {currentClientName === undefined ? null : (
+                    <Avatar name={currentClientName} audience="client" decorative />
+                  )}
+                  <span className="tm-prj-people__who">
+                    <span className="tm-prj-people__name">
+                      {currentClientName ?? tc('ProjectClient.internalProject')}
+                    </span>
+                    <span className="tm-prj-people__role">
+                      {tc('ProjectClient.currentClientLabel')}
+                    </span>
+                  </span>
+                </li>
+              </ul>
+            ) : null}
+            <p className="tm-card__meta">{tc('ProjectClient.accessHint')}</p>
+            <div className="tm-row">
+              <Button tone="ink" onClick={() => setSharing(true)} disabled={!shares.isSuccess}>
+                {tc('ProjectClient.shareButton')}
+              </Button>
+            </div>
+          </section>
         </div>
       </div>
+
+      {sharing ? (
+        <ShareWithClientDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          projectId={projectId}
+          projectName={project.data?.name ?? ''}
+          {...(currentClientId === undefined
+            ? {}
+            : { currentClientOrganizationId: currentClientId })}
+          onClose={() => setSharing(false)}
+          onShared={() => {
+            setSharing(false);
+            void queryClient.invalidateQueries({ queryKey: sharesKey });
+          }}
+        />
+      ) : null}
     </AppShell>
   );
 }
