@@ -20,6 +20,39 @@ import { useT } from '../../../../lib/i18n/use-t';
  */
 const PACK_REQUEST = '/contact#book-demo-form';
 
+/**
+ * Where vulnerability reports go. The support mailbox is the only one that is live today; the
+ * catalog sentence carries an `{email}` placeholder so a dedicated security@ address can replace
+ * this constant later without touching either translation.
+ */
+export const SECURITY_DISCLOSURE_EMAIL = 'tm-support@peetrix.com';
+const EMAIL_PLACEHOLDER = '{email}';
+
+/** The disclosure sentence with the address as a real mailto link, in either language. */
+export function DisclosureText({ text }: { text: string }) {
+  const link = (
+    <a href={`mailto:${SECURITY_DISCLOSURE_EMAIL}`} dir="ltr">
+      {SECURITY_DISCLOSURE_EMAIL}
+    </a>
+  );
+  const at = text.indexOf(EMAIL_PLACEHOLDER);
+  if (at === -1) {
+    // A catalog without the placeholder still gets a working address after the sentence.
+    return (
+      <>
+        {text} {link}
+      </>
+    );
+  }
+  return (
+    <>
+      {text.slice(0, at)}
+      {link}
+      {text.slice(at + EMAIL_PLACEHOLDER.length)}
+    </>
+  );
+}
+
 export function SecurityPage() {
   const t = useT();
 
@@ -212,7 +245,9 @@ export function SecurityPage() {
           </div>
           <div className="tm-sec-note">
             <p className="tm-sec-note__label">{t('SecurityPage.disclosureLabel')}</p>
-            <p className="tm-sec-note__text">{t('SecurityPage.disclosureText')}</p>
+            <p className="tm-sec-note__text">
+              <DisclosureText text={t('SecurityPage.disclosureText')} />
+            </p>
           </div>
         </div>
       </WebSection>

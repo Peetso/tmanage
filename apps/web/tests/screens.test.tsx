@@ -245,14 +245,16 @@ describe('ID-02 MFA', () => {
     expect(screen.queryByLabelText(/Six-digit code/)).toBeNull();
   });
 
-  it('says so, and refuses to submit, when opened without a challenge', async () => {
-    const user = userEvent.setup();
+  it('says so, and offers no form, when opened without a challenge', () => {
     render(<MfaChallengeScreen />);
 
     expect(screen.getByText('There is nothing to verify here')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Verify' })).toBeDisabled();
-    await user.type(screen.getByLabelText(/Six-digit code/), '417295');
-    expect(screen.getByRole('button', { name: 'Verify' })).toBeDisabled();
+    expect(screen.queryByLabelText(/Six-digit code/)).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Verify' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Back to sign in' })).toHaveAttribute(
+      'href',
+      '/sign-in',
+    );
   });
 
   it('names no account when it is rate limited', () => {

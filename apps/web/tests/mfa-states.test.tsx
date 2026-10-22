@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { describe, expect, it } from 'vitest';
 import MfaPage from '../src/app/sign-in/verify/page';
+import { MfaChallengeScreen } from '../src/components/screens/MfaChallengeScreen';
 
 /**
  * **D15's defect on the second screen — a query string must not be able to claim a security
@@ -61,10 +62,15 @@ const RATE_LIMIT_CLAIMS: readonly RegExp[] = [
   /Too many attempts/,
 ];
 
-/** The page renders the challenge screen, and says of itself that it has nothing to verify. */
+/**
+ * The page renders the not-reachable state and nothing else: a title saying there is nothing to
+ * verify, and a real link back to sign-in (live check 014a9d51, REPORT lines 98-101).
+ */
 function expectHonestChallengeState() {
-  expect(screen.getByRole('heading', { level: 1, name: /Confirm it’s you/ })).toBeInTheDocument();
-  expect(screen.getByText('There is nothing to verify here')).toBeInTheDocument();
+  expect(
+    screen.getByRole('heading', { level: 1, name: 'There is nothing to verify here' }),
+  ).toBeInTheDocument();
+  expect(screen.getByRole('link', { name: 'Back to sign in' })).toHaveAttribute('href', '/sign-in');
 }
 
 /** No sentence on the page asserts a refused attempt, whatever was asked for. */
@@ -75,12 +81,16 @@ function expectNoRateLimitClaim() {
 }
 
 /**
- * The rate-limited state also disables the two inputs and the button. A URL that cannot make
- * the claim but can still lock the form would be a lesser version of the same defect: the
- * screen would be behaving as though an attempt had been refused.
+ * Without a challenge token there is nothing the form could do, so the route shows none of it:
+ * no code field, no method radios, no "Not available yet" fallbacks, no Verify button. (Before
+ * live check 014a9d51 this asserted the code field was enabled — the rate-limited lock it guarded
+ * against cannot happen now that no field is rendered at all.)
  */
-function expectFormUsable() {
-  expect(screen.getByLabelText(/Six-digit code/)).toBeEnabled();
+function expectNoForm() {
+  expect(screen.queryByLabelText(/Six-digit code/)).toBeNull();
+  expect(screen.queryByRole('radio')).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Verify' })).toBeNull();
+  expect(screen.queryByText('Not available yet')).toBeNull();
 }
 
 describe('/sign-in/verify cannot be talked into claiming an attempt was refused', () => {
@@ -89,7 +99,7 @@ describe('/sign-in/verify cannot be talked into claiming an attempt was refused'
 
     expect(screen.queryByText(/recorded in the audit log/)).toBeNull();
     expect(screen.queryByText(/Rate limited/)).toBeNull();
-    expectFormUsable();
+    expectNoForm();
     expectHonestChallengeState();
   });
 
@@ -97,7 +107,7 @@ describe('/sign-in/verify cannot be talked into claiming an attempt was refused'
     await renderRoute({ state: 'nonsense' });
 
     expectNoRateLimitClaim();
-    expectFormUsable();
+    expectNoForm();
     expectHonestChallengeState();
   });
 
@@ -105,7 +115,7 @@ describe('/sign-in/verify cannot be talked into claiming an attempt was refused'
     await renderRoute({});
 
     expectNoRateLimitClaim();
-    expectFormUsable();
+    expectNoForm();
     expectHonestChallengeState();
   });
 
@@ -119,7 +129,7 @@ describe('/sign-in/verify cannot be talked into claiming an attempt was refused'
     await renderRoute({ state: ['rate-limited', 'rate-limited'] });
 
     expectNoRateLimitClaim();
-    expectFormUsable();
+    expectNoForm();
     expectHonestChallengeState();
   });
 
@@ -131,7 +141,7 @@ describe('/sign-in/verify cannot be talked into claiming an attempt was refused'
     await renderRoute({ rateLimited: 'true', state: 'rate-limited', locked: '1' });
 
     expectNoRateLimitClaim();
-    expectFormUsable();
+    expectNoForm();
     expectHonestChallengeState();
   });
 
@@ -139,7 +149,26 @@ describe('/sign-in/verify cannot be talked into claiming an attempt was refused'
     render(await callRoute());
 
     expectNoRateLimitClaim();
-    expectFormUsable();
+    expectNoForm();
     expectHonestChallengeState();
+  });
+});
+
+describe('MfaChallengeScreen renders the not-reachable state only without a token', () => {
+  it('shows a link to /sign-in and no code field when no challenge token is passed', () => {
+    render(<MfaChallengeScreen />);
+
+    expectHonestChallengeState();
+    expectNoForm();
+  });
+
+  it('keeps the full form for a caller holding a challenge token', () => {
+    render(<MfaChallengeScreen challengeToken="c1.mfa.u.1.sig" />);
+
+    expect(screen.getByRole('heading', { level: 1, name: /Confirm it’s you/ })).toBeInTheDocument();
+    expect(screen.getByLabelText(/Six-digit code/)).toBeEnabled();
+    expect(screen.getAllByRole('radio')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: 'Verify' })).toBeInTheDocument();
+    expect(screen.queryByText('There is nothing to verify here')).toBeNull();
   });
 });

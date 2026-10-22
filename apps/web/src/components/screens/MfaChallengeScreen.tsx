@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useId, useState, type FormEvent } from 'react';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
@@ -18,7 +19,8 @@ export interface MfaChallengeScreenProps {
    *
    * Absent when this screen is reached at its own route rather than as the second step of a
    * sign-in — there is no route that can produce one, because the token is deliberately never
-   * put in a URL. The screen then renders its layout and says why it cannot do anything.
+   * put in a URL. The screen then renders only a not-reachable state — a title, one sentence and a
+   * link back to sign-in — and none of the form, which could do nothing without a token.
    */
   challengeToken?: string;
   /** The factor's label, from the challenge. Device context, per `22` §3. */
@@ -124,6 +126,25 @@ export function MfaChallengeScreen({
     setFailure(undefined);
   }
 
+  if (challengeToken === undefined) {
+    // Reached at its own route (`/sign-in/verify`): there is nothing to verify, so no code field,
+    // no method choice and no fallbacks — just where to go instead.
+    return (
+      <IdentityShell
+        screenId="ID-02"
+        eyebrow="Second factor"
+        footer={<Link href="/sign-in">{t('RecoveryScreen.backToSignIn')}</Link>}
+      >
+        <div className="tm-id-bare tm-id-card tm-id-mfa tm-stack">
+          <div className="tm-id-intro">
+            <h1 className="tm-identity__title">{t('MfaChallengeScreen.nothingToVerifyTitle')}</h1>
+            <p className="tm-id-lede">{t('MfaChallengeScreen.nothingToVerifyBody')}</p>
+          </div>
+        </div>
+      </IdentityShell>
+    );
+  }
+
   const cells = Array.from({ length: 6 }, (_, index) => digitsOnly.charAt(index));
   const activeCell = Math.min(digitsOnly.length, 5);
 
@@ -138,12 +159,6 @@ export function MfaChallengeScreen({
               {t('MfaChallengeScreen.requiresSecondFactor')}
             </p>
           </div>
-
-          {challengeToken === undefined ? (
-            <InlineAlert tone="warning" title={t('MfaChallengeScreen.nothingToVerifyTitle')}>
-              {t('MfaChallengeScreen.nothingToVerifyBody')}
-            </InlineAlert>
-          ) : null}
 
           {method === 'code' ? (
             <div className="tm-id-code">
