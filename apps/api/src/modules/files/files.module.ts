@@ -362,6 +362,7 @@ export class FilesModule {
         cleanup,
         verifier,
         scanner,
+        scanJob,
         downloads,
         portalFileList,
       ],
