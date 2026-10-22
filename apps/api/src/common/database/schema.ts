@@ -457,6 +457,8 @@ export const meetings = mysqlTable(
     projectId: char('project_id', { length: 36 }).notNull(),
     title: varchar('title', { length: 300 }).notNull(),
     startsAt: datetime('starts_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** Audit gap 8 (0213): the end instant; NULL = no end recorded. `> startsAt` is the API's rule. */
+    endsAt: datetime('ends_at', { mode: 'date', fsp: 3 }),
     agendaNote: text('agenda_note'),
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),

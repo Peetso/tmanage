@@ -98,6 +98,13 @@ function serviceWith(
       store.push(row);
       return row;
     },
+    findById: async (_runner: unknown, _ctx: unknown, id: string) =>
+      store.find((row) => row.id === id) ?? null,
+    update: async (_runner: unknown, _ctx: unknown, id: string, input: Partial<MeetingRow>) => {
+      const row = store.find((r) => r.id === id) as MeetingRow;
+      Object.assign(row, input);
+      return row;
+    },
   } as unknown as MeetingsRepository;
   const projects = {
     findById: async (_runner: unknown, _ctx: unknown, projectId: string) =>
@@ -203,5 +210,102 @@ describe('MeetingsService', () => {
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).status).toBe(404);
     expect(store).toHaveLength(0);
+  });
+});
+
+describe('MeetingsService.update (audit gap 8)', () => {
+  const seeded = (): MeetingRow =>
+    ({
+      id: 'meeting-edit',
+      organizationId: ORG,
+      projectId: PROJECT,
+      title: 'Old',
+      startsAt: STARTS_AT,
+      endsAt: null,
+      agendaNote: null,
+      createdByUserId: USER,
+      createdAt: STARTS_AT,
+      updatedAt: STARTS_AT,
+    }) as MeetingRow;
+  const later = new Date(STARTS_AT.getTime() + 3_600_000);
+
+  it('edits title, end and agenda for a project member', async () => {
+    const { service } = serviceWith([seeded()]);
+    const view = await service.update(context, member([PROJECT]), 'meeting-edit', {
+      title: 'New',
+      endsAt: later,
+      agendaNote: 'notes',
+    });
+    expect([view.title, view.endsAt, view.agendaNote]).toEqual([
+      'New',
+      later.toISOString(),
+      'notes',
+    ]);
+  });
+
+  it('refuses an end at or before the (new) start, and a non-member as not-found', async () => {
+    const { service, store } = serviceWith([{ ...seeded(), endsAt: later }]);
+    const status = (p: Promise<unknown>) =>
+      p.then(
+        () => 0,
+        (e: ApiError) => e.status,
+      );
+    expect(
+      await status(service.update(context, member([PROJECT]), 'meeting-edit', { startsAt: later })),
+    ).toBe(400);
+    expect(await status(service.update(context, member([]), 'meeting-edit', { title: 'x' }))).toBe(
+      404,
+    );
+    expect(store[0]?.title).toBe('Old');
+  });
+});
+
+describe('MeetingsService.create with attendees (COL-09)', () => {
+  it('adds the organizer accepted, invites the rest, and notifies only the invitees', async () => {
+    const { service: base } = serviceWith();
+    const invites: { membershipId: string; rsvp: string }[] = [];
+    const events: { type: string; payload: { attendeeUserId?: string } }[] = [];
+    const s = base as unknown as Record<string, unknown>;
+    const service = new MeetingsService(
+      s['database'] as TenantDatabase,
+      s['meetings'] as MeetingsRepository,
+      s['projects'] as ProjectsRepository,
+      undefined,
+      {
+        append: async (_t: unknown, _c: unknown, e: (typeof events)[number]) => void events.push(e),
+      } as never,
+      {
+        invite: async (_t: unknown, _c: unknown, i: (typeof invites)[number]) =>
+          void invites.push(i),
+      } as never,
+      {
+        findByUserId: async (_r: unknown, _c: unknown, userId: string) =>
+          userId === 'ghost' ? null : { id: `m-${userId}`, status: 'active' },
+      } as never,
+    );
+    await service.create(context, member([PROJECT]), {
+      projectId: PROJECT,
+      title: 'Sync',
+      startsAt: STARTS_AT,
+      attendeeUserIds: ['bob', USER],
+    });
+    expect(invites).toEqual([
+      { meetingId: expect.any(String), membershipId: `m-${USER}`, rsvp: 'accepted' },
+      { meetingId: expect.any(String), membershipId: 'm-bob', rsvp: 'invited' },
+    ]);
+    expect(
+      events
+        .filter((e) => e.type === 'meeting.attendee_invited.v1')
+        .map((e) => e.payload.attendeeUserId),
+    ).toEqual(['bob']);
+    const ghost = await service
+      .create(context, member([PROJECT]), {
+        projectId: PROJECT,
+        title: 'X',
+        startsAt: STARTS_AT,
+        attendeeUserIds: ['ghost'],
+      })
+      .catch((e: ApiError) => e.status);
+    expect(ghost).toBe(400);
   });
 });

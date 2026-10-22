@@ -3,7 +3,13 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MeetingsRepository } from './meetings.repository.js';
-import type { CreateMeetingInput, ListMeetingsOptions } from './meetings.repository.js';
+import type {
+  CreateMeetingInput,
+  ListMeetingsOptions,
+  UpdateMeetingInput,
+} from './meetings.repository.js';
+import type { MeetingAttendeesRepository } from './meeting-attendees.repository.js';
+import type { MembershipsRepository } from '../tenancy/memberships.repository.js';
 import { MeetingNotesRepository } from './meeting-notes.repository.js';
 import type {
   CreateMeetingNoteInput,
@@ -46,6 +52,8 @@ export interface MeetingView {
   readonly title: string;
   /** An ISO-8601 instant on the wire. */
   readonly startsAt: string;
+  /** Audit gap 8 (0213): an ISO-8601 instant, or null when no end was recorded. */
+  readonly endsAt: string | null;
   readonly agendaNote: string | null;
   readonly createdByUserId: string;
   readonly createdAt: string;
@@ -63,6 +71,7 @@ function toView(row: MeetingRow): MeetingView {
     projectId: row.projectId,
     title: row.title,
     startsAt: row.startsAt.toISOString(),
+    endsAt: row.endsAt ? row.endsAt.toISOString() : null,
     agendaNote: row.agendaNote,
     createdByUserId: row.createdByUserId,
     createdAt: row.createdAt.toISOString(),
@@ -118,6 +127,14 @@ export class MeetingsService {
     private readonly notes: MeetingNotesRepository = new MeetingNotesRepository(),
     /** CQ-12 (AUT-01): the `meeting_scheduled` automation trigger. Optional for suites. */
     private readonly outbox?: OutboxEventsRepository,
+    /**
+     * Audit gap 8 (COL-09): the attendee store and the member lookup the schedule form needs to
+     * add the organizer and the chosen attendees in the create transaction. Optional so the
+     * database-free suites and the inbox's read-only handle keep their shape; without them a create
+     * simply adds no attendees.
+     */
+    private readonly attendees?: MeetingAttendeesRepository,
+    private readonly memberships?: MembershipsRepository,
   ) {}
 
   /**
@@ -174,10 +191,16 @@ export class MeetingsService {
   async create(
     context: TenantContext,
     principal: Principal,
-    input: Omit<CreateMeetingInput, 'createdByUserId'>,
+    input: Omit<CreateMeetingInput, 'createdByUserId'> & {
+      /** Audit gap 8 (COL-09): members to invite with the meeting; each is notified. */
+      readonly attendeeUserIds?: readonly string[];
+    },
   ): Promise<MeetingView> {
+    const { attendeeUserIds = [], ...meetingInput } = input;
+    assertEndAfterStart(meetingInput.startsAt, meetingInput.endsAt ?? null);
+
     const project = await this.database.read(context, (runner) =>
-      this.projects.findById(runner, context, input.projectId),
+      this.projects.findById(runner, context, meetingInput.projectId),
     );
 
     if (!project) {
@@ -189,7 +212,7 @@ export class MeetingsService {
       capability: 'work.create',
       resource: {
         organizationId: context.organizationId,
-        projectId: input.projectId,
+        projectId: meetingInput.projectId,
         audience: 'internal',
         lifecycle: 'active',
       },
@@ -199,9 +222,11 @@ export class MeetingsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
     }
 
+    const invitees = await this.resolveInvitees(context, attendeeUserIds);
+
     const row = await this.database.transaction(context, async (tx) => {
       const created = await this.meetings.create(tx, context, {
-        ...input,
+        ...meetingInput,
         createdByUserId: context.userId,
       });
       await this.outbox?.append(tx, context, {
@@ -209,10 +234,89 @@ export class MeetingsService {
         aggregateId: created.id,
         payload: { meetingId: created.id, projectId: created.projectId },
       });
+      // COL-09 "organizer not included": the organizer attends, already accepted; every chosen
+      // member is invited and told through the existing invite notice.
+      for (const invitee of invitees) {
+        const organizer = invitee.userId === context.userId;
+        await this.attendees?.invite(tx, context, {
+          meetingId: created.id,
+          membershipId: invitee.membershipId,
+          rsvp: organizer ? 'accepted' : 'invited',
+        });
+        if (!organizer) {
+          await this.outbox?.append(tx, context, {
+            type: 'meeting.attendee_invited.v1',
+            aggregateId: created.id,
+            payload: {
+              meetingId: created.id,
+              projectId: created.projectId,
+              attendeeUserId: invitee.userId,
+              invitedByUserId: context.userId,
+            },
+          });
+        }
+      }
       return created;
     });
 
     return toView(row);
+  }
+
+  /**
+   * Edit a meeting's title, start, end or agenda note (audit gap 8, COL-06).
+   *
+   * Known-trap order: the meeting is resolved tenant-scoped and relation-checked (`work.create`)
+   * before the write, so an unknown or unwritable meeting is a 404 with no write. The end must stay
+   * after the start, judged on the values the row will hold after the edit — moving only the start
+   * past a recorded end is refused, not silently left inverted.
+   */
+  async update(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+    input: UpdateMeetingInput,
+  ): Promise<MeetingView> {
+    const meeting = await this.resolveMeetingFor(context, principal, meetingId, 'work.create');
+    assertEndAfterStart(
+      input.startsAt ?? meeting.startsAt,
+      input.endsAt === undefined ? (meeting.endsAt ?? null) : input.endsAt,
+    );
+
+    const row = await this.database.transaction(context, (tx) =>
+      this.meetings.update(tx, context, meetingId, input),
+    );
+    return toView(row);
+  }
+
+  /**
+   * The organizer plus the requested attendees as active memberships of this tenant, de-duplicated.
+   * An unknown, cross-tenant or inactive user id is a 400 naming the field, before any write.
+   */
+  private async resolveInvitees(
+    context: TenantContext,
+    attendeeUserIds: readonly string[],
+  ): Promise<readonly { readonly userId: string; readonly membershipId: string }[]> {
+    const memberships = this.memberships;
+    if (!memberships || !this.attendees) return [];
+
+    const userIds = [...new Set([context.userId, ...attendeeUserIds])];
+    const resolved: { userId: string; membershipId: string }[] = [];
+    for (const userId of userIds) {
+      const membership = await this.database.read(context, (runner) =>
+        memberships.findByUserId(runner, context, userId),
+      );
+      if (!membership || membership.status !== 'active') {
+        throw new ApiError(
+          400,
+          'validation_failed',
+          'The request body is invalid',
+          [{ field: 'attendeeUserIds', message: 'must name active members of this organization' }],
+          'membership_not_visible',
+        );
+      }
+      resolved.push({ userId, membershipId: membership.id });
+    }
+    return resolved;
   }
 
   /**
@@ -316,5 +420,14 @@ export class MeetingsService {
     );
 
     return toNoteView(row);
+  }
+}
+
+/** Audit gap 8: a recorded end must be strictly after the start (no CHECK constraint on MariaDB). */
+function assertEndAfterStart(startsAt: Date, endsAt: Date | null): void {
+  if (endsAt !== null && endsAt.getTime() <= startsAt.getTime()) {
+    throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+      { field: 'endsAt', message: 'must be after startsAt' },
+    ]);
   }
 }

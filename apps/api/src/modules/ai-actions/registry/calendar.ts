@@ -123,10 +123,26 @@ export const calendarDetails: readonly AiActionDetail[] = [
       startsAt: f.iso().optional(),
       endsAt: f.iso().optional(),
       agendaNote: f.text(10_000).optional(),
+      attendeeUserIds: z.array(f.id()).max(100).optional(),
     }),
     redact: 'standard',
     examples: [
       { summary: 'Kickoff', args: { title: 'Project kickoff', startsAt: '2026-10-22T14:00:00Z' } },
+    ],
+  }),
+  det({
+    id: 'meetings.update',
+    title: 'Edit a meeting',
+    description: 'Change a meeting’s title, start, end or agenda note.',
+    input: bodyArgs(['meetingId'], {
+      title: f.shortText(300).optional(),
+      startsAt: f.iso().optional(),
+      endsAt: f.iso().nullable().optional(),
+      agendaNote: f.text(8_000).nullable().optional(),
+    }),
+    redact: 'standard',
+    examples: [
+      { summary: 'Move end', args: { meetingId: 'mtg_1', endsAt: '2026-10-22T15:00:00Z' } },
     ],
   }),
   det({
@@ -193,10 +209,18 @@ export const calendarDetails: readonly AiActionDetail[] = [
     id: 'meetings.attendees.create',
     title: 'Invite a meeting attendee',
     description: 'Invite a person to a meeting. They are notified.',
-    input: bodyArgs(['meetingId'], { membershipId: f.id() }),
+    input: bodyArgs(['meetingId'], { userId: f.id() }),
     redact: 'standard',
     notifies: true,
-    examples: [{ summary: 'Invite', args: { meetingId: 'mtg_1', membershipId: 'mem_3' } }],
+    examples: [{ summary: 'Invite', args: { meetingId: 'mtg_1', userId: 'user_3' } }],
+  }),
+  det({
+    id: 'meetings.attendees.delete',
+    title: 'Remove a meeting attendee',
+    description: 'Remove a person from a meeting. Confirm-class.',
+    input: pathOnly('meetingId', 'attendeeId'),
+    redact: 'standard',
+    examples: [{ summary: 'Remove', args: { meetingId: 'mtg_1', attendeeId: 'att_4' } }],
   }),
   det({
     id: 'meetings.attendees.update',

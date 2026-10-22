@@ -61,8 +61,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  under /v1/organizations/:orgSlug/deliverables (list, create, get, versions, approvers, send).
  *  0212 (request messages, audit gap 4): +4 ops, GET/POST .../client-requests/:id/messages and
  *  GET/POST .../portal/requests/:id/messages. BK3 (0214): +5 ops, GET .../mention-candidates
- *  and GET/POST .../direct-conversations(/:id/messages). */
-const EXPECTED_ROUTE_COUNT = 760;
+ *  and GET/POST .../direct-conversations(/:id/messages). BK5 (0213): +2 ops, PATCH .../meetings/:meetingId
+ *  and DELETE .../meetings/:meetingId/attendees/:attendeeId. */
+const EXPECTED_ROUTE_COUNT = 762;
 
 interface LiveRoute {
   readonly method: string;

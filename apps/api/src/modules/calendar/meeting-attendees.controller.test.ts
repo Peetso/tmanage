@@ -175,7 +175,9 @@ function serviceWith(options: {
 
   const membershipsRepo = {
     findByUserId: async (_r: unknown, _c: unknown, userId: string) =>
-      membersByUser[userId] ? ({ id: membersByUser[userId] } as unknown as MembershipRow) : null,
+      membersByUser[userId]
+        ? ({ id: membersByUser[userId], status: 'active' } as unknown as MembershipRow)
+        : null,
   } as unknown as MembershipsRepository;
 
   return {

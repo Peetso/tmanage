@@ -501,7 +501,9 @@ GRANT INSERT, UPDATE         ON `tmanage`.`upload_sessions`  TO 'tmanage_app'@'%
 -- no DELETE** — least privilege, and the 0029 trigger pins organization_id/project_id immutable
 -- for every credential besides. When an edit surface lands, UPDATE is added with the code that
 -- writes it, per this file's rule that a grant names a statement that exists.
-GRANT INSERT                 ON `tmanage`.`meetings`         TO 'tmanage_app'@'%';
+-- Audit gap 8 (COL-06/09): the meeting page edits title/start/end/agenda in place, so UPDATE lands
+-- with the PATCH that writes it; still no DELETE. The 0029 trigger keeps identity immutable.
+GRANT INSERT, UPDATE         ON `tmanage`.`meetings`         TO 'tmanage_app'@'%';
 -- DOC-01 (x91), extended by DOC-02 (x112). A document is created (INSERT) and read (the
 -- database-wide SELECT). DOC-02 adds the editor: saving a new version bumps the document's current
 -- body in the same transaction, so **UPDATE lands here now with the code that writes it** — the
@@ -522,7 +524,9 @@ GRANT INSERT                 ON `tmanage`.`meeting_notes`    TO 'tmanage_app'@'%
 -- organization_id/meeting_id/membership_id immutable (only `rsvp` may change) for every credential
 -- besides. DELETE is added with the code that writes it, per this file's rule that a grant names a
 -- statement that exists (the same treatment `saved_views` has above).
-GRANT INSERT, UPDATE          ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@'%';
+-- Audit gap 8 (COL-06/09): an organiser removes an attendee (DELETE …/attendees/:attendeeId), so
+-- DELETE lands with the code that writes it. No table references meeting_attendees.
+GRANT INSERT, UPDATE, DELETE  ON `tmanage`.`meeting_attendees` TO 'tmanage_app'@'%';
 -- CAL meeting RSVP (x240). A member records their own response (INSERT) and re-answers in place
 -- (UPDATE) — this slice ships an idempotent upsert PUT and a read (the database-wide SELECT) — so
 -- INSERT and UPDATE and **no DELETE**: there is no un-answer endpoint, least privilege, and 0112's

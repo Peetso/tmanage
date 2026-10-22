@@ -48,7 +48,10 @@ export class MeetingIcsController {
       uid: meeting.id,
       summary: meeting.title,
       startsAt,
-      endsAt: new Date(startsAt.getTime() + MeetingIcsController.DEFAULT_DURATION_MS),
+      // Audit gap 8: the recorded end when there is one; the fixed default only for older rows.
+      endsAt: meeting.endsAt
+        ? new Date(meeting.endsAt)
+        : new Date(startsAt.getTime() + MeetingIcsController.DEFAULT_DURATION_MS),
       stamp: new Date(),
     });
 

@@ -71,6 +71,11 @@ export interface InviteAttendeeCommand {
   readonly userId: string;
 }
 
+export interface RemoveAttendeeCommand {
+  readonly meetingId: string;
+  readonly attendeeId: string;
+}
+
 export interface SetRsvpCommand {
   readonly meetingId: string;
   readonly attendeeId: string;
@@ -186,7 +191,10 @@ export class MeetingAttendeesService {
     const membership = await this.database.read(context, (runner) =>
       this.memberships.findByUserId(runner, context, command.userId),
     );
-    if (!membership) {
+    // Audit gap 8: only an *active* member is invitable — an invited, suspended or offboarded
+    // membership authorises nothing and could never open the meeting. Client contacts live in
+    // `client_memberships`, not here, so a client can never be named by this route.
+    if (!membership || membership.status !== 'active') {
       throw new ApiError(
         400,
         'validation_failed',
@@ -275,5 +283,31 @@ export class MeetingAttendeesService {
     );
 
     return toView(row);
+  }
+
+  /**
+   * Remove an attendee from a meeting the principal may write to (audit gap 8, COL-06).
+   *
+   * Known-trap order: the meeting is resolved tenant-scoped and relation-checked first, then the
+   * attendee is resolved and checked to belong to *this* meeting — an unknown, cross-tenant or
+   * cross-meeting `attendeeId` is a 404 with no write.
+   */
+  async remove(
+    context: TenantContext,
+    principal: Principal,
+    command: RemoveAttendeeCommand,
+  ): Promise<void> {
+    await this.resolveMeetingFor(context, principal, command.meetingId, 'work.create');
+
+    const attendee = await this.database.read(context, (runner) =>
+      this.attendees.findById(runner, context, command.attendeeId),
+    );
+    if (!attendee || attendee.meetingId !== command.meetingId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'attendee_not_visible');
+    }
+
+    await this.database.transaction(context, (tx) =>
+      this.attendees.remove(tx, context, command.meetingId, command.attendeeId),
+    );
   }
 }

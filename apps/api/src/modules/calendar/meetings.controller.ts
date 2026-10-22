@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -23,8 +23,22 @@ interface CreateMeetingBody {
   readonly title?: unknown;
   /** An ISO-8601 instant, e.g. `2026-10-01T14:00:00.000Z`. */
   readonly startsAt?: unknown;
+  /** Audit gap 8: optional ISO-8601 end instant, strictly after `startsAt`. */
+  readonly endsAt?: unknown;
+  readonly agendaNote?: unknown;
+  /** Audit gap 8 (COL-09): members to invite; the organizer is always added. */
+  readonly attendeeUserIds?: unknown;
+}
+
+interface UpdateMeetingBody {
+  readonly title?: unknown;
+  readonly startsAt?: unknown;
+  readonly endsAt?: unknown;
   readonly agendaNote?: unknown;
 }
+
+/** The most attendees one create may name. */
+const MAX_ATTENDEES = 100;
 
 /** `meetings.title` is `VARCHAR(300)`. */
 const MAX_TITLE_LENGTH = 300;
@@ -99,6 +113,8 @@ export class MeetingsController {
     ];
 
     const startsAt = parseInstant(body?.startsAt, details);
+    const endsAt = parseOptionalInstant(body?.endsAt, details, 'endsAt');
+    const attendeeUserIds = parseUserIds(body?.attendeeUserIds, details);
 
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -113,7 +129,74 @@ export class MeetingsController {
       projectId,
       title,
       startsAt,
+      ...(endsAt ? { endsAt } : {}),
       ...(agendaNote === undefined ? {} : { agendaNote }),
+      ...(attendeeUserIds ? { attendeeUserIds } : {}),
+    });
+  }
+
+  /**
+   * Audit gap 8 (COL-06): edit a meeting after creation — title, start, end (after start) and the
+   * agenda note. Absent fields are left alone; `endsAt`/`agendaNote` accept `null` to clear.
+   */
+  @Patch(':meetingId')
+  @RequireCapability('meeting.write')
+  async update(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+    @Body() body: UpdateMeetingBody,
+  ): Promise<MeetingView> {
+    const details: { field: string; message: string }[] = [];
+    if (!meetingId) details.push({ field: 'meetingId', message: 'must be a non-empty string' });
+
+    let title: string | undefined;
+    if (body?.title !== undefined) {
+      title = typeof body.title === 'string' ? body.title.trim() : '';
+      if (!title) details.push({ field: 'title', message: 'must be a non-empty string' });
+      else if (title.length > MAX_TITLE_LENGTH) {
+        details.push({
+          field: 'title',
+          message: `must be ${MAX_TITLE_LENGTH} characters or fewer`,
+        });
+      }
+    }
+
+    let agendaNote: string | null | undefined;
+    if (body?.agendaNote !== undefined) {
+      if (body.agendaNote === null || body.agendaNote === '') agendaNote = null;
+      else if (typeof body.agendaNote !== 'string') {
+        details.push({ field: 'agendaNote', message: 'must be a string or null' });
+      } else if (body.agendaNote.length > MAX_AGENDA_LENGTH) {
+        details.push({
+          field: 'agendaNote',
+          message: `must be ${MAX_AGENDA_LENGTH} characters or fewer`,
+        });
+      } else agendaNote = body.agendaNote;
+    }
+
+    const startsAt =
+      body?.startsAt === undefined ? undefined : parseInstant(body.startsAt, details);
+    const endsAt = parseOptionalInstant(body?.endsAt, details, 'endsAt');
+
+    if (
+      details.length === 0 &&
+      title === undefined &&
+      agendaNote === undefined &&
+      startsAt === undefined &&
+      endsAt === undefined
+    ) {
+      details.push({ field: 'body', message: 'must change at least one field' });
+    }
+    if (details.length > 0) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+
+    return this.meetings.update(context, principal, meetingId, {
+      ...(title !== undefined ? { title } : {}),
+      ...(startsAt !== undefined ? { startsAt } : {}),
+      ...(endsAt !== undefined ? { endsAt } : {}),
+      ...(agendaNote !== undefined ? { agendaNote } : {}),
     });
   }
 
@@ -208,19 +291,51 @@ export class MeetingsController {
 function parseInstant(
   raw: unknown,
   details: { field: string; message: string }[],
+  field = 'startsAt',
 ): Date | undefined {
   if (raw === undefined || raw === null || raw === '') {
-    details.push({ field: 'startsAt', message: 'is required' });
+    details.push({ field, message: 'is required' });
     return undefined;
   }
   if (typeof raw !== 'string') {
-    details.push({ field: 'startsAt', message: 'must be an ISO-8601 date-time string' });
+    details.push({ field, message: 'must be an ISO-8601 date-time string' });
     return undefined;
   }
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) {
-    details.push({ field: 'startsAt', message: 'must be an ISO-8601 date-time string' });
+    details.push({ field, message: 'must be an ISO-8601 date-time string' });
     return undefined;
   }
   return parsed;
+}
+
+/** Audit gap 8: an optional instant — `undefined` when absent, `null` when explicitly cleared. */
+function parseOptionalInstant(
+  raw: unknown,
+  details: { field: string; message: string }[],
+  field: string,
+): Date | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null || raw === '') return null;
+  return parseInstant(raw, details, field) ?? undefined;
+}
+
+/** Audit gap 8: an optional array of non-empty user-id strings (at most 100). */
+function parseUserIds(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): readonly string[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (
+    !Array.isArray(raw) ||
+    raw.length > MAX_ATTENDEES ||
+    raw.some((id) => typeof id !== 'string' || id === '')
+  ) {
+    details.push({
+      field: 'attendeeUserIds',
+      message: `must be an array of at most ${MAX_ATTENDEES} user ids`,
+    });
+    return undefined;
+  }
+  return raw as string[];
 }

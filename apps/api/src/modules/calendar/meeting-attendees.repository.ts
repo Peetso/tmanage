@@ -270,4 +270,25 @@ export class MeetingAttendeesRepository {
     }
     return updated;
   }
+
+  /**
+   * Remove an attendee from a meeting (audit gap 8). Scoped by `organization_id`, `meeting_id` and
+   * `id`, so another tenant's or another meeting's row matches nothing.
+   */
+  async remove(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    meetingId: string,
+    attendeeId: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .delete(meetingAttendees)
+      .where(
+        and(
+          eq(meetingAttendees.organizationId, context.organizationId),
+          eq(meetingAttendees.meetingId, meetingId),
+          eq(meetingAttendees.id, attendeeId),
+        ),
+      );
+  }
 }

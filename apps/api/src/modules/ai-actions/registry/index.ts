@@ -2737,6 +2737,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'write',
   },
   {
+    id: 'meetings.update',
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId',
+    capability: 'meeting.write',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
     id: 'meetings.action_items.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/meetings/:meetingId/action-items/',
@@ -2791,6 +2799,14 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'meeting.write',
     risk: 'write',
     scope: 'write',
+  },
+  {
+    id: 'meetings.attendees.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/attendees/:attendeeId',
+    capability: 'meeting.write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   {
     id: 'meetings.attendees.update',

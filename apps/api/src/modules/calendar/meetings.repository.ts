@@ -42,9 +42,23 @@ export interface CreateMeetingInput {
   readonly title: string;
   /** A point in time, stored as a UTC instant (the column is `DATETIME(3)`). */
   readonly startsAt: Date;
+  /** Audit gap 8 (0213): optional end instant; the service has already checked it is after the start. */
+  readonly endsAt?: Date | null;
   readonly agendaNote?: string | null;
   /** The person creating the meeting — the service passes `context.userId`. */
   readonly createdByUserId: string;
+}
+
+/**
+ * Audit gap 8 (COL-06/09): the editable fields of a meeting. An absent field is left alone; `null`
+ * clears an optional one. Identity (`organizationId`/`projectId`/`createdByUserId`) has no field here
+ * and is pinned by 0029's trigger besides.
+ */
+export interface UpdateMeetingInput {
+  readonly title?: string;
+  readonly startsAt?: Date;
+  readonly endsAt?: Date | null;
+  readonly agendaNote?: string | null;
 }
 
 export interface ListMeetingsOptions {
@@ -147,6 +161,7 @@ export class MeetingsRepository {
       projectId: input.projectId,
       title: input.title,
       startsAt: input.startsAt,
+      endsAt: input.endsAt ?? null,
       agendaNote: input.agendaNote ?? null,
       createdByUserId: input.createdByUserId,
       createdAt: sql`current_timestamp(3)`,
@@ -156,5 +171,29 @@ export class MeetingsRepository {
     // Read back rather than reconstruct: the row now carries server-generated timestamps, and
     // returning a hand-assembled object would let the two disagree.
     return this.requireById(runner, context, id);
+  }
+
+  /**
+   * Edit a meeting in place (audit gap 8). The `WHERE` carries `organization_id` and `id`, so a row
+   * of another tenant matches nothing; the service resolved the meeting scoped before calling this.
+   */
+  async update(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    meetingId: string,
+    input: UpdateMeetingInput,
+  ): Promise<MeetingRow> {
+    const db = tenantDrizzle(runner);
+    await db
+      .update(meetings)
+      .set({
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
+        ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
+        ...(input.agendaNote !== undefined ? { agendaNote: input.agendaNote } : {}),
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(and(eq(meetings.organizationId, context.organizationId), eq(meetings.id, meetingId)));
+    return this.requireById(runner, context, meetingId);
   }
 }

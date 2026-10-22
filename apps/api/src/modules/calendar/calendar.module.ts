@@ -61,6 +61,9 @@ export class CalendarModule {
           new ProjectsRepository(),
           new MeetingNotesRepository(),
           outbox,
+          // Audit gap 8 (COL-09): organizer + chosen attendees are added in the create transaction.
+          new MeetingAttendeesRepository(),
+          new MembershipsRepository(),
         ),
     };
 

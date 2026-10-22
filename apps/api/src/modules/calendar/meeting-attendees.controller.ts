@@ -1,4 +1,15 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -134,5 +145,23 @@ export class MeetingAttendeesController {
       attendeeId,
       rsvp: body.rsvp as AttendeeRsvp,
     });
+  }
+
+  /** Audit gap 8 (COL-06): remove an attendee. 204, or 404 for an attendee not on this meeting. */
+  @Delete(':attendeeId')
+  @RequireCapability('meeting.write')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+    @Param('attendeeId') attendeeId: string,
+  ): Promise<void> {
+    if (!meetingId || !attendeeId) {
+      throw new ApiError(400, 'validation_failed', 'meetingId and attendeeId are required', [
+        { field: meetingId ? 'attendeeId' : 'meetingId', message: 'must be a non-empty string' },
+      ]);
+    }
+    await this.attendees.remove(context, principal, { meetingId, attendeeId });
   }
 }
