@@ -6,7 +6,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { PreferencesNav } from './PreferencesScreen';
-import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
+import { browserApiClient } from '../../lib/api/browser-client';
+import { connectorAddress, deploymentAddress } from '../../lib/ai-connector-address';
+import { useOrganizationName } from '../../lib/use-organization-names';
 import {
   createPersonalAccessToken,
   listPersonalAccessTokens,
@@ -90,7 +92,8 @@ export function AiAssistantScreen({
 
   const [name, setName] = useState('');
   const [created, setCreated] = useState<CreatedPersonalAccessTokenView | null>(null);
-  const [assistant, setAssistant] = useState<AssistantId>('claude-desktop');
+  const [assistant, setAssistant] = useState<AssistantId>('claude');
+  const workspaceName = useOrganizationName(organizationSlug, organizationName);
 
   const create = useMutation({
     mutationFn: (): Promise<CreatedPersonalAccessTokenView> =>
@@ -112,7 +115,6 @@ export function AiAssistantScreen({
 
   const active = (tokens.data ?? []).filter((token) => isActive(token, now()));
   const status = connectionStatus(active);
-  const tokenForSnippet = created?.token ?? TOKEN_PLACEHOLDER;
 
   return (
     <AppShell
@@ -194,12 +196,23 @@ export function AiAssistantScreen({
                   className="tm-ai-tab"
                   onClick={() => setAssistant(option.id)}
                 >
-                  {option.label}
+                  {option.labelKey === undefined ? option.label : t(option.labelKey)}
                 </button>
               ))}
             </div>
 
-            <AssistantPanel assistant={assistant} address={address} token={tokenForSnippet} />
+            <AssistantPanel
+              assistant={assistant}
+              address={address}
+              token={created?.token ?? null}
+              workspaceName={workspaceName}
+            />
+
+            <p className="tm-prefs-card__note">
+              <Link href={`/${organizationSlug}/help/connect-ai`}>
+                {t('AiAssistantScreen.helpLink')}
+              </Link>
+            </p>
 
             {created === null ? (
               <p className="tm-prefs-card__note">{t('AiAssistantScreen.keyFilledNote')}</p>
@@ -347,33 +360,33 @@ export function AiAssistantScreen({
 
 // ── Assistants ────────────────────────────────────────────────────────────
 
-type AssistantId = 'claude-desktop' | 'claude-code' | 'chatgpt' | 'other';
+type AssistantId = 'claude' | 'claude-code' | 'chatgpt' | 'other';
 
-const ASSISTANTS: readonly { id: AssistantId; label: string }[] = [
-  { id: 'claude-desktop', label: 'Claude Desktop' },
+/** Brand names stay Latin in every locale; only "Other assistants" is translated. */
+const ASSISTANTS: readonly { id: AssistantId; label: string; labelKey?: MessageKey }[] = [
+  { id: 'claude', label: 'Claude' },
   { id: 'claude-code', label: 'Claude Code' },
   { id: 'chatgpt', label: 'ChatGPT' },
-  { id: 'other', label: 'Other assistants' },
+  { id: 'other', label: 'Other assistants', labelKey: 'AiAssistantScreen.tabOther' },
 ];
 
 export const TOKEN_PLACEHOLDER = 'paste-your-key-here';
 
-/** The hosted MCP endpoint of a TManage deployment: `<origin>/mcp`. */
-export function connectorAddress(origin: string): string {
-  return `${origin.replace(/\/+$/, '')}/mcp`;
-}
+export { connectorAddress };
 
 function AssistantPanel({
   assistant,
   address,
   token,
+  workspaceName,
 }: {
   assistant: AssistantId;
   address: string;
-  token: string;
+  token: string | null;
+  workspaceName: string;
 }) {
   const t = useT();
-  const panel = assistantPanel(t, assistant, address, token);
+  const panel = assistantPanel(t, assistant, address, token, workspaceName);
   return (
     <div
       id="tm-ai-panel"
@@ -400,48 +413,49 @@ function AssistantPanel({
   );
 }
 
-function assistantPanel(
+/**
+ * The steps and snippet for one assistant (AUT-05, AUT-06). Claude and ChatGPT add TManage as a
+ * custom connector and sign in with OAuth, so they need no key and no snippet. Claude Code signs
+ * in with OAuth through `/mcp`, or takes the member's key as a header once one is created. Any
+ * other MCP client gets the address and the key header.
+ */
+export function assistantPanel(
   t: (key: MessageKey) => string,
   assistant: AssistantId,
   address: string,
-  token: string,
+  token: string | null,
+  workspaceName: string,
 ): { steps: readonly string[]; snippet: string | null } {
-  const header = `Authorization: Bearer ${token}`;
+  const header = `Authorization: Bearer ${token ?? TOKEN_PLACEHOLDER}`;
   switch (assistant) {
-    case 'claude-desktop':
+    case 'claude':
       return {
         steps: [
-          t('AiAssistantScreen.cdStep1'),
-          t('AiAssistantScreen.cdStep2'),
-          t('AiAssistantScreen.cdStep3'),
+          t('ConnectAiHelp.claudeStep1'),
+          t('ConnectAiHelp.claudeStep2'),
+          t('ConnectAiHelp.claudeStep3'),
         ],
-        snippet: JSON.stringify(
-          {
-            mcpServers: {
-              tmanage: {
-                command: 'npx',
-                args: ['-y', 'mcp-remote', address, '--header', `Authorization:Bearer ${token}`],
-              },
-            },
-          },
-          null,
-          2,
-        ),
+        snippet: null,
       };
     case 'claude-code':
-      return {
-        steps: [t('AiAssistantScreen.ccStep1')],
-        snippet: [
-          `claude mcp add --transport http tmanage ${address} \\`,
-          `  --header "${header}"`,
-        ].join('\n'),
-      };
+      return token === null
+        ? {
+            steps: [t('ConnectAiHelp.claudeCodeStep1')],
+            snippet: `claude mcp add --transport http tmanage ${address}`,
+          }
+        : {
+            steps: [t('AiAssistantScreen.ccStep1')],
+            snippet: [
+              `claude mcp add --transport http tmanage ${address} \\`,
+              `  --header "${header}"`,
+            ].join('\n'),
+          };
     case 'chatgpt':
       return {
         steps: [
-          `${t('AiAssistantScreen.cgStep1Prefix')} ${address}`,
-          t('AiAssistantScreen.cgStep2'),
-          t('AiAssistantScreen.cgStep3'),
+          t('ConnectAiHelp.chatgptStep1'),
+          t('ConnectAiHelp.chatgptStep2'),
+          `${t('ConnectAiHelp.chatgptStep3Prefix')} ${workspaceName}.`,
         ],
         snippet: null,
       };
@@ -485,18 +499,6 @@ export function connectionStatus(active: readonly PersonalAccessTokenView[]): Co
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
-
-/** The API origin assistants call. Same-origin deployments serve the API from the web origin. */
-function deploymentAddress(): string {
-  let base = '';
-  try {
-    base = apiBaseUrl();
-  } catch {
-    base = '';
-  }
-  if (base !== '') return base;
-  return typeof window === 'undefined' ? '' : window.location.origin;
-}
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const t = useT();

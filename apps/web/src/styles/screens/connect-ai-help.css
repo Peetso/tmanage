@@ -1,0 +1,409 @@
+/*
+ * Connect an AI (Help) — S0-4, Figma 360:1214 (EN) and 360:1333 (AR).
+ * Every value is a TManage token; logical properties so Arabic mirrors through `dir`.
+ */
+
+.tm-aihelp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s8);
+  min-block-size: 100vh;
+  padding-block-end: var(--s10);
+  background: var(--paper-50);
+  color: var(--ink-950);
+}
+
+.tm-aihelp-mono {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+/* ── Top bar ── */
+
+.tm-aihelp-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: var(--s4) var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+}
+
+.tm-aihelp-bar__trail {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-inline-size: 0;
+}
+
+.tm-aihelp-bar__orb {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-aihelp-bar__orb:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aihelp-bar__dot {
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+}
+
+/* ── Main column ── */
+
+.tm-aihelp-main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  box-sizing: border-box;
+  inline-size: 100%;
+  max-inline-size: 1120px;
+  padding-inline: var(--s4);
+}
+
+.tm-aihelp-intro {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-aihelp-title {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-aihelp-lede {
+  margin: 0;
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+  color: var(--ink-650);
+}
+
+/* ── Workspace address ── */
+
+.tm-aihelp-address {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s5);
+  padding: var(--s5) var(--s6);
+  border: var(--b-structural) solid var(--line-700);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-aihelp-address__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-aihelp-address__value {
+  max-inline-size: 100%;
+  padding: var(--s2) var(--s4);
+  overflow-wrap: anywhere;
+  border-radius: var(--r-micro);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-aihelp-capsule {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s2);
+  padding: var(--s3) var(--s5);
+  border: 0;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.tm-aihelp-capsule:focus-visible,
+.tm-aihelp-copy:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aihelp-capsule:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* ── Client cards ── */
+
+.tm-aihelp-grid {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s5);
+}
+
+.tm-aihelp-col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s5);
+  min-inline-size: 0;
+}
+
+.tm-aihelp-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-aihelp-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aihelp-card__glyph {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  inline-size: 40px;
+  block-size: 40px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--ink-950);
+  font-family: var(--font-latin);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--paper-0);
+}
+
+.tm-aihelp-card__names {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-aihelp-card__name {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-aihelp-card__subtitle {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+.tm-aihelp-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-aihelp-step {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s3);
+}
+
+.tm-aihelp-step__num {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 24px;
+  block-size: 24px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+  font-family: var(--font-latin);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--paper-0);
+}
+
+.tm-aihelp-step__text {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+/* ── Code boxes ── */
+
+.tm-aihelp-code {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3);
+  border-radius: var(--r-micro);
+  background: var(--paper-150);
+}
+
+.tm-aihelp-code__text {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-800);
+}
+
+.tm-aihelp-copy {
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-micro);
+  background: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  color: var(--ink-500);
+  cursor: pointer;
+}
+
+.tm-aihelp-copy:disabled {
+  cursor: default;
+}
+
+/* ── No MCP support ── */
+
+.tm-aihelp-api {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s6);
+  border-radius: var(--r-compact);
+  background: var(--ink-950);
+}
+
+.tm-aihelp-api__eyebrow {
+  color: var(--lime-500);
+}
+
+.tm-aihelp-api__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--paper-0);
+}
+
+.tm-aihelp-api__body {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--line-300);
+}
+
+.tm-aihelp-api__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aihelp-code--dark {
+  flex: 1;
+  min-inline-size: 0;
+  background: var(--ink-800);
+}
+
+.tm-aihelp-code--dark .tm-aihelp-code__text {
+  color: var(--paper-0);
+}
+
+.tm-aihelp-code--dark .tm-aihelp-copy {
+  color: var(--line-300);
+}
+
+/* ── Arabic (Alexandria "Arabic/Doc" styles: taller lines, regular weight for body) ── */
+
+:lang(ar) .tm-aihelp-title {
+  line-height: 53px;
+}
+
+:lang(ar) .tm-aihelp-card__name,
+:lang(ar) .tm-aihelp-api__title {
+  line-height: 29px;
+}
+
+:lang(ar) .tm-aihelp-card__subtitle,
+:lang(ar) .tm-aihelp-step__text {
+  line-height: 19px;
+  font-weight: 400;
+}
+
+:lang(ar) .tm-aihelp-api__body {
+  font-size: var(--t-ui-sm);
+  line-height: 19px;
+}
+
+:lang(ar) .tm-aihelp-capsule {
+  line-height: 21px;
+  font-weight: 400;
+}
+
+/* ── Narrow screens ── */
+
+@media (max-width: 47.99rem) {
+  .tm-aihelp-bar {
+    padding-inline: var(--s4);
+  }
+
+  .tm-aihelp-grid,
+  .tm-aihelp-api__row,
+  .tm-aihelp-address {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

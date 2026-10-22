@@ -78,8 +78,14 @@ describe('AiAssistantScreen', () => {
     expect(screen.getAllByText('https://tmanage.example.test/mcp').length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.getByText('Not connected')).toBeTruthy());
 
+    // AUT-05: Claude adds TManage as a custom connector and signs in; no file, no key, no snippet.
+    expect(screen.getByRole('tab', { name: 'Claude' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByTestId('tm-ai-snippet')).toBeNull();
+    expect(container.querySelector('a[href="/northstar/help/connect-ai"]')).not.toBeNull();
+
+    fireEvent.click(screen.getAllByRole('tab')[3]!);
     const snippet = screen.getByTestId('tm-ai-snippet').textContent ?? '';
-    expect(snippet).toContain('"https://tmanage.example.test/mcp"');
+    expect(snippet).toContain('URL: https://tmanage.example.test/mcp');
     expect(snippet).not.toContain('/path/to/');
     expect(snippet).toContain(TOKEN_PLACEHOLDER);
 
@@ -89,16 +95,14 @@ describe('AiAssistantScreen', () => {
   it('switches the instructions per assistant', async () => {
     mount(() => ({ status: 200, body: { tokens: [] } }));
     fireEvent.click(screen.getByRole('tab', { name: 'Claude Code' }));
-    expect(screen.getByTestId('tm-ai-snippet').textContent).toContain(
+    // Without a key Claude Code signs in through /mcp, so the command carries no placeholder.
+    expect(screen.getByTestId('tm-ai-snippet').textContent).toBe(
       'claude mcp add --transport http tmanage https://tmanage.example.test/mcp',
     );
+    // AUT-06: ChatGPT signs in with OAuth; it is never told to use a key as a bearer token.
     fireEvent.click(screen.getByRole('tab', { name: 'ChatGPT' }));
     expect(screen.queryByTestId('tm-ai-snippet')).toBeNull();
-    expect(
-      screen.getByText(
-        /^ChatGPT connects to your TManage address: https:\/\/tmanage\.example\.test\/mcp$/,
-      ),
-    ).toBeTruthy();
+    expect(screen.getByRole('tabpanel').textContent?.toLowerCase()).not.toContain('bearer');
     expect(screen.getByRole('tab', { name: 'ChatGPT' }).getAttribute('aria-selected')).toBe('true');
   });
 
@@ -120,7 +124,10 @@ describe('AiAssistantScreen', () => {
     await waitFor(() =>
       expect(screen.getByTestId('tm-ai-secret').textContent).toBe('tmanage_pat_secretvalue'),
     );
-    expect(screen.getByTestId('tm-ai-snippet').textContent).toContain('tmanage_pat_secretvalue');
+    fireEvent.click(screen.getByRole('tab', { name: 'Claude Code' }));
+    expect(screen.getByTestId('tm-ai-snippet').textContent).toContain(
+      '--header "Authorization: Bearer tmanage_pat_secretvalue"',
+    );
     const post = calls.find((call) => call.method === 'POST');
     expect(post?.url).toContain('/v1/organizations/northstar/me/personal-access-tokens');
     expect(JSON.parse(post?.body ?? '{}')).toEqual({ name: 'Laptop', expiresInDays: null });
