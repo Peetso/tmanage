@@ -71,11 +71,12 @@ export class PendingAiActionsController {
   @RequireCapability('work.read')
   async view(
     @Ctx() context: TenantContext,
+    @Param('orgSlug') orgSlug: string,
     @Param('id') id: string,
     @AuthScheme() authScheme: string | undefined,
   ): Promise<PendingAiActionView> {
     requireCookieSession(authScheme);
-    return this.approvals.view(context, id);
+    return this.approvals.view(context, id, orgSlug);
   }
 
   @Post(':id/approve')

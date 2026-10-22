@@ -4,6 +4,9 @@ import {
   fieldLabel,
   fillTemplate,
   formatCountdown,
+  localizedFieldLabel,
+  localizedOpTitle,
+  subjectLine,
 } from '../src/lib/ai-approval-presentation';
 import { safeReturnPath } from '../src/lib/sign-in-return';
 
@@ -35,5 +38,28 @@ describe('AI approve page presentation (S10)', () => {
       '/organizations',
     );
     expect(safeReturnPath(`${link}?next=https://evil.test`)).toBe('/organizations');
+  });
+
+  it('renders op titles and field names through the catalog by id, keeping English as fallback', () => {
+    const ar: Record<string, string> = {
+      'aiApprove.op.work_items.delete': 'حذف عنصر',
+      'aiApprove.field.workItemId': 'العنصر',
+      'aiApprove.subjectDelete': 'حذف «{name}»',
+    };
+    const lookup = (key: string): string | undefined => ar[key];
+    expect(localizedOpTitle(lookup, 'work_items.delete', 'Delete work item')).toBe('حذف عنصر');
+    expect(localizedOpTitle(lookup, 'x.unknown', 'Do a thing')).toBe('Do a thing');
+    expect(localizedFieldLabel(lookup, 'workItemId')).toBe('العنصر');
+    expect(localizedFieldLabel(lookup, 'due_date')).toBe('Due date');
+  });
+
+  it('builds the bold subject line, localized, and nothing without a subject', () => {
+    const none = (): undefined => undefined;
+    expect(subjectLine(none, 'Homepage direction review', true)).toBe(
+      'Delete “Homepage direction review”',
+    );
+    expect(subjectLine(none, 'sam@x.test', false)).toBe('“sam@x.test”');
+    expect(subjectLine(() => 'حذف «{name}»', 'مراجعة', true)).toBe('حذف «مراجعة»');
+    expect(subjectLine(none, null, true)).toBeNull();
   });
 });

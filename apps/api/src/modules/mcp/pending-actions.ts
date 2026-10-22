@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { AiActionOp } from '../ai-actions/registry/index.js';
-import { findOpById } from '../ai-actions/registry/index.js';
+import { findOpById, findOpByRoute } from '../ai-actions/registry/index.js';
 import type { AiActionDetail } from '../ai-actions/registry/detail.js';
 import { allDetailsById } from './tool-catalog.js';
 import { argsSha256 } from './internal-grant.js';
@@ -158,6 +158,12 @@ export interface ApprovalSummary {
   readonly destructive: boolean;
   /** The op reaches other people (sends, invites, publishes). */
   readonly notifies: boolean;
+  /**
+   * The name of the thing the action is about — the work item's title, the invitee's email — for
+   * the page's bold line (Figma 365:1229, `Delete “Homepage direction review”`). `null` when
+   * neither the arguments nor a read of the target name it.
+   */
+  readonly subject: string | null;
   readonly fields: readonly SummaryField[];
 }
 
@@ -169,10 +175,60 @@ function fieldText(value: unknown): string {
   return text.length > MAX_FIELD_CHARS ? `${text.slice(0, MAX_FIELD_CHARS - 1)}…` : text;
 }
 
+/** Arguments that name the action's target, in the order the subject is taken from them. */
+const SUBJECT_ARGS = ['title', 'name', 'subject', 'label', 'email', 'fileName', 'poNumber', 'code'];
+
+/** Response keys that name a read target, in preference order. */
+const SUBJECT_KEYS = ['title', 'name', 'subject', 'label'];
+
+function firstNamed(source: Record<string, unknown>, keys: readonly string[]): string | null {
+  for (const key of keys) {
+    const value = source[key];
+    if (typeof value === 'string' && value.trim() !== '') return fieldText(value.trim());
+  }
+  return null;
+}
+
+/** The subject when the arguments carry it (a create, an invite): their first name-like value. */
+export function subjectFromArgs(args: Record<string, unknown>): string | null {
+  return firstNamed(args, SUBJECT_ARGS);
+}
+
+/**
+ * The read op that names an action's target: the registry's `GET` on the same path (a delete of
+ * `/work-items/:workItemId` → `work_items.get`). Only read-class ops; never the action itself.
+ */
+export function subjectLookupOp(op: AiActionOp): AiActionOp | undefined {
+  if (op.method === 'GET') return undefined;
+  const read = findOpByRoute('GET', op.path);
+  return read?.risk === 'read' ? read : undefined;
+}
+
+/** The target's name from that read's JSON body (top level, or under `data` / `item`). */
+export function subjectFromBody(body: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return null;
+  }
+  const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+  if (!isRecord(parsed)) return null;
+  for (const source of [parsed, parsed['data'], parsed['item']]) {
+    if (isRecord(source)) {
+      const found = firstNamed(source, SUBJECT_KEYS);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
+
 export function buildApprovalSummary(
   op: AiActionOp,
   detail: AiActionDetail,
   args: Record<string, unknown>,
+  subject: string | null = subjectFromArgs(args),
 ): ApprovalSummary {
   const fields = Object.entries(args)
     .filter(([, value]) => value !== undefined && value !== null)
@@ -184,6 +240,7 @@ export function buildApprovalSummary(
     method: op.method,
     destructive: op.method === 'DELETE',
     notifies: detail.notifies,
+    subject,
     fields,
   };
 }

@@ -142,6 +142,16 @@
   color: var(--danger-600);
 }
 
+/* The item the action is about — Heading/Card (Figma 365:1229). */
+.tm-approve__subject {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
 .tm-approve__rule {
   margin: 0;
   border: 0;
@@ -224,6 +234,24 @@
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);
   font-weight: 500;
+}
+
+/*
+ * "Approve and delete" is the filled danger capsule (Figma 365:1248: danger-600 fill, paper-0
+ * label). The design-system DestructiveButton is outlined at rest and fills on hover; on this page
+ * the confirm is the one decision, so it rests filled, and hover keeps the same paint so the label
+ * never flips to the shared hover's ink.
+ */
+.tm-approve__actions > .tm-button.tm-approve__confirm--danger {
+  background: var(--danger-600);
+  border-color: var(--danger-600);
+  color: var(--paper-0);
+}
+
+.tm-approve__actions
+  > .tm-button.tm-approve__confirm--danger:hover:not(:disabled):not([aria-disabled='true']) {
+  background: var(--danger-600);
+  color: var(--paper-0);
 }
 
 /* Result states: Approved / Expired / Declined / Could not run / Not available. */

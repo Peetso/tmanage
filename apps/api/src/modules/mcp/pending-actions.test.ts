@@ -9,6 +9,7 @@ import {
   effectiveStatus,
   freezeConfirmAction,
   signRequestState,
+  subjectFromArgs,
 } from './pending-actions.js';
 import { PendingAiActionsService } from './pending-actions.service.js';
 import type { PendingAiActionsRepository } from './pending-actions.repository.js';
@@ -167,5 +168,26 @@ describe('pending AI actions (S10)', () => {
       url: '/v1/organizations/studio/things/a%2Fb/send',
       body: '{"note":"hi"}',
     });
+  });
+
+  it('names the target for the bold line: from a name-like arg, else by reading it as the member', async () => {
+    expect(subjectFromArgs({ email: 'sam@x.test', role: 'member' })).toBe('sam@x.test');
+    expect(subjectFromArgs({ workItemId: 'wi_1' })).toBeNull();
+
+    const { service, execute } = serviceWith(storedRow(), 0);
+    execute.mockResolvedValueOnce({
+      status: 200,
+      body: JSON.stringify({ id: 'wi_1', title: 'Homepage direction review' }),
+    });
+    const view = await service.view(context, 'pa-1', 'studio');
+    expect(view.summary.subject).toBe('Homepage direction review');
+    expect(execute).toHaveBeenCalledWith(
+      { method: 'GET', url: '/v1/organizations/studio/work-items/wi_1' },
+      expect.objectContaining({ opId: 'work_items.get', membershipId: 'mem-1' }),
+      'corr-1',
+    );
+
+    execute.mockResolvedValueOnce({ status: 404, body: '{}' });
+    expect((await service.view(context, 'pa-1', 'studio')).summary.subject).toBeNull();
   });
 });

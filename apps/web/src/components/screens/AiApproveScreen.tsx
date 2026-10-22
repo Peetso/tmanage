@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Avatar, Button, LiveAnnouncer, LoadingRegion, Skeleton, SkipLink } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -9,10 +9,15 @@ import type { AiApprovalView } from '../../lib/api/ai-approvals';
 import type { ApiClient } from '../../lib/api/client';
 import {
   clientInitial,
-  fieldLabel,
   fillTemplate,
   formatCountdown,
+  localizedFieldLabel,
+  localizedOpTitle,
+  subjectLine,
 } from '../../lib/ai-approval-presentation';
+import type { CatalogLookup } from '../../lib/ai-approval-presentation';
+import { translate, type MessageKey } from '../../lib/i18n/t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/ai-approve.css';
@@ -109,8 +114,24 @@ interface ApprovalBodyProps {
   onDecide: (decision: 'approve' | 'decline') => void;
 }
 
+/**
+ * A lookup for keys built at run time (registry op ids, argument ids): the catalog string, or
+ * `undefined` when neither catalog holds the key, so the caller keeps the server's English.
+ */
+function useCatalogLookup(): CatalogLookup {
+  const locale = useActiveLocale();
+  return useCallback(
+    (key: string) => {
+      const text = translate(locale, key as MessageKey);
+      return text === key ? undefined : text;
+    },
+    [locale],
+  );
+}
+
 function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) {
   const t = useT();
+  const lookup = useCatalogLookup();
   const formatters = useDisplayFormatters();
   const expiresAt = Date.parse(view.expiresAt);
   const [msLeft, setMsLeft] = useState(() => expiresAt - now());
@@ -123,6 +144,7 @@ function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) 
 
   const status = view.status === 'pending' && msLeft <= 0 ? 'expired' : view.status;
   const destructive = view.summary.destructive;
+  const subject = subjectLine(lookup, view.summary.subject, destructive);
 
   if (status !== 'pending') {
     const time = view.decidedAt
@@ -172,13 +194,14 @@ function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) 
           id="tm-approve-action"
           className={`tm-approve__kind${destructive ? ' tm-approve__kind--danger' : ''}`}
         >
-          {view.summary.title}
+          {localizedOpTitle(lookup, view.summary.opId, view.summary.title)}
         </p>
+        {subject === null ? null : <p className="tm-approve__subject">{subject}</p>}
         <hr className="tm-approve__rule" />
         <dl className="tm-approve__fields">
           {view.summary.fields.map((field) => (
             <div key={field.name} className="tm-approve__field">
-              <dt>{fieldLabel(field.name)}</dt>
+              <dt>{localizedFieldLabel(lookup, field.name)}</dt>
               <dd>{field.value}</dd>
             </div>
           ))}
@@ -208,6 +231,7 @@ function ApprovalBody({ view, now, busy, failed, onDecide }: ApprovalBodyProps) 
         </Button>
         <Button
           tone={destructive ? 'destructive' : 'ink'}
+          className={destructive ? 'tm-approve__confirm--danger' : undefined}
           disabled={busy}
           onClick={() => onDecide('approve')}
         >

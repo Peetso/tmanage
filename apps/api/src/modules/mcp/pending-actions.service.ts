@@ -13,6 +13,8 @@ import {
   effectiveStatus,
   freezeConfirmAction,
   signRequestState,
+  subjectFromBody,
+  subjectLookupOp,
   verifyFrozenAction,
 } from './pending-actions.js';
 import type { ApprovalSummary, FrozenAction, OpRequest, PendingStatus } from './pending-actions.js';
@@ -140,9 +142,19 @@ export class PendingAiActionsService {
     };
   }
 
-  /** The approve page's view of one of the signed-in member's own pending actions. */
-  async view(context: TenantContext, id: string): Promise<PendingAiActionView> {
-    return this.toView(await this.loadOwn(context, id));
+  /**
+   * The approve page's view of one of the signed-in member's own pending actions. While it is
+   * pending, a target the arguments only name by id (a delete) is named by reading it as the
+   * member, so the page can say what will go (`Delete “Homepage direction review”`).
+   */
+  async view(context: TenantContext, id: string, orgSlug?: string): Promise<PendingAiActionView> {
+    const found = await this.loadOwn(context, id);
+    const view = this.toView(found);
+    if (orgSlug === undefined || view.status !== 'pending' || view.summary.subject !== null) {
+      return view;
+    }
+    const subject = await this.readSubject(context, orgSlug, found);
+    return subject === null ? view : { ...view, summary: { ...view.summary, subject } };
   }
 
   /**
@@ -164,7 +176,7 @@ export class PendingAiActionsService {
         this.repository.recordResult(tx, context, id, outcome),
       );
     }
-    return this.view(context, id);
+    return this.toView(await this.loadOwn(context, id));
   }
 
   /** Decline. A no-op on anything no longer pending. */
@@ -173,7 +185,42 @@ export class PendingAiActionsService {
     await this.database.transaction(context, (tx) =>
       this.repository.decide(tx, context, this.owner(context), id, 'declined', this.now()),
     );
-    return this.view(context, id);
+    return this.toView(await this.loadOwn(context, id));
+  }
+
+  /**
+   * Name the target by running the registry's read of the same path as the member. A read only,
+   * never the frozen action; any failure leaves the bold line out rather than failing the page.
+   */
+  private async readSubject(
+    context: TenantContext,
+    orgSlug: string,
+    found: PendingAiActionWithMember,
+  ): Promise<string | null> {
+    const frozen = verifyFrozenAction(found.row.opId, found.row.argsJson, found.row.argsSha256);
+    const read = frozen === undefined ? undefined : subjectLookupOp(frozen.op);
+    if (frozen === undefined || read === undefined) return null;
+    try {
+      const pathArgs = Object.fromEntries(
+        Object.entries(frozen.args).filter(([key]) => read.path.includes(`:${key}`)),
+      );
+      const response = await this.execute(
+        buildOpRequest(read, pathArgs, orgSlug),
+        {
+          grantId: `approval:${found.row.id}:subject`,
+          userId: context.userId,
+          membershipId: context.membershipId,
+          organizationId: context.organizationId,
+          clientId: found.row.clientId,
+          clientName: found.row.clientName,
+          opId: read.id,
+        },
+        context.correlationId,
+      );
+      return response.status === 200 ? subjectFromBody(response.body) : null;
+    } catch {
+      return null;
+    }
   }
 
   private async runFrozen(

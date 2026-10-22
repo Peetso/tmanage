@@ -21,6 +21,8 @@ export interface AiApprovalSummary {
   readonly method: string;
   readonly destructive: boolean;
   readonly notifies: boolean;
+  /** What the action is about (a work item's title, an invitee's email); null when unknown. */
+  readonly subject: string | null;
   readonly fields: readonly AiApprovalField[];
 }
 
