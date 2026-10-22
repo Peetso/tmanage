@@ -8,6 +8,7 @@ import { ArrowLink, ButtonLink, Eyebrow, IconOrb, PlayCapsule, cx } from './prim
 import { DeliveryRiskScene } from './ProductScenes';
 import { SIGN_UP_HREF } from '../../lib/public-signup';
 import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 
 /* ── Web/Section — the 1248 column and section rhythm ─────────────────────────── */
 
@@ -169,14 +170,17 @@ export interface LogoStripPartner {
   icon?: WebIconName;
 }
 
-const DEFAULT_PARTNERS: readonly LogoStripPartner[] = [
-  { name: 'Design partner 01', kind: 'Agency', icon: 'grid' },
-  { name: 'Design partner 02', kind: 'Design studio', icon: 'pencil' },
-  { name: 'Design partner 03', kind: 'Consultancy', icon: 'briefcase' },
-  { name: 'Design partner 04', kind: 'In-house team', icon: 'person' },
-  { name: 'Design partner 05', kind: 'Agency', icon: 'layers' },
-  { name: 'Design partner 06', kind: 'Consultancy', icon: 'trend' },
+/** The placeholder six: "Design partner 01…06" and their team type, read from the catalog. */
+const DEFAULT_PARTNERS: readonly { kind: MessageKey; icon: WebIconName }[] = [
+  { kind: 'HomePage.story1Team', icon: 'grid' },
+  { kind: 'HomePage.partnerDesignStudio', icon: 'pencil' },
+  { kind: 'HomePage.partnerConsultancy', icon: 'briefcase' },
+  { kind: 'HomePage.partnerInhouse', icon: 'person' },
+  { kind: 'HomePage.story1Team', icon: 'layers' },
+  { kind: 'HomePage.partnerConsultancy', icon: 'trend' },
 ];
+
+const partnerNumber = (index: number): string => String(index + 1).padStart(2, '0');
 
 /**
  * Web/Logo strip — honest placeholders until partners approve their logos. `compact` is the
@@ -184,7 +188,7 @@ const DEFAULT_PARTNERS: readonly LogoStripPartner[] = [
  */
 export function LogoStrip({
   label,
-  partners = DEFAULT_PARTNERS,
+  partners,
   variant = 'compact',
 }: {
   label?: string;
@@ -193,17 +197,25 @@ export function LogoStrip({
 }) {
   const t = useT();
   const resolvedLabel = label ?? t('Sections.logoStripLabel');
+  const partnerWord = t('HomePage.partnerKind');
+  const shown: readonly LogoStripPartner[] =
+    partners ??
+    DEFAULT_PARTNERS.map((p, index) => ({
+      name: `${partnerWord} ${partnerNumber(index)}`,
+      kind: t(p.kind),
+      icon: p.icon,
+    }));
   return (
     <div className={cx('tm-web-logos', `tm-web-logos--${variant}`)}>
       <p className="tm-web-logos__label">{resolvedLabel}</p>
       <ul className="tm-web-logos__list">
-        {partners.map((partner, index) => (
+        {shown.map((partner, index) => (
           <li key={partner.name} className="tm-web-logos__tile">
             {variant === 'compact' ? (
               <>
                 <span className="tm-web-eyebrow__dot" aria-hidden="true" />
                 <span className="tm-web-logos__mono">
-                  Design partner · {String(index + 1).padStart(2, '0')}
+                  {partnerWord} · {partnerNumber(index)}
                 </span>
               </>
             ) : (
@@ -240,11 +252,12 @@ export function TestimonialCard({
   quote,
   author,
   org,
-  initials = 'DP',
+  initials,
   tone = 'paper',
   note,
 }: TestimonialCardProps) {
   const t = useT();
+  const shownInitials = initials ?? t('Sections.testimonialInitials' as MessageKey);
   const resolvedNote = note === undefined ? t('Sections.testimonialNote') : note;
   return (
     <figure className={cx('tm-web-quote', tone === 'ink' && 'tm-web-quote--ink')}>
@@ -253,7 +266,7 @@ export function TestimonialCard({
         <p>“{quote}”</p>
       </blockquote>
       <figcaption className="tm-web-quote__by">
-        <Avatar name={initials.split('').join(' ')} audience="client" decorative />
+        <Avatar name={shownInitials.split('').join(' ')} audience="client" decorative />
         <span className="tm-web-quote__who">
           <span className="tm-web-quote__role">{author}</span>
           <span className="tm-web-quote__org">{org}</span>

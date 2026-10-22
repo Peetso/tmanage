@@ -2,6 +2,8 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Button, StateCapsule } from '@tmanage/ui';
+import { useT } from '../../lib/i18n/use-t';
+import type { MessageKey } from '../../lib/i18n/t';
 import { WebIcon } from './WebIcon';
 import { cx } from './primitives';
 
@@ -9,8 +11,15 @@ import { cx } from './primitives';
  * Web/Product visual — mini product scenes composed from packages/ui components (StateCapsule,
  * Avatar, Button) and the app's own field/chip classes, never screenshots or grey boxes. They are
  * illustrations: the whole scene is `inert` and hidden from assistive tech, and `label` gives it
- * one sentence of alternative text instead.
+ * one sentence of alternative text instead. Every default word reads from the `ProductScenes.*`
+ * catalog keys (live-check L3) so the scenes mirror in Arabic; callers may still pass their own.
  */
+
+/** `ProductScenes.<key>` bound to the active locale. */
+function useProductSceneT(): (key: string) => string {
+  const t = useT();
+  return (key) => t(`ProductScenes.${key}` as MessageKey);
+}
 function Scene({
   label,
   className,
@@ -31,51 +40,48 @@ function Scene({
 }
 
 /** WK-02 "Delivery risk" saved view, cropped — the shared product-visual block (§07, §08). */
-export function DeliveryRiskScene({
-  label = 'The Delivery risk saved view: 214 items, a current milestone, one deliverable in client review and one blocked task.',
-}: {
-  label?: string;
-}) {
+export function DeliveryRiskScene({ label }: { label?: string }) {
+  const s = useProductSceneT();
   return (
-    <Scene label={label} className="tm-web-scene--risk">
+    <Scene label={label ?? s('riskLabel')} className="tm-web-scene--risk">
       <div className="tm-web-risk">
-        <p className="tm-web-scene__mono">Work · Saved view</p>
-        <p className="tm-web-risk__title">Delivery risk</p>
-        <p className="tm-web-risk__meta">214 items · 3 blocked · 2 client waiting</p>
+        <p className="tm-web-scene__mono">{s('riskEyebrow')}</p>
+        <p className="tm-web-risk__title">{s('riskTitle')}</p>
+        <p className="tm-web-risk__meta">{s('riskMeta')}</p>
         <div className="tm-web-risk__filters">
           <span className="tm-web-risk__search">
             <WebIcon name="search" size={14} />
-            Search work items
+            {s('riskSearch')}
           </span>
-          <span className="tm-web-chip tm-web-chip--on">Open</span>
-          <span className="tm-web-chip">Owner · anyone</span>
-          <span className="tm-web-chip">Density · Operational</span>
+          <span className="tm-web-chip tm-web-chip--on">{s('riskOpen')}</span>
+          <span className="tm-web-chip">{s('riskOwnerAnyone')}</span>
+          <span className="tm-web-chip">{s('riskDensity')}</span>
           <span className="tm-web-chip tm-web-chip--more">···</span>
         </div>
         <div className="tm-web-risk__bulk">
-          <span>3 selected</span>
-          <span>Set owner</span>
-          <span>Commit date</span>
-          <span>Move to milestone</span>
-          <span>Publish to client</span>
+          <span>{s('riskSelected')}</span>
+          <span>{s('riskSetOwner')}</span>
+          <span>{s('riskCommitDate')}</span>
+          <span>{s('riskMoveMilestone')}</span>
+          <span>{s('riskPublish')}</span>
         </div>
         <div className="tm-web-risk__table">
           <div className="tm-web-risk__row tm-web-risk__row--head">
-            <span>Work item</span>
-            <span>State</span>
+            <span>{s('riskColItem')}</span>
+            <span>{s('riskColState')}</span>
           </div>
           <div className="tm-web-risk__row tm-web-risk__row--group">
-            <span className="tm-web-scene__mono">Milestone · Homepage direction</span>
-            <StateCapsule state="current">CURRENT · 4 DAYS</StateCapsule>
-            <span className="tm-web-risk__count">6 items</span>
+            <span className="tm-web-scene__mono">{s('riskMilestone')}</span>
+            <StateCapsule state="current">{s('riskCurrent')}</StateCapsule>
+            <span className="tm-web-risk__count">{s('riskSixItems')}</span>
           </div>
           <div className="tm-web-risk__row tm-web-risk__row--live">
-            <span className="tm-web-risk__item">DEL · Homepage Concept v2</span>
-            <StateCapsule state="client">Client review</StateCapsule>
+            <span className="tm-web-risk__item">{s('riskDeliverable')}</span>
+            <StateCapsule state="client">{s('riskClientReview')}</StateCapsule>
           </div>
           <div className="tm-web-risk__row tm-web-risk__row--live">
-            <span className="tm-web-risk__item">TSK · Prepare mobile booking flow concepts</span>
-            <StateCapsule state="blocked">Blocked</StateCapsule>
+            <span className="tm-web-risk__item">{s('riskTask')}</span>
+            <StateCapsule state="blocked">{s('riskBlocked')}</StateCapsule>
           </div>
         </div>
       </div>
@@ -93,29 +99,27 @@ export interface ObjectCardProps {
 }
 
 /** Card/Object — one work object with its state capsule, owner and two actions. */
-export function ObjectCard({
-  title,
-  meta,
-  state = { tone: 'current', label: 'In progress' },
-  owner,
-  primary = 'Approve',
-  secondary = 'Open',
-}: ObjectCardProps) {
+export function ObjectCard({ title, meta, state, owner, primary, secondary }: ObjectCardProps) {
+  const s = useProductSceneT();
+  const shownState: NonNullable<ObjectCardProps['state']> = state ?? {
+    tone: 'current',
+    label: s('objectInProgress'),
+  };
   return (
     <div className="tm-web-object">
       <div className="tm-web-object__head">
         <p className="tm-web-object__title">{title}</p>
-        <StateCapsule state={state.tone}>{state.label}</StateCapsule>
+        <StateCapsule state={shownState.tone}>{shownState.label}</StateCapsule>
       </div>
       <p className="tm-web-object__meta">{meta}</p>
       <div className="tm-web-object__foot">
         <Avatar name={owner} size="compact" decorative className="tm-web-object__avatar" />
         <span className="tm-web-object__actions">
           <Button tone="outline" size="feature">
-            {secondary}
+            {secondary ?? s('objectOpen')}
           </Button>
           <Button tone="ink" size="feature">
-            {primary}
+            {primary ?? s('objectApprove')}
           </Button>
         </span>
       </div>
@@ -123,31 +127,29 @@ export function ObjectCard({
   );
 }
 
-const DEFAULT_OBJECTS: readonly ObjectCardProps[] = [
-  {
-    title: 'Spring launch — brand refresh',
-    meta: 'Northstar Studio · 14 work items · due 30 Sep',
-    owner: 'Maya Hassan',
-  },
-  {
-    title: 'Homepage Concept — version 2',
-    meta: 'Atlas Hospitality · waiting on client approval',
-    owner: 'Omar Adel',
-  },
-];
+/** The default pair, as `ProductScenes.object<n>Title` / `Meta` / `Owner` keys. */
+const DEFAULT_OBJECTS = [1, 2] as const;
 
 /** Two Card/Object compositions stacked on the sunken backdrop (§07, right). */
 export function ObjectCardStack({
-  cards = DEFAULT_OBJECTS,
-  label = 'Two work objects in progress, each with an owner and Open and Approve actions.',
+  cards,
+  label,
 }: {
   cards?: readonly ObjectCardProps[];
   label?: string;
 }) {
+  const s = useProductSceneT();
+  const shown =
+    cards ??
+    DEFAULT_OBJECTS.map((n) => ({
+      title: s(`object${n}Title`),
+      meta: s(`object${n}Meta`),
+      owner: s(`object${n}Owner`),
+    }));
   return (
-    <Scene label={label} className="tm-web-scene--stack">
+    <Scene label={label ?? s('stackLabel')} className="tm-web-scene--stack">
       <div className="tm-web-object-stack">
-        {cards.map((card) => (
+        {shown.map((card) => (
           <ObjectCard key={card.title} {...card} />
         ))}
       </div>

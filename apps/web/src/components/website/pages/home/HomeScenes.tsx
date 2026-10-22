@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react';
 import { StateCapsule } from '@tmanage/ui';
 import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import { WebIcon, type WebIconName } from '../../WebIcon';
 import { cx } from '../../primitives';
 
@@ -13,7 +14,19 @@ import { cx } from '../../primitives';
  * log — cropped by their frame exactly as the design crops them. Each one is an illustration, so
  * the body is `inert` and hidden from assistive tech and one sentence of `label` stands in.
  * Seed data only: Northstar Studio, Atlas Hospitality, "Atlas Website Relaunch".
+ *
+ * Every visible word reads from the `HomeScenes.*` catalog keys (live-check L3), so the page
+ * mirrors fully in Arabic; brand names, channel names and IDs stay Latin inside the strings.
  */
+
+type SceneT = (key: string) => string;
+
+/** `HomeScenes.<key>` bound to the active locale. */
+function useSceneT(): SceneT {
+  const t = useT();
+  return (key) => t(`HomeScenes.${key}` as MessageKey);
+}
+
 function HomeScene({
   label,
   className,
@@ -64,19 +77,20 @@ function Dot({ tone }: { tone: 'lime' | 'ink' | 'paper' | 'warn' }) {
 
 /* ── HOME-01 My Day — one screen, cloned into the hero and the Team B row ────── */
 
-const RAIL: readonly { label: string; icon: WebIconName; on?: boolean; count?: string }[] = [
-  { label: 'My Day', icon: 'flag', on: true },
-  { label: 'Inbox', icon: 'mail', count: '3' },
-  { label: 'Chat', icon: 'chat' },
-  { label: 'Work', icon: 'list' },
-  { label: 'Docs', icon: 'doc' },
-  { label: 'Files', icon: 'layers' },
-  { label: 'Clients', icon: 'portal' },
-  { label: 'Insights', icon: 'chart' },
-  { label: 'Control', icon: 'shield' },
+const RAIL: readonly { label: MessageKey; icon: WebIconName; on?: boolean; count?: string }[] = [
+  { label: 'nav.home', icon: 'flag', on: true },
+  { label: 'nav.inbox', icon: 'mail', count: '3' },
+  { label: 'nav.chat', icon: 'chat' },
+  { label: 'nav.work', icon: 'list' },
+  { label: 'nav.docs', icon: 'doc' },
+  { label: 'nav.files', icon: 'layers' },
+  { label: 'nav.clients', icon: 'portal' },
+  { label: 'nav.insights', icon: 'chart' },
+  { label: 'nav.control', icon: 'shield' },
 ];
 
 function AppRail() {
+  const t = useT();
   return (
     <div className="tm-hs-rail">
       <span className="tm-hs-rail__mark">T</span>
@@ -89,7 +103,7 @@ function AppRail() {
             <WebIcon name={item.icon} size={14} />
             {item.count ? <span className="tm-hs-rail__count">{item.count}</span> : null}
           </span>
-          <span className="tm-hs-rail__label">{item.label}</span>
+          <span className="tm-hs-rail__label">{t(item.label)}</span>
         </span>
       ))}
     </div>
@@ -97,6 +111,7 @@ function AppRail() {
 }
 
 function MyDayScreen() {
+  const s = useSceneT();
   return (
     <div className="tm-hs-screen tm-hs-myday">
       <AppRail />
@@ -104,87 +119,80 @@ function MyDayScreen() {
         <div className="tm-hs-strip">
           <span className="tm-hs-strip__today">
             <span className="tm-hs-strip__date">14</span>
-            Today · Fri 14 Aug
+            {s('todayStrip')}
           </span>
           <span className="tm-hs-strip__slot tm-hs-strip__slot--past">
-            <Mono>09:30</Mono> Standup <WebIcon name="check" size={12} />
+            <Mono>09:30</Mono> {s('slotStandup')} <WebIcon name="check" size={12} />
           </span>
           <span className="tm-hs-strip__slot tm-hs-strip__slot--now">
-            <Mono>NOW 11:24</Mono> Atlas design review
+            <Mono>{s('slotNow')}</Mono> {s('slotDesignReview')}
             <span className="tm-hs-faces">
               <span>LS</span>
               <span>KN</span>
             </span>
           </span>
           <span className="tm-hs-strip__slot">
-            <Mono>14:00</Mono> Client approval due
+            <Mono>14:00</Mono> {s('slotApprovalDue')}
           </span>
           <span className="tm-hs-strip__slot">
-            <Mono>16:00</Mono> Focus block
+            <Mono>16:00</Mono> {s('slotFocus')}
           </span>
         </div>
 
         <div className="tm-hs-myday__body">
           <div className="tm-hs-myday__col">
             <p className="tm-hs-meta">
-              <span>NORTHSTAR STUDIO · CLIENT DELIVERY</span>
+              <span>{s('metaOrg')}</span>
               <span className="tm-hs-meta__sep" />
-              <span>11:24 · Cairo</span>
+              <span>{s('metaTime')}</span>
             </p>
             <div className="tm-hs-myday__head">
-              <p className="tm-hs-myday__title">MY DAY</p>
+              <p className="tm-hs-myday__title">{s('myDayTitle')}</p>
               <span className="tm-hs-cta">
                 <span className="tm-hs-cta__orb">
                   <WebIcon name="plus" size={12} />
                 </span>
-                New work
+                {s('newWork')}
               </span>
               <div className="tm-hs-metrics">
                 <span className="tm-hs-metric">
                   <span className="tm-hs-metric__value">04</span>
                   <Pill tone="lime" className="tm-hs-metric__tag">
-                    on track
+                    {s('metricOnTrack')}
                   </Pill>
-                  <span className="tm-hs-metric__label">days to Homepage direction</span>
-                  <span className="tm-hs-metric__note">committed 18 Aug</span>
+                  <span className="tm-hs-metric__label">{s('metricDaysToMilestone')}</span>
+                  <span className="tm-hs-metric__note">{s('committed18Aug')}</span>
                 </span>
                 <span className="tm-hs-metric">
-                  <span className="tm-hs-metric__value">26h</span>
+                  <span className="tm-hs-metric__value">{s('metricWaitValue')}</span>
                   <Pill tone="warn" className="tm-hs-metric__tag">
-                    waiting
+                    {s('metricWaiting')}
                   </Pill>
-                  <span className="tm-hs-metric__label">longest client wait</span>
-                  <span className="tm-hs-metric__note">Homepage Concept v2</span>
+                  <span className="tm-hs-metric__label">{s('metricLongestWait')}</span>
+                  <span className="tm-hs-metric__note">{s('conceptV2')}</span>
                 </span>
                 <span className="tm-hs-metric">
                   <span className="tm-hs-metric__value">3</span>
                   <Pill tone="danger" className="tm-hs-metric__tag">
-                    up 2
+                    {s('metricUp2')}
                   </Pill>
-                  <span className="tm-hs-metric__label">blocked commitments</span>
-                  <span className="tm-hs-metric__note">2 wait on a client answer</span>
+                  <span className="tm-hs-metric__label">{s('metricBlocked')}</span>
+                  <span className="tm-hs-metric__note">{s('metricBlockedNote')}</span>
                 </span>
               </div>
             </div>
-            <p className="tm-hs-lede">
-              Four things need you today. One of them is the only item blocking the Homepage
-              direction milestone.
-            </p>
+            <p className="tm-hs-lede">{s('lede')}</p>
 
             <div className="tm-hs-focus">
               <span className="tm-hs-focus__play">
                 <WebIcon name="play" size={12} />
               </span>
               <span className="tm-hs-focus__text">
-                <span className="tm-hs-focus__title">
-                  Publish Homepage Concept v2 to Atlas Hospitality
-                </span>
-                <span className="tm-hs-focus__why">
-                  Why now — Youssef reviews at 14:00 and 4 days remain on the committed milestone.
-                </span>
+                <span className="tm-hs-focus__title">{s('focusTitle')}</span>
+                <span className="tm-hs-focus__why">{s('focusWhy')}</span>
               </span>
               <Pill tone="dim" icon="help">
-                Client action required
+                {s('clientActionRequired')}
               </Pill>
               <span className="tm-hs-focus__go">
                 <WebIcon name="arrow-right" size={12} />
@@ -192,108 +200,104 @@ function MyDayScreen() {
             </div>
 
             <div className="tm-hs-row-head">
-              <span className="tm-hs-row-head__title">Due &amp; at risk</span>
-              <span className="tm-hs-row-head__count">7 items</span>
-              <Pill tone="ink">Today</Pill>
-              <Pill>Blocked · 3</Pill>
-              <Pill>Client waiting · 2</Pill>
+              <span className="tm-hs-row-head__title">{s('dueAtRisk')}</span>
+              <span className="tm-hs-row-head__count">{s('sevenItems')}</span>
+              <Pill tone="ink">{s('today')}</Pill>
+              <Pill>{s('blocked3')}</Pill>
+              <Pill>{s('clientWaiting2')}</Pill>
             </div>
             <div className="tm-hs-due">
               <div className="tm-hs-due__card tm-hs-due__card--lime">
                 <span className="tm-hs-due__who">
                   <span className="tm-hs-face tm-hs-face--ink">OA</span>
-                  Deliverable · you own it
+                  {s('dueOwnDeliverable')}
                   <span className="tm-hs-due__open tm-hs-due__open--ink">
                     <WebIcon name="arrow-right" size={12} />
                   </span>
                 </span>
-                <span className="tm-hs-due__title">
-                  Homepage Concept v2 — publish for client review
-                </span>
-                <span className="tm-hs-due__meta">committed 18 Aug · reviewer Youssef Kamal</span>
-                <Pill tone="ink">Run safety check</Pill>
+                <span className="tm-hs-due__title">{s('duePublishTitle')}</span>
+                <span className="tm-hs-due__meta">{s('duePublishMeta')}</span>
+                <Pill tone="ink">{s('runSafetyCheck')}</Pill>
               </div>
               <div className="tm-hs-due__card">
                 <span className="tm-hs-due__who">
                   <span className="tm-hs-face tm-hs-face--grey">LS</span>
-                  Task · Lina Samir
+                  {s('taskLina')}
                   <span className="tm-hs-due__open">
                     <WebIcon name="arrow-right" size={12} />
                   </span>
                 </span>
-                <span className="tm-hs-due__title">Prepare mobile booking flow concepts</span>
-                <span className="tm-hs-due__meta">due 20 Aug · from #atlas-relaunch</span>
+                <span className="tm-hs-due__title">{s('mobileFlowTitle')}</span>
+                <span className="tm-hs-due__meta">{s('mobileFlowMeta')}</span>
                 <Pill tone="warn">
                   <Dot tone="warn" />
-                  Blocked · waiting on brand assets
+                  {s('blockedBrandAssets')}
                 </Pill>
               </div>
               <div className="tm-hs-due__card">
                 <span className="tm-hs-due__who">
                   <span className="tm-hs-face tm-hs-face--client">SR</span>
-                  Request · Salma Riad
+                  {s('requestSalma')}
                   <span className="tm-hs-due__open">
                     <WebIcon name="arrow-right" size={12} />
                   </span>
                 </span>
-                <span className="tm-hs-due__title">Add Arabic booking FAQ before launch</span>
-                <span className="tm-hs-due__warn">not committed</span>
-                <Pill tone="quiet">Needs triage · 2 days old</Pill>
+                <span className="tm-hs-due__title">{s('arabicFaqTitle')}</span>
+                <span className="tm-hs-due__warn">{s('notCommitted')}</span>
+                <Pill tone="quiet">{s('needsTriage2d')}</Pill>
               </div>
             </div>
 
             <div className="tm-hs-row-head">
-              <span className="tm-hs-row-head__title">Waiting on others</span>
-              <span className="tm-hs-row-head__count">
-                nothing here needs you — it needs someone else
-              </span>
+              <span className="tm-hs-row-head__title">{s('waitingOnOthers')}</span>
+              <span className="tm-hs-row-head__count">{s('waitingOnOthersNote')}</span>
             </div>
             <div className="tm-hs-waits">
               <span className="tm-hs-wait">
                 <span className="tm-hs-face tm-hs-face--client">YK</span>
-                <span className="tm-hs-wait__title">Approval · Homepage Concept v2</span>
-                <span className="tm-hs-wait__state tm-hs-wait__state--warn">waiting 26h</span>
-                <Mono>due 18 Aug</Mono>
-                <Pill>Nudge</Pill>
+                <span className="tm-hs-wait__title">{s('waitApprovalTitle')}</span>
+                <span className="tm-hs-wait__state tm-hs-wait__state--warn">{s('waiting26h')}</span>
+                <Mono>{s('due18Aug')}</Mono>
+                <Pill>{s('nudge')}</Pill>
               </span>
               <span className="tm-hs-wait">
                 <span className="tm-hs-face tm-hs-face--ink">NF</span>
-                <span className="tm-hs-wait__title">Migrate Arabic booking FAQ copy</span>
-                <span className="tm-hs-wait__state">in progress</span>
-                <Mono>forecast 8 Sep</Mono>
-                <Pill>Open</Pill>
+                <span className="tm-hs-wait__title">{s('waitMigrateTitle')}</span>
+                <span className="tm-hs-wait__state">{s('inProgress')}</span>
+                <Mono>{s('forecast8Sep')}</Mono>
+                <Pill>{s('open')}</Pill>
               </span>
               <span className="tm-hs-wait">
                 <span className="tm-hs-face tm-hs-face--ink">MH</span>
-                <span className="tm-hs-wait__title">Decision · Booking provider for phase 2</span>
-                <span className="tm-hs-wait__state">draft</span>
-                <Mono>no date</Mono>
-                <Pill>Open</Pill>
+                <span className="tm-hs-wait__title">{s('waitDecisionTitle')}</span>
+                <span className="tm-hs-wait__state">{s('draft')}</span>
+                <Mono>{s('noDate')}</Mono>
+                <Pill>{s('open')}</Pill>
               </span>
             </div>
           </div>
 
           <div className="tm-hs-lens">
-            <Mono className="tm-hs-lens__label">Context lens</Mono>
-            <span className="tm-hs-lens__title">Atlas Website Relaunch</span>
+            <Mono className="tm-hs-lens__label">{s('contextLens')}</Mono>
+            <span className="tm-hs-lens__title">{s('projectName')}</span>
             <span className="tm-hs-lens__tags">
-              <Pill tone="lime">Homepage direction</Pill>
-              <span>committed 18 Aug</span>
+              <Pill tone="lime">{s('homepageDirection')}</Pill>
+              <span>{s('committed18Aug')}</span>
             </span>
-            <Mono className="tm-hs-lens__label">Work story · last 3 chapters</Mono>
+            <Mono className="tm-hs-lens__label">{s('workStoryLast3')}</Mono>
             <ol className="tm-hs-lens__story">
               <li>
-                <Mono>11:02 · Lina Samir</Mono>
-                <span>v2 marked ready for client review</span>
+                <Mono>{s('story1When')}</Mono>
+                <span>{s('story1What')}</span>
               </li>
               <li>
-                <Mono>09:48 · Internal review</Mono>
-                <span>Maya approved 4 of 4 criteria</span>
-                <span className="tm-hs-lens__note">brand, booking CTA, AR/EN parity, speed</span>
+                <Mono>{s('story2When')}</Mono>
+                <span>{s('story2What')}</span>
+                <span className="tm-hs-lens__note">{s('story2Note')}</span>
               </li>
               <li>
-                <Mono>Yesterday 17:20 · #atlas</Mono>
-                <span>Booking CTA wording agreed</span>
+                <Mono>{s('story3When')}</Mono>
+                <span>{s('story3What')}</span>
               </li>
             </ol>
           </div>
@@ -306,9 +310,9 @@ function MyDayScreen() {
 /* ── Hero: an ink panel holding My Day, with three floating UI cards ─────────── */
 
 export function HeroScene() {
-  const t = useT();
+  const s = useSceneT();
   return (
-    <HomeScene label={t('HomeScenes.heroLabel')} className="tm-home-hero-scene">
+    <HomeScene label={s('heroLabel')} className="tm-home-hero-scene">
       <div className="tm-home-hero-scene__wide">
         <div className="tm-hs-panel">
           <div className="tm-hs-fit tm-hs-fit--hero">
@@ -316,19 +320,19 @@ export function HeroScene() {
           </div>
         </div>
         <div className="tm-hs-float tm-hs-float--client">
-          <StateCapsule state="client">Client review</StateCapsule>
-          <span className="tm-hs-float__text">Homepage Concept v2 · waiting for Youssef</span>
+          <StateCapsule state="client">{s('clientReview')}</StateCapsule>
+          <span className="tm-hs-float__text">{s('floatWaiting')}</span>
         </div>
         <div className="tm-hs-float tm-hs-float--approved">
-          <span className="tm-hs-float__badge">Approved · v2 · 18 Aug</span>
+          <span className="tm-hs-float__badge">{s('floatApproved')}</span>
         </div>
         <div className="tm-hs-float tm-hs-float--chat">
           <span className="tm-hs-float__face">JR</span>
           <span className="tm-hs-float__chat">
-            <span className="tm-hs-float__ask">Can we add an Arabic FAQ before launch?</span>
+            <span className="tm-hs-float__ask">{s('askArabicFaq')}</span>
             <span className="tm-hs-float__chip">
               <WebIcon name="arrow-right" size={14} />
-              Request created
+              {s('requestCreated')}
             </span>
           </span>
         </div>
@@ -339,40 +343,38 @@ export function HeroScene() {
           <div className="tm-hs-stack__card tm-hs-stack__card--lime">
             <span className="tm-hs-stack__who">
               <span className="tm-hs-face tm-hs-face--ink">YK</span>
-              Youssef Kamal · Atlas Hospitality
-              <strong>OWES US · 26h</strong>
+              {s('youssefAtlas')}
+              <strong>{s('owesUs26h')}</strong>
             </span>
-            <span className="tm-hs-stack__title">Approval of Homepage Concept v2</span>
+            <span className="tm-hs-stack__title">{s('approvalOfConcept')}</span>
             <span className="tm-hs-stack__actions">
-              <Pill tone="ink">Nudge</Pill>
-              <Pill>Extend</Pill>
+              <Pill tone="ink">{s('nudge')}</Pill>
+              <Pill>{s('extend')}</Pill>
             </span>
           </div>
           <div className="tm-hs-stack__card">
             <span className="tm-hs-stack__who">
               <span className="tm-hs-face tm-hs-face--client">SR</span>
-              Salma Riad · new request
-              <Mono>We owe · 2d</Mono>
+              {s('salmaNewRequest')}
+              <Mono>{s('weOwe2d')}</Mono>
             </span>
-            <span className="tm-hs-stack__title">Add Arabic booking FAQ before launch</span>
-            <span className="tm-hs-stack__note">Desired 3 Sep · not committed. Needs triage.</span>
+            <span className="tm-hs-stack__title">{s('arabicFaqTitle')}</span>
+            <span className="tm-hs-stack__note">{s('desired3Sep')}</span>
           </div>
           <div className="tm-hs-stack__card">
             <span className="tm-hs-stack__who">
               <span className="tm-hs-face tm-hs-face--client">RM</span>
-              Rania Mostafa · Meridian Group
-              <Mono>Owes us · 4d</Mono>
+              {s('raniaMeridian')}
+              <Mono>{s('owesUs4d')}</Mono>
             </span>
-            <span className="tm-hs-stack__title">Upload brand assets pack</span>
-            <span className="tm-hs-stack__note tm-hs-stack__note--warn">
-              This upload is blocking one internal commitment.
-            </span>
+            <span className="tm-hs-stack__title">{s('uploadBrandAssets')}</span>
+            <span className="tm-hs-stack__note tm-hs-stack__note--warn">{s('uploadBlocking')}</span>
           </div>
           <div className="tm-hs-stack__card tm-hs-stack__card--peek">
             <span className="tm-hs-stack__who">
               <span className="tm-hs-face tm-hs-face--client">SR</span>
-              Salma Riad · question
-              <Mono>We owe · 2d</Mono>
+              {s('salmaQuestion')}
+              <Mono>{s('weOwe2d')}</Mono>
             </span>
           </div>
         </div>
@@ -384,21 +386,21 @@ export function HeroScene() {
 /* ── Team row A: the chat convert-to-work panel ──────────────────────────────── */
 
 export function ChatConvertScene() {
-  const t = useT();
+  const s = useSceneT();
   return (
-    <HomeScene label={t('HomeScenes.chatThreadLabel')} className="tm-home-frame-scene">
+    <HomeScene label={s('chatThreadLabel')} className="tm-home-frame-scene">
       <div className="tm-hs-wide-only tm-hs-crop tm-hs-crop--end">
         <div className="tm-hs-screen tm-hs-chat">
           <div className="tm-hs-chat__bar">
             <span className="tm-hs-chat__channel">
-              <span className="tm-hs-chat__name">#atlas-relaunch</span>
-              <span className="tm-hs-chat__members">
-                Project channel · 5 internal, 2 client members
+              <span className="tm-hs-chat__name" dir="ltr">
+                #atlas-relaunch
               </span>
+              <span className="tm-hs-chat__members">{s('channelMembers')}</span>
             </span>
             <span className="tm-hs-visible">
               <span className="tm-hs-visible__ring" />
-              Client visible — Atlas Hospitality reads this channel
+              {s('clientVisibleBanner')}
             </span>
             <span className="tm-hs-chat__tools">
               <span className="tm-hs-tool">
@@ -413,45 +415,34 @@ export function ChatConvertScene() {
           <div className="tm-hs-chat__split">
             <div className="tm-hs-chat__thread">
               <span className="tm-hs-pinned">
-                Project brief · Homepage direction decision <Mono>2 objects</Mono>
+                {s('pinnedBrief')} <Mono>{s('twoObjects')}</Mono>
               </span>
               <div className="tm-hs-msg">
-                <Mono>Lina Samir · 10:41</Mono>
-                <p>
-                  Concept v2 is ready. I kept the booking CTA above the fold on mobile and moved the
-                  offers below the rooms grid.
-                </p>
+                <Mono>{s('msgLinaWho')}</Mono>
+                <p>{s('msgLina')}</p>
               </div>
               <div className="tm-hs-msg">
                 <span className="tm-hs-msg__head">
-                  Salma Riad <Pill tone="client">Client</Pill> <Mono>10:58</Mono>
+                  {s('salmaRiad')} <Pill tone="client">{s('client')}</Pill> <Mono>10:58</Mono>
                 </span>
-                <p>
-                  Can we also see the mobile booking flow before launch? Our guests mostly book on
-                  phones.
-                </p>
-                <Pill tone="lime">Converted to work</Pill>
+                <p>{s('msgSalma')}</p>
+                <Pill tone="lime">{s('convertedToWork')}</Pill>
               </div>
               <div className="tm-hs-msg tm-hs-msg--picked">
-                <Mono>Omar Adel · 11:02 · selected message</Mono>
-                <p>
-                  Yes — Lina will prepare mobile booking flow concepts. I&apos;ll commit a date
-                  after the direction is approved.
-                </p>
+                <Mono>{s('msgOmarWho')}</Mono>
+                <p>{s('msgOmar')}</p>
                 <span className="tm-hs-linked">
                   <span className="tm-hs-linked__text">
-                    <span className="tm-hs-linked__title">
-                      Prepare mobile booking flow concepts
-                    </span>
-                    <Mono>TSK · Lina Samir · due 20 Aug · internal</Mono>
+                    <span className="tm-hs-linked__title">{s('mobileFlowTitle')}</span>
+                    <Mono>{s('linkedMeta')}</Mono>
                   </span>
-                  <span className="tm-hs-linked__open">Open</span>
+                  <span className="tm-hs-linked__open">{s('open')}</span>
                 </span>
               </div>
             </div>
             <div className="tm-hs-convert">
               <span className="tm-hs-convert__head">
-                <Mono>Thread · Convert to work</Mono>
+                <Mono>{s('convertHead')}</Mono>
                 <span className="tm-hs-tool">
                   <WebIcon name="close" size={12} />
                 </span>
@@ -459,51 +450,42 @@ export function ChatConvertScene() {
               <span className="tm-hs-source">
                 <span className="tm-hs-source__who">
                   <span className="tm-hs-face tm-hs-face--client">SR</span>
-                  Source message · Salma Riad · 10:58
+                  {s('sourceMessage')}
                 </span>
-                <span>
-                  “Can we also see the mobile booking flow before launch? Our guests mostly book on
-                  phones.”
-                </span>
+                <span>{s('sourceQuote')}</span>
               </span>
               <span className="tm-hs-field">
-                <span className="tm-hs-field__label">Work title</span>
-                <span className="tm-hs-input tm-hs-input--focus">
-                  Prepare mobile booking flow concepts
-                </span>
+                <span className="tm-hs-field__label">{s('workTitle')}</span>
+                <span className="tm-hs-input tm-hs-input--focus">{s('mobileFlowTitle')}</span>
               </span>
               <span className="tm-hs-fields">
                 <span className="tm-hs-field">
-                  <span className="tm-hs-field__label">Owner</span>
+                  <span className="tm-hs-field__label">{s('owner')}</span>
                   <span className="tm-hs-input">
                     <span className="tm-hs-face tm-hs-face--grey">LS</span>
-                    Lina Samir
+                    {s('linaSamir')}
                   </span>
                 </span>
                 <span className="tm-hs-field">
-                  <span className="tm-hs-field__label">Committed date</span>
-                  <span className="tm-hs-input">20 Aug 2026</span>
+                  <span className="tm-hs-field__label">{s('committedDate')}</span>
+                  <span className="tm-hs-input">{s('date20Aug2026')}</span>
                 </span>
               </span>
               <span className="tm-hs-field">
-                <span className="tm-hs-field__label">Audience</span>
+                <span className="tm-hs-field__label">{s('audience')}</span>
                 <span className="tm-hs-choice">
                   <Pill tone="ink">
                     <Dot tone="lime" />
-                    Internal
+                    {s('internal')}
                   </Pill>
-                  <Pill>Client visible</Pill>
+                  <Pill>{s('clientVisible')}</Pill>
                 </span>
               </span>
               <span className="tm-hs-alert">
                 <span className="tm-hs-alert__icon">!</span>
                 <span className="tm-hs-alert__text">
-                  <span className="tm-hs-alert__title">Inherited access warning</span>
-                  <span>
-                    The source message is in a client-visible channel. This work item defaults to
-                    internal — the client will not see it, and the request stays uncommitted until
-                    you commit a date.
-                  </span>
+                  <span className="tm-hs-alert__title">{s('inheritedTitle')}</span>
+                  <span>{s('inheritedBody')}</span>
                 </span>
               </span>
             </div>
@@ -515,25 +497,25 @@ export function ChatConvertScene() {
         <div className="tm-hs-chat-m__bubble">
           <span className="tm-hs-face tm-hs-face--client tm-hs-face--lg">YK</span>
           <span className="tm-hs-chat-m__text">
-            <span className="tm-hs-chat-m__who">Youssef Kamal · Atlas Hospitality</span>
-            Can we add an Arabic FAQ before launch?
+            <span className="tm-hs-chat-m__who">{s('youssefAtlas')}</span>
+            {s('askArabicFaq')}
           </span>
         </div>
         <span className="tm-hs-chat-m__chip">
           <WebIcon name="arrow-right" size={12} />
-          Request created
+          {s('requestCreated')}
         </span>
         <div className="tm-hs-chat-m__card">
           <span className="tm-hs-chat-m__head">
-            <span className="tm-hs-chat-m__title">Arabic FAQ before launch</span>
-            <StateCapsule state="current">New request</StateCapsule>
+            <span className="tm-hs-chat-m__title">{s('arabicFaqShort')}</span>
+            <StateCapsule state="current">{s('newRequest')}</StateCapsule>
           </span>
-          <span className="tm-hs-chat-m__meta">Atlas Website Relaunch · Request</span>
+          <span className="tm-hs-chat-m__meta">{s('projectRequest')}</span>
           <span className="tm-hs-chat-m__foot">
             <span className="tm-hs-face tm-hs-face--grey tm-hs-face--lg">MS</span>
-            <Pill className="tm-hs-pill--lg">Open</Pill>
+            <Pill className="tm-hs-pill--lg">{s('open')}</Pill>
             <Pill tone="ink" className="tm-hs-pill--lg">
-              Approve
+              {s('approve')}
             </Pill>
           </span>
         </div>
@@ -545,9 +527,9 @@ export function ChatConvertScene() {
 /* ── Team row B: My Day, framed ──────────────────────────────────────────────── */
 
 export function MyDayScene() {
-  const t = useT();
+  const s = useSceneT();
   return (
-    <HomeScene label={t('HomeScenes.myDayLabel')} className="tm-home-frame-scene">
+    <HomeScene label={s('myDayLabel')} className="tm-home-frame-scene">
       <div className="tm-hs-crop tm-hs-crop--start">
         <div className="tm-hs-fit tm-hs-fit--row">
           <MyDayScreen />
@@ -559,7 +541,17 @@ export function MyDayScene() {
 
 /* ── Clients row and the portal spotlight: the client portal overview ───────── */
 
+const PORTAL_NAV = [
+  'portalMyActions',
+  'portalTimeline',
+  'portalDeliverables',
+  'portalUpdates',
+  'portalFiles',
+  'portalPeople',
+] as const;
+
 function PortalScreen() {
+  const s = useSceneT();
   return (
     <div className="tm-hs-screen tm-hs-portal">
       <div className="tm-hs-portal__bar">
@@ -567,143 +559,130 @@ function PortalScreen() {
           <span className="tm-hs-rail__mark">T</span>
           <span className="tm-hs-portal__org-text">
             <span className="tm-hs-portal__org-name">Atlas Hospitality</span>
-            <span>delivered by Northstar Studio</span>
+            <span>{s('deliveredBy')}</span>
           </span>
         </span>
         <span className="tm-hs-portal__nav">
-          <Pill tone="ink">Overview</Pill>
-          <span>My actions</span>
-          <span>Timeline</span>
-          <span>Deliverables</span>
-          <span>Updates</span>
-          <span>Files</span>
-          <span>People</span>
+          <Pill tone="ink">{s('portalOverview')}</Pill>
+          {PORTAL_NAV.map((key) => (
+            <span key={key}>{s(key)}</span>
+          ))}
         </span>
         <Pill className="tm-hs-portal__me">
           <span className="tm-hs-face tm-hs-face--client">SR</span>
-          Salma Riad
+          {s('salmaRiad')}
         </Pill>
       </div>
       <div className="tm-hs-portal__body">
-        <Mono>Your project · on track for the committed launch</Mono>
+        <Mono>{s('portalOnTrack')}</Mono>
         <div className="tm-hs-portal__hero">
           <span className="tm-hs-portal__intro">
-            <span className="tm-hs-portal__title">Website relaunch</span>
-            <span className="tm-hs-lede">
-              Everything is moving toward launch on 30 September. One decision from you is needed
-              this week.
-            </span>
+            <span className="tm-hs-portal__title">{s('portalTitle')}</span>
+            <span className="tm-hs-lede">{s('portalLede')}</span>
           </span>
           <span className="tm-hs-metric">
             <span className="tm-hs-metric__value">47</span>
-            <span className="tm-hs-metric__label">days to launch</span>
-            <span className="tm-hs-metric__note">committed 30 Sep</span>
+            <span className="tm-hs-metric__label">{s('daysToLaunch')}</span>
+            <span className="tm-hs-metric__note">{s('committed30Sep')}</span>
           </span>
           <span className="tm-hs-metric">
             <span className="tm-hs-metric__value">1</span>
             <Pill tone="lime" className="tm-hs-metric__tag">
-              this week
+              {s('thisWeek')}
             </Pill>
-            <span className="tm-hs-metric__label">action waiting for you</span>
-            <span className="tm-hs-metric__note">approval · about 10 minutes</span>
+            <span className="tm-hs-metric__label">{s('actionWaiting')}</span>
+            <span className="tm-hs-metric__note">{s('approval10min')}</span>
           </span>
         </div>
         <p className="tm-hs-meta">
-          <Mono>Where the project is</Mono>
-          <span>stage 2 of 5 · see the full timeline</span>
+          <Mono>{s('whereProject')}</Mono>
+          <span>{s('stage2of5')}</span>
         </p>
         <div className="tm-hs-stages">
           <span className="tm-hs-stage tm-hs-stage--done">
             <WebIcon name="check" size={12} />
             <span className="tm-hs-stage__text">
-              Discovery
-              <Mono>done 28 Jul</Mono>
+              {s('stageDiscovery')}
+              <Mono>{s('done28Jul')}</Mono>
             </span>
           </span>
           <span className="tm-hs-stage tm-hs-stage--now">
             <span className="tm-hs-stage__text">
-              <Mono>Now</Mono>
-              Homepage direction
+              <Mono>{s('now')}</Mono>
+              {s('homepageDirection')}
             </span>
             <span className="tm-hs-stage__wait">
-              waiting for your approval
-              <Mono>by 18 Aug</Mono>
+              {s('waitingYourApproval')}
+              <Mono>{s('by18Aug')}</Mono>
             </span>
             <span className="tm-hs-face tm-hs-face--ink">YK</span>
           </span>
           <span className="tm-hs-stage">
             <span className="tm-hs-stage__text">
-              Content migration
-              <Mono>expected early Sep</Mono>
+              {s('stageContent')}
+              <Mono>{s('expectedEarlySep')}</Mono>
             </span>
           </span>
           <span className="tm-hs-stage">
             <span className="tm-hs-stage__text">
-              Quality review
-              <Mono>20 Sep</Mono>
+              {s('stageQuality')}
+              <Mono>{s('date20Sep')}</Mono>
             </span>
           </span>
         </div>
         <div className="tm-hs-portal__cols">
           <div className="tm-hs-portal__actions">
-            <span className="tm-hs-portal__h">Your actions</span>
+            <span className="tm-hs-portal__h">{s('yourActions')}</span>
             <span className="tm-hs-action">
               <span className="tm-hs-action__meta">
-                <Mono>Approval · about 10 minutes</Mono>
-                <Pill tone="ink">Due 18 Aug</Pill>
+                <Mono>{s('approvalAbout10')}</Mono>
+                <Pill tone="ink">{s('dueOn18Aug')}</Pill>
               </span>
-              <span className="tm-hs-action__title">Approve the homepage direction</span>
-              <span className="tm-hs-action__body">
-                Youssef Kamal is named as the reviewer. Approving this lets content migration start
-                this week and keeps the launch date.
-              </span>
+              <span className="tm-hs-action__title">{s('approveDirection')}</span>
+              <span className="tm-hs-action__body">{s('approveDirectionBody')}</span>
               <span className="tm-hs-action__foot">
                 <span className="tm-hs-cta">
                   <span className="tm-hs-cta__orb tm-hs-cta__orb--lime">
                     <WebIcon name="play" size={12} />
                   </span>
-                  Open the review
+                  {s('openReview')}
                 </span>
-                <span className="tm-hs-link">Ask a question instead</span>
+                <span className="tm-hs-link">{s('askInstead')}</span>
               </span>
             </span>
             <span className="tm-hs-ask">
               <span className="tm-hs-ask__icon">?</span>
               <span className="tm-hs-ask__text">
-                <span className="tm-hs-ask__title">Answer one question about the Arabic FAQ</span>
-                <span>Omar asked on 12 Aug whether the FAQ covers group bookings.</span>
+                <span className="tm-hs-ask__title">{s('answerFaqQuestion')}</span>
+                <span>{s('omarAsked')}</span>
               </span>
-              <Pill>Reply</Pill>
+              <Pill>{s('reply')}</Pill>
             </span>
             <span className="tm-hs-ask tm-hs-ask--quiet">
               <span className="tm-hs-ask__icon">
                 <WebIcon name="check" size={12} />
               </span>
-              After that, nothing else is needed from you. We&apos;ll notify you when your review,
-              file, or answer is needed.
+              {s('nothingElse')}
             </span>
           </div>
           <div className="tm-hs-portal__side">
             <span className="tm-hs-side-card">
-              <span className="tm-hs-portal__h">Latest update</span>
-              <span className="tm-hs-quote">
-                “Homepage direction is with your reviewer. Content migration starts the same week
-                and we hold the launch date.”
-              </span>
+              <span className="tm-hs-portal__h">{s('latestUpdate')}</span>
+              <span className="tm-hs-quote">{s('updateQuote')}</span>
               <span className="tm-hs-source__who">
                 <span className="tm-hs-face tm-hs-face--ink">OA</span>
-                Omar Adel · your project manager
+                {s('omarPm')}
               </span>
             </span>
             <span className="tm-hs-side-card">
-              <span className="tm-hs-portal__h">Deliverables</span>
+              <span className="tm-hs-portal__h">{s('deliverables')}</span>
               <span className="tm-hs-deliv">
                 <span className="tm-hs-cta__orb tm-hs-cta__orb--lime">
                   <WebIcon name="play" size={12} />
                 </span>
                 <span className="tm-hs-deliv__text">
-                  Homepage Concept v2
-                  <Mono>Waiting for your approval</Mono>
+                  {s('conceptV2')}
+                  <Mono>{s('waitingYourApprovalCap')}</Mono>
                 </span>
               </span>
               <span className="tm-hs-deliv">
@@ -711,13 +690,13 @@ function PortalScreen() {
                   <WebIcon name="check" size={12} />
                 </span>
                 <span className="tm-hs-deliv__text">
-                  Discovery summary v3
-                  <Mono>Approved 28 Jul · final</Mono>
+                  {s('discoverySummary')}
+                  <Mono>{s('approved28Jul')}</Mono>
                 </span>
               </span>
             </span>
             <span className="tm-hs-side-card">
-              <span className="tm-hs-portal__h">Your team at Northstar</span>
+              <span className="tm-hs-portal__h">{s('yourTeam')}</span>
             </span>
           </div>
         </div>
@@ -727,10 +706,10 @@ function PortalScreen() {
 }
 
 export function PortalScene({ variant = 'row' }: { variant?: 'row' | 'spotlight' }) {
-  const t = useT();
+  const s = useSceneT();
   return (
     <HomeScene
-      label={t('HomeScenes.portalLabel')}
+      label={s('portalLabel')}
       className={cx('tm-home-frame-scene', variant === 'spotlight' && 'tm-home-spot-scene')}
     >
       <div
@@ -755,77 +734,80 @@ export function PortalScene({ variant = 'row' }: { variant?: 'row' | 'spotlight'
  */
 const decisionId = (n: number): string => ['DEC', String(n).padStart(3, '0')].join('-');
 
+/** Each field is a `HomeScenes.*` key except `id` (a Latin register number). */
 const DECISIONS: readonly {
   id: string;
   statement: string;
   owner: string;
   effective: string;
-  affects: string;
-  superseded?: string;
+  affects: string | null;
+  supersededBy?: string;
 }[] = [
   {
     id: decisionId(115),
-    statement: 'Offers strip moves below the rooms grid',
-    owner: 'Lina Samir',
-    effective: '14 Aug',
-    affects: '3 items',
+    statement: 'dec115',
+    owner: 'linaSamir',
+    effective: 'date14Aug',
+    affects: 'items3',
   },
   {
     id: decisionId(114),
-    statement: 'Booking CTA stays above the fold on mobile',
-    owner: 'Omar Adel',
-    effective: '14 Aug',
-    affects: '6 items',
+    statement: 'dec114',
+    owner: 'omarAdel',
+    effective: 'date14Aug',
+    affects: 'items6',
   },
   {
     id: decisionId(109),
-    statement: 'Launch commits to 30 September',
-    owner: 'Omar Adel',
-    effective: '22 Jul',
-    affects: 'all work',
+    statement: 'dec109',
+    owner: 'omarAdel',
+    effective: 'date22Jul',
+    affects: 'allWork',
   },
   {
     id: decisionId(104),
-    statement: 'Arabic is in scope for phase one',
-    owner: 'Maya Hassan',
-    effective: '18 Jul',
-    affects: '9 items',
+    statement: 'dec104',
+    owner: 'mayaHassan',
+    effective: 'date18Jul',
+    affects: 'items9',
   },
   {
     id: decisionId(98),
-    statement: 'Offers hero above the rooms grid',
-    owner: 'Lina Samir',
-    effective: '6 Aug',
-    affects: '—',
-    superseded: `superseded by ${decisionId(115)}`,
+    statement: 'dec98',
+    owner: 'linaSamir',
+    effective: 'date6Aug',
+    affects: null,
+    supersededBy: decisionId(115),
   },
 ];
 
 export function DecisionRegisterScene() {
-  const t = useT();
+  const s = useSceneT();
   return (
-    <HomeScene label={t('HomeScenes.decisionRegisterLabel')} className="tm-home-frame-scene">
+    <HomeScene label={s('decisionRegisterLabel')} className="tm-home-frame-scene">
       <div className="tm-hs-register">
         <div className="tm-hs-register__row tm-hs-register__row--head">
-          <Mono>ID</Mono>
-          <Mono>Statement</Mono>
-          <Mono>Owner</Mono>
-          <Mono>Effective</Mono>
-          <Mono>Affects</Mono>
+          <Mono>{s('colId')}</Mono>
+          <Mono>{s('colStatement')}</Mono>
+          <Mono>{s('colOwner')}</Mono>
+          <Mono>{s('colEffective')}</Mono>
+          <Mono>{s('colAffects')}</Mono>
         </div>
         {DECISIONS.map((d) => (
           <div
             key={d.id}
-            className={cx('tm-hs-register__row', d.superseded && 'tm-hs-register__row--old')}
+            className={cx('tm-hs-register__row', d.supersededBy && 'tm-hs-register__row--old')}
           >
             <span className="tm-hs-register__id">{d.id}</span>
             <span className="tm-hs-register__statement">
-              {d.statement}
-              {d.superseded ? <Pill tone="quiet">{d.superseded}</Pill> : null}
+              {s(d.statement)}
+              {d.supersededBy ? (
+                <Pill tone="quiet">{s('supersededBy').replace('{id}', d.supersededBy)}</Pill>
+              ) : null}
             </span>
-            <span>{d.owner}</span>
-            <span className="tm-hs-register__date">{d.effective}</span>
-            <span className="tm-hs-register__affects">{d.affects}</span>
+            <span>{s(d.owner)}</span>
+            <span className="tm-hs-register__date">{s(d.effective)}</span>
+            <span className="tm-hs-register__affects">{d.affects ? s(d.affects) : '—'}</span>
           </div>
         ))}
       </div>
@@ -835,130 +817,88 @@ export function DecisionRegisterScene() {
 
 /* ── Control row: the audit log ──────────────────────────────────────────────── */
 
+/** Row `n` reads `HomeScenes.auditWhen<n>` / `auditWhat<n>` / `auditNote<n>`. */
 const AUDIT: readonly {
-  when: string;
-  what: string;
-  note: string;
+  n: number;
   id: string;
   kind: 'Client' | 'Content' | 'Policy';
   on?: boolean;
 }[] = [
-  {
-    when: 'Today 09:40',
-    what: 'Maya Hassan turned off “who did what” for Atlas Hospitality',
-    note: 'client visibility default · was on since 4 Jul',
-    id: 'EV·9C41',
-    kind: 'Client',
-    on: true,
-  },
-  {
-    when: 'Today 08:02',
-    what: 'Automation “Remind reviewer” notified Youssef Kamal',
-    note: 'enabled by Maya Hassan · run RUN-4890',
-    id: 'EV·9C38',
-    kind: 'Content',
-  },
-  {
-    when: 'Yest 16:12',
-    what: 'Omar Adel added stage “Content migration” to Website relaunch',
-    note: 'template edit · 9 seeded items',
-    id: 'EV·9C11',
-    kind: 'Policy',
-  },
-  {
-    when: 'Yest 11:30',
-    what: 'Youssef Kamal approved Homepage Concept v2',
-    note: 'version 8f2c·d41a · signed from a trusted device',
-    id: 'EV·9BF7',
-    kind: 'Client',
-  },
-  {
-    when: '13 Aug 10:04',
-    what: 'Maya Hassan required two-factor for approval authority',
-    note: 'security policy · affected 2 people',
-    id: 'EV·9AC2',
-    kind: 'Policy',
-  },
-  {
-    when: '12 Aug 14:20',
-    what: 'Omar Adel moved the Content migration forecast to 8 Sep',
-    note: 'committed date 1 Sep unchanged · reason recorded',
-    id: 'EV·9A80',
-    kind: 'Content',
-  },
-  {
-    when: '11 Aug 09:15',
-    what: 'Maya Hassan set chat retention to 24 months',
-    note: 'first deletion pass queued for 1 Sep',
-    id: 'EV·9A31',
-    kind: 'Policy',
-  },
+  { n: 1, id: 'EV·9C41', kind: 'Client', on: true },
+  { n: 2, id: 'EV·9C38', kind: 'Content' },
+  { n: 3, id: 'EV·9C11', kind: 'Policy' },
+  { n: 4, id: 'EV·9BF7', kind: 'Client' },
+  { n: 5, id: 'EV·9AC2', kind: 'Policy' },
+  { n: 6, id: 'EV·9A80', kind: 'Content' },
+  { n: 7, id: 'EV·9A31', kind: 'Policy' },
 ];
 
-const AUDIT_DETAIL: readonly (readonly [string, string])[] = [
-  ['Actor', 'Maya Hassan · Owner'],
-  ['Target', 'Atlas Hospitality · portal'],
-  ['Before', 'team attribution visible'],
-  ['After', 'hidden from all client roles'],
-  ['Device', 'macOS, Cairo · SSO session'],
-  ['Hash', 'a71b·0e94'],
+/** Label key, then the value's key — or `null` for a Latin value shown as is. */
+const AUDIT_DETAIL: readonly (readonly [string, string, string | null])[] = [
+  ['detailActor', 'detailActorValue', null],
+  ['detailTarget', 'detailTargetValue', null],
+  ['detailBefore', 'detailBeforeValue', null],
+  ['detailAfter', 'detailAfterValue', null],
+  ['detailDevice', 'detailDeviceValue', null],
+  ['detailHash', '', 'a71b·0e94'],
 ];
 
 function AuditScreen() {
+  const s = useSceneT();
   return (
     <div className="tm-hs-screen tm-hs-audit">
       <div className="tm-hs-audit__bar">
         <span className="tm-hs-audit__mark" />
-        <Mono>Control center / Audit log</Mono>
-        <Pill>Last 30 days</Pill>
-        <Pill>Policy changes</Pill>
-        <Pill tone="ink">Export signed CSV</Pill>
+        <Mono>{s('auditBreadcrumb')}</Mono>
+        <Pill>{s('last30Days')}</Pill>
+        <Pill>{s('policyChanges')}</Pill>
+        <Pill tone="ink">{s('exportSignedCsv')}</Pill>
       </div>
       <div className="tm-hs-audit__split">
         <div className="tm-hs-audit__main">
           <p className="tm-hs-audit__count">
-            612 events <span>41 policy · 108 access · 463 content</span>
+            {s('eventsCount')} <span>{s('eventsBreakdown')}</span>
           </p>
           <div className="tm-hs-audit__table">
             <div className="tm-hs-audit__row tm-hs-audit__row--head">
-              <Mono>When</Mono>
-              <Mono>Who · what changed</Mono>
-              <Mono>Event</Mono>
-              <Mono>Class</Mono>
+              <Mono>{s('colWhen')}</Mono>
+              <Mono>{s('colWhoWhat')}</Mono>
+              <Mono>{s('colEvent')}</Mono>
+              <Mono>{s('colClass')}</Mono>
             </div>
             {AUDIT.map((row) => (
               <div
                 key={row.id}
                 className={cx('tm-hs-audit__row', row.on && 'tm-hs-audit__row--on')}
               >
-                <Mono>{row.when}</Mono>
+                <Mono>{s(`auditWhen${row.n}`)}</Mono>
                 <span className="tm-hs-audit__what">
-                  {row.what}
-                  <span>{row.note}</span>
+                  {s(`auditWhat${row.n}`)}
+                  <span>{s(`auditNote${row.n}`)}</span>
                 </span>
                 <Mono>{row.id}</Mono>
-                <Pill tone={row.kind === 'Client' ? 'client' : 'quiet'}>{row.kind}</Pill>
+                <Pill tone={row.kind === 'Client' ? 'client' : 'quiet'}>
+                  {s(`kind${row.kind}`)}
+                </Pill>
               </div>
             ))}
           </div>
         </div>
         <div className="tm-hs-audit__side">
-          <Mono>Event EV·9C41</Mono>
-          <span className="tm-hs-audit__side-title">Client visibility default</span>
+          <Mono>{s('eventHeading')}</Mono>
+          <span className="tm-hs-audit__side-title">{s('clientVisibilityDefault')}</span>
           <dl className="tm-hs-audit__kv">
-            {AUDIT_DETAIL.map(([k, v]) => (
-              <div key={k}>
-                <dt>{k}</dt>
-                <dd>{v}</dd>
+            {AUDIT_DETAIL.map(([label, valueKey, literal]) => (
+              <div key={label}>
+                <dt>{s(label)}</dt>
+                <dd>{literal ?? s(valueKey)}</dd>
               </div>
             ))}
           </dl>
-          <span className="tm-hs-audit__note">
-            Audit entries cannot be edited by any owner. Exports are signed.
-          </span>
+          <span className="tm-hs-audit__note">{s('auditNote')}</span>
           <span className="tm-hs-choice">
-            <Pill>Copy hash</Pill>
-            <Pill>Open the target</Pill>
+            <Pill>{s('copyHash')}</Pill>
+            <Pill>{s('openTarget')}</Pill>
           </span>
         </div>
       </div>
@@ -967,9 +907,9 @@ function AuditScreen() {
 }
 
 export function AuditLogScene() {
-  const t = useT();
+  const s = useSceneT();
   return (
-    <HomeScene label={t('HomeScenes.auditLogLabel')} className="tm-home-frame-scene">
+    <HomeScene label={s('auditLogLabel')} className="tm-home-frame-scene">
       <div className="tm-hs-crop tm-hs-crop--start">
         <div className="tm-hs-fit tm-hs-fit--audit">
           <AuditScreen />

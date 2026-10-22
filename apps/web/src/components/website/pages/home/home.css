@@ -2499,3 +2499,16 @@
     inline-size: 100%;
   }
 }
+
+/* ── RTL: Arabic scene copy (live-check L3) ────────────────────────────────
+ * Tracking pulls Arabic letters apart and breaks their joins, so the mono labels and the
+ * tight display titles drop it in RTL; the Latin channel name keeps its own direction. */
+[dir='rtl'] .tm-hs-mono,
+[dir='rtl'] .tm-hs-myday__title,
+[dir='rtl'] .tm-hs-portal__title {
+  letter-spacing: 0;
+}
+
+[dir='rtl'] .tm-hs-chat__name {
+  unicode-bidi: isolate;
+}
