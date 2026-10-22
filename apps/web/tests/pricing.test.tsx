@@ -1,9 +1,14 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { PricingScreen } from '../src/components/screens/PricingScreen';
+import { PricingPage } from '../src/components/website/pages/pricing/PricingPage';
+import { PRICING_PLANS } from '../src/components/website/pages/pricing/pricing-data';
 import { ApiClient } from '../src/lib/api/client';
+import { activeLocale } from '../src/lib/i18n/locale-store';
+import { translate, type MessageKey } from '../src/lib/i18n/t';
+import { SIGN_UP_HREF } from '../src/lib/public-signup';
 import { expectNoAxeViolations } from './axe';
 
 /**
@@ -100,5 +105,97 @@ describe('PricingScreen', () => {
     );
     render(withQuery(<PricingScreen client={client} />));
     expect(await screen.findByText('Could not load pricing')).toBeInTheDocument();
+  });
+});
+
+/**
+ * **Website /pricing in Arabic (live check 014a9d51, report lines 106-107).** The plan cards, their
+ * calls to action, the feature lines and the "How it's counted" badges used to be literals, so an
+ * ar-EG visitor read them in English. Every word now comes from the catalog.
+ */
+describe('PricingPage (website /pricing)', () => {
+  afterEach(() => activeLocale.set('en-US'));
+
+  /** The English copy the live check found on the Arabic page. */
+  const ENGLISH_CARD_COPY = [
+    'For a small team trying TManage on real client work.',
+    'Start free',
+    'Choose Starter',
+    'Choose Studio',
+    'Choose Business',
+    'Contact sales',
+    'Everything in Free',
+    'Unlimited clients',
+    'Work, chat and calendar',
+    'Roles and permissions',
+    'Audit log',
+    'SSO and SCIM',
+    'Data residency',
+    'Named success lead',
+    'Free, always',
+    'Counted once',
+    'Pooled per workspace',
+    '3 seats',
+  ];
+
+  const ar = (key: string) => translate('ar-EG', key as MessageKey);
+
+  it('ar-EG: no English card copy or badge remains, and each card reads from the catalog', () => {
+    activeLocale.set('ar-EG');
+    const { container } = render(
+      <div dir="rtl">
+        <PricingPage />
+      </div>,
+    );
+
+    const cards = [...container.querySelectorAll<HTMLElement>('.tm-pricing-plan')];
+    expect(cards).toHaveLength(PRICING_PLANS.length);
+    const visible = [
+      ...cards.map((card) => card.textContent ?? ''),
+      container.querySelector('.tm-pricing-rules')?.textContent ?? '',
+    ].join(' ');
+    for (const english of ENGLISH_CARD_COPY) expect(visible).not.toContain(english);
+
+    PRICING_PLANS.forEach((plan, i) => {
+      const card = within(cards[i]!);
+      expect(card.getByRole('heading', { level: 3 }).textContent).toBe(ar(plan.nameKey));
+      expect(card.getByText(ar(plan.positioningKey))).toBeInTheDocument();
+      expect(card.getByRole('link', { name: ar(plan.cta.labelKey) })).toHaveAttribute(
+        'href',
+        plan.cta.href,
+      );
+      for (const key of plan.featureKeys) expect(card.getByText(ar(key))).toBeInTheDocument();
+    });
+  });
+
+  it('keeps the CTA targets: sign-up for every self-serve plan, contact for Enterprise', () => {
+    for (const plan of PRICING_PLANS) {
+      expect(plan.cta.href).toBe(plan.id === 'enterprise' ? '/contact' : SIGN_UP_HREF);
+    }
+  });
+
+  it('ar-EG: the featured Studio card and the plan picker still work', () => {
+    activeLocale.set('ar-EG');
+    const { container } = render(<PricingPage />);
+
+    const featured = container.querySelectorAll('.tm-pricing-plan--featured');
+    expect(featured).toHaveLength(1);
+    expect(featured[0]!.getAttribute('aria-labelledby')).toBe('plan-studio');
+    expect(within(featured[0] as HTMLElement).getByText(ar('PricingPage.planFlag'))).toBeVisible();
+
+    // Studio is the plan shown by default; the picker lists every plan by its catalog name.
+    const active = () => container.querySelector('.tm-pricing-plan.is-active');
+    expect(active()?.getAttribute('aria-labelledby')).toBe('plan-studio');
+    const [picker] = screen.getAllByLabelText(ar('PricingPage.showPlan'));
+    const options = within(picker!).getAllByRole('option');
+    expect(options.map((option) => option.textContent)).toEqual(
+      PRICING_PLANS.map((plan) => ar(plan.nameKey)),
+    );
+
+    fireEvent.change(picker!, { target: { value: 'enterprise' } });
+    expect(active()?.getAttribute('aria-labelledby')).toBe('plan-enterprise');
+    expect(container.querySelector('.tm-pricing-compare__plan.is-active')?.textContent).toBe(
+      ar('PricingPage.planEnterpriseName'),
+    );
   });
 });

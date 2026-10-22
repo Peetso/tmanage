@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Avatar, Badge, Select, StatusDot, VisuallyHidden } from '@tmanage/ui';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import { useT } from '../../../../lib/i18n/use-t';
 import { ButtonLink, SectionHeader, WebIcon, WebSection } from '../..';
 import { cx } from '../../primitives';
@@ -11,10 +12,20 @@ import {
   PRICING_PLANS,
   type BillingPeriod,
   type CompareCell,
+  type PricingKey,
   type PricingPlan,
 } from './pricing-data';
 import './pricing.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
+
+/**
+ * The page's catalog lookup. `PricingKey` is `PricingPage.*`; the keys the data file names are
+ * shipped in `en.json`/`ar.json`, and a missing one shows the key itself, never English in Arabic.
+ */
+function usePricingT(): (key: PricingKey) => string {
+  const t = useT();
+  return (key) => t(key as MessageKey);
+}
 
 /* ── Hero with the Monthly / Yearly toggle ────────────────────────────────────── */
 
@@ -64,7 +75,7 @@ function PlanPicker({
   onChange: (next: PlanId) => void;
   className: string;
 }) {
-  const t = useT();
+  const t = usePricingT();
   return (
     <Select
       label={t('PricingPage.showPlan')}
@@ -74,7 +85,7 @@ function PlanPicker({
     >
       {PRICING_PLANS.map((option) => (
         <option key={option.id} value={option.id}>
-          {option.name}
+          {t(option.nameKey)}
         </option>
       ))}
     </Select>
@@ -92,7 +103,7 @@ function PlanCard({
   period: BillingPeriod;
   active: boolean;
 }) {
-  const t = useT();
+  const t = usePricingT();
   const headingId = `plan-${plan.id}`;
   return (
     <article
@@ -108,9 +119,9 @@ function PlanCard({
         <Badge className="tm-pricing-plan__flag">{t('PricingPage.planFlag')}</Badge>
       ) : null}
       <h3 id={headingId} className="tm-pricing-plan__name">
-        {plan.name}
+        {t(plan.nameKey)}
       </h3>
-      <p className="tm-pricing-plan__positioning">{plan.positioning}</p>
+      <p className="tm-pricing-plan__positioning">{t(plan.positioningKey)}</p>
       <div className="tm-pricing-plan__price">
         <p className="tm-pricing-plan__figure">
           <span className="tm-pricing-plan__amount" aria-label={t('PricingPage.priceAria')}>
@@ -129,13 +140,13 @@ function PlanCard({
         size="feature"
         className="tm-pricing-plan__cta"
       >
-        {plan.cta.label}
+        {t(plan.cta.labelKey)}
       </ButtonLink>
       <ul className="tm-pricing-plan__features">
-        {plan.features.map((feature) => (
-          <li key={feature} className="tm-pricing-plan__feature">
+        {plan.featureKeys.map((featureKey) => (
+          <li key={featureKey} className="tm-pricing-plan__feature">
             <WebIcon name="check" size={16} className="tm-pricing-plan__check" />
-            <span>{feature}</span>
+            <span>{t(featureKey)}</span>
           </li>
         ))}
       </ul>
@@ -146,7 +157,7 @@ function PlanCard({
 /* ── "How it's counted" — three mini product scenes ──────────────────────────── */
 
 function CountedCards() {
-  const t = useT();
+  const t = usePricingT();
   return (
     <div className="tm-pricing-rules">
       <article className="tm-pricing-rule">
@@ -154,7 +165,7 @@ function CountedCards() {
           <Avatar name="Peter Adel" decorative className="tm-pricing-rule__avatar" />
           <Avatar name="Mona Kamal" decorative className="tm-pricing-rule__avatar" />
           <Avatar name="Sara Rashed" decorative className="tm-pricing-rule__avatar" />
-          <Badge mono>3 seats</Badge>
+          <Badge mono>{t('PricingPage.ruleSeatsBadge')}</Badge>
         </div>
         <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleSeatsTitle')}</h3>
         <p className="tm-pricing-rule__body">{t('PricingPage.ruleSeatsBody')}</p>
@@ -164,8 +175,8 @@ function CountedCards() {
           <Avatar name="Nadia Victor" audience="client" decorative />
           <Avatar name="Laila Hosny" audience="client" decorative />
           <Badge tone="client">
-            <span className="tm-pricing-rule__mono">Portal</span>
-            <span className="tm-pricing-rule__ink">Free, always</span>
+            <span className="tm-pricing-rule__mono">{t('PricingPage.rulePortalLabel')}</span>
+            <span className="tm-pricing-rule__ink">{t('PricingPage.ruleClientsBadge')}</span>
           </Badge>
         </div>
         <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleClientsTitle')}</h3>
@@ -173,8 +184,8 @@ function CountedCards() {
       </article>
       <article className="tm-pricing-rule">
         <div className="tm-pricing-rule__scene tm-pricing-rule__scene--compact" aria-hidden="true">
-          <StatusDot tone="success">Counted once</StatusDot>
-          <Badge mono>Pooled per workspace</Badge>
+          <StatusDot tone="success">{t('PricingPage.ruleCountedOnce')}</StatusDot>
+          <Badge mono>{t('PricingPage.rulePooled')}</Badge>
         </div>
         <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleStorageTitle')}</h3>
         <p className="tm-pricing-rule__body">{t('PricingPage.ruleStorageBody')}</p>
@@ -186,7 +197,7 @@ function CountedCards() {
 /* ── Comparison table ─────────────────────────────────────────────────────────── */
 
 function Cell({ value }: { value: CompareCell }) {
-  const t = useT();
+  const t = usePricingT();
   if (value === true) {
     return (
       <>
@@ -205,11 +216,11 @@ function Cell({ value }: { value: CompareCell }) {
       </>
     );
   }
-  return <span className="tm-pricing-compare__word">{value}</span>;
+  return <span className="tm-pricing-compare__word">{t(value)}</span>;
 }
 
 function CompareTable({ active }: { active: PlanId }) {
-  const t = useT();
+  const t = usePricingT();
   const on = (id: PlanId) => (id === active ? 'is-active' : undefined);
   return (
     <div className="tm-pricing-compare" role="region" aria-label={t('PricingPage.compareAria')}>
@@ -221,22 +232,22 @@ function CompareTable({ active }: { active: PlanId }) {
             </th>
             {PRICING_PLANS.map((plan) => (
               <th key={plan.id} scope="col" className={cx('tm-pricing-compare__plan', on(plan.id))}>
-                {plan.name}
+                {t(plan.nameKey)}
               </th>
             ))}
           </tr>
         </thead>
         {COMPARE_GROUPS.map((group) => (
-          <tbody key={group.category}>
+          <tbody key={group.categoryKey}>
             <tr className="tm-pricing-compare__group">
               <th scope="colgroup" colSpan={PRICING_PLANS.length + 1}>
-                {group.category}
+                {t(group.categoryKey)}
               </th>
             </tr>
             {group.rows.map((row) => (
-              <tr key={row.feature}>
+              <tr key={row.featureKey}>
                 <th scope="row" className="tm-pricing-compare__feature">
-                  {row.feature}
+                  {t(row.featureKey)}
                 </th>
                 {row.cells.map((cell, i) => (
                   <td
@@ -261,7 +272,7 @@ function CompareTable({ active }: { active: PlanId }) {
 /* ── Page ─────────────────────────────────────────────────────────────────────── */
 
 export function PricingPage() {
-  const t = useT();
+  const t = usePricingT();
   const [period, setPeriod] = useState<BillingPeriod>('monthly');
   const [plan, setPlan] = useState<PlanId>('studio');
 
@@ -323,9 +334,9 @@ export function PricingPage() {
         />
         <dl className="tm-pricing-faq">
           {PRICING_FAQ.map((item) => (
-            <div key={item.question} className="tm-pricing-faq__item">
-              <dt className="tm-pricing-faq__question">{item.question}</dt>
-              <dd className="tm-pricing-faq__answer">{item.answer}</dd>
+            <div key={item.questionKey} className="tm-pricing-faq__item">
+              <dt className="tm-pricing-faq__question">{t(item.questionKey)}</dt>
+              <dd className="tm-pricing-faq__answer">{t(item.answerKey)}</dd>
             </div>
           ))}
         </dl>

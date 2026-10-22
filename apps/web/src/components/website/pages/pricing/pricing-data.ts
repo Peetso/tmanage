@@ -2,16 +2,25 @@ import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 /**
  * Pricing page copy (SITE-SPEC "PAGE: Pricing", as drawn in the approved 11-pricing design).
  * Prices are not set before paid beta, so every plan shows "$ —" and the launch-price note.
+ * The words themselves live in the i18n catalogs; this file holds only keys, links and flags.
  */
 
 export type BillingPeriod = 'monthly' | 'yearly';
 
+/**
+ * A pricing catalog key. Every visible word on the plan cards, the comparison table and the FAQ
+ * comes from `en.json`/`ar.json` under `PricingPage.*`, so the Arabic page never falls back to the
+ * English copy (live check 014a9d51, report lines 106-107).
+ */
+export type PricingKey = `PricingPage.${string}`;
+
 export interface PricingPlan {
   id: 'free' | 'starter' | 'studio' | 'business' | 'enterprise';
-  name: string;
-  positioning: string;
-  cta: { label: string; href: string };
-  features: readonly string[];
+  /** The tier name. English and Arabic both show the Latin name (Arabic prefixes U+200F). */
+  nameKey: PricingKey;
+  positioningKey: PricingKey;
+  cta: { labelKey: PricingKey; href: string };
+  featureKeys: readonly PricingKey[];
   /** Studio: the lime-bordered "Most teams start here" card with the lime CTA. */
   featured?: boolean;
   /** Enterprise: the ink card. */
@@ -21,134 +30,139 @@ export interface PricingPlan {
 export const PRICING_PLANS: readonly PricingPlan[] = [
   {
     id: 'free',
-    name: 'Free',
-    positioning: 'For a small team trying TManage on real client work.',
-    cta: { label: 'Start free', href: SIGN_UP_HREF },
-    features: [
-      'Up to 3 internal seats',
-      'Unlimited clients',
-      'Work, chat and calendar',
-      'One client portal',
+    nameKey: 'PricingPage.planFreeName',
+    positioningKey: 'PricingPage.planFreePositioning',
+    cta: { labelKey: 'PricingPage.planFreeCta', href: SIGN_UP_HREF },
+    featureKeys: [
+      'PricingPage.planFreeFeature1',
+      'PricingPage.planFreeFeature2',
+      'PricingPage.planFreeFeature3',
+      'PricingPage.planFreeFeature4',
     ],
   },
   {
     id: 'starter',
-    name: 'Starter',
-    positioning: 'For small teams moving their projects off spreadsheets.',
-    cta: { label: 'Choose Starter', href: SIGN_UP_HREF },
-    features: [
-      'Everything in Free',
-      'Unlimited projects',
-      'Requests and approvals',
-      'Branded client portal',
+    nameKey: 'PricingPage.planStarterName',
+    positioningKey: 'PricingPage.planStarterPositioning',
+    cta: { labelKey: 'PricingPage.planStarterCta', href: SIGN_UP_HREF },
+    featureKeys: [
+      'PricingPage.planStarterFeature1',
+      'PricingPage.planStarterFeature2',
+      'PricingPage.planStarterFeature3',
+      'PricingPage.planStarterFeature4',
     ],
   },
   {
     id: 'studio',
-    name: 'Studio',
-    positioning: 'For agencies running many clients and projects at once.',
-    cta: { label: 'Choose Studio', href: SIGN_UP_HREF },
-    features: ['Everything in Starter', 'Docs and decisions', 'Workload insights', 'Automations'],
+    nameKey: 'PricingPage.planStudioName',
+    positioningKey: 'PricingPage.planStudioPositioning',
+    cta: { labelKey: 'PricingPage.planStudioCta', href: SIGN_UP_HREF },
+    featureKeys: [
+      'PricingPage.planStudioFeature1',
+      'PricingPage.planStudioFeature2',
+      'PricingPage.planStudioFeature3',
+      'PricingPage.planStudioFeature4',
+    ],
     featured: true,
   },
   {
     id: 'business',
-    name: 'Business',
-    positioning: 'For firms that need control, roles and reporting across teams.',
-    cta: { label: 'Choose Business', href: SIGN_UP_HREF },
-    features: ['Everything in Studio', 'Roles and permissions', 'Audit log', 'Priority support'],
+    nameKey: 'PricingPage.planBusinessName',
+    positioningKey: 'PricingPage.planBusinessPositioning',
+    cta: { labelKey: 'PricingPage.planBusinessCta', href: SIGN_UP_HREF },
+    featureKeys: [
+      'PricingPage.planBusinessFeature1',
+      'PricingPage.planBusinessFeature2',
+      'PricingPage.planBusinessFeature3',
+      'PricingPage.planBusinessFeature4',
+    ],
   },
   {
     id: 'enterprise',
-    name: 'Enterprise',
-    positioning: 'For large teams with security reviews and contracts.',
-    cta: { label: 'Contact sales', href: '/contact' },
-    features: ['Everything in Business', 'SSO and SCIM', 'Data residency', 'Named success lead'],
+    nameKey: 'PricingPage.planEnterpriseName',
+    positioningKey: 'PricingPage.planEnterprisePositioning',
+    cta: { labelKey: 'PricingPage.planEnterpriseCta', href: '/contact' },
+    featureKeys: [
+      'PricingPage.planEnterpriseFeature1',
+      'PricingPage.planEnterpriseFeature2',
+      'PricingPage.planEnterpriseFeature3',
+      'PricingPage.planEnterpriseFeature4',
+    ],
     ink: true,
   },
 ];
 
 /** A comparison cell: included, not included, or a short word ("Limited", "Add-on", "Contract"). */
-export type CompareCell = true | false | string;
+export type CompareCell = true | false | PricingKey;
+
+const LIMITED: PricingKey = 'PricingPage.cellLimited';
+const ADD_ON: PricingKey = 'PricingPage.cellAddOn';
+const CONTRACT: PricingKey = 'PricingPage.cellContract';
 
 export interface CompareGroup {
-  category: string;
-  rows: readonly { feature: string; cells: readonly CompareCell[] }[];
+  categoryKey: PricingKey;
+  rows: readonly { featureKey: PricingKey; cells: readonly CompareCell[] }[];
 }
 
 export const COMPARE_GROUPS: readonly CompareGroup[] = [
   {
-    category: 'Work & projects',
+    categoryKey: 'PricingPage.compareCatWork',
     rows: [
-      { feature: 'Projects and tasks', cells: [true, true, true, true, true] },
-      { feature: 'Request intake', cells: ['Limited', true, true, true, true] },
+      { featureKey: 'PricingPage.compareRowProjects', cells: [true, true, true, true, true] },
+      { featureKey: 'PricingPage.compareRowIntake', cells: [LIMITED, true, true, true, true] },
     ],
   },
   {
-    category: 'Chat & calendar',
+    categoryKey: 'PricingPage.compareCatChat',
     rows: [
-      { feature: 'Team chat', cells: [true, true, true, true, true] },
-      { feature: 'Shared calendars', cells: ['Limited', true, true, true, true] },
+      { featureKey: 'PricingPage.compareRowChat', cells: [true, true, true, true, true] },
+      { featureKey: 'PricingPage.compareRowCalendars', cells: [LIMITED, true, true, true, true] },
     ],
   },
   {
-    category: 'Docs & approvals',
+    categoryKey: 'PricingPage.compareCatDocs',
     rows: [
-      { feature: 'Docs and decisions', cells: ['Limited', 'Limited', true, true, true] },
-      { feature: 'Client approvals', cells: [false, true, true, true, true] },
+      { featureKey: 'PricingPage.compareRowDocs', cells: [LIMITED, LIMITED, true, true, true] },
+      { featureKey: 'PricingPage.compareRowApprovals', cells: [false, true, true, true, true] },
     ],
   },
   {
-    category: 'Client portal',
+    categoryKey: 'PricingPage.compareCatPortal',
     rows: [
-      { feature: 'Client seats', cells: [true, true, true, true, true] },
-      { feature: 'Portal branding', cells: [false, true, true, true, true] },
+      { featureKey: 'PricingPage.compareRowClientSeats', cells: [true, true, true, true, true] },
+      { featureKey: 'PricingPage.compareRowBranding', cells: [false, true, true, true, true] },
     ],
   },
   {
-    category: 'Insights & automations',
+    categoryKey: 'PricingPage.compareCatInsights',
     rows: [
-      { feature: 'Workload insights', cells: [false, false, true, true, true] },
-      { feature: 'Automations', cells: [false, 'Limited', true, true, true] },
+      { featureKey: 'PricingPage.compareRowInsights', cells: [false, false, true, true, true] },
+      {
+        featureKey: 'PricingPage.compareRowAutomations',
+        cells: [false, LIMITED, true, true, true],
+      },
     ],
   },
   {
-    category: 'Security & admin',
+    categoryKey: 'PricingPage.compareCatSecurity',
     rows: [
-      { feature: 'SSO and SCIM', cells: [false, false, false, 'Add-on', true] },
-      { feature: 'Data residency', cells: [false, false, false, 'Add-on', 'Contract'] },
+      { featureKey: 'PricingPage.compareRowSso', cells: [false, false, false, ADD_ON, true] },
+      {
+        featureKey: 'PricingPage.compareRowResidency',
+        cells: [false, false, false, ADD_ON, CONTRACT],
+      },
     ],
   },
 ];
 
-export const PRICING_FAQ: readonly { question: string; answer: string }[] = [
+export const PRICING_FAQ: readonly { questionKey: PricingKey; answerKey: PricingKey }[] = [
+  { questionKey: 'PricingPage.faqSeatQuestion', answerKey: 'PricingPage.faqSeatAnswer' },
+  { questionKey: 'PricingPage.faqNoPriceQuestion', answerKey: 'PricingPage.faqNoPriceAnswer' },
+  { questionKey: 'PricingPage.faqSwitchQuestion', answerKey: 'PricingPage.faqSwitchAnswer' },
+  { questionKey: 'PricingPage.faqFreeQuestion', answerKey: 'PricingPage.faqFreeAnswer' },
+  { questionKey: 'PricingPage.faqYearlyQuestion', answerKey: 'PricingPage.faqYearlyAnswer' },
   {
-    question: 'Who counts as a seat?',
-    answer:
-      'Anyone on your team with an internal login. Clients and their approvers never use a seat.',
-  },
-  {
-    question: 'Why is there no price yet?',
-    answer:
-      'TManage is still in private build. Prices are set when paid beta opens, and early teams keep their launch price.',
-  },
-  {
-    question: 'Can I switch plans later?',
-    answer: 'Yes. Move up or down at any time. The change applies from your next billing period.',
-  },
-  {
-    question: 'What stays free on the Free plan?',
-    answer:
-      'Up to three internal seats, unlimited clients and one client portal, with no time limit.',
-  },
-  {
-    question: 'Is yearly billing cheaper?',
-    answer:
-      'Yes. Yearly billing will cost less than twelve monthly payments. The exact saving is confirmed at paid beta.',
-  },
-  {
-    question: 'How is Enterprise priced?',
-    answer:
-      'Enterprise is quoted per contract, based on seats, security review and data residency needs.',
+    questionKey: 'PricingPage.faqEnterpriseQuestion',
+    answerKey: 'PricingPage.faqEnterpriseAnswer',
   },
 ];
