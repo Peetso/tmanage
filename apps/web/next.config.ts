@@ -93,6 +93,15 @@ const config: NextConfig = {
           { key: 'Cache-Control', value: 'no-store' },
         ],
       },
+      // S10: the AI approve page runs a confirm-class action on one click, so the same rule:
+      // never framed (B2, clickjacking), never cached.
+      {
+        source: '/:orgSlug/ai/approve/:id',
+        headers: [
+          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'" },
+          { key: 'Cache-Control', value: 'no-store' },
+        ],
+      },
       // Long-lived caching for the content-hashed build assets (and the self-hosted font). The
       // catch-all rule above still matches these paths, so a static asset keeps the security
       // headers and gains `Cache-Control`. See `src/lib/static-headers.ts` for why `public/`,

@@ -51,6 +51,19 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/oauth/consent', reason: 'oauth' },
   { method: 'POST', path: '/v1/oauth/consent/deny', reason: 'oauth' },
   { method: 'POST', path: '/v1/organizations/:orgSlug/oauth/consent', reason: 'oauth' },
+  // S10: the approve page's API for confirm-class AI actions — view, approve, decline. A cookie
+  // session of the same member only; an AI principal must never approve its own request.
+  { method: 'GET', path: '/v1/organizations/:orgSlug/ai/approvals/:id', reason: 'mcp_endpoint' },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai/approvals/:id/approve',
+    reason: 'mcp_endpoint',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/ai/approvals/:id/decline',
+    reason: 'mcp_endpoint',
+  },
   { method: 'GET', path: '/public/setup/', reason: 'setup' },
   { method: 'POST', path: '/public/setup/', reason: 'setup' },
   { method: 'POST', path: '/public/site/contact', reason: 'public_site' },

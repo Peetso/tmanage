@@ -265,6 +265,40 @@ export const oauthRefreshTokens = mysqlTable(
   ],
 );
 
+/**
+ * A confirm-class AI action waiting for its member's approval (0209, MCP connector S10). The op
+ * id and frozen args run once, on the server, when the same member approves. Tenant-owned.
+ */
+export const pendingAiActions = mysqlTable(
+  'pending_ai_actions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    membershipId: char('membership_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    clientId: varchar('client_id', { length: 512 }).notNull(),
+    clientName: varchar('client_name', { length: 190 }).notNull(),
+    opId: varchar('op_id', { length: 120 }).notNull(),
+    argsJson: json('args_json').$type<Record<string, unknown>>().notNull(),
+    argsSha256: char('args_sha256', { length: 64 }).notNull(),
+    /** `pending` | `approved` | `declined` | `expired` | `failed`. */
+    status: varchar('status', { length: 16 }).notNull().default('pending'),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }).notNull(),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }),
+    resultStatus: int('result_status'),
+    resultJson: json('result_json').$type<unknown>(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_pending_ai_actions_org_id').on(table.organizationId, table.id),
+    index('ix_pending_ai_actions_member').on(
+      table.organizationId,
+      table.membershipId,
+      table.status,
+    ),
+  ],
+);
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Tenant root
 // ─────────────────────────────────────────────────────────────────────────────
@@ -8320,6 +8354,7 @@ export const TABLES = {
   oauth_codes: oauthCodes,
   oauth_access_tokens: oauthAccessTokens,
   oauth_refresh_tokens: oauthRefreshTokens,
+  pending_ai_actions: pendingAiActions,
   organizations,
   memberships,
   workspaces,
@@ -8507,6 +8542,7 @@ export type OauthGrantRow = typeof oauthGrants.$inferSelect;
 export type OauthCodeRow = typeof oauthCodes.$inferSelect;
 export type OauthAccessTokenRow = typeof oauthAccessTokens.$inferSelect;
 export type OauthRefreshTokenRow = typeof oauthRefreshTokens.$inferSelect;
+export type PendingAiActionRow = typeof pendingAiActions.$inferSelect;
 export type OrganizationRow = typeof organizations.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;

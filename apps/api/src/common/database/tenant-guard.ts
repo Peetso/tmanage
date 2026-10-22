@@ -79,6 +79,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // tenant context. The four hash-keyed OAuth token tables carry no `organization_id` and are
   // registered in NON_TENANT_TABLES below.
   oauth_grants: 'organization_id',
+  // 0209 (MCP connector S10). A confirm-class AI action waiting for its member's approval names
+  // one organization and one membership; every read and write carries the tenant context.
+  pending_ai_actions: 'organization_id',
   workspaces: 'organization_id',
   projects: 'organization_id',
   project_memberships: 'organization_id',

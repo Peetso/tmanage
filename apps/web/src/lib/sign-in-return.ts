@@ -17,8 +17,14 @@ const INVITATION_PATH = /^\/invitations\/[A-Za-z0-9_-]{40,64}$/u;
  */
 const CONSENT_PATH = /^\/connect\/authorize\?[A-Za-z0-9\-._~%&=+]{1,4000}$/u;
 
+/**
+ * The AI approve page (MCP connector S10): `/<org slug>/ai/approve/<uuid>`. An AI app's approval
+ * link is opened from the chat, often signed out; sign-in brings the person back to it. Path only.
+ */
+const AI_APPROVE_PATH = /^\/[a-z0-9][a-z0-9-]{0,62}\/ai\/approve\/[0-9a-f-]{36}$/u;
+
 function isAllowedReturn(path: string): boolean {
-  return INVITATION_PATH.test(path) || CONSENT_PATH.test(path);
+  return INVITATION_PATH.test(path) || CONSENT_PATH.test(path) || AI_APPROVE_PATH.test(path);
 }
 
 export const DEFAULT_AFTER_SIGN_IN = '/organizations';

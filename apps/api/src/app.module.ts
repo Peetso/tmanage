@@ -105,6 +105,7 @@ import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
 import { PersonalAccessTokensModule } from './modules/personal-access-tokens/personal-access-tokens.controller.js';
 import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
 import { AiConnectorFallbacksModule } from './modules/mcp/ai-connector-fallbacks.controller.js';
+import { PendingAiActionsModule } from './modules/mcp/pending-actions.controller.js';
 import { OAuthModule } from './modules/oauth/oauth.module.js';
 import { AdminPoliciesModule } from './modules/admin/policies.controller.js';
 import { AdminPolicySimulateModule } from './modules/admin/policy-simulate.controller.js';
@@ -1027,6 +1028,9 @@ export class AppModule {
         // stdio bridge at `GET /downloads/tmanage-mcp.tgz`. Both public; the OpenAPI is built from
         // the same registry as the MCP catalog, so the two surfaces cannot drift.
         AiConnectorFallbacksModule.register(),
+        // Confirm-class AI approvals (MCP connector S10): the approve page's API. A cookie session
+        // of the same member views, approves (runs the frozen op once, on the server) or declines.
+        PendingAiActionsModule.register(),
         // OAuth 2.1 authorization server (MCP connector S7): discovery metadata, /oauth/authorize,
         // /oauth/token and /oauth/revoke, so AI apps connect with a browser consent instead of a
         // copied key. PKCE S256 only, opaque hashed tokens, rotation with reuse detection.

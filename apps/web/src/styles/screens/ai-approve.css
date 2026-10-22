@@ -1,0 +1,290 @@
+/*
+ * S0-3 Approve action (MCP connector S10) — Figma 365:1214 (EN) / 365:1251 (AR), result states
+ * 365:1288 / 365:1307. Tokens only; logical properties so the Arabic frame mirrors through the
+ * document direction.
+ */
+
+.tm-approve {
+  min-block-size: 100dvh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: var(--s10) var(--s4);
+  background: var(--paper-150);
+}
+
+.tm-approve__card {
+  inline-size: 100%;
+  max-inline-size: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  padding: var(--s8);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  color: var(--ink-950);
+  outline: none;
+}
+
+/* Brand lockup: the orb mark and the name. */
+.tm-approve__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-approve__orb {
+  position: relative;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-approve__orb::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 7px;
+  inset-inline-start: 9px;
+  inline-size: 9px;
+  block-size: 9px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+}
+
+.tm-approve__brand-name {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+/* Mono/Caption, warning ink. */
+.tm-approve__eyebrow,
+.tm-approve__kind,
+.tm-approve__field dt,
+.tm-approve__timer {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.tm-approve__eyebrow,
+.tm-approve__timer {
+  color: var(--warning-600);
+}
+
+/* Heading/Page. */
+.tm-approve__title {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  font-weight: 600;
+}
+
+/* Who asked: the AI app's orb, the sentence, the member's avatar. */
+.tm-approve__requester {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s3) var(--s4);
+  background: var(--paper-50);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+}
+
+.tm-approve__client-orb {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 36px;
+  block-size: 36px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-approve__requester-text {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+/* The exact action. */
+.tm-approve__action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s5) var(--s6);
+  background: var(--paper-0);
+  border: var(--b-structural) solid var(--line-700);
+  border-radius: var(--r-compact);
+}
+
+.tm-approve__kind {
+  color: var(--ink-500);
+  font-size: var(--t-caption);
+}
+
+.tm-approve__kind--danger {
+  color: var(--danger-600);
+}
+
+.tm-approve__rule {
+  margin: 0;
+  border: 0;
+  block-size: 1px;
+  background: var(--line-300);
+}
+
+.tm-approve__fields {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  margin: 0;
+}
+
+.tm-approve__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.tm-approve__field dt {
+  color: var(--ink-500);
+}
+
+.tm-approve__field dd {
+  margin: 0;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  text-align: end;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-approve__warning {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--danger-600);
+}
+
+/* Expiry capsule and the single-use note. */
+.tm-approve__expiry {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-approve__timer {
+  flex: none;
+  padding: var(--s2) var(--s4);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-approve__note {
+  flex: 1 1 0;
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+/* Decline / Approve: two equal capsules. */
+.tm-approve__actions {
+  display: flex;
+  gap: var(--s3);
+}
+
+.tm-approve__actions > .tm-button {
+  flex: 1 1 0;
+  min-inline-size: 0;
+  padding: var(--s3) var(--s6);
+  border-radius: var(--r-capsule);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+/* Result states: Approved / Expired / Declined / Could not run / Not available. */
+.tm-approve__outcome {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+}
+
+.tm-approve__outcome-head {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-approve__outcome-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  border-radius: var(--r-capsule);
+  color: var(--paper-0);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+}
+
+.tm-approve__outcome-title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+}
+
+.tm-approve__outcome--success .tm-approve__outcome-badge {
+  background: var(--success-600);
+}
+
+.tm-approve__outcome--success .tm-approve__outcome-title {
+  color: var(--success-600);
+}
+
+.tm-approve__outcome--muted .tm-approve__outcome-badge {
+  background: var(--ink-500);
+}
+
+.tm-approve__outcome--muted .tm-approve__outcome-title {
+  color: var(--ink-650);
+}
+
+@media (max-width: 560px) {
+  .tm-approve__card {
+    padding: var(--s6) var(--s5);
+  }
+
+  .tm-approve__expiry {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

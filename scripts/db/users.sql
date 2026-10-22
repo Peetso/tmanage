@@ -1160,6 +1160,10 @@ GRANT INSERT, UPDATE ON `tmanage`.`oauth_grants`         TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`oauth_codes`          TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`oauth_access_tokens`  TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`oauth_refresh_tokens` TO 'tmanage_app'@'%';
+-- 0209 pending AI actions (MCP connector S10): INSERT when an AI asks for a confirm-class action,
+-- UPDATE for the single guarded pending → approved/declined/expired transition and the result.
+-- No DELETE: a decided request is kept as evidence.
+GRANT INSERT, UPDATE ON `tmanage`.`pending_ai_actions`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 
