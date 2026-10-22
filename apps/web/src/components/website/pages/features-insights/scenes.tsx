@@ -1,7 +1,9 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule, StatusDot, type CapsuleState } from '@tmanage/ui';
+import type { MessageKey } from '../../../../lib/i18n/t';
+import { useDisplayFormatters, type DisplayFormatters } from '../../../../lib/i18n/use-formatters';
 import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon } from '../../WebIcon';
 import { cx } from '../../primitives';
@@ -11,7 +13,47 @@ import { cx } from '../../primitives';
  * packages/ui parts (StateCapsule, StatusDot, Badge, Avatar, Button) and token-only classes in
  * `features-insights.css`. Like the shared scenes, the body is `inert` and hidden from assistive
  * tech; `label` gives one sentence of alternative text.
+ *
+ * Every visible string is a `FeaturesInsightsScenes.*` key (slice L6), so the Arabic page mirrors
+ * the mock-ups too. Numbers, dates, weekdays and months go through the active-locale formatters.
+ * Proper names (people, Atlas Hospitality, Northstar Studio, project titles, `Homepage Concept
+ * v2`, object kinds such as TSK/DEL/DEC) stay in Latin on purpose.
  */
+
+/** The scene keys arrive in the catalogs through the L6 i18n fragment; widened here once. */
+type SceneKey = `FeaturesInsightsScenes.${string}`;
+
+type Vars = Readonly<Record<string, string | number>>;
+
+/** `s('key', { n: 3 })`: the scene string with `{n}` filled, numbers in the active locale. */
+function useSceneCopy(): {
+  s: (key: string, vars?: Vars) => string;
+  fmt: DisplayFormatters;
+} {
+  const t = useT();
+  const fmt = useDisplayFormatters();
+  const s = useCallback(
+    (key: string, vars?: Vars) => {
+      let out = t(`FeaturesInsightsScenes.${key}` satisfies SceneKey as MessageKey);
+      if (vars) {
+        for (const [name, value] of Object.entries(vars)) {
+          out = out.replaceAll(`{${name}}`, typeof value === 'number' ? fmt.number(value) : value);
+        }
+      }
+      return out;
+    },
+    [t, fmt],
+  );
+  return { s, fmt };
+}
+
+/** A calendar day at local noon, so the runtime timezone never shifts it. */
+function day(fmt: DisplayFormatters, isoDate: string, options: Intl.DateTimeFormatOptions) {
+  return fmt.day(`${isoDate}T12:00:00`, options);
+}
+
+const DAY_MONTH: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+
 function Scene({
   label,
   className,
@@ -42,10 +84,10 @@ function ObjectRef({ kind, title }: { kind: string; title: string }) {
 
 /* ── Hero: the Insights portfolio screen (product section 18/19) ──────────── */
 
-const HEADLINES: readonly { value: string; badge?: string; label: string }[] = [
-  { value: '31h', label: 'mean wait for an approval decision' },
-  { value: '3', badge: 'of 46', label: 'work items blocked right now' },
-  { value: '2', badge: 'of 9', label: 'approvals sent back for changes' },
+const HEADLINES: readonly { value: number; unit?: 'hours'; of?: number; label: string }[] = [
+  { value: 31, unit: 'hours', label: 'metricWait' },
+  { value: 3, of: 46, label: 'metricBlocked' },
+  { value: 2, of: 9, label: 'metricChanges' },
 ];
 
 const PORTFOLIO: readonly {
@@ -61,46 +103,49 @@ const PORTFOLIO: readonly {
 
 export function PortfolioScene() {
   const t = useT();
+  const { s, fmt } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--hero" label={t('PortfolioScene.label')}>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-scene__mono">Insights · Client delivery</p>
-        <Badge>3 projects</Badge>
+        <p className="tm-web-scene__mono">{s('portfolioEyebrow')}</p>
+        <Badge>{s('portfolioProjects', { n: 3 })}</Badge>
       </div>
-      <p className="tm-web-fi-card__title">Where delivery is losing time</p>
+      <p className="tm-web-fi-card__title">{s('portfolioTitle')}</p>
       <div className="tm-web-fi-headlines">
         {HEADLINES.map((h) => (
           <div key={h.label} className="tm-web-fi-metric">
             <span className="tm-web-fi-metric__value">
-              {h.value}
-              {h.badge ? <span className="tm-web-fi-metric__of">{h.badge}</span> : null}
+              {h.unit === 'hours' ? s('metricHours', { n: h.value }) : fmt.number(h.value)}
+              {h.of ? (
+                <span className="tm-web-fi-metric__of">{s('metricOf', { n: h.of })}</span>
+              ) : null}
             </span>
-            <span className="tm-web-fi-metric__label">{h.label}</span>
+            <span className="tm-web-fi-metric__label">{s(h.label)}</span>
           </div>
         ))}
       </div>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-fi-section-title">Exceptions, not averages</p>
-        <span className="tm-web-fi-row__why">every row opens its evidence</span>
+        <p className="tm-web-fi-section-title">{s('exceptionsTitle')}</p>
+        <span className="tm-web-fi-row__why">{s('exceptionsHint')}</span>
       </div>
       <div className="tm-web-fi-table" role="presentation">
         <div className="tm-web-fi-table__row tm-web-fi-table__row--head">
-          <span>Project</span>
-          <span className="tm-web-fi-table__num">Items</span>
-          <span className="tm-web-fi-table__num">Blocked</span>
-          <span className="tm-web-fi-table__num">Changes</span>
+          <span>{s('colProject')}</span>
+          <span className="tm-web-fi-table__num">{s('colItems')}</span>
+          <span className="tm-web-fi-table__num">{s('colBlocked')}</span>
+          <span className="tm-web-fi-table__num">{s('colChanges')}</span>
         </div>
         {PORTFOLIO.map((p) => (
           <div key={p.name} className="tm-web-fi-table__row">
             <span className="tm-web-fi-table__name">{p.name}</span>
-            <span className="tm-web-fi-table__num">{p.items}</span>
+            <span className="tm-web-fi-table__num">{fmt.number(p.items)}</span>
             <span
               className={cx(
                 'tm-web-fi-table__num',
                 p.blocked > 0 && 'tm-web-fi-table__num--danger',
               )}
             >
-              {p.blocked}
+              {fmt.number(p.blocked)}
             </span>
             <span
               className={cx(
@@ -108,7 +153,7 @@ export function PortfolioScene() {
                 p.changes > 0 && 'tm-web-fi-table__num--warning',
               )}
             >
-              {p.changes}
+              {fmt.number(p.changes)}
             </span>
           </div>
         ))}
@@ -119,32 +164,59 @@ export function PortfolioScene() {
 
 /* ── Explainable health: a score drilled into its working ───────────────────── */
 
-const FACTORS: readonly { name: string; weight: string; detail: string; tone: 'ok' | 'risk' }[] = [
+const FACTORS: readonly {
+  name: string;
+  weight: string;
+  vars: Vars;
+  /** A scene key, or a Latin object title shown as is. */
+  detail: { key: string } | { title: string };
+  tone: 'ok' | 'risk';
+}[] = [
   {
-    name: 'Schedule',
-    weight: '2 of 9 milestones late',
-    detail: 'Homepage direction',
+    name: 'factorSchedule',
+    weight: 'weightSchedule',
+    vars: { late: 2, total: 9 },
+    detail: { key: 'detailSchedule' },
     tone: 'risk',
   },
-  { name: 'Approvals', weight: '1 open past target', detail: 'Homepage Concept v2', tone: 'risk' },
-  { name: 'Freshness', weight: 'Updated 3 days ago', detail: 'Booking widget QA', tone: 'ok' },
-  { name: 'Scope', weight: '1 request not committed', detail: 'Arabic booking FAQ', tone: 'ok' },
+  {
+    name: 'factorApprovals',
+    weight: 'weightApprovals',
+    vars: { n: 1 },
+    detail: { title: 'Homepage Concept v2' },
+    tone: 'risk',
+  },
+  {
+    name: 'factorFreshness',
+    weight: 'weightFreshness',
+    vars: { n: 3 },
+    detail: { key: 'detailFreshness' },
+    tone: 'ok',
+  },
+  {
+    name: 'factorScope',
+    weight: 'weightScope',
+    vars: { n: 1 },
+    detail: { key: 'detailScope' },
+    tone: 'ok',
+  },
 ];
 
 export function ScoreWorkingScene() {
   const t = useT();
+  const { s } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--working" label={t('ScoreWorkingScene.label')}>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-scene__mono">Risk · Atlas Website Relaunch</p>
-        <Badge mono>Rule set v3</Badge>
+        <p className="tm-web-scene__mono">{s('riskEyebrow')}</p>
+        <Badge mono>{s('ruleSet')}</Badge>
       </div>
-      <p className="tm-web-fi-card__title">Medium risk — here is why</p>
-      <p className="tm-web-fi-card__meta">Each factor links to the work that set it.</p>
+      <p className="tm-web-fi-card__title">{s('riskTitle')}</p>
+      <p className="tm-web-fi-card__meta">{s('riskMeta')}</p>
       <ul className="tm-web-fi-factors">
         {FACTORS.map((f) => (
           <li key={f.name} className="tm-web-fi-factor">
-            <span className="tm-web-fi-factor__name">{f.name}</span>
+            <span className="tm-web-fi-factor__name">{s(f.name)}</span>
             <span className="tm-web-fi-factor__track">
               <span
                 className={cx(
@@ -153,10 +225,10 @@ export function ScoreWorkingScene() {
                 )}
               />
             </span>
-            <span className="tm-web-fi-factor__weight">{f.weight}</span>
+            <span className="tm-web-fi-factor__weight">{s(f.weight, f.vars)}</span>
             <span className="tm-web-fi-factor__link">
               <WebIcon name="link" size={14} />
-              {f.detail}
+              {'key' in f.detail ? s(f.detail.key) : f.detail.title}
             </span>
           </li>
         ))}
@@ -168,34 +240,35 @@ export function ScoreWorkingScene() {
 /* ── Portfolio: where the work sits, across projects ─────────────────────────── */
 
 const STAGES: readonly { label: string; count: number; tone?: 'lime' | 'danger' }[] = [
-  { label: 'In progress', count: 38, tone: 'lime' },
-  { label: 'Internal review', count: 14 },
-  { label: 'Client review', count: 9 },
-  { label: 'Blocked', count: 3, tone: 'danger' },
+  { label: 'stageInProgress', count: 38, tone: 'lime' },
+  { label: 'stageInternalReview', count: 14 },
+  { label: 'stageClientReview', count: 9 },
+  { label: 'stageBlocked', count: 3, tone: 'danger' },
 ];
 
 export function StagesScene() {
   const t = useT();
+  const { s, fmt } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--stages" label={t('StagesScene.label')}>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-fi-section-title">Where the work sits</p>
-        <span className="tm-web-scene__mono">Items · all projects</span>
+        <p className="tm-web-fi-section-title">{s('stagesTitle')}</p>
+        <span className="tm-web-scene__mono">{s('stagesMeta')}</span>
       </div>
       <ul className="tm-web-fi-stages">
-        {STAGES.map((s) => (
-          <li key={s.label} className="tm-web-fi-stage">
-            <span className="tm-web-fi-stage__label">{s.label}</span>
+        {STAGES.map((stage) => (
+          <li key={stage.label} className="tm-web-fi-stage">
+            <span className="tm-web-fi-stage__label">{s(stage.label)}</span>
             <span className="tm-web-fi-factor__track">
               <span
                 className={cx(
                   'tm-web-fi-stage__fill',
-                  s.tone && `tm-web-fi-stage__fill--${s.tone}`,
+                  stage.tone && `tm-web-fi-stage__fill--${stage.tone}`,
                 )}
-                style={{ inlineSize: `${Math.round((s.count / 38) * 100)}%` }}
+                style={{ inlineSize: `${Math.round((stage.count / 38) * 100)}%` }}
               />
             </span>
-            <span className="tm-web-fi-stage__count">{s.count}</span>
+            <span className="tm-web-fi-stage__count">{fmt.number(stage.count)}</span>
           </li>
         ))}
       </ul>
@@ -205,26 +278,27 @@ export function StagesScene() {
 
 /* ── Approval cycle: time to a decision, per month ───────────────────────────── */
 
-const CYCLE: readonly { label: string; days: number }[] = [
-  { label: 'Jun', days: 2 },
-  { label: 'Jul', days: 3 },
-  { label: 'Aug', days: 4 },
-  { label: 'Sep', days: 6 },
+const CYCLE: readonly { month: string; days: number }[] = [
+  { month: '2026-06-15', days: 2 },
+  { month: '2026-07-15', days: 3 },
+  { month: '2026-08-15', days: 4 },
+  { month: '2026-09-15', days: 6 },
 ];
 
 export function ApprovalCycleScene() {
   const t = useT();
+  const { s, fmt } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--cycle" label={t('ApprovalCycleScene.label')}>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-fi-section-title">Time to a client decision</p>
-        <span className="tm-web-scene__mono">Atlas · days</span>
+        <p className="tm-web-fi-section-title">{s('cycleTitle')}</p>
+        <span className="tm-web-scene__mono">{s('cycleMeta')}</span>
       </div>
       <div className="tm-web-fi-cycle">
-        <span className="tm-web-fi-metric__value">6 days</span>
+        <span className="tm-web-fi-metric__value">{s('cycleValue', { n: 6 })}</span>
         <div className="tm-web-fi-bars">
           {CYCLE.map((bar, i) => (
-            <span key={bar.label} className="tm-web-fi-bars__col">
+            <span key={bar.month} className="tm-web-fi-bars__col">
               <span
                 className={cx(
                   'tm-web-fi-bars__bar',
@@ -232,7 +306,9 @@ export function ApprovalCycleScene() {
                 )}
                 style={{ blockSize: `calc(var(--s3) * ${bar.days})` }}
               />
-              <span className="tm-web-fi-bars__label">{bar.label}</span>
+              <span className="tm-web-fi-bars__label">
+                {day(fmt, bar.month, { month: 'short' })}
+              </span>
             </span>
           ))}
         </div>
@@ -240,9 +316,9 @@ export function ApprovalCycleScene() {
       <div className="tm-web-fi-row">
         <span className="tm-web-fi-row__text">
           <ObjectRef kind="DEL" title="Homepage Concept v2" />
-          <span className="tm-web-fi-row__why">Waiting 6 days</span>
+          <span className="tm-web-fi-row__why">{s('cycleWaiting', { n: 6 })}</span>
         </span>
-        <StateCapsule state="client">Client review</StateCapsule>
+        <StateCapsule state="client">{s('stageClientReview')}</StateCapsule>
       </div>
     </Scene>
   );
@@ -252,30 +328,28 @@ export function ApprovalCycleScene() {
 
 export function PulseScene() {
   const t = useT();
+  const { s, fmt } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--pulse" label={t('PulseScene.label')}>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-scene__mono">Pulse · Week 36</p>
-        <StatusDot tone="warning">Draft — not published</StatusDot>
+        <p className="tm-web-scene__mono">{s('pulseEyebrow', { n: 36 })}</p>
+        <StatusDot tone="warning">{s('pulseDraft')}</StatusDot>
       </div>
-      <p className="tm-web-fi-card__title">Atlas Website Relaunch — weekly update</p>
-      <p className="tm-web-fi-card__meta">For Atlas Hospitality · Salma Riad, Youssef Kamal</p>
+      <p className="tm-web-fi-card__title">{s('pulseTitle')}</p>
+      <p className="tm-web-fi-card__meta">{s('pulseFor')}</p>
       <div className="tm-web-fi-pulse__body">
         <div className="tm-web-fi-pulse__block">
-          <p className="tm-web-fi-pulse__label">Done this week</p>
-          <p>Room grid content and the booking widget QA are complete.</p>
+          <p className="tm-web-fi-pulse__label">{s('pulseDoneLabel')}</p>
+          <p>{s('pulseDoneText')}</p>
         </div>
         <div className="tm-web-fi-pulse__block">
-          <p className="tm-web-fi-pulse__label">Needs your decision</p>
-          <p>
-            Homepage Concept v2 is waiting on your review. Launch holds at 30 Sep if we hear back by
-            Friday.
-          </p>
+          <p className="tm-web-fi-pulse__label">{s('pulseDecisionLabel')}</p>
+          <p>{s('pulseDecisionText', { date: day(fmt, '2026-09-30', DAY_MONTH) })}</p>
         </div>
         <div className="tm-web-fi-pulse__block tm-web-fi-pulse__block--editing">
-          <p className="tm-web-fi-pulse__label">Next</p>
+          <p className="tm-web-fi-pulse__label">{s('pulseNextLabel')}</p>
           <p>
-            Mobile booking flow concepts
+            {s('pulseNextText')}
             <span className="tm-web-fi-caret" />
           </p>
         </div>
@@ -283,14 +357,14 @@ export function PulseScene() {
       <div className="tm-web-fi-pulse__foot">
         <span className="tm-web-fi-pulse__by">
           <Avatar name="Maya Hassan" size="compact" decorative />
-          <span>Maya Hassan is editing</span>
+          <span>{s('pulseEditing', { name: 'Maya Hassan' })}</span>
         </span>
         <span className="tm-web-fi-actions">
           <Button tone="outline" size="feature">
-            Preview
+            {s('pulsePreview')}
           </Button>
           <Button tone="ink" size="feature">
-            Publish to client
+            {s('pulsePublish')}
           </Button>
         </span>
       </div>
@@ -300,7 +374,8 @@ export function PulseScene() {
 
 /* ── Workload: commitments and constraints, never scores ────────────────────── */
 
-const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'] as const;
+/** Sunday to Thursday of week 36 (2026), shown as weekday names in the active locale. */
+const DAYS = ['2026-08-30', '2026-08-31', '2026-09-01', '2026-09-02', '2026-09-03'] as const;
 
 /**
  * Commitments due per day for the team, and the constraints that explain them. No per-person
@@ -309,50 +384,51 @@ const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu'] as const;
 const DUE: readonly number[] = [3, 5, 4, 2, 2];
 
 const CONSTRAINTS: readonly { name: string; text: string; tag: string }[] = [
-  { name: 'Lina Samir', text: 'On leave Thursday', tag: 'Leave' },
-  { name: 'Karim Nabil', text: 'Shared with Brand sprint until Tue', tag: 'Shared' },
+  { name: 'Lina Samir', text: 'constraintLeave', tag: 'tagLeave' },
+  { name: 'Karim Nabil', text: 'constraintShared', tag: 'tagShared' },
 ];
 
 const AT_RISK: readonly { kind: string; title: string; why: string }[] = [
-  { kind: 'TSK', title: 'Booking flow concepts', why: 'Due Thu · owner on leave' },
+  { kind: 'TSK', title: 'bookingFlowConcepts', why: 'atRiskWhy' },
 ];
 
 export function WorkloadScene() {
   const t = useT();
+  const { s, fmt } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--workload" label={t('WorkloadScene.label')}>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-scene__mono">Workload · Design team · Week 36</p>
-        <Badge>No scores</Badge>
+        <p className="tm-web-scene__mono">{s('workloadEyebrow', { n: 36 })}</p>
+        <Badge>{s('noScores')}</Badge>
       </div>
-      <p className="tm-web-fi-card__title">16 commitments due this week</p>
+      <p className="tm-web-fi-card__title">{s('workloadTitle', { n: 16 })}</p>
       <div className="tm-web-fi-days">
         {DAYS.map((d, i) => (
           <span key={d} className="tm-web-fi-day">
-            <span className="tm-web-fi-day__count">{DUE[i]}</span>
-            <span className="tm-web-fi-bars__label">{d}</span>
+            <span className="tm-web-fi-day__count">{fmt.number(DUE[i] ?? 0)}</span>
+            <span className="tm-web-fi-bars__label">{day(fmt, d, { weekday: 'short' })}</span>
           </span>
         ))}
       </div>
-      <p className="tm-web-fi-pulse__label">Constraints</p>
+      <p className="tm-web-fi-pulse__label">{s('constraintsLabel')}</p>
       <ul className="tm-web-fi-list">
         {CONSTRAINTS.map((c) => (
           <li key={c.name} className="tm-web-fi-person">
             <Avatar name={c.name} size="compact" decorative />
             <span className="tm-web-fi-person__text">
               <span className="tm-web-fi-person__name">{c.name}</span>
-              <span className="tm-web-fi-row__why">{c.text}</span>
+              <span className="tm-web-fi-row__why">{s(c.text)}</span>
             </span>
-            <Badge>{c.tag}</Badge>
+            <Badge>{s(c.tag)}</Badge>
           </li>
         ))}
         {AT_RISK.map((r) => (
           <li key={r.title} className="tm-web-fi-row">
             <span className="tm-web-fi-row__text">
-              <ObjectRef kind={r.kind} title={r.title} />
-              <span className="tm-web-fi-row__why">{r.why}</span>
+              <ObjectRef kind={r.kind} title={s(r.title)} />
+              <span className="tm-web-fi-row__why">{s(r.why)}</span>
             </span>
-            <StateCapsule state="waiting">Re-plan</StateCapsule>
+            <StateCapsule state="waiting">{s('replan')}</StateCapsule>
           </li>
         ))}
       </ul>
@@ -364,45 +440,47 @@ export function WorkloadScene() {
 
 export function AutomationScene() {
   const t = useT();
+  const { s } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--automation" label={t('AutomationScene.label')}>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-scene__mono">Automation · Template</p>
-        <StatusDot tone="neutral">Off</StatusDot>
+        <p className="tm-web-scene__mono">{s('autoEyebrow')}</p>
+        <StatusDot tone="neutral">{s('autoOff')}</StatusDot>
       </div>
-      <p className="tm-web-fi-card__title">Remind a reviewer</p>
+      <p className="tm-web-fi-card__title">{s('autoTitle')}</p>
       <div className="tm-web-fi-rule">
         <div className="tm-web-fi-rule__step">
-          <span className="tm-web-fi-rule__key">When</span>
-          <span>A deliverable waits in client review for 3 days</span>
+          <span className="tm-web-fi-rule__key">{s('autoWhen')}</span>
+          <span>{s('autoWhenText', { n: 3 })}</span>
         </div>
         <div className="tm-web-fi-rule__step">
-          <span className="tm-web-fi-rule__key">Then</span>
-          <span>Remind the reviewer in the client channel</span>
+          <span className="tm-web-fi-rule__key">{s('autoThen')}</span>
+          <span>{s('autoThenText')}</span>
         </div>
         <div className="tm-web-fi-rule__step">
-          <span className="tm-web-fi-rule__key">Acts as</span>
+          <span className="tm-web-fi-rule__key">{s('autoActsAs')}</span>
           <span className="tm-web-fi-rule__who">
             <WebIcon name="id" size={14} />
-            Northstar Studio automation · not a person
+            {s('autoIdentity')}
           </span>
         </div>
       </div>
       <div className="tm-web-fi-dry">
-        <p className="tm-web-fi-pulse__label">Dry run · nothing was sent</p>
+        <p className="tm-web-fi-pulse__label">{s('dryLabel')}</p>
         <p className="tm-web-fi-dry__line">
-          Would remind <strong>Salma Riad</strong> about <strong>Homepage Concept v2</strong>
+          {s('dryWouldRemind')} <strong>Salma Riad</strong> {s('dryAbout')}{' '}
+          <strong>Homepage Concept v2</strong>
         </p>
-        <p className="tm-web-fi-row__why">1 match in 3 projects · checked just now</p>
+        <p className="tm-web-fi-row__why">{s('dryMeta', { n: 1, projects: 3 })}</p>
       </div>
       <div className="tm-web-fi-pulse__foot">
-        <span className="tm-web-fi-row__why">Switching on is logged in the audit trail</span>
+        <span className="tm-web-fi-row__why">{s('autoAudit')}</span>
         <span className="tm-web-fi-actions">
           <Button tone="outline" size="feature">
-            Run again
+            {s('runAgain')}
           </Button>
           <Button tone="ink" size="feature">
-            Switch on
+            {s('switchOn')}
           </Button>
         </span>
       </div>
@@ -412,50 +490,65 @@ export function AutomationScene() {
 
 /* ── AI assistant: answers with sources, no actions ─────────────────────────── */
 
-const SOURCES: readonly { n: number; kind: string; title: string; meta: string }[] = [
+const SOURCES: readonly {
+  n: number;
+  kind: string;
+  /** A scene key, or a Latin object title shown as is. */
+  title: { key: string } | { latin: string };
+  meta: string;
+  vars?: Vars;
+}[] = [
+  { n: 1, kind: 'TSK', title: { key: 'sourceConcepts' }, meta: 'sourceConceptsMeta' },
+  { n: 2, kind: 'DEC', title: { key: 'sourceApi' }, meta: 'sourceApiMeta' },
   {
-    n: 1,
-    kind: 'TSK',
-    title: 'Prepare mobile booking flow concepts',
-    meta: 'Blocked · Lina Samir',
+    n: 3,
+    kind: 'DEL',
+    title: { latin: 'Homepage Concept v2' },
+    meta: 'sourceConceptMeta',
+    vars: { n: 6 },
   },
-  { n: 2, kind: 'DEC', title: 'Booking API answer due from Atlas IT', meta: 'Decision · open' },
-  { n: 3, kind: 'DEL', title: 'Homepage Concept v2', meta: 'Client review · 6 days' },
 ];
 
 export function AssistantScene() {
   const t = useT();
+  const { s, fmt } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--assistant" label={t('AssistantScene.label')}>
       <div className="tm-web-fi-ask">
         <WebIcon name="search" size={14} />
-        <span className="tm-web-fi-ask__text">What is holding up the Atlas launch?</span>
+        <span className="tm-web-fi-ask__text">{s('askText')}</span>
       </div>
       <div className="tm-web-fi-answer">
-        <p className="tm-web-scene__mono">Answer · 3 sources</p>
+        <p className="tm-web-scene__mono">{s('answerMeta', { n: 3 })}</p>
         <p className="tm-web-fi-answer__text">
-          Two things. The mobile booking concepts are blocked
-          <span className="tm-web-fi-cite">1</span> until Atlas IT answers the booking API question
-          <span className="tm-web-fi-cite">2</span>, and Homepage Concept v2 has been in client
-          review for six days<span className="tm-web-fi-cite">3</span>.
+          {s('answerPart1')}
+          <span className="tm-web-fi-cite">{fmt.number(1)}</span>
+          {s('answerPart2')}
+          <span className="tm-web-fi-cite">{fmt.number(2)}</span>
+          {s('answerPart3')}
+          <span className="tm-web-fi-cite">{fmt.number(3)}</span>
+          {s('answerPart4')}
         </p>
       </div>
       <ul className="tm-web-fi-list">
-        {SOURCES.map((s) => (
-          <li key={s.n} className="tm-web-fi-row">
+        {SOURCES.map((source) => (
+          <li key={source.n} className="tm-web-fi-row">
             <span className="tm-web-fi-row__text">
               <span className="tm-web-fi-source">
-                <span className="tm-web-fi-cite">{s.n}</span>
-                <ObjectRef kind={s.kind} title={s.title} />
+                <span className="tm-web-fi-cite">{fmt.number(source.n)}</span>
+                <ObjectRef
+                  kind={source.kind}
+                  title={'key' in source.title ? s(source.title.key) : source.title.latin}
+                />
               </span>
-              <span className="tm-web-fi-row__why">{s.meta}</span>
+              <span className="tm-web-fi-row__why">{s(source.meta, source.vars)}</span>
             </span>
           </li>
         ))}
       </ul>
       <p className="tm-web-fi-limits">
         <WebIcon name="lock" size={14} />
-        Read-only · cannot publish, approve, invite or delete
+        {s('assistantLimits')}
       </p>
     </Scene>
   );
@@ -463,29 +556,43 @@ export function AssistantScene() {
 
 /* ── CTA band crop: project health with its drivers ─────────────────────────── */
 
-const DRIVERS: readonly { kind: string; title: string; state: CapsuleState; tag: string }[] = [
-  { kind: 'DEL', title: 'Homepage Concept v2', state: 'client', tag: 'Client review' },
-  { kind: 'TSK', title: 'Booking flow concepts', state: 'blocked', tag: 'Blocked' },
+const DRIVERS: readonly {
+  kind: string;
+  /** A scene key, or a Latin object title shown as is. */
+  title: { key: string } | { latin: string };
+  state: CapsuleState;
+  tag: string;
+}[] = [
+  {
+    kind: 'DEL',
+    title: { latin: 'Homepage Concept v2' },
+    state: 'client',
+    tag: 'stageClientReview',
+  },
+  { kind: 'TSK', title: { key: 'bookingFlowConcepts' }, state: 'blocked', tag: 'stageBlocked' },
 ];
 
 export function HealthCropScene() {
   const t = useT();
+  const { s, fmt } = useSceneCopy();
   return (
     <Scene className="tm-web-fi-scene--crop" label={t('HealthCropScene.label')}>
       <div className="tm-web-fi-scene__head">
-        <p className="tm-web-scene__mono">Project health · Atlas</p>
-        <StateCapsule state="waiting">Watch</StateCapsule>
+        <p className="tm-web-scene__mono">{s('healthEyebrow')}</p>
+        <StateCapsule state="waiting">{s('healthWatch')}</StateCapsule>
       </div>
       <div>
-        <p className="tm-web-fi-metric__label">Launch forecast</p>
-        <p className="tm-web-fi-metric__value">4 Oct</p>
-        <p className="tm-web-fi-card__meta">Committed 30 Sep · +4 days</p>
+        <p className="tm-web-fi-metric__label">{s('forecastLabel')}</p>
+        <p className="tm-web-fi-metric__value">{day(fmt, '2026-10-04', DAY_MONTH)}</p>
+        <p className="tm-web-fi-card__meta">
+          {s('forecastCommitted', { date: day(fmt, '2026-09-30', DAY_MONTH), n: 4 })}
+        </p>
       </div>
       <ul className="tm-web-fi-list">
         {DRIVERS.map((d) => (
-          <li key={d.title} className="tm-web-fi-row tm-web-fi-row--inline">
-            <ObjectRef kind={d.kind} title={d.title} />
-            <StateCapsule state={d.state}>{d.tag}</StateCapsule>
+          <li key={d.tag} className="tm-web-fi-row tm-web-fi-row--inline">
+            <ObjectRef kind={d.kind} title={'key' in d.title ? s(d.title.key) : d.title.latin} />
+            <StateCapsule state={d.state}>{s(d.tag)}</StateCapsule>
           </li>
         ))}
       </ul>

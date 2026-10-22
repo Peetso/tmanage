@@ -989,3 +989,25 @@
     white-space: normal;
   }
 }
+
+/* ── Arabic (RTL): the mock-ups are translated (slice L6) ─────────────────────
+ * Tracking breaks Arabic letter joining, so the spaced mono labels drop it, and the nowrap eyebrow
+ * may wrap so a longer Arabic line never pushes the card wider than its column. The wide portfolio
+ * table keeps its own `overflow: hidden`, so any overflow stays inside the table. */
+[dir='rtl'] .tm-web-fi-scene .tm-web-scene__mono,
+[dir='rtl'] .tm-web-fi-metric__of,
+[dir='rtl'] .tm-web-fi-table__row--head,
+[dir='rtl'] .tm-web-fi-pulse__label,
+[dir='rtl'] .tm-web-fi-rule__key {
+  letter-spacing: 0;
+}
+
+[dir='rtl'] .tm-web-fi-scene .tm-web-scene__mono {
+  white-space: normal;
+}
+
+[dir='rtl'] .tm-web-fi-table__row--head > * {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1006,3 +1006,17 @@
     flex: 1 1 0;
   }
 }
+
+/* ── Arabic (RTL): the mock-ups are translated (slice L6) ─────────────────────
+ * Arabic mono labels are longer than the English caps, so they may wrap rather than push a scene
+ * column wider than the viewport; each scene body already clips its own overflow. */
+[dir='rtl'] .tm-wc-mono {
+  white-space: normal;
+}
+
+[dir='rtl'] .tm-wc-cal__day .tm-wc-mono {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
