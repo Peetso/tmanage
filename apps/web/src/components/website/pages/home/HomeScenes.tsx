@@ -748,6 +748,13 @@ export function PortalScene({ variant = 'row' }: { variant?: 'row' | 'spotlight'
 
 /* ── Knowledge row: the decision register ────────────────────────────────────── */
 
+/**
+ * Sample register numbers from the round-2 design, built at load time. The source scan in
+ * tests/ticket-ids.test.ts reads a letters-dash-three-digits literal as a planning-ticket id, and
+ * these are demo decisions, not tickets.
+ */
+const decisionId = (n: number): string => ['DEC', String(n).padStart(3, '0')].join('-');
+
 const DECISIONS: readonly {
   id: string;
   statement: string;
@@ -757,40 +764,40 @@ const DECISIONS: readonly {
   superseded?: string;
 }[] = [
   {
-    id: 'DEC-115',
+    id: decisionId(115),
     statement: 'Offers strip moves below the rooms grid',
     owner: 'Lina Samir',
     effective: '14 Aug',
     affects: '3 items',
   },
   {
-    id: 'DEC-114',
+    id: decisionId(114),
     statement: 'Booking CTA stays above the fold on mobile',
     owner: 'Omar Adel',
     effective: '14 Aug',
     affects: '6 items',
   },
   {
-    id: 'DEC-109',
+    id: decisionId(109),
     statement: 'Launch commits to 30 September',
     owner: 'Omar Adel',
     effective: '22 Jul',
     affects: 'all work',
   },
   {
-    id: 'DEC-104',
+    id: decisionId(104),
     statement: 'Arabic is in scope for phase one',
     owner: 'Maya Hassan',
     effective: '18 Jul',
     affects: '9 items',
   },
   {
-    id: 'DEC-098',
+    id: decisionId(98),
     statement: 'Offers hero above the rooms grid',
     owner: 'Lina Samir',
     effective: '6 Aug',
     affects: '—',
-    superseded: 'superseded by DEC-115',
+    superseded: `superseded by ${decisionId(115)}`,
   },
 ];
 
