@@ -63,3 +63,47 @@ export async function saveMemberProfile(
   });
   return data;
 }
+
+// ── The acting member's own profile (t2-b "Profile & preferences") ───────────────────────────────
+
+/**
+ * The signed-in member's own profile card: the name and job title they may edit, and the sign-in
+ * email they may only read (an admin changes it). Own-membership only — there is no id in the path,
+ * so the request cannot name anybody else.
+ */
+export interface MyProfileView {
+  readonly displayName: string;
+  readonly email: string;
+  readonly jobTitle: string | null;
+}
+
+/** What the profile form sends on save — a full replacement of the two editable fields. */
+export interface MyProfileInput {
+  readonly displayName: string;
+  readonly jobTitle: string | null;
+}
+
+function myProfilePath(organizationSlug: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/me/profile`;
+}
+
+export async function fetchMyProfile(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<MyProfileView> {
+  const { data } = await client.request<MyProfileView>({ path: myProfilePath(organizationSlug) });
+  return data;
+}
+
+export async function saveMyProfile(
+  client: ApiClient,
+  organizationSlug: string,
+  input: MyProfileInput,
+): Promise<MyProfileView> {
+  const { data } = await client.request<MyProfileView>({
+    method: 'PUT',
+    path: myProfilePath(organizationSlug),
+    body: input,
+  });
+  return data;
+}

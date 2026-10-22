@@ -1,4 +1,11 @@
 import type { ApiClient } from './client';
+import {
+  getDisplayPreferences,
+  updateDisplayPreferences,
+  type DisplayLocale,
+  type DisplayPreferencesView,
+  type DisplayTimezone,
+} from './display-preferences';
 
 /**
  * Appearance & accessibility preferences (x182, module 20) — the acting member's own appearance and
@@ -48,4 +55,45 @@ export async function updatePreferences(
     body: input,
   });
   return data;
+}
+
+// ── The one app-wide language setting, and the time zone (t2-b) ─────────────────────────────────
+//
+// The language the whole app (emails included) speaks is the display preference's `locale`, the
+// value the active-locale store and `dir` follow — the appearance allowlist above has no Arabic.
+// So the profile page reads and writes `me/display-preferences`, changing only the locale and the
+// time zone and sending every other display setting back unchanged (the PUT is a full replacement).
+
+/** The two languages the app is translated into. */
+export type AppLanguage = 'en' | 'ar';
+
+/** The language a display locale belongs to: Arabic for `ar-*`, English otherwise. */
+export function languageOfLocale(locale: DisplayLocale): AppLanguage {
+  return locale.startsWith('ar') ? 'ar' : 'en';
+}
+
+/** The locale to store for a chosen language, keeping an English variant the member already has. */
+export function localeForLanguage(language: AppLanguage, current: DisplayLocale): DisplayLocale {
+  if (language === 'ar') return 'ar-EG';
+  return current.startsWith('en') ? current : 'en-US';
+}
+
+export function getLanguageAndTimezone(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<DisplayPreferencesView> {
+  return getDisplayPreferences(client, organizationSlug);
+}
+
+export function saveLanguageAndTimezone(
+  client: ApiClient,
+  organizationSlug: string,
+  current: DisplayPreferencesView,
+  choice: { readonly language: AppLanguage; readonly timezone: DisplayTimezone },
+): Promise<DisplayPreferencesView> {
+  return updateDisplayPreferences(client, organizationSlug, {
+    ...current,
+    locale: localeForLanguage(choice.language, current.locale),
+    timezone: choice.timezone,
+  });
 }
