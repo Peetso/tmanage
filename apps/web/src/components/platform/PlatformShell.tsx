@@ -9,13 +9,15 @@ import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/admin.css';
 
 /** The Platform admin destinations the section map can mark as current. */
-export type PlatformSection = 'overview' | 'companies' | 'people' | 'settings' | 'audit';
+export type PlatformSection =
+  'overview' | 'companies' | 'people' | 'settings' | 'ai-access' | 'audit';
 
 const SECTIONS: readonly { id: PlatformSection; labelKey: MessageKey; href: string }[] = [
   { id: 'overview', labelKey: 'PlatformShell.overview', href: '/platform' },
   { id: 'companies', labelKey: 'PlatformShell.companies', href: '/platform/companies' },
   { id: 'people', labelKey: 'PlatformShell.people', href: '/platform/people' },
   { id: 'settings', labelKey: 'PlatformShell.settings', href: '/platform/settings' },
+  { id: 'ai-access', labelKey: 'AiAccess.navLabel', href: '/platform/ai-access' },
   { id: 'audit', labelKey: 'PlatformShell.auditLog', href: '/platform/audit' },
 ];
 

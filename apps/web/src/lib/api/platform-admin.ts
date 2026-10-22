@@ -213,6 +213,26 @@ export async function setPlatformPublicSignup(
   return data;
 }
 
+/** S11: flip the platform AI kill switch; the reason lands in the platform audit log. */
+export async function setPlatformAiAccess(
+  client: ApiClient,
+  on: boolean,
+  reason: string,
+): Promise<PlatformSettingsView> {
+  const { data } = await client.request<PlatformSettingsView>({
+    method: 'PUT',
+    path: '/v1/platform/settings/ai-access',
+    body: { on, reason },
+  });
+  return data;
+}
+
+/** The audit actions the AI kill switch writes (`platform.ai_access_on` / `_off`). */
+export const PLATFORM_AI_ACCESS_ACTIONS = [
+  'platform.ai_access_on',
+  'platform.ai_access_off',
+] as const;
+
 export async function listPlatformAudit(
   client: ApiClient,
 ): Promise<readonly PlatformAuditEventView[]> {
