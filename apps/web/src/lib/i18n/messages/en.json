@@ -8436,5 +8436,16 @@
   "aiApprove.unavailableTitle": "Not available",
   "aiApprove.unavailableBody": "This approval link is not valid for your account, or it no longer exists.",
   "aiApprove.loading": "Loading the request…",
-  "aiApprove.decideError": "That did not go through. Check your connection and try again."
+  "aiApprove.decideError": "That did not go through. Check your connection and try again.",
+  "HomeScenes.heroLabel": "My Day in TManage for Northstar Studio: four things need attention today, with a client review of Homepage Concept v2 waiting on Youssef, a chat question turned into a request, and an approval stamped for version 2.",
+  "HomeScenes.decisionRegisterLabel": "The decision register for Atlas Website Relaunch: five decisions with their owner, effective date and the work they affect, one of them superseded by a later decision.",
+  "HomeScenes.auditLogLabel": "The audit log in the control center: 612 events over 30 days, the latest one a change to what Atlas Hospitality's client users can see, with its actor, before and after values and a signed hash.",
+  "HomePage.trackDone": "Done",
+  "HomePage.trackInProgress": "In progress",
+  "HomePage.trackNextWeek": "Next week",
+  "HomePage.resourcesTitleModel": "Learn the model behind the work.",
+  "HomePage.resourceGuideAction": "Read the guide",
+  "HomePage.resourceTemplateAction": "Use the template",
+  "HomePage.resourceBlogAction": "Read the article",
+  "HomePage.resourceWalkthroughAction": "Watch the walkthrough"
 }

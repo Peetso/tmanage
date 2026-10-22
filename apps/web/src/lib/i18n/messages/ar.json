@@ -8436,5 +8436,16 @@
   "aiApprove.unavailableTitle": "غير متاح",
   "aiApprove.unavailableBody": "رابط الموافقة هذا غير صالح لحسابك، أو لم يعد موجوداً.",
   "aiApprove.loading": "جارٍ تحميل الطلب…",
-  "aiApprove.decideError": "لم يكتمل ذلك. تحقّق من اتصالك وحاول مجدداً."
+  "aiApprove.decideError": "لم يكتمل ذلك. تحقّق من اتصالك وحاول مجدداً.",
+  "HomeScenes.heroLabel": "صفحة «يومي» في TManage لاستوديو Northstar: أربعة أمور تحتاج إلى متابعة اليوم، منها مراجعة العميل لـ Homepage Concept v2 بانتظار يوسف، وسؤال في المحادثة تحوّل إلى طلب، واعتماد مختوم للإصدار الثاني.",
+  "HomeScenes.decisionRegisterLabel": "سجل القرارات لمشروع Atlas Website Relaunch: خمسة قرارات مع مالك كل قرار وتاريخ سريانه والأعمال التي يؤثر فيها، وأحدها حلّ محله قرار لاحق.",
+  "HomeScenes.auditLogLabel": "سجل التدقيق في مركز التحكم: ‏612 حدثًا خلال 30 يومًا، أحدثها تغيير في ما يراه مستخدمو العميل Atlas Hospitality، مع منفّذ التغيير والقيم قبله وبعده وبصمة موقّعة.",
+  "HomePage.trackDone": "مكتمل",
+  "HomePage.trackInProgress": "قيد التنفيذ",
+  "HomePage.trackNextWeek": "الأسبوع المقبل",
+  "HomePage.resourcesTitleModel": "تعرّف على النموذج الذي يقوم عليه العمل.",
+  "HomePage.resourceGuideAction": "اقرأ الدليل",
+  "HomePage.resourceTemplateAction": "استخدم القالب",
+  "HomePage.resourceBlogAction": "اقرأ المقال",
+  "HomePage.resourceWalkthroughAction": "شاهد الجولة"
 }

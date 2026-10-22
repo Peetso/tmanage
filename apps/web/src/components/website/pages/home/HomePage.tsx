@@ -1,14 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Avatar, Badge, StateCapsule } from '@tmanage/ui';
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {
   ButtonLink,
   DeliveryRiskScene,
-  Eyebrow,
   FeatureRow,
-  IconOrb,
   LogoStrip,
   SectionHeader,
   StatBand,
@@ -22,10 +20,10 @@ import { cx } from '../../primitives';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';
 import {
-  AccessScene,
-  ChatThreadScene,
-  DecisionScene,
-  HeroStoryScene,
+  AuditLogScene,
+  ChatConvertScene,
+  DecisionRegisterScene,
+  HeroScene,
   MyDayScene,
   PortalScene,
 } from './HomeScenes';
@@ -33,10 +31,24 @@ import './home.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
- * WEB-01 Home (`/`). Every word comes from SITE-SPEC.md "PAGE: Home"; every part is a shared
- * website component or a packages/ui component; page-only styling lives in `home.css` and reads
- * Limeframe tokens only.
+ * WEB-01 Home (`/`) and WEB-18 Home on mobile — built to the round-2 Figma frames 308:26 (1440)
+ * and 308:43 (390). Every word comes from the i18n catalog; every part is a shared website
+ * component or a packages/ui component; page-only styling lives in `home.css` and reads Limeframe
+ * tokens only.
  */
+
+/** The Figma's plain section eyebrow: small uppercase sans, no dot (the dotted mono one is `Eyebrow`). */
+function PlainEyebrow({
+  children,
+  tone = 'paper',
+}: {
+  children: ReactNode;
+  tone?: 'paper' | 'lime';
+}) {
+  return (
+    <p className={cx('tm-home-eyebrow', tone === 'lime' && 'tm-home-eyebrow--lime')}>{children}</p>
+  );
+}
 
 /* ── 2. Hero ──────────────────────────────────────────────────────────────── */
 
@@ -46,7 +58,7 @@ function Hero() {
     <section className="tm-home-hero" aria-labelledby="home-hero-title">
       <div className="tm-web-container tm-home-hero__grid">
         <div className="tm-home-hero__copy">
-          <Eyebrow>{t('HomePage.heroEyebrow')}</Eyebrow>
+          <PlainEyebrow>{t('HomePage.heroEyebrow')}</PlainEyebrow>
           <h1 id="home-hero-title" className="tm-home-hero__title">
             {t('HomePage.heroTitle')}
           </h1>
@@ -62,7 +74,7 @@ function Hero() {
           <p className="tm-home-hero__micro">{t('HomePage.heroMicro')}</p>
         </div>
         <div className="tm-home-hero__visual">
-          <HeroStoryScene />
+          <HeroScene />
         </div>
       </div>
     </section>
@@ -81,12 +93,25 @@ const STORY_STEPS: readonly MessageKey[] = [
   'HomePage.stepApprove',
   'HomePage.stepDeliver',
 ];
-const CURRENT_STEP = 4;
+export const CURRENT_STEP = 4;
+
+type StepState = 'done' | 'current' | 'future';
+
+/** Where step `i` stands against the current step, and the mobile status word that says so. */
+export function storyStepState(i: number): { state: StepState; statusKey: MessageKey } {
+  if (i < CURRENT_STEP) return { state: 'done', statusKey: 'HomePage.trackDone' };
+  if (i === CURRENT_STEP) return { state: 'current', statusKey: 'HomePage.trackInProgress' };
+  return { state: 'future', statusKey: 'HomePage.trackNextWeek' };
+}
 
 function WorkStory() {
   const t = useT();
   return (
-    <WebSection aria-labelledby="home-story-title" id="work-story">
+    <WebSection
+      aria-labelledby="home-story-title"
+      id="work-story"
+      className="tm-home-story-section"
+    >
       <SectionHeader
         id="home-story-title"
         align="center"
@@ -97,15 +122,23 @@ function WorkStory() {
       <div className="tm-home-track">
         <ol className="tm-home-track__list" aria-label={t('HomePage.storyStepsAria')}>
           {STORY_STEPS.map((step, i) => {
-            const state = i < CURRENT_STEP ? 'done' : i === CURRENT_STEP ? 'current' : 'future';
+            const { state, statusKey } = storyStepState(i);
             return (
               <li
                 key={step}
                 className={cx('tm-home-track__step', `tm-home-track__step--${state}`)}
-                aria-current={i === CURRENT_STEP ? 'step' : undefined}
+                aria-current={state === 'current' ? 'step' : undefined}
               >
                 <span className="tm-home-track__n">{String(i + 1).padStart(2, '0')}</span>
-                <StateCapsule state={state}>{t(step)}</StateCapsule>
+                <StateCapsule state={state}>
+                  <span className="tm-home-track__name">{t(step)}</span>
+                  <span className="tm-home-track__status">{t(statusKey)}</span>
+                </StateCapsule>
+                {i < STORY_STEPS.length - 1 ? (
+                  <span className="tm-home-track__arrow" aria-hidden="true">
+                    <WebIcon name="arrow-right" size={14} />
+                  </span>
+                ) : null}
               </li>
             );
           })}
@@ -134,7 +167,7 @@ const PILLARS: readonly { id: string; labelKey: MessageKey; rows: readonly Pilla
         titleKey: 'HomePage.pillarTeamRow1Title',
         bodyKey: 'HomePage.pillarTeamRow1Body',
         link: { labelKey: 'HomePage.pillarTeamRow1Link', href: '/features/communication' },
-        visual: <ChatThreadScene />,
+        visual: <ChatConvertScene />,
       },
       {
         titleKey: 'HomePage.pillarTeamRow2Title',
@@ -164,7 +197,7 @@ const PILLARS: readonly { id: string; labelKey: MessageKey; rows: readonly Pilla
         titleKey: 'HomePage.pillarKnowledgeRow1Title',
         bodyKey: 'HomePage.pillarKnowledgeRow1Body',
         link: { labelKey: 'HomePage.pillarKnowledgeRow1Link', href: '/features/knowledge' },
-        visual: <DecisionScene />,
+        visual: <DecisionRegisterScene />,
       },
     ],
   },
@@ -176,13 +209,30 @@ const PILLARS: readonly { id: string; labelKey: MessageKey; rows: readonly Pilla
         titleKey: 'HomePage.pillarControlRow1Title',
         bodyKey: 'HomePage.pillarControlRow1Body',
         link: { labelKey: 'HomePage.pillarControlRow1Link', href: '/security' },
-        visual: <AccessScene />,
+        visual: <AuditLogScene />,
       },
     ],
   },
 ];
 
-function PillarTabs() {
+/** The tab a roving-focus key moves to; ArrowRight is "next" in LTR and "previous" in RTL. */
+export function nextPillarIndex(
+  key: string,
+  active: number,
+  count: number,
+  rtl: boolean,
+): number | null {
+  const last = count - 1;
+  const forward = rtl ? 'ArrowLeft' : 'ArrowRight';
+  const back = rtl ? 'ArrowRight' : 'ArrowLeft';
+  if (key === 'Home') return 0;
+  if (key === 'End') return last;
+  if (key === forward) return active === last ? 0 : active + 1;
+  if (key === back) return active === 0 ? last : active - 1;
+  return null;
+}
+
+export function PillarTabs() {
   const t = useT();
   const base = useId();
   const [active, setActive] = useState(0);
@@ -190,17 +240,10 @@ function PillarTabs() {
   const panelId = (i: number) => `${base}-panel-${i}`;
 
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
-    const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End'];
-    if (!keys.includes(event.key)) return;
-    event.preventDefault();
     const rtl = getComputedStyle(event.currentTarget).direction === 'rtl';
-    const forward = rtl ? 'ArrowLeft' : 'ArrowRight';
-    const last = PILLARS.length - 1;
-    let next = active;
-    if (event.key === 'Home') next = 0;
-    else if (event.key === 'End') next = last;
-    else if (event.key === forward) next = active === last ? 0 : active + 1;
-    else next = active === 0 ? last : active - 1;
+    const next = nextPillarIndex(event.key, active, PILLARS.length, rtl);
+    if (next === null) return;
+    event.preventDefault();
     setActive(next);
     document.getElementById(tabId(next))?.focus();
   };
@@ -212,7 +255,7 @@ function PillarTabs() {
       </h2>
       <div className="tm-home-tabs">
         <div
-          className="tm-segmented tm-home-tabs__list"
+          className="tm-home-tabs__list"
           role="tablist"
           aria-label={t('HomePage.pillarsTablistAria')}
         >
@@ -222,6 +265,7 @@ function PillarTabs() {
               id={tabId(i)}
               type="button"
               role="tab"
+              className="tm-home-tabs__tab"
               aria-selected={i === active}
               aria-controls={panelId(i)}
               tabIndex={i === active ? 0 : -1}
@@ -245,6 +289,7 @@ function PillarTabs() {
           {pillar.rows.map((row, r) => (
             <FeatureRow
               key={row.titleKey}
+              label={t(pillar.labelKey)}
               title={t(row.titleKey)}
               body={t(row.bodyKey)}
               link={{ label: t(row.link.labelKey), href: row.link.href }}
@@ -299,39 +344,28 @@ function Stats() {
         {t('HomePage.statsHeading')}
       </h2>
       <StatBand stats={stats} />
-      <p className="tm-home-stats__foot">
-        <span className="tm-web-eyebrow__dot" aria-hidden="true" />
-        <span className="tm-web-scene__mono">{t('HomePage.statsFoot')}</span>
-      </p>
+      <p className="tm-home-stats__foot">{t('HomePage.statsFoot')}</p>
     </WebSection>
   );
 }
 
 /* ── 7. Who it's for ──────────────────────────────────────────────────────── */
 
-const AUDIENCES: readonly {
-  titleKey: MessageKey;
-  bodyKey: MessageKey;
-  href: string;
-  icon: WebIconName;
-}[] = [
+const AUDIENCES: readonly { titleKey: MessageKey; bodyKey: MessageKey; href: string }[] = [
   {
     titleKey: 'HomePage.audienceAgenciesTitle',
     bodyKey: 'HomePage.audienceAgenciesBody',
     href: '/solutions/agencies',
-    icon: 'grid',
   },
   {
     titleKey: 'HomePage.audienceConsultanciesTitle',
     bodyKey: 'HomePage.audienceConsultanciesBody',
     href: '/solutions/consultancies',
-    icon: 'briefcase',
   },
   {
     titleKey: 'HomePage.audienceInhouseTitle',
     bodyKey: 'HomePage.audienceInhouseBody',
     href: '/solutions/in-house',
-    icon: 'building',
   },
 ];
 
@@ -339,23 +373,18 @@ function WhoItsFor() {
   const t = useT();
   return (
     <WebSection aria-labelledby="home-who-title" className="tm-home-who">
-      <SectionHeader
-        id="home-who-title"
-        eyebrow={t('HomePage.whoEyebrow')}
-        title={t('HomePage.whoTitle')}
-      />
+      <PlainEyebrow>{t('HomePage.whoEyebrow')}</PlainEyebrow>
+      <h2 id="home-who-title" className="tm-visually-hidden">
+        {t('HomePage.whoTitle')}
+      </h2>
       <ul className="tm-home-cards tm-home-cards--3">
         {AUDIENCES.map((a) => (
           <li key={a.href}>
-            <Link href={a.href} className="tm-home-card">
-              <IconOrb icon={a.icon} tone="lime" />
+            <Link href={a.href} className="tm-home-card tm-home-card--audience">
               <span className="tm-home-card__title">{t(a.titleKey)}</span>
               <span className="tm-home-card__body">{t(a.bodyKey)}</span>
-              <span className="tm-home-card__foot">
-                <span className="tm-home-card__more">{t('HomePage.seeSolution')}</span>
-                <span className="tm-web-orb tm-web-orb--outline tm-web-orb--default">
-                  <WebIcon name="arrow-right" size={14} />
-                </span>
+              <span className="tm-web-orb tm-web-orb--outline tm-web-orb--default tm-home-card__go">
+                <WebIcon name="arrow-right" size={14} />
               </span>
             </Link>
           </li>
@@ -383,14 +412,16 @@ function PortalSpotlight() {
     >
       <div className="tm-home-spot">
         <div className="tm-home-spot__text">
-          <Eyebrow tone="ink">{t('HomePage.portalEyebrow')}</Eyebrow>
+          <PlainEyebrow tone="lime">{t('HomePage.portalEyebrow')}</PlainEyebrow>
           <h2 id="home-portal-title" className="tm-home-spot__title">
             {t('HomePage.portalTitle')}
           </h2>
           <ul className="tm-home-spot__points">
             {PORTAL_POINTS.map((point) => (
               <li key={point}>
-                <IconOrb icon="check" tone="lime" size="compact" />
+                <span className="tm-home-spot__check" aria-hidden="true">
+                  <WebIcon name="check" size={16} />
+                </span>
                 <span>{t(point)}</span>
               </li>
             ))}
@@ -400,7 +431,7 @@ function PortalSpotlight() {
           </ButtonLink>
         </div>
         <div className="tm-home-spot__visual">
-          <PortalScene />
+          <PortalScene variant="spotlight" />
         </div>
       </div>
     </WebSection>
@@ -449,20 +480,18 @@ function Stories() {
         title={t('HomePage.storiesTitle')}
       />
       <ul className="tm-home-cards tm-home-cards--3 tm-home-stories__list">
-        {STORIES.map((s, i) => (
+        {STORIES.map((s) => (
           <li key={s.quoteKey}>
-            <figure
-              className={cx('tm-web-quote', 'tm-home-story-card', i === 1 && 'tm-web-quote--ink')}
-            >
+            <figure className="tm-web-quote tm-home-story-card">
               <span className="tm-home-story-card__logo">
-                <IconOrb icon={s.icon} tone="lime" size="compact" />
+                <WebIcon name={s.icon} size={14} />
                 <span className="tm-home-story-card__team">{t(s.teamKey)}</span>
               </span>
               <blockquote className="tm-web-quote__text">
                 <p>“{t(s.quoteKey)}”</p>
               </blockquote>
               <figcaption className="tm-web-quote__by">
-                <Avatar name={t(s.authorKey)} audience="client" decorative />
+                <Avatar name={t(s.authorKey)} decorative className="tm-home-story-card__avatar" />
                 <span className="tm-web-quote__who">
                   <span className="tm-web-quote__role">{t(s.authorKey)}</span>
                   <span className="tm-web-quote__org">{t(s.orgKey)}</span>
@@ -487,36 +516,31 @@ function Stories() {
 const RESOURCES: readonly {
   kindKey: MessageKey;
   titleKey: MessageKey;
-  metaKey: MessageKey;
-  icon: WebIconName;
+  actionKey: MessageKey;
   href: string;
 }[] = [
   {
     kindKey: 'HomePage.resourceGuideKind',
     titleKey: 'HomePage.resourceGuideTitle',
-    metaKey: 'HomePage.resourceGuideMeta',
-    icon: 'book',
+    actionKey: 'HomePage.resourceGuideAction',
     href: '/resources#res-feat-title',
   },
   {
     kindKey: 'HomePage.resourceTemplateKind',
     titleKey: 'HomePage.resourceTemplateTitle',
-    metaKey: 'HomePage.resourceTemplateMeta',
-    icon: 'layers',
+    actionKey: 'HomePage.resourceTemplateAction',
     href: '/features/work#templates',
   },
   {
     kindKey: 'HomePage.resourceBlogKind',
     titleKey: 'HomePage.resourceBlogTitle',
-    metaKey: 'HomePage.resourceBlogMeta',
-    icon: 'pencil',
+    actionKey: 'HomePage.resourceBlogAction',
     href: '/resources#res-library',
   },
   {
     kindKey: 'HomePage.resourceWalkthroughKind',
     titleKey: 'HomePage.resourceWalkthroughTitle',
-    metaKey: 'HomePage.resourceWalkthroughMeta',
-    icon: 'video',
+    actionKey: 'HomePage.resourceWalkthroughAction',
     href: '/features/work#requests',
   },
 ];
@@ -525,26 +549,28 @@ function Resources() {
   const t = useT();
   return (
     <WebSection aria-labelledby="home-resources-title" className="tm-home-resources">
-      <SectionHeader
-        id="home-resources-title"
-        eyebrow={t('HomePage.resourcesEyebrow')}
-        title={t('HomePage.resourcesTitle')}
-        link={{ label: t('HomePage.resourcesLink'), href: '/resources' }}
-      />
-      <ul className="tm-home-cards tm-home-cards--4">
+      <div className="tm-home-resources__head">
+        <div className="tm-home-resources__title">
+          <PlainEyebrow>{t('HomePage.resourcesEyebrow')}</PlainEyebrow>
+          <h2 id="home-resources-title" className="tm-web-header__title">
+            {t('HomePage.resourcesTitleModel')}
+          </h2>
+        </div>
+        <Link href="/resources" className="tm-home-resources__all">
+          {t('HomePage.resourcesLink')}
+          <WebIcon name="arrow-right" size={14} />
+        </Link>
+      </div>
+      <ul className="tm-home-cards tm-home-cards--4 tm-home-resources__list">
         {RESOURCES.map((r) => (
           <li key={r.titleKey}>
             <Link href={r.href} className="tm-home-card tm-home-card--resource">
-              <span className="tm-home-card__top">
-                <Badge mono>{t(r.kindKey).toUpperCase()}</Badge>
-                <IconOrb icon={r.icon} tone="tint" size="compact" />
-              </span>
+              <span className="tm-home-card__thumb" aria-hidden="true" />
+              <Badge mono>{t(r.kindKey).toUpperCase()}</Badge>
               <span className="tm-home-card__title">{t(r.titleKey)}</span>
-              <span className="tm-home-card__foot">
-                <span className="tm-home-card__more">{t(r.metaKey)}</span>
-                <span className="tm-web-orb tm-web-orb--outline tm-web-orb--default">
-                  <WebIcon name="arrow-right" size={14} />
-                </span>
+              <span className="tm-home-card__action">
+                {t(r.actionKey)}
+                <WebIcon name="arrow-right" size={14} />
               </span>
             </Link>
           </li>
@@ -556,14 +582,14 @@ function Resources() {
 
 /* ── 3. Logo strip: the kinds of teams in the design-partner programme ─────── */
 
-/** Logo-strip partner teams; names are resolved to the active locale by `usePartnerTeams`. */
-const PARTNER_TEAMS: readonly { nameKey: MessageKey; kindKey: MessageKey; icon: WebIconName }[] = [
-  { nameKey: 'HomePage.partnerWebAgency', kindKey: 'HomePage.partnerKind', icon: 'grid' },
-  { nameKey: 'HomePage.partnerDesignStudio', kindKey: 'HomePage.partnerKind', icon: 'pencil' },
-  { nameKey: 'HomePage.partnerConsultancy', kindKey: 'HomePage.partnerKind', icon: 'briefcase' },
-  { nameKey: 'HomePage.partnerInhouse', kindKey: 'HomePage.partnerKind', icon: 'person' },
-  { nameKey: 'HomePage.partnerBrandStudio', kindKey: 'HomePage.partnerKind', icon: 'layers' },
-  { nameKey: 'HomePage.partnerOpsTeam', kindKey: 'HomePage.partnerKind', icon: 'trend' },
+/** Logo-strip partners as drawn: "Design partner 01…06", each with its kind of team. */
+const PARTNER_TEAMS: readonly { kindKey: MessageKey; icon: WebIconName }[] = [
+  { kindKey: 'HomePage.story1Team', icon: 'building' },
+  { kindKey: 'HomePage.partnerDesignStudio', icon: 'pencil' },
+  { kindKey: 'HomePage.partnerConsultancy', icon: 'briefcase' },
+  { kindKey: 'HomePage.partnerInhouse', icon: 'person' },
+  { kindKey: 'HomePage.story1Team', icon: 'layers' },
+  { kindKey: 'HomePage.partnerConsultancy', icon: 'trend' },
 ];
 
 /* ── 11. CTA band ─────────────────────────────────────────────────────────────
@@ -604,8 +630,8 @@ function HomeCta() {
 
 export function HomePage() {
   const t = useT();
-  const partners: readonly LogoStripPartner[] = PARTNER_TEAMS.map((team) => ({
-    name: t(team.nameKey),
+  const partners: readonly LogoStripPartner[] = PARTNER_TEAMS.map((team, i) => ({
+    name: `${t('HomePage.partnerKind')} ${String(i + 1).padStart(2, '0')}`,
     kind: t(team.kindKey),
     icon: team.icon,
   }));
