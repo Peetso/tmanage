@@ -1,149 +1,143 @@
-import type { WebIconName } from '../../WebIcon';
+import type { MessageKey } from '../../../../lib/i18n/t';
 
 /**
- * Integrations page content (SITE-SPEC "PAGE: Integrations"). Every status is "Planned" until
- * engineering confirms a connection is live — the spec's honesty rule, not a placeholder.
+ * WEB-13 Integrations content (Figma "T-Manage Website" frame 308:38). Every status is "Planned"
+ * until engineering confirms a connection is live — the spec's honesty rule, not a placeholder.
+ * Copy lives in the i18n catalog; brand names stay Latin in every language.
  */
 
 export type IntegrationCategory = 'calendar' | 'files' | 'identity' | 'developer' | 'ai' | 'email';
 
 export interface IntegrationFilter {
   id: 'all' | IntegrationCategory;
-  label: string;
+  labelKey: MessageKey;
 }
 
 export const INTEGRATION_FILTERS: readonly IntegrationFilter[] = [
-  { id: 'all', label: 'All' },
-  { id: 'calendar', label: 'Calendar' },
-  { id: 'files', label: 'Files & storage' },
-  { id: 'identity', label: 'Identity' },
-  { id: 'developer', label: 'Developer' },
-  { id: 'ai', label: 'AI' },
+  { id: 'all', labelKey: 'IntegrationsPage.catAll' },
+  { id: 'calendar', labelKey: 'IntegrationsPage.catCalendar' },
+  { id: 'files', labelKey: 'IntegrationsPage.catFiles' },
+  { id: 'identity', labelKey: 'IntegrationsPage.catIdentity' },
+  { id: 'developer', labelKey: 'IntegrationsPage.catDeveloper' },
+  { id: 'ai', labelKey: 'IntegrationsPage.catAi' },
 ];
 
-export const CATEGORY_LABEL: Record<IntegrationCategory, string> = {
-  calendar: 'Calendar',
-  files: 'Files & storage',
-  identity: 'Identity',
-  developer: 'Developer',
-  ai: 'AI',
-  email: 'Email',
+export const CATEGORY_LABEL_KEY: Record<IntegrationCategory, MessageKey> = {
+  calendar: 'IntegrationsPage.catCalendar',
+  files: 'IntegrationsPage.catFiles',
+  identity: 'IntegrationsPage.catIdentity',
+  developer: 'IntegrationsPage.catDeveloper',
+  ai: 'IntegrationsPage.catAi',
+  email: 'IntegrationsPage.catEmail',
+};
+
+/** One line per category, as the design repeats it on every card of that category. */
+export const CATEGORY_LINE_KEY: Record<IntegrationCategory, MessageKey> = {
+  calendar: 'IntegrationsPage.lineCalendar',
+  files: 'IntegrationsPage.lineFiles',
+  identity: 'IntegrationsPage.lineIdentity',
+  developer: 'IntegrationsPage.lineDeveloper',
+  ai: 'IntegrationsPage.lineAi',
+  email: 'IntegrationsPage.lineEmail',
 };
 
 export interface Integration {
+  id: string;
+  /** Brand or product name, shown as-is in every language. */
   name: string;
+  /** A translated name for the generic ones ("Inbound email"); brand names have none. */
+  nameKey?: MessageKey;
   category: IntegrationCategory;
-  line: string;
-  icon: WebIconName;
   status: 'available' | 'planned';
 }
 
 export const INTEGRATIONS: readonly Integration[] = [
+  { id: 'google-calendar', name: 'Google Calendar', category: 'calendar', status: 'planned' },
+  { id: 'microsoft-365', name: 'Microsoft 365', category: 'calendar', status: 'planned' },
+  { id: 'google-drive', name: 'Google Drive', category: 'files', status: 'planned' },
+  { id: 'onedrive', name: 'OneDrive', category: 'files', status: 'planned' },
+  { id: 'dropbox', name: 'Dropbox', category: 'files', status: 'planned' },
+  { id: 'saml-sso', name: 'SAML SSO', category: 'identity', status: 'planned' },
+  { id: 'scim', name: 'SCIM', category: 'identity', status: 'planned' },
   {
-    name: 'Google Calendar',
-    category: 'calendar',
-    line: 'Milestones and meetings land on the calendars your team already checks.',
-    icon: 'calendar',
-    status: 'planned',
-  },
-  {
-    name: 'Microsoft 365',
-    category: 'calendar',
-    line: 'Outlook meetings sync both ways, with owners and next steps attached.',
-    icon: 'video',
-    status: 'planned',
-  },
-  {
-    name: 'Google Drive',
-    category: 'files',
-    line: 'Link a Drive file to a work item — one source, no copies.',
-    icon: 'doc',
-    status: 'planned',
-  },
-  {
-    name: 'OneDrive',
-    category: 'files',
-    line: 'Attach OneDrive and SharePoint files; their sharing rules stay in place.',
-    icon: 'globe',
-    status: 'planned',
-  },
-  {
-    name: 'Dropbox',
-    category: 'files',
-    line: 'Point a deliverable at the exact Dropbox file the client will review.',
-    icon: 'layers',
-    status: 'planned',
-  },
-  {
-    name: 'SAML SSO',
-    category: 'identity',
-    line: 'Sign in through your company identity provider, with one policy for everyone.',
-    icon: 'lock',
-    status: 'planned',
-  },
-  {
-    name: 'SCIM',
-    category: 'identity',
-    line: 'People join and leave automatically when your directory changes.',
-    icon: 'id',
-    status: 'planned',
-  },
-  {
+    id: 'webhooks',
     name: 'Webhooks',
+    nameKey: 'IntegrationsPage.nameWebhooks',
     category: 'developer',
-    line: 'Send request, approval and milestone events to the systems you run.',
-    icon: 'bolt',
     status: 'planned',
   },
   {
+    id: 'deploy-hooks',
     name: 'Deploy hooks',
+    nameKey: 'IntegrationsPage.nameDeployHooks',
     category: 'developer',
-    line: 'Mark a release delivered the moment your pipeline ships it.',
-    icon: 'pulse',
     status: 'planned',
   },
+  { id: 'rest-api', name: 'REST API', category: 'developer', status: 'planned' },
   {
-    name: 'REST API',
-    category: 'developer',
-    line: 'Create requests and update work items from your own scripts.',
-    icon: 'link',
-    status: 'planned',
-  },
-  {
+    id: 'mcp-server',
     name: 'MCP server',
+    nameKey: 'IntegrationsPage.nameMcpServer',
     category: 'ai',
-    line: 'Use your own AI assistant with TManage context — permission-scoped.',
-    icon: 'chat',
     status: 'planned',
   },
   {
+    id: 'inbound-email',
     name: 'Inbound email',
+    nameKey: 'IntegrationsPage.nameInboundEmail',
     category: 'email',
-    line: 'Forward a client email into a request.',
-    icon: 'mail',
     status: 'planned',
   },
 ];
 
-/** Quick searches offered under the hero field before anyone types. */
-export const SEARCH_HINTS: readonly string[] = ['Calendar', 'SSO', 'Webhook'];
+/**
+ * The cards a filter and a search leave on screen. `textOf` returns every visible string of a
+ * card (its name, line and category, in the active language), so a search matches what the
+ * reader sees; the English brand name always matches too.
+ */
+export function filterIntegrations(
+  items: readonly Integration[],
+  filter: IntegrationFilter['id'],
+  query: string,
+  textOf: (item: Integration) => readonly string[],
+): Integration[] {
+  const q = query.trim().toLocaleLowerCase();
+  return items.filter(
+    (item) =>
+      (filter === 'all' || item.category === filter) &&
+      (q === '' ||
+        [item.name, ...textOf(item)].some((text) => text.toLocaleLowerCase().includes(q))),
+  );
+}
 
 export interface ConnectionStep {
-  title: string;
-  body: string;
+  titleKey: MessageKey;
+  bodyKey: MessageKey;
 }
 
 export const CONNECTION_STEPS: readonly ConnectionStep[] = [
+  { titleKey: 'IntegrationsPage.step1Title', bodyKey: 'IntegrationsPage.step1Body' },
+  { titleKey: 'IntegrationsPage.step2Title', bodyKey: 'IntegrationsPage.step2Body' },
+  { titleKey: 'IntegrationsPage.step3Title', bodyKey: 'IntegrationsPage.step3Body' },
+];
+
+export interface DeveloperLink {
+  title: string;
+  titleKey?: MessageKey;
+  hintKey: MessageKey;
+}
+
+/** "Build your own" link cards; each opens the developer guide. */
+export const DEVELOPER_LINKS: readonly DeveloperLink[] = [
   {
-    title: 'Preview the permissions',
-    body: 'Before anything connects, you see each thing it can read and each action it can take — in plain words.',
+    title: 'Webhooks',
+    titleKey: 'IntegrationsPage.nameWebhooks',
+    hintKey: 'IntegrationsPage.devWebhooksHint',
   },
+  { title: 'REST API', hintKey: 'IntegrationsPage.devRestHint' },
   {
-    title: 'Choose who it acts as',
-    body: 'A connection runs as a named person or a service identity, inside the same permissions they already have.',
-  },
-  {
-    title: 'Watch every run in history',
-    body: 'Every sync, event and action lands in the history, so you can see what ran, when, and what it changed.',
+    title: 'Deploy hooks',
+    titleKey: 'IntegrationsPage.nameDeployHooks',
+    hintKey: 'IntegrationsPage.devDeployHint',
   },
 ];

@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -9,32 +8,32 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
-  type ReactNode,
 } from 'react';
 import Link from 'next/link';
-import { Avatar, Badge, Button, Field, SearchField, StateCapsule, StatusDot } from '@tmanage/ui';
+import { Badge, Button, Field, SearchField } from '@tmanage/ui';
 import { ArrowLink, ButtonLink, IconOrb, cx } from '../../primitives';
-import { CtaBand, SectionHeader, WebSection } from '../../sections';
-import { ResourceCard } from './ResourceCard';
+import { CtaBand, WebSection } from '../../sections';
 import {
   ARTICLES,
-  CATEGORY_LABEL,
+  CATEGORY_BADGE_KEY,
   FEATURED_GUIDE,
   FEATURED_SIDE,
   RESOURCE_TABS,
+  filterResources,
   resourceHref,
+  type Resource,
   type ResourceTab,
 } from './resources-data';
 import './resources.css';
-import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 import { useT } from '../../../../lib/i18n/use-t';
 
 /**
- * WEB-15 Resources (`/resources`). No Figma frame yet: designed in code from SITE-SPEC in the
- * visual language of the designed pages (Customers for hero + featured ink panel + grid,
- * Pricing/Customers for the paper/150 band). Every value is a Limeframe token; product visuals
- * are packages/ui compositions. Every card opens its article at `/resources/[slug]`.
+ * WEB-15 Resources (`/resources`), built to the round-2 Figma frame 308:40: a centred hero with
+ * search, the featured row (ink guide + two stacked cards), underline category tabs, the 3 × 3
+ * article grid with thumbnails, the newsletter panel and the CTA band. Every card opens its
+ * article at `/resources/[slug]`.
  */
+
 /** The nav and footer link to `/resources#guides`, `#blog` and `#templates`: each opens its tab. */
 const HASH_TABS: Readonly<Record<string, ResourceTab['id']>> = {
   guides: 'guide',
@@ -46,6 +45,7 @@ export function ResourcesPage() {
   const t = useT();
   const [tab, setTab] = useState<ResourceTab['id']>('all');
   const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
     function fromHash() {
@@ -57,61 +57,72 @@ export function ResourcesPage() {
     return () => window.removeEventListener('hashchange', fromHash);
   }, []);
 
-  const visible = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return ARTICLES.filter(
-      (item) =>
-        (tab === 'all' || item.category === tab) &&
-        (q === '' ||
-          item.title.toLowerCase().includes(q) ||
-          item.line.toLowerCase().includes(q) ||
-          CATEGORY_LABEL[item.category].toLowerCase().includes(q)),
-    );
-  }, [tab, query]);
+  // ⌘K / Ctrl+K focuses the library search, as the shortcut hint in the field says.
+  useEffect(() => {
+    function onKey(event: globalThis.KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        const input = searchRef.current?.querySelector('input');
+        if (!input) return;
+        event.preventDefault();
+        input.focus();
+      }
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const visible = useMemo(
+    () =>
+      filterResources(ARTICLES, tab, query, (item) => [
+        t(item.titleKey),
+        t(item.lineKey),
+        t(CATEGORY_BADGE_KEY[item.category]),
+      ]),
+    [tab, query, t],
+  );
 
   return (
     <>
       <WebSection className="tm-web-res-hero" aria-labelledby="res-hero-title">
-        <div className="tm-web-res-hero__grid">
-          <div className="tm-web-res-hero__text">
-            <SectionHeader
-              as="h1"
-              size="page"
-              id="res-hero-title"
-              eyebrow={t('ResourcesPage.eyebrow')}
-              title={t('ResourcesPage.heroTitle')}
-              lede={t('ResourcesPage.heroLede')}
+        <div className="tm-web-res-hero__inner">
+          <p className="tm-web-res-label">{t('ResourcesPage.eyebrow')}</p>
+          <h1 id="res-hero-title" className="tm-web-res-hero__title">
+            {t('ResourcesPage.heroTitle')}
+          </h1>
+          <p className="tm-web-res-hero__lede">{t('ResourcesPage.heroLede')}</p>
+          <form
+            ref={searchRef}
+            className="tm-web-res-search"
+            role="search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              document.getElementById('res-library')?.scrollIntoView({ block: 'start' });
+            }}
+          >
+            <SearchField
+              label={t('ResourcesPage.searchLabel')}
+              placeholder={t('ResourcesPage.searchLabel')}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              aria-controls="res-grid"
+              aria-keyshortcuts="Meta+K Control+K"
             />
-            <form
-              className="tm-web-res-search"
-              role="search"
-              onSubmit={(event) => {
-                event.preventDefault();
-                document.getElementById('res-library')?.scrollIntoView({ block: 'start' });
-              }}
-            >
-              <SearchField
-                label={t('ResourcesPage.searchLabel')}
-                placeholder={t('ResourcesPage.searchLabel')}
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                aria-controls="res-grid"
-              />
-            </form>
-          </div>
-          <LibraryScene />
+            <kbd className="tm-web-res-search__kbd" aria-hidden="true">
+              ⌘K
+            </kbd>
+          </form>
         </div>
       </WebSection>
 
       <WebSection spacing="flush" className="tm-web-res-featured" aria-labelledby="res-feat-title">
-        <h2 id="res-feat-title" className="tm-visually-hidden">
+        <h2 id="res-feat-title" className="tm-web-res-label">
           {t('ResourcesPage.featured')}
         </h2>
         <div className="tm-web-res-featured__grid">
           <FeaturedGuide />
           <div className="tm-web-res-featured__side">
             {FEATURED_SIDE.map((item) => (
-              <ResourceCard key={item.slug} item={item} variant="side" />
+              <SideCard key={item.slug} item={item} />
             ))}
           </div>
         </div>
@@ -131,16 +142,15 @@ export function ResourcesPage() {
           aria-labelledby={`res-tab-${tab}`}
           className="tm-web-res-panel"
         >
-          <p className="tm-web-res-count" aria-live="polite">
+          <p className="tm-visually-hidden" aria-live="polite">
             {visible.length} {t('ResourcesPage.countOf')} {ARTICLES.length}{' '}
             {t('ResourcesPage.countArticles')}
-            {query.trim() !== '' ? ` ${t('ResourcesPage.countMatching')} “${query.trim()}”` : ''}
           </p>
           {visible.length > 0 ? (
-            <ul className="tm-web-res-grid" id="res-grid">
+            <ul className="tm-web-res-grid tm-web-res-grid--library" id="res-grid">
               {visible.map((item) => (
                 <li key={item.slug}>
-                  <ResourceCard item={item} />
+                  <ArticleCard item={item} />
                 </li>
               ))}
             </ul>
@@ -157,19 +167,12 @@ export function ResourcesPage() {
 
       <Newsletter />
 
-      <CtaBand
-        title={t('ResourcesPage.ctaTitle')}
-        lede={t('ResourcesPage.ctaLede')}
-        primary={{ label: t('ResourcesPage.ctaStartFree'), href: SIGN_UP_HREF }}
-        secondary={{ label: t('ResourcesPage.ctaBookDemo'), href: '/contact' }}
-        note={t('ResourcesPage.ctaNote')}
-        visual={<TemplateProjectScene />}
-      />
+      <CtaBand />
     </>
   );
 }
 
-/* ── Category tabs (Tabs/Item on the product's segmented control) ───────────── */
+/* ── Category tabs (Tabs/Item: text tabs on one hairline, the active one underlined) ──── */
 
 function LibraryTabs({
   active,
@@ -178,27 +181,9 @@ function LibraryTabs({
   active: ResourceTab['id'];
   onChange: (id: ResourceTab['id']) => void;
 }) {
-  const translate = useT();
+  const t = useT();
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
-  const scroller = useRef<HTMLDivElement | null>(null);
-  const [more, setMore] = useState({ start: false, end: false });
-  const index = RESOURCE_TABS.findIndex((t) => t.id === active);
-
-  /** Which edges still hide tabs — drives the fade that says "this row scrolls". */
-  const measure = useCallback(() => {
-    const el = scroller.current;
-    if (!el) return;
-    const max = el.scrollWidth - el.clientWidth;
-    // scrollLeft runs negative under dir="rtl"; the distance from the start edge is its magnitude.
-    const fromStart = Math.abs(el.scrollLeft);
-    setMore({ start: fromStart > 1, end: max - fromStart > 1 });
-  }, []);
-
-  useEffect(() => {
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [measure]);
+  const index = RESOURCE_TABS.findIndex((tab) => tab.id === active);
 
   function select(next: number) {
     const target = RESOURCE_TABS[next];
@@ -225,83 +210,112 @@ function LibraryTabs({
   }
 
   return (
-    <div
-      ref={scroller}
-      className="tm-web-res-tabs"
-      data-more-start={more.start || undefined}
-      data-more-end={more.end || undefined}
-      onScroll={measure}
-    >
-      <div
-        className="tm-segmented tm-web-res-tabs__list"
-        role="tablist"
-        aria-label={translate('ResourcesPage.tabsLabel')}
-      >
-        {RESOURCE_TABS.map((t, i) => (
-          <button
-            key={t.id}
-            ref={(el) => {
-              refs.current[i] = el;
-            }}
-            id={`res-tab-${t.id}`}
-            type="button"
-            role="tab"
-            aria-selected={t.id === active}
-            aria-controls="res-panel"
-            tabIndex={t.id === active ? 0 : -1}
-            onClick={() => select(i)}
-            onKeyDown={onKeyDown}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+    <div className="tm-web-res-tabs" role="tablist" aria-label={t('ResourcesPage.tabsLabel')}>
+      {RESOURCE_TABS.map((tab, i) => (
+        <button
+          key={tab.id}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          id={`res-tab-${tab.id}`}
+          type="button"
+          role="tab"
+          className="tm-web-res-tab"
+          aria-selected={tab.id === active}
+          aria-controls="res-panel"
+          tabIndex={tab.id === active ? 0 : -1}
+          onClick={() => select(i)}
+          onKeyDown={onKeyDown}
+        >
+          {t(tab.labelKey)}
+        </button>
+      ))}
     </div>
   );
 }
 
-/* ── Featured guide (ink panel) ─────────────────────────────────────────────── */
+/* ── Cards ──────────────────────────────────────────────────────────────────── */
 
+function CategoryBadge({ item }: { item: Resource }) {
+  const t = useT();
+  return (
+    <Badge
+      tone={item.category === 'update' ? 'client' : 'neutral'}
+      mono={item.category === 'template'}
+      className="tm-web-res-badge"
+    >
+      {t(CATEGORY_BADGE_KEY[item.category])}
+    </Badge>
+  );
+}
+
+/** The large ink card: the client approval playbook. */
 function FeaturedGuide() {
   const t = useT();
   const href = resourceHref(FEATURED_GUIDE);
   return (
     <article className="tm-web-res-guide" aria-labelledby="res-guide-title">
-      <div className="tm-web-res-guide__text">
-        <Badge mono className="tm-web-res-guide__badge">
-          {t('ResourcesPage.featuredGuideBadge')}
-        </Badge>
-        <h3 id="res-guide-title" className="tm-web-res-guide__title">
-          <Link href={href} className="tm-web-res-guide__link">
-            {FEATURED_GUIDE.title}
-          </Link>
-        </h3>
-        <p className="tm-web-res-guide__line">{FEATURED_GUIDE.line}</p>
-        <ul className="tm-web-res-guide__points">
-          {FEATURED_GUIDE.points.map((point) => (
-            <li key={point}>{point}</li>
-          ))}
-        </ul>
-        <p className="tm-web-res-guide__meta">
-          <span>{FEATURED_GUIDE.meta}</span>
-          <span aria-hidden="true"> · </span>
-          <span>{t('ResourcesPage.writtenBy')}</span>
-        </p>
-        <div className="tm-web-res-guide__actions">
-          <ButtonLink href={href} tone="lime" size="accessible">
-            {t('ResourcesPage.readGuide')}
-          </ButtonLink>
-          <ArrowLink href="#res-newsletter" tone="ink">
-            {t('ResourcesPage.getNewGuides')}
-          </ArrowLink>
-        </div>
+      <IconOrb icon={FEATURED_GUIDE.icon} tone="lime" />
+      <Badge className="tm-web-res-badge">{t(CATEGORY_BADGE_KEY[FEATURED_GUIDE.category])}</Badge>
+      <h3 id="res-guide-title" className="tm-web-res-guide__title">
+        <Link href={href} className="tm-web-res-guide__link">
+          {t(FEATURED_GUIDE.titleKey)}
+        </Link>
+      </h3>
+      <p className="tm-web-res-guide__line">{t(FEATURED_GUIDE.lineKey)}</p>
+      <div className="tm-web-res-guide__meta-row">
+        <ButtonLink href={href} tone="lime">
+          {t('ResourcesPage.readGuide')}
+        </ButtonLink>
+        <span className="tm-web-res-guide__time">{t(FEATURED_GUIDE.metaKey)}</span>
       </div>
-      <ApprovalScene />
     </article>
   );
 }
 
-/* ── Newsletter band ────────────────────────────────────────────────────────── */
+/** A stacked featured card: badge and orb on top, title, summary, then its meta line. */
+function SideCard({ item }: { item: Resource }) {
+  const t = useT();
+  return (
+    <article className="tm-web-res-side">
+      <div className="tm-web-res-side__top">
+        <CategoryBadge item={item} />
+        <IconOrb icon={item.icon} tone="outline" />
+      </div>
+      <h3 className="tm-web-res-side__title">
+        <Link href={resourceHref(item)} className="tm-web-res-stretch">
+          {t(item.titleKey)}
+        </Link>
+      </h3>
+      <p className="tm-web-res-side__line">{t(item.lineKey)}</p>
+      {item.category === 'template' ? <p className="tm-web-res-time">{t(item.metaKey)}</p> : null}
+    </article>
+  );
+}
+
+/** A library card: sunken thumbnail with its orb, then badge, title, summary and read time. */
+function ArticleCard({ item }: { item: Resource }) {
+  const t = useT();
+  return (
+    <article className="tm-web-res-article-card">
+      <div className="tm-web-res-article-card__thumb" aria-hidden="true">
+        <IconOrb icon={item.icon} tone={item.orb} />
+      </div>
+      <div className="tm-web-res-article-card__body">
+        <CategoryBadge item={item} />
+        <h3 className="tm-web-res-article-card__title">
+          <Link href={resourceHref(item)} className="tm-web-res-stretch">
+            {t(item.titleKey)}
+          </Link>
+        </h3>
+        <p className="tm-web-res-article-card__line">{t(item.lineKey)}</p>
+        <p className="tm-web-res-time">{t(item.metaKey)}</p>
+      </div>
+    </article>
+  );
+}
+
+/* ── Newsletter panel ───────────────────────────────────────────────────────── */
 
 function Newsletter() {
   const t = useT();
@@ -315,14 +329,19 @@ function Newsletter() {
 
   return (
     <WebSection
-      tone="sunken"
-      spacing="compact"
+      spacing="flush"
       className="tm-web-res-news"
       aria-labelledby="res-news-title"
       id="res-newsletter"
     >
-      <div className="tm-web-res-news__grid">
-        <SectionHeader id="res-news-title" title={t('ResourcesPage.newsletterTitle')} />
+      <div className="tm-web-res-news__panel">
+        <div className="tm-web-res-news__copy">
+          <IconOrb icon="book" tone="ink" />
+          <p className="tm-web-res-label">{t('ResourcesPage.newsletterEyebrow')}</p>
+          <h2 id="res-news-title" className="tm-web-res-news__title">
+            {t('ResourcesPage.newsletterTitle')}
+          </h2>
+        </div>
         <form className="tm-web-res-news__form" onSubmit={onSubmit} aria-describedby={statusId}>
           <div className="tm-web-res-news__row">
             <Field
@@ -330,14 +349,18 @@ function Newsletter() {
               type="email"
               name="email"
               autoComplete="email"
-              placeholder="you@studio.com"
+              placeholder={t('ResourcesPage.emailPlaceholder')}
               required
             />
-            <Button type="submit" tone="ink" size="accessible">
+            <Button type="submit" tone="lime" size="accessible">
               {t('ResourcesPage.subscribe')}
             </Button>
           </div>
-          <p id={statusId} className="tm-web-res-news__caption" aria-live="polite">
+          <p
+            id={statusId}
+            className={cx('tm-web-res-news__caption', state === 'noted' && 'is-noted')}
+            aria-live="polite"
+          >
             {state === 'noted'
               ? t('ResourcesPage.newsletterNoted')
               : t('ResourcesPage.newsletterIdle')}
@@ -345,174 +368,5 @@ function Newsletter() {
         </form>
       </div>
     </WebSection>
-  );
-}
-
-/* ── Product scenes (illustrations; inert and hidden, with one sentence of alt text) ── */
-
-function Scene({
-  label,
-  className,
-  children,
-}: {
-  label: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <figure className={cx('tm-web-scene', className)}>
-      <figcaption className="tm-visually-hidden">{label}</figcaption>
-      <div className="tm-web-scene__body" aria-hidden="true" inert>
-        {children}
-      </div>
-    </figure>
-  );
-}
-
-const SEARCH_RESULTS: readonly {
-  title: string;
-  kind: string;
-  meta: string;
-  icon: 'book' | 'pencil' | 'layers';
-}[] = [
-  {
-    title: 'How to run a client review in ten minutes',
-    kind: 'GUIDE',
-    meta: '7 min read',
-    icon: 'book',
-  },
-  {
-    title: 'Designing a portal clients actually open',
-    kind: 'BLOG',
-    meta: '8 min read',
-    icon: 'pencil',
-  },
-  {
-    title: 'Website relaunch template',
-    kind: 'TEMPLATE',
-    meta: '8 milestones',
-    icon: 'layers',
-  },
-];
-
-/** Hero — the library searched from inside TManage: a query, three results, who keeps it current. */
-function LibraryScene() {
-  const t = useT();
-  return (
-    <Scene className="tm-web-res-library-scene" label={t('ResourcesPage.librarySceneAlt')}>
-      <div className="tm-web-res-doc">
-        <div className="tm-web-res-doc__head">
-          <IconOrb icon="book" tone="tint" />
-          <div className="tm-web-res-doc__heading">
-            <p className="tm-web-scene__mono">Resources · Library</p>
-            <p className="tm-web-res-doc__title">Search the library</p>
-          </div>
-          <Badge mono>12</Badge>
-        </div>
-        <SearchField label="Search the library" value="client review" readOnly tabIndex={-1} />
-        <p className="tm-web-scene__mono">3 results</p>
-        <ul className="tm-web-res-doc__steps">
-          {SEARCH_RESULTS.map((result, i) => (
-            <li
-              key={result.title}
-              className={cx('tm-web-res-doc__step', i === 0 && 'tm-web-res-doc__step--on')}
-            >
-              <IconOrb icon={result.icon} tone={i === 0 ? 'lime' : 'tint'} size="compact" />
-              <span className="tm-web-res-doc__text">
-                <span className="tm-web-res-doc__name">{result.title}</span>
-                <span className="tm-web-res-doc__sub">{result.meta}</span>
-              </span>
-              <Badge mono>{result.kind}</Badge>
-            </li>
-          ))}
-        </ul>
-        <div className="tm-web-res-doc__foot">
-          <span className="tm-web-res-doc__people">
-            <Avatar name="Maya Hassan" size="compact" decorative />
-            <Avatar name="Omar Adel" size="compact" decorative />
-            <span>Kept current by the TManage team</span>
-          </span>
-          <StatusDot tone="live">Updated monthly</StatusDot>
-        </div>
-      </div>
-    </Scene>
-  );
-}
-
-/** Featured guide — the approval the playbook teaches: one decision on one exact version. */
-function ApprovalScene() {
-  const t = useT();
-  return (
-    <Scene className="tm-web-res-approval-scene" label={t('ResourcesPage.approvalSceneAlt')}>
-      <div className="tm-web-res-approval">
-        <div className="tm-web-res-approval__head">
-          <div>
-            <p className="tm-web-scene__mono">Approval · Atlas</p>
-            <p className="tm-web-res-approval__title">Homepage Concept v2</p>
-          </div>
-          <StateCapsule state="client">Client</StateCapsule>
-        </div>
-        <div className="tm-web-res-approval__rows">
-          <div className="tm-web-res-approval__row">
-            <Badge mono>V1</Badge>
-            <span className="tm-web-res-approval__who">
-              <span>Youssef</span> <span>· 12 Aug</span>
-            </span>
-            <StateCapsule state="blocked">Changes</StateCapsule>
-          </div>
-          <div className="tm-web-res-approval__row tm-web-res-approval__row--on">
-            <Badge mono>V2</Badge>
-            <span className="tm-web-res-approval__who">
-              <span>Salma</span> <span>· 18 Aug</span>
-            </span>
-            <StateCapsule state="done">Approved</StateCapsule>
-          </div>
-        </div>
-        <p className="tm-web-res-approval__quote">
-          <Avatar name="Salma Riad" size="compact" decorative />
-          <span>“Approved — go ahead with this direction.”</span>
-        </p>
-      </div>
-    </Scene>
-  );
-}
-
-const TEMPLATE_MILESTONES: readonly {
-  text: string;
-  state: 'done' | 'current' | 'future';
-  label: string;
-}[] = [
-  { text: 'Brief and discovery', state: 'done', label: 'Done' },
-  { text: 'Homepage concept', state: 'current', label: 'Now' },
-  { text: 'Client approval', state: 'future', label: 'Next' },
-];
-
-/** CTA — the relaunch template copied into a real project, every line wrapping instead of cropping. */
-function TemplateProjectScene() {
-  const t = useT();
-  return (
-    <Scene className="tm-web-res-template-scene" label={t('ResourcesPage.templateProjectSceneAlt')}>
-      <div className="tm-web-res-doc">
-        <div className="tm-web-res-doc__head">
-          <IconOrb icon="layers" tone="lime" />
-          <div className="tm-web-res-doc__heading">
-            <p className="tm-web-scene__mono">From template</p>
-            <p className="tm-web-res-doc__title">Atlas Website Relaunch</p>
-          </div>
-        </div>
-        <ol className="tm-web-res-doc__steps">
-          {TEMPLATE_MILESTONES.map((step, i) => (
-            <li key={step.text} className="tm-web-res-doc__step">
-              <span className="tm-web-res-doc__n">{i + 1}</span>
-              <span className="tm-web-res-doc__text">{step.text}</span>
-              <StateCapsule state={step.state}>{step.label}</StateCapsule>
-            </li>
-          ))}
-        </ol>
-        <p className="tm-web-res-doc__foot">
-          <span>8 milestones · 46 work items</span>
-        </p>
-      </div>
-    </Scene>
   );
 }

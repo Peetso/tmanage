@@ -1,18 +1,9 @@
 'use client';
 
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 import { Avatar, Badge, StateCapsule, type CapsuleState } from '@tmanage/ui';
-import {
-  ArrowLink,
-  ButtonLink,
-  Eyebrow,
-  IconOrb,
-  ProductVisualFrame,
-  SectionHeader,
-  WebIcon,
-  WebSection,
-  type WebIconName,
-} from '../../index';
+import { ButtonLink, CtaBand, SectionHeader, Stat, WebIcon, WebSection } from '../../index';
 import { cx } from '../../primitives';
 import {
   ClientBoundariesScene,
@@ -23,12 +14,12 @@ import {
 import './solutions-agencies.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 import { useT } from '../../../../lib/i18n/use-t';
+import type { MessageKey } from '../../../../lib/i18n/t';
 
 /**
- * Solutions · Agencies & studios (WEB-08, SITE-SPEC "PAGE: Solutions · Agencies & studios").
- * No Figma frame exists for this page; it follows the designed sibling Solutions · Consultancies
- * section for section: hero + product visual, pain → answer cards on paper/150, a five-step
- * workflow strip, three alternating rows, template cards, a design-partner story, the CTA band.
+ * Solutions · Agencies & studios (WEB-08), built to the round-2 Figma frame 308:33: hero with the
+ * portfolio, pain → answer cards, the five-step workflow, three alternating rows with product
+ * clones, template cards, the design-partner story with its two pending stats, the CTA band.
  */
 
 function Checklist({ items }: { items: readonly string[] }) {
@@ -36,7 +27,7 @@ function Checklist({ items }: { items: readonly string[] }) {
     <ul className="tm-web-ag-checklist">
       {items.map((item) => (
         <li key={item}>
-          <WebIcon name="check" size={14} />
+          <WebIcon name="check" size={16} />
           {item}
         </li>
       ))}
@@ -44,135 +35,124 @@ function Checklist({ items }: { items: readonly string[] }) {
   );
 }
 
-/**
- * The shared FeatureRow layout (tm-web-feature classes), with the page's mono + lime-dot Eyebrow
- * as the row label so every eyebrow on the page reads the same.
- */
+/** One feature row: mono label, title, body, checklist and a text link beside its product clone. */
 function AgRow({
   label,
   title,
   body,
+  checks,
   link,
   visual,
   reverse = false,
-  children,
 }: {
   label: string;
   title: string;
   body: string;
+  checks: readonly string[];
   link: { label: string; href: string };
   visual: ReactNode;
   reverse?: boolean;
-  children?: ReactNode;
 }) {
   return (
-    <div className={cx('tm-web-feature', reverse && 'tm-web-feature--reverse')}>
+    <div className={cx('tm-web-feature', 'tm-web-ag-row', reverse && 'tm-web-feature--reverse')}>
       <div className="tm-web-feature__text">
-        <Eyebrow>{label}</Eyebrow>
-        <h3 className="tm-web-feature__title">{title}</h3>
-        <p className="tm-web-feature__body">{body}</p>
-        {children}
-        <ArrowLink href={link.href} underline={false}>
+        <p className="tm-web-ag-row__label">{label}</p>
+        <h3 className="tm-web-ag-row__title">{title}</h3>
+        <p className="tm-web-ag-row__body">{body}</p>
+        <Checklist items={checks} />
+        <Link href={link.href} className="tm-web-ag-textlink">
           {link.label}
-        </ArrowLink>
+        </Link>
       </div>
-      <ProductVisualFrame>{visual}</ProductVisualFrame>
+      <div className="tm-web-ag-row__visual">{visual}</div>
     </div>
   );
 }
 
+const PAINS: readonly { pain: MessageKey; answer: MessageKey; body: MessageKey }[] = [
+  {
+    pain: 'SolutionsAgenciesPage.pain1Pain',
+    answer: 'SolutionsAgenciesPage.pain1Answer',
+    body: 'SolutionsAgencies.pain1Body',
+  },
+  {
+    pain: 'SolutionsAgenciesPage.pain2Pain',
+    answer: 'SolutionsAgenciesPage.pain2Answer',
+    body: 'SolutionsAgencies.pain2Body',
+  },
+  {
+    pain: 'SolutionsAgenciesPage.pain3Pain',
+    answer: 'SolutionsAgenciesPage.pain3Answer',
+    body: 'SolutionsAgencies.pain3Body',
+  },
+];
+
+const STEPS: readonly {
+  title: MessageKey;
+  body: MessageKey;
+  label: MessageKey;
+  state: CapsuleState;
+}[] = [
+  {
+    title: 'SolutionsAgenciesPage.step1Title',
+    body: 'SolutionsAgencies.step1Body',
+    label: 'SolutionsAgenciesPage.step1Label',
+    state: 'done',
+  },
+  {
+    title: 'SolutionsAgenciesPage.step2Title',
+    body: 'SolutionsAgencies.step2Body',
+    label: 'SolutionsAgenciesPage.step2Label',
+    state: 'done',
+  },
+  {
+    title: 'SolutionsAgenciesPage.step3Title',
+    body: 'SolutionsAgencies.step3Body',
+    label: 'SolutionsAgenciesPage.step3Label',
+    state: 'current',
+  },
+  {
+    title: 'SolutionsAgenciesPage.step4Title',
+    body: 'SolutionsAgencies.step4Body',
+    label: 'SolutionsAgenciesPage.step4Label',
+    state: 'client',
+  },
+  {
+    title: 'SolutionsAgenciesPage.step5Title',
+    body: 'SolutionsAgencies.step5Body',
+    label: 'SolutionsAgencies.step5Label',
+    state: 'future',
+  },
+];
+
+const TEMPLATES: readonly {
+  phases: MessageKey;
+  title: MessageKey;
+  line: MessageKey;
+  body: MessageKey;
+}[] = [
+  {
+    phases: 'SolutionsAgencies.template1Phases',
+    title: 'SolutionsAgenciesPage.template1Title',
+    line: 'SolutionsAgencies.template1Line',
+    body: 'SolutionsAgencies.template1Body',
+  },
+  {
+    phases: 'SolutionsAgencies.template2Phases',
+    title: 'SolutionsAgenciesPage.template2Title',
+    line: 'SolutionsAgencies.template2Line',
+    body: 'SolutionsAgencies.template2Body',
+  },
+  {
+    phases: 'SolutionsAgencies.template3Phases',
+    title: 'SolutionsAgenciesPage.template3Title',
+    line: 'SolutionsAgencies.template3Line',
+    body: 'SolutionsAgencies.template3Body',
+  },
+];
+
 export function SolutionsAgenciesPage() {
   const t = useT();
-
-  const STORY_FACTS: readonly { icon: WebIconName; label: string; hint: string }[] = [
-    {
-      icon: 'calendar',
-      label: t('SolutionsAgenciesPage.storyFact1Label'),
-      hint: t('SolutionsAgenciesPage.storyFact1Hint'),
-    },
-    {
-      icon: 'layers',
-      label: t('SolutionsAgenciesPage.storyFact2Label'),
-      hint: t('SolutionsAgenciesPage.storyFact2Hint'),
-    },
-  ];
-
-  const PAINS: readonly { pain: string; answer: string; body: string }[] = [
-    {
-      pain: t('SolutionsAgenciesPage.pain1Pain'),
-      answer: t('SolutionsAgenciesPage.pain1Answer'),
-      body: t('SolutionsAgenciesPage.pain1Body'),
-    },
-    {
-      pain: t('SolutionsAgenciesPage.pain2Pain'),
-      answer: t('SolutionsAgenciesPage.pain2Answer'),
-      body: t('SolutionsAgenciesPage.pain2Body'),
-    },
-    {
-      pain: t('SolutionsAgenciesPage.pain3Pain'),
-      answer: t('SolutionsAgenciesPage.pain3Answer'),
-      body: t('SolutionsAgenciesPage.pain3Body'),
-    },
-  ];
-
-  const STEPS: readonly { title: string; body: string; state: CapsuleState; label: string }[] = [
-    {
-      title: t('SolutionsAgenciesPage.step1Title'),
-      body: t('SolutionsAgenciesPage.step1Body'),
-      state: 'done',
-      label: t('SolutionsAgenciesPage.step1Label'),
-    },
-    {
-      title: t('SolutionsAgenciesPage.step2Title'),
-      body: t('SolutionsAgenciesPage.step2Body'),
-      state: 'done',
-      label: t('SolutionsAgenciesPage.step2Label'),
-    },
-    {
-      title: t('SolutionsAgenciesPage.step3Title'),
-      body: t('SolutionsAgenciesPage.step3Body'),
-      state: 'current',
-      label: t('SolutionsAgenciesPage.step3Label'),
-    },
-    {
-      title: t('SolutionsAgenciesPage.step4Title'),
-      body: t('SolutionsAgenciesPage.step4Body'),
-      state: 'client',
-      label: t('SolutionsAgenciesPage.step4Label'),
-    },
-    {
-      title: t('SolutionsAgenciesPage.step5Title'),
-      body: t('SolutionsAgenciesPage.step5Body'),
-      state: 'future',
-      label: t('SolutionsAgenciesPage.step5Label'),
-    },
-  ];
-
-  const TEMPLATES: readonly {
-    title: string;
-    body: string;
-    icon: WebIconName;
-    facts: readonly string[];
-  }[] = [
-    {
-      title: t('SolutionsAgenciesPage.template1Title'),
-      body: t('SolutionsAgenciesPage.template1Body'),
-      icon: 'globe',
-      facts: [t('SolutionsAgenciesPage.template1Fact1'), t('SolutionsAgenciesPage.template1Fact2')],
-    },
-    {
-      title: t('SolutionsAgenciesPage.template2Title'),
-      body: t('SolutionsAgenciesPage.template2Body'),
-      icon: 'pencil',
-      facts: [t('SolutionsAgenciesPage.template2Fact1'), t('SolutionsAgenciesPage.template2Fact2')],
-    },
-    {
-      title: t('SolutionsAgenciesPage.template3Title'),
-      body: t('SolutionsAgenciesPage.template3Body'),
-      icon: 'layers',
-      facts: [t('SolutionsAgenciesPage.template3Fact1'), t('SolutionsAgenciesPage.template3Fact2')],
-    },
-  ];
 
   return (
     <>
@@ -180,14 +160,14 @@ export function SolutionsAgenciesPage() {
       <WebSection spacing="compact" className="tm-web-ag-hero" aria-labelledby="ag-hero-title">
         <div className="tm-web-ag-hero__grid">
           <div className="tm-web-ag-hero__text">
-            <Badge mono className="tm-web-ag-hero__eyebrow">
+            <Badge className="tm-web-ag-hero__eyebrow">
               {t('SolutionsAgenciesPage.heroEyebrow')}
             </Badge>
             <SectionHeader
               title={t('SolutionsAgenciesPage.heroTitle')}
               lede={t('SolutionsAgenciesPage.heroLede')}
               as="h1"
-              size="page"
+              size="hero"
               id="ag-hero-title"
             />
             <div className="tm-web-ag-hero__actions">
@@ -200,9 +180,9 @@ export function SolutionsAgenciesPage() {
             </div>
             <p className="tm-web-ag-hero__note">{t('SolutionsAgenciesPage.heroNote')}</p>
           </div>
-          <ProductVisualFrame className="tm-web-ag-hero__visual">
+          <div className="tm-web-ag-hero__visual">
             <PortfolioScene />
-          </ProductVisualFrame>
+          </div>
         </div>
       </WebSection>
 
@@ -210,23 +190,23 @@ export function SolutionsAgenciesPage() {
       <WebSection tone="sunken" aria-labelledby="ag-pain-title">
         <SectionHeader
           align="center"
-          eyebrow={t('SolutionsAgenciesPage.painEyebrow')}
-          title={t('SolutionsAgenciesPage.painTitle')}
-          lede={t('SolutionsAgenciesPage.painLede')}
+          eyebrow={t('SolutionsAgencies.painEyebrow')}
+          title={t('SolutionsAgencies.painTitle')}
+          lede={t('SolutionsAgencies.painLede')}
           id="ag-pain-title"
         />
-        <ul className="tm-web-ag-pains">
+        <ul className="tm-web-ag-cards">
           {PAINS.map((item) => (
-            <li key={item.answer} className="tm-web-ag-pain">
+            <li key={item.answer} className="tm-web-ag-card">
               <Badge>{t('SolutionsAgenciesPage.today')}</Badge>
-              <p className="tm-web-ag-pain__problem">{item.pain}</p>
-              <div className="tm-web-ag-pain__answer">
-                <p className="tm-web-ag-pain__with">
-                  <WebIcon name="check" size={14} />
+              <p className="tm-web-ag-card__muted">{t(item.pain)}</p>
+              <div className="tm-web-ag-answer">
+                <p className="tm-web-ag-answer__with">
+                  <WebIcon name="check" size={16} />
                   {t('SolutionsAgenciesPage.withTManage')}
                 </p>
-                <h3 className="tm-web-ag-pain__title">{item.answer}</h3>
-                <p className="tm-web-ag-pain__body">{item.body}</p>
+                <h3 className="tm-web-ag-answer__title">{t(item.answer)}</h3>
+                <p className="tm-web-ag-answer__body">{t(item.body)}</p>
               </div>
             </li>
           ))}
@@ -237,18 +217,18 @@ export function SolutionsAgenciesPage() {
       <WebSection aria-labelledby="ag-flow-title">
         <SectionHeader
           align="center"
-          eyebrow={t('SolutionsAgenciesPage.flowEyebrow')}
-          title={t('SolutionsAgenciesPage.flowTitle')}
-          lede={t('SolutionsAgenciesPage.flowLede')}
+          eyebrow={t('SolutionsAgencies.flowEyebrow')}
+          title={t('SolutionsAgencies.flowTitle')}
+          lede={t('SolutionsAgencies.flowLede')}
           id="ag-flow-title"
         />
         <ol className="tm-web-ag-flow">
           {STEPS.map((step, index) => (
             <li key={step.title} className="tm-web-ag-step">
               <span className="tm-web-scene__mono">{String(index + 1).padStart(2, '0')}</span>
-              <StateCapsule state={step.state}>{step.label}</StateCapsule>
-              <h3 className="tm-web-ag-step__title">{step.title}</h3>
-              <p className="tm-web-ag-step__body">{step.body}</p>
+              <StateCapsule state={step.state}>{t(step.label)}</StateCapsule>
+              <h3 className="tm-web-ag-step__title">{t(step.title)}</h3>
+              <p className="tm-web-ag-step__body">{t(step.body)}</p>
               {index < STEPS.length - 1 ? (
                 <span className="tm-web-ag-step__arrow" aria-hidden="true">
                   <WebIcon name="arrow-right" size={14} className="tm-web-icon--flip" />
@@ -262,92 +242,78 @@ export function SolutionsAgenciesPage() {
       {/* 5 · Alternating rows */}
       <WebSection aria-label={t('SolutionsAgenciesPage.rowsLabel')} className="tm-web-ag-rows">
         <AgRow
-          label={t('SolutionsAgenciesPage.row1Label')}
+          label={t('SolutionsAgencies.row1Label')}
           title={t('SolutionsAgenciesPage.row1Title')}
-          body={t('SolutionsAgenciesPage.row1Body')}
-          link={{ label: t('SolutionsAgenciesPage.row1Link'), href: '/client-portal' }}
+          body={t('SolutionsAgencies.row1Body')}
+          checks={[
+            t('SolutionsAgencies.row1Check1'),
+            t('SolutionsAgencies.row1Check2'),
+            t('SolutionsAgencies.row1Check3'),
+          ]}
+          link={{ label: t('SolutionsAgencies.row1Link'), href: '/client-portal' }}
           visual={<ClientBoundariesScene />}
-        >
-          <Checklist
-            items={[
-              t('SolutionsAgenciesPage.row1Check1'),
-              t('SolutionsAgenciesPage.row1Check2'),
-              t('SolutionsAgenciesPage.row1Check3'),
-            ]}
-          />
-        </AgRow>
+        />
         <AgRow
           reverse
           label={t('SolutionsAgenciesPage.row2Label')}
           title={t('SolutionsAgenciesPage.row2Title')}
-          body={t('SolutionsAgenciesPage.row2Body')}
-          link={{ label: t('SolutionsAgenciesPage.row2Link'), href: '/features/knowledge' }}
+          body={t('SolutionsAgencies.row2Body')}
+          checks={[
+            t('SolutionsAgencies.row2Check1'),
+            t('SolutionsAgencies.row2Check2'),
+            t('SolutionsAgencies.row2Check3'),
+          ]}
+          link={{ label: t('SolutionsAgencies.row2Link'), href: '/features/knowledge' }}
           visual={<CreativeReviewScene />}
-        >
-          <Checklist
-            items={[
-              t('SolutionsAgenciesPage.row2Check1'),
-              t('SolutionsAgenciesPage.row2Check2'),
-              t('SolutionsAgenciesPage.row2Check3'),
-            ]}
-          />
-        </AgRow>
+        />
         <AgRow
           label={t('SolutionsAgenciesPage.row3Label')}
           title={t('SolutionsAgenciesPage.row3Title')}
-          body={t('SolutionsAgenciesPage.row3Body')}
-          link={{ label: t('SolutionsAgenciesPage.row3Link'), href: '/features/work' }}
+          body={t('SolutionsAgencies.row3Body')}
+          checks={[
+            t('SolutionsAgencies.row3Check1'),
+            t('SolutionsAgencies.row3Check2'),
+            t('SolutionsAgencies.row3Check3'),
+          ]}
+          link={{ label: t('SolutionsAgencies.row3Link'), href: '/features/work' }}
           visual={<RetainerPlanScene />}
-        >
-          <Checklist
-            items={[
-              t('SolutionsAgenciesPage.row3Check1'),
-              t('SolutionsAgenciesPage.row3Check2'),
-              t('SolutionsAgenciesPage.row3Check3'),
-            ]}
-          />
-        </AgRow>
+        />
       </WebSection>
 
-      {/* 6 · Template cards */}
-      <WebSection tone="sunken" aria-labelledby="ag-templates-title">
+      {/* 6 · Templates + 7 · Story, on one paper/150 band */}
+      <WebSection tone="sunken" aria-labelledby="ag-templates-title" className="tm-web-ag-band">
         <SectionHeader
-          eyebrow={t('SolutionsAgenciesPage.templatesEyebrow')}
-          title={t('SolutionsAgenciesPage.templatesTitle')}
-          lede={t('SolutionsAgenciesPage.templatesLede')}
+          align="center"
+          eyebrow={t('SolutionsAgencies.templatesEyebrow')}
+          title={t('SolutionsAgencies.templatesTitle')}
+          lede={t('SolutionsAgencies.templatesLede')}
           id="ag-templates-title"
         />
-        <ul className="tm-web-ag-templates">
+        <ul className="tm-web-ag-cards">
           {TEMPLATES.map((template) => (
-            <li key={template.title} className="tm-web-ag-template">
-              <IconOrb icon={template.icon} tone="lime" />
-              <h3 className="tm-web-ag-template__title">{template.title}</h3>
-              <p className="tm-web-ag-template__body">{template.body}</p>
-              <p className="tm-web-ag-template__facts">
-                {template.facts.map((fact) => (
-                  <span key={fact} className="tm-web-chip">
-                    {fact}
-                  </span>
-                ))}
-              </p>
-              <ArrowLink href={SIGN_UP_HREF} underline={false}>
+            <li key={template.title} className="tm-web-ag-card">
+              <Badge>{t(template.phases)}</Badge>
+              <h3 className="tm-web-ag-card__muted">{t(template.title)}</h3>
+              <div className="tm-web-ag-answer">
+                <p className="tm-web-ag-answer__with">
+                  <WebIcon name="check" size={16} />
+                  {t('SolutionsAgencies.templateBadge')}
+                </p>
+                <p className="tm-web-ag-answer__title">{t(template.line)}</p>
+                <p className="tm-web-ag-answer__body">{t(template.body)}</p>
+              </div>
+              <Link href={SIGN_UP_HREF} className="tm-web-ag-textlink">
                 {t('SolutionsAgenciesPage.useTemplate')}
-              </ArrowLink>
+              </Link>
             </li>
           ))}
         </ul>
-      </WebSection>
 
-      {/* 7 · Story card (design-partner story, one white panel as on Consultancies) */}
-      <WebSection
-        aria-label={t('SolutionsAgenciesPage.storyLabel')}
-        className="tm-web-ag-story-section"
-      >
-        <figure className="tm-web-ag-story">
+        <figure className="tm-web-ag-story" aria-label={t('SolutionsAgenciesPage.storyLabel')}>
           <div className="tm-web-ag-story__quote">
             <Badge>{t('SolutionsAgenciesPage.storyBadge')}</Badge>
             <blockquote className="tm-web-ag-story__text">
-              <p>{t('SolutionsAgenciesPage.storyQuote')}</p>
+              <p>“{t('SolutionsAgenciesPage.storyQuote')}”</p>
             </blockquote>
             <figcaption className="tm-web-ag-story__by">
               <Avatar name="Studio lead" audience="client" decorative />
@@ -359,49 +325,27 @@ export function SolutionsAgenciesPage() {
               </span>
             </figcaption>
           </div>
-          <ul
-            className="tm-web-ag-story__facts"
+          <div
+            className="tm-web-ag-story__stats"
+            role="group"
             aria-label={t('SolutionsAgenciesPage.storyFactsLabel')}
           >
-            {STORY_FACTS.map((fact) => (
-              <li key={fact.label} className="tm-web-ag-fact">
-                <IconOrb icon={fact.icon} tone="lime" />
-                <span className="tm-web-ag-fact__text">
-                  <span className="tm-web-ag-fact__label">{fact.label}</span>
-                  <span className="tm-web-ag-fact__hint">{fact.hint}</span>
-                </span>
-              </li>
-            ))}
-          </ul>
+            <Stat
+              value="—"
+              label={t('SolutionsAgencies.stat1Label')}
+              note={t('SolutionsAgencies.stat1Note')}
+            />
+            <Stat
+              value="—"
+              label={t('SolutionsAgencies.stat2Label')}
+              note={t('SolutionsAgencies.stat2Note')}
+            />
+          </div>
         </figure>
       </WebSection>
 
-      {/* 8 · CTA band (text-only, as on Consultancies) */}
-      <section className="tm-web-cta-section tm-web-ag-cta" aria-labelledby="ag-cta-title">
-        <div className="tm-web-container">
-          <div className="tm-web-cta tm-web-cta--text">
-            <div className="tm-web-cta__text">
-              <h2 id="ag-cta-title" className="tm-web-cta__title">
-                {t('SolutionsAgenciesPage.ctaTitle')}
-              </h2>
-              <p className="tm-web-cta__lede tm-web-ag-cta__lede">
-                {t('SolutionsAgenciesPage.ctaLede')}
-              </p>
-              <div className="tm-web-cta__actions tm-web-ag-cta__actions">
-                <ButtonLink href={SIGN_UP_HREF} tone="lime">
-                  {t('SolutionsAgenciesPage.startFree')}
-                </ButtonLink>
-                <ButtonLink href="/contact" tone="outline-ink">
-                  {t('SolutionsAgenciesPage.bookDemo')}
-                </ButtonLink>
-              </div>
-              <p className="tm-web-cta__note tm-web-ag-cta__note">
-                {t('SolutionsAgenciesPage.heroNote')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* 8 · CTA band */}
+      <CtaBand title={t('SolutionsAgencies.ctaTitle')} lede={t('SolutionsAgencies.ctaLede')} />
     </>
   );
 }
