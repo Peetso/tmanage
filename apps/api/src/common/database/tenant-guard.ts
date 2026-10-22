@@ -82,6 +82,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0209 (MCP connector S10). A confirm-class AI action waiting for its member's approval names
   // one organization and one membership; every read and write carries the tenant context.
   pending_ai_actions: 'organization_id',
+  // 0210. Google Drive as company storage. The connection (with its encrypted refresh token),
+  // the project/work-item folder map and the Drive attachments each belong to one organization.
+  storage_connections: 'organization_id',
+  google_drive_folders: 'organization_id',
+  google_drive_attachments: 'organization_id',
   workspaces: 'organization_id',
   projects: 'organization_id',
   project_memberships: 'organization_id',

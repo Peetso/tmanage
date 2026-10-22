@@ -1164,6 +1164,13 @@ GRANT INSERT, UPDATE ON `tmanage`.`oauth_refresh_tokens` TO 'tmanage_app'@'%';
 -- UPDATE for the single guarded pending → approved/declined/expired transition and the result.
 -- No DELETE: a decided request is kept as evidence.
 GRANT INSERT, UPDATE ON `tmanage`.`pending_ai_actions`   TO 'tmanage_app'@'%';
+-- 0210 Google Drive storage. Connection: INSERT (first connect), UPDATE (reconnect, settings,
+-- disconnect wipes the token, error state). Folders: INSERT only (a folder id never changes).
+-- Attachments: INSERT, UPDATE (soft detach via `removed_at`). No DELETE anywhere; the worker
+-- holds nothing here.
+GRANT INSERT, UPDATE ON `tmanage`.`storage_connections`      TO 'tmanage_app'@'%';
+GRANT INSERT ON `tmanage`.`google_drive_folders`             TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`google_drive_attachments` TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 

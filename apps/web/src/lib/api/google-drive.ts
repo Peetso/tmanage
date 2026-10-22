@@ -1,0 +1,183 @@
+import type { ApiClient } from './client';
+
+/**
+ * Google Drive as company storage (migration 0210) — the Control > Storage screen and "Attach from
+ * Google Drive" on New work. Shapes mirror the API's `StorageStatusView`, `DriveAttachmentView` and
+ * `PickerSessionView` (`apps/api/src/modules/google-drive/google-drive.service.ts`).
+ */
+
+export type StorageMode = 'tmanage' | 'google_drive';
+export type DriveConnectionStatus = 'not_connected' | 'connected' | 'error';
+
+export interface StorageStatusView {
+  readonly configured: boolean;
+  readonly pickerAvailable: boolean;
+  readonly storageMode: StorageMode;
+  readonly googleDrive: {
+    readonly status: DriveConnectionStatus;
+    readonly accountEmail: string | null;
+    readonly folderPath: string | null;
+    readonly sharedDriveName: string | null;
+  };
+}
+
+export interface DriveAttachmentView {
+  readonly id: string;
+  readonly workItemId: string;
+  readonly driveFileId: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly sizeBytes: number | null;
+  readonly webViewLink: string | null;
+  readonly createdAt: string;
+}
+
+export interface PickerSessionView {
+  readonly accessToken: string;
+  readonly apiKey: string;
+  readonly appId: string | null;
+  readonly rootFolderId: string | null;
+}
+
+export type DriveLocation =
+  { readonly kind: 'my_drive' } | { readonly kind: 'folder'; folderId: string };
+
+function storagePath(organizationSlug: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/integrations/google-drive`;
+}
+
+function itemPath(organizationSlug: string, workItemId: string): string {
+  return `/v1/organizations/${encodeURIComponent(organizationSlug)}/work-items/${encodeURIComponent(workItemId)}/google-drive`;
+}
+
+export async function getStorageStatus(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<StorageStatusView> {
+  const { data } = await client.request<StorageStatusView>({ path: storagePath(organizationSlug) });
+  return data;
+}
+
+/** Start connecting; the browser then goes to Google's consent screen at `url`. */
+export async function startDriveConnect(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<{ readonly url: string }> {
+  const { data } = await client.request<{ url: string }>({
+    method: 'POST',
+    path: `${storagePath(organizationSlug)}/connect`,
+    body: {},
+  });
+  return data;
+}
+
+export async function completeDriveConnect(
+  client: ApiClient,
+  organizationSlug: string,
+  input: { readonly code: string; readonly state: string },
+): Promise<StorageStatusView> {
+  const { data } = await client.request<StorageStatusView>({
+    method: 'POST',
+    path: `${storagePath(organizationSlug)}/complete`,
+    body: input,
+  });
+  return data;
+}
+
+export async function updateStorageSettings(
+  client: ApiClient,
+  organizationSlug: string,
+  input: { readonly storageMode?: StorageMode; readonly location?: DriveLocation },
+): Promise<StorageStatusView> {
+  const { data } = await client.request<StorageStatusView>({
+    method: 'PUT',
+    path: `${storagePath(organizationSlug)}/settings`,
+    body: input,
+  });
+  return data;
+}
+
+export async function disconnectDrive(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<StorageStatusView> {
+  const { data } = await client.request<StorageStatusView>({
+    method: 'DELETE',
+    path: storagePath(organizationSlug),
+  });
+  return data;
+}
+
+export async function getPickerSession(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<PickerSessionView> {
+  const { data } = await client.request<PickerSessionView>({
+    path: `${storagePath(organizationSlug)}/picker-session`,
+  });
+  return data;
+}
+
+export async function attachDriveFile(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  driveFileId: string,
+): Promise<DriveAttachmentView> {
+  const { data } = await client.request<DriveAttachmentView>({
+    method: 'POST',
+    path: `${itemPath(organizationSlug, workItemId)}/attachments`,
+    body: { driveFileId },
+  });
+  return data;
+}
+
+export async function listDriveAttachments(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+): Promise<readonly DriveAttachmentView[]> {
+  const { data } = await client.request<{ attachments: readonly DriveAttachmentView[] }>({
+    path: `${itemPath(organizationSlug, workItemId)}/attachments`,
+  });
+  return data.attachments;
+}
+
+/**
+ * Upload a file into `TManage/<Project>/<Work item>/` and attach it. The API opens a resumable
+ * Google upload session; the bytes go from the browser straight to Google, never through TManage.
+ */
+export async function uploadToDrive(
+  client: ApiClient,
+  organizationSlug: string,
+  workItemId: string,
+  file: File,
+  fetchImpl: typeof fetch = fetch,
+): Promise<DriveAttachmentView> {
+  const { data } = await client.request<{ uploadUrl: string }>({
+    method: 'POST',
+    path: `${itemPath(organizationSlug, workItemId)}/uploads`,
+    body: { name: file.name, mimeType: file.type || 'application/octet-stream', size: file.size },
+  });
+  const response = await fetchImpl(data.uploadUrl, { method: 'PUT', body: file });
+  if (!response.ok) throw new Error('upload_failed');
+  const uploaded = (await response.json()) as { id?: unknown };
+  if (typeof uploaded.id !== 'string') throw new Error('upload_failed');
+  return attachDriveFile(client, organizationSlug, workItemId, uploaded.id);
+}
+
+/**
+ * Read the fragment the API's callback forwards to the Storage screen: `#drive=complete&code&state`
+ * or `#drive=error`. Pure, so the hand-over is provable without a browser.
+ */
+export function readDriveReturn(
+  hash: string,
+): { readonly kind: 'complete'; code: string; state: string } | { readonly kind: 'error' } | null {
+  const params = new URLSearchParams(hash.replace(/^#/, ''));
+  const drive = params.get('drive');
+  if (drive === 'error') return { kind: 'error' };
+  const code = params.get('code');
+  const state = params.get('state');
+  if (drive === 'complete' && code && state) return { kind: 'complete', code, state };
+  return null;
+}

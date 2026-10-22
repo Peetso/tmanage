@@ -293,6 +293,38 @@ export const NEVER: readonly NeverEntry[] = [
   { method: 'GET', path: '/v1/sessions/current/devices', reason: 'session' },
   { method: 'POST', path: '/v1/sessions/refresh', reason: 'session' },
   { method: 'PUT', path: '/v1/uploads/:providerUploadId/parts/:n', reason: 'public_upload_part' },
+  // 0210. Google Drive storage: the connection and its credentials (see `storage_connection`).
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/google-drive/connect',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/google-drive/complete',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/integrations/google-drive/settings',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/integrations/google-drive/',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/google-drive/picker-session',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/google-drive/uploads',
+    reason: 'storage_connection',
+  },
+  { method: 'GET', path: '/v1/integrations/google-drive/callback', reason: 'storage_connection' },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */

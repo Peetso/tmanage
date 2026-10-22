@@ -19,6 +19,9 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useDictation } from '../voice/useDictation';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
+import { DriveAttachPicker } from '../storage/DriveAttachPicker';
+import { attachDriveFile } from '../../lib/api/google-drive';
+import type { PickedDriveItem } from '../../lib/google-picker';
 import '../../styles/screens/home.css';
 
 /**
@@ -163,6 +166,7 @@ export function QuickCaptureScreen({
   const [projectId, setProjectId] = useState('');
   const [selectedLabels, setSelectedLabels] = useState<ReadonlySet<string>>(new Set());
   const [files, setFiles] = useState<readonly File[]>([]);
+  const [driveFiles, setDriveFiles] = useState<readonly PickedDriveItem[]>([]);
   const [progress, setProgress] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [captured, setCaptured] = useState<CaptureResult | null>(null);
@@ -232,6 +236,12 @@ export function QuickCaptureScreen({
           );
         }
       }
+      // "Attach from Google Drive" (0210): the picked Drive files are linked once the item exists.
+      for (const driveFile of driveFiles) {
+        await attachDriveFile(api, organizationSlug, item.id, driveFile.id).catch(() => {
+          failures.push(`“${driveFile.name}” ${t('DriveAttach.notAttached')}`);
+        });
+      }
       return { item, failures };
     },
     onSuccess: (result) => {
@@ -240,6 +250,7 @@ export function QuickCaptureScreen({
       setNote('');
       setSelectedLabels(new Set());
       setFiles([]);
+      setDriveFiles([]);
       setFormError(null);
     },
     onSettled: () => setProgress(null),
@@ -427,6 +438,15 @@ export function QuickCaptureScreen({
             </span>
             <span>{t('QuickCaptureScreen.calloutBody')}</span>
           </p>
+
+          <DriveAttachPicker
+            organizationSlug={organizationSlug}
+            client={api}
+            picked={driveFiles}
+            onPick={(picked) => setDriveFiles((current) => [...current, ...picked])}
+            onRemove={(id) => setDriveFiles((current) => current.filter((file) => file.id !== id))}
+            disabled={capture.isPending}
+          />
 
           <p className="tm-capture__keys">{t('QuickCaptureScreen.keysHint')}</p>
         </form>

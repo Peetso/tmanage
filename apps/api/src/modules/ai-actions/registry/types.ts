@@ -64,6 +64,10 @@ export const NEVER_REASONS = [
   'session',
   'setup',
   'signup',
+  // 0210. Connecting, configuring or disconnecting the company's Google Drive, the OAuth
+  // callback, the picker's short-lived Google token and the upload session URL: each mints,
+  // holds or hands out a third-party credential, which an AI principal must never drive.
+  'storage_connection',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

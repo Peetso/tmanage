@@ -4933,6 +4933,41 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // 0210. Google Drive storage — reading the Storage state and a work item's Drive attachments,
+  // attaching a Drive file, and (confirm-class) detaching one. Not yet enriched with details, so
+  // the tool catalogue does not expose them until a wave adds their schemas.
+  {
+    id: 'google_drive.storage.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/google-drive/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'google_drive.attachments.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/google-drive/attachments',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'google_drive.attachments.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/google-drive/attachments',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'google_drive.attachments.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/google-drive/attachments/:attachmentId',
+    capability: 'work.update',
+    risk: 'confirm',
+    scope: 'manage',
+  },
 ];
 
 /** Index of ops by their stable id. */

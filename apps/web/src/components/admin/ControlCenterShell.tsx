@@ -18,6 +18,7 @@ export type ControlCenterSection =
   | 'offboarding'
   | 'automations'
   | 'integrations'
+  | 'storage'
   | 'modules'
   | 'security'
   | 'sessions'
@@ -99,6 +100,13 @@ const GROUPS: readonly { label: string; labelKey?: MessageKey; items: readonly S
         label: 'Integrations',
         labelKey: 'ControlCenterShell.integrations',
         href: '/automations/apps',
+        capability: 'org.manage',
+      },
+      {
+        id: 'storage',
+        label: 'Storage',
+        labelKey: 'ControlCenterShell.storage',
+        href: '/admin/storage',
         capability: 'org.manage',
       },
       {

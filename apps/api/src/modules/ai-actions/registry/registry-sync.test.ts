@@ -54,8 +54,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  via NEVER. S9: +3 (GET /v1/oauth/consent, POST /v1/oauth/consent/deny and
  *  POST /v1/organizations/:orgSlug/oauth/consent, the consent page's API), also NEVER.
  *  S10: +3 (GET, approve and decline under /v1/organizations/:orgSlug/ai/approvals/:id, the
- *  approve page's API), also NEVER. */
-const EXPECTED_ROUTE_COUNT = 725;
+ *  approve page's API), also NEVER. 0210 (Google Drive storage): +11 — 4 ops (storage state,
+ *  attachments list/create/delete) and 7 NEVER (`storage_connection`). */
+const EXPECTED_ROUTE_COUNT = 736;
 
 interface LiveRoute {
   readonly method: string;

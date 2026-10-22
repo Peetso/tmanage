@@ -1,0 +1,364 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Module,
+  Param,
+  Post,
+  Put,
+  Query,
+  Redirect,
+  Req,
+  Res,
+} from '@nestjs/common';
+import type { DynamicModule, Provider } from '@nestjs/common';
+import { hasCapability } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
+import {
+  Ctx,
+  CurrentPrincipal,
+  NoTenant,
+  Public,
+  RequireCapability,
+} from '../../common/http/decorators.js';
+import { ApiError } from '../../common/http/errors.js';
+import { API_CONFIG, AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { createSeedCipher } from '../identity/seed-cipher.js';
+import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
+import {
+  DRIVE_COOKIE_PATH,
+  DRIVE_FLOW_COOKIE,
+  DRIVE_FLOW_TTL_SECONDS,
+  createDriveTransport,
+  driveConfigFrom,
+  isDriveId,
+  openDriveFlow,
+  sealDriveFlow,
+  type DriveTransport,
+} from './google-drive.google.js';
+import {
+  GoogleDriveService,
+  type DriveAttachmentView,
+  type PickerSessionView,
+  type SettingsInput,
+  type StorageStatusView,
+} from './google-drive.service.js';
+
+/**
+ * Google Drive as company storage — the HTTP surface.
+ *
+ * - `GET    …/integrations/google-drive` — the Storage screen's state (any internal member; the
+ *   account email only for people who manage the organization).
+ * - `POST   …/integrations/google-drive/connect` — `{url}` for Google's consent screen; sets the
+ *   signed flow cookie (state + PKCE verifier) bound to this person and organization.
+ * - `GET    /v1/integrations/google-drive/callback` — Google's redirect. It processes nothing: it
+ *   forwards `code` and `state` in the URL *fragment* (never sent to a server or a Referer) to the
+ *   Storage screen, which completes the connection under the person's own session.
+ * - `POST   …/integrations/google-drive/complete` — `{code, state}`: exchange, encrypt, save.
+ * - `PUT    …/integrations/google-drive/settings` — storage mode and the Drive location.
+ * - `DELETE …/integrations/google-drive` — disconnect (revoke, wipe the token).
+ * - `GET    …/integrations/google-drive/picker-session` — a short-lived token for the file picker.
+ * - `…/work-items/:workItemId/google-drive/uploads|attachments` — upload, attach, list, detach.
+ *
+ * Managing the connection is `org.manage`. Attaching is `work.update` on the work item (checked
+ * against the item's project in the service); listing is `work.read`.
+ */
+
+const GOOGLE_DRIVE_SERVICE = Symbol.for('tmanage.GoogleDriveService');
+const GOOGLE_DRIVE_OPTIONS = Symbol.for('tmanage.GoogleDriveOptions');
+
+interface DriveHttpOptions {
+  readonly sessionSecret: string;
+  readonly secureCookies: boolean;
+  readonly webPublicUrl: string;
+}
+
+interface RequestLike {
+  readonly headers: Record<string, string | string[] | undefined>;
+}
+
+interface ReplyLike {
+  header(name: string, value: string | readonly string[]): unknown;
+}
+
+function cookieHeader(request: RequestLike): string | undefined {
+  const raw = request.headers['cookie'];
+  return Array.isArray(raw) ? raw.join('; ') : raw;
+}
+
+function invalid(field: string, message: string): ApiError {
+  return new ApiError(400, 'validation_failed', 'The request body is invalid', [
+    { field, message },
+  ]);
+}
+
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
+@Controller('v1/organizations/:orgSlug/integrations/google-drive')
+export class GoogleDriveStorageController {
+  constructor(
+    @Inject(GOOGLE_DRIVE_SERVICE) private readonly drive: GoogleDriveService,
+    @Inject(GOOGLE_DRIVE_OPTIONS) private readonly options: DriveHttpOptions,
+  ) {}
+
+  @Get()
+  @RequireCapability('work.read')
+  async status(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<StorageStatusView> {
+    return this.drive.status(context, hasCapability(principal.role, 'org.manage'));
+  }
+
+  @Post('connect')
+  @RequireCapability('org.manage')
+  @HttpCode(200)
+  connect(
+    @Ctx() context: TenantContext,
+    @Param('orgSlug') orgSlug: string,
+    @Res({ passthrough: true }) reply: ReplyLike,
+  ): { readonly url: string } {
+    if (!SLUG_PATTERN.test(orgSlug)) throw invalid('orgSlug', 'is not a workspace address');
+    const { url, flow } = this.drive.startConnect(context, orgSlug);
+    reply.header(
+      'set-cookie',
+      serializeCookie(DRIVE_FLOW_COOKIE, sealDriveFlow(flow, this.options.sessionSecret), {
+        path: DRIVE_COOKIE_PATH,
+        maxAgeSeconds: DRIVE_FLOW_TTL_SECONDS,
+        // `Lax`: the cookie must survive the top-level return from Google.
+        sameSite: 'Lax',
+        secure: this.options.secureCookies,
+      }),
+    );
+    return { url };
+  }
+
+  @Post('complete')
+  @RequireCapability('org.manage')
+  @HttpCode(200)
+  async complete(
+    @Ctx() context: TenantContext,
+    @Body() body: { readonly code?: unknown; readonly state?: unknown },
+    @Req() request: RequestLike,
+    @Res({ passthrough: true }) reply: ReplyLike,
+  ): Promise<StorageStatusView> {
+    const flow = openDriveFlow(
+      readCookie(cookieHeader(request), DRIVE_FLOW_COOKIE),
+      this.options.sessionSecret,
+    );
+    // The flow is single-use whatever happens next.
+    reply.header(
+      'set-cookie',
+      expireCookie(DRIVE_FLOW_COOKIE, {
+        path: DRIVE_COOKIE_PATH,
+        sameSite: 'Lax',
+        secure: this.options.secureCookies,
+      }),
+    );
+    return this.drive.completeConnect(context, flow, { code: body?.code, state: body?.state });
+  }
+
+  @Put('settings')
+  @RequireCapability('org.manage')
+  async settings(
+    @Ctx() context: TenantContext,
+    @Body() body: { readonly storageMode?: unknown; readonly location?: unknown },
+  ): Promise<StorageStatusView> {
+    return this.drive.updateSettings(context, parseSettings(body));
+  }
+
+  @Delete()
+  @RequireCapability('org.manage')
+  async disconnect(@Ctx() context: TenantContext): Promise<StorageStatusView> {
+    return this.drive.disconnect(context);
+  }
+
+  @Get('picker-session')
+  @RequireCapability('work.update')
+  async picker(@Ctx() context: TenantContext): Promise<PickerSessionView> {
+    return this.drive.pickerSession(context);
+  }
+}
+
+@Controller('v1/organizations/:orgSlug/work-items/:workItemId/google-drive')
+export class GoogleDriveAttachmentsController {
+  constructor(@Inject(GOOGLE_DRIVE_SERVICE) private readonly drive: GoogleDriveService) {}
+
+  @Get('attachments')
+  @RequireCapability('work.read')
+  async list(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+  ): Promise<{ readonly attachments: readonly DriveAttachmentView[] }> {
+    return { attachments: await this.drive.list(context, principal, workItemId) };
+  }
+
+  @Post('attachments')
+  @RequireCapability('work.update')
+  @HttpCode(201)
+  async attach(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Body() body: { readonly driveFileId?: unknown },
+  ): Promise<DriveAttachmentView> {
+    if (!isDriveId(body?.driveFileId)) throw invalid('driveFileId', 'must be a Drive file id');
+    return this.drive.attach(context, principal, workItemId, body.driveFileId);
+  }
+
+  @Delete('attachments/:attachmentId')
+  @RequireCapability('work.update')
+  @HttpCode(204)
+  async detach(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Param('attachmentId') attachmentId: string,
+  ): Promise<void> {
+    await this.drive.detach(context, principal, workItemId, attachmentId);
+  }
+
+  @Post('uploads')
+  @RequireCapability('work.update')
+  @HttpCode(201)
+  async upload(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('workItemId') workItemId: string,
+    @Body() body: { readonly name?: unknown; readonly mimeType?: unknown; readonly size?: unknown },
+  ): Promise<{ readonly uploadUrl: string }> {
+    if (typeof body?.name !== 'string' || body.name.trim() === '' || body.name.length > 255) {
+      throw invalid('name', 'must be 1 to 255 characters');
+    }
+    const mimeType =
+      typeof body.mimeType === 'string' && /^[\w.+-]+\/[\w.+-]+$/.test(body.mimeType)
+        ? body.mimeType
+        : 'application/octet-stream';
+    if (typeof body.size !== 'number') throw invalid('size', 'must be a number of bytes');
+    return this.drive.startUpload(context, principal, workItemId, {
+      name: body.name,
+      mimeType,
+      size: body.size,
+    });
+  }
+}
+
+/**
+ * Google's redirect after consent. Public and tenant-less because Google, not the app, makes this
+ * request; it therefore does nothing but forward. The organization comes from the signed flow
+ * cookie, never from the query string, and the code travels on in the fragment.
+ */
+@Controller('v1/integrations/google-drive')
+export class GoogleDriveCallbackController {
+  constructor(@Inject(GOOGLE_DRIVE_OPTIONS) private readonly options: DriveHttpOptions) {}
+
+  @Get('callback')
+  @Public()
+  @NoTenant()
+  @Redirect()
+  callback(
+    @Query('code') code: unknown,
+    @Query('state') state: unknown,
+    @Req() request: RequestLike,
+  ): { readonly url: string; readonly statusCode: number } {
+    return {
+      url: callbackTarget(this.options, cookieHeader(request), code, state),
+      statusCode: 302,
+    };
+  }
+}
+
+/** Where the callback sends the browser. Pure, so the forwarding rule is provable. */
+export function callbackTarget(
+  options: Pick<DriveHttpOptions, 'sessionSecret' | 'webPublicUrl'>,
+  cookies: string | undefined,
+  code: unknown,
+  state: unknown,
+): string {
+  const base = options.webPublicUrl.replace(/\/+$/, '');
+  const flow = openDriveFlow(readCookie(cookies, DRIVE_FLOW_COOKIE), options.sessionSecret);
+  if (!flow || !SLUG_PATTERN.test(flow.organizationSlug)) return `${base}/`;
+  const screen = `${base}/${flow.organizationSlug}/admin/storage`;
+  if (typeof code !== 'string' || typeof state !== 'string' || code.length > 2048) {
+    return `${screen}#drive=error`;
+  }
+  const fragment = new URLSearchParams({ drive: 'complete', code, state });
+  return `${screen}#${fragment.toString()}`;
+}
+
+export function parseSettings(body: {
+  readonly storageMode?: unknown;
+  readonly location?: unknown;
+}): SettingsInput {
+  const out: {
+    storageMode?: NonNullable<SettingsInput['storageMode']>;
+    location?: NonNullable<SettingsInput['location']>;
+  } = {};
+  if (body?.storageMode !== undefined) {
+    if (body.storageMode !== 'tmanage' && body.storageMode !== 'google_drive') {
+      throw invalid('storageMode', 'must be tmanage or google_drive');
+    }
+    out.storageMode = body.storageMode;
+  }
+  if (body?.location !== undefined) {
+    const location = body.location as { kind?: unknown; folderId?: unknown } | null;
+    if (location?.kind === 'my_drive') out.location = { kind: 'my_drive' };
+    else if (location?.kind === 'folder' && isDriveId(location.folderId)) {
+      out.location = { kind: 'folder', folderId: location.folderId };
+    } else throw invalid('location', 'must be my_drive or a picked folder');
+  }
+  if (out.storageMode === undefined && out.location === undefined) {
+    throw invalid('storageMode', 'nothing to change');
+  }
+  return out;
+}
+
+/**
+ * Always registered: with the Google client missing from the environment the routes still answer,
+ * so the Storage screen can say "not configured" instead of failing.
+ */
+@Module({})
+export class GoogleDriveModule {
+  static register(transport: DriveTransport = createDriveTransport()): DynamicModule {
+    const options: Provider = {
+      provide: GOOGLE_DRIVE_OPTIONS,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig): DriveHttpOptions => ({
+        sessionSecret: config.sessionSecret,
+        secureCookies: config.secureCookies,
+        webPublicUrl: config.webPublicUrl ?? '',
+      }),
+    };
+    const service: Provider = {
+      provide: GOOGLE_DRIVE_SERVICE,
+      inject: [TENANT_DATABASE, AUDIT_SERVICE, API_CONFIG],
+      useFactory: (database: TenantDatabase, audit: AuditService, config: ApiConfig) =>
+        new GoogleDriveService({
+          database,
+          audit,
+          transport,
+          cipher: createSeedCipher(config.mfaSeedKeys),
+          config: driveConfigFrom(process.env),
+          apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
+          webPublicUrl: config.webPublicUrl ?? config.apiPublicUrl ?? '',
+          uploadMaxBytes: config.uploadMaxBytes,
+        }),
+    };
+    return {
+      module: GoogleDriveModule,
+      providers: [options, service],
+      controllers: [
+        GoogleDriveStorageController,
+        GoogleDriveAttachmentsController,
+        GoogleDriveCallbackController,
+      ],
+    };
+  }
+}

@@ -536,6 +536,32 @@ export const AUDIT_ACTION_CATALOG = {
       'what the log exists to explain; 49-PRICING §6 (100% blocks new reservations), ' +
       '24-EVENT-CATALOG §4 audit "yes at 100%"',
   },
+  /**
+   * 0210. Google Drive as company storage. Connecting, changing and disconnecting where a
+   * company's files live is an organization-settings change; the metadata is ids, the provider,
+   * the storage mode and whether a Shared Drive is used — never the account's token.
+   */
+  'storage_connection.connected': {
+    objectType: 'storage_connection',
+    clause: '§12 organization settings — connecting an external store for company files',
+  },
+  'storage_connection.settings_changed': {
+    objectType: 'storage_connection',
+    clause: '§12 organization settings — changing where new company files are stored',
+  },
+  'storage_connection.disconnected': {
+    objectType: 'storage_connection',
+    clause: '§12 organization settings — removing the external store and wiping its token',
+  },
+  /** 0210. A Drive file attached to, or detached from, a work item (ids and type only). */
+  'drive_attachment.attached': {
+    objectType: 'google_drive_attachment',
+    clause: '§12 — a file linked into a tenant record from an external store',
+  },
+  'drive_attachment.removed': {
+    objectType: 'google_drive_attachment',
+    clause: '§12 — the same link removed (the Drive file itself is never deleted)',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the
@@ -638,6 +664,11 @@ const AUDIT_ACTION_LABELS = {
   'upload_session.expired': 'Cleaned up an expired upload',
   'usage_counter.drift_corrected': 'Corrected a storage counter',
   'usage.threshold_reached': 'Storage reached its limit',
+  'storage_connection.connected': 'Connected Google Drive',
+  'storage_connection.settings_changed': 'Changed where files are stored',
+  'storage_connection.disconnected': 'Disconnected Google Drive',
+  'drive_attachment.attached': 'Attached a Google Drive file',
+  'drive_attachment.removed': 'Removed a Google Drive file',
   'security.capability_denied': 'Blocked for a missing permission',
   'plan_change_request.submitted': 'Requested a plan change',
   'plan_change_request.cancelled': 'Cancelled a plan-change request',
