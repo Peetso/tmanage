@@ -7,7 +7,7 @@ import { ClientPortalPage } from '../../../components/website/pages/client-porta
  * Arabic portal. Every section lives in `components/website/pages/client-portal`.
  */
 export const metadata: Metadata = {
-  title: 'Client portal — TManage',
+  title: 'Client portal',
   description:
     'Give clients one calm place for progress, reviews and files — generated from your work, never copied into it.',
 };

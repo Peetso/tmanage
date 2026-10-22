@@ -1,113 +1,116 @@
+import type { MessageKey } from '../../lib/i18n/t';
 import type { WebIconName } from './WebIcon';
 
 /**
  * The website's navigation content — one source for the desktop mega menus, the mobile drawer
  * and the footer, so a page added to the site map is added once. Copy is SITE-SPEC.md §2 as
- * drawn in the approved "Website components" frame.
+ * drawn in the approved "Website components" frame. Every visible string is a {@link MessageKey};
+ * WebNav, MegaMenu and WebFooter resolve it with `t()` so the chrome follows the active locale.
  */
 
 export interface WebLink {
-  label: string;
+  label: MessageKey;
   href: string;
 }
 
 export interface WebMenuLink extends WebLink {
-  hint: string;
+  hint: MessageKey;
   icon: WebIconName;
 }
 
 export interface WebMenuGroup {
-  heading: string;
+  heading: MessageKey;
   links: readonly WebMenuLink[];
 }
 
 export interface WebFeatured {
-  eyebrow: string;
-  title: string;
-  body: string;
-  cta: string;
+  eyebrow: MessageKey;
+  title: MessageKey;
+  body: MessageKey;
+  cta: MessageKey;
   href: string;
   icon: WebIconName;
 }
 
 export interface WebMegaMenu {
   id: 'product' | 'solutions' | 'resources';
-  label: string;
+  label: MessageKey;
   groups: readonly WebMenuGroup[];
   featured: WebFeatured;
 }
 
 export type WebNavEntry =
-  { kind: 'menu'; menu: WebMegaMenu } | { kind: 'link'; id: string; label: string; href: string };
+  | { kind: 'menu'; menu: WebMegaMenu }
+  | { kind: 'link'; id: string; label: MessageKey; href: string };
 
 export const PRODUCT_MENU: WebMegaMenu = {
   id: 'product',
-  label: 'Product',
+  label: 'SiteNav.product',
   groups: [
     {
-      heading: 'Plan & deliver',
+      heading: 'SiteNav.planDeliver',
       links: [
         {
-          label: 'Work & requests',
-          hint: 'Every ask becomes owned work',
+          label: 'SiteNav.workRequests',
+          hint: 'SiteNav.workRequestsHint',
           href: '/features/work',
           icon: 'work',
         },
         {
-          label: 'Projects & portfolio',
-          hint: 'Milestones that move on evidence',
+          label: 'SiteNav.projectsPortfolio',
+          hint: 'SiteNav.projectsPortfolioHint',
           href: '/features/work#projects',
           icon: 'flag',
         },
         {
-          label: 'Automations',
-          hint: 'Remove repeat coordination safely',
+          label: 'SiteNav.automations',
+          hint: 'SiteNav.automationsHint',
           href: '/features/insights#automations',
           icon: 'bolt',
         },
       ],
     },
     {
-      heading: 'Talk & decide',
+      heading: 'SiteNav.talkDecide',
       links: [
         {
-          label: 'Chat',
-          hint: 'Threads that turn into tasks',
+          label: 'SiteNav.chat',
+          hint: 'SiteNav.chatHint',
           href: '/features/communication',
           icon: 'chat',
         },
         {
-          label: 'Calendar & meetings',
-          hint: 'Meetings that end with owners',
+          label: 'SiteNav.calendarMeetings',
+          hint: 'SiteNav.calendarMeetingsHint',
           href: '/features/communication#calendar',
           icon: 'calendar',
         },
         {
-          label: 'Docs & decisions',
-          hint: 'Context beside the work',
+          label: 'SiteNav.docsDecisions',
+          hint: 'SiteNav.docsDecisionsHint',
           href: '/features/knowledge',
           icon: 'doc',
         },
       ],
     },
     {
-      heading: 'Share with clients',
+      heading: 'SiteNav.shareWithClients',
       links: [
         {
-          label: 'Client portal',
-          hint: 'A view clients understand in 30 seconds',
+          label: 'SiteNav.clientPortal',
+          hint: 'SiteNav.clientPortalHint',
           href: '/client-portal',
           icon: 'portal',
         },
         {
-          label: 'Approvals',
-          hint: 'One decision, one exact version',
+          label: 'SiteNav.approvals',
+          hint: 'SiteNav.approvalsHint',
           href: '/features/knowledge#approvals',
           icon: 'check',
         },
         {
-          label: 'Insights',
-          hint: 'Health you can explain',
+          label: 'SiteNav.insights',
+          hint: 'SiteNav.insightsHint',
           href: '/features/insights',
           icon: 'chart',
         },
@@ -115,10 +118,10 @@ export const PRODUCT_MENU: WebMegaMenu = {
     },
   ],
   featured: {
-    eyebrow: 'New · 4 min',
-    title: 'See one request travel to approval',
-    body: 'A short walkthrough, from the first ask to the approved version.',
-    cta: 'Watch the work story',
+    eyebrow: 'SiteNav.productFeaturedEyebrow',
+    title: 'SiteNav.productFeaturedTitle',
+    body: 'SiteNav.productFeaturedBody',
+    cta: 'SiteNav.productFeaturedCta',
     href: '/#work-story',
     icon: 'play',
   },
@@ -126,49 +129,49 @@ export const PRODUCT_MENU: WebMegaMenu = {
 
 export const SOLUTIONS_MENU: WebMegaMenu = {
   id: 'solutions',
-  label: 'Solutions',
+  label: 'SiteNav.solutions',
   groups: [
     {
-      heading: 'By team type',
+      heading: 'SiteNav.byTeamType',
       links: [
         {
-          label: 'Agencies & studios',
-          hint: 'Retainers and launches, many clients at once',
+          label: 'SiteNav.agencies',
+          hint: 'SiteNav.agenciesHint',
           href: '/solutions/agencies',
           icon: 'grid',
         },
         {
-          label: 'Consultancies',
-          hint: 'Engagements with decisions on record',
+          label: 'SiteNav.consultancies',
+          hint: 'SiteNav.consultanciesHint',
           href: '/solutions/consultancies',
           icon: 'briefcase',
         },
         {
-          label: 'In-house teams',
-          hint: 'Internal clients, the same clear delivery',
+          label: 'SiteNav.inHouse',
+          hint: 'SiteNav.inHouseHint',
           href: '/solutions/in-house',
           icon: 'building',
         },
       ],
     },
     {
-      heading: 'By role',
+      heading: 'SiteNav.byRole',
       links: [
         {
-          label: 'Delivery leads',
-          hint: 'See what is late before the client does',
+          label: 'SiteNav.deliveryLeads',
+          hint: 'SiteNav.deliveryLeadsHint',
           href: '/features/insights',
           icon: 'trend',
         },
         {
-          label: 'Account managers',
-          hint: 'Client updates without the chasing',
+          label: 'SiteNav.accountManagers',
+          hint: 'SiteNav.accountManagersHint',
           href: '/client-portal',
           icon: 'person',
         },
         {
-          label: 'Project managers',
-          hint: 'Plans that stay true to the work',
+          label: 'SiteNav.projectManagers',
+          hint: 'SiteNav.projectManagersHint',
           href: '/features/work',
           icon: 'list',
         },
@@ -176,10 +179,10 @@ export const SOLUTIONS_MENU: WebMegaMenu = {
     },
   ],
   featured: {
-    eyebrow: 'Templates',
-    title: 'Templates for client delivery',
-    body: 'Start from a ready request-to-approval flow for your kind of team.',
-    cta: 'Browse templates',
+    eyebrow: 'SiteNav.templates',
+    title: 'SiteNav.solutionsFeaturedTitle',
+    body: 'SiteNav.solutionsFeaturedBody',
+    cta: 'SiteNav.solutionsFeaturedCta',
     href: '/resources#templates',
     icon: 'layers',
   },
@@ -187,44 +190,44 @@ export const SOLUTIONS_MENU: WebMegaMenu = {
 
 export const RESOURCES_MENU: WebMegaMenu = {
   id: 'resources',
-  label: 'Resources',
+  label: 'SiteNav.resources',
   groups: [
     {
-      heading: 'Learn',
+      heading: 'SiteNav.learn',
       links: [
         {
-          label: 'Guides',
-          hint: 'Step-by-step ways to run delivery',
+          label: 'SiteNav.guides',
+          hint: 'SiteNav.guidesHint',
           href: '/resources#guides',
           icon: 'book',
         },
         {
-          label: 'Templates',
-          hint: 'Flows you can start from today',
+          label: 'SiteNav.templates',
+          hint: 'SiteNav.templatesHint',
           href: '/resources#templates',
           icon: 'layers',
         },
         {
-          label: 'Blog',
-          hint: 'Notes on client work, done well',
+          label: 'SiteNav.blog',
+          hint: 'SiteNav.blogHint',
           href: '/resources#blog',
           icon: 'pencil',
         },
       ],
     },
     {
-      heading: 'Support',
+      heading: 'SiteNav.support',
       links: [
         {
-          label: 'Help center',
-          hint: 'Answers, setup and how-tos',
+          label: 'SiteNav.helpCenter',
+          hint: 'SiteNav.helpCenterHint',
           href: '/faq',
           icon: 'help',
         },
-        { label: 'Status', hint: 'Live system status and history', href: '/status', icon: 'pulse' },
+        { label: 'SiteNav.status', hint: 'SiteNav.statusHint', href: '/status', icon: 'pulse' },
         {
-          label: 'Security',
-          hint: 'How we protect client data',
+          label: 'SiteNav.security',
+          hint: 'SiteNav.securityHint',
           href: '/security',
           icon: 'shield',
         },
@@ -232,10 +235,10 @@ export const RESOURCES_MENU: WebMegaMenu = {
     },
   ],
   featured: {
-    eyebrow: 'Playbook',
-    title: 'The client approval playbook',
-    body: 'How service teams get clear decisions from clients, on record, first time.',
-    cta: 'Read the playbook',
+    eyebrow: 'SiteNav.resourcesFeaturedEyebrow',
+    title: 'SiteNav.resourcesFeaturedTitle',
+    body: 'SiteNav.resourcesFeaturedBody',
+    cta: 'SiteNav.resourcesFeaturedCta',
     href: '/resources/client-approval-playbook',
     icon: 'book',
   },
@@ -244,87 +247,87 @@ export const RESOURCES_MENU: WebMegaMenu = {
 export const NAV_ENTRIES: readonly WebNavEntry[] = [
   { kind: 'menu', menu: PRODUCT_MENU },
   { kind: 'menu', menu: SOLUTIONS_MENU },
-  { kind: 'link', id: 'client-portal', label: 'Client portal', href: '/client-portal' },
-  { kind: 'link', id: 'pricing', label: 'Pricing', href: '/pricing' },
+  { kind: 'link', id: 'client-portal', label: 'SiteNav.clientPortal', href: '/client-portal' },
+  { kind: 'link', id: 'pricing', label: 'SiteNav.pricing', href: '/pricing' },
   { kind: 'menu', menu: RESOURCES_MENU },
 ];
 
 export const NAV_ACTIONS = {
-  signIn: { label: 'Sign in', href: '/sign-in' },
-  demo: { label: 'Book a demo', href: '/contact' },
-  start: { label: 'Start free', href: '/sign-in' },
+  signIn: { label: 'SiteNav.signIn', href: '/sign-in' },
+  demo: { label: 'SiteNav.bookDemo', href: '/contact' },
+  start: { label: 'SiteNav.startFree', href: '/sign-in' },
 } as const;
 
 export interface WebFooterColumn {
-  heading: string;
+  heading: MessageKey;
   links: readonly WebLink[];
 }
 
 /** Desktop footer: seven balanced columns (Website components §09). */
 export const FOOTER_COLUMNS: readonly WebFooterColumn[] = [
   {
-    heading: 'Product',
+    heading: 'SiteNav.product',
     links: [
-      { label: 'Overview', href: '/product' },
-      { label: 'Work & requests', href: '/features/work' },
-      { label: 'Projects & portfolio', href: '/features/work#projects' },
-      { label: 'Automations', href: '/features/insights#automations' },
+      { label: 'SiteNav.overview', href: '/product' },
+      { label: 'SiteNav.workRequests', href: '/features/work' },
+      { label: 'SiteNav.projectsPortfolio', href: '/features/work#projects' },
+      { label: 'SiteNav.automations', href: '/features/insights#automations' },
     ],
   },
   {
-    heading: 'Collaborate',
+    heading: 'SiteNav.collaborate',
     links: [
-      { label: 'Chat', href: '/features/communication' },
-      { label: 'Calendar', href: '/features/communication#calendar' },
-      { label: 'Docs & decisions', href: '/features/knowledge' },
-      { label: 'Insights', href: '/features/insights' },
+      { label: 'SiteNav.chat', href: '/features/communication' },
+      { label: 'SiteNav.calendar', href: '/features/communication#calendar' },
+      { label: 'SiteNav.docsDecisions', href: '/features/knowledge' },
+      { label: 'SiteNav.insights', href: '/features/insights' },
     ],
   },
   {
-    heading: 'Clients',
+    heading: 'SiteNav.clients',
     links: [
-      { label: 'Client portal', href: '/client-portal' },
-      { label: 'Approvals', href: '/features/knowledge#approvals' },
-      { label: 'Security for clients', href: '/security#clients' },
-      { label: 'Portal demo', href: '/client-portal#demo' },
+      { label: 'SiteNav.clientPortal', href: '/client-portal' },
+      { label: 'SiteNav.approvals', href: '/features/knowledge#approvals' },
+      { label: 'SiteNav.securityForClients', href: '/security#clients' },
+      { label: 'SiteNav.portalDemo', href: '/client-portal#demo' },
     ],
   },
   {
-    heading: 'Solutions',
+    heading: 'SiteNav.solutions',
     links: [
-      { label: 'Agencies & studios', href: '/solutions/agencies' },
-      { label: 'Consultancies', href: '/solutions/consultancies' },
-      { label: 'In-house teams', href: '/solutions/in-house' },
+      { label: 'SiteNav.agencies', href: '/solutions/agencies' },
+      { label: 'SiteNav.consultancies', href: '/solutions/consultancies' },
+      { label: 'SiteNav.inHouse', href: '/solutions/in-house' },
     ],
   },
   {
-    heading: 'Resources',
+    heading: 'SiteNav.resources',
     links: [
-      { label: 'Blog', href: '/resources#blog' },
-      { label: 'Guides', href: '/resources#guides' },
-      { label: 'Templates', href: '/resources#templates' },
-      { label: 'Help center', href: '/faq' },
-      { label: 'Status', href: '/status' },
+      { label: 'SiteNav.blog', href: '/resources#blog' },
+      { label: 'SiteNav.guides', href: '/resources#guides' },
+      { label: 'SiteNav.templates', href: '/resources#templates' },
+      { label: 'SiteNav.helpCenter', href: '/faq' },
+      { label: 'SiteNav.status', href: '/status' },
     ],
   },
   {
-    heading: 'Company',
+    heading: 'SiteNav.company',
     links: [
-      { label: 'About', href: '/about' },
-      { label: 'Customers', href: '/customers' },
-      { label: 'Careers', href: '/about#careers' },
-      { label: 'Contact sales', href: '/contact' },
-      { label: 'Press kit', href: '/about#press' },
+      { label: 'SiteNav.about', href: '/about' },
+      { label: 'SiteNav.customers', href: '/customers' },
+      { label: 'SiteNav.careers', href: '/about#careers' },
+      { label: 'SiteNav.contactSales', href: '/contact' },
+      { label: 'SiteNav.pressKit', href: '/about#press' },
     ],
   },
   {
-    heading: 'Trust',
+    heading: 'SiteNav.trust',
     links: [
-      { label: 'Security', href: '/security' },
-      { label: 'Privacy', href: '/legal/privacy' },
-      { label: 'Accessibility', href: '/security#accessibility' },
-      { label: 'Sub-processors', href: '/security#sub-processors' },
-      { label: 'Terms', href: '/legal/terms' },
+      { label: 'SiteNav.security', href: '/security' },
+      { label: 'SiteNav.privacy', href: '/legal/privacy' },
+      { label: 'SiteNav.accessibility', href: '/security#accessibility' },
+      { label: 'SiteNav.subProcessors', href: '/security#sub-processors' },
+      { label: 'SiteNav.terms', href: '/legal/terms' },
     ],
   },
 ];
@@ -332,7 +335,7 @@ export const FOOTER_COLUMNS: readonly WebFooterColumn[] = [
 /** Mobile footer: six accordions; "Collaborate" folds into Product (Website components §03). */
 export const FOOTER_MOBILE_GROUPS: readonly WebFooterColumn[] = [
   {
-    heading: 'Product',
+    heading: 'SiteNav.product',
     links: [...FOOTER_COLUMNS[0]!.links, ...FOOTER_COLUMNS[1]!.links],
   },
   FOOTER_COLUMNS[2]!,
@@ -343,13 +346,13 @@ export const FOOTER_MOBILE_GROUPS: readonly WebFooterColumn[] = [
 ];
 
 export const FOOTER_LEGAL: readonly WebLink[] = [
-  { label: 'Privacy', href: '/legal/privacy' },
-  { label: 'Terms', href: '/legal/terms' },
-  { label: 'Cookie settings', href: '/legal/privacy' },
+  { label: 'SiteNav.privacy', href: '/legal/privacy' },
+  { label: 'SiteNav.terms', href: '/legal/terms' },
+  { label: 'SiteNav.cookieSettings', href: '/legal/privacy' },
 ];
 
-export const FOOTER_SOCIAL: readonly { label: string; href: string; icon: WebIconName }[] = [
-  { label: 'TManage on LinkedIn', href: 'https://www.linkedin.com/', icon: 'linkedin' },
-  { label: 'TManage on YouTube', href: 'https://www.youtube.com/', icon: 'video' },
-  { label: 'Email TManage', href: '/contact', icon: 'mail' },
+export const FOOTER_SOCIAL: readonly { label: MessageKey; href: string; icon: WebIconName }[] = [
+  { label: 'SiteNav.socialLinkedIn', href: 'https://www.linkedin.com/', icon: 'linkedin' },
+  { label: 'SiteNav.socialYouTube', href: 'https://www.youtube.com/', icon: 'video' },
+  { label: 'SiteNav.socialEmail', href: '/contact', icon: 'mail' },
 ];

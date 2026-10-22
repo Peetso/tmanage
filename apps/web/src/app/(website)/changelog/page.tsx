@@ -1,4 +1,10 @@
+import type { Metadata } from 'next';
 import { ChangelogScreen } from '../../../components/screens/ChangelogScreen';
+
+/** The root layout's template adds ' · TManage'. */
+export const metadata: Metadata = {
+  title: 'Changelog',
+};
 
 /**
  * **Public changelog / product updates (x160).**

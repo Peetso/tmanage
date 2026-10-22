@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { IntegrationsPage } from '../../../components/website/pages/integrations/IntegrationsPage';
 
 export const metadata: Metadata = {
-  title: 'Integrations · TManage',
+  title: 'Integrations',
   description:
     'Connect the tools you keep. Calendars, storage, sign-in and developer tools — each connection shows exactly what it can read and do.',
 };

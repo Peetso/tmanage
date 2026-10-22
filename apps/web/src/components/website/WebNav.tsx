@@ -126,7 +126,7 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
                       }
                     }}
                   >
-                    {entry.menu.label}
+                    {t(entry.menu.label)}
                     <WebIcon name="chevron-down" size={14} className="tm-web-nav__chevron" />
                   </button>
                 </li>
@@ -138,7 +138,7 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
                     aria-current={current === entry.id ? 'page' : undefined}
                     onPointerEnter={() => setOpen(null)}
                   >
-                    {entry.label}
+                    {t(entry.label)}
                   </Link>
                 </li>
               ),
@@ -148,17 +148,17 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
 
         <div className="tm-web-nav__actions">
           <Link href={NAV_ACTIONS.signIn.href} className="tm-web-nav__signin">
-            {NAV_ACTIONS.signIn.label}
+            {t(NAV_ACTIONS.signIn.label)}
           </Link>
           <ButtonLink
             href={NAV_ACTIONS.demo.href}
             tone={theme === 'ink' ? 'outline-ink' : 'outline'}
             className="tm-web-nav__demo"
           >
-            {NAV_ACTIONS.demo.label}
+            {t(NAV_ACTIONS.demo.label)}
           </ButtonLink>
           <ButtonLink href={NAV_ACTIONS.start.href} tone="lime" className="tm-web-nav__start">
-            {NAV_ACTIONS.start.label}
+            {t(NAV_ACTIONS.start.label)}
           </ButtonLink>
           <button
             type="button"
@@ -210,16 +210,22 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
             entry.kind === 'menu' ? (
               <details key={entry.menu.id} className="tm-web-accordion">
                 <summary className="tm-web-accordion__summary">
-                  {entry.menu.label}
+                  {t(entry.menu.label)}
                   <WebIcon name="plus" className="tm-web-accordion__plus" />
                   <WebIcon name="minus" className="tm-web-accordion__minus" />
                 </summary>
                 <div className="tm-web-accordion__panel">
                   {entry.menu.groups.map((group) => (
                     <div key={group.heading} className="tm-web-drawer__group">
-                      <p className="tm-web-mega__heading">{group.heading}</p>
+                      <p className="tm-web-mega__heading">{t(group.heading)}</p>
                       {group.links.map((link) => (
-                        <MenuItem key={link.label} {...link} onNavigate={() => setDrawer(false)} />
+                        <MenuItem
+                          key={link.label}
+                          {...link}
+                          label={t(link.label)}
+                          hint={t(link.hint)}
+                          onNavigate={() => setDrawer(false)}
+                        />
                       ))}
                     </div>
                   ))}
@@ -232,24 +238,24 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
                 className="tm-web-accordion__summary tm-web-drawer__link"
                 onClick={() => setDrawer(false)}
               >
-                {entry.label}
+                {t(entry.label)}
               </Link>
             ),
           )}
         </div>
         <div className="tm-web-drawer__actions">
           <ButtonLink href={NAV_ACTIONS.start.href} tone="lime" onClick={() => setDrawer(false)}>
-            {NAV_ACTIONS.start.label}
+            {t(NAV_ACTIONS.start.label)}
           </ButtonLink>
           <ButtonLink href={NAV_ACTIONS.demo.href} tone="outline" onClick={() => setDrawer(false)}>
-            {NAV_ACTIONS.demo.label}
+            {t(NAV_ACTIONS.demo.label)}
           </ButtonLink>
           <Link
             href={NAV_ACTIONS.signIn.href}
             className="tm-web-nav__signin"
             onClick={() => setDrawer(false)}
           >
-            {NAV_ACTIONS.signIn.label}
+            {t(NAV_ACTIONS.signIn.label)}
           </Link>
         </div>
       </div>
@@ -265,15 +271,21 @@ export function MegaMenuPanel({
   menu: WebMegaMenu;
   onNavigate?: (() => void) | undefined;
 }) {
+  const t = useT();
   return (
     <div className={cx('tm-web-mega__panel', `tm-web-mega__panel--${menu.groups.length}`)}>
       {menu.groups.map((group) => (
         <div key={group.heading} className="tm-web-mega__group">
-          <p className="tm-web-mega__heading">{group.heading}</p>
+          <p className="tm-web-mega__heading">{t(group.heading)}</p>
           <ul className="tm-web-mega__links">
             {group.links.map((link) => (
               <li key={link.label}>
-                <MenuItem {...link} onNavigate={onNavigate} />
+                <MenuItem
+                  {...link}
+                  label={t(link.label)}
+                  hint={t(link.hint)}
+                  onNavigate={onNavigate}
+                />
               </li>
             ))}
           </ul>

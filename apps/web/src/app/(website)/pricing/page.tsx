@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { PricingPage } from '../../../components/website/pages/pricing/PricingPage';
 
 export const metadata: Metadata = {
-  title: 'Pricing — TManage',
+  title: 'Pricing',
   description:
     'Priced per internal seat. Clients and their approvers join their portal at no cost, on every plan.',
 };

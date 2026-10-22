@@ -7,7 +7,7 @@ import { FeaturesInsightsPage } from '../../../../components/website/pages/featu
  * that cites its sources. Every section lives in `components/website/pages/features-insights`.
  */
 export const metadata: Metadata = {
-  title: 'Insights & automations — TManage',
+  title: 'Insights & automations',
   description:
     'Every score drills into the work behind it. Every automation shows what it will do before it runs.',
 };

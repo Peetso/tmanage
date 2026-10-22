@@ -7,7 +7,7 @@ import { CustomersPage } from '../../../components/website/pages/customers/Custo
  * here is a marked design-partner placeholder.
  */
 export const metadata: Metadata = {
-  title: 'Customers & stories · TManage',
+  title: 'Customers & stories',
   description:
     'Stories from our design-partner programme — what changed when the work became one story.',
 };

@@ -1,4 +1,10 @@
+import type { Metadata } from 'next';
 import { MarketingFaqScreen } from '../../../components/screens/MarketingFaqScreen';
+
+/** The root layout's template adds ' · TManage'. */
+export const metadata: Metadata = {
+  title: 'FAQ',
+};
 
 /**
  * **Public FAQ page** (x186), module 1 — routed at `/faq`.

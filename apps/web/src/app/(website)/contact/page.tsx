@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { ContactPage } from '../../../components/website/pages/contact/ContactPage';
 
 export const metadata: Metadata = {
-  title: 'Book a demo — TManage',
+  title: 'Book a demo',
   description:
     'A 30-minute walkthrough with someone who has run client delivery. Bring a real project; we will map it live.',
 };

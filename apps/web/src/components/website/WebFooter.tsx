@@ -8,14 +8,21 @@ import { WebIcon } from './WebIcon';
 import { BrandLockup } from './primitives';
 import { FOOTER_COLUMNS, FOOTER_LEGAL, FOOTER_MOBILE_GROUPS, FOOTER_SOCIAL } from './site-nav';
 
+/** The catalog-language rule `translate()` uses: the primary subtag decides. */
+export function isArabicLocale(locale: string): boolean {
+  return locale.split('-')[0]?.toLowerCase() === 'ar';
+}
+
 /**
  * Web/Language switch — "English · العربية". Sets the app's active locale, which
  * `LocaleDirectionProvider` turns into `lang`/`dir` on `<html>`, so Arabic mirrors the page.
+ * The pressed state reads the very locale `useT()` translates with, by the same language rule
+ * as `translate()`, so the switch can never mark Arabic while the chrome renders English.
  */
 export function LanguageSwitch() {
   const t = useT();
   const locale = useActiveLocale();
-  const arabic = locale.startsWith('ar');
+  const arabic = isArabicLocale(locale);
   return (
     <div className="tm-web-lang" role="group" aria-label={t('WebFooter.language')}>
       <button
@@ -66,11 +73,11 @@ export function WebFooter() {
         <nav className="tm-web-footer__columns" aria-label={t('WebFooter.footerNav')}>
           {FOOTER_COLUMNS.map((column) => (
             <div key={column.heading} className="tm-web-footer__column">
-              <p className="tm-web-footer__heading">{column.heading}</p>
+              <p className="tm-web-footer__heading">{t(column.heading)}</p>
               <ul className="tm-web-footer__links">
                 {column.links.map((link) => (
                   <li key={link.label}>
-                    <Link href={link.href}>{link.label}</Link>
+                    <Link href={link.href}>{t(link.label)}</Link>
                   </li>
                 ))}
               </ul>
@@ -82,14 +89,14 @@ export function WebFooter() {
           {FOOTER_MOBILE_GROUPS.map((group) => (
             <details key={group.heading} className="tm-web-accordion">
               <summary className="tm-web-accordion__summary">
-                {group.heading}
+                {t(group.heading)}
                 <WebIcon name="plus" className="tm-web-accordion__plus" />
                 <WebIcon name="minus" className="tm-web-accordion__minus" />
               </summary>
               <ul className="tm-web-footer__links tm-web-accordion__panel">
                 {group.links.map((link) => (
                   <li key={link.label}>
-                    <Link href={link.href}>{link.label}</Link>
+                    <Link href={link.href}>{t(link.label)}</Link>
                   </li>
                 ))}
               </ul>
@@ -105,7 +112,7 @@ export function WebFooter() {
             <span>© {year} TManage</span>
             {FOOTER_LEGAL.map((link) => (
               <Link key={link.label} href={link.href}>
-                {link.label}
+                {t(link.label)}
               </Link>
             ))}
           </p>
@@ -115,7 +122,7 @@ export function WebFooter() {
                 <a
                   href={item.href}
                   className="tm-web-orb tm-web-orb--outline tm-web-orb--default"
-                  aria-label={item.label}
+                  aria-label={t(item.label)}
                   {...(item.href.startsWith('http') ? { rel: 'noopener noreferrer' } : {})}
                 >
                   <WebIcon name={item.icon} />

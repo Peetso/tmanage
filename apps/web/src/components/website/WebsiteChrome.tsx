@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { WebNav } from './WebNav';
 import { WebFooter } from './WebFooter';
+import { useT } from '../../lib/i18n/use-t';
 import './website.css';
 
 /**
@@ -41,11 +42,12 @@ function currentEntry(pathname: string | null): string | undefined {
  */
 export function WebsiteChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const t = useT();
   return (
     <WebsiteChromeContext.Provider value>
       <LiveAnnouncer>
         <div className="tm-web">
-          <SkipLink targetId="tm-web-main" />
+          <SkipLink targetId="tm-web-main">{t('WebsiteChrome.skipLink')}</SkipLink>
           <WebNav current={currentEntry(pathname)} />
           <main id="tm-web-main" className="tm-web__main" tabIndex={-1}>
             {children}

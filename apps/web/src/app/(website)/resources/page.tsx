@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { ResourcesPage } from '../../../components/website/pages/resources/ResourcesPage';
 
 export const metadata: Metadata = {
-  title: 'Resources · TManage',
+  title: 'Resources',
   description: 'Practical playbooks, templates and product notes from the TManage team.',
 };
 
