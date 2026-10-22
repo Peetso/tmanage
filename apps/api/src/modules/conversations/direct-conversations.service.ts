@@ -1,0 +1,252 @@
+import { hasCapability } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { DirectConversationRow, DirectMessageRow } from '../../common/database/schema.js';
+import { DuplicateDirectMessageError } from './direct-conversations.repository.js';
+import type {
+  DirectConversationsRepository,
+  DirectParty,
+} from './direct-conversations.repository.js';
+
+/**
+ * BK3 (COL-03) — one-to-one direct messages between two members of one studio.
+ *
+ * ## Who may talk to whom
+ *
+ * {@link mayDirectMessage} is the whole rule, and it is applied on every call — create, list,
+ * read and post — so a relation that ends (a project unshared, a membership suspended) closes the
+ * conversation for both people without deleting anything:
+ *
+ * - two internal members: always;
+ * - a client person and an internal member: only if they share a project (the internal member's
+ *   `project_memberships` meets the projects shared with the client's organization);
+ * - two client people: only within the same client organization. Two client organizations of one
+ *   tenant never see each other (`04-SECURITY-PRIVACY` §5).
+ *
+ * An internal caller additionally needs `conversation.read` to read and `conversation.write` to
+ * open or post (a guest reads, does not originate). A client role holds no conversation
+ * capability; the relation rule is its gate. Every refusal is a 404 that does not say whether the
+ * person or the conversation exists.
+ */
+
+export interface DirectConversationView {
+  readonly id: string;
+  readonly otherUserId: string;
+  readonly otherDisplayName: string | null;
+  readonly lastMessageAt: string | null;
+  readonly createdAt: string;
+}
+
+export interface DirectMessageView {
+  readonly id: string;
+  readonly directConversationId: string;
+  readonly authorUserId: string;
+  readonly sequenceNo: number;
+  readonly body: string;
+  readonly createdAt: string;
+}
+
+const LIST_LIMIT = 100;
+const DEFAULT_PAGE = 50;
+const MAX_PAGE = 200;
+
+/** The relation rule. Pure: see the file note. */
+export function mayDirectMessage(a: DirectParty | null, b: DirectParty | null): boolean {
+  if (a === null || b === null || a.userId === b.userId) return false;
+  if (a.kind === 'internal' && b.kind === 'internal') return true;
+  if (a.kind === 'client' && b.kind === 'client') {
+    return a.clientOrganizationIds.some((id) => b.clientOrganizationIds.includes(id));
+  }
+  return a.projectIds.some((id) => b.projectIds.includes(id));
+}
+
+function sortedPair(a: string, b: string): readonly [string, string] {
+  return a < b ? [a, b] : [b, a];
+}
+
+function otherOf(row: DirectConversationRow, userId: string): string | null {
+  if (row.userLowId === userId) return row.userHighId;
+  if (row.userHighId === userId) return row.userLowId;
+  return null;
+}
+
+function toMessageView(row: DirectMessageRow): DirectMessageView {
+  return {
+    id: row.id,
+    directConversationId: row.directConversationId,
+    authorUserId: row.authorUserId,
+    sequenceNo: Number(row.sequenceNo),
+    body: row.body,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export class DirectConversationsService {
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly repository: DirectConversationsRepository,
+  ) {}
+
+  /** Create-or-get the conversation with `otherUserId`. `created` is false for an existing one. */
+  async open(
+    context: TenantContext,
+    principal: Principal,
+    otherUserId: string,
+  ): Promise<{ readonly conversation: DirectConversationView; readonly created: boolean }> {
+    this.requireInternalCapability(principal, 'write');
+    if (otherUserId === context.userId) {
+      throw new ApiError(422, 'validation_failed', 'You cannot message yourself', [
+        { field: 'userId', message: 'must be another member' },
+      ]);
+    }
+    await this.requireRelation(context, otherUserId);
+
+    const [low, high] = sortedPair(context.userId, otherUserId);
+    const result = await this.database.transaction(context, async (tx) => {
+      const existing = await this.repository.findPair(tx, context, low, high);
+      if (existing) return { row: existing, created: false };
+      return this.repository.insertPair(tx, context, low, high);
+    });
+    const names = await this.database.read(context, (runner) =>
+      this.repository.displayNames(runner, [otherUserId]),
+    );
+    return {
+      conversation: this.toView(result.row, context.userId, names),
+      created: result.created,
+    };
+  }
+
+  /** The caller's direct conversations whose relation still holds, most recent first. */
+  async list(
+    context: TenantContext,
+    principal: Principal,
+  ): Promise<readonly DirectConversationView[]> {
+    this.requireInternalCapability(principal, 'read');
+    return this.database.read(context, async (runner) => {
+      const rows = await this.repository.listForUser(runner, context, context.userId, LIST_LIMIT);
+      const me = await this.repository.findParty(runner, context, context.userId);
+      const visible: DirectConversationRow[] = [];
+      for (const row of rows) {
+        const other = otherOf(row, context.userId);
+        if (other === null) continue;
+        const party = await this.repository.findParty(runner, context, other);
+        if (mayDirectMessage(me, party)) visible.push(row);
+      }
+      const names = await this.repository.displayNames(
+        runner,
+        visible.map((row) => otherOf(row, context.userId) as string),
+      );
+      return visible.map((row) => this.toView(row, context.userId, names));
+    });
+  }
+
+  async listMessages(
+    context: TenantContext,
+    principal: Principal,
+    directConversationId: string,
+    options: { readonly afterSequenceNo?: number; readonly limit?: number } = {},
+  ): Promise<readonly DirectMessageView[]> {
+    this.requireInternalCapability(principal, 'read');
+    await this.loadReachable(context, directConversationId);
+    const limit = Math.min(options.limit ?? DEFAULT_PAGE, MAX_PAGE);
+    const rows = await this.database.read(context, (runner) =>
+      this.repository.listMessages(
+        runner,
+        context,
+        directConversationId,
+        options.afterSequenceNo ?? 0,
+        limit,
+      ),
+    );
+    return rows.map(toMessageView);
+  }
+
+  /** Post a message. `created` is false for a deduplicated retry (same clientGeneratedId). */
+  async post(
+    context: TenantContext,
+    principal: Principal,
+    directConversationId: string,
+    command: { readonly body: string; readonly clientGeneratedId?: string },
+  ): Promise<{ readonly message: DirectMessageView; readonly created: boolean }> {
+    this.requireInternalCapability(principal, 'write');
+    await this.loadReachable(context, directConversationId);
+
+    if (command.clientGeneratedId !== undefined) {
+      const clientGeneratedId = command.clientGeneratedId;
+      const existing = await this.database.read(context, (runner) =>
+        this.repository.findByClientGeneratedId(
+          runner,
+          context,
+          directConversationId,
+          context.userId,
+          clientGeneratedId,
+        ),
+      );
+      if (existing) return { message: toMessageView(existing), created: false };
+    }
+
+    try {
+      const row = await this.database.transaction(context, (tx) =>
+        this.repository.appendMessage(tx, context, {
+          directConversationId,
+          body: command.body,
+          clientGeneratedId: command.clientGeneratedId ?? null,
+        }),
+      );
+      return { message: toMessageView(row), created: true };
+    } catch (error) {
+      if (error instanceof DuplicateDirectMessageError) {
+        throw new ApiError(409, 'conflict', 'That message has already been sent');
+      }
+      throw error;
+    }
+  }
+
+  private requireInternalCapability(principal: Principal, mode: 'read' | 'write'): void {
+    if (principal.kind !== 'internal') return; // clients: the relation rule is the gate
+    const capability = mode === 'read' ? 'conversation.read' : 'conversation.write';
+    if (!hasCapability(principal.role, capability)) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden);
+    }
+  }
+
+  private async requireRelation(context: TenantContext, otherUserId: string): Promise<void> {
+    const allowed = await this.database.read(context, async (runner) =>
+      mayDirectMessage(
+        await this.repository.findParty(runner, context, context.userId),
+        await this.repository.findParty(runner, context, otherUserId),
+      ),
+    );
+    if (!allowed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+  }
+
+  /** The conversation, if the caller is in it and the relation still holds; otherwise 404. */
+  private async loadReachable(
+    context: TenantContext,
+    directConversationId: string,
+  ): Promise<DirectConversationRow> {
+    const row = await this.database.read(context, (runner) =>
+      this.repository.findById(runner, context, directConversationId),
+    );
+    const other = row ? otherOf(row, context.userId) : null;
+    if (!row || other === null) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    await this.requireRelation(context, other);
+    return row;
+  }
+
+  private toView(
+    row: DirectConversationRow,
+    userId: string,
+    names: ReadonlyMap<string, string>,
+  ): DirectConversationView {
+    const other = otherOf(row, userId) as string;
+    return {
+      id: row.id,
+      otherUserId: other,
+      otherDisplayName: names.get(other) ?? null,
+      lastMessageAt: row.lastMessageAt === null ? null : row.lastMessageAt.toISOString(),
+      createdAt: row.createdAt.toISOString(),
+    };
+  }
+}

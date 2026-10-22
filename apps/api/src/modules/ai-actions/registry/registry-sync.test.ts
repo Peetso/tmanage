@@ -60,8 +60,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  PUT /v1/platform/settings/ai-access), all NEVER. 0211 (deliverables, audit gap 1): +6 ops
  *  under /v1/organizations/:orgSlug/deliverables (list, create, get, versions, approvers, send).
  *  0212 (request messages, audit gap 4): +4 ops, GET/POST .../client-requests/:id/messages and
- *  GET/POST .../portal/requests/:id/messages. */
-const EXPECTED_ROUTE_COUNT = 755;
+ *  GET/POST .../portal/requests/:id/messages. BK3 (0214): +5 ops, GET .../mention-candidates
+ *  and GET/POST .../direct-conversations(/:id/messages). */
+const EXPECTED_ROUTE_COUNT = 760;
 
 interface LiveRoute {
   readonly method: string;

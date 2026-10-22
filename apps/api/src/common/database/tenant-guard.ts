@@ -235,6 +235,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // conversation and a membership of one studio, and the read is scoped to the acting
   // membership, so an unscoped read would expose who muted which channel across studios.
   conversation_mutes: 'organization_id',
+  // BK3 (COL-03, 0214). Direct conversations and their messages: tenant-owned, an unscoped read
+  // would be every studio's private one-to-one messages at once.
+  direct_conversations: 'organization_id',
+  direct_messages: 'organization_id',
   // CH-06 composer attachments (x275). Tenant-owned: a row links a message and a file, both tenant
   // rows, and an unscoped read of it would be a map of which studio attached what to whose message.
   message_attachments: 'organization_id',

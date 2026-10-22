@@ -52,6 +52,8 @@ import { ConversationReadStateModule } from './modules/conversations/read-state.
 import { ConversationMuteModule } from './modules/conversations/conversation-mute.module.js';
 import { ConversationSearchModule } from './modules/conversations/conversation-search.module.js';
 import { MyMentionsModule } from './modules/conversations/my-mentions.controller.js';
+import { MentionCandidatesModule } from './modules/conversations/mention-candidates.controller.js';
+import { DirectConversationsModule } from './modules/conversations/direct-conversations.controller.js';
 import { MessageAttachmentsModule } from './modules/conversations/message-attachments.controller.js';
 import { CalendarModule } from './modules/calendar/calendar.module.js';
 import { MeetingAgendaModule } from './modules/calendar/meeting-agenda.module.js';
@@ -506,6 +508,9 @@ export class AppModule {
         // the sibling chat slices stay file-disjoint; no table, and the relation filter is the
         // service's, exactly as the channel list's is.
         MyMentionsModule.register(),
+        // BK3 (COL-02 / COL-03). The @ picker's search, and one-to-one direct messages (0214).
+        MentionCandidatesModule.register(),
+        DirectConversationsModule.register(),
         // CH-06 composer attachments (x275). Its own module beside `ConversationsModule` so the
         // sibling chat slices stay file-disjoint (each registers here rather than all editing
         // `conversations.module.ts`). Its `MessageAttachmentsModule` is exported from the controller

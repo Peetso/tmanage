@@ -358,6 +358,12 @@ GRANT INSERT, DELETE         ON `tmanage`.`request_comments`        TO 'tmanage_
 -- record and is neither edited nor retracted; reading is the database-wide SELECT. The 0212
 -- `BEFORE UPDATE` trigger refuses amendment for every credential besides.
 GRANT INSERT                 ON `tmanage`.`request_messages`        TO 'tmanage_app'@'%';
+-- 0214 direct messages (BK3, COL-03). `direct_conversations` gets **INSERT, UPDATE**: a pair row is
+-- created once and its `next_sequence_no` / `last_message_at` move on every post; never deleted.
+-- `direct_messages` gets **INSERT only** — append-only, and the 0214 `BEFORE UPDATE` trigger refuses
+-- amendment for every credential. SELECT is the database-wide grant.
+GRANT INSERT, UPDATE         ON `tmanage`.`direct_conversations`    TO 'tmanage_app'@'%';
+GRANT INSERT                 ON `tmanage`.`direct_messages`         TO 'tmanage_app'@'%';
 -- x180 (0077) billing profile. Module 19: exactly one billing profile per organization, created and
 -- edited in place through `INSERT ... ON DUPLICATE KEY UPDATE` — so INSERT and UPDATE and **no
 -- DELETE**: there is no delete endpoint (a profile is edited, never removed by a runtime credential),

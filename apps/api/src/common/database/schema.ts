@@ -5795,6 +5795,66 @@ export const conversationMutes = mysqlTable(
 );
 
 /**
+ * BK3 (COL-03, 0214). A one-to-one direct conversation between two members of one studio.
+ * `userLowId` / `userHighId` are the two user ids sorted by the service, so the pair key makes
+ * create-or-get idempotent. The relation rule (internal-internal always; a client only with someone
+ * they share a project with) lives in `DirectConversationsService` and is re-checked on every read.
+ */
+export const directConversations = mysqlTable(
+  'direct_conversations',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userLowId: char('user_low_id', { length: 36 }).notNull(),
+    userHighId: char('user_high_id', { length: 36 }).notNull(),
+    nextSequenceNo: bigint('next_sequence_no', { mode: 'number', unsigned: true })
+      .notNull()
+      .default(1),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    lastMessageAt: datetime('last_message_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_direct_conversations_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_direct_conversations_pair').on(
+      table.organizationId,
+      table.userLowId,
+      table.userHighId,
+    ),
+    index('ix_direct_conversations_high').on(table.organizationId, table.userHighId),
+  ],
+);
+
+/** BK3 (COL-03, 0214). One message in a direct conversation. Append-only (INSERT + SELECT). */
+export const directMessages = mysqlTable(
+  'direct_messages',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    directConversationId: char('direct_conversation_id', { length: 36 }).notNull(),
+    authorUserId: char('author_user_id', { length: 36 }).notNull(),
+    sequenceNo: bigint('sequence_no', { mode: 'number', unsigned: true }).notNull(),
+    body: text('body').notNull(),
+    clientGeneratedId: char('client_generated_id', { length: 36 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_direct_messages_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_direct_messages_sequence').on(
+      table.organizationId,
+      table.directConversationId,
+      table.sequenceNo,
+    ),
+    uniqueIndex('uq_direct_messages_client_generated').on(
+      table.organizationId,
+      table.authorUserId,
+      table.clientGeneratedId,
+    ),
+  ],
+);
+
+/**
  * PRF keyboard shortcuts (x286, module 20 Preferences & accessibility). A member's own override of
  * one command-palette action's keyboard chord (migration 0155).
  *
@@ -8457,6 +8517,8 @@ export const TABLES = {
   conversation_thread_replies: conversationThreadReplies,
   conversation_message_drafts: conversationMessageDrafts,
   conversation_mutes: conversationMutes,
+  direct_conversations: directConversations,
+  direct_messages: directMessages,
   message_attachments: messageAttachments,
   outbox_events: outboxEvents,
   idempotency_records: idempotencyRecords,
@@ -8757,6 +8819,8 @@ export type UserStartupPrefRow = typeof userStartupPrefs.$inferSelect;
 export type UserPreferenceRow = typeof userPreferences.$inferSelect;
 export type DigestPreferenceRow = typeof digestPreferences.$inferSelect;
 export type ConversationMuteRow = typeof conversationMutes.$inferSelect;
+export type DirectConversationRow = typeof directConversations.$inferSelect;
+export type DirectMessageRow = typeof directMessages.$inferSelect;
 export type SavedContextRow = typeof savedContext.$inferSelect;
 export type HomePinnedItemRow = typeof homePinnedItems.$inferSelect;
 export type HomeRecentItemRow = typeof homeRecentItems.$inferSelect;
