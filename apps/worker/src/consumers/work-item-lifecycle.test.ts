@@ -48,6 +48,7 @@ describe('the handler registry', () => {
       'client_request.message_posted.v1',
       'client_request.submitted.v1',
       'client_request.transitioned.v1',
+      'direct_message.created.v1',
       'document.comment_created.v1',
       'document.published.v1',
       'meeting.attendee_invited.v1',
