@@ -58,8 +58,10 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  attachments list/create/delete) and 7 NEVER (`storage_connection`). S11: +4 (the Connected
  *  apps list, revoke and workspace AI switch under /v1/organizations/:orgSlug/oauth, and
  *  PUT /v1/platform/settings/ai-access), all NEVER. 0211 (deliverables, audit gap 1): +6 ops
- *  under /v1/organizations/:orgSlug/deliverables (list, create, get, versions, approvers, send). */
-const EXPECTED_ROUTE_COUNT = 746;
+ *  under /v1/organizations/:orgSlug/deliverables (list, create, get, versions, approvers, send).
+ *  0212 (request messages, audit gap 4): +4 ops, GET/POST .../client-requests/:id/messages and
+ *  GET/POST .../portal/requests/:id/messages. */
+const EXPECTED_ROUTE_COUNT = 750;
 
 interface LiveRoute {
   readonly method: string;

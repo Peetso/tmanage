@@ -354,6 +354,10 @@ GRANT INSERT                 ON `tmanage`.`work_item_comments`     TO 'tmanage_a
 -- trigger refuses every amendment, so **no UPDATE**, the append-with-retract posture of the typed
 -- edges above (deleting a parent deletes its replies first, so the RESTRICT self-reference holds).
 GRANT INSERT, DELETE         ON `tmanage`.`request_comments`        TO 'tmanage_app'@'%';
+-- 0212 `request_messages` (audit gap 4) gets **INSERT only**: a message said to a client is a
+-- record and is neither edited nor retracted; reading is the database-wide SELECT. The 0212
+-- `BEFORE UPDATE` trigger refuses amendment for every credential besides.
+GRANT INSERT                 ON `tmanage`.`request_messages`        TO 'tmanage_app'@'%';
 -- x180 (0077) billing profile. Module 19: exactly one billing profile per organization, created and
 -- edited in place through `INSERT ... ON DUPLICATE KEY UPDATE` — so INSERT and UPDATE and **no
 -- DELETE**: there is no delete endpoint (a profile is edited, never removed by a runtime credential),

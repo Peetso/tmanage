@@ -49,6 +49,11 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'client_request',
     catalog: '§4 client_request.transitioned.v1 — client/team notifications, search',
   },
+  /** Audit gap 4: a message posted on a client request's client <-> studio thread (0212). */
+  'client_request.message_posted.v1': {
+    aggregateType: 'client_request',
+    catalog: '§4 client request message — client/team notifications',
+  },
   /** §4: "message committed". The aggregate is the conversation — ordering is per channel. */
   'message.created.v1': {
     aggregateType: 'conversation',
@@ -227,6 +232,21 @@ export interface ClientRequestTransitionedV1 {
   readonly toStatus: string;
   readonly requestVersion: number;
   readonly acceptedWorkItemId: string | null;
+}
+
+/**
+ * Audit gap 4 (0212). Ids and flags only — never the body. `clientVisible` false is a team-only
+ * note, which a consumer must not deliver to a client; `authorKind` says which side wrote it, so a
+ * consumer notifies the other side.
+ */
+export interface ClientRequestMessagePostedV1 {
+  readonly requestId: string;
+  readonly messageId: string;
+  readonly projectId: string;
+  readonly clientOrganizationId: string;
+  readonly authorMembershipId: string;
+  readonly authorKind: 'internal' | 'client';
+  readonly clientVisible: boolean;
 }
 
 /**
@@ -447,6 +467,7 @@ export interface ApprovalRequestedV1 {
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
   readonly 'client_request.transitioned.v1': ClientRequestTransitionedV1;
+  readonly 'client_request.message_posted.v1': ClientRequestMessagePostedV1;
   readonly 'message.created.v1': MessageCreatedV1;
   readonly 'message.converted.v1': MessageConvertedV1;
   readonly 'work_item.updated.v1': WorkItemUpdatedV1;

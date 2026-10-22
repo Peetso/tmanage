@@ -181,6 +181,7 @@ export {
 export type {
   ClientRequestSubmittedV1,
   ClientRequestTransitionedV1,
+  ClientRequestMessagePostedV1,
   DocumentCommentCreatedV1,
   DocumentPublishedV1,
   FilePurgedV1,

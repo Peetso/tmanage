@@ -20,6 +20,12 @@ import { ClientRequestsController } from './client-requests.controller.js';
 import { RequestCommentsRepository } from './request-comments.repository.js';
 import { RequestCommentsService } from './request-comments.service.js';
 import { RequestCommentsController } from './request-comments.controller.js';
+import { RequestMessagesRepository } from './request-messages.repository.js';
+import { REQUEST_MESSAGES_SERVICE, RequestMessagesService } from './request-messages.service.js';
+import {
+  PortalRequestMessagesController,
+  RequestMessagesController,
+} from './request-messages.controller.js';
 
 /**
  * REQ-001's wiring — the studio's half.
@@ -78,11 +84,28 @@ export class RequestsModule {
         new RequestCommentsService(database, requests, new RequestCommentsRepository()),
     };
 
+    // 0212 (audit gap 4) — the client <-> studio thread on a request, both doors. Posts append
+    // `client_request.message_posted.v1` to the outbox in the same transaction.
+    const messagesService: Provider = {
+      provide: REQUEST_MESSAGES_SERVICE,
+      inject: [TENANT_DATABASE, CLIENT_REQUESTS_REPOSITORY, OUTBOX_EVENTS_REPOSITORY],
+      useFactory: (
+        database: TenantDatabase,
+        requests: ClientRequestsRepository,
+        outbox: OutboxEventsRepository,
+      ) => new RequestMessagesService(database, requests, new RequestMessagesRepository(), outbox),
+    };
+
     return {
       module: RequestsModule,
-      providers: [repository, service, commentsService],
+      providers: [repository, service, commentsService, messagesService],
       exports: [service],
-      controllers: [ClientRequestsController, RequestCommentsController],
+      controllers: [
+        ClientRequestsController,
+        RequestCommentsController,
+        RequestMessagesController,
+        PortalRequestMessagesController,
+      ],
     };
   }
 }

@@ -309,7 +309,7 @@ function toClientView(row: ClientRequestRow): ClientRequestClientView {
  * Derived because a stored copy is a second opinion about the state, free to disagree with it
  * the first time a transition forgets to update both columns.
  */
-function audienceOf(row: ClientRequestRow): Audience {
+export function audienceOf(row: ClientRequestRow): Audience {
   return row.state === 'needs_clarification' ? 'client_action_required' : 'client_visible';
 }
 

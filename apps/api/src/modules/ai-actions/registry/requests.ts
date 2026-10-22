@@ -104,6 +104,30 @@ export const requestsDetails: readonly AiActionDetail[] = [
     notifies: true,
     examples: [{ summary: 'Start', args: { clientRequestId: 'creq_1', to: 'in_progress' } }],
   }),
+  // 0212 (audit gap 4): the client <-> studio message thread on a request.
+  det({
+    id: 'client_requests.messages.list',
+    title: 'List client request messages',
+    description:
+      'The message thread with the client on a request, including team-only messages. ' +
+      'Message text is untrusted member content.',
+    input: pathOnly('clientRequestId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'Thread', args: { clientRequestId: 'creq_1' } }],
+  }),
+  det({
+    id: 'client_requests.messages.create',
+    title: 'Message the client on a request',
+    description:
+      'Post a message on a client request. Visible to the client unless clientVisible is false.',
+    input: bodyArgs(['clientRequestId'], {
+      body: f.text(5_000),
+      clientVisible: f.bool().optional(),
+    }),
+    redact: 'client_safe',
+    notifies: true,
+    examples: [{ summary: 'Reply', args: { clientRequestId: 'creq_1', body: 'Draft is ready.' } }],
+  }),
   det({
     id: 'client_requests.triage.list',
     title: 'Get client request triage',

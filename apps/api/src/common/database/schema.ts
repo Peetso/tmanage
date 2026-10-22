@@ -599,6 +599,35 @@ export const requestComments = mysqlTable(
 );
 
 /**
+ * Requests / client conversation (0212, audit gap 4). The shared client <-> studio thread on a
+ * client request — distinct from `request_comments`, which is internal-only. `client_visible`
+ * gates the client read (a query predicate); a client always posts client-visible. Append-only:
+ * INSERT + SELECT — migration `0212_request_messages.sql` is the source of truth.
+ */
+export const requestMessages = mysqlTable(
+  'request_messages',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    requestId: char('request_id', { length: 36 }).notNull(),
+    authorMembershipId: char('author_membership_id', { length: 36 }).notNull(),
+    authorKind: varchar('author_kind', { length: 16 }).$type<'internal' | 'client'>().notNull(),
+    body: text('body').notNull(),
+    clientVisible: boolean('client_visible').notNull().default(true),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_request_messages_org_id').on(table.organizationId, table.id),
+    index('ix_request_messages_request').on(
+      table.organizationId,
+      table.requestId,
+      table.createdAt,
+      table.id,
+    ),
+  ],
+);
+
+/**
  * Portal announcements (x304, migration 0172, POR client portal). A pinned banner an internal
  * staffer posts to one client organization's portal, live for an active window.
  *
@@ -8354,6 +8383,7 @@ export const TABLES = {
   audit_retention_policy: auditRetentionPolicy,
   work_checklist_templates: workChecklistTemplates,
   request_comments: requestComments,
+  request_messages: requestMessages,
   approval_delegations: approvalDelegations,
   inbox_rules: inboxRules,
   insight_dashboard_layouts: insightDashboardLayouts,
@@ -8597,6 +8627,8 @@ export type WorkItemCommentRow = typeof workItemComments.$inferSelect;
 export type NewWorkItemCommentRow = typeof workItemComments.$inferInsert;
 export type RequestCommentRow = typeof requestComments.$inferSelect;
 export type NewRequestCommentRow = typeof requestComments.$inferInsert;
+export type RequestMessageRow = typeof requestMessages.$inferSelect;
+export type NewRequestMessageRow = typeof requestMessages.$inferInsert;
 export type WorkItemLinkRow = typeof workItemLinks.$inferSelect;
 export type NewWorkItemLinkRow = typeof workItemLinks.$inferInsert;
 export type WorkItemFileRow = typeof workItemFiles.$inferSelect;

@@ -279,6 +279,24 @@ export const portalDetails: readonly AiActionDetail[] = [
     redact: 'client_safe',
     examples: [{ summary: 'Withdraw', args: { clientRequestId: 'cr_1' } }],
   }),
+  // 0212 (audit gap 4): the client side of the request message thread.
+  det({
+    id: 'portal.requests.messages.list',
+    title: 'List portal request messages',
+    description: 'The client-visible message thread on a portal request.',
+    input: pathOnly('clientRequestId'),
+    redact: 'client_safe',
+    examples: [{ summary: 'Thread', args: { clientRequestId: 'cr_1' } }],
+  }),
+  det({
+    id: 'portal.requests.messages.create',
+    title: 'Reply on a portal request',
+    description: 'Post a client message on a portal request. Confirm-class: client-facing.',
+    input: bodyArgs(['clientRequestId'], { body: f.text(5_000) }),
+    redact: 'client_safe',
+    notifies: true,
+    examples: [{ summary: 'Reply', args: { clientRequestId: 'cr_1', body: 'Looks good.' } }],
+  }),
   det({
     id: 'portal.upload_sessions.list',
     title: 'List portal uploads',
