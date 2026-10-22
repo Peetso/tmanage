@@ -1,0 +1,345 @@
+/*
+ * Clients (Q1) — Figma t5-a (370:3711 EN / 370:4032 AR) and the Invite a client dialog t5-b
+ * (370:3886 / 370:4207). TManage tokens only; logical properties so Arabic mirrors.
+ * Prefix `cl-` so nothing here collides with the shell or another screen group.
+ */
+
+.tm-app:has(.cl-screen) .tm-canvas-header {
+  align-items: flex-start;
+  border-block-end: none;
+}
+
+.tm-app:has(.cl-screen) .tm-canvas-header__title {
+  font-size: 40px;
+  line-height: 46px;
+  letter-spacing: -0.02em;
+}
+
+.tm-app:has(.cl-screen) .tm-canvas-header__description {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.cl-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  flex-wrap: wrap;
+}
+
+.cl-search {
+  inline-size: 280px;
+}
+
+.cl-search .tm-search-field__control {
+  inline-size: 100%;
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--line-300);
+}
+
+.cl-screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+/* ---------- Tabs ---------- */
+
+.cl-tabs {
+  display: flex;
+  gap: var(--s6);
+}
+
+.cl-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2) var(--s3);
+  background: none;
+  border: 0;
+  border-block-end: 3px solid transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  cursor: pointer;
+}
+
+.cl-tab[aria-pressed='true'] {
+  color: var(--ink-950);
+  font-weight: 600;
+  border-block-end-color: var(--lime-500);
+}
+
+.cl-tab:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.cl-count {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 22px;
+  padding-inline: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+}
+
+.cl-count--client {
+  min-inline-size: 32px;
+  min-block-size: 26px;
+  margin-inline-start: var(--s2);
+  background: var(--paper-0);
+  border: var(--b-quiet) solid var(--client-500);
+  color: var(--client-500);
+}
+
+/* ---------- Cards ---------- */
+
+.cl-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr);
+  gap: var(--s6);
+  align-items: start;
+}
+
+.cl-card {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s6);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.cl-card__title {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding-block-end: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.cl-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cl-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding-block: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.cl-card--organizations .cl-row:last-child {
+  border-block-end: none;
+  padding-block-end: 0;
+}
+
+.cl-orb {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: var(--orb-comfortable);
+  block-size: var(--orb-comfortable);
+  border-radius: var(--r-capsule);
+  border: var(--b-expressive) solid var(--client-500);
+  background: var(--paper-250);
+  color: var(--ink-800);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+}
+
+.cl-row__text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.cl-row__name {
+  color: var(--ink-950);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  font-weight: 500;
+}
+
+.cl-row__meta {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.cl-break {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Status and role pills ---------- */
+
+.cl-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  flex: none;
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-capsule);
+  border: var(--b-structural) solid var(--line-300);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.cl-status > span {
+  font-size: var(--t-caption);
+}
+
+.cl-status--portal_live {
+  border-color: var(--client-500);
+}
+
+.cl-status--portal_live > span {
+  color: var(--client-500);
+}
+
+.cl-status--invite_pending {
+  border-color: var(--warning-600);
+}
+
+.cl-status--invite_pending > span {
+  color: var(--warning-600);
+}
+
+.cl-status--archived {
+  background: var(--paper-150);
+  color: var(--ink-650);
+}
+
+.cl-role {
+  flex: none;
+  padding: 2px var(--s3);
+  border-radius: var(--r-capsule);
+  border: var(--b-quiet) solid var(--client-500);
+  color: var(--client-500);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.cl-resend {
+  flex: none;
+  min-inline-size: 88px;
+  color: var(--ink-950);
+}
+
+.cl-note {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: var(--s4) 0 0;
+  padding: var(--s3) var(--s4);
+  border: var(--b-structural) solid var(--client-500);
+  border-radius: var(--r-control);
+  color: var(--ink-950);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.cl-note > span {
+  color: var(--client-500);
+}
+
+.cl-empty {
+  margin: 0;
+  padding-block: var(--s4);
+  color: var(--ink-650);
+}
+
+.cl-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+.cl-link input {
+  inline-size: 100%;
+}
+
+/* ---------- Invite a client dialog ---------- */
+
+.cl-backdrop {
+  overflow-y: auto;
+  padding-block-start: 6vh;
+}
+
+.cl-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: min(560px, 100%);
+  padding: var(--s10);
+  border-radius: var(--r-sheet);
+  border: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+}
+
+.cl-dialog__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.cl-dialog__lead {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.cl-dialog__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.cl-dialog__roles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* ---------- Narrow screens: one card at a time, chosen by the tabs ---------- */
+
+@media (max-width: 60rem) {
+  .cl-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cl-screen[data-view='organizations'] .cl-card--invitations,
+  .cl-screen[data-view='invitations'] .cl-card--organizations {
+    display: none;
+  }
+
+  .cl-search {
+    inline-size: 100%;
+  }
+
+  .cl-row {
+    flex-wrap: wrap;
+  }
+
+  .cl-dialog {
+    padding: var(--s6);
+  }
+}

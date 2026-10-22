@@ -48,6 +48,7 @@ export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
   { id: 'work', label: 'Work', messageKey: 'nav.work', href: '/work', glyph: '▤' },
   { id: 'calendar', label: 'Calendar', messageKey: 'nav.calendar', href: '/calendar', glyph: '◷' },
   { id: 'docs', label: 'Docs', messageKey: 'nav.docs', href: '/docs', glyph: '◫' },
+  { id: 'clients', label: 'Clients', messageKey: 'nav.clients', href: '/clients', glyph: '◇' },
   { id: 'people', label: 'People', messageKey: 'nav.people', href: '/people', glyph: '◎' },
   { id: 'insights', label: 'Insights', messageKey: 'nav.insights', href: '/insights', glyph: '◔' },
 ];
