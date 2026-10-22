@@ -1,5 +1,5 @@
 import type { MailMessage } from '@tmanage/mail';
-import { renderActionEmail } from './action-email.js';
+import { EMAIL_TOKENS, escapeHtml } from './action-email.js';
 
 /**
  * The invitation templates from `35-NOTIFICATION-AND-EMAIL-COPY` §3, rendered — as plain text
@@ -28,7 +28,13 @@ import { renderActionEmail } from './action-email.js';
  * string is HTML-escaped, and the only URL is the one `InvitationMailer` built from
  * configuration.
  *
- * Arabic organizations (`default_locale` starting `ar`) get the Arabic copy, `dir="rtl"`.
+ * The layout is the Figma frame t1-e (369:1362 English, 369:1538 Arabic): wordmark, rule, the
+ * inviter's initials and name, the heading, one sentence with the role, one pill button, the
+ * expiry line, the fallback link, and "Sent by TManage on behalf of …" under the card.
+ *
+ * A recipient whose locale starts `ar` gets the Arabic copy, `dir="rtl"`, the Alexandria stack,
+ * and U+200F at the head of every line that mixes Arabic with a Latin brand name. Any other
+ * locale, or none, gets English.
  */
 
 export interface InvitationEmailFacts {
@@ -89,27 +95,36 @@ function roleLabel(role: string, arabic: boolean): string {
   return arabic ? known.ar : known.en;
 }
 
+/** U+200F, the right-to-left mark: keeps a mixed Arabic/Latin line anchored right. */
+const RLM = '‏';
+
+/** Two initials for a Latin name, the first letter alone for an Arabic one (the design's "ع"). */
+export function initialsOf(name: string): string {
+  const words = oneLine(name).split(' ').filter(Boolean);
+  const first = words[0] ?? '';
+  if (/^\p{Script=Arabic}/u.test(first)) return [...first][0] ?? '';
+  return words
+    .slice(0, 2)
+    .map((word) => [...word][0] ?? '')
+    .join('')
+    .toUpperCase();
+}
+
 /** Everything the two languages say, already flattened; HTML escaping happens at render. */
 interface Copy {
   readonly subject: string;
-  readonly eyebrow: string;
   readonly heading: string;
   readonly intro: string;
-  readonly roleLabel: string;
-  readonly roleValue: string;
-  readonly accessLabel: string;
-  readonly accessValue: string;
   readonly button: string;
   readonly fallback: string;
   readonly expiry: string;
-  readonly why: string;
+  readonly footer: string;
 }
 
 function copyFor(facts: InvitationEmailFacts): { readonly copy: Copy; readonly arabic: boolean } {
   const arabic = (facts.locale ?? 'en').toLowerCase().startsWith('ar');
   const organization = oneLine(facts.organizationName);
   const inviter = oneLine(facts.inviterName);
-  const inviterEmail = oneLine(facts.inviterEmail);
   const role = roleLabel(oneLine(facts.role), arabic);
   const expiry = `${expiryDate(facts.expiresAt, arabic)} (UTC)`;
   const client =
@@ -119,27 +134,19 @@ function copyFor(facts: InvitationEmailFacts): { readonly copy: Copy; readonly a
     return {
       arabic,
       copy: {
-        subject:
-          client === null
-            ? `${inviter} دعاك للانضمام إلى ${organization} على TManage`
-            : `${organization} دعاك إلى بوابة العملاء الخاصة بها`,
-        eyebrow: 'دعوة',
+        subject: `${RLM}${inviter} دعاك إلى ${organization} بدور ${role}`,
         heading:
           client === null
-            ? `${inviter} دعاك للانضمام إلى ${organization}`
-            : `${organization} دعاك إلى بوابة العملاء`,
+            ? `${RLM}أنت مدعو للانضمام إلى ${organization} على TManage`
+            : `${RLM}أنت مدعو إلى بوابة عملاء ${organization} على TManage`,
         intro:
           client === null
-            ? `ستنضم إلى ${organization} على TManage بدور ${role}.`
-            : `استخدم TManage لمتابعة التقدم والملفات والإجراءات المشتركة مع ${client}. لن ترى مساحة العمل الداخلية للفريق.`,
-        roleLabel: 'الدور',
-        roleValue: role,
-        accessLabel: 'الوصول',
-        accessValue: client === null ? `فريق ${organization}` : `بوابة عملاء ${client}`,
-        button: client === null ? 'مراجعة الدعوة' : 'مراجعة الوصول',
+            ? `${RLM}ستعمل مع فريق ${organization}. دورك: ${role}.`
+            : `${RLM}تابع التقدم والملفات والإجراءات المشتركة مع ${client}. دورك: ${role}. لن ترى مساحة العمل الداخلية للفريق.`,
+        button: 'قبول الدعوة',
         fallback: 'إذا لم يعمل الزر، انسخ هذا الرابط والصقه في المتصفح:',
-        expiry: `تنتهي صلاحية هذه الدعوة في ${expiry}. بعد ذلك اطلب من ${inviter} دعوة جديدة.`,
-        why: `تصلك هذه الرسالة لأن ${inviter} (${inviterEmail}) دعا هذا العنوان. إن لم تكن تتوقعها فتجاهلها أو راسل صاحب الدعوة.`,
+        expiry: `تنتهي صلاحية هذه الدعوة في ${expiry}. إذا لم تكن تتوقعها، يمكنك تجاهل هذه الرسالة.`,
+        footer: `${RLM}أُرسلت من TManage نيابةً عن ${organization}`,
       },
     };
   }
@@ -147,61 +154,93 @@ function copyFor(facts: InvitationEmailFacts): { readonly copy: Copy; readonly a
   return {
     arabic,
     copy: {
-      subject:
-        client === null
-          ? `${inviter} invited you to ${organization} on TManage`
-          : `${organization} invited you to their client portal`,
-      eyebrow: 'Invitation',
+      subject: `${inviter} invited you to ${organization} as ${role}`,
       heading:
         client === null
-          ? `${inviter} invited you to join ${organization}`
-          : `${organization} invited you to their client portal`,
+          ? `You are invited to join ${organization} on TManage`
+          : `You are invited to the ${organization} client portal on TManage`,
       intro:
         client === null
-          ? `You’ve been invited as ${role} with access to ${organization}.`
-          : `Use TManage to view progress, files, and actions shared with ${client}. ` +
-            `Your role is ${role}. You will not see the team’s internal workspace.`,
-      roleLabel: 'Role',
-      roleValue: role,
-      accessLabel: 'Access',
-      accessValue: client === null ? `${organization} team` : `${client} client portal`,
-      button: client === null ? 'Review invitation' : 'Review access',
+          ? `You will work with the team at ${organization}. Your role: ${role}.`
+          : `Follow progress, files and actions shared with ${client}. Your role: ${role}. ` +
+            `You will not see the team’s internal workspace.`,
+      button: 'Accept invitation',
       fallback: 'Button not working? Copy this link into your browser:',
-      expiry: `This invitation expires on ${expiry}. After that, ask ${inviter} for a new one.`,
-      why:
-        `You are receiving this because ${inviter} (${inviterEmail}) invited this ` +
-        `address. If you were not expecting it, ignore this email or reply to the inviter.`,
+      expiry: `This invitation expires on ${expiry}. If you were not expecting it, you can ignore this email.`,
+      footer: `Sent by TManage on behalf of ${organization}`,
     },
   };
 }
 
+interface Sender {
+  readonly initials: string;
+  readonly name: string;
+  readonly organization: string;
+}
+
+/** The t1-e layout: table-based so Gmail and Outlook draw it alike; tokens only. */
+function renderInvitationHtml(copy: Copy, sender: Sender, link: string, arabic: boolean): string {
+  const t = EMAIL_TOKENS;
+  const e = escapeHtml;
+  const dir = arabic ? 'rtl' : 'ltr';
+  const align = arabic ? 'right' : 'left';
+  const font = arabic ? t.fontArabic : t.fontLatin;
+  const href = e(link);
+  return `<!doctype html>
+<html lang="${arabic ? 'ar' : 'en'}" dir="${dir}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>${e(copy.subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:${t.paper50};">
+<div style="display:none;max-height:0;overflow:hidden;">${e(copy.intro)}</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${t.paper50};">
+<tr><td align="center" style="padding:40px 16px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" dir="${dir}" style="max-width:600px;">
+<tr><td style="background-color:${t.paper0};border:1px solid ${t.paper150};border-radius:24px;padding:40px;text-align:${align};font-family:${font};">
+<p style="margin:0;padding:0 0 24px 0;border-bottom:1px solid ${t.paper150};font-family:${t.fontLatin};font-size:20px;line-height:28px;font-weight:600;color:${t.ink950};" dir="ltr" align="${align}">TManage</p>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="${align}" style="margin:20px 0 0 0;"><tr>
+<td width="40" height="40" align="center" valign="middle" style="background-color:${t.paper150};border-radius:999px;font-family:${font};font-size:14px;line-height:40px;color:${t.ink650};">${e(sender.initials)}</td>
+<td style="padding:0 12px;font-family:${font};text-align:${align};"><span style="font-size:14px;line-height:20px;color:${t.ink950};">${e(sender.name)}</span><br><span style="font-size:12px;line-height:18px;color:${t.ink500};">${e(sender.organization)}</span></td>
+</tr></table>
+<div style="clear:both;height:20px;line-height:20px;font-size:0;">&nbsp;</div>
+<h1 style="margin:0 0 16px 0;font-family:${font};font-size:24px;line-height:32px;font-weight:600;color:${t.ink950};">${e(copy.heading)}</h1>
+<p style="margin:0 0 20px 0;font-family:${font};font-size:15px;line-height:22px;color:${t.ink650};">${e(copy.intro)}</p>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="${align}"><tr>
+<td align="center" bgcolor="${t.ink950}" style="border-radius:999px;">
+<a href="${href}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 20px;font-family:${font};font-size:14px;line-height:20px;color:${t.paper0};text-decoration:none;border-radius:999px;">${e(copy.button)}</a>
+</td></tr></table>
+<div style="clear:both;height:20px;line-height:20px;font-size:0;">&nbsp;</div>
+<p style="margin:0 0 12px 0;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.expiry)}</p>
+<p style="margin:0;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.fallback)}<br><a href="${href}" target="_blank" rel="noopener" dir="ltr" style="font-family:${t.fontMono};color:${t.ink650};text-decoration:underline;word-break:break-all;">${href}</a></p>
+</td></tr>
+<tr><td align="center" style="padding:20px 8px 0 8px;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.footer)}</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
 export function composeInvitationEmail(facts: InvitationEmailFacts): MailMessage {
   const { copy, arabic } = copyFor(facts);
+  const inviter = oneLine(facts.inviterName);
+  const sender: Sender = {
+    initials: initialsOf(inviter),
+    name: inviter,
+    organization: oneLine(facts.organizationName),
+  };
   const action = `${copy.button}: ${facts.link}`;
-
-  const text = [copy.heading, copy.intro, action, copy.expiry, copy.why].join('\n\n');
+  const text = [copy.heading, copy.intro, action, copy.expiry, copy.footer].join('\n\n');
 
   return {
     to: facts.to,
     subject: copy.subject,
     text,
-    // The copy says "reply to the inviter"; the From is the platform's no-reply mailbox.
+    // A reply reaches the person who invited, not the platform's no-reply mailbox.
     replyTo: oneLine(facts.inviterEmail),
-    html: renderActionEmail({
-      arabic,
-      subject: copy.subject,
-      eyebrow: copy.eyebrow,
-      heading: copy.heading,
-      intro: copy.intro,
-      rows: [
-        { label: copy.roleLabel, value: copy.roleValue },
-        { label: copy.accessLabel, value: copy.accessValue },
-      ],
-      button: copy.button,
-      link: facts.link,
-      fallback: copy.fallback,
-      note: copy.expiry,
-      footer: copy.why,
-    }),
+    html: renderInvitationHtml(copy, sender, facts.link, arabic),
   };
 }

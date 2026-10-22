@@ -39,6 +39,12 @@ export interface CollaborationEmailFacts {
    * in Arabic for an `ar*` locale and in English otherwise; the older kinds are English-only yet.
    */
   readonly locale?: string;
+  /** t8-b — `approval_requested` only: the version number sent for approval. */
+  readonly versionNumber?: number;
+  /** t8-b — `approval_requested` only: the decide-by date, already a readable string. */
+  readonly dueDate?: string;
+  /** t8-b — `approval_requested` only: what the reviewer should check, as the sender wrote it. */
+  readonly checkNote?: string;
 }
 
 /** Whether a BCP-47 locale asks for Arabic copy. */
@@ -56,26 +62,17 @@ function inProject(facts: CollaborationEmailFacts): string {
 }
 
 /**
- * NT1 — the two kinds that have Arabic copy (`approval_requested`, `request_message`), in Arabic.
- * Same facts, same lines, same link; never what anybody wrote.
+ * NT1 — `request_message` in Arabic. Same facts, same lines, same link; never what anybody wrote.
+ * (`approval_requested` has its own designed composer in `approval-email` below.)
  */
-function composeArabicEmail(
-  kind: 'approval_requested' | 'request_message',
-  facts: CollaborationEmailFacts,
-): MailMessage {
+function composeArabicRequestMessage(facts: CollaborationEmailFacts): MailMessage {
   const name = oneLine(facts.recipientName);
   const actor = oneLine(facts.actorName ?? facts.organizationName);
   const title = oneLine(facts.subjectTitle);
   const studio = oneLine(facts.organizationName);
   const where = facts.projectName === undefined ? '' : ` في ${oneLine(facts.projectName)}`;
-  const subject =
-    kind === 'approval_requested'
-      ? `يرجى المراجعة: نسخة جديدة في ${title}`
-      : `رسالة جديدة على ${title}`;
-  const middle =
-    kind === 'approval_requested'
-      ? `أرسل ${studio} نسخة جديدة في ${title} لموافقتك. يرجى مراجعتها ثم الموافقة أو طلب تعديلات.`
-      : `نشر ${actor} رسالة جديدة على الطلب ${title}${where}.`;
+  const subject = `رسالة جديدة على ${title}`;
+  const middle = `نشر ${actor} رسالة جديدة على الطلب ${title}${where}.`;
   return {
     to: facts.recipientEmail,
     subject,
@@ -88,15 +85,179 @@ function composeArabicEmail(
   };
 }
 
+/**
+ * t8-b — the designed approval request (Figma 371:1786 English, 371:2214 Arabic): wordmark, rule,
+ * who sent it and the project, "Your approval is needed: <title>, version N", the decide-by date
+ * and what to check, the portal buttons, and "Sent by TManage on behalf of …" under the card.
+ * Colours and families are `packages/ui/src/styles/tokens.css` values (the worker cannot import
+ * the api's `action-email`). Both buttons open the same portal screen, where the decision is made.
+ */
+const TOKENS = {
+  ink950: '#090a09',
+  ink650: '#4d5049',
+  ink500: '#74786f',
+  paper0: '#ffffff',
+  paper50: '#f7f7f3',
+  paper150: '#e9e9e5',
+  lime500: '#b7ff57',
+  fontLatin: "Manrope, 'Segoe UI', Helvetica, Arial, sans-serif",
+  fontArabic: "Alexandria, Tahoma, 'Segoe UI', Arial, sans-serif",
+} as const;
+
+/** U+200F, the right-to-left mark: keeps a mixed Arabic/Latin line anchored right. */
+const RLM = '‏';
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function initialsOf(name: string): string {
+  const words = name.split(' ').filter(Boolean);
+  const first = words[0] ?? '';
+  if (/^\p{Script=Arabic}/u.test(first)) return [...first][0] ?? '';
+  return words
+    .slice(0, 2)
+    .map((word) => [...word][0] ?? '')
+    .join('')
+    .toUpperCase();
+}
+
+interface ApprovalCopy {
+  readonly subject: string;
+  readonly sender: string;
+  readonly project: string;
+  readonly body: string;
+  readonly approve: string;
+  readonly change: string;
+  readonly note: string;
+  readonly footer: string;
+}
+
+function approvalCopy(facts: CollaborationEmailFacts, arabic: boolean): ApprovalCopy {
+  const studio = oneLine(facts.organizationName);
+  const actor = facts.actorName === undefined ? null : oneLine(facts.actorName);
+  const title = oneLine(facts.subjectTitle);
+  const project = facts.projectName === undefined ? '' : oneLine(facts.projectName);
+  const due = facts.dueDate === undefined ? null : oneLine(facts.dueDate);
+  const check = facts.checkNote === undefined ? '' : oneLine(facts.checkNote);
+  const version = facts.versionNumber;
+  const sender = actor === null || actor === studio ? studio : `${actor} · ${studio}`;
+  if (arabic) {
+    return {
+      subject: `${RLM}مطلوب اعتمادك: ${title}${version === undefined ? '' : `، الإصدار ${version}`}`,
+      sender: `${RLM}${sender}`,
+      project,
+      body: [due === null ? '' : `يُرجى اتخاذ القرار قبل ${due}.`, check].filter(Boolean).join(' '),
+      approve: 'المراجعة والاعتماد',
+      change: 'طلب تعديلات',
+      note: 'يُسجَّل قرارك على هذا الإصدار تحديدًا.',
+      footer: `${RLM}أُرسلت من TManage نيابةً عن ${studio}`,
+    };
+  }
+  return {
+    subject: `Your approval is needed: ${title}${version === undefined ? '' : `, version ${version}`}`,
+    sender,
+    project,
+    body: [due === null ? '' : `Please decide by ${due}.`, check].filter(Boolean).join(' '),
+    approve: 'Review and approve',
+    change: 'Request changes',
+    note: 'Your decision is recorded against this exact version.',
+    footer: `Sent by TManage on behalf of ${studio}`,
+  };
+}
+
+function renderApprovalHtml(
+  copy: ApprovalCopy,
+  initials: string,
+  link: string,
+  arabic: boolean,
+): string {
+  const t = TOKENS;
+  const e = escapeHtml;
+  const dir = arabic ? 'rtl' : 'ltr';
+  const align = arabic ? 'right' : 'left';
+  const font = arabic ? t.fontArabic : t.fontLatin;
+  const href = e(link);
+  const body =
+    copy.body === ''
+      ? ''
+      : `<p style="margin:0 0 20px 0;font-family:${font};font-size:15px;line-height:22px;color:${t.ink650};">${e(copy.body)}</p>`;
+  const project =
+    copy.project === ''
+      ? ''
+      : `<br><span style="font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.project)}</span>`;
+  const button = (label: string, primary: boolean): string =>
+    `<td align="center" bgcolor="${primary ? t.lime500 : t.paper0}" style="border-radius:999px;${primary ? '' : `border:1px solid ${t.ink650};`}">` +
+    `<a href="${href}" target="_blank" rel="noopener" style="display:inline-block;padding:14px 20px;font-family:${font};font-size:14px;line-height:20px;color:${t.ink950};text-decoration:none;border-radius:999px;">${e(label)}</a></td>`;
+  return `<!doctype html>
+<html lang="${arabic ? 'ar' : 'en'}" dir="${dir}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>${e(copy.subject)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:${t.paper50};">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color:${t.paper50};">
+<tr><td align="center" style="padding:40px 16px;">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" dir="${dir}" style="max-width:600px;">
+<tr><td style="background-color:${t.paper0};border:1px solid ${t.paper150};border-radius:24px;padding:40px;text-align:${align};font-family:${font};">
+<p style="margin:0;padding:0 0 24px 0;border-bottom:1px solid ${t.paper150};font-family:${t.fontLatin};font-size:20px;line-height:28px;font-weight:600;color:${t.ink950};" dir="ltr" align="${align}">TManage</p>
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="${align}" style="margin:20px 0 0 0;"><tr>
+<td width="40" height="40" align="center" valign="middle" style="background-color:${t.paper150};border-radius:999px;font-family:${font};font-size:14px;line-height:40px;color:${t.ink650};">${e(initials)}</td>
+<td style="padding:0 12px;font-family:${font};text-align:${align};"><span style="font-size:14px;line-height:20px;color:${t.ink950};">${e(copy.sender)}</span>${project}</td>
+</tr></table>
+<div style="clear:both;height:20px;line-height:20px;font-size:0;">&nbsp;</div>
+<h1 style="margin:0 0 16px 0;font-family:${font};font-size:24px;line-height:32px;font-weight:600;color:${t.ink950};">${e(copy.subject)}</h1>
+${body}
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="${align}"><tr>
+${button(copy.approve, true)}<td width="12" style="font-size:0;">&nbsp;</td>${button(copy.change, false)}
+</tr></table>
+<div style="clear:both;height:20px;line-height:20px;font-size:0;">&nbsp;</div>
+<p style="margin:0;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.note)}</p>
+</td></tr>
+<tr><td align="center" style="padding:20px 8px 0 8px;font-family:${font};font-size:12px;line-height:18px;color:${t.ink500};">${e(copy.footer)}</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>`;
+}
+
+/** t8-b, English or Arabic by the recipient's locale (any other locale reads English). */
+export function composeApprovalRequestedEmail(facts: CollaborationEmailFacts): MailMessage {
+  const arabic = isArabicLocale(facts.locale);
+  const copy = approvalCopy(facts, arabic);
+  const who = oneLine(facts.actorName ?? facts.organizationName);
+  return {
+    to: facts.recipientEmail,
+    subject: copy.subject,
+    text: [
+      copy.subject,
+      [copy.sender, copy.project].filter(Boolean).join(' — '),
+      copy.body,
+      `${copy.approve} / ${copy.change}: ${facts.link}`,
+      copy.note,
+      copy.footer,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+    html: renderApprovalHtml(copy, initialsOf(who), facts.link, arabic),
+  };
+}
+
 export function composeCollaborationEmail(
   kind: CollaborationMailKind,
   facts: CollaborationEmailFacts,
 ): MailMessage {
-  if (
-    (kind === 'approval_requested' || kind === 'request_message') &&
-    isArabicLocale(facts.locale)
-  ) {
-    return composeArabicEmail(kind, facts);
+  if (kind === 'approval_requested') return composeApprovalRequestedEmail(facts);
+  if (kind === 'request_message' && isArabicLocale(facts.locale)) {
+    return composeArabicRequestMessage(facts);
   }
   const name = oneLine(facts.recipientName);
   const actor = oneLine(facts.actorName ?? facts.organizationName);
@@ -127,10 +288,6 @@ export function composeCollaborationEmail(
     case 'client_action':
       subject = `${studio} needs your input on ${title}`;
       middle = `${studio} is waiting on you for ${title}${inProject(facts)}.`;
-      break;
-    case 'approval_requested':
-      subject = `Please review: a new version in ${title}`;
-      middle = `${studio} sent a new version in ${title} for your approval. Please review it, then approve it or request changes.`;
       break;
     case 'request_message':
       subject = `New message on ${title}`;

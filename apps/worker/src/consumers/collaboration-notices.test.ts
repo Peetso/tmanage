@@ -297,10 +297,10 @@ describe('composeCollaborationEmail locale (NT1)', () => {
       link: 'https://app.example/s/portal/deliverables/ver-1',
     };
     const arabic = composeCollaborationEmail('approval_requested', { ...facts, locale: 'ar-EG' });
-    expect(arabic.subject).toContain('يرجى المراجعة');
+    expect(arabic.subject).toContain('مطلوب اعتمادك');
     expect(arabic.text).toContain(facts.link);
     const english = composeCollaborationEmail('approval_requested', { ...facts, locale: 'en' });
-    expect(english.subject).toBe('Please review: a new version in Website');
+    expect(english.subject).toBe('Your approval is needed: Website');
     expect(isArabicLocale('arabic')).toBe(false);
   });
 });

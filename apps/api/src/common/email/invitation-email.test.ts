@@ -25,15 +25,16 @@ describe('composeInvitationEmail', () => {
     const message = composeInvitationEmail(facts());
 
     expect(message.to).toBe('nadia@brightops.example');
-    expect(message.subject).toBe('Omar Farouk invited you to Northstar Studio on TManage');
-    expect(message.text).toContain('You’ve been invited as producer');
+    expect(message.subject).toBe('Omar Farouk invited you to Northstar Studio as producer');
+    expect(message.text).toContain('You are invited to join Northstar Studio on TManage');
+    expect(message.text).toContain('Your role: producer.');
     expect(message.text).toContain(
-      'Review invitation: https://app.tmanage.example/invitations/tok123',
+      'Accept invitation: https://app.tmanage.example/invitations/tok123',
     );
-    // §1: deadline with timezone.
+    // §1: deadline with timezone, and a route for the unexpected case.
     expect(message.text).toContain('expires on 13 September 2026 (UTC)');
-    // §1: why this recipient, and a route for the unexpected case.
-    expect(message.text).toContain('because Omar Farouk (omar@northstar.example) invited');
+    expect(message.text).toContain('you can ignore this email');
+    expect(message.text).toContain('Sent by TManage on behalf of Northstar Studio');
   });
 
   it('renders the client template — §3 "Invitation — client", minus the project it cannot name', () => {
@@ -41,11 +42,13 @@ describe('composeInvitationEmail', () => {
 
     // The template's `{{project}}` has no column on an invitation; the subject says the
     // portal without inventing one. Recorded in docs/implementation-status.md.
-    expect(message.subject).toBe('Northstar Studio invited you to their client portal');
+    expect(message.text).toContain('Northstar Studio client portal on TManage');
     expect(message.text).toContain('shared with BrightOps');
-    expect(message.text).toContain('Your role is producer.');
+    expect(message.text).toContain('Your role: producer.');
     expect(message.text).toContain('You will not see the team’s internal workspace.');
-    expect(message.text).toContain('Review access: https://app.tmanage.example/invitations/tok123');
+    expect(message.text).toContain(
+      'Accept invitation: https://app.tmanage.example/invitations/tok123',
+    );
     expect(message.text).toContain('expires on 13 September 2026 (UTC)');
   });
 
@@ -61,7 +64,7 @@ describe('composeInvitationEmail', () => {
       }),
     );
 
-    expect(message.subject).toBe('Omar Farouk invited you to North star on TManage');
+    expect(message.subject).toBe('Omar Farouk invited you to North star as producer');
     expect(message.subject).not.toMatch(/[\r\n]/u);
     expect(message.subject).not.toContain(separator);
   });
@@ -77,13 +80,13 @@ describe('composeInvitationEmail', () => {
   // ACC-05: the walkthrough's invitee read "invited as member" — an internal code.
   it('names the role in words, never the internal code', () => {
     const internal = composeInvitationEmail(facts({ role: 'member' }));
-    expect(internal.text).toContain('invited as Team member');
+    expect(internal.text).toContain('Your role: Team member.');
     expect(internal.html).toContain('Team member');
 
     const client = composeInvitationEmail(
       facts({ role: 'client_viewer', clientOrganizationName: 'BrightOps' }),
     );
-    expect(client.text).toContain('Your role is Client viewer.');
+    expect(client.text).toContain('Your role: Client viewer.');
     expect(client.text).not.toContain('client_viewer');
   });
 
@@ -101,7 +104,8 @@ describe('composeInvitationEmail', () => {
       'https://app.tmanage.example/invitations/tok123',
     ]);
     expect(html).toContain('>https://app.tmanage.example/invitations/tok123</a>');
-    expect(html).toContain('Review invitation');
+    expect(html).toContain('Accept invitation');
+    expect(html).toContain('>OF</td>');
     expect(html).toContain('13 September 2026 (UTC)');
   });
 
@@ -113,12 +117,22 @@ describe('composeInvitationEmail', () => {
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
   });
 
-  it('writes Arabic, right to left, for an Arabic organization', () => {
-    const message = composeInvitationEmail(facts({ locale: 'ar', role: 'member' }));
+  it('writes Arabic, right to left, for an Arabic recipient', () => {
+    const message = composeInvitationEmail(facts({ locale: 'ar-EG', role: 'member' }));
+    const rlm = String.fromCharCode(0x20_0f);
 
     expect(message.html).toContain('dir="rtl"');
     expect(message.html).toContain('lang="ar"');
-    expect(message.text).toContain('عضو في الفريق');
+    expect(message.html).toContain('Alexandria');
+    expect(message.text).toContain('دورك: عضو في الفريق.');
+    expect(message.text).toContain('13 سبتمبر 2026 (UTC)');
+    expect(message.text).toContain(`${rlm}أنت مدعو للانضمام إلى Northstar Studio على TManage`);
     expect(message.subject).toContain('دعاك');
+  });
+
+  it('falls back to English for an unknown locale', () => {
+    const message = composeInvitationEmail(facts({ locale: 'xx-YY' }));
+    expect(message.html).toContain('dir="ltr"');
+    expect(message.subject).toBe('Omar Farouk invited you to Northstar Studio as producer');
   });
 });
