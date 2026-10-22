@@ -226,7 +226,7 @@ describe('S14A /mcp 401 challenge (T-OA-01)', () => {
           throw new SessionNotAuthenticatedError('no_cookie');
         }),
       } as never,
-      { cookieName: 'tm' } as never,
+      { cookieName: 'tm', apiPublicUrl: ISSUER } as never,
       { recordGuardRefusal: vi.fn() } as never,
       {
         authenticate: vi.fn(async () => {
@@ -268,18 +268,18 @@ describe('S14A /mcp 401 challenge (T-OA-01)', () => {
     expect((await unauthenticatedMcpResponse('Bearer not-a-real-token')).status).toBe(401);
   });
 
-  // S14 FINDING: no code path sets `WWW-Authenticate` on the /mcp 401 (SessionAuthGuard throws a
-  // plain ApiError at session-auth.guard.ts:161 and :187, mcp-endpoint.controller.ts:215,
-  // and HttpExceptionFilter adds no challenge). MCP authorization and plan §4.1 require
-  // `WWW-Authenticate: Bearer resource_metadata="<PRM URL>", scope="tmanage:read"` so a client can
-  // discover the authorization server. Without it, OAuth discovery from /mcp cannot start.
-  it.skip('the /mcp 401 carries WWW-Authenticate with resource_metadata (S14 FINDING)', async () => {
+  // Was S14 FINDING (fixed in FX2): MCP authorization and plan §4.1 require
+  // `WWW-Authenticate: Bearer resource_metadata="<PRM URL>", scope="tmanage:read"` on the /mcp 401
+  // so a client can discover the authorization server. The guard now throws a challenge-bearing
+  // error on /mcp (URL from `API_PUBLIC_URL`, never a Host header) and the filter sets the header.
+  it('the /mcp 401 carries WWW-Authenticate with resource_metadata', async () => {
     for (const authorization of [undefined, 'Bearer not-a-real-token']) {
       const out = await unauthenticatedMcpResponse(authorization);
       expect(out.status).toBe(401);
       const challenge = out.headers['www-authenticate'] ?? '';
       expect(challenge).toMatch(/^Bearer /);
       expect(challenge).toContain(`resource_metadata="${PRM_URL}"`);
+      expect(challenge).toContain('scope="tmanage:read"');
     }
   });
 });

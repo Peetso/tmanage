@@ -51,6 +51,12 @@ export interface InternalGrantPayload {
   readonly clientName: string;
   /** The registry op id, or `<METHOD> <path>` for the raw REST calls the tools make. */
   readonly opId: string;
+  /**
+   * The outer token's space-delimited OAuth scopes (a PAT carries every scope). The endpoint has
+   * already checked the call against them; they ride along for attribution and later checks.
+   * Absent only on a grant minted by the approve page, where the member approved in person.
+   */
+  readonly scopes?: string;
 }
 
 interface StoredGrant {

@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { ApiError, MESSAGES } from '../errors.js';
@@ -24,6 +24,15 @@ import {
   isInProcessRequest,
 } from '../../../modules/mcp/internal-grant.js';
 import type { InternalGrantStore } from '../../../modules/mcp/internal-grant.js';
+import { TOKEN_PREFIX } from '../../../modules/personal-access-tokens/personal-access-token.js';
+import {
+  MCP_OAUTH_AUTHENTICATOR,
+  McpOAuthNotAuthenticatedError,
+  isMcpPath,
+  mcpUnauthenticated,
+  recordMcpOAuthAccess,
+} from '../../../modules/mcp/mcp-auth.js';
+import type { McpOAuthTokenAuthenticator } from '../../../modules/mcp/mcp-auth.js';
 
 /**
  * Spec §3 step 1 — "authenticate the current session and validate revocation/cutoff".
@@ -57,6 +66,10 @@ export class SessionAuthGuard implements CanActivate {
     private readonly events: AuthenticationEventRecorder,
     @Inject(PERSONAL_ACCESS_TOKEN_AUTHENTICATOR)
     private readonly personalAccessTokens: PersonalAccessTokensService,
+    /** OAuth access tokens for `/mcp` (plan §4.1). Provided by `McpEndpointModule`. */
+    @Optional()
+    @Inject(MCP_OAUTH_AUTHENTICATOR)
+    private readonly mcpOAuth?: McpOAuthTokenAuthenticator,
   ) {}
 
   /**
@@ -75,6 +88,7 @@ export class SessionAuthGuard implements CanActivate {
 
     const request = context.switchToHttp().getRequest<{
       readonly ip?: string;
+      readonly url?: unknown;
       readonly headers: Record<string, string | string[] | undefined>;
       readonly raw?: unknown;
     }>();
@@ -141,6 +155,39 @@ export class SessionAuthGuard implements CanActivate {
     // elevation; the membership resolver and permission checks run afterwards as for a cookie.
     if (accessToken === undefined) {
       const bearer = readBearerToken(request.headers['authorization']);
+      // An OAuth access token (opaque, no PAT prefix) is accepted on `/mcp` only — its audience is
+      // that resource, so it is never a key to the REST API directly. It proves the same kind of
+      // bound principal a PAT does; its grant, scopes and client go to the endpoint privately.
+      if (
+        bearer !== undefined &&
+        this.mcpOAuth !== undefined &&
+        !bearer.startsWith(TOKEN_PREFIX) &&
+        isMcpPath(request.url)
+      ) {
+        try {
+          const access = await this.mcpOAuth.authenticate(bearer, state.correlationId);
+          state.session = { sessionId: `oauth:${access.grantId}`, userId: access.userId };
+          state.authScheme = 'ai_grant';
+          state.personalAccessToken = {
+            organizationId: access.organizationId,
+            membershipId: access.membershipId,
+          };
+          state.aiGrant = {
+            grantId: access.grantId,
+            clientId: access.clientId,
+            clientName: access.clientName,
+            opId: 'POST /mcp',
+          };
+          recordMcpOAuthAccess(state, access);
+          return true;
+        } catch (error) {
+          if (error instanceof McpOAuthNotAuthenticatedError) {
+            this.recordRefusal(request, state.correlationId);
+            throw this.unauthenticated(request, error.code);
+          }
+          throw error;
+        }
+      }
       if (bearer !== undefined) {
         try {
           const authed = await this.personalAccessTokens.authenticate(bearer, state.correlationId);
@@ -158,13 +205,7 @@ export class SessionAuthGuard implements CanActivate {
         } catch (error) {
           if (error instanceof PersonalAccessTokenNotAuthenticatedError) {
             this.recordRefusal(request, state.correlationId);
-            throw new ApiError(
-              401,
-              'unauthenticated',
-              MESSAGES.unauthenticated,
-              undefined,
-              error.code,
-            );
+            throw this.unauthenticated(request, error.code);
           }
           throw error;
         }
@@ -184,12 +225,22 @@ export class SessionAuthGuard implements CanActivate {
         // and timing whether or not the row is written. The `try` is defence in depth: the
         // refusal is the control and no recorder, however it misbehaves, may take its place.
         this.recordRefusal(request, state.correlationId);
-        throw new ApiError(401, 'unauthenticated', MESSAGES.unauthenticated, undefined, error.code);
+        throw this.unauthenticated(request, error.code);
       }
       throw error;
     }
 
     return true;
+  }
+
+  /**
+   * The 401. On `/mcp` it carries the OAuth challenge (`WWW-Authenticate: Bearer
+   * resource_metadata=…`) so an AI client can discover the authorization server from it; every
+   * other route keeps the plain 401 it always had.
+   */
+  private unauthenticated(request: { readonly url?: unknown }, auditCode: string): ApiError {
+    if (isMcpPath(request.url)) return mcpUnauthenticated(this.config, auditCode);
+    return new ApiError(401, 'unauthenticated', MESSAGES.unauthenticated, undefined, auditCode);
   }
 
   /**

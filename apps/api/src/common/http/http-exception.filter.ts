@@ -11,6 +11,7 @@ import {
   ProjectNotFoundError,
   ProjectVersionConflictError,
 } from '../../modules/projects/projects.repository.js';
+import { McpChallengeError } from '../../modules/mcp/mcp-auth.js';
 
 /**
  * The single place a thrown value becomes a response.
@@ -49,6 +50,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const correlationId = ensureRequestState(request).correlationId;
     response.header(CORRELATION_HEADER, correlationId);
     const apiError = this.toApiError(exception, request);
+    // `/mcp` refusals carry the OAuth challenge a client discovers the authorization server from.
+    if (exception instanceof McpChallengeError) {
+      response.header('www-authenticate', exception.wwwAuthenticate);
+    }
 
     // The audit code and the original error are what a log sink and, later, AUD-001 consume.
     // They are attached to the error object rather than printed here so that wiring the

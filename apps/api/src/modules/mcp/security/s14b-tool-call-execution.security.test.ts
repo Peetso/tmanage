@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Logger } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import type { HttpAdapterHost } from '@nestjs/core';
-import type { TManageApiClient } from '@tmanage/mcp-server';
+import type { Catalog, CatalogRuntime, RunResult } from '@tmanage/mcp-server';
 import type * as McpServerModule from '@tmanage/mcp-server';
 import { ApiError } from '../../../common/http/errors.js';
 import { SessionAuthGuard } from '../../../common/http/guards/session-auth.guard.js';
@@ -13,31 +13,30 @@ import { mintPersonalAccessToken } from '../../personal-access-tokens/personal-a
 import { INTERNAL_GRANT_HEADER, internalGrants } from '../internal-grant.js';
 import { McpEndpointController } from '../mcp-endpoint.controller.js';
 import type { InjectCapable } from '../mcp-endpoint.controller.js';
+import { recordMcpOAuthAccess } from '../mcp-auth.js';
 
 /**
  * S14B — AI-connector security suite: executing an MCP tool call.
  *
- * Drives the real `McpEndpointController` (with the MCP transport stubbed out) and hands the API
- * client it builds to an in-memory "inject" that runs the real `SessionAuthGuard` and
- * `TenantContextGuard` on every inner request. That exercises, end to end and without a database:
+ * Drives the real `McpEndpointController` (with the MCP transport stubbed out) and runs the tools
+ * of the catalogue it serves against an in-memory "inject" that runs the real `SessionAuthGuard`
+ * and `TenantContextGuard` on every inner request. That exercises, end to end and without a database:
  * the bearer token stripped before the inner request, the one-time internal grant (no replay), one
  * redacted audit record per call that never contains the token, and workspace isolation (a token
  * bound to workspace A cannot touch workspace B, even one its member also belongs to).
  */
 
-const captured = vi.hoisted(() => ({ clients: [] as unknown[] }));
+const captured = vi.hoisted(() => ({ surfaces: [] as { catalog: unknown; runtime: unknown }[] }));
 
 vi.mock('@tmanage/mcp-server', async (importOriginal) => {
   const actual = await importOriginal<typeof McpServerModule>();
   return {
     ...actual,
-    // Keep the real API client (it is what sets the Bearer header), but remember it.
-    createHttpApiClient: vi.fn((options: Parameters<typeof actual.createHttpApiClient>[0]) => {
-      const client = actual.createHttpApiClient(options);
-      captured.clients.push(client);
-      return client;
+    // Keep the real catalogue and runtime the endpoint builds, but remember them.
+    buildCatalogServer: vi.fn((catalog: unknown, runtime: unknown) => {
+      captured.surfaces.push({ catalog, runtime });
+      return {};
     }),
-    buildServer: vi.fn(() => ({})),
     serveMcpRequest: vi.fn(async () => undefined),
   };
 });
@@ -179,12 +178,66 @@ function patRequest(): object {
   return request;
 }
 
-/** Run the real controller and return the API client it wired for the tool calls. */
-async function connect(app: InjectCapable): Promise<TManageApiClient> {
+/** An OAuth request bound to workspace A, as `SessionAuthGuard` leaves it, for `scopes`. */
+function oauthRequest(
+  scopes: string,
+  body: unknown = { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+) {
+  const request = {
+    method: 'POST',
+    headers: { authorization: 'Bearer opaque-oauth-access-token' },
+    body,
+    raw: {},
+  };
+  const state = requireRequestState(request);
+  state.session = { sessionId: 'oauth:g1', userId: USER };
+  state.authScheme = 'ai_grant';
+  state.personalAccessToken = { organizationId: 'org-a', membershipId: 'm-a' };
+  recordMcpOAuthAccess(state, {
+    grantId: 'g1',
+    userId: USER,
+    membershipId: 'm-a',
+    organizationId: 'org-a',
+    scopes,
+    clientId: 'client-1',
+    clientName: 'Claude',
+  });
+  return request;
+}
+
+const ALL_CAPS = new Set(['work.read', 'work.create', 'work.update', 'work.comment']);
+
+function endpoint(app: InjectCapable, orgSlug: string): McpEndpointController {
   const host = { httpAdapter: { getInstance: () => app } } as unknown as HttpAdapterHost;
+  // The workspace the endpoint resolves from the token's own binding. A wrong slug here stands
+  // for a resolution bug: the guard chain must still keep the call in the token's workspace.
+  const workspaces = { resolve: vi.fn(async () => ({ orgSlug, capabilities: ALL_CAPS })) };
+  return new McpEndpointController(host, undefined, workspaces);
+}
+
+interface ToolCaller {
+  call(name: string, args: Record<string, unknown>): Promise<RunResult>;
+}
+
+/** Run the real controller and return a caller over the catalogue it serves. */
+async function connect(
+  app: InjectCapable,
+  orgSlug = 'acme',
+  request = patRequest(),
+): Promise<ToolCaller> {
   const reply = { hijack: vi.fn(), raw: {} } as never;
-  await new McpEndpointController(host).handle(patRequest() as never, reply);
-  return captured.clients.at(-1) as TManageApiClient;
+  await endpoint(app, orgSlug).handle(request as never, reply);
+  const { catalog, runtime } = captured.surfaces.at(-1) as {
+    catalog: Catalog;
+    runtime: CatalogRuntime;
+  };
+  return {
+    async call(name, args) {
+      const tool = catalog.tools.find((t) => t.name === name);
+      if (tool === undefined) throw new Error(`tool not served: ${name}`);
+      return runtime.runTool(tool, args);
+    },
+  };
 }
 
 let logged: string[] = [];
@@ -218,8 +271,8 @@ function toolCallLines(): Record<string, unknown>[] {
 describe('S14B tool call — bearer token stripped before the internal request', () => {
   it('no inner request carries the AI client’s token, only a single-use grant', async () => {
     const app = guardedApp();
-    const client = await connect(app);
-    await client.createWorkItem('acme', { projectId: 'p1', title: SECRET_TITLE });
+    const tools = await connect(app);
+    await tools.call('work_items_create', { projectId: 'p1', title: SECRET_TITLE });
 
     expect(app.calls.length).toBeGreaterThan(0);
     for (const call of app.calls) {
@@ -237,8 +290,8 @@ describe('S14B tool call — bearer token stripped before the internal request',
 describe('S14B tool call — the one-time internal grant cannot be replayed', () => {
   it('a grant used by a tool call is refused when presented again, even in-process', async () => {
     const app = guardedApp();
-    const client = await connect(app);
-    await client.createWorkItem('acme', { projectId: 'p1', title: 'x' });
+    const tools = await connect(app);
+    await tools.call('work_items_create', { projectId: 'p1', title: 'x' });
     const used = app.calls.at(-1)!;
     expect(used.status).toBe(200);
     const nonce = used.headers[INTERNAL_GRANT_HEADER]!;
@@ -283,9 +336,9 @@ describe('S14B tool call — the one-time internal grant cannot be replayed', ()
 describe('S14B tool call — one redacted audit record per call, token never logged', () => {
   it('logs exactly one mcp.tool_call line per inner call with op, hash, outcome and client', async () => {
     const app = guardedApp();
-    const client = await connect(app);
-    await client.createWorkItem('acme', { projectId: 'p1', title: SECRET_TITLE });
-    await client.addComment('acme', 'wi-1', SECRET_TITLE);
+    const tools = await connect(app);
+    await tools.call('work_items_create', { projectId: 'p1', title: SECRET_TITLE });
+    await tools.call('work_items_comments_create', { workItemId: 'wi-1', body: SECRET_TITLE });
 
     const lines = toolCallLines();
     expect(lines).toHaveLength(app.calls.length);
@@ -304,11 +357,12 @@ describe('S14B tool call — one redacted audit record per call, token never log
 
   it('never writes the token, the grant nonce or the request body to any log level', async () => {
     const app = guardedApp();
-    const client = await connect(app);
-    await client.createWorkItem('acme', { projectId: 'p1', title: SECRET_TITLE });
-    await expect(
-      client.createWorkItem('globex', { projectId: 'p1', title: SECRET_TITLE }),
-    ).rejects.toBeDefined();
+    const tools = await connect(app);
+    await tools.call('work_items_create', { projectId: 'p1', title: SECRET_TITLE });
+    const refused = await connect(app, 'globex');
+    expect(
+      (await refused.call('work_items_create', { projectId: 'p1', title: SECRET_TITLE })).isError,
+    ).toBe(true);
 
     expect(logged.length).toBeGreaterThan(0);
     const all = logged.join('\n');
@@ -322,21 +376,31 @@ describe('S14B tool call — one redacted audit record per call, token never log
 describe('S14B tool call — workspace isolation', () => {
   it('acts in the token’s own workspace, tagged as the AI-assistant channel', async () => {
     const app = guardedApp();
-    const client = await connect(app);
-    await client.createWorkItem('acme', { projectId: 'p1', title: 'x' });
+    const tools = await connect(app);
+    await tools.call('work_items_create', { projectId: 'p1', title: 'x' });
     const call = app.calls.at(-1)!;
     expect(call.status).toBe(200);
+    expect(call.url.startsWith('/v1/organizations/acme/')).toBe(true);
     expect(call.organizationId).toBe('org-a');
     expect(call.actorChannel).toBe('ai_assistant');
   });
 
+  it('the model cannot name a workspace: an orgSlug argument is ignored', async () => {
+    const app = guardedApp();
+    const tools = await connect(app);
+    await tools.call('work_items_get', { workItemId: 'wi-9', orgSlug: 'globex' });
+    const call = app.calls.at(-1)!;
+    expect(call.url.startsWith('/v1/organizations/acme/')).toBe(true);
+    expect(call.organizationId).toBe('org-a');
+  });
+
   it('a token bound to workspace A cannot touch workspace B, even one its member is in', async () => {
     const app = guardedApp();
-    const client = await connect(app);
-    await expect(client.getWorkItem('globex', 'wi-9')).rejects.toMatchObject({ status: 404 });
-    await expect(
-      client.createWorkItem('globex', { projectId: 'p1', title: 'x' }),
-    ).rejects.toMatchObject({ status: 404 });
+    const tools = await connect(app, 'globex');
+    expect((await tools.call('work_items_get', { workItemId: 'wi-9' })).isError).toBe(true);
+    expect((await tools.call('work_items_create', { projectId: 'p1', title: 'x' })).isError).toBe(
+      true,
+    );
     const refused = app.calls.filter((c) => c.url.startsWith('/v1/organizations/globex/'));
     expect(refused).toHaveLength(2);
     for (const call of refused) {
@@ -348,31 +412,88 @@ describe('S14B tool call — workspace isolation', () => {
 
   it('an unknown workspace answers the same 404 as a foreign one (no tenant oracle)', async () => {
     const app = guardedApp();
-    const client = await connect(app);
-    const foreign = await client.getWorkItem('globex', 'w').catch((e: unknown) => e);
-    const unknown = await client.getWorkItem('nope-co', 'w').catch((e: unknown) => e);
-    expect(foreign).toMatchObject({ status: 404 });
-    expect(unknown).toMatchObject({ status: 404 });
-    expect((foreign as Error).message).toBe((unknown as Error).message);
+    const foreign = await (
+      await connect(app, 'globex')
+    ).call('work_items_get', { workItemId: 'w' });
+    const unknown = await (
+      await connect(app, 'nope-co')
+    ).call('work_items_get', { workItemId: 'w' });
+    expect(app.calls.map((c) => c.status)).toEqual([404, 404]);
+    expect(foreign.isError && unknown.isError).toBe(true);
+    expect(foreign.data).toBe(unknown.data);
   });
 });
 
 describe('S14B tool call — calls outside the granted scope', () => {
-  // S14 FINDING (F3): no scope is enforced on a tool call at `POST /mcp`. The endpoint accepts only
-  // a personal access token (mcp-endpoint.controller.ts `handle`, authScheme check), a PAT row has
-  // no scopes, the internal grant payload carries none (internal-grant.ts InternalGrantPayload), and
-  // `grantCoversScope` / `insufficientScopeChallenge` (oauth/scopes.ts) are never called outside
-  // tests. So a write tool (`create_work_item`) always runs with the member's full power; plan §4.1
-  // ("a PAT gets scopes too") and §4.2 / T-SCP-01 (403 insufficient_scope) are not met. OAuth access
-  // tokens, which do carry scopes, are not accepted at `/mcp` at all. This test states the intent:
-  // a read-only grant's write call is refused with 403 before any inner request runs.
-  it.skip('a read-only grant’s write tool call is refused with 403 insufficient_scope', async () => {
+  // Was S14 FINDING (F3, fixed in FX2): no scope was enforced on a tool call at `POST /mcp`. The
+  // endpoint now accepts OAuth access tokens, carries the grant's scopes in the internal grant, and
+  // checks `grantCoversScope` on every call: a call outside the scopes answers 403 with the
+  // `insufficient_scope` challenge (plan §4.1/§4.2, T-SCP-01) before any inner request runs.
+  it('a read-only grant’s write tool call is refused with 403 insufficient_scope', async () => {
     const app = guardedApp();
-    const client = await connect(app);
-    // There is no field to mark the grant read-only today; once one exists, set it in patRequest().
+    const call = {
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'tools/call',
+      params: { name: 'work_items_create', arguments: { projectId: 'p1', title: 'x' } },
+    };
     await expect(
-      client.createWorkItem('acme', { projectId: 'p1', title: 'x' }),
+      endpoint(app, 'acme').handle(
+        oauthRequest('tmanage:read', call) as never,
+        {
+          hijack: vi.fn(),
+          raw: {},
+        } as never,
+      ),
+    ).rejects.toMatchObject({
+      status: 403,
+      wwwAuthenticate: expect.stringContaining('error="insufficient_scope"'),
+    });
+    // The same through the meta-tool: an action id does not get round the scope check.
+    const viaRunAction = {
+      ...call,
+      params: {
+        name: 'tmanage_run_action',
+        arguments: { action_id: 'work_items.create', args: { title: 'x' } },
+      },
+    };
+    await expect(
+      endpoint(app, 'acme').handle(
+        oauthRequest('tmanage:read', viaRunAction) as never,
+        {
+          hijack: vi.fn(),
+          raw: {},
+        } as never,
+      ),
     ).rejects.toMatchObject({ status: 403 });
     expect(app.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('a read-only grant is served no write tools, and the runtime refuses one if reached', async () => {
+    const app = guardedApp();
+    const tools = await connect(app, 'acme', oauthRequest('tmanage:read'));
+    await expect(tools.call('work_items_create', { title: 'x' })).rejects.toThrow(/not served/);
+    const viaRunAction = await tools.call('tmanage_run_action', {
+      action_id: 'work_items.create',
+      args: { title: 'x' },
+    });
+    expect(viaRunAction.isError).toBe(true);
+    expect(app.calls.filter((c) => c.method === 'POST')).toHaveLength(0);
+  });
+
+  it('carries the token’s scopes in the internal grant of every inner call', async () => {
+    const app = guardedApp();
+    const mint = vi.spyOn(internalGrants, 'mint');
+    const tools = await connect(app, 'acme', oauthRequest('tmanage:read'));
+    const result = await tools.call('work_items_get', { workItemId: 'wi-1' });
+    expect(result.isError).toBeFalsy();
+    expect(mint).toHaveBeenCalledTimes(1);
+    expect(mint.mock.calls[0]![0]).toMatchObject({
+      scopes: 'tmanage:read',
+      clientId: 'client-1',
+      clientName: 'Claude',
+      organizationId: 'org-a',
+    });
+    expect(app.calls.at(-1)!.status).toBe(200);
   });
 });

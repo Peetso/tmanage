@@ -13,12 +13,16 @@ import {
 } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
-import { buildServer, createHttpApiClient, serveMcpRequest } from '@tmanage/mcp-server';
+import { buildCatalogServer, serveMcpRequest } from '@tmanage/mcp-server';
+import type { CatalogProfile } from '@tmanage/mcp-server';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { NoTenant } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { CORRELATION_HEADER } from '../../common/http/correlation.js';
 import { createFixedWindowLimiter } from '../../common/http/rate-limiter.js';
+import { API_CONFIG, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { RequestAdmission } from '../../common/http/rate-limiter.js';
 import { argsSha256, INTERNAL_GRANT_HEADER, internalGrants } from './internal-grant.js';
 import type { InternalGrantPayload } from './internal-grant.js';
@@ -29,24 +33,38 @@ import {
   aiWorkspaceDisabledError,
 } from '../oauth/ai-access.js';
 import type { AiAccessSwitches } from '../oauth/ai-access.js';
+import { requiredScopeFor } from '../oauth/scopes.js';
+import { PAT_SCOPES, grantCoversOp, liveMcpSurface, opsCalledBy } from './catalog-runtime.js';
+import {
+  MCP_OAUTH_AUTHENTICATOR,
+  McpOAuthAuthenticator,
+  mcpInsufficientScope,
+  mcpOAuthAccessFor,
+  mcpResourceUri,
+  mcpUnauthenticated,
+} from './mcp-auth.js';
+import { DatabaseMcpWorkspaceResolver, MCP_WORKSPACE_RESOLVER } from './mcp-workspace.js';
+import type { McpWorkspaceResolver } from './mcp-workspace.js';
 
 /**
  * **Hosted MCP endpoint — `POST /mcp` (Streamable HTTP, stateless).**
  *
  * Claude, ChatGPT and any MCP assistant connect to `https://<workspace host>/mcp` and sign in with
- * a personal access token as `Authorization: Bearer <token>` — the token the AI assistant page
- * creates. No separate service runs: the `@tmanage/mcp-server` tools are served from this API.
+ * an OAuth access token from `/oauth/token` (the browser consent flow, plan §4.1) or a personal
+ * access token (CLIs, Claude Code) as `Authorization: Bearer <token>`. No separate service runs.
  *
  * ## Scoped exactly like the REST API, because it IS the REST API
  *
- * 1. `SessionAuthGuard` authenticates the Bearer token before this handler runs (unknown, revoked
- *    or expired → the same 401 as every route). This handler then refuses anything that is not a
- *    personal-access-token request — a browser cookie is not a way in.
- * 2. Every tool call is an ordinary API request made in-process (`fastify.inject`) with the
- *    caller's own Bearer header. It passes the full guard chain again — authentication, the
- *    token's one-organization binding (`TenantContextGuard`), capability and object checks — so a
- *    tool can do exactly what the token's member can do over REST, in the token's organization,
- *    and nothing more. There is no second permission model to drift.
+ * 1. `SessionAuthGuard` authenticates the Bearer token before this handler runs. A refusal on
+ *    `/mcp` carries `WWW-Authenticate: Bearer resource_metadata=…` so a client can find the
+ *    authorization server. A browser cookie is not a way in.
+ * 2. The tools are the S5 catalogue for the caller's grant — filtered by its scopes (a PAT keeps
+ *    every scope) and the member's capabilities — and a call outside the scopes answers 403
+ *    `insufficient_scope` before anything runs (T-SCP-01).
+ * 3. Every tool call is an ordinary API request made in-process (`fastify.inject`) under a
+ *    one-time internal grant, in the token's own workspace. It passes the full guard chain again —
+ *    the one-organization binding (`TenantContextGuard`), capability and object checks — so a
+ *    tool can do exactly what the member can do over REST, and nothing more.
  *
  * ## Rate limited, and the token is never logged
  *
@@ -186,6 +204,14 @@ interface FastifyReplyLike {
   send(payload: unknown): unknown;
 }
 
+/** `?tools=full` on the MCP URL picks the full profile (plan §3); anything else is compact. */
+function toolsProfile(raw: IncomingMessage | undefined): CatalogProfile {
+  const url = typeof raw?.url === 'string' ? raw.url : '/';
+  return new URL(url, IN_PROCESS_BASE_URL).searchParams.get('tools') === 'full'
+    ? 'full'
+    : 'compact';
+}
+
 @NoTenant()
 @Controller('mcp')
 export class McpEndpointController {
@@ -203,56 +229,76 @@ export class McpEndpointController {
     @Optional()
     @Inject(AI_ACCESS_SWITCHES)
     private readonly aiAccess?: AiAccessSwitches,
+    /** The token's own workspace (slug + member capabilities). Absent only in unit tests. */
+    @Optional()
+    @Inject(MCP_WORKSPACE_RESOLVER)
+    private readonly workspaces?: McpWorkspaceResolver,
+    /** For the challenge URLs (`API_PUBLIC_URL`). Absent only in unit tests. */
+    @Optional()
+    @Inject(API_CONFIG)
+    private readonly config: Pick<ApiConfig, 'apiPublicUrl' | 'webPublicUrl'> = {},
   ) {}
 
   @Post()
   async handle(@Req() request: FastifyRequestLike, @Res() reply: FastifyReplyLike): Promise<void> {
     const state = requireRequestState(request);
     const token = bearerToken(request.headers['authorization']);
-    // A cookie session is not a way into the MCP endpoint: only a personal access token, which
-    // `SessionAuthGuard` has already verified (unknown, revoked and expired tokens never get here).
-    if (state.authScheme !== 'personal_access_token' || !state.session || token === undefined) {
-      throw new ApiError(
-        401,
-        'unauthenticated',
-        MESSAGES.unauthenticated,
-        undefined,
-        'mcp_requires_personal_access_token',
-      );
+    // Two ways in, both already verified by `SessionAuthGuard`: a personal access token (the
+    // member's full rights, as for Claude Code), or an OAuth access token for this resource, whose
+    // grant narrows what may run. A cookie session is not a way in.
+    const oauth = mcpOAuthAccessFor(state);
+    const isPat = state.authScheme === 'personal_access_token' && token !== undefined;
+    const binding = state.personalAccessToken;
+    if (!state.session || binding === undefined || (!isPat && oauth === undefined)) {
+      throw mcpUnauthenticated(this.config, 'mcp_requires_bearer_token');
     }
     // S11 kill switches, read on every request (cached under a second): the platform switch
     // answers 503, a workspace whose owner turned AI off answers 403.
     if (this.aiAccess) {
       if (!(await this.aiAccess.platformOn(state.correlationId))) throw aiPlatformDisabledError();
-      const organizationId = state.personalAccessToken?.organizationId;
-      if (
-        organizationId === undefined ||
-        !(await this.aiAccess.organizationOn(organizationId, state.correlationId))
-      ) {
+      if (!(await this.aiAccess.organizationOn(binding.organizationId, state.correlationId))) {
         throw aiWorkspaceDisabledError();
       }
     }
-    // Keyed by the token row's id (`pat:<id>`), never by the token itself.
+    // Keyed by the token row's id (`pat:<id>`) or the grant (`oauth:<id>`), never the token itself.
     if (!this.admit(state.session.sessionId)) {
       throw new ApiError(429, 'rate_limited', MESSAGES.rateLimited, undefined, 'mcp_rate_limited');
     }
 
+    // T-SCP-01. A call outside the grant's scopes is refused before anything runs, with the
+    // step-up challenge naming the scope to ask for.
+    const scopes = oauth?.scopes ?? PAT_SCOPES;
+    for (const op of opsCalledBy(request.body)) {
+      if (!grantCoversOp(scopes, op)) {
+        throw mcpInsufficientScope(this.config, scopes, requiredScopeFor(op.scope) ?? op.scope);
+      }
+    }
+
+    if (!this.workspaces) throw new Error('McpEndpointController: no workspace resolver');
+    const workspace = await this.workspaces.resolve(
+      { userId: state.session.userId, ...binding },
+      state.correlationId,
+    );
+    if (workspace === undefined) throw mcpUnauthenticated(this.config, 'mcp_membership_changed');
+
     // The principal the outer request proved — the one every inner call will act as. Captured now,
     // before the transport takes over the reply, so the grant minter below can run per inner call.
-    const binding = state.personalAccessToken;
     const principal: Omit<InternalGrantPayload, 'opId'> = {
-      grantId: state.session.sessionId,
+      grantId: oauth?.grantId ?? state.session.sessionId,
       userId: state.session.userId,
-      // Bound by `SessionAuthGuard` on the PAT path; the outer check above guarantees it is set.
-      membershipId: binding?.membershipId ?? '',
-      organizationId: binding?.organizationId ?? '',
-      clientId: state.session.sessionId,
-      clientName: 'AI assistant',
+      membershipId: binding.membershipId,
+      organizationId: binding.organizationId,
+      clientId: oauth?.clientId ?? state.session.sessionId,
+      clientName: oauth?.clientName ?? 'AI assistant',
+      scopes,
     };
 
-    const client = createHttpApiClient({
+    const { catalog, runtime } = liveMcpSurface({
+      profile: toolsProfile(request.raw),
+      scopes,
+      capabilities: workspace.capabilities,
+      orgSlug: workspace.orgSlug,
       baseUrl: IN_PROCESS_BASE_URL,
-      token,
       fetch: inProcessFetch(this.adapterHost.httpAdapter.getInstance<InjectCapable>(), {
         // B1/B3. One single-use grant per inner call; the client's token is never forwarded.
         mintGrant: (opId) => internalGrants.mint({ ...principal, opId }),
@@ -273,9 +319,15 @@ export class McpEndpointController {
     });
     // From here the MCP transport writes the response itself.
     reply.hijack();
-    await serveMcpRequest(buildServer(client), request.raw, reply.raw, request.body, {
-      enableJsonResponse: true,
-    });
+    await serveMcpRequest(
+      buildCatalogServer(catalog, runtime),
+      request.raw,
+      reply.raw,
+      request.body,
+      {
+        enableJsonResponse: true,
+      },
+    );
   }
 
   /** Stateless: no server-sent stream to open and no session to end. */
@@ -302,7 +354,22 @@ export class McpEndpointModule {
   static register(): DynamicModule {
     return {
       module: McpEndpointModule,
-      providers: [aiAccessSwitchesProvider],
+      providers: [
+        aiAccessSwitchesProvider,
+        {
+          provide: MCP_WORKSPACE_RESOLVER,
+          inject: [TENANT_DATABASE],
+          useFactory: (database: TenantDatabase) => new DatabaseMcpWorkspaceResolver(database),
+        },
+        {
+          // Exported so the global `SessionAuthGuard` can accept OAuth access tokens on /mcp.
+          provide: MCP_OAUTH_AUTHENTICATOR,
+          inject: [TENANT_DATABASE, API_CONFIG],
+          useFactory: (database: TenantDatabase, config: ApiConfig) =>
+            new McpOAuthAuthenticator(database, mcpResourceUri(config)),
+        },
+      ],
+      exports: [MCP_OAUTH_AUTHENTICATOR],
       controllers: [McpEndpointController],
     };
   }

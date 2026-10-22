@@ -1,10 +1,31 @@
-import { describe, expect, it } from 'vitest';
-import { createHttpApiClient, registerTools } from '@tmanage/mcp-server';
+import { describe, expect, it, vi } from 'vitest';
+import type { HttpAdapterHost } from '@nestjs/core';
+import type { Catalog, CatalogProfile, CatalogRuntime } from '@tmanage/mcp-server';
+import type * as McpServerModule from '@tmanage/mcp-server';
+import { requireRequestState } from '../../../common/http/request-state.js';
 import { OPS, findOpById, findOpByRoute } from '../../ai-actions/registry/index.js';
 import type { AiScope } from '../../ai-actions/registry/index.js';
 import { NEVER, isNever } from '../../ai-actions/registry/never.js';
 import { buildAiOpenApiDocument, toOpenApiPath } from '../../ai-actions/openapi.js';
 import { buildToolCatalog, toolNameForOp } from '../tool-catalog.js';
+import { McpEndpointController } from '../mcp-endpoint.controller.js';
+import type { InjectCapable } from '../mcp-endpoint.controller.js';
+import { recordMcpOAuthAccess } from '../mcp-auth.js';
+
+/** The catalogue and runtime the real `/mcp` controller hands to the MCP transport. */
+const captured = vi.hoisted(() => ({ surfaces: [] as { catalog: unknown; runtime: unknown }[] }));
+
+vi.mock('@tmanage/mcp-server', async (importOriginal) => {
+  const actual = await importOriginal<typeof McpServerModule>();
+  return {
+    ...actual,
+    buildCatalogServer: vi.fn((catalog: unknown, runtime: unknown) => {
+      captured.surfaces.push({ catalog, runtime });
+      return {};
+    }),
+    serveMcpRequest: vi.fn(async () => undefined),
+  };
+});
 
 /**
  * S14B — AI-connector security suite: the tool surface (catalogue + registry).
@@ -143,44 +164,79 @@ describe('S14B registry — discovery and connector routes are NEVER callable', 
   });
 });
 
-/** The routes the live `/mcp` tools actually call, captured through a recording `fetch`. */
-async function liveToolRoutes(): Promise<{
+const USER = '0198f4a2-1c00-7000-8000-00000000000c';
+const ALL_OAUTH_SCOPES = 'tmanage:read tmanage:write tmanage:manage tmanage:billing';
+
+/** An OAuth request to `POST /mcp` as `SessionAuthGuard` leaves it, for a grant with `scopes`. */
+function oauthMcpRequest(scopes: string, profile: CatalogProfile): object {
+  const request = {
+    method: 'POST',
+    headers: { authorization: 'Bearer opaque-oauth-access-token' },
+    body: { jsonrpc: '2.0', id: 1, method: 'tools/list' },
+    raw: { url: profile === 'full' ? '/mcp?tools=full' : '/mcp' },
+  };
+  const state = requireRequestState(request);
+  state.session = { sessionId: 'oauth:g1', userId: USER };
+  state.authScheme = 'ai_grant';
+  state.personalAccessToken = { organizationId: 'org-a', membershipId: 'm-a' };
+  recordMcpOAuthAccess(state, {
+    grantId: 'g1',
+    userId: USER,
+    membershipId: 'm-a',
+    organizationId: 'org-a',
+    scopes,
+    clientId: 'client-1',
+    clientName: 'Claude',
+  });
+  return request;
+}
+
+/**
+ * Drive the real `McpEndpointController` for one grant, then run every tool (and read every
+ * resource) it serves, recording each in-process route the calls reach.
+ */
+async function liveToolRoutes(
+  scopes = ALL_OAUTH_SCOPES,
+  profile: CatalogProfile = 'full',
+): Promise<{
   names: string[];
   routes: { method: string; path: string }[];
 }> {
   const routes: { method: string; path: string }[] = [];
-  const handlers = new Map<string, (args: Record<string, unknown>) => Promise<unknown>>();
-  const server = {
-    registerTool(
-      name: string,
-      _def: unknown,
-      handler: (args: Record<string, unknown>) => Promise<unknown>,
-    ) {
-      handlers.set(name, handler);
+  const app: InjectCapable = {
+    async inject({ method, url }) {
+      routes.push({ method, path: url.split('?')[0]! });
+      return { statusCode: 200, body: '{}', headers: { 'content-type': 'application/json' } };
     },
-  } as unknown as Parameters<typeof registerTools>[0];
-  const recordingFetch = (async (input: string | URL | Request, init?: RequestInit) => {
-    const href = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    routes.push({ method: (init?.method ?? 'GET').toUpperCase(), path: new URL(href).pathname });
-    return new Response(JSON.stringify({ organizations: [{ slug: 'acme' }], items: [] }), {
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-    });
-  }) as typeof fetch;
-  registerTools(
-    server,
-    createHttpApiClient({ baseUrl: 'http://tmanage.internal', token: 't', fetch: recordingFetch }),
-  );
-  const args = {
-    query: 'q',
-    work_item_id: 'w1',
-    project_id: 'p1',
-    document_id: 'd1',
-    title: 'Title',
-    body: 'Body',
   };
-  for (const handler of handlers.values()) await handler(args);
-  return { names: [...handlers.keys()], routes };
+  const host = { httpAdapter: { getInstance: () => app } } as unknown as HttpAdapterHost;
+  const workspaces = { resolve: async () => ({ orgSlug: 'acme', capabilities: ALL_CAPS }) };
+  const reply = { hijack: vi.fn(), raw: {} } as never;
+  await new McpEndpointController(host, undefined, workspaces).handle(
+    oauthMcpRequest(scopes, profile) as never,
+    reply,
+  );
+  const { catalog, runtime } = captured.surfaces.at(-1) as {
+    catalog: Catalog;
+    runtime: CatalogRuntime;
+  };
+  for (const tool of catalog.tools) {
+    const op = tool.opId === undefined ? undefined : findOpById(tool.opId);
+    const args: Record<string, unknown> =
+      op === undefined
+        ? { query: 'work', action_id: 'work_items.list', args: {}, approval_id: 'a1' }
+        : Object.fromEntries(
+            [...op.path.matchAll(/:([A-Za-z0-9_]+)/g)]
+              .map((m) => m[1]!)
+              .filter((name) => name !== 'orgSlug')
+              .map((name) => [name, 'x'] as const),
+          );
+    await runtime.runTool(tool, args);
+  }
+  for (const resource of catalog.resources) {
+    await runtime.readResource(resource, new URL('tmanage://me/today'), { slug: 'x', id: 'p1' });
+  }
+  return { names: catalog.tools.map((t) => t.name), routes };
 }
 
 function matchesRoute(pattern: string, concrete: string): boolean {
@@ -192,7 +248,7 @@ function matchesRoute(pattern: string, concrete: string): boolean {
   return new RegExp(`^${source}$`).test(strip(concrete));
 }
 
-/** The org directory the live `list_organizations` tool reads; see finding F2 below. */
+/** The org directory the retired `list_organizations` tool read; see finding F2 below. */
 const ORG_DIRECTORY = 'GET /v1/organizations';
 
 describe('S14B live /mcp tools — reach only classified ops, never a NEVER route', () => {
@@ -211,12 +267,10 @@ describe('S14B live /mcp tools — reach only classified ops, never a NEVER rout
     }
   });
 
-  // S14 FINDING (F2, low): the live `list_organizations` tool — and `resolveOrgSlug`, which every
-  // other live tool calls first — reads `GET /v1/organizations/`, which the registry classifies
-  // NEVER (`org_creation_or_account`, never.ts:99). The live tool surface therefore reaches a
-  // deny-listed route. Impact is limited because the directory is narrowed to the bound org for a
-  // bound-token scheme (request-state.ts `isBoundTokenScheme`), but the NEVER contract is broken.
-  it.skip('no live tool reaches a NEVER route, including the org directory', async () => {
+  // Was S14 FINDING (F2, fixed in FX2): the old live tools resolved the org through
+  // `GET /v1/organizations/`, which the registry classifies NEVER. The endpoint now resolves the
+  // org from the token's own workspace binding, server side, and no tool reaches the directory.
+  it('no live tool reaches a NEVER route, including the org directory', async () => {
     const { routes } = await liveToolRoutes();
     for (const route of routes) {
       const label = `${route.method} ${route.path}`;
@@ -227,19 +281,21 @@ describe('S14B live /mcp tools — reach only classified ops, never a NEVER rout
     }
   });
 
-  // S14 FINDING (F1): the live `POST /mcp` endpoint does not serve the scope-filtered catalogue.
-  // `McpEndpointController.handle` builds `buildServer(client)` (mcp-server/src/server.ts), which
-  // registers a fixed set of ten tools — including the writes `create_work_item` and `add_comment` —
-  // for every caller. `buildToolCatalog` / `buildCatalogServer` (S5) are never wired in, so a
-  // grant's scopes do not narrow `tools/list` at the real endpoint (plan §3, T-SCP-01). This test
-  // states the intended behaviour: a read-only grant's live tool list is a subset of its catalogue.
-  it.skip('the live /mcp tools/list for a read-only grant is the read-only catalogue', async () => {
-    const { names } = await liveToolRoutes();
-    const allowed = new Set(
-      buildToolCatalog({ profile: 'compact', scopes: ['read'], capabilities: ALL_CAPS }).tools.map(
-        (t) => t.name,
-      ),
-    );
-    for (const name of names) expect(allowed.has(name), name).toBe(true);
+  // Was S14 FINDING (F1, fixed in FX2): `POST /mcp` served a fixed tool set (including writes)
+  // to every caller. It now serves `buildToolCatalog` for the grant, so a read-only grant's live
+  // `tools/list` is its read-only catalogue (plan §3, T-SCP-01) — in both profiles.
+  it('the live /mcp tools/list for a read-only grant is the read-only catalogue', async () => {
+    for (const profile of ['compact', 'full'] as const) {
+      const { names, routes } = await liveToolRoutes('tmanage:read', profile);
+      expect(names.length).toBeGreaterThan(0);
+      const allowed = new Set(
+        buildToolCatalog({ profile, scopes: ['read'], capabilities: ALL_CAPS }).tools.map(
+          (t) => t.name,
+        ),
+      );
+      for (const name of names) expect(allowed.has(name), name).toBe(true);
+      // And running every one of them reaches reads only.
+      for (const route of routes) expect(route.method, `${route.method} ${route.path}`).toBe('GET');
+    }
   });
 });
