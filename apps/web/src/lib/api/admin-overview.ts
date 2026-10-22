@@ -38,3 +38,38 @@ export async function fetchAdminOverview(
   });
   return data;
 }
+
+/**
+ * OPS-1's "N invitations waiting": every seat-holding membership that is neither active nor being
+ * offboarded is an invitation not yet accepted. Never negative, whatever the counters say.
+ */
+export function invitationsWaiting(view: AdminOverviewView): number {
+  return Math.max(0, view.seatsUsed - view.activeMembers - view.openOffboardings);
+}
+
+const RELATIVE_STEPS: readonly [Intl.RelativeTimeFormatUnit, number][] = [
+  ['second', 60],
+  ['minute', 60],
+  ['hour', 24],
+  ['day', 7],
+  ['week', 4.35],
+  ['month', 12],
+  ['year', Number.POSITIVE_INFINITY],
+];
+
+/**
+ * OPS-1's activity times — "2 minutes ago", "yesterday", "3 days ago" — in the reader's language
+ * (`Intl.RelativeTimeFormat`, so Arabic reads "قبل دقيقتين", "أمس"). An unparseable value is shown
+ * verbatim rather than as `Invalid Date`.
+ */
+export function relativeWhen(iso: string, now: Date, locale: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  let value = (at.getTime() - now.getTime()) / 1000;
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+  for (const [unit, size] of RELATIVE_STEPS) {
+    if (Math.abs(value) < size) return format.format(Math.round(value), unit);
+    value /= size;
+  }
+  return format.format(Math.round(value), 'year');
+}

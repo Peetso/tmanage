@@ -1,21 +1,36 @@
 'use client';
 
 import Link from 'next/link';
+import { useContext } from 'react';
 import type { ReactNode } from 'react';
+import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query';
+import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { hasCapability, isRole } from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
-import { AppShell } from '../shell/AppShell';
-import { useOrganizationRole } from '../../lib/use-organization-names';
+import { Wordmark } from '../brand/Wordmark';
+import { MaintenanceBanner } from '../screens/MaintenanceBanner';
+import { CommandPalette } from '../screens/CommandPalette';
+import { MembershipGoneGate } from '../shell/MembershipGoneGate';
+import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
+import { browserApiClient } from '../../lib/api/browser-client';
+import { getConnectedApps } from '../../lib/api/connected-apps';
+import type { ApiClient } from '../../lib/api/client';
+import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/admin.css';
+import './control-center.css';
 
-/** The Control Center destinations the section map can mark as current. */
+/** The Control Center destinations a screen can say it is. */
 export type ControlCenterSection =
   | 'overview'
   | 'members'
   | 'roles'
+  | 'client-organizations'
+  | 'invitations'
   | 'offboarding'
+  | 'templates'
+  | 'fields'
   | 'automations'
   | 'integrations'
   | 'connected-apps'
@@ -31,74 +46,100 @@ export type ControlCenterSection =
   | 'organization'
   | 'billing';
 
+/**
+ * The P11 keys, written to the wave's i18n fragment (`i18n-P11.*.json`) and merged into the
+ * catalogs by the integrator. `ccKey` keeps every call site typed against this list.
+ */
+export type ControlCenterKey =
+  | 'ControlCenter.breadcrumbLabel'
+  | 'ControlCenter.menuLabel'
+  | 'ControlCenter.clientOrganizations'
+  | 'ControlCenter.invitations'
+  | 'ControlCenter.templatesAndWorkflows'
+  | 'ControlCenter.fieldsAndStatuses'
+  | 'ControlCenter.dataAndRetention'
+  | 'ControlCenter.viewOwner'
+  | 'ControlCenter.viewAdmin'
+  | 'ControlCenter.viewMember';
+
+export function ccKey(key: ControlCenterKey | `ControlCenter.${string}`): MessageKey {
+  return key as string as MessageKey;
+}
+
 interface SectionLink {
   readonly id: ControlCenterSection;
-  readonly label: string;
-  /** The message key for the label; rendered through `useT` so the map is localised. */
-  readonly labelKey?: MessageKey;
-  readonly href: string;
+  readonly labelKey: MessageKey;
+  /** None: the destination has no screen yet; the entry is drawn as in the frame but not linked. */
+  readonly href?: string;
   /**
    * What the page's API asks for (CQ-06). An entry the caller's role cannot use is not drawn, so
-   * the map never offers a page that answers "You do not have permission". None: open to everyone.
+   * the menu never offers a page that answers "You do not have permission". None: open to everyone.
    */
   readonly capability?: Capability;
 }
 
+interface SectionGroup {
+  readonly labelKey: MessageKey;
+  readonly items: readonly SectionLink[];
+}
+
 /**
- * ADM-01's section map, grouped as the frame groups it (People · Work setup · Trust, then
- * Organization and Billing at the foot). Every entry is a route that exists today; the frame's
- * "Client organizations", "Invitations", "Templates" and "Fields" have no Control Center route yet,
- * so they are not offered as links that would 404.
+ * OPS-1's menu (Figma 370:1411, the same menu as S0-2 Connected apps): People · Work setup ·
+ * Trust, with Organization and Billing closing the Trust list. Order and labels are the frame's.
  */
-const GROUPS: readonly { label: string; labelKey?: MessageKey; items: readonly SectionLink[] }[] = [
+const GROUPS: readonly SectionGroup[] = [
   {
-    label: 'People',
     labelKey: 'ControlCenterShell.groupPeople',
     items: [
       {
         id: 'overview',
-        label: 'Overview',
         labelKey: 'ControlCenterShell.overview',
         href: '/admin',
         capability: 'org.manage',
       },
-      {
-        id: 'members',
-        label: 'Members and roles',
-        labelKey: 'ControlCenterShell.membersAndRoles',
-        href: '/people',
-      },
+      { id: 'members', labelKey: 'ControlCenterShell.membersAndRoles', href: '/people' },
       {
         id: 'roles',
-        label: 'Roles',
         labelKey: 'ControlCenterShell.roles',
         href: '/admin/roles',
         capability: 'org.manage',
       },
       {
-        id: 'offboarding',
-        label: 'Offboarding',
-        labelKey: 'ControlCenterShell.offboarding',
-        href: '/people/offboarding',
-        capability: 'member.offboard',
+        id: 'client-organizations',
+        labelKey: ccKey('ControlCenter.clientOrganizations'),
+        capability: 'org.manage',
+      },
+      {
+        id: 'invitations',
+        labelKey: ccKey('ControlCenter.invitations'),
+        href: '/people',
+        capability: 'org.manage',
       },
     ],
   },
   {
-    label: 'Work setup',
     labelKey: 'ControlCenterShell.groupWorkSetup',
     items: [
+      {
+        id: 'templates',
+        labelKey: ccKey('ControlCenter.templatesAndWorkflows'),
+        href: '/projects/templates',
+        capability: 'org.manage',
+      },
+      {
+        id: 'fields',
+        labelKey: ccKey('ControlCenter.fieldsAndStatuses'),
+        capability: 'org.manage',
+      },
       // AUT-04: the rule library, not Webhooks. Webhooks sit under Integrations, as in the design.
       {
         id: 'automations',
-        label: 'Automations',
         labelKey: 'ControlCenterShell.automations',
         href: '/automations',
         capability: 'org.manage',
       },
       {
         id: 'integrations',
-        label: 'Integrations',
         labelKey: 'ControlCenterShell.integrations',
         href: '/automations/apps',
         capability: 'org.manage',
@@ -106,100 +147,66 @@ const GROUPS: readonly { label: string; labelKey?: MessageKey; items: readonly S
       // S11 (Figma S0-2): every internal member manages the AI apps they connected.
       {
         id: 'connected-apps',
-        label: 'Connected apps',
         labelKey: 'ControlCenterShell.connectedApps',
         href: '/settings/connected-apps',
         capability: 'work.read',
       },
-      {
-        id: 'storage',
-        label: 'Storage',
-        labelKey: 'ControlCenterShell.storage',
-        href: '/admin/storage',
-        capability: 'org.manage',
-      },
-      {
-        id: 'modules',
-        label: 'Modules',
-        labelKey: 'ControlCenterShell.modules',
-        href: '/admin/feature-flags',
-        capability: 'org.manage',
-      },
     ],
   },
   {
-    label: 'Trust',
     labelKey: 'ControlCenterShell.groupTrust',
     items: [
       {
         id: 'security',
-        label: 'Security',
         labelKey: 'ControlCenterShell.security',
         href: '/admin/security',
         capability: 'org.manage',
       },
       {
-        id: 'sessions',
-        label: 'Sessions',
-        labelKey: 'ControlCenterShell.sessions',
-        href: '/admin/sessions',
-        capability: 'org.manage',
-      },
-      {
-        id: 'ip-allowlist',
-        label: 'IP ranges',
-        labelKey: 'ControlCenterShell.ipRanges',
-        href: '/admin/ip-allowlist',
-        capability: 'org.security.manage',
-      },
-      {
-        id: 'policies',
-        label: 'Access policy',
-        labelKey: 'ControlCenterShell.accessPolicy',
-        href: '/policies',
-        capability: 'org.manage',
-      },
-      {
-        id: 'policy-simulation',
-        label: 'Policy simulation',
-        labelKey: 'ControlCenterShell.policySimulation',
-        href: '/policies/simulate',
-        capability: 'org.manage',
-      },
-      {
         id: 'audit',
-        label: 'Audit log',
         labelKey: 'ControlCenterShell.auditLog',
         href: '/admin/audit',
         capability: 'audit.read',
       },
       {
         id: 'data',
-        label: 'Data and export',
-        labelKey: 'ControlCenterShell.dataAndExport',
+        labelKey: ccKey('ControlCenter.dataAndRetention'),
         href: '/admin/audit/export',
         capability: 'audit.export',
+      },
+      {
+        id: 'organization',
+        labelKey: 'ControlCenterShell.organization',
+        href: '/settings',
+        capability: 'org.manage',
+      },
+      {
+        id: 'billing',
+        labelKey: 'ControlCenterShell.billing',
+        href: '/billing',
+        capability: 'org.manage',
       },
     ],
   },
 ];
 
-const FOOT: readonly SectionLink[] = [
-  {
-    id: 'organization',
-    label: 'Organization',
-    labelKey: 'ControlCenterShell.organization',
-    href: '/settings',
-    capability: 'org.manage',
-  },
-  {
-    id: 'billing',
-    label: 'Billing',
-    labelKey: 'ControlCenterShell.billing',
-    href: '/billing',
-    capability: 'org.manage',
-  },
-];
+/**
+ * Sub-pages the frame's menu does not list are reached from their parent page; the parent stays
+ * marked while one is open, so the menu always says where the person is.
+ */
+const MENU_ENTRY_FOR: Partial<Record<ControlCenterSection, ControlCenterSection>> = {
+  offboarding: 'members',
+  sessions: 'security',
+  'ip-allowlist': 'security',
+  policies: 'security',
+  'policy-simulation': 'security',
+  storage: 'data',
+  modules: 'organization',
+};
+
+export function menuEntryFor(section: ControlCenterSection): ControlCenterSection {
+  return MENU_ENTRY_FOR[section] ?? section;
+}
 
 /**
  * May a person with this role use the entry? Pure, so it is provable without a render. `null` is
@@ -210,22 +217,17 @@ export function mayOpenSection(role: string | undefined | null, item: SectionLin
   return role !== undefined && isRole(role) && hasCapability(role, item.capability);
 }
 
-/** The section map's groups and foot, minus the entries this role would be refused. */
+/** The menu's groups minus the entries this role would be refused. `foot` is kept empty. */
 export function controlCenterSectionsFor(role: string | undefined | null): {
-  readonly groups: readonly {
-    label: string;
-    labelKey?: MessageKey;
-    items: readonly SectionLink[];
-  }[];
+  readonly groups: readonly SectionGroup[];
   readonly foot: readonly SectionLink[];
 } {
   return {
     groups: GROUPS.map((group) => ({
-      label: group.label,
-      ...(group.labelKey ? { labelKey: group.labelKey } : {}),
+      labelKey: group.labelKey,
       items: group.items.filter((item) => mayOpenSection(role, item)),
     })).filter((group) => group.items.length > 0),
-    foot: FOOT.filter((item) => mayOpenSection(role, item)),
+    foot: [],
   };
 }
 
@@ -239,6 +241,15 @@ function SectionItem({
   current: boolean;
 }) {
   const t = useT();
+  if (item.href === undefined) {
+    return (
+      <li>
+        <span className="tm-cc-sections__item tm-cc-sections__item--static">
+          {t(item.labelKey)}
+        </span>
+      </li>
+    );
+  }
   return (
     <li>
       <Link
@@ -246,16 +257,15 @@ function SectionItem({
         className="tm-cc-sections__item"
         {...(current ? { 'aria-current': 'page' as const } : {})}
       >
-        {item.labelKey ? t(item.labelKey) : item.label}
+        {t(item.labelKey)}
       </Link>
     </li>
   );
 }
 
 /**
- * The ADM-01 section map. Exported so a screen outside `ControlCenterShell` can draw it too;
- * `children` (a screen's own rail group, such as ADM-03's role list) sits under the groups and
- * above the Organization / Billing foot.
+ * The OPS-1 menu. Exported so a screen outside `ControlCenterShell` can draw it too; `children`
+ * (a screen's own list, such as ADM-03's roles) sits under the groups.
  */
 export function ControlCenterSections({
   organizationSlug,
@@ -269,68 +279,97 @@ export function ControlCenterSections({
   // While the role is being read nothing gated is drawn, so a refused entry never flashes up.
   const t = useT();
   const { role, known, unavailable } = useOrganizationRole(organizationSlug);
-  const { groups, foot } = controlCenterSectionsFor(unavailable ? null : known ? role : undefined);
+  const { groups } = controlCenterSectionsFor(unavailable ? null : known ? role : undefined);
+  const marked = menuEntryFor(section);
   return (
     <div className="tm-cc-sections">
       {groups.map((group) => (
-        <div key={group.label}>
-          <p className="tm-cc-sections__label">
-            {group.labelKey ? t(group.labelKey) : group.label}
-          </p>
+        <div key={group.labelKey}>
+          <p className="tm-cc-sections__label">{t(group.labelKey)}</p>
           <ul className="tm-cc-sections__group">
             {group.items.map((item) => (
               <SectionItem
                 key={item.id}
                 organizationSlug={organizationSlug}
                 item={item}
-                current={item.id === section}
+                current={item.id === marked}
               />
             ))}
           </ul>
         </div>
       ))}
       {children}
-      {foot.length > 0 ? (
-        <ul className="tm-cc-sections__group tm-cc-sections__group--foot">
-          {foot.map((item) => (
-            <SectionItem
-              key={item.id}
-              organizationSlug={organizationSlug}
-              item={item}
-              current={item.id === section}
-            />
-          ))}
-        </ul>
-      ) : null}
     </div>
   );
+}
+
+/** "Maya Hassan" → "MH". */
+export function initialsOf(name: string): string {
+  return name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('');
+}
+
+/** OPS-1's eyebrow role: "Owner view", "Admin view", "Member view". */
+function viewKeyFor(role: string | undefined): MessageKey | null {
+  if (role === undefined) return null;
+  if (role === 'owner') return ccKey('ControlCenter.viewOwner');
+  if (role === 'org_admin' || role === 'admin') return ccKey('ControlCenter.viewAdmin');
+  return ccKey('ControlCenter.viewMember');
+}
+
+/**
+ * The signed-in person's name. No identity read exists for the web yet; the Connected apps read
+ * (open to every internal member) carries `viewerName`, under the screen's own query key so the
+ * two share one request. Absent a query client or on a refusal there is simply no name.
+ */
+/** Stands in when no `QueryClientProvider` is mounted, so the hook never throws; never fetches. */
+const IDLE_QUERY_CLIENT = new QueryClient();
+
+function useViewerName(organizationSlug: string, client: ApiClient | undefined): string | null {
+  const queryClient = useContext(QueryClientContext);
+  const viewer = useQuery(
+    {
+      queryKey: ['connected-apps', organizationSlug],
+      queryFn: () => getConnectedApps(client ?? browserApiClient(), organizationSlug),
+      staleTime: 60_000,
+      retry: false,
+      enabled: queryClient !== undefined,
+    },
+    queryClient ?? IDLE_QUERY_CLIENT,
+  );
+  return viewer.data?.viewerName || null;
 }
 
 export interface ControlCenterShellProps {
   organizationSlug: string;
   organizationName: string;
-  /** The destination this screen is, for the section map and the breadcrumb. */
+  /** The destination this screen is, for the menu and the breadcrumb. */
   section: ControlCenterSection;
   /** The breadcrumb after "Control center" — e.g. `['Roles', 'Project manager']`. */
   crumbs: readonly string[];
-  /** The display headline ("What needs a decision", "How people get in"). */
   title: string;
   titleMeta?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   /**
-   * The left column. ADM-01's section map is always drawn, so the Control Center keeps its own
-   * navigation on every sub-page (it used to be drawn only on Overview and Roles, and clicking any
-   * other item dropped it). A node (ADM-03's role list) is drawn inside it, under the groups.
+   * The menu is always drawn. A node (ADM-03's role list) is drawn inside it, under the groups;
+   * `'sections'` is the menu alone.
    */
   rail?: 'sections' | ReactNode;
+  /** Injected in tests. Defaults to the browser client. */
+  client?: ApiClient;
   children: ReactNode;
 }
 
 /**
- * The Control Center frame (ADM-01 … ADM-14) on top of the shared `AppShell`: the rail's Control
- * orb is current, the eyebrow is the frame's breadcrumb ("Control center / Security"), the
- * headline is the frame's, and the screen's own actions sit at the end of the title row.
+ * The Control Center frame (OPS-1, Figma 370:1411 / 370:1699): a white top bar with the brand orb,
+ * the mono breadcrumb (CONTROL CENTER / section), the workspace pill and the person's avatar; the
+ * grouped menu on the paper column; and the page — role eyebrow, headline, description — on the
+ * canvas. Logical properties throughout, so Arabic mirrors it (menu on the right).
  */
 export function ControlCenterShell({
   organizationSlug,
@@ -342,27 +381,88 @@ export function ControlCenterShell({
   description,
   actions,
   rail,
+  client,
   children,
 }: ControlCenterShellProps) {
   const t = useT();
-  const contextRail = (
-    <ControlCenterSections organizationSlug={organizationSlug} section={section}>
-      {rail === 'sections' ? null : rail}
-    </ControlCenterSections>
+  const queryClient = useContext(QueryClientContext);
+  const workspace = useOrganizationName(organizationSlug, organizationName);
+  const { role, known } = useOrganizationRole(organizationSlug);
+  const viewerName = useViewerName(organizationSlug, client);
+  const viewKey = viewKeyFor(known ? role : undefined);
+  const eyebrow = [viewKey ? t(viewKey) : null, viewerName].filter(Boolean).join(' · ');
+  const trail = [t('ControlCenterShell.controlCenter'), ...crumbs];
+
+  const shell = (
+    <LiveAnnouncer>
+      <div className="tm-app tm-cc-app">
+        <SkipLink targetId="tm-main" />
+        <MaintenanceBanner />
+        {queryClient ? <CommandPalette organizationSlug={organizationSlug} /> : null}
+
+        <header className="tm-cc-topbar">
+          <Link href={`/${organizationSlug}/home`} className="tm-cc-topbar__brand">
+            <Wordmark variant="icon" label={t('shell.brand.home')} />
+          </Link>
+          <nav
+            aria-label={t(ccKey('ControlCenter.breadcrumbLabel'))}
+            className="tm-cc-topbar__trail"
+          >
+            <ol className="tm-cc-crumbs">
+              {trail.map((crumb, index) => (
+                <li
+                  key={`${index}-${crumb}`}
+                  {...(index === trail.length - 1 ? { 'aria-current': 'page' as const } : {})}
+                >
+                  {crumb}
+                </li>
+              ))}
+            </ol>
+          </nav>
+          <div className="tm-cc-topbar__end">
+            {workspace ? <span className="tm-cc-workspace">{workspace}</span> : null}
+            <Link
+              href={`/${organizationSlug}/preferences`}
+              className="tm-cc-avatar"
+              aria-label={t('shell.account.preferences')}
+            >
+              <span aria-hidden="true">{viewerName ? initialsOf(viewerName) : ''}</span>
+            </Link>
+          </div>
+        </header>
+
+        <div className="tm-cc-frame">
+          <nav className="tm-cc-menu" aria-label={t(ccKey('ControlCenter.menuLabel'))}>
+            <ControlCenterSections organizationSlug={organizationSlug} section={section}>
+              {rail === 'sections' ? null : rail}
+            </ControlCenterSections>
+          </nav>
+
+          <main id="tm-main" className="tm-canvas tm-cc-main" tabIndex={-1}>
+            <header className="tm-canvas-header" data-title-variant="page" data-actions="end">
+              <div className="tm-canvas-header__titles">
+                {eyebrow ? <p className="tm-canvas-header__context">{eyebrow}</p> : null}
+                <div className="tm-canvas-header__title-row">
+                  <h1 className="tm-canvas-header__title">{title}</h1>
+                  {titleMeta ? <span className="tm-canvas-header__meta">{titleMeta}</span> : null}
+                  {actions ? <div className="tm-canvas-header__actions">{actions}</div> : null}
+                </div>
+                {description ? (
+                  <p className="tm-canvas-header__description">{description}</p>
+                ) : null}
+              </div>
+            </header>
+            {children}
+          </main>
+        </div>
+      </div>
+    </LiveAnnouncer>
   );
-  return (
-    <AppShell
-      organizationSlug={organizationSlug}
-      organizationName={organizationName}
-      activeNavigationId="admin"
-      eyebrow={[t('ControlCenterShell.controlCenter'), ...crumbs].join(' / ')}
-      title={title}
-      {...(titleMeta ? { titleMeta } : {})}
-      {...(description ? { description } : {})}
-      {...(actions ? { actions } : {})}
-      contextRail={contextRail}
-    >
-      {children}
-    </AppShell>
+  return queryClient ? (
+    <MembershipGoneGate organizationSlug={organizationSlug}>
+      <WorkspaceSuspendedGate organizationSlug={organizationSlug}>{shell}</WorkspaceSuspendedGate>
+    </MembershipGoneGate>
+  ) : (
+    shell
   );
 }

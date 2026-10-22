@@ -1,0 +1,270 @@
+/*
+ * Control Center frame (OPS-1, Figma 370:1411 / 370:1699). TManage tokens only; logical
+ * properties so Arabic mirrors it: the menu sits on the right and the breadcrumb reads right to left.
+ */
+
+.tm-cc-app {
+  min-block-size: 100vh;
+  background: var(--paper-50);
+}
+
+/* ── Top bar: brand orb, breadcrumb, workspace pill, avatar ──────────────────────────── */
+
+.tm-cc-topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  min-block-size: 64px;
+  padding-inline: var(--s6);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-0);
+}
+
+.tm-cc-topbar__brand {
+  display: inline-flex;
+  flex: none;
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  border-radius: var(--r-capsule);
+}
+
+.tm-cc-topbar__brand .tm-mark {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.tm-cc-topbar__trail {
+  min-inline-size: 0;
+}
+
+.tm-cc-crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-cc-crumbs > li + li::before {
+  content: '/';
+  margin-inline-end: var(--s2);
+}
+
+.tm-cc-topbar__end {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin-inline-start: auto;
+  min-inline-size: 0;
+}
+
+.tm-cc-workspace {
+  overflow: hidden;
+  max-inline-size: 240px;
+  padding: 4px var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.tm-cc-avatar {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: var(--orb-compact);
+  block-size: var(--orb-compact);
+  border-radius: var(--r-capsule);
+  background: var(--client-500);
+  color: var(--paper-0);
+  font-size: var(--t-ui-sm);
+  line-height: 1;
+  text-decoration: none;
+}
+
+.tm-cc-avatar:focus-visible,
+.tm-cc-topbar__brand:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Menu column and canvas ──────────────────────────────────────────────────────────── */
+
+.tm-cc-frame {
+  display: grid;
+  flex: 1;
+  grid-template-columns: var(--context-rail) minmax(0, 1fr);
+  min-block-size: 0;
+}
+
+.tm-cc-menu {
+  padding: var(--s6) var(--s4);
+  border-inline-end: var(--b-quiet) solid var(--line-300);
+  background: var(--paper-50);
+}
+
+.tm-cc-menu .tm-cc-sections__label {
+  padding-inline: 0;
+  font-size: var(--t-caption);
+  letter-spacing: 0.08em;
+}
+
+.tm-cc-menu .tm-cc-sections__item[aria-current='page'] {
+  border-radius: var(--r-micro);
+  font-weight: 400;
+}
+
+.tm-cc-sections__item--static {
+  cursor: default;
+}
+
+.tm-cc-sections__item--static:hover {
+  background: transparent;
+  color: var(--ink-800);
+}
+
+.tm-cc-main {
+  gap: var(--s6);
+  padding: var(--s8) var(--s8) var(--s12);
+}
+
+.tm-cc-main > .tm-canvas-header .tm-canvas-header__title {
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+}
+
+.tm-cc-main > .tm-canvas-header .tm-canvas-header__description {
+  max-inline-size: none;
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+}
+
+/* ── Overview (OPS-1 page) ───────────────────────────────────────────────────────────── */
+
+.tm-cc-ov-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-cc-ov-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+}
+
+.tm-cc-ov-card__label,
+.tm-cc-ov-heading {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+  font-weight: 400;
+}
+
+.tm-cc-ov-card__value {
+  margin: 0;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-cc-ov-card__note {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-cc-ov-recent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+}
+
+.tm-cc-ov-activity {
+  margin: 0;
+  padding: var(--s2) var(--s5);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  list-style: none;
+}
+
+.tm-cc-ov-activity > li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding-block: var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-cc-ov-activity > li:last-child {
+  border-block-end: 0;
+}
+
+.tm-cc-ov-activity__what {
+  min-inline-size: 0;
+  font-size: var(--t-body-lg);
+  line-height: var(--t-body-lg-line);
+  color: var(--ink-800);
+}
+
+.tm-cc-ov-activity__when {
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+/* ── Narrow screens: the menu becomes a scrolling row above the canvas ───────────────── */
+
+@media (max-width: 900px) {
+  .tm-cc-frame {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-cc-menu {
+    padding: var(--s3) var(--s4);
+    border-inline-end: 0;
+    border-block-end: var(--b-quiet) solid var(--line-300);
+  }
+
+  .tm-cc-main {
+    padding: var(--s5) var(--s4) var(--s8);
+  }
+
+  .tm-cc-topbar {
+    padding-inline: var(--s4);
+  }
+
+  .tm-cc-ov-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

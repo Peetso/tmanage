@@ -1,24 +1,57 @@
 import { describe, expect, it } from 'vitest';
 import { CAPABILITIES } from '@tmanage/domain';
-import { controlCenterSectionsFor } from '../src/components/admin/ControlCenterShell';
+import { controlCenterSectionsFor, menuEntryFor } from '../src/components/admin/ControlCenterShell';
 import { capabilityLabel } from '../src/lib/capability-labels';
 
-/** CQ-06: the Control section map offers only what the role can open; capabilities read as words. */
-function hrefs(role: string | undefined | null): string[] {
-  const { groups, foot } = controlCenterSectionsFor(role);
-  return [...groups.flatMap((group) => group.items), ...foot].map((item) => item.href);
+/** OPS-1's menu: the frame's groups and order; CQ-06: only what the role can open. */
+function ids(role: string | undefined | null): string[] {
+  return controlCenterSectionsFor(role).groups.flatMap((group) => group.items.map((i) => i.id));
 }
 
 describe('controlCenterSectionsFor', () => {
-  it('gives the organization admin every entry, and Automations opens the rule library', () => {
-    expect(hrefs('org_admin')).toEqual(hrefs('owner'));
-    expect(hrefs('owner')).toContain('/automations');
-    expect(hrefs('owner')).not.toContain('/admin/automations/webhooks');
+  it('draws the OPS-1 groups in the frame order, with the existing routes', () => {
+    const { groups, foot } = controlCenterSectionsFor('owner');
+    expect(groups.map((group) => group.labelKey)).toEqual([
+      'ControlCenterShell.groupPeople',
+      'ControlCenterShell.groupWorkSetup',
+      'ControlCenterShell.groupTrust',
+    ]);
+    expect(groups.map((group) => group.items.map((item) => [item.id, item.href ?? null]))).toEqual([
+      [
+        ['overview', '/admin'],
+        ['members', '/people'],
+        ['roles', '/admin/roles'],
+        ['client-organizations', null],
+        ['invitations', '/people'],
+      ],
+      [
+        ['templates', '/projects/templates'],
+        ['fields', null],
+        ['automations', '/automations'],
+        ['integrations', '/automations/apps'],
+        ['connected-apps', '/settings/connected-apps'],
+      ],
+      [
+        ['security', '/admin/security'],
+        ['audit', '/admin/audit'],
+        ['data', '/admin/audit/export'],
+        ['organization', '/settings'],
+        ['billing', '/billing'],
+      ],
+    ]);
+    expect(foot).toEqual([]);
+    expect(ids('org_admin')).toEqual(ids('owner'));
   });
 
   it('hides the pages a member would be refused, and everything gated while the role is unknown', () => {
-    expect(hrefs('member')).toEqual(['/people', '/settings/connected-apps', '/admin/audit']);
-    expect(hrefs(undefined)).toEqual(['/people']);
+    expect(ids('member')).toEqual(['members', 'connected-apps', 'audit']);
+    expect(ids(undefined)).toEqual(['members']);
+  });
+
+  it('keeps the parent entry marked on sub-pages the frame does not list', () => {
+    expect(menuEntryFor('sessions')).toBe('security');
+    expect(menuEntryFor('offboarding')).toBe('members');
+    expect(menuEntryFor('audit')).toBe('audit');
   });
 
   it('names every capability in words', () => {
