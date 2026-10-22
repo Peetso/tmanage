@@ -2,6 +2,7 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule, type CapsuleState } from '@tmanage/ui';
+import type { MessageKey } from '../../../../lib/i18n/t';
 import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon } from '../../WebIcon';
 import { cx } from '../../primitives';
@@ -11,6 +12,10 @@ import { cx } from '../../primitives';
  * packages/ui parts (StateCapsule, Badge, Avatar, Button) and Limeframe tokens. Like the shared
  * scenes they are illustrations: the body is `inert` and hidden from assistive tech, and `label`
  * carries one sentence of alternative text.
+ *
+ * Every visible string is a `PortalScenes.*` key (L4), so the scenes follow the active locale.
+ * Company names (Atlas Hospitality, Northstar Studio), version tags and the portal URL stay
+ * Latin. `ArabicPortalScene` is the deliberate exception: it is always Arabic, in either locale.
  */
 function PortalScene({
   label,
@@ -84,61 +89,79 @@ function ActionRow({ title, meta, state, capsule, action }: ActionRowProps) {
   );
 }
 
-const STAGES_EN: readonly Stage[] = [
-  { label: 'Discovery', state: 'done' },
-  { label: 'Design', state: 'current' },
-  { label: 'Build', state: 'future' },
-  { label: 'Launch', state: 'future' },
+const STAGE_KEYS: readonly { label: MessageKey; state: Stage['state'] }[] = [
+  { label: 'PortalScenes.stageDiscovery', state: 'done' },
+  { label: 'PortalScenes.stageDesign', state: 'current' },
+  { label: 'PortalScenes.stageBuild', state: 'future' },
+  { label: 'PortalScenes.stageLaunch', state: 'future' },
 ];
+
+/** The project's four stages in the active locale. */
+function useStages(): readonly Stage[] {
+  const t = useT();
+  return STAGE_KEYS.map((stage) => ({ label: t(stage.label), state: stage.state }));
+}
 
 /** Portal overview (product §15/16): stage track, one number, the client's own actions. */
 export function PortalOverviewScene() {
   const t = useT();
+  const stages = useStages();
   return (
     <PortalScene label={t('PortalScenes.overviewLabel')} className="tm-cp-scene--overview">
       <div className="tm-cp-bar">
         <span className="tm-cp-url">atlas.tmanage.app/portal</span>
-        <StateCapsule state="client">Client</StateCapsule>
+        <StateCapsule state="client">{t('PortalScenes.client')}</StateCapsule>
       </div>
       <div className="tm-cp-pad">
-        <p className="tm-web-scene__mono">Atlas Hospitality · Northstar Studio</p>
-        <p className="tm-cp-title">Atlas Website Relaunch</p>
-        <StageTrack stages={STAGES_EN} />
+        <p className="tm-web-scene__mono">{t('PortalScenes.orgLine')}</p>
+        <p className="tm-cp-title">{t('PortalScenes.projectTitle')}</p>
+        <StageTrack stages={stages} />
         <div className="tm-cp-metric">
           <span className="tm-cp-metric__value">12</span>
           <span className="tm-cp-metric__text">
-            <span className="tm-cp-metric__label">days to launch</span>
-            <span className="tm-cp-row__meta">Launch · 30 Sep · on track</span>
+            <span className="tm-cp-metric__label">{t('PortalScenes.daysToLaunch')}</span>
+            <span className="tm-cp-row__meta">{t('PortalScenes.launchMeta')}</span>
           </span>
         </div>
-        <p className="tm-web-scene__mono tm-cp-heading">Your actions · 2</p>
+        <p className="tm-web-scene__mono tm-cp-heading">{t('PortalScenes.yourActions2')}</p>
         <div className="tm-cp-list">
           <ActionRow
-            title="Review Homepage Concept v2"
-            meta="Deliverable · requested by Maya Hassan"
+            title={t('PortalScenes.reviewHomepageTitle')}
+            meta={t('PortalScenes.requestedByMaya')}
             state="client"
-            capsule="Your review"
-            action="Review"
+            capsule={t('PortalScenes.capsuleYourReview')}
+            action={t('PortalScenes.actionReview')}
           />
           <ActionRow
-            title="Upload brand photography"
-            meta="File request · due 22 Sep"
+            title={t('PortalScenes.uploadPhotosTitle')}
+            meta={t('PortalScenes.uploadPhotosMeta')}
             state="waiting"
-            capsule="Due in 4 days"
+            capsule={t('PortalScenes.capsuleDueIn4')}
           />
         </div>
         <div className="tm-cp-people">
           <span className="tm-cp-avatars">
-            <Avatar name="Maya Hassan" size="compact" decorative />
-            <Avatar name="Omar Adel" size="compact" decorative />
-            <Avatar name="Salma Riad" size="compact" audience="client" decorative />
+            <Avatar name={t('PortalScenes.nameMaya')} size="compact" decorative />
+            <Avatar name={t('PortalScenes.nameOmar')} size="compact" decorative />
+            <Avatar
+              name={t('PortalScenes.nameSalma')}
+              size="compact"
+              audience="client"
+              decorative
+            />
           </span>
-          <span className="tm-cp-row__meta">Updated 26 min ago by Maya Hassan</span>
+          <span className="tm-cp-row__meta">{t('PortalScenes.updatedByMaya')}</span>
         </div>
       </div>
     </PortalScene>
   );
 }
+
+const CRITERIA: readonly MessageKey[] = [
+  'PortalScenes.criterionBooking',
+  'PortalScenes.criterionRooms',
+  'PortalScenes.criterionBrief',
+];
 
 /** Client approval (product §13): one exact version, the criteria, earlier feedback. */
 export function ApprovalScene() {
@@ -147,42 +170,41 @@ export function ApprovalScene() {
     <PortalScene label={t('PortalScenes.approvalLabel')} className="tm-cp-scene--approval">
       <div className="tm-cp-pad">
         <div className="tm-cp-head">
-          <Badge mono>Deliverable</Badge>
-          <StateCapsule state="client">Waiting on you</StateCapsule>
+          <Badge mono>{t('PortalScenes.badgeDeliverable')}</Badge>
+          <StateCapsule state="client">{t('PortalScenes.capsuleWaitingOnYou')}</StateCapsule>
         </div>
-        <p className="tm-cp-title">Homepage Concept v2</p>
+        <p className="tm-cp-title">{t('PortalScenes.homepageTitle')}</p>
         <p className="tm-cp-version">
-          <span className="tm-cp-mono-chip">v2 · uploaded 19 Aug</span>
-          <span className="tm-cp-row__meta">Atlas Website Relaunch</span>
+          <span className="tm-cp-mono-chip">{t('PortalScenes.versionChip')}</span>
+          <span className="tm-cp-row__meta">{t('PortalScenes.projectTitle')}</span>
         </p>
-        <p className="tm-web-scene__mono tm-cp-heading">Review criteria</p>
+        <p className="tm-web-scene__mono tm-cp-heading">{t('PortalScenes.reviewCriteria')}</p>
         <ul className="tm-cp-checks">
-          <li>
-            <WebIcon name="check" size={14} />
-            Booking call to action stays above the fold
-          </li>
-          <li>
-            <WebIcon name="check" size={14} />
-            Room grid shows prices before offers
-          </li>
-          <li>
-            <WebIcon name="check" size={14} />
-            Copy matches the approved brief
-          </li>
+          {CRITERIA.map((criterion) => (
+            <li key={criterion}>
+              <WebIcon name="check" size={14} />
+              {t(criterion)}
+            </li>
+          ))}
         </ul>
         <div className="tm-cp-feedback">
-          <Avatar name="Youssef Kamal" size="compact" audience="client" decorative />
+          <Avatar
+            name={t('PortalScenes.nameYoussef')}
+            size="compact"
+            audience="client"
+            decorative
+          />
           <span className="tm-cp-row__text">
-            <span className="tm-cp-row__meta">Youssef Kamal on v1 · 12 Aug</span>
-            <span className="tm-cp-feedback__text">“Move the offers strip below the rooms.”</span>
+            <span className="tm-cp-row__meta">{t('PortalScenes.feedbackMeta')}</span>
+            <span className="tm-cp-feedback__text">{t('PortalScenes.feedbackQuote')}</span>
           </span>
         </div>
         <div className="tm-cp-actions">
           <Button tone="outline" size="feature">
-            Request changes
+            {t('PortalScenes.requestChanges')}
           </Button>
           <Button tone="ink" size="feature">
-            Approve v2
+            {t('PortalScenes.approveV2')}
           </Button>
         </div>
       </div>
@@ -197,48 +219,55 @@ export function RequestsScene() {
     <PortalScene label={t('PortalScenes.requestsLabel')} className="tm-cp-scene--requests">
       <div className="tm-cp-pad">
         <div className="tm-cp-head">
-          <span className="tm-cp-title tm-cp-title--small">Requests</span>
+          <span className="tm-cp-title tm-cp-title--small">{t('PortalScenes.requestsTitle')}</span>
           <Button tone="ink" size="compact">
-            New request
+            {t('PortalScenes.newRequest')}
           </Button>
         </div>
         <span className="tm-cp-field">
           <WebIcon name="search" size={14} />
-          Ask Northstar for something…
+          {t('PortalScenes.requestPlaceholder')}
         </span>
         <div className="tm-cp-list">
           <div className="tm-cp-row">
             <span className="tm-cp-row__text">
-              <span className="tm-cp-row__title">Spring offer landing page</span>
+              <span className="tm-cp-row__title">{t('PortalScenes.springOfferTitle')}</span>
               <span className="tm-cp-row__meta">
-                <span className="tm-cp-mono-chip tm-cp-mono-chip--dashed">Wish · 15 Oct</span>
-                Sent by Salma Riad
+                <span className="tm-cp-mono-chip tm-cp-mono-chip--dashed">
+                  {t('PortalScenes.wishChip')}
+                </span>
+                {t('PortalScenes.sentBySalma')}
               </span>
             </span>
-            <StateCapsule state="waiting">Under review</StateCapsule>
+            <StateCapsule state="waiting">{t('PortalScenes.capsuleUnderReview')}</StateCapsule>
           </div>
           <div className="tm-cp-row tm-cp-row--live">
             <span className="tm-cp-row__text">
-              <span className="tm-cp-row__title">Booking widget on mobile</span>
+              <span className="tm-cp-row__title">{t('PortalScenes.bookingWidgetTitle')}</span>
               <span className="tm-cp-row__meta">
-                <span className="tm-cp-mono-chip">Committed · 9 Oct</span>
-                Owner Omar Adel
+                <span className="tm-cp-mono-chip">{t('PortalScenes.committedChip')}</span>
+                {t('PortalScenes.ownerOmar')}
               </span>
             </span>
-            <StateCapsule state="current">In progress</StateCapsule>
+            <StateCapsule state="current">{t('PortalScenes.capsuleInProgress')}</StateCapsule>
           </div>
           <div className="tm-cp-row">
             <span className="tm-cp-row__text">
-              <span className="tm-cp-row__title">Arabic restaurant menu PDF</span>
-              <span className="tm-cp-row__meta">Delivered 2 Oct · 1 file</span>
+              <span className="tm-cp-row__title">{t('PortalScenes.menuPdfTitle')}</span>
+              <span className="tm-cp-row__meta">{t('PortalScenes.menuPdfMeta')}</span>
             </span>
-            <StateCapsule state="done">Delivered</StateCapsule>
+            <StateCapsule state="done">{t('PortalScenes.capsuleDelivered')}</StateCapsule>
           </div>
         </div>
       </div>
     </PortalScene>
   );
 }
+
+const SEATS: readonly { name: MessageKey; role: MessageKey }[] = [
+  { name: 'PortalScenes.nameSalma', role: 'PortalScenes.roleSalma' },
+  { name: 'PortalScenes.nameYoussef', role: 'PortalScenes.roleYoussef' },
+];
 
 /** Client members on the people screen — none of them uses a seat. */
 export function ClientSeatsScene() {
@@ -247,21 +276,18 @@ export function ClientSeatsScene() {
     <PortalScene label={t('PortalScenes.seatsLabel')} className="tm-cp-scene--seats">
       <div className="tm-cp-pad">
         <div className="tm-cp-head">
-          <span className="tm-cp-title tm-cp-title--small">People · Atlas Hospitality</span>
-          <Badge tone="client">Client</Badge>
+          <span className="tm-cp-title tm-cp-title--small">{t('PortalScenes.seatsTitle')}</span>
+          <Badge tone="client">{t('PortalScenes.client')}</Badge>
         </div>
         <div className="tm-cp-list">
-          {[
-            { name: 'Salma Riad', role: 'Sponsor · approves milestones' },
-            { name: 'Youssef Kamal', role: 'Reviewer · Homepage, Booking' },
-          ].map((person) => (
+          {SEATS.map((person) => (
             <div key={person.name} className="tm-cp-row">
-              <Avatar name={person.name} size="compact" audience="client" decorative />
+              <Avatar name={t(person.name)} size="compact" audience="client" decorative />
               <span className="tm-cp-row__text">
-                <span className="tm-cp-row__title">{person.name}</span>
-                <span className="tm-cp-row__meta">{person.role}</span>
+                <span className="tm-cp-row__title">{t(person.name)}</span>
+                <span className="tm-cp-row__meta">{t(person.role)}</span>
               </span>
-              <span className="tm-cp-mono-chip">No seat</span>
+              <span className="tm-cp-mono-chip">{t('PortalScenes.noSeat')}</span>
             </div>
           ))}
           <div className="tm-cp-row tm-cp-row--invite">
@@ -269,14 +295,14 @@ export function ClientSeatsScene() {
               <WebIcon name="plus" size={14} />
             </span>
             <span className="tm-cp-row__text">
-              <span className="tm-cp-row__title">Invite a viewer</span>
-              <span className="tm-cp-row__meta">Sees published updates and files</span>
+              <span className="tm-cp-row__title">{t('PortalScenes.inviteTitle')}</span>
+              <span className="tm-cp-row__meta">{t('PortalScenes.inviteMeta')}</span>
             </span>
           </div>
         </div>
         <p className="tm-cp-foot">
-          <span className="tm-web-scene__mono">Team seats · 5 of 5</span>
-          <span className="tm-web-scene__mono">Client members · 2 · free</span>
+          <span className="tm-web-scene__mono">{t('PortalScenes.footTeamSeats')}</span>
+          <span className="tm-web-scene__mono">{t('PortalScenes.footClientMembers')}</span>
         </p>
       </div>
     </PortalScene>
@@ -337,21 +363,23 @@ function Peek({ children }: { children: ReactNode }) {
 }
 
 export function MiniStagePeek() {
+  const stages = useStages();
   return (
     <Peek>
-      <StageTrack stages={STAGES_EN} />
+      <StageTrack stages={stages} />
     </Peek>
   );
 }
 
 export function MiniMetricPeek() {
+  const t = useT();
   return (
     <Peek>
       <div className="tm-cp-metric tm-cp-metric--peek">
         <span className="tm-cp-metric__value">12</span>
         <span className="tm-cp-metric__text">
-          <span className="tm-cp-metric__label">days to launch</span>
-          <span className="tm-cp-row__meta">Launch · 30 Sep · on track</span>
+          <span className="tm-cp-metric__label">{t('PortalScenes.daysToLaunch')}</span>
+          <span className="tm-cp-row__meta">{t('PortalScenes.launchMeta')}</span>
         </span>
       </div>
     </Peek>
@@ -359,22 +387,23 @@ export function MiniMetricPeek() {
 }
 
 export function MiniActionPeek() {
+  const t = useT();
   return (
     <Peek>
       <div className="tm-cp-list tm-cp-list--peek">
         <div className="tm-cp-row">
           <span className="tm-cp-row__text">
-            <span className="tm-cp-row__title">Homepage v2</span>
-            <span className="tm-cp-row__meta">Deliverable · review</span>
+            <span className="tm-cp-row__title">{t('PortalScenes.peekHomepage')}</span>
+            <span className="tm-cp-row__meta">{t('PortalScenes.peekDeliverableReview')}</span>
           </span>
-          <StateCapsule state="client">Your review</StateCapsule>
+          <StateCapsule state="client">{t('PortalScenes.capsuleYourReview')}</StateCapsule>
         </div>
         <div className="tm-cp-row">
           <span className="tm-cp-row__text">
-            <span className="tm-cp-row__title">Brand photography</span>
-            <span className="tm-cp-row__meta">File request · 22 Sep</span>
+            <span className="tm-cp-row__title">{t('PortalScenes.peekBrandPhotos')}</span>
+            <span className="tm-cp-row__meta">{t('PortalScenes.peekFileRequest')}</span>
           </span>
-          <StateCapsule state="waiting">Due</StateCapsule>
+          <StateCapsule state="waiting">{t('PortalScenes.capsuleDue')}</StateCapsule>
         </div>
       </div>
     </Peek>
@@ -384,23 +413,24 @@ export function MiniActionPeek() {
 /** The CTA band's crop: the client's view of one project, with the one action they owe. */
 export function PortalCtaScene() {
   const t = useT();
+  const stages = useStages();
   return (
     <PortalScene label={t('PortalScenes.ctaLabel')} className="tm-cp-scene--cta">
       <div className="tm-cp-bar">
         <span className="tm-cp-url">atlas.tmanage.app/portal</span>
-        <StateCapsule state="client">Client</StateCapsule>
+        <StateCapsule state="client">{t('PortalScenes.client')}</StateCapsule>
       </div>
       <div className="tm-cp-pad">
-        <p className="tm-cp-title tm-cp-title--small">Atlas Website Relaunch</p>
-        <StageTrack stages={STAGES_EN} />
-        <p className="tm-web-scene__mono tm-cp-heading">Your actions · 1</p>
+        <p className="tm-cp-title tm-cp-title--small">{t('PortalScenes.projectTitle')}</p>
+        <StageTrack stages={stages} />
+        <p className="tm-web-scene__mono tm-cp-heading">{t('PortalScenes.yourActions1')}</p>
         <div className="tm-cp-list">
           <ActionRow
-            title="Homepage Concept v2"
-            meta="Deliverable · requested by Maya Hassan"
+            title={t('PortalScenes.homepageTitle')}
+            meta={t('PortalScenes.requestedByMaya')}
             state="client"
-            capsule="Your review"
-            action="Review"
+            capsule={t('PortalScenes.capsuleYourReview')}
+            action={t('PortalScenes.actionReview')}
           />
         </div>
       </div>

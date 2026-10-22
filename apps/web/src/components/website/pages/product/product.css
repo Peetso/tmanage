@@ -426,8 +426,14 @@
 
 .tm-pp-shell {
   display: grid;
+  /*
+   * The work column may shrink below its comfortable width (minmax(0, …)) so the four columns
+   * never add up to more than the frame. Before L4 its floor was s24 × 6: on a 1280 px screen the
+   * grid outgrew the shell and the details panel — the inline-end column — was clipped off the
+   * frame, which in Arabic is the left edge. The head wraps and the due cells truncate instead.
+   */
   grid-template-columns:
-    var(--s16) calc(var(--s24) + var(--s16)) minmax(calc(var(--s24) * 6), 1fr)
+    var(--s16) calc(var(--s24) + var(--s16)) minmax(0, 1fr)
     calc(var(--s24) * 2 + var(--s20));
   border-radius: var(--r-sheet);
   background: var(--paper-0);
@@ -550,6 +556,7 @@
 
 .tm-pp-shell__head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: var(--s3);
   margin-block-start: calc(var(--s3) * -1);
@@ -566,6 +573,12 @@
   display: flex;
   gap: var(--s2);
   margin-inline-start: auto;
+}
+
+.tm-pp-shell .tm-pp-col--due {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tm-pp-shell__stages {
