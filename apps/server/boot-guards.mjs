@@ -23,10 +23,28 @@ export function resolveNodeEnv(value) {
   };
 }
 
+/**
+ * The AI connector's public, tenant-less endpoints that live outside /v1: OAuth discovery
+ * metadata (RFC 9728 / RFC 8414), the OAuth authorization server, the OpenAPI description and
+ * the connector download. Exact paths only, so no web page can be swallowed by a prefix.
+ */
+const API_EXACT_PATHS = new Set([
+  '/.well-known/oauth-protected-resource',
+  '/.well-known/oauth-protected-resource/mcp',
+  '/.well-known/oauth-authorization-server',
+  '/oauth/authorize',
+  '/oauth/register',
+  '/oauth/revoke',
+  '/oauth/token',
+  '/openapi/ai.json',
+  '/downloads/tmanage-mcp.tgz',
+]);
+
 /** The paths the in-process API answers; everything else goes to the Next.js web server. */
 export function isApiPath(url) {
   const path = (url ?? '').split('?')[0];
   return (
+    API_EXACT_PATHS.has(path) ||
     path === '/v1' ||
     path.startsWith('/v1/') ||
     // The public site's contact form and maintenance banner live outside /v1

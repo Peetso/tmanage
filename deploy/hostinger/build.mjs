@@ -217,6 +217,8 @@ function assemble() {
     'production-env.mjs',
     'web-transport.mjs',
     'web-socket-preload.mjs',
+    // server.mjs imports the web child's restart backoff from here; missing it, boot fails.
+    'web-restart.mjs',
   ]) {
     cpSync(join(REPO, 'apps/server', file), join(STAGE, file));
   }

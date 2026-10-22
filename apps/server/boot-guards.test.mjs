@@ -56,6 +56,42 @@ test('first-owner setup at /public/setup goes to the API, and only that exact pa
   }
 });
 
+test('the AI connector OAuth discovery and authorization endpoints go to the API, exact paths only', () => {
+  for (const path of [
+    '/.well-known/oauth-protected-resource',
+    '/.well-known/oauth-protected-resource/mcp',
+    '/.well-known/oauth-authorization-server',
+    '/oauth/authorize?client_id=x&state=y',
+    '/oauth/register',
+    '/oauth/revoke',
+    '/oauth/token',
+    '/openapi/ai.json',
+    '/downloads/tmanage-mcp.tgz',
+  ]) {
+    assert.equal(isApiPath(path), true, path);
+  }
+  for (const path of [
+    '/.well-known',
+    '/.well-known/',
+    '/.well-known/security.txt',
+    '/.well-known/oauth-protected-resource/',
+    '/.well-known/oauth-protected-resource/other',
+    '/.well-known/oauth-authorization-serverx',
+    '/oauth',
+    '/oauth/',
+    '/oauth/consent',
+    '/oauth/authorizex',
+    '/connect/oauth',
+    '/openapi',
+    '/openapi/ai.jsonx',
+    '/openapi/other.json',
+    '/downloads',
+    '/downloads/other.tgz',
+  ]) {
+    assert.equal(isApiPath(path), false, path);
+  }
+});
+
 test('HSTS on every web response, the report-only CSP on HTML only', () => {
   const html = webSecurityHeaders({ 'content-type': 'text/html; charset=utf-8' });
   assert.equal(html['strict-transport-security'], HSTS_VALUE);
