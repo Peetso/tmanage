@@ -935,6 +935,14 @@
   text-overflow: ellipsis;
 }
 
+/* Arabic: the "Owner" heading (المالك) is a little wider than the initials column — let that
+   column take its content width so the heading is never cut. */
+[dir='rtl'] .tm-fw-list__row {
+  grid-template-columns:
+    var(--s4) minmax(0, 1fr) minmax(var(--s10), max-content) max-content var(--s20)
+    var(--s20);
+}
+
 .tm-fw-list__row--group {
   display: flex;
   gap: var(--s3);
@@ -1512,4 +1520,10 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--s8) var(--s5);
   }
+}
+
+/* Arabic scenes (L5): tracking pulls Arabic letters apart, so the mono captions and eyebrows
+ * inside the product scenes drop it in right-to-left. */
+[dir='rtl'] .tm-fw-scene .tm-web-eyebrow {
+  letter-spacing: 0;
 }

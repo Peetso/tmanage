@@ -2,6 +2,10 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, InlineAlert, StateCapsule } from '@tmanage/ui';
+import { localeDirection } from '../../../../lib/i18n/direction';
+import { formatDateTime, formatDay, formatNumber } from '../../../../lib/i18n/format';
+import type { MessageKey } from '../../../../lib/i18n/t';
+import { useActiveLocale } from '../../../../lib/i18n/use-active-locale';
 import { useT } from '../../../../lib/i18n/use-t';
 import { IconOrb, cx } from '../../primitives';
 import { WebIcon } from '../../WebIcon';
@@ -11,7 +15,54 @@ import { WebIcon } from '../../WebIcon';
  * TManage UI composed from packages/ui parts (StateCapsule, Badge, Avatar, InlineAlert, Button)
  * and the website's chip and orb classes — illustrations, so the body is `inert` and hidden from
  * assistive tech, with one sentence of alternative text in the caption.
+ *
+ * Every mock-up line reads from the `FeaturesKnowledgeScenes.*` keys, so the Arabic page shows
+ * Arabic product UI. Names, IDs (DEC-41, DEC-29) and version tags stay Latin.
  */
+
+type Vars = Readonly<Record<string, string | number>>;
+type SceneText = (key: string, vars?: Vars) => string;
+
+/** The scene text for `key` under `FeaturesKnowledgeScenes.`, with `{name}` placeholders filled. */
+function useSceneText(): SceneText {
+  const t = useT();
+  return (key, vars) => {
+    let text = t(`FeaturesKnowledgeScenes.${key}` as MessageKey);
+    for (const [name, value] of Object.entries(vars ?? {})) {
+      text = text.split(`{${name}}`).join(String(value));
+    }
+    return text;
+  };
+}
+
+interface SceneFormat {
+  /** A count in the active locale's digits. */
+  num(value: number): string;
+  /**
+   * A calendar day (or day and time, for an ISO instant with a time). Arabic formats `iso` with
+   * the active locale; English keeps the design's own short form, `en`, so the English page is
+   * unchanged.
+   */
+  day(iso: string, en: string, options?: Intl.DateTimeFormatOptions): string;
+}
+
+const DAY_MONTH: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+
+function useSceneFormat(): SceneFormat {
+  const locale = useActiveLocale();
+  const rtl = localeDirection(locale) === 'rtl';
+  return {
+    num: (value) => formatNumber(value, { locale }),
+    day: (iso, en, options = DAY_MONTH) => {
+      if (!rtl) return en;
+      const ctx = { locale, timeZone: 'UTC' };
+      return iso.includes('T')
+        ? formatDateTime(`${iso}Z`, ctx, options)
+        : formatDay(`${iso}T12:00:00Z`, ctx, options);
+    },
+  };
+}
+
 function Scene({
   label,
   className,
@@ -39,43 +90,46 @@ function Mono({ children, className }: { children: ReactNode; className?: string
 
 export function DecisionRecordScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('DecisionRecordScene.label')} className="tm-fk-scene--hero">
       <div className="tm-fk-window">
         <div className="tm-fk-window__bar">
-          <span className="tm-fk-window__url">
+          <span className="tm-fk-window__url" dir="ltr">
             tmanage.app / atlas / docs /<wbr /> homepage-direction
           </span>
         </div>
         <div className="tm-fk-window__body">
-          <Mono>Decision record · Atlas Website Relaunch</Mono>
-          <p className="tm-fk-hero-doc__title">Homepage direction</p>
+          <Mono>{s('hero.eyebrow')}</Mono>
+          <p className="tm-fk-hero-doc__title">{s('hero.title')}</p>
           <div className="tm-fk-byline">
             <Avatar name="Maya Hassan" decorative className="tm-fk-avatar" />
-            <span className="tm-fk-byline__text">Maya Hassan · updated 26 min ago</span>
-            <StateCapsule state="done">Decided</StateCapsule>
+            <span className="tm-fk-byline__text">{s('hero.byline', { minutes: f.num(26) })}</span>
+            <StateCapsule state="done">{s('decided')}</StateCapsule>
           </div>
-          <p className="tm-fk-hero-doc__text">
-            The booking call to action stays above the fold at every width. Offers move below the
-            room grid, where guests look for them.
-          </p>
-          <Mono>Linked work · live</Mono>
+          <p className="tm-fk-hero-doc__text">{s('hero.text')}</p>
+          <Mono>{s('hero.linked')}</Mono>
           <div className="tm-fk-links">
             <div className="tm-fk-link-row">
               <IconOrb icon="layers" tone="lime" />
               <span className="tm-fk-link-row__text">
-                <span className="tm-fk-link-row__title">Homepage Concept v2</span>
-                <span className="tm-fk-link-row__meta">DELIVERABLE · v2 APPROVED</span>
+                <span className="tm-fk-link-row__title">{s('concept')}</span>
+                <span className="tm-fk-link-row__meta">{s('hero.conceptMeta')}</span>
               </span>
-              <StateCapsule state="client">In client review</StateCapsule>
+              <StateCapsule state="client">{s('hero.inClientReview')}</StateCapsule>
             </div>
             <div className="tm-fk-link-row">
               <IconOrb icon="flag" tone="outline" />
               <span className="tm-fk-link-row__text">
-                <span className="tm-fk-link-row__title">Launch · 30 Sep</span>
-                <span className="tm-fk-link-row__meta">MILESTONE · 6 OPEN ITEMS</span>
+                <span className="tm-fk-link-row__title">
+                  {s('hero.launchTitle', { date: f.day('2026-09-30', '30 Sep') })}
+                </span>
+                <span className="tm-fk-link-row__meta">
+                  {s('hero.launchMeta', { n: f.num(6) })}
+                </span>
               </span>
-              <StateCapsule state="current">On track</StateCapsule>
+              <StateCapsule state="current">{s('hero.onTrack')}</StateCapsule>
             </div>
           </div>
         </div>
@@ -87,75 +141,86 @@ export function DecisionRecordScene() {
 /* ── Docs: the Atlas project brief with live work embedded ──────────────────── */
 
 const BRIEF_TASKS: readonly {
-  title: string;
+  key: string;
   state: 'done' | 'current' | 'client';
-  label: string;
+  stateKey: string;
   owner: string;
   client?: boolean;
-  date: string;
+  iso: string;
+  en: string;
 }[] = [
-  { title: 'Room grid content', state: 'done', label: 'Done', owner: 'Lina Samir', date: '12 Sep' },
   {
-    title: 'Booking widget QA',
-    state: 'current',
-    label: 'In progress',
-    owner: 'Omar Adel',
-    date: '18 Sep',
+    key: 'roomGrid',
+    state: 'done',
+    stateKey: 'done',
+    owner: 'Lina Samir',
+    iso: '2026-09-12',
+    en: '12 Sep',
   },
   {
-    title: 'Homepage copy sign-off',
+    key: 'widgetQa',
+    state: 'current',
+    stateKey: 'inProgress',
+    owner: 'Omar Adel',
+    iso: '2026-09-18',
+    en: '18 Sep',
+  },
+  {
+    key: 'copySignoff',
     state: 'client',
-    label: 'With client',
+    stateKey: 'withClient',
     owner: 'Youssef Kamal',
     client: true,
-    date: '22 Sep',
+    iso: '2026-09-22',
+    en: '22 Sep',
   },
 ];
 
 export function ProjectBriefScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('ProjectBriefScene.label')} className="tm-fk-scene--card">
       <div className="tm-fk-card">
         <div className="tm-fk-card__head">
           <IconOrb icon="doc" tone="outline" className="tm-fk-card__orb" />
           <span className="tm-fk-link-row__text">
-            <span className="tm-fk-card__title">Atlas project brief</span>
-            <span className="tm-fk-link-row__meta">BRIEF · EDITED 2 MIN AGO BY LINA SAMIR</span>
+            <span className="tm-fk-card__title">{s('brief.title')}</span>
+            <span className="tm-fk-link-row__meta">{s('brief.meta', { minutes: f.num(2) })}</span>
           </span>
-          <Badge>Internal</Badge>
+          <Badge>{s('internal')}</Badge>
         </div>
-        <p className="tm-fk-card__text">
-          Scope, owners and the dates we promised the client. The plan below is not a pasted table:
-          it is the work itself, and it changes when the work does.
-        </p>
+        <p className="tm-fk-card__text">{s('brief.text')}</p>
         <div className="tm-fk-embed">
           <div className="tm-fk-embed__head">
-            <Mono>Live from work · 3 tasks · 1 milestone</Mono>
-            <Badge mono>synced</Badge>
+            <Mono>{s('brief.live', { tasks: f.num(3), milestones: f.num(1) })}</Mono>
+            <Badge mono>{s('brief.synced')}</Badge>
           </div>
           {BRIEF_TASKS.map((task) => (
-            <div key={task.title} className="tm-fk-task">
-              <span className="tm-fk-task__title">{task.title}</span>
+            <div key={task.key} className="tm-fk-task">
+              <span className="tm-fk-task__title">{s(`task.${task.key}`)}</span>
               <span className="tm-fk-task__end">
-                <StateCapsule state={task.state}>{task.label}</StateCapsule>
+                <StateCapsule state={task.state}>{s(`state.${task.stateKey}`)}</StateCapsule>
                 <Avatar
                   name={task.owner}
                   audience={task.client ? 'client' : 'internal'}
                   decorative
                   className="tm-fk-avatar"
                 />
-                <span className="tm-fk-task__date">{task.date}</span>
+                <span className="tm-fk-task__date">{f.day(task.iso, task.en)}</span>
               </span>
             </div>
           ))}
           <div className="tm-fk-task tm-fk-task--milestone">
             <IconOrb icon="flag" tone="lime" />
             <span className="tm-fk-link-row__text">
-              <span className="tm-fk-task__title">Launch</span>
-              <span className="tm-fk-link-row__meta">MILESTONE · 30 SEP</span>
+              <span className="tm-fk-task__title">{s('brief.launch')}</span>
+              <span className="tm-fk-link-row__meta">
+                {s('brief.launchMeta', { date: f.day('2026-09-30', '30 SEP') })}
+              </span>
             </span>
-            <StateCapsule state="future">Upcoming</StateCapsule>
+            <StateCapsule state="future">{s('brief.upcoming')}</StateCapsule>
           </div>
         </div>
       </div>
@@ -165,52 +230,46 @@ export function ProjectBriefScene() {
 
 /* ── Decision register: DEC-41 ─────────────────────────────────────────────── */
 
+const REJECTED_OPTIONS = ['opt1', 'opt2'] as const;
+
 export function DecisionScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('DecisionScene.label')} className="tm-fk-scene--card">
       <div className="tm-fk-card">
         <div className="tm-fk-card__row">
           <span className="tm-fk-inline">
             <Badge mono>DEC-41</Badge>
-            <StateCapsule state="done">Decided</StateCapsule>
+            <StateCapsule state="done">{s('decided')}</StateCapsule>
           </span>
-          <span className="tm-fk-quiet">Effective 14 Aug</span>
+          <span className="tm-fk-quiet">
+            {s('dec.effective', { date: f.day('2026-08-14', '14 Aug') })}
+          </span>
         </div>
-        <p className="tm-fk-card__title tm-fk-card__title--lg">
-          Offers strip moves below the room grid
-        </p>
+        <p className="tm-fk-card__title tm-fk-card__title--lg">{s('dec.title')}</p>
         <div className="tm-fk-byline">
           <Avatar name="Lina Samir" decorative className="tm-fk-avatar" />
-          <span className="tm-fk-byline__text">
-            Lina Samir decided, with Omar Adel and Maya Hassan
-          </span>
+          <span className="tm-fk-byline__text">{s('dec.byline')}</span>
         </div>
-        <Mono>Why</Mono>
-        <p className="tm-fk-card__text tm-fk-card__text--tight">
-          Guests compare rooms before they look at offers. With offers on top, the booking widget
-          dropped below the fold on most laptops.
-        </p>
-        <Mono>Options we rejected</Mono>
+        <Mono>{s('dec.why')}</Mono>
+        <p className="tm-fk-card__text tm-fk-card__text--tight">{s('dec.whyText')}</p>
+        <Mono>{s('dec.rejectedTitle')}</Mono>
         <div className="tm-fk-options">
-          <div className="tm-fk-option">
-            <span className="tm-fk-link-row__text">
-              <span className="tm-fk-option__title">Full-width offers hero</span>
-              <span className="tm-fk-quiet">Pushed booking below the fold</span>
-            </span>
-            <StateCapsule state="archived">Rejected</StateCapsule>
-          </div>
-          <div className="tm-fk-option">
-            <span className="tm-fk-link-row__text">
-              <span className="tm-fk-option__title">Offers in a pop-up</span>
-              <span className="tm-fk-quiet">Interrupts the first visit</span>
-            </span>
-            <StateCapsule state="archived">Rejected</StateCapsule>
-          </div>
+          {REJECTED_OPTIONS.map((option) => (
+            <div key={option} className="tm-fk-option">
+              <span className="tm-fk-link-row__text">
+                <span className="tm-fk-option__title">{s(`dec.${option}`)}</span>
+                <span className="tm-fk-quiet">{s(`dec.${option}Why`)}</span>
+              </span>
+              <StateCapsule state="archived">{s('dec.rejected')}</StateCapsule>
+            </div>
+          ))}
         </div>
         <div className="tm-fk-card__row">
-          <Badge>Supersedes DEC-29</Badge>
-          <span className="tm-fk-quiet">Affects 3 work items</span>
+          <Badge>{s('dec.supersedes')}</Badge>
+          <span className="tm-fk-quiet">{s('dec.affects', { n: f.num(3) })}</span>
         </div>
       </div>
     </Scene>
@@ -221,43 +280,43 @@ export function DecisionScene() {
 
 export function GovernedVersionScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('GovernedVersionScene.label')} className="tm-fk-scene--card">
       <div className="tm-fk-card tm-fk-card--governed">
         <div className="tm-fk-card__row">
-          <span className="tm-fk-card__title">Homepage Concept</span>
-          <StateCapsule state="waiting">Waiting on Youssef</StateCapsule>
+          <span className="tm-fk-card__title">{s('gov.title')}</span>
+          <StateCapsule state="waiting">{s('gov.waiting')}</StateCapsule>
         </div>
-        <p className="tm-fk-quiet">Atlas Website Relaunch · Deliverable</p>
+        <p className="tm-fk-quiet">{s('gov.meta')}</p>
         <div className="tm-fk-versions">
           <div className="tm-fk-version">
             <Badge mono className="tm-fk-version__tag">
-              v3 · uploaded 19 Aug
+              {s('gov.v3Tag', { date: f.day('2026-08-19', '19 Aug') })}
             </Badge>
-            <span className="tm-fk-version__text">Lina Samir replaced the hero image</span>
+            <span className="tm-fk-version__text">{s('gov.v3Text')}</span>
             <StateCapsule state="current" className="tm-fk-version__state">
-              Latest
+              {s('gov.latest')}
             </StateCapsule>
           </div>
           <div className="tm-fk-version">
             <Badge mono className="tm-fk-version__tag">
-              v2 · approved 18 Aug
+              {s('gov.v2Tag', { date: f.day('2026-08-18', '18 Aug') })}
             </Badge>
-            <span className="tm-fk-version__text">Approved by Youssef Kamal</span>
+            <span className="tm-fk-version__text">{s('gov.v2Text')}</span>
             <StateCapsule state="archived" className="tm-fk-version__state">
-              Superseded
+              {s('gov.superseded')}
             </StateCapsule>
           </div>
         </div>
-        <InlineAlert tone="warning">
-          This approval is no longer valid because the reviewed version changed.
-        </InlineAlert>
+        <InlineAlert tone="warning">{s('gov.alert')}</InlineAlert>
         <div className="tm-fk-actions">
           <Button tone="ink" size="feature" tabIndex={-1}>
-            Request review of v3
+            {s('gov.requestReview')}
           </Button>
           <Button tone="outline" size="feature" tabIndex={-1}>
-            Compare versions
+            {s('gov.compare')}
           </Button>
         </div>
       </div>
@@ -267,22 +326,19 @@ export function GovernedVersionScene() {
 
 /* ── Publication preview ────────────────────────────────────────────────────── */
 
-const PREVIEW_CHECKS = [
-  'Internal comments are hidden',
-  'Cost and margin fields are hidden',
-  'File scanned · link expires in 7 days',
-] as const;
-
 export function PublicationPreviewScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
+  const checks = [s('pub.check1'), s('pub.check2'), s('pub.check3', { days: f.num(7) })];
   return (
     <Scene label={t('PublicationPreviewScene.label')} className="tm-fk-scene--card">
       <div className="tm-fk-card">
         <span>
-          <Badge tone="client">Client preview</Badge>
+          <Badge tone="client">{s('pub.badge')}</Badge>
         </span>
         <p className="tm-fk-card__title tm-fk-card__title--section">
-          You&rsquo;re about to publish Homepage Concept v2 to 2 client reviewers.
+          {s('pub.title', { n: f.num(2) })}
         </p>
         <div className="tm-fk-byline">
           <span className="tm-fk-inline tm-fk-inline--tight">
@@ -292,7 +348,7 @@ export function PublicationPreviewScene() {
           <span className="tm-fk-byline__text">Youssef Kamal, Salma Riad · Atlas</span>
         </div>
         <ul className="tm-fk-checks">
-          {PREVIEW_CHECKS.map((line) => (
+          {checks.map((line) => (
             <li key={line}>
               <WebIcon name="check" size={16} />
               {line}
@@ -301,10 +357,10 @@ export function PublicationPreviewScene() {
         </ul>
         <div className="tm-fk-actions">
           <Button tone="outline" size="feature" tabIndex={-1}>
-            Back
+            {s('pub.back')}
           </Button>
           <Button tone="lime" size="feature" tabIndex={-1}>
-            Publish to client
+            {s('pub.publish')}
           </Button>
         </div>
       </div>
@@ -314,43 +370,44 @@ export function PublicationPreviewScene() {
 
 /* ── Permission-aware search ────────────────────────────────────────────────── */
 
-const RESULTS: readonly {
-  kind: string;
-  title: string;
-  audience: 'client' | 'internal';
-  meta: string;
-}[] = [
-  {
-    kind: 'DELIVERABLE',
-    title: 'Homepage Concept v2',
-    audience: 'client',
-    meta: 'Atlas Website Relaunch · Files · awaiting approval',
-  },
-  {
-    kind: 'DECISION',
-    title: 'Homepage leads with the booking widget',
-    audience: 'internal',
-    meta: 'Decision log · recorded 11 Aug by Omar Adel',
-  },
-  {
-    kind: 'DOC',
-    title: 'Atlas brief · homepage section',
-    audience: 'internal',
-    meta: 'Docs · edited 16 Aug by Lina Samir',
-  },
-];
-
 export function PermissionSearchScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
+  const results: readonly {
+    kind: string;
+    title: string;
+    audience: 'client' | 'internal';
+    meta: string;
+  }[] = [
+    {
+      kind: s('kind.deliverable'),
+      title: s('concept'),
+      audience: 'client',
+      meta: s('res1.meta'),
+    },
+    {
+      kind: s('kind.decision'),
+      title: s('res2.title'),
+      audience: 'internal',
+      meta: s('res2.meta', { date: f.day('2026-08-11', '11 Aug') }),
+    },
+    {
+      kind: s('kind.doc'),
+      title: s('res3.title'),
+      audience: 'internal',
+      meta: s('res3.meta', { date: f.day('2026-08-16', '16 Aug') }),
+    },
+  ];
   return (
     <Scene label={t('PermissionSearchScene.label')} className="tm-fk-scene--search">
       <div className="tm-fk-search">
         <div className="tm-fk-search__field">
           <WebIcon name="search" size={16} />
-          <span className="tm-fk-search__query">homepage approval</span>
+          <span className="tm-fk-search__query">{s('search.query')}</span>
           <Badge mono>⌘K</Badge>
         </div>
-        {RESULTS.map((result) => (
+        {results.map((result) => (
           <div key={result.title} className="tm-fk-result">
             <span className="tm-fk-inline tm-fk-inline--wrap tm-fk-result__head">
               <Badge mono>{result.kind}</Badge>
@@ -359,14 +416,14 @@ export function PermissionSearchScene() {
                 tone={result.audience === 'client' ? 'client' : 'neutral'}
                 className="tm-fk-result__tag"
               >
-                {result.audience === 'client' ? 'client visible' : 'internal'}
+                {result.audience === 'client' ? s('search.clientVisible') : s('search.internal')}
               </Badge>
             </span>
             <span className="tm-fk-quiet">{result.meta}</span>
           </div>
         ))}
         <InlineAlert tone="neutral" className="tm-fk-search__note">
-          6 matches are in projects you are not on — their titles are not shown.
+          {s('search.note', { n: f.num(6) })}
         </InlineAlert>
       </div>
     </Scene>
@@ -375,43 +432,45 @@ export function PermissionSearchScene() {
 
 /* ── CTA band crop: the client's approval sheet ─────────────────────────────── */
 
-const CONFIRMING = [
-  'The brand feels right',
-  'Booking is easy to find',
-  'Arabic and English match',
-  'The phone layout works',
-] as const;
+const CONFIRMING = ['confirm1', 'confirm2', 'confirm3', 'confirm4'] as const;
 
 export function ClientApprovalScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('ClientApprovalScene.label')} className="tm-fk-scene--approve">
       <div className="tm-fk-approve">
         <div className="tm-fk-approve__inner">
-          <Mono>What you are deciding on</Mono>
+          <Mono>{s('appr.deciding')}</Mono>
           <p className="tm-fk-approve__hash">
             <span>v2 · 8f2c·d41a</span>
-            <span className="tm-fk-approve__time">13 Aug 09:12</span>
+            <span className="tm-fk-approve__time">
+              {f.day('2026-08-13T09:12:00', '13 Aug 09:12', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+                hourCycle: 'h23',
+              })}
+            </span>
           </p>
-          <p className="tm-fk-approve__text">
-            Your decision is recorded against this exact version. If the file changes, the approval
-            stops being valid and we ask you again.
-          </p>
+          <p className="tm-fk-approve__text">{s('appr.text')}</p>
           <hr className="tm-fk-approve__rule" />
-          <Mono>What you are confirming</Mono>
+          <Mono>{s('appr.confirming')}</Mono>
           <ul className="tm-fk-confirm">
-            {CONFIRMING.map((line) => (
-              <li key={line}>
+            {CONFIRMING.map((key) => (
+              <li key={key}>
                 <span className="tm-fk-confirm__box" />
-                {line}
+                {s(`appr.${key}`)}
               </li>
             ))}
           </ul>
           <Button tone="lime" size="feature" tabIndex={-1} className="tm-fk-approve__primary">
-            Approve version 2
+            {s('appr.approve', { version: f.num(2) })}
           </Button>
           <Button tone="outline" size="feature" tabIndex={-1} className="tm-fk-approve__secondary">
-            Request changes
+            {s('appr.changes')}
           </Button>
         </div>
       </div>

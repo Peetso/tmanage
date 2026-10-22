@@ -2,6 +2,10 @@
 
 import type { ReactNode } from 'react';
 import { Avatar, Badge, Button, StateCapsule, type CapsuleState } from '@tmanage/ui';
+import { localeDirection } from '../../../../lib/i18n/direction';
+import { formatDay, formatNumber } from '../../../../lib/i18n/format';
+import type { MessageKey } from '../../../../lib/i18n/t';
+import { useActiveLocale } from '../../../../lib/i18n/use-active-locale';
 import { useT } from '../../../../lib/i18n/use-t';
 import { WebIcon, type WebIconName } from '../../WebIcon';
 import { cx } from '../../primitives';
@@ -12,7 +16,48 @@ import { cx } from '../../primitives';
  * Limeframe tokens, drawn at product size and scaled down by the page CSS — the "clone at
  * 0.5–0.75" rule of SITE-SPEC §0. Scenes are illustrations: the body is `inert` and hidden from
  * assistive tech, and `label` is the one-sentence alternative text.
+ *
+ * Every mock-up line reads from the `FeaturesWorkScenes.*` keys, so the Arabic page shows Arabic
+ * product UI. Names, IDs (TSK-1042, REQ-64, WK-12) and version tags stay Latin.
  */
+
+type Vars = Readonly<Record<string, string | number>>;
+type SceneText = (key: string, vars?: Vars) => string;
+
+/** The scene text for `key` under `FeaturesWorkScenes.`, with `{name}` placeholders filled. */
+function useSceneText(): SceneText {
+  const t = useT();
+  return (key, vars) => {
+    let text = t(`FeaturesWorkScenes.${key}` as MessageKey);
+    for (const [name, value] of Object.entries(vars ?? {})) {
+      text = text.split(`{${name}}`).join(String(value));
+    }
+    return text;
+  };
+}
+
+interface SceneFormat {
+  /** A count in the active locale's digits. */
+  num(value: number): string;
+  /**
+   * A calendar day. Arabic formats `iso` with the active locale (Arabic month, Arabic-Indic
+   * digits); English keeps the design's own short form, `en`, so the English page is unchanged.
+   */
+  day(iso: string, en: string, options?: Intl.DateTimeFormatOptions): string;
+}
+
+const DAY_MONTH: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+
+function useSceneFormat(): SceneFormat {
+  const locale = useActiveLocale();
+  const rtl = localeDirection(locale) === 'rtl';
+  return {
+    num: (value) => formatNumber(value, { locale }),
+    day: (iso, en, options = DAY_MONTH) =>
+      rtl ? formatDay(`${iso}T12:00:00Z`, { locale, timeZone: 'UTC' }, options) : en,
+  };
+}
+
 function Scene({
   label,
   className,
@@ -59,16 +104,16 @@ const Initials = ({ name, tone = 'paper' }: { name: string; tone?: 'paper' | 'in
 
 /* ── Hero: the Work board inside the app shell ───────────────────────────────── */
 
-const RAIL: readonly { icon: WebIconName; label: string; on?: boolean }[] = [
-  { icon: 'pulse', label: 'Home' },
-  { icon: 'mail', label: 'Inbox' },
-  { icon: 'chat', label: 'Chat' },
-  { icon: 'work', label: 'Work', on: true },
-  { icon: 'doc', label: 'Docs' },
-  { icon: 'flag', label: 'Plan' },
-  { icon: 'portal', label: 'Clients' },
-  { icon: 'chart', label: 'Insights' },
-  { icon: 'shield', label: 'Control' },
+const RAIL: readonly { icon: WebIconName; key: string; on?: boolean }[] = [
+  { icon: 'pulse', key: 'home' },
+  { icon: 'mail', key: 'inbox' },
+  { icon: 'chat', key: 'chat' },
+  { icon: 'work', key: 'work', on: true },
+  { icon: 'doc', key: 'docs' },
+  { icon: 'flag', key: 'plan' },
+  { icon: 'portal', key: 'clients' },
+  { icon: 'chart', key: 'insights' },
+  { icon: 'shield', key: 'control' },
 ];
 
 interface BoardCardData {
@@ -124,52 +169,66 @@ function BoardColumn({
   );
 }
 
-const NOT_STARTED: readonly BoardCardData[] = [
-  {
-    id: 'TSK · NF',
-    title: 'Booking CTA microcopy — EN and AR',
-    meta: 'committed 20 Aug',
-  },
-  {
-    id: 'TSK · Unowned',
-    title: 'Accessibility pass on booking flow',
-    capsule: { state: 'waiting', label: 'No owner' },
-  },
-];
+function notStartedCards(s: SceneText, f: SceneFormat): readonly BoardCardData[] {
+  return [
+    {
+      id: 'TSK · NF',
+      title: s('card.ctaMicrocopy'),
+      meta: s('card.committed', { date: f.day('2026-08-20', '20 Aug') }),
+    },
+    {
+      id: s('card.idUnowned'),
+      title: s('card.accessibility'),
+      capsule: { state: 'waiting', label: s('card.noOwner') },
+    },
+  ];
+}
 
-const IN_PROGRESS: readonly BoardCardData[] = [
-  {
-    id: 'TSK · LS',
-    title: 'Prepare mobile booking flow concepts',
-    capsule: { state: 'blocked', label: 'Blocked: brand assets' },
-    meta: (
-      <>
-        committed 20 Aug · <span className="tm-fw-late">forecast 25 Aug</span>
-      </>
-    ),
-    selected: true,
-  },
-  {
-    id: 'TSK · NF',
-    title: 'Migrate Arabic booking FAQ copy',
-    meta: (
-      <>
-        committed 1 Sep · <span className="tm-fw-late">forecast 8 Sep</span>
-      </>
-    ),
-  },
-];
+function inProgressCards(s: SceneText, f: SceneFormat): readonly BoardCardData[] {
+  return [
+    {
+      id: 'TSK · LS',
+      title: s('card.mobileConcepts'),
+      capsule: { state: 'blocked', label: s('card.blockedBrand') },
+      meta: (
+        <>
+          {s('card.committed', { date: f.day('2026-08-20', '20 Aug') })} ·{' '}
+          <span className="tm-fw-late">
+            {s('card.forecast', { date: f.day('2026-08-25', '25 Aug') })}
+          </span>
+        </>
+      ),
+      selected: true,
+    },
+    {
+      id: 'TSK · NF',
+      title: s('card.faqCopy'),
+      meta: (
+        <>
+          {s('card.committed', { date: f.day('2026-09-01', '1 Sep') })} ·{' '}
+          <span className="tm-fw-late">
+            {s('card.forecast', { date: f.day('2026-09-08', '8 Sep') })}
+          </span>
+        </>
+      ),
+    },
+  ];
+}
 
-const IN_REVIEW: readonly BoardCardData[] = [
-  {
-    id: 'DEC · MH',
-    title: 'Homepage direction — decision record',
-    meta: '2 of 3 reviewers done',
-  },
-];
+function inReviewCards(s: SceneText, f: SceneFormat): readonly BoardCardData[] {
+  return [
+    {
+      id: 'DEC · MH',
+      title: s('card.homepageDecision'),
+      meta: s('card.reviewers', { done: f.num(2), total: f.num(3) }),
+    },
+  ];
+}
 
 export function WorkBoardScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('WorkBoardScene.label')} className="tm-fw-scene--board">
       <div className="tm-fw-shell">
@@ -178,38 +237,50 @@ export function WorkBoardScene() {
             <span />
           </span>
           {RAIL.map((item) => (
-            <span key={item.label} className={cx('tm-fw-rail__item', item.on && 'is-on')}>
+            <span key={item.key} className={cx('tm-fw-rail__item', item.on && 'is-on')}>
               <span className="tm-fw-rail__orb">
                 <WebIcon name={item.icon} size={14} />
               </span>
-              <span className="tm-fw-rail__label">{item.label}</span>
+              <span className="tm-fw-rail__label">{s(`rail.${item.key}`)}</span>
             </span>
           ))}
           <span className="tm-fw-rail__me">OA</span>
         </nav>
         <div className="tm-fw-board">
-          <Mono>Atlas Website Relaunch · Workflow “Delivery with client review”</Mono>
+          <Mono>{s('board.crumb')}</Mono>
           <div className="tm-fw-board__head">
-            <p className="tm-web-header__title tm-fw-board__title">Board</p>
+            <p className="tm-web-header__title tm-fw-board__title">{s('board.title')}</p>
             <span className="tm-fw-seg">
-              <span>List</span>
-              <span className="is-on">Board</span>
-              <span>Timeline</span>
+              <span>{s('view.list')}</span>
+              <span className="is-on">{s('view.board')}</span>
+              <span>{s('view.timeline')}</span>
             </span>
           </div>
           <p className="tm-fw-toast">
             <span className="tm-fw-toast__dot" />
-            Moving “Prepare mobile booking flow concepts” — column 3 of 12
+            {s('board.moving', {
+              title: s('card.mobileConcepts'),
+              column: f.num(3),
+              total: f.num(12),
+            })}
           </p>
           <div className="tm-fw-board__cols">
-            <BoardColumn title="Not started" count="10" cards={NOT_STARTED} />
             <BoardColumn
-              title="In progress"
-              count="9 / WIP 6"
-              flag="At limit"
-              cards={IN_PROGRESS}
+              title={s('col.notStarted')}
+              count={f.num(10)}
+              cards={notStartedCards(s, f)}
             />
-            <BoardColumn title="Internal review" count="2" cards={IN_REVIEW} />
+            <BoardColumn
+              title={s('col.inProgress')}
+              count={s('col.wip', { count: f.num(9), limit: f.num(6) })}
+              flag={s('col.atLimit')}
+              cards={inProgressCards(s, f)}
+            />
+            <BoardColumn
+              title={s('col.internalReview')}
+              count={f.num(2)}
+              cards={inReviewCards(s, f)}
+            />
           </div>
         </div>
       </div>
@@ -221,31 +292,33 @@ export function WorkBoardScene() {
 
 export function RequestScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('RequestScene.label')} className="tm-fw-scene--request">
       <div className="tm-fw-request">
         <div className="tm-fw-request__card">
           <p className="tm-fw-request__ids">
-            <Badge tone="client">Client request</Badge>
+            <Badge tone="client">{s('req.badge')}</Badge>
             <Mono>REQ-64 · Atlas Hospitality</Mono>
           </p>
-          <p className="tm-fw-request__title">Add Arabic booking FAQ before launch</p>
-          <p className="tm-fw-request__body">
-            From Salma Riad · Reason: guests ask about booking changes in Arabic. 1 file attached.
-          </p>
+          <p className="tm-fw-request__title">{s('req.title')}</p>
+          <p className="tm-fw-request__body">{s('req.body')}</p>
           <p className="tm-fw-request__state">
-            <StateCapsule state="waiting">Waiting with a manager</StateCapsule>
+            <StateCapsule state="waiting">{s('req.waiting')}</StateCapsule>
           </p>
-          <Mono className="tm-fw-request__date">Desired 3 Sep · not committed</Mono>
+          <Mono className="tm-fw-request__date">
+            {s('req.desired', { date: f.day('2026-09-03', '3 Sep') })}
+          </Mono>
           <div className="tm-fw-request__actions">
             <Button tone="ink" size="feature">
-              Accept
+              {s('req.accept')}
             </Button>
             <Button tone="outline" size="feature">
-              Defer
+              {s('req.defer')}
             </Button>
             <Button tone="text" size="feature">
-              Decline
+              {s('req.decline')}
             </Button>
           </div>
         </div>
@@ -254,12 +327,10 @@ export function RequestScene() {
             <Avatar name="Salma Riad" audience="client" size="compact" decorative />
             <span>
               <span className="tm-fw-reply__name">Salma Riad</span>
-              <Mono>Client portal · Reply</Mono>
+              <Mono>{s('reply.meta')}</Mono>
             </span>
           </div>
-          <p className="tm-fw-reply__text">
-            Here is the Arabic copy for the FAQ. Can it go live with the booking page?
-          </p>
+          <p className="tm-fw-reply__text">{s('reply.text')}</p>
           <Badge mono>faq-arabic-v2.docx</Badge>
         </div>
       </div>
@@ -269,15 +340,18 @@ export function RequestScene() {
 
 /* ── Work items: one work item, every detail ─────────────────────────────────── */
 
-const SUBTASKS: readonly { title: string; done?: boolean; blocked?: boolean; who?: string }[] = [
-  { title: 'Audit the current booking steps', done: true, who: 'LS' },
-  { title: 'Collect guest booking research', done: true, who: 'NF' },
-  { title: 'Draft three directions', blocked: true, who: 'LS' },
-  { title: 'Arabic layout check', who: 'KN' },
+const SUBTASKS: readonly { key: string; done?: boolean; blocked?: boolean; who?: string }[] = [
+  { key: 'audit', done: true, who: 'LS' },
+  { key: 'research', done: true, who: 'NF' },
+  { key: 'directions', blocked: true, who: 'LS' },
+  { key: 'arabic', who: 'KN' },
 ];
 
 export function WorkItemScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
+  const withYear: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short', year: 'numeric' };
   return (
     <Scene label={t('WorkItemScene.label')} className="tm-fw-scene--item">
       <div className="tm-fw-item">
@@ -286,22 +360,20 @@ export function WorkItemScene() {
             <p className="tm-fw-item__crumb">
               <span className="tm-fw-back">
                 <WebIcon name="arrow-right" size={12} className="tm-fw-back__icon" />
-                Delivery risk
+                {s('item.back')}
               </span>
               <Mono>TSK-1042 · Atlas Website Relaunch</Mono>
             </p>
-            <p className="tm-section-head__title tm-fw-item__title">
-              Prepare mobile booking flow concepts
-            </p>
+            <p className="tm-section-head__title tm-fw-item__title">{s('card.mobileConcepts')}</p>
             <p className="tm-fw-item__chips">
-              <StateCapsule state="blocked">Blocked</StateCapsule>
+              <StateCapsule state="blocked">{s('item.blocked')}</StateCapsule>
               <span className="tm-fw-pill">
                 <Initials name="LS" tone="ink" />
                 Lina Samir
               </span>
               <span className="tm-fw-pill">
                 <span className="tm-fw-pill__ring" />
-                Internal
+                {s('item.internal')}
               </span>
             </p>
             <div className="tm-fw-next">
@@ -309,9 +381,9 @@ export function WorkItemScene() {
                 <WebIcon name="play" size={12} />
               </span>
               <span className="tm-fw-next__text">
-                <span className="tm-fw-next__title">Resolve the brand-asset blocker</span>
+                <span className="tm-fw-next__title">{s('item.nextTitle')}</span>
                 <span className="tm-fw-next__why">
-                  Why now — this is the only thing between the task and its 20 Aug commitment.
+                  {s('item.nextWhy', { date: f.day('2026-08-20', '20 Aug') })}
                 </span>
               </span>
               <span className="tm-fw-next__go">
@@ -320,36 +392,33 @@ export function WorkItemScene() {
             </div>
             <dl className="tm-fw-facts">
               <div>
-                <dt className="tm-web-eyebrow">Committed</dt>
-                <dd>20 Aug 2026</dd>
+                <dt className="tm-web-eyebrow">{s('fact.committed')}</dt>
+                <dd>{f.day('2026-08-20', '20 Aug 2026', withYear)}</dd>
               </div>
               <div>
-                <dt className="tm-web-eyebrow">Forecast</dt>
-                <dd className="tm-fw-late">25 Aug 2026</dd>
+                <dt className="tm-web-eyebrow">{s('fact.forecast')}</dt>
+                <dd className="tm-fw-late">{f.day('2026-08-25', '25 Aug 2026', withYear)}</dd>
               </div>
               <div>
-                <dt className="tm-web-eyebrow">Milestone</dt>
-                <dd>Homepage direction</dd>
+                <dt className="tm-web-eyebrow">{s('fact.milestone')}</dt>
+                <dd>{s('milestone.homepage')}</dd>
               </div>
               <div>
-                <dt className="tm-web-eyebrow">Source</dt>
+                <dt className="tm-web-eyebrow">{s('fact.source')}</dt>
                 <dd>#atlas-relaunch</dd>
               </div>
             </dl>
-            <p className="tm-fw-item__desc">
-              Three concept directions for the mobile booking flow, covering the room selection
-              step, the date picker and the confirmation screen. Arabic layout is in scope.
-            </p>
+            <p className="tm-fw-item__desc">{s('item.desc')}</p>
           </div>
           <div className="tm-fw-panel tm-fw-item__subtasks">
             <p className="tm-fw-subtasks__head">
-              <span className="tm-fw-subtasks__title">Subtasks</span>
-              <Mono>2 of 4 done · progress is not the parent’s progress</Mono>
+              <span className="tm-fw-subtasks__title">{s('subtasks.title')}</span>
+              <Mono>{s('subtasks.progress', { done: f.num(2), total: f.num(4) })}</Mono>
             </p>
             <ul className="tm-fw-subtasks">
               {SUBTASKS.map((task) => (
                 <li
-                  key={task.title}
+                  key={task.key}
                   className={cx(
                     'tm-fw-subtask',
                     task.done && 'is-done',
@@ -359,8 +428,8 @@ export function WorkItemScene() {
                   <span className="tm-fw-box">
                     {task.done ? <WebIcon name="check" size={12} /> : null}
                   </span>
-                  <span className="tm-fw-subtask__title">{task.title}</span>
-                  {task.blocked ? <Mono className="tm-fw-late">Blocked</Mono> : null}
+                  <span className="tm-fw-subtask__title">{s(`subtask.${task.key}`)}</span>
+                  {task.blocked ? <Mono className="tm-fw-late">{s('item.blocked')}</Mono> : null}
                   {task.who ? (
                     <Initials name={task.who} tone={task.done ? 'ink' : 'paper'} />
                   ) : null}
@@ -368,51 +437,48 @@ export function WorkItemScene() {
               ))}
               <li className="tm-fw-subtask tm-fw-subtask--add">
                 <span className="tm-fw-box tm-fw-box--ghost" />
-                <span className="tm-fw-subtask__title">Add a subtask</span>
-                <Mono>↑↓ reorder</Mono>
+                <span className="tm-fw-subtask__title">{s('subtask.add')}</span>
+                <Mono>{s('subtask.reorder')}</Mono>
               </li>
             </ul>
           </div>
         </div>
         <div className="tm-fw-item__side">
           <div className="tm-fw-panel tm-fw-item__story">
-            <Mono>Work story</Mono>
+            <Mono>{s('story.title')}</Mono>
             <ol className="tm-fw-story">
               <li>
-                <Mono>Requested · 14 Aug · Salma</Mono>
-                <span>Asked in the client channel</span>
+                <Mono>{s('story.requested', { date: f.day('2026-08-14', '14 Aug') })}</Mono>
+                <span>{s('story.requestedText')}</span>
               </li>
               <li>
-                <Mono>Committed · 14 Aug · Omar</Mono>
-                <span>20 Aug, owner Lina</span>
+                <Mono>{s('story.committed', { date: f.day('2026-08-14', '14 Aug') })}</Mono>
+                <span>{s('story.committedText', { date: f.day('2026-08-20', '20 Aug') })}</span>
               </li>
               <li className="is-now">
-                <Mono>Now · blocked 3h</Mono>
-                <span>Brand assets have not arrived</span>
+                <Mono>{s('story.now', { hours: f.num(3) })}</Mono>
+                <span>{s('story.nowText')}</span>
               </li>
             </ol>
           </div>
           <div className="tm-fw-deps">
-            <Mono>WK-12 · Dependencies</Mono>
+            <Mono>{s('deps.title')}</Mono>
             <div className="tm-fw-deps__box">
-              <Mono className="tm-fw-deps__label">Blocked by · 1</Mono>
-              <span>Brand asset pack (client upload)</span>
+              <Mono className="tm-fw-deps__label">{s('deps.blockedBy', { n: f.num(1) })}</Mono>
+              <span>{s('deps.assetPack')}</span>
             </div>
             <span className="tm-fw-deps__plus">+</span>
             <div className="tm-fw-deps__box tm-fw-deps__box--this">
-              <Mono className="tm-fw-deps__label">This task</Mono>
-              <span>Prepare mobile booking flow concepts</span>
+              <Mono className="tm-fw-deps__label">{s('deps.thisTask')}</Mono>
+              <span>{s('card.mobileConcepts')}</span>
             </div>
             <span className="tm-fw-deps__plus">+</span>
             <div className="tm-fw-deps__box">
-              <Mono className="tm-fw-deps__label">Blocks · 2</Mono>
-              <span>Mobile concept review</span>
-              <span>Homepage direction milestone</span>
+              <Mono className="tm-fw-deps__label">{s('deps.blocks', { n: f.num(2) })}</Mono>
+              <span>{s('deps.mobileReview')}</span>
+              <span>{s('deps.milestone')}</span>
             </div>
-            <p className="tm-fw-deps__warn">
-              Adding “Mobile concept review” as a blocker would create a cycle. That link is refused
-              with both objects named.
-            </p>
+            <p className="tm-fw-deps__warn">{s('deps.warn')}</p>
           </div>
         </div>
       </div>
@@ -422,7 +488,7 @@ export function WorkItemScene() {
 
 /* ── Views: list, board, timeline ────────────────────────────────────────────── */
 
-const LIST_ROWS: readonly {
+interface ListRow {
   type: string;
   title: string;
   who: string;
@@ -432,87 +498,95 @@ const LIST_ROWS: readonly {
   forecast: string;
   late?: boolean;
   checked?: boolean;
-}[] = [
-  {
-    type: 'DEL',
-    title: 'Homepage Concept v2',
-    who: 'OA',
-    state: 'client',
-    label: 'Client review',
-    committed: '18 Aug',
-    forecast: '18 Aug',
-    checked: true,
-  },
-  {
-    type: 'TSK',
-    title: 'Prepare mobile booking flow concepts',
-    who: 'LS',
-    state: 'blocked',
-    label: 'Blocked',
-    committed: '20 Aug',
-    forecast: '25 Aug',
-    late: true,
-    checked: true,
-  },
-  {
-    type: 'TSK',
-    title: 'Booking CTA microcopy — EN and AR',
-    who: 'NF',
-    state: 'future',
-    label: 'Not started',
-    committed: '19 Aug',
-    forecast: '19 Aug',
-    checked: true,
-  },
-  {
-    type: 'DEC',
-    title: 'Homepage direction — decision record',
-    who: 'MH',
-    state: 'current',
-    label: 'In progress',
-    committed: '18 Aug',
-    forecast: '18 Aug',
-  },
-  {
-    type: 'TSK',
-    title: 'ترجمة صفحة الأسئلة الشائعة',
-    who: 'NF',
-    state: 'future',
-    label: 'Not started',
-    committed: '1 Sep',
-    forecast: '8 Sep',
-    late: true,
-  },
-  {
-    type: 'REQ',
-    title: 'Add Arabic booking FAQ before launch',
-    who: 'SR',
-    state: 'waiting',
-    label: 'Needs triage',
-    committed: 'not set',
-    forecast: 'desired 3 Sep',
-  },
-];
+}
+
+function listRows(s: SceneText, f: SceneFormat): readonly ListRow[] {
+  const aug18 = f.day('2026-08-18', '18 Aug');
+  return [
+    {
+      type: 'DEL',
+      title: s('deliverable.concept'),
+      who: 'OA',
+      state: 'client',
+      label: s('state.clientReview'),
+      committed: aug18,
+      forecast: aug18,
+      checked: true,
+    },
+    {
+      type: 'TSK',
+      title: s('card.mobileConcepts'),
+      who: 'LS',
+      state: 'blocked',
+      label: s('item.blocked'),
+      committed: f.day('2026-08-20', '20 Aug'),
+      forecast: f.day('2026-08-25', '25 Aug'),
+      late: true,
+      checked: true,
+    },
+    {
+      type: 'TSK',
+      title: s('card.ctaMicrocopy'),
+      who: 'NF',
+      state: 'future',
+      label: s('col.notStarted'),
+      committed: f.day('2026-08-19', '19 Aug'),
+      forecast: f.day('2026-08-19', '19 Aug'),
+      checked: true,
+    },
+    {
+      type: 'DEC',
+      title: s('card.homepageDecision'),
+      who: 'MH',
+      state: 'current',
+      label: s('col.inProgress'),
+      committed: aug18,
+      forecast: aug18,
+    },
+    {
+      type: 'TSK',
+      // Already Arabic on the English page: the list shows a bilingual workspace.
+      title: 'ترجمة صفحة الأسئلة الشائعة',
+      who: 'NF',
+      state: 'future',
+      label: s('col.notStarted'),
+      committed: f.day('2026-09-01', '1 Sep'),
+      forecast: f.day('2026-09-08', '8 Sep'),
+      late: true,
+    },
+    {
+      type: 'REQ',
+      title: s('req.title'),
+      who: 'SR',
+      state: 'waiting',
+      label: s('state.needsTriage'),
+      committed: s('list.notSet'),
+      forecast: s('list.desired', { date: f.day('2026-09-03', '3 Sep') }),
+    },
+  ];
+}
 
 export function ListViewScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('ListViewScene.label')} className="tm-fw-scene--mini">
       <div className="tm-fw-list">
         <div className="tm-fw-list__row tm-fw-list__row--head">
           <span className="tm-fw-box tm-fw-box--ghost" />
-          <Mono className="tm-fw-list__title">Work item</Mono>
-          <Mono>Owner</Mono>
-          <Mono className="tm-fw-list__state">State</Mono>
-          <Mono>Committed</Mono>
-          <Mono>Forecast</Mono>
+          <Mono className="tm-fw-list__title">{s('list.workItem')}</Mono>
+          <Mono>{s('list.owner')}</Mono>
+          <Mono className="tm-fw-list__state">{s('list.state')}</Mono>
+          <Mono>{s('fact.committed')}</Mono>
+          <Mono>{s('fact.forecast')}</Mono>
         </div>
         <div className="tm-fw-list__row tm-fw-list__row--group">
-          <Mono>Milestone · Homepage direction</Mono>
-          <StateCapsule state="current">Current · 4 days</StateCapsule>
-          <Mono>6 items</Mono>
+          <Mono>{s('list.group')}</Mono>
+          <StateCapsule state="current">{s('list.groupState', { days: f.num(4) })}</StateCapsule>
+          <Mono>{s('list.items', { n: f.num(6) })}</Mono>
         </div>
-        {LIST_ROWS.map((row) => (
+        {listRows(s, f).map((row) => (
           <div key={row.title} className={cx('tm-fw-list__row', row.checked && 'is-checked')}>
             <span className={cx('tm-fw-box', row.checked && 'tm-fw-box--on')}>
               {row.checked ? <WebIcon name="check" size={12} /> : null}
@@ -536,11 +610,18 @@ export function ListViewScene() {
 
 export function BoardViewScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('BoardViewScene.label')} className="tm-fw-scene--mini">
       <div className="tm-fw-board__cols tm-fw-board__cols--mini">
-        <BoardColumn title="Not started" count="10" cards={NOT_STARTED} />
-        <BoardColumn title="In progress" count="9 / WIP 6" flag="At limit" cards={IN_PROGRESS} />
+        <BoardColumn title={s('col.notStarted')} count={f.num(10)} cards={notStartedCards(s, f)} />
+        <BoardColumn
+          title={s('col.inProgress')}
+          count={s('col.wip', { count: f.num(9), limit: f.num(6) })}
+          flag={s('col.atLimit')}
+          cards={inProgressCards(s, f)}
+        />
       </div>
     </Scene>
   );
@@ -548,66 +629,64 @@ export function BoardViewScene() {
 
 const TIMELINE_ROWS: readonly {
   type: string;
-  title: string;
+  key: string;
   start: number;
   span: number;
   tone: 'ink' | 'late' | 'outline';
-  slip?: string;
+  slipDays?: number;
 }[] = [
-  { type: 'DEL', title: 'Homepage Concept v2', start: 8, span: 26, tone: 'ink' },
-  {
-    type: 'TSK',
-    title: 'Prepare mobile booking concepts',
-    start: 14,
-    span: 24,
-    tone: 'late',
-    slip: '+5d',
-  },
-  { type: 'TSK', title: 'Migrate Arabic booking FAQ copy', start: 36, span: 22, tone: 'outline' },
-  { type: 'TSK', title: 'Rebuild booking form validation', start: 46, span: 30, tone: 'late' },
-  { type: 'TSK', title: 'Quality review pass', start: 66, span: 20, tone: 'outline' },
+  { type: 'DEL', key: 'deliverable.concept', start: 8, span: 26, tone: 'ink' },
+  { type: 'TSK', key: 'tl.mobileShort', start: 14, span: 24, tone: 'late', slipDays: 5 },
+  { type: 'TSK', key: 'card.faqCopy', start: 36, span: 22, tone: 'outline' },
+  { type: 'TSK', key: 'tl.validation', start: 46, span: 30, tone: 'late' },
+  { type: 'TSK', key: 'tl.quality', start: 66, span: 20, tone: 'outline' },
 ];
 
 export function TimelineViewScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('TimelineViewScene.label')} className="tm-fw-scene--mini">
       <div className="tm-fw-timeline">
         <div className="tm-fw-timeline__row tm-fw-timeline__row--head">
-          <Mono className="tm-fw-timeline__name">Work</Mono>
+          <Mono className="tm-fw-timeline__name">{s('tl.work')}</Mono>
           <span className="tm-fw-timeline__track tm-fw-timeline__scale">
-            <Mono>Aug 12</Mono>
-            <Mono className="tm-fw-timeline__today">Aug 18</Mono>
-            <Mono>Aug 25</Mono>
+            <Mono>{f.day('2026-08-12', 'Aug 12')}</Mono>
+            <Mono className="tm-fw-timeline__today">{f.day('2026-08-18', 'Aug 18')}</Mono>
+            <Mono>{f.day('2026-08-25', 'Aug 25')}</Mono>
           </span>
         </div>
         <div className="tm-fw-timeline__row">
-          <Mono className="tm-fw-timeline__name">Milestones</Mono>
+          <Mono className="tm-fw-timeline__name">{s('tl.milestones')}</Mono>
           <span className="tm-fw-timeline__track">
             <span className="tm-fw-timeline__milestone">
-              <StateCapsule state="current">Homepage direction · 18 Aug</StateCapsule>
+              <StateCapsule state="current">
+                {s('tl.milestone', { date: f.day('2026-08-18', '18 Aug') })}
+              </StateCapsule>
             </span>
           </span>
         </div>
         {TIMELINE_ROWS.map((row) => (
-          <div key={row.title} className="tm-fw-timeline__row">
+          <div key={row.key} className="tm-fw-timeline__row">
             <span className="tm-fw-timeline__name">
               <Mono>{row.type}</Mono>
-              <Clip>{row.title}</Clip>
+              <Clip>{s(row.key)}</Clip>
             </span>
             <span className="tm-fw-timeline__track">
               <span
                 className={cx('tm-fw-bar', `tm-fw-bar--${row.tone}`)}
                 style={{ insetInlineStart: `${row.start}%`, inlineSize: `${row.span}%` }}
               />
-              {row.slip ? <Mono className="tm-fw-bar__slip tm-fw-late">{row.slip}</Mono> : null}
+              {row.slipDays ? (
+                <Mono className="tm-fw-bar__slip tm-fw-late">
+                  {s('tl.slip', { days: f.num(row.slipDays) })}
+                </Mono>
+              ) : null}
             </span>
           </div>
         ))}
-        <Mono className="tm-fw-timeline__legend">
-          Today line = committed · orange outline = forecast past committed · grey bar below =
-          baseline
-        </Mono>
+        <Mono className="tm-fw-timeline__legend">{s('tl.legend')}</Mono>
       </div>
     </Scene>
   );
@@ -615,7 +694,8 @@ export function TimelineViewScene() {
 
 /* ── Projects & portfolio: Project Pulse plan ────────────────────────────────── */
 
-const MILESTONES: readonly {
+interface MilestoneRow {
+  key: string;
   title: string;
   mark: 'done' | 'current' | 'risk' | 'future';
   tag?: ReactNode;
@@ -624,82 +704,96 @@ const MILESTONES: readonly {
   forecast: string;
   late?: boolean;
   evidence: string;
-}[] = [
-  {
-    title: 'Discovery complete',
-    mark: 'done',
-    baseline: '20 Jul',
-    committed: '20 Jul',
-    forecast: 'done',
-    evidence: '3 / 3',
-  },
-  {
-    title: 'Homepage direction',
-    mark: 'current',
-    tag: <StateCapsule state="current">Current</StateCapsule>,
-    baseline: '18 Aug',
-    committed: '18 Aug',
-    forecast: '18 Aug',
-    evidence: '2 / 6',
-  },
-  {
-    title: 'Content migration',
-    mark: 'risk',
-    baseline: '1 Sep',
-    committed: '1 Sep',
-    forecast: '3 Sep',
-    late: true,
-    evidence: '4 / 11',
-  },
-  {
-    title: 'Quality review',
-    mark: 'future',
-    baseline: '18 Sep',
-    committed: '20 Sep',
-    forecast: '24 Sep',
-    late: true,
-    evidence: '0 / 6',
-  },
-  {
-    title: 'Launch',
-    mark: 'future',
-    tag: <Badge mono>Client commitment</Badge>,
-    baseline: '30 Sep',
-    committed: '30 Sep',
-    forecast: '30 Sep',
-    evidence: '0 / 4',
-  },
-];
+}
 
-const PULSE_TABS = ['Overview', 'Plan', 'Work', 'Story', 'Team', 'Settings'];
+function milestones(s: SceneText, f: SceneFormat): readonly MilestoneRow[] {
+  const evidence = (done: number, total: number) => `${f.num(done)} / ${f.num(total)}`;
+  const jul20 = f.day('2026-07-20', '20 Jul');
+  const aug18 = f.day('2026-08-18', '18 Aug');
+  const sep1 = f.day('2026-09-01', '1 Sep');
+  const sep30 = f.day('2026-09-30', '30 Sep');
+  return [
+    {
+      key: 'discovery',
+      title: s('m.discovery'),
+      mark: 'done',
+      baseline: jul20,
+      committed: jul20,
+      forecast: s('pulse.done'),
+      evidence: evidence(3, 3),
+    },
+    {
+      key: 'homepage',
+      title: s('milestone.homepage'),
+      mark: 'current',
+      tag: <StateCapsule state="current">{s('pulse.current')}</StateCapsule>,
+      baseline: aug18,
+      committed: aug18,
+      forecast: aug18,
+      evidence: evidence(2, 6),
+    },
+    {
+      key: 'migration',
+      title: s('m.migration'),
+      mark: 'risk',
+      baseline: sep1,
+      committed: sep1,
+      forecast: f.day('2026-09-03', '3 Sep'),
+      late: true,
+      evidence: evidence(4, 11),
+    },
+    {
+      key: 'quality',
+      title: s('m.quality'),
+      mark: 'future',
+      baseline: f.day('2026-09-18', '18 Sep'),
+      committed: f.day('2026-09-20', '20 Sep'),
+      forecast: f.day('2026-09-24', '24 Sep'),
+      late: true,
+      evidence: evidence(0, 6),
+    },
+    {
+      key: 'launch',
+      title: s('m.launch'),
+      mark: 'future',
+      tag: <Badge mono>{s('pulse.clientCommitment')}</Badge>,
+      baseline: sep30,
+      committed: sep30,
+      forecast: sep30,
+      evidence: evidence(0, 4),
+    },
+  ];
+}
+
+const PULSE_TABS = ['overview', 'plan', 'work', 'story', 'team', 'settings'] as const;
 
 export function ProjectPulseScene() {
   const t = useT();
+  const s = useSceneText();
+  const f = useSceneFormat();
   return (
     <Scene label={t('ProjectPulseScene.label')} className="tm-fw-scene--pulse">
       <div className="tm-fw-pulse">
         <span className="tm-fw-seg tm-fw-seg--tabs">
           {PULSE_TABS.map((tab) => (
-            <span key={tab} className={tab === 'Plan' ? 'is-on' : undefined}>
-              {tab}
+            <span key={tab} className={tab === 'plan' ? 'is-on' : undefined}>
+              {s(`pulse.tab.${tab}`)}
             </span>
           ))}
         </span>
-        <Mono className="tm-fw-pulse__eyebrow">Atlas Website Relaunch · Plan</Mono>
-        <p className="tm-web-header__title tm-fw-pulse__title">
-          Five milestones, one committed launch
-        </p>
+        <Mono className="tm-fw-pulse__eyebrow">{s('pulse.eyebrow')}</Mono>
+        <p className="tm-web-header__title tm-fw-pulse__title">{s('pulse.title')}</p>
         <div className="tm-fw-pulse__table">
           <div className="tm-fw-pulse__row tm-fw-pulse__row--head">
-            <Mono>Milestone</Mono>
-            <Mono className="tm-fw-pulse__baseline">Baseline</Mono>
-            <Mono>Committed</Mono>
-            <Mono>Forecast</Mono>
-            <Mono>Evidence</Mono>
+            <Mono>{s('fact.milestone')}</Mono>
+            <Mono className="tm-fw-pulse__baseline">{s('pulse.baseline')}</Mono>
+            <Mono>{s('fact.committed')}</Mono>
+            <Mono>{s('fact.forecast')}</Mono>
+            <Mono>{s('pulse.evidence')}</Mono>
           </div>
-          {MILESTONES.map((m) => (
+          {milestones(s, f).map((m) => (
             <div
-              key={m.title}
+              key={m.key}
               className={cx('tm-fw-pulse__row', m.mark === 'current' && 'is-current')}
             >
               <span className="tm-fw-pulse__name">
@@ -715,10 +809,7 @@ export function ProjectPulseScene() {
               <Mono>{m.evidence}</Mono>
             </div>
           ))}
-          <p className="tm-fw-pulse__note">
-            Quality review absorbs the migration slip, so the launch commitment holds — but there is
-            no float left. One more slip moves the client-facing date.
-          </p>
+          <p className="tm-fw-pulse__note">{s('pulse.note')}</p>
         </div>
       </div>
     </Scene>

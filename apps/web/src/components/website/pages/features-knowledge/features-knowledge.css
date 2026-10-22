@@ -830,3 +830,10 @@
     padding: var(--s5);
   }
 }
+
+/* Arabic scenes (L5): tracking pulls Arabic letters apart, so the mono captions and link metadata
+ * drop it in right-to-left; the Latin names inside them read fine untracked. */
+[dir='rtl'] .tm-fk-scene .tm-web-scene__mono,
+[dir='rtl'] .tm-fk-scene .tm-fk-link-row__meta {
+  letter-spacing: 0;
+}
