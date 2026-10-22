@@ -259,7 +259,6 @@ function ConsentDecision({
   }
 
   const roleKey = workspace ? ROLE_KEYS[workspace.role] : undefined;
-  const others = workspaces.filter((org) => org.id !== workspace?.id);
 
   function toggle(scope: string, on: boolean) {
     setChosen((current) => {
@@ -285,30 +284,30 @@ function ConsentDecision({
             <button
               type="button"
               className="tm-consent__picker"
-              aria-expanded={others.length > 0 ? picking : undefined}
-              disabled={others.length === 0}
+              aria-expanded={picking}
               onClick={() => setPicking((open) => !open)}
             >
               <span className="tm-consent__picker-text">
                 <span className="tm-consent__picker-name">{workspace.name}</span>
                 <span className="tm-consent__picker-sub">
                   {roleKey ? fill(t(k('Consent.youAre')), { role: t(roleKey) }) : null}
-                  {others.length > 0 ? ` · ${t(k('Consent.change'))}` : null}
+                  {` · ${t(k('Consent.change'))}`}
                 </span>
               </span>
-              {others.length > 0 ? (
-                <span className="tm-consent__chevron" aria-hidden="true">
-                  ›
-                </span>
-              ) : null}
+              <span className="tm-consent__chevron" aria-hidden="true">
+                ›
+              </span>
             </button>
+            {/* The row and "change" always show, as designed; with one workspace the list
+                simply holds that one workspace. */}
             {picking ? (
               <ul className="tm-consent__options" aria-label={t(k('Consent.chooseWorkspace'))}>
-                {others.map((org) => (
+                {workspaces.map((org) => (
                   <li key={org.id}>
                     <button
                       type="button"
                       className="tm-consent__picker"
+                      aria-current={org.id === workspace.id ? 'true' : undefined}
                       onClick={() => {
                         setWorkspaceId(org.id);
                         setPicking(false);

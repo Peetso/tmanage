@@ -133,4 +133,24 @@ describe('S9 consent screen', () => {
       scopes: ['tmanage:read', 'tmanage:write', 'tmanage:manage'],
     });
   });
+
+  it('keeps "change" and the chevron with one workspace, and change opens a one-item list', async () => {
+    const { client } = clientOver(true);
+    const { container } = render(
+      withQuery(<ConsentScreen params={PARAMS} client={client} navigate={() => {}} />),
+    );
+
+    const row = await screen.findByRole('button', { name: /Northstar Studio/ });
+    expect(row).toBeEnabled();
+    expect(row).toHaveTextContent(/· (Consent\.change|change)/);
+    expect(container.querySelector('.tm-consent__chevron')).not.toBeNull();
+    expect(row).toHaveAttribute('aria-expanded', 'false');
+
+    await userEvent.click(row);
+    expect(row).toHaveAttribute('aria-expanded', 'true');
+    const list = screen.getByRole('list', { name: /Consent\.chooseWorkspace|Choose a workspace/ });
+    const items = list.querySelectorAll('li');
+    expect(items).toHaveLength(1);
+    expect(items[0]).toHaveTextContent('Northstar Studio');
+  });
 });
