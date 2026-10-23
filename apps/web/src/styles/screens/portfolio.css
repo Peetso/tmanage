@@ -85,7 +85,7 @@
   font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--ink-650); /* ink-500 was 3.7–4.2:1 at 10–11px (axe) */
 }
 
 .tm-por__list {

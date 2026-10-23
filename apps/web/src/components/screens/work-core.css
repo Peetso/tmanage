@@ -214,9 +214,10 @@
   box-shadow: var(--focus-ring);
 }
 
+/* The tone is the border; the word stays ink (warning-600 text on paper is 3.6:1, under AA). */
 .tm-wk-filter[data-tone='warning'] {
   border-color: var(--warning-600);
-  color: var(--warning-600);
+  color: var(--tm-on-tone);
 }
 
 .tm-wk-filter[data-tone='client'] {
@@ -730,12 +731,15 @@ button.tm-wk-chip[aria-expanded='true'] {
   border-color: var(--tm-hover-edge);
 }
 
+/* The tone is the edge; the word stays ink — warning/danger-600 text on paper is under AA. */
 .tm-wk-chip[data-tone='warning'] {
-  color: var(--warning-600);
+  border-color: var(--warning-600);
+  color: var(--tm-on-tone);
 }
 
 .tm-wk-chip[data-tone='danger'] {
-  color: var(--danger-600);
+  border-color: var(--danger-600);
+  color: var(--tm-on-tone);
 }
 
 .tm-wk-chip .tm-wk-halo__ring {

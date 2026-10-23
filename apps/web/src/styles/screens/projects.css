@@ -210,10 +210,10 @@
 }
 
 .tm-prj-track__meta {
+  /* Full segment colour, no fade: ink-650 at 0.8 on the canvas was 4.19:1, under AA for 11px. */
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 15px;
-  opacity: 0.8;
 }
 
 .tm-prj-track > li[data-state='risk'] .tm-prj-track__meta {

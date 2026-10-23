@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { resolve } from 'node:path';
 import { expect, test, type BrowserContext, type Page } from '@playwright/test';
-import { API_URL } from '../setup/stack.js';
+import { API_URL, WEB_URL } from '../setup/stack.js';
 
 /**
  * A11Y-AUDIT — a full accessibility pass over the deployed screens, run in a real browser
@@ -30,7 +30,9 @@ import { API_URL } from '../setup/stack.js';
  * Single worker, one shared stack (`globalSetup`): each case opens its own browser context and
  * signs in as the role that can reach the screen (an owner for the admin and billing surfaces,
  * the Atlas client reviewer for the portal, no session at all for the public site), reads the
- * page, and closes the context. Nothing here mutates seeded state, so order does not matter.
+ * page, and closes the context. The seeded state is only read, with one exception: the bilingual
+ * matrix at the end adds its own channel and deliverable (both named `a11y-audit-…`) so a chat
+ * channel and the Send-for-approval dialog have something to render; no other journey reads them.
  */
 
 /**
@@ -62,6 +64,8 @@ interface World {
   };
   readonly atlas: {
     readonly reviewer: SeededUser;
+    readonly admin: SeededUser;
+    readonly approval: { readonly deliverableVersionId: string };
   };
 }
 
@@ -223,4 +227,221 @@ test.describe('accessibility audit — WCAG 2.2 A/AA, serious and critical viola
       await context.close();
     }
   });
+});
+
+/**
+ * The bilingual matrix — the main signed-in screens and the client portal, each read in English
+ * and in Arabic (right-to-left, through the `?lang=` boot alias), at a 1280px desktop and a 375px
+ * phone width in the same page (a resize, not a second load). Here the bar is every violation
+ * under the WCAG A/AA tags, whatever its impact; the narrowly-scoped {@link KNOWN_ISSUES} are the
+ * only exceptions, each naming the screen, the rule, the node and why it is not fixed here.
+ */
+const LOCALES = ['en', 'ar'] as const;
+type Lang = (typeof LOCALES)[number];
+const WIDTHS = [
+  { width: 1280, height: 800 },
+  { width: 375, height: 812 },
+] as const;
+
+/** The deliverable version's "Send for approval" button, in each catalogue. */
+const SEND_FOR_APPROVAL: Readonly<Record<Lang, string>> = {
+  en: 'Send for approval',
+  ar: 'إرسال للاعتماد',
+};
+
+/**
+ * Accepted violations: one screen, one rule, one CSS target substring, and the reason. Never a
+ * whole rule. Empty means the matrix is clean.
+ */
+const KNOWN_ISSUES: ReadonlyArray<{
+  readonly screen: string;
+  readonly rule: string;
+  readonly target: string;
+  readonly reason: string;
+}> = [];
+
+/** Every WCAG A/AA violation (any impact), minus the known issues for this screen. */
+async function auditWcag(page: Page, screen: string): Promise<AxeViolation[]> {
+  await page.addScriptTag({ content: AXE_SOURCE });
+  const results = (await page.evaluate(async (tags) => {
+    const engine = (
+      window as unknown as {
+        axe: { run: (context: Document, options: object) => Promise<unknown> };
+      }
+    ).axe;
+    return engine.run(document, {
+      resultTypes: ['violations'],
+      runOnly: { type: 'tag', values: [...tags] },
+    });
+  }, WCAG_TAGS)) as AxeResults;
+  return results.violations
+    .map((violation) => ({
+      ...violation,
+      nodes: violation.nodes.filter(
+        (node) =>
+          !KNOWN_ISSUES.some(
+            (known) =>
+              known.screen === screen &&
+              known.rule === violation.id &&
+              node.target.join(' ').includes(known.target),
+          ),
+      ),
+    }))
+    .filter((violation) => violation.nodes.length > 0);
+}
+
+/** The ids the matrix's own fixtures mint once, in `beforeAll`. */
+interface MatrixFixtures {
+  conversationId: string;
+  deliverableId: string;
+}
+
+const MATRIX: ReadonlyArray<{
+  readonly name: string;
+  readonly as: 'owner' | 'client';
+  readonly path: (fixtures: MatrixFixtures) => string;
+  /** Bring up a state the route does not show on load (a dialog), after the heading is visible. */
+  readonly open?: (page: Page, lang: Lang) => Promise<void>;
+}> = [
+  { name: 'home', as: 'owner', path: () => `/${ORG}/home` },
+  { name: 'inbox', as: 'owner', path: () => `/${ORG}/inbox` },
+  { name: 'projects list', as: 'owner', path: () => `/${ORG}/projects/portfolio` },
+  {
+    name: 'project overview',
+    as: 'owner',
+    path: () => `/${ORG}/projects/${world().northstar.projectId}`,
+  },
+  { name: 'work list', as: 'owner', path: () => `/${ORG}/work` },
+  { name: 'work item', as: 'owner', path: () => `/${ORG}/work/${world().northstar.workItemId}` },
+  { name: 'chat channel', as: 'owner', path: (f) => `/${ORG}/chat/${f.conversationId}` },
+  { name: 'docs', as: 'owner', path: () => `/${ORG}/docs` },
+  { name: 'meetings', as: 'owner', path: () => `/${ORG}/calendar` },
+  {
+    name: 'deliverables',
+    as: 'owner',
+    path: () => `/${ORG}/projects/${world().northstar.projectId}/deliverables`,
+  },
+  {
+    name: 'send for approval dialog',
+    as: 'owner',
+    path: (f) => `/${ORG}/projects/${world().northstar.projectId}/deliverables/${f.deliverableId}`,
+    open: async (page, lang) => {
+      await page
+        .locator('section[aria-labelledby="tm-deliverable-versions"]')
+        .getByRole('button', { name: SEND_FOR_APPROVAL[lang] })
+        .click();
+      await expect(page.getByRole('dialog', { name: SEND_FOR_APPROVAL[lang] })).toBeVisible();
+    },
+  },
+  { name: 'clients', as: 'owner', path: () => `/${ORG}/clients` },
+  {
+    name: 'project members',
+    as: 'owner',
+    path: () => `/${ORG}/projects/${world().northstar.projectId}/members`,
+  },
+  { name: 'roles', as: 'owner', path: () => `/${ORG}/admin/roles` },
+  { name: 'account settings', as: 'owner', path: () => `/${ORG}/settings` },
+  { name: 'two-step verification', as: 'owner', path: () => `/${ORG}/settings/two-step` },
+  { name: 'security and tokens', as: 'owner', path: () => `/${ORG}/settings/security` },
+  { name: 'control center', as: 'owner', path: () => `/${ORG}/admin` },
+  { name: 'AI assistant switch', as: 'owner', path: () => `/${ORG}/settings/ai-assistant` },
+  { name: 'portal home', as: 'client', path: () => `/${ORG}/portal` },
+  {
+    name: 'portal approval',
+    as: 'client',
+    path: () => `/${ORG}/portal/deliverables/${world().atlas.approval.deliverableVersionId}`,
+  },
+  { name: 'portal new request', as: 'client', path: () => `/${ORG}/portal/requests/new` },
+  { name: 'portal files', as: 'client', path: () => `/${ORG}/portal/files` },
+];
+
+function withLang(path: string, lang: Lang): string {
+  return `${path}${path.includes('?') ? '&' : '?'}lang=${lang}`;
+}
+
+test.describe('accessibility audit — bilingual matrix, WCAG A/AA, 1280 and 375', () => {
+  const fixtures: MatrixFixtures = { conversationId: '', deliverableId: '' };
+
+  test.beforeAll(async ({ browser }) => {
+    const context = await browser.newContext();
+    try {
+      await signIn(context, world().northstar.owner.id);
+      const csrf = (await context.cookies(API_URL)).find(
+        (cookie) => cookie.name === 'tmanage_session_csrf',
+      )?.value;
+      expect(csrf).toBeTruthy();
+      const headers = { 'x-csrf-token': csrf as string, origin: WEB_URL };
+      const base = `${API_URL}/v1/organizations/${ORG}`;
+      const projectId = world().northstar.projectId;
+
+      const channel = await context.request.post(`${base}/conversations`, {
+        headers,
+        data: { projectId, name: `a11y-audit-${Date.now()}` },
+      });
+      expect(channel.ok(), await channel.text()).toBe(true);
+      fixtures.conversationId = ((await channel.json()) as { id: string }).id;
+
+      const deliverable = await context.request.post(`${base}/deliverables`, {
+        headers,
+        data: { projectId, title: `a11y-audit-${Date.now()}`, description: null },
+      });
+      expect(deliverable.ok(), await deliverable.text()).toBe(true);
+      fixtures.deliverableId = ((await deliverable.json()) as { id: string }).id;
+
+      const version = await context.request.post(
+        `${base}/deliverables/${fixtures.deliverableId}/versions`,
+        { headers, data: { fileAssetId: null, note: 'a11y audit version' } },
+      );
+      expect(version.ok(), await version.text()).toBe(true);
+    } finally {
+      await context.close();
+    }
+  });
+
+  for (const lang of LOCALES) {
+    for (const screen of MATRIX) {
+      test(`${screen.name} [${lang}] has no WCAG A/AA axe violations`, async ({ browser }) => {
+        const context = await browser.newContext({ viewport: WIDTHS[0] });
+        try {
+          const userId =
+            screen.as === 'client' ? world().atlas.admin.id : world().northstar.owner.id;
+          await signIn(context, userId);
+          const page = await context.newPage();
+          const path = withLang(screen.path(fixtures), lang);
+          await page.goto(path, { waitUntil: 'domcontentloaded' });
+          await expect(page.locator('html')).toHaveAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+          await waitForScreen(page);
+          if (lang === 'ar') {
+            // Hydration paints the server snapshot (English) first and then switches to the boot
+            // locale; audit only once the shell's navigation reads in Arabic.
+            await expect(page.getByRole('navigation').first()).toContainText(/[؀-ۿ]/u);
+          }
+          // The heading paints before the screen's queries answer; an audit taken then reads a
+          // skeleton and misses the data rows (this matrix's first green run did exactly that).
+          await page.waitForLoadState('networkidle');
+          if (screen.open) {
+            await screen.open(page, lang);
+            await page.waitForLoadState('networkidle');
+          }
+
+          const found: string[] = [];
+          for (const size of WIDTHS) {
+            await page.setViewportSize(size);
+            // Let media-query listeners re-render for the new width before axe reads the DOM.
+            await page.evaluate(
+              () =>
+                new Promise<void>((done) =>
+                  requestAnimationFrame(() => requestAnimationFrame(() => done())),
+                ),
+            );
+            const violations = await auditWcag(page, screen.name);
+            found.push(...summarize(violations).map((line) => `@${size.width}: ${line}`));
+          }
+          expect(found, `${screen.name} [${lang}] (${path})`).toEqual([]);
+        } finally {
+          await context.close();
+        }
+      });
+    }
+  }
 });

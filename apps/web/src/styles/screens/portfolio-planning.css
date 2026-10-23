@@ -32,7 +32,7 @@
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--ink-650); /* ink-500 was 3.7–4.2:1 at 10–11px (axe) */
 }
 
 .tm-por-plan__title {
@@ -52,7 +52,7 @@
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 15px;
-  color: var(--ink-500);
+  color: var(--ink-650); /* ink-500 was 3.7–4.2:1 at 10–11px (axe) */
   white-space: nowrap;
 }
 
@@ -82,7 +82,7 @@
   line-height: 32px;
   font-weight: 500;
   text-transform: uppercase;
-  color: var(--ink-500);
+  color: var(--ink-650); /* ink-500 was 3.7–4.2:1 at 10–11px (axe) */
 }
 
 .tm-por-tl__month {
