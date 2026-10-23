@@ -31,7 +31,7 @@ export interface DecisionSummary {
   /** An ISO-8601 instant. */
   readonly decidedAt: string;
   readonly createdAt: string;
-  /** A15. The register number, printed as `DEC-014`; `null` only on a legacy row. */
+  /** A15. The register number, printed as `DEC-` plus the number padded to three digits; `null` only on a legacy row. */
   readonly number: number | null;
   /** A15. "Why we decided this". */
   readonly rationale: string | null;
@@ -40,7 +40,7 @@ export interface DecisionSummary {
   readonly audience: DecisionAudience;
 }
 
-/** A15. `DEC-014` — the register number padded to three digits; `DEC-—` for a legacy row. */
+/** A15. `DEC-<nnn>` — the register number padded to three digits; `DEC-—` for a legacy row. */
 export function decisionCode(number: number | null): string {
   return number === null ? 'DEC-—' : `DEC-${String(number).padStart(3, '0')}`;
 }

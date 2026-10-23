@@ -58,7 +58,7 @@ const WORK_STATE: Readonly<Record<string, { key: string; english: string }>> = {
  * **Decision detail page** — Figma 384:3835 / 384:4073 (A15).
  *
  * The decisions column on the start side, a top bar ("Decisions / <project>", Copy link, Edit),
- * then the decision: its status pill and `DEC-014 · <project>`, the title, "Why we decided this",
+ * then the decision: its status pill and `DEC-<nnn> · <project>`, the title, "Why we decided this",
  * the Source card (the chat message it came from: channel · author · time, the quote, "Open the
  * message"), the Linked work rows (title, owner · due, state pill), and the Details column
  * (Status, Decided by, Date, Project, Visible to).
