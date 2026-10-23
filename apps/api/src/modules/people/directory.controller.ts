@@ -36,9 +36,18 @@ export interface PersonDirectoryView {
   readonly membershipId: string;
   readonly userId: string;
   readonly displayName: string;
+  /**
+   * The member's sign-in address (r-people's second line). Internal principals only: anyone
+   * else is handed null, even though `work.read` already keeps client principals off this route.
+   */
+  readonly email: string | null;
   readonly role: string;
   readonly status: string;
   readonly projectCount: number;
+  /** The membership's compare-and-swap token, sent back on `PATCH members/:userId/role`. */
+  readonly version: number;
+  /** The latest sign-in or session refresh (ISO), or null when the member never signed in. */
+  readonly lastActiveAt: string | null;
   /** PEO-01 grouping: the teams the member is assigned to, by name. */
   readonly teams: readonly { readonly id: string; readonly name: string }[];
   /** Open work the member owns, and how much of it is past due. */
@@ -123,6 +132,8 @@ export class PeopleDirectoryController {
     });
 
     const full = rows.length === effectiveLimit;
+    // Second line of defence behind `work.read`: an address is projected to staff, never further.
+    const mayReadEmail = context.principalKind === 'internal';
     const last = rows[rows.length - 1];
 
     return {
@@ -132,9 +143,12 @@ export class PeopleDirectoryController {
           membershipId: row.membershipId,
           userId: row.userId,
           displayName: row.displayName,
+          email: mayReadEmail ? row.email : null,
           role: row.role,
           status: row.status,
           projectCount: row.projectCount,
+          version: row.version,
+          lastActiveAt: extra?.lastActiveAt ?? null,
           teams: extra?.teams ?? [],
           openCommitments: extra?.openCommitments ?? 0,
           overdueCommitments: extra?.overdueCommitments ?? 0,

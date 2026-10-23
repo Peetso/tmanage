@@ -34,16 +34,11 @@ export interface PeopleDirectoryScreenProps {
 }
 
 /**
- * The roster row as this screen reads it. `email`, `lastActiveAt` and `version` are drawn when the
- * directory read carries them (r-people's second line, LAST ACTIVE, the role change's
- * compare-and-swap token); an API that omits them shows no address, "—", and a PATCH without a
- * version.
+ * The roster row as this screen reads it: the directory read carries `email` (r-people's second
+ * line), `lastActiveAt` (LAST ACTIVE) and `version` (the role change's compare-and-swap token). A
+ * null email shows no address and a null `lastActiveAt` shows "—".
  */
-type MemberRow = PersonSummary & {
-  readonly email?: string | null;
-  readonly lastActiveAt?: string | null;
-  readonly version?: number;
-};
+type MemberRow = PersonSummary;
 
 /** Owner and org admin assign roles and invite (`12-PERMISSION-MATRIX` §2 "Assign roles"). */
 const ROLE_ASSIGNERS = new Set(['owner', 'org_admin']);
@@ -253,9 +248,7 @@ export function PeopleDirectoryScreen({
                               userId: person.userId,
                               displayName: person.displayName,
                               role: person.role,
-                              ...(typeof person.version === 'number'
-                                ? { version: person.version }
-                                : {}),
+                              version: person.version,
                             },
                           })
                         }

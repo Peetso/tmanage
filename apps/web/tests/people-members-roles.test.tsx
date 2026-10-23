@@ -159,6 +159,27 @@ describe('Members and roles (r-people)', () => {
     await expectNoAxeViolations(container);
   });
 
+  it('shows the address and LAST ACTIVE the directory read projects (B2)', async () => {
+    const threeDaysAgo = new Date(Date.now() - 3 * 86_400_000).toISOString();
+    mount({
+      people: [
+        { ...MAYA, email: null, lastActiveAt: null, version: 1 },
+        { ...SARA, email: 'sara@northstar.studio', lastActiveAt: threeDaysAgo },
+      ],
+    });
+
+    const table = await screen.findByRole('table', { name: 'People in this organization' });
+    const saraRow = within(table).getByText('Sara Ali').closest('tr');
+    const mayaRow = within(table).getByText('Maya Hassan').closest('tr');
+    expect(saraRow).not.toBeNull();
+    expect(mayaRow).not.toBeNull();
+    expect(within(saraRow as HTMLElement).getByText('sara@northstar.studio')).toBeTruthy();
+    expect(within(saraRow as HTMLElement).getByText('3 days ago')).toBeTruthy();
+    // A null address (a non-staff caller, or none on file) draws no second line; never-active is "—".
+    expect((mayaRow as HTMLElement).textContent).not.toContain('@');
+    expect(within(mayaRow as HTMLElement).getByText('—')).toBeTruthy();
+  });
+
   it('changes a role with the row version (r-change-role)', async () => {
     const { sent } = mount({ people: [MAYA, SARA] });
 

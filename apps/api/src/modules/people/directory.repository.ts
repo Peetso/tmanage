@@ -8,6 +8,7 @@ import {
   memberships,
   memberTeams,
   projectMemberships,
+  sessions,
   users,
   workItems,
 } from '../../common/database/schema.js';
@@ -38,9 +39,11 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  *
  * ## The projection is deliberately narrow
  *
- * Name, role, status and a count — no email, no secret, nothing beyond what the picker already
- * exposes plus a number. A member directory exists so the organization can see who is on it and
- * plan capacity by name, not so a roster becomes worth exfiltrating.
+ * Name, email, role, status, a count and the membership's compare-and-swap `version` — no secret.
+ * The email is read here because r-people prints it under the name, but the controller projects
+ * it to internal principals only (B2): a client principal is refused by `work.read` already, and
+ * the projection holds the line a second time. A member directory exists so the organization can
+ * see who is on it and plan capacity by name, not so a roster becomes worth exfiltrating.
  */
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -51,9 +54,12 @@ export interface PersonDirectoryEntry {
   readonly membershipId: string;
   readonly userId: string;
   readonly displayName: string;
+  readonly email: string;
   readonly role: string;
   readonly status: string;
   readonly projectCount: number;
+  /** `memberships.version`, the token `PATCH members/:userId/role` compares and swaps. */
+  readonly version: number;
 }
 
 export interface PersonDirectoryOptions {
@@ -94,6 +100,15 @@ export interface PersonDirectoryDetails {
     readonly startDate: string;
     readonly endDate: string;
   } | null;
+  /** The member's latest sign-in or session refresh, or null for never (LAST ACTIVE). */
+  readonly lastActiveAt: string | null;
+}
+
+/** A `max(datetime)` comes back as a Date or a string depending on the driver; ISO either way. */
+function toIsoOrNull(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const at = value instanceof Date ? value : new Date(String(value));
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
 }
 
 export class PeopleDirectoryRepository {
@@ -129,6 +144,8 @@ export class PeopleDirectoryRepository {
         role: memberships.role,
         status: memberships.status,
         projectCount: sql<number>`count(distinct ${projectMemberships.id})`,
+        email: users.email,
+        version: memberships.version,
       })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))
@@ -146,6 +163,8 @@ export class PeopleDirectoryRepository {
         users.displayName,
         memberships.role,
         memberships.status,
+        users.email,
+        memberships.version,
       )
       .orderBy(asc(memberships.id))
       .limit(limit);
@@ -157,14 +176,18 @@ export class PeopleDirectoryRepository {
       role: row.role,
       status: row.status,
       projectCount: Number(row.projectCount ?? 0),
+      email: row.email,
+      version: Number(row.version),
     }));
   }
 
   /**
-   * PEO-01's per-row columns for one page of the directory, batched (three reads, never one per
+   * PEO-01's per-row columns for one page of the directory, batched (four reads, never one per
    * row): the teams each member is assigned to, the open work each owns (and how much of it is past
-   * due), and the first availability window the member has **declared** that touches
-   * `[fromDate, toDate]`. Every statement binds every tenant table to `context.organizationId`; an
+   * due), the first availability window the member has **declared** that touches
+   * `[fromDate, toDate]`, and when the member was last active (B2: the latest session sign-in or
+   * refresh, the same signal the platform console reads). `sessions` is global identity, so that
+   * read is anchored through this tenant's `memberships` row rather than by user id alone. Every statement binds every tenant table to `context.organizationId`; an
    * empty page reads nothing.
    */
   async rowDetails(
@@ -233,7 +256,18 @@ export class PeopleDirectoryRepository {
       )
       .orderBy(asc(memberAvailability.startDate), asc(memberAvailability.id));
 
+    const activityRows = await db
+      .select({
+        membershipId: memberships.id,
+        lastActiveAt: sql<unknown>`max(coalesce(${sessions.rotatedAt}, ${sessions.createdAt}))`,
+      })
+      .from(memberships)
+      .innerJoin(sessions, eq(sessions.userId, memberships.userId))
+      .where(and(eq(memberships.organizationId, org), inArray(memberships.id, membershipIds)))
+      .groupBy(memberships.id);
+
     const work = new Map(workRows.map((row) => [row.ownerUserId, row]));
+    const activity = new Map(activityRows.map((row) => [row.membershipId, row.lastActiveAt]));
     for (const member of members) {
       const owned = work.get(member.userId);
       const declared = availabilityRows.find((row) => row.memberId === member.membershipId);
@@ -246,6 +280,7 @@ export class PeopleDirectoryRepository {
         declared: declared
           ? { kind: declared.kind, startDate: declared.startDate, endDate: declared.endDate }
           : null,
+        lastActiveAt: toIsoOrNull(activity.get(member.membershipId)),
       });
     }
     return details;

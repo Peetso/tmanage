@@ -2634,8 +2634,8 @@ type _member = Assert<Exact<ApiMemberView, WebMemberSummary>>;
 
 /**
  * `GET …/people` — module 14 / audit #4 (x168). One People & capacity directory row:
- * `PeopleDirectoryScreen` reads exactly this projection (name, role, status, project count),
- * so it pairs Exact; `membershipId` (the keyset cursor) is on neither side.
+ * `PeopleDirectoryScreen` reads exactly this projection (name, email, role, status, project
+ * count, version, last active, PEO-01 columns), so it pairs Exact; `membershipId` (the keyset cursor) is on neither side.
  */
 type _person = Assert<Exact<ApiPersonDirectoryView, WebPersonSummary>>;
 

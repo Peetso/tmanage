@@ -398,6 +398,10 @@ const PERSON_DEFAULTS = {
   openCommitments: 0,
   overdueCommitments: 0,
   declared: null,
+  // B2 fields at the values the baselines were taken with: no address line, LAST ACTIVE "—".
+  email: null,
+  lastActiveAt: null,
+  version: 1,
 } as const;
 
 const PEOPLE: readonly PersonSummary[] = (

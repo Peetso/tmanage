@@ -24,11 +24,14 @@ import { PeopleDirectoryRepository } from './directory.repository.js';
 const ORG = uuidv7();
 const OTHER_ORG = uuidv7();
 
-function contextFor(organizationId: string): TenantContext {
+function contextFor(
+  organizationId: string,
+  principalKind: TenantContext['principalKind'] = 'internal',
+): TenantContext {
   return createTenantContext({
     organizationId,
     userId: uuidv7(),
-    principalKind: 'internal',
+    principalKind,
     membershipId: uuidv7(),
     capabilities: [],
     policyVersion: 'test',
@@ -70,7 +73,7 @@ describe('PeopleDirectoryRepository.list', () => {
     const membershipId = uuidv7();
     const userId = uuidv7();
     const { runner } = capturingRunner(captured, [
-      [membershipId, userId, 'Priya Raman', 'manager', 'active', 3],
+      [membershipId, userId, 'Priya Raman', 'manager', 'active', 3, 'priya@studio.test', 4],
     ]);
 
     const rows = await repository.list(runner, contextFor(ORG));
@@ -82,6 +85,8 @@ describe('PeopleDirectoryRepository.list', () => {
         role: 'manager',
         status: 'active',
         projectCount: 3,
+        email: 'priya@studio.test',
+        version: 4,
       },
     ]);
 
@@ -158,17 +163,21 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
         membershipId: 'm-1',
         userId: 'u-1',
         displayName: 'Ada',
+        email: 'ada@studio.test',
         role: 'member',
         status: 'active',
         projectCount: 2,
+        version: 3,
       },
       {
         membershipId: 'm-2',
         userId: 'u-2',
         displayName: 'Bo',
+        email: 'bo@studio.test',
         role: 'guest',
         status: 'active',
         projectCount: 0,
+        version: 1,
       },
     ];
     const context = contextFor(ORG);
@@ -189,6 +198,7 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
                 openCommitments: 6,
                 overdueCommitments: 1,
                 declared: { kind: 'vacation', startDate: '2026-10-22', endDate: '2026-10-23' },
+                lastActiveAt: '2026-10-22T09:00:00.000Z',
               },
             ],
           ]),
@@ -205,9 +215,12 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
         membershipId: 'm-1',
         userId: 'u-1',
         displayName: 'Ada',
+        email: 'ada@studio.test',
         role: 'member',
         status: 'active',
         projectCount: 2,
+        version: 3,
+        lastActiveAt: '2026-10-22T09:00:00.000Z',
         teams: [{ id: 't-1', name: 'Design' }],
         openCommitments: 6,
         overdueCommitments: 1,
@@ -218,9 +231,12 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
         membershipId: 'm-2',
         userId: 'u-2',
         displayName: 'Bo',
+        email: 'bo@studio.test',
         role: 'guest',
         status: 'active',
         projectCount: 0,
+        version: 1,
+        lastActiveAt: null,
         teams: [],
         openCommitments: 0,
         overdueCommitments: 0,
@@ -232,6 +248,12 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
 
     const short = await controller.list(context, undefined, '50');
     expect(short.nextAfter).toBeNull();
+
+    // B2: the address is for staff. A client principal (refused by `work.read` before it gets
+    // here) would still be handed no email — the projection does not rely on the guard alone.
+    const asClient = await controller.list(contextFor(ORG, 'client'), undefined, '50');
+    expect(asClient.people.map((person) => person.email)).toEqual([null, null]);
+    expect(asClient.people.map((person) => person.version)).toEqual([3, 1]);
   });
 
   it('refuses a non-positive limit with a 400 rather than a silent default', async () => {
@@ -253,7 +275,9 @@ describe('PeopleDirectoryRepository.rowDetails', () => {
       toDate: '2026-10-31',
     });
 
-    expect(captured).toHaveLength(3);
+    expect(captured).toHaveLength(4);
+    // LAST ACTIVE reads global `sessions` only through this tenant's anchored memberships row.
+    expect(captured[3]?.sql).toMatch(/join\s+`sessions`/i);
     for (const statement of captured) {
       const analysis = analyzeStatement(statement.sql, statement.params, ORG);
       expect(analysis.violations, analysis.violations.join('\n')).toEqual([]);
@@ -265,6 +289,7 @@ describe('PeopleDirectoryRepository.rowDetails', () => {
       openCommitments: 0,
       overdueCommitments: 0,
       declared: null,
+      lastActiveAt: null,
     });
   });
 

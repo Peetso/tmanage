@@ -8,18 +8,24 @@ import type { ApiClient } from './client';
  * The route needs `work.read`, which no client role holds, so the portal cannot reach this list.
  *
  * This is the capacity directory, distinct from the D16 picker (`members.ts`): the same people,
- * plus how many projects each is on. Name, role, status and a count — nothing more sensitive
- * than the picker already exposes.
+ * plus how many projects each is on, the sign-in address (staff only: the API sends null to
+ * anyone else), when each was last active, and the membership version the role change sends.
  */
 
 export interface PersonSummary {
   /** What the API stores on a work item. Shown for reference, never typed by a person. */
   readonly userId: string;
   readonly displayName: string;
+  /** r-people's second line. Null when the caller is not an internal principal. */
+  readonly email: string | null;
   readonly role: string;
   readonly status: string;
   /** How many of this organization's projects the person is a member of. */
   readonly projectCount: number;
+  /** The membership's compare-and-swap token for `PATCH members/:userId/role` (409 when stale). */
+  readonly version: number;
+  /** LAST ACTIVE: the latest sign-in or session refresh (ISO), or null for never. */
+  readonly lastActiveAt: string | null;
   /** The profile route's id (PEO-02). Optional only while an older API is still deployed. */
   readonly membershipId: string;
   /** PEO-01 columns. An older API omits them; the screen then shows no team, nothing declared. */

@@ -141,8 +141,9 @@ export class CustomRolesController {
 
       // 5. Privilege-escalation guard: every requested capability must be one the CALLER can actually
       //    exercise org-wide right now (the real evaluator), so a role can never widen access past its
-      //    author. A capability the caller cannot exercise is a 403 with no write — the owner
-      //    included, so no one can mint a reviewer-gated capability org-wide (SEC-011).
+      //    author. A capability the caller cannot exercise is a 403 with no write. The one exemption
+      //    is an active internal owner, who may grant any capability (A1); an org_admin and every
+      //    other role still cannot mint a reviewer-gated capability org-wide (SEC-011).
       for (const cap of capabilities as Capability[]) {
         const verdict = mayGrantCapability(principal, cap, context.organizationId);
         if (!verdict.allowed) {
