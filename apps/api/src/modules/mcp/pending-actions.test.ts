@@ -170,6 +170,21 @@ describe('pending AI actions (S10)', () => {
     });
   });
 
+  it("drops a controller root route's trailing slash, which Fastify would 404", () => {
+    const op = {
+      id: 'things.list',
+      method: 'GET',
+      path: '/v1/organizations/:orgSlug/things/',
+      capability: null,
+      risk: 'read',
+      scope: 'read',
+    } as AiActionOp;
+    expect(buildOpRequest(op, { limit: 5 }, 'studio')).toEqual({
+      method: 'GET',
+      url: '/v1/organizations/studio/things?limit=5',
+    });
+  });
+
   it('names the target for the bold line: from a name-like arg, else by reading it as the member', async () => {
     expect(subjectFromArgs({ email: 'sam@x.test', role: 'member' })).toBe('sam@x.test');
     expect(subjectFromArgs({ workItemId: 'wi_1' })).toBeNull();

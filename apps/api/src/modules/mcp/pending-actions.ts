@@ -105,7 +105,10 @@ export function buildOpRequest(
   orgSlug: string,
 ): OpRequest {
   const used = new Set<string>();
-  const path = op.path.replace(/:([A-Za-z0-9_]+)/g, (_match, name: string) => {
+  // The registry keeps a controller's root route as reflected (`…/projects/`); Fastify routes it
+  // without the trailing slash and 404s the slashed form, so the request drops it.
+  const routePath = op.path.length > 1 ? op.path.replace(/\/+$/, '') : op.path;
+  const path = routePath.replace(/:([A-Za-z0-9_]+)/g, (_match, name: string) => {
     if (name === 'orgSlug') return encodeURIComponent(orgSlug);
     const value = args[name];
     if (typeof value !== 'string' && typeof value !== 'number') {
