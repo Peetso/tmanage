@@ -1904,15 +1904,36 @@ body {
   }
 }
 
-/* ── Docked orbs (Module 23) ─────────────────────────────────────────────── */
+/* ── Phone shell: tab bar, More sheet, quick capture (Figma ph-tabbar / ph-more) ───────── */
 
 /*
- * The mobile primary navigation: a floating white capsule of five orbs at the foot of the
- * screen (HOME-01 mobile). In the document on every internal screen, shown only where the rail
- * is hidden. The current destination is the inked orb, exactly as on the rail.
+ * The phone dock: a white pill of five orbs (My Day, Inbox, Chat, Work, More) and, beside it,
+ * the black quick-capture orb with a lime "+". In the document on every internal screen, shown
+ * only where the rail is hidden. The current destination is the inked orb, exactly as on the
+ * rail; in Arabic the row mirrors, so the capture orb sits at the left as ph-tabbar-AR draws.
  */
-.tm-mobile-nav {
+.tm-phone-dock,
+.tm-phone-avatar,
+.tm-more {
   display: none;
+}
+
+/* The count on an orb: a lime disc with ink figures, at the orb's top end. */
+.tm-orb-badge {
+  position: absolute;
+  inset-block-start: -4px;
+  inset-inline-end: -4px;
+  display: grid;
+  place-items: center;
+  min-inline-size: 18px;
+  block-size: 18px;
+  padding-inline: 4px;
+  border-radius: var(--r-capsule);
+  background: var(--lime-500);
+  color: var(--tm-ink-absolute);
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 700;
 }
 
 @media (max-width: 56.19rem) {
@@ -1936,6 +1957,31 @@ body {
     display: none;
   }
 
+  /*
+   * The phone top bar: the header's organization line on the start side and, at the end, the
+   * avatar orb (a link to the person's preferences, as the Control Center's top bar has it).
+   */
+  .tm-app__body {
+    position: relative;
+  }
+
+  .tm-phone-avatar {
+    position: absolute;
+    z-index: 5;
+    inset-block-start: var(--s5);
+    inset-inline-end: var(--s5);
+    display: grid;
+    place-items: center;
+    inline-size: 36px;
+    block-size: 36px;
+    border-radius: var(--r-capsule);
+    background: var(--tm-ink-absolute);
+    color: var(--paper-50);
+    font-size: var(--t-ui-sm);
+    font-weight: 600;
+    text-decoration: none;
+  }
+
   [dir='rtl'] .tm-app__body {
     grid-column: 1;
   }
@@ -1946,9 +1992,31 @@ body {
     padding-inline: var(--s5);
   }
 
+  /* The header leads at the top, so the organization line and the avatar share one row. */
   .tm-canvas-header {
+    order: 0;
     flex-direction: column;
     gap: var(--s5);
+  }
+
+  .tm-app__topbar {
+    order: 1;
+  }
+
+  .tm-app__columns {
+    order: 2;
+  }
+
+  .tm-canvas-header__context {
+    display: flex;
+    align-items: center;
+    min-block-size: 36px;
+    padding-inline-end: 52px;
+  }
+
+  /* ph-tabbar's top bar names the organization alone; the screen's eyebrow waits for desktop. */
+  .tm-canvas-header__context > :not(.tm-canvas-header__org) {
+    display: none;
   }
 
   .tm-canvas-header__aside {
@@ -1966,22 +2034,29 @@ body {
     display: none;
   }
 
-  .tm-mobile-nav {
-    display: block;
+  .tm-phone-dock {
     position: fixed;
+    z-index: 30;
     inset-inline: var(--s4);
     inset-block-end: var(--s4);
-    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+  }
+
+  .tm-mobile-nav {
+    display: block;
+    flex: 1;
+    min-inline-size: 0;
   }
 
   .tm-mobile-nav__list {
-    margin: 0 auto;
-    padding: 6px;
+    margin: 0;
+    padding: 6px var(--s3);
     list-style: none;
     display: flex;
     justify-content: space-between;
     gap: var(--s1);
-    max-inline-size: 420px;
     border: var(--b-quiet) solid var(--line-300);
     border-radius: var(--r-capsule);
     background: var(--paper-0);
@@ -2003,30 +2078,39 @@ body {
     gap: 2px;
     inline-size: 100%;
     min-inline-size: 0;
-    color: var(--ink-800);
-    text-decoration: none;
+    padding: 0;
+    border: 0;
     border-radius: var(--r-compact);
+    background: none;
+    color: var(--ink-650);
+    font: inherit;
+    text-decoration: none;
+    cursor: pointer;
   }
 
   .tm-mobile-nav__item:hover,
-  .tm-mobile-nav__item[aria-current='page'] {
+  .tm-mobile-nav__item[aria-current='page'],
+  .tm-mobile-nav__item[data-active='true'] {
     color: var(--ink-950);
   }
 
   .tm-mobile-nav__orb {
+    position: relative;
     display: grid;
     place-items: center;
     inline-size: var(--orb-comfortable);
     block-size: var(--orb-comfortable);
     border-radius: var(--r-capsule);
     background: var(--paper-150);
+    color: var(--ink-650);
     font-family: var(--font-glyph);
     font-size: var(--t-body-lg);
     font-weight: 700;
   }
 
-  .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__orb {
-    background: var(--ink-950);
+  .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__orb,
+  .tm-mobile-nav__item[data-active='true'] .tm-mobile-nav__orb {
+    background: var(--tm-ink-absolute);
     color: var(--paper-50);
   }
 
@@ -2042,6 +2126,143 @@ body {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__label,
+  .tm-mobile-nav__item[data-active='true'] .tm-mobile-nav__label {
+    font-weight: 600;
+  }
+
+  .tm-phone-dock__fab {
+    flex: none;
+    display: grid;
+    place-items: center;
+    inline-size: 56px;
+    block-size: 56px;
+    border-radius: var(--r-capsule);
+    background: var(--tm-ink-absolute);
+    color: var(--lime-500);
+    font-size: 24px;
+    line-height: 1;
+    font-weight: 500;
+    text-decoration: none;
+  }
+
+  /* ph-more: the sheet rises over a dimmed screen; the dock stays above the scrim. */
+  .tm-more {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+  }
+
+  .tm-more__scrim {
+    position: absolute;
+    inset: 0;
+    background: var(--tm-scrim);
+  }
+
+  .tm-more__sheet {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    max-block-size: calc(100dvh - var(--s10));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: var(--s3) var(--s5) 7.5rem;
+    border-start-start-radius: var(--r-sheet);
+    border-start-end-radius: var(--r-sheet);
+    background: var(--paper-0);
+    box-shadow: var(--tm-overlay-shadow);
+  }
+
+  .tm-more__grabber {
+    display: block;
+    inline-size: 36px;
+    block-size: 4px;
+    margin: 0 auto var(--s5);
+    border-radius: var(--r-capsule);
+    background: var(--line-300);
+  }
+
+  .tm-more__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-block-end: var(--s5);
+  }
+
+  .tm-more__title {
+    margin: 0;
+    font-size: var(--t-heading-section);
+    line-height: var(--t-heading-section-line);
+    font-weight: 500;
+    color: var(--ink-950);
+  }
+
+  .tm-more__done {
+    padding: var(--s1) 0;
+    border: 0;
+    background: none;
+    color: var(--ink-950);
+    font: inherit;
+    font-size: var(--t-body-md);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .tm-more__section {
+    margin: 0 0 var(--s3);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 15px;
+    font-weight: 500;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--ink-650);
+  }
+
+  .tm-more__grid {
+    margin: 0 0 var(--s5);
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .tm-more__tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--s2);
+    min-block-size: 92px;
+    padding: var(--s3) var(--s1);
+    border-radius: var(--r-card);
+    background: var(--paper-150);
+    color: var(--ink-950);
+    font-size: var(--t-ui-sm);
+    line-height: var(--t-ui-sm-line);
+    text-align: center;
+    text-decoration: none;
+  }
+
+  .tm-more__tile:hover {
+    background: var(--paper-250);
+  }
+
+  .tm-more__orb {
+    position: relative;
+    display: grid;
+    place-items: center;
+    inline-size: var(--orb-comfortable);
+    block-size: var(--orb-comfortable);
+    border-radius: var(--r-capsule);
+    background: var(--paper-0);
+    font-family: var(--font-glyph);
+    font-size: var(--t-body-md);
+    font-weight: 700;
   }
 }
 
@@ -2287,4 +2508,324 @@ body {
 
 :root[data-tm-high-contrast='on'] {
   filter: contrast(1.15);
+}
+
+/* 320px (1.4.10 Reflow): five 44px orbs and a smaller capture orb still fit in one row. */
+@media (max-width: 22.5rem) {
+  .tm-phone-dock {
+    gap: var(--s2);
+  }
+
+  .tm-mobile-nav__list {
+    padding-inline: 6px;
+  }
+
+  .tm-phone-dock__fab {
+    inline-size: 48px;
+    block-size: 48px;
+  }
+}
+
+/* ── Portal project switcher (Figma fq9-portal-project-switcher) ───────────────────────── */
+
+/*
+ * A white card: the client's name in caption grey over "Your projects", one row per shared
+ * project with the current one tinted lime, a rule, then "All projects". In the desktop header
+ * it drops from a capsule; in the phone menu it opens in place under the PROJECT block.
+ */
+.tm-portal-switcher {
+  position: relative;
+}
+
+.tm-portal-switcher__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 38px;
+  padding-inline: var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.tm-portal-switcher__glyph {
+  color: var(--ink-650);
+  font-family: var(--font-glyph);
+}
+
+.tm-portal-switcher__eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-650);
+}
+
+.tm-portal-switcher__card {
+  inline-size: 320px;
+  max-inline-size: calc(100vw - 2 * var(--s5));
+  padding: var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+.tm-portal-switcher[data-variant='header'] .tm-portal-switcher__card {
+  position: absolute;
+  z-index: 40;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-end: 0;
+}
+
+.tm-portal-switcher__client {
+  margin: var(--s2) var(--s3) 0;
+  color: var(--ink-650);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-portal-switcher__heading {
+  margin: 2px var(--s3) var(--s3);
+  color: var(--ink-950);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+}
+
+.tm-portal-switcher__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tm-portal-switcher__option {
+  display: flex;
+  align-items: center;
+  min-block-size: 48px;
+  padding-inline: var(--s3);
+  border-radius: var(--r-control);
+  color: var(--ink-950);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  text-decoration: none;
+}
+
+.tm-portal-switcher__option:hover {
+  background: var(--paper-150);
+}
+
+.tm-portal-switcher__option[aria-current='true'] {
+  background: var(--lime-100);
+}
+
+.tm-portal-switcher__rule {
+  margin: var(--s2) 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+/* ── Compact portal menu (Figma ph-portal) ─────────────────────────────────────────────── */
+
+.tm-portal-menu {
+  display: none;
+}
+
+@media (max-width: 56.19rem) {
+  .tm-portal__header {
+    position: relative;
+    flex-wrap: nowrap;
+    gap: var(--s3);
+    min-block-size: 0;
+    padding: var(--s4) var(--s5);
+    border-block-end: 0;
+  }
+
+  .tm-portal__mark {
+    inline-size: 36px;
+    block-size: 36px;
+  }
+
+  .tm-portal__client {
+    font-size: var(--t-ui-sm);
+    line-height: var(--t-ui-sm-line);
+    font-weight: 400;
+  }
+
+  .tm-portal__provider,
+  .tm-portal__nav,
+  .tm-portal__context > .tm-badge,
+  .tm-portal-switcher[data-variant='header'] {
+    display: none;
+  }
+
+  .tm-portal__context {
+    margin-inline-start: 0;
+    flex-wrap: nowrap;
+  }
+
+  /* The client's avatar wears the client ring (violet), as ph-portal draws "YK". */
+  .tm-portal__context .tm-rail__account {
+    inline-size: 36px;
+    block-size: 36px;
+    border: var(--b-structural) solid var(--client-500);
+    background: var(--paper-0);
+    color: var(--client-500);
+    font-size: var(--t-ui-sm);
+  }
+
+  .tm-portal-menu {
+    display: block;
+    margin-inline-start: auto;
+  }
+
+  .tm-portal-menu__trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s2);
+    min-block-size: 36px;
+    padding-inline: var(--s4);
+    border: 0;
+    border-radius: var(--r-capsule);
+    background: var(--tm-ink-absolute);
+    color: var(--paper-50);
+    font: inherit;
+    font-size: var(--t-ui-md);
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  .tm-portal-menu__caret {
+    color: var(--lime-500);
+    font-size: 8px;
+  }
+
+  .tm-portal-menu__card {
+    position: absolute;
+    z-index: 40;
+    inset-block-start: calc(100% - var(--s2));
+    inset-inline-end: var(--s4);
+    inline-size: min(264px, calc(100vw - 2 * var(--s4)));
+    padding: var(--s2);
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+    box-shadow: var(--tm-overlay-shadow);
+  }
+
+  .tm-portal-menu__card .tm-portal-switcher {
+    margin-block-end: var(--s2);
+  }
+
+  .tm-portal-menu__card .tm-portal-switcher__trigger {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 2px var(--s2);
+    inline-size: 100%;
+    padding: var(--s3);
+    border: 0;
+    border-radius: var(--r-control);
+    background: var(--paper-150);
+    text-align: start;
+  }
+
+  .tm-portal-menu__card .tm-portal-switcher__eyebrow {
+    grid-column: 1 / -1;
+  }
+
+  .tm-portal-menu__card .tm-portal-switcher__current {
+    font-size: var(--t-body-md);
+    line-height: var(--t-body-md-line);
+    font-weight: 400;
+  }
+
+  .tm-portal-menu__card .tm-portal-switcher__card {
+    inline-size: auto;
+    margin-block-start: var(--s2);
+    box-shadow: none;
+  }
+
+  .tm-portal-menu__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .tm-portal-menu__item {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    inline-size: 100%;
+    min-block-size: 40px;
+    padding-inline: var(--s3);
+    border: 0;
+    border-radius: var(--r-control);
+    background: none;
+    color: var(--ink-950);
+    font: inherit;
+    font-size: var(--t-body-md);
+    line-height: var(--t-body-md-line);
+    text-align: start;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .tm-portal-menu__item:hover {
+    background: var(--paper-150);
+  }
+
+  .tm-portal-menu__item[aria-current='page'] {
+    background: var(--lime-100);
+  }
+
+  .tm-portal-menu__glyph {
+    inline-size: 16px;
+    color: var(--ink-650);
+    font-family: var(--font-glyph);
+    text-align: center;
+  }
+
+  .tm-portal-menu__item[aria-current='page'] .tm-portal-menu__glyph {
+    color: var(--ink-950);
+  }
+
+  .tm-portal-menu__count {
+    display: grid;
+    place-items: center;
+    min-inline-size: 20px;
+    block-size: 20px;
+    margin-inline-start: auto;
+    padding-inline: 5px;
+    border-radius: var(--r-capsule);
+    background: var(--lime-500);
+    color: var(--tm-ink-absolute);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .tm-portal-menu__rule {
+    margin: var(--s2) 0;
+    border: 0;
+    border-block-start: var(--b-quiet) solid var(--line-300);
+  }
+
+  .tm-portal-menu__error {
+    margin: var(--s2) var(--s3);
+    color: var(--ink-800);
+    font-size: var(--t-ui-sm);
+  }
 }

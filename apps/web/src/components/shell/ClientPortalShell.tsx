@@ -9,6 +9,34 @@ import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { AccountMenu } from './AccountMenu';
+import { PortalMenu, usePortalShellProjects } from './PortalMenu';
+import { PortalProjectSwitcher } from './PortalProjectSwitcher';
+
+/**
+ * fq9's switcher in the desktop portal header. Mounted only with a `QueryClient` in the tree, and
+ * drawn only once the client has more than nothing to choose between.
+ */
+function HeaderProjectSwitcher({
+  organizationSlug,
+  clientName,
+  projectName,
+}: {
+  organizationSlug: string;
+  clientName: string;
+  projectName: string | undefined;
+}) {
+  const projects = usePortalShellProjects(organizationSlug, undefined);
+  if (projects.length === 0) return null;
+  return (
+    <PortalProjectSwitcher
+      organizationSlug={organizationSlug}
+      clientName={clientName}
+      projects={projects}
+      variant="header"
+      {...(projectName ? { fallbackProjectName: projectName } : {})}
+    />
+  );
+}
 
 export interface ClientPortalShellProps {
   /**
@@ -111,6 +139,14 @@ export function ClientPortalShell({
             </div>
           </div>
 
+          {/* Phone (ph-portal): the capsules give way to the black "Menu" card. */}
+          <PortalMenu
+            organizationSlug={organizationSlug}
+            clientName={clientName}
+            {...(projectName ? { projectName } : {})}
+            {...(activeNavigationId ? { activeNavigationId } : {})}
+          />
+
           <nav className="tm-portal__nav" aria-label={t('shell.rail.primary')}>
             <ul className="tm-portal__nav-list">
               {CLIENT_NAVIGATION.map((item) => {
@@ -134,6 +170,13 @@ export function ClientPortalShell({
           </nav>
 
           <div className="tm-portal__context">
+            {queryClient ? (
+              <HeaderProjectSwitcher
+                organizationSlug={organizationSlug}
+                clientName={clientName}
+                projectName={projectName}
+              />
+            ) : null}
             <Badge tone="client" mono>
               Client portal
             </Badge>

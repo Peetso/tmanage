@@ -74,6 +74,19 @@ export interface AppShellProps {
   accountEmail?: string;
 }
 
+/** The phone avatar's letters: the given initials, else the first letters of the name (one in Arabic). */
+function phoneInitials(initials: string | undefined, name: string | undefined): string {
+  if (initials) return initials;
+  if (!name) return '';
+  const parts = name.trim().split(/\s+/u).filter(Boolean);
+  const count = /\p{Script=Arabic}/u.test(name) ? 1 : 2;
+  return parts
+    .slice(0, count)
+    .map((part) => Array.from(part)[0] ?? '')
+    .join('')
+    .toUpperCase();
+}
+
 /** Owner and org admin reach the Control Center; `sitemap-and-role-navigation.md` hides it otherwise. */
 const CONTROL_CENTER_ROLES = new Set(['owner', 'org_admin', 'admin']);
 
@@ -231,6 +244,15 @@ export function AppShell({
           </nav>
 
           <div className="tm-app__body">
+            {/* Phone top bar (ph-tabbar): the avatar at the end of the organization line. Hidden
+                above the dock breakpoint, where the rail's account orb is the one on screen. */}
+            <Link
+              href={`/${organizationSlug}/preferences`}
+              className="tm-phone-avatar"
+              aria-label={t('shell.account.preferences')}
+            >
+              <span aria-hidden="true">{phoneInitials(accountInitials, accountName)}</span>
+            </Link>
             {topBar ? <div className="tm-app__topbar">{topBar}</div> : null}
 
             <header
@@ -280,8 +302,9 @@ export function AppShell({
           </div>
         </div>
 
-        {/* Mobile companion (Module 23): the five-item docked orbs, shown below ~900px in place
-            of the rail (`responsive-and-desktop.md`: "640–899 Docked Orbs appear, rail hidden"). */}
+        {/* Phone shell (Figma ph-tabbar / ph-more): below ~900px the rail is hidden and this
+            dock takes its place — My Day, Inbox, Chat, Work and More (which opens the More
+            sheet), plus the lime "+" quick-capture orb. */}
         <MobilePrimaryNav
           organizationSlug={organizationSlug}
           {...(activeNavigationId ? { activeNavigationId } : {})}

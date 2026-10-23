@@ -68,33 +68,75 @@ export const CONTROL_CENTER_NAVIGATION: NavigationItem = {
 };
 
 /**
- * The mobile primary navigation — Module 23's "five-item primary navigation", the bottom
- * dock shown below ~768px in place of the orbital rail.
+ * The phone tab bar (Figma ph-tabbar, 378:18173 / 379:3600): My Day, Inbox, Chat, Work, More,
+ * in a white pill beside the lime quick-capture orb.
  *
- * It is not a new navigation: every id here is an `INTERNAL_NAVIGATION` id, so the dock
- * invents no route the rail does not already own and the slug-prefixing is identical.
- * Exactly five, because `22-SCREEN-BY-SCREEN` §1 asks for a five-item bottom bar and the
- * eight-wide rail does not reduce to a phone without either shrinking every target below the
- * comfortable minimum or hiding destinations behind a "More" disclosure the existing dock
- * deliberately refused (see the reflow note in `globals.css`).
- *
- * The first four — Home, Inbox, Chat, Work — are the ones `02-mobile-primary-nav` names. The
- * fifth is the single swappable slot: it is `calendar` today (the next rail destination), and
- * is the slot a later slice would reassign (e.g. to a Quick Capture destination) the day such
- * a destination joins `INTERNAL_NAVIGATION`. It is listed by id rather than sliced so the
- * choice is explicit and the "each id is a real rail destination" test has something to read.
+ * The first four are `INTERNAL_NAVIGATION` items, listed by id so the dock invents no route the
+ * rail does not own. The fifth is not a destination: "More" opens the bottom sheet
+ * (`MoreSheet`, ph-more) that carries every other destination, so it has no `href`.
  */
-export const MOBILE_PRIMARY_NAVIGATION_IDS = ['home', 'inbox', 'chat', 'work', 'calendar'] as const;
+export const MOBILE_PRIMARY_NAVIGATION_IDS = ['home', 'inbox', 'chat', 'work'] as const;
 
-export const MOBILE_PRIMARY_NAVIGATION: readonly NavigationItem[] =
-  MOBILE_PRIMARY_NAVIGATION_IDS.map((id) => {
+export const MOBILE_DESTINATIONS: readonly NavigationItem[] = MOBILE_PRIMARY_NAVIGATION_IDS.map(
+  (id) => {
     const item = INTERNAL_NAVIGATION.find((candidate) => candidate.id === id);
     if (!item) {
       // A build-time guarantee: the dock can only ever point where the rail already does.
       throw new Error(`MOBILE_PRIMARY_NAVIGATION references unknown internal destination "${id}"`);
     }
     return item;
-  });
+  },
+);
+
+/** The "More" slot. The `shell.mobile.*` keys ship as the A3 fragment; the cast holds until merged. */
+export const MOBILE_MORE_ITEM: NavigationItem = {
+  id: 'more',
+  label: 'More',
+  messageKey: 'shell.mobile.more' as MessageKey,
+  href: '',
+  glyph: '⋯',
+};
+
+/** The five tab-bar slots, in order: four destinations and the More disclosure. */
+export const MOBILE_PRIMARY_NAVIGATION: readonly NavigationItem[] = [
+  ...MOBILE_DESTINATIONS,
+  MOBILE_MORE_ITEM,
+];
+
+/** One tile of the More sheet. `href` is an org suffix unless `absolute` (the public help centre). */
+export interface MoreSheetItem extends NavigationItem {
+  readonly absolute?: boolean;
+}
+
+const more = (id: string, label: string, href: string, glyph: string, absolute = false) =>
+  ({
+    id,
+    label,
+    messageKey: `MoreSheet.${id}` as MessageKey,
+    href,
+    glyph,
+    ...(absolute ? { absolute } : {}),
+  }) satisfies MoreSheetItem;
+
+/** ph-more's WORKSPACE grid, in the frame's order. */
+export const MORE_WORKSPACE_NAVIGATION: readonly MoreSheetItem[] = [
+  more('projects', 'Projects', '/projects', '▦'),
+  more('clients', 'Clients', '/clients', '◎'),
+  more('requests', 'Requests', '/work/requests', '◷'),
+  more('calendar', 'Calendar', '/calendar', '▣'),
+  more('docs', 'Docs & decisions', '/docs', '◫'),
+  more('files', 'Files & approvals', '/inbox', '⇧'),
+  more('people', 'People', '/people', '◍'),
+  more('insights', 'Insights', '/insights', '◔'),
+];
+
+/** ph-more's TOOLS & ACCOUNT row. Help is the public help centre, not an org route. */
+export const MORE_TOOLS_NAVIGATION: readonly MoreSheetItem[] = [
+  more('automations', 'Automations', '/automations', '⟳'),
+  more('search', 'Search', '/search', '⌕'),
+  more('settings', 'Settings', '/settings', '⚙'),
+  more('help', 'Help', '/faq', '?', true),
+];
 
 /** The client portal. A separate space, not a filtered view of the one above. */
 export const CLIENT_NAVIGATION: readonly NavigationItem[] = [
