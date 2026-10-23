@@ -14,7 +14,16 @@
  * Output: <out>/<stamp>/db.sql.gz, uploads.tar.gz (when the uploads dir exists), manifest.json.
  */
 import { execFileSync, spawn } from 'node:child_process';
-import { createWriteStream, existsSync, mkdirSync, readdirSync, rmSync, statSync } from 'node:fs';
+import {
+  closeSync,
+  createWriteStream,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -72,8 +81,18 @@ async function dumpDatabase(db, file) {
   await Promise.all([pipeline(child.stdout, createGzip(), createWriteStream(file)), exited]);
 }
 
+/**
+ * No paths on tar's command line: the archive goes to stdout and the source is the cwd. GNU tar
+ * (first on PATH under Git Bash) reads `C:\...` in `-f` as a remote `host:path` and fails to
+ * extract into a `C:\...` `-C`, and `--force-local` is unknown to bsdtar. This works with both.
+ */
 function archiveUploads(dir, file) {
-  execFileSync('tar', ['-czf', file, '-C', dir, '.'], { stdio: 'inherit' });
+  const fd = openSync(file, 'w');
+  try {
+    execFileSync('tar', ['-cz', '.'], { cwd: dir, stdio: ['ignore', fd, 'inherit'] });
+  } finally {
+    closeSync(fd);
+  }
 }
 
 async function main() {
@@ -112,7 +131,12 @@ async function main() {
   if (existsSync(uploadsDir)) {
     const upFile = join(dir, 'uploads.tar.gz');
     console.log(`Archiving uploads from ${uploadsDir}`);
-    archiveUploads(uploadsDir, upFile);
+    try {
+      archiveUploads(uploadsDir, upFile);
+    } catch (err) {
+      rmSync(dir, { recursive: true, force: true });
+      throw err;
+    }
     files.uploads = { name: 'uploads.tar.gz', bytes: statSync(upFile).size, source: uploadsDir };
   } else {
     console.warn(`Uploads dir ${uploadsDir} does not exist; no uploads archive written.`);

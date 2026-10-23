@@ -14,7 +14,15 @@
  * exits 2.
  */
 import { execFileSync, spawn } from 'node:child_process';
-import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
+import {
+  closeSync,
+  createReadStream,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+} from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -149,7 +157,13 @@ async function main() {
   const check = compareMigrations(manifest.migrations.versions, appliedVersions(db));
   if (upFile) {
     mkdirSync(uploadsDest, { recursive: true });
-    execFileSync('tar', ['-xzf', upFile, '-C', uploadsDest], { stdio: 'inherit' });
+    // No paths on tar's command line (see backup.mjs): archive on stdin, destination as cwd.
+    const fd = openSync(upFile, 'r');
+    try {
+      execFileSync('tar', ['-xz'], { cwd: uploadsDest, stdio: [fd, 'inherit', 'inherit'] });
+    } finally {
+      closeSync(fd);
+    }
     console.log(`Uploads restored to ${uploadsDest}`);
   }
   if (!check.ok) {
