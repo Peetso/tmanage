@@ -30,6 +30,9 @@ export const ORG_SETTING_KEYS = [
   'members_can_invite_clients',
   'clients_can_upload_files',
   'require_two_step',
+  // B3 — downloads before a virus scan. The company OWNER's choice alone (`OWNER_ONLY_SETTING_KEYS`):
+  // written through `PATCH …/file-download-policy`, never through the generic PUT.
+  'downloads_before_scan',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -47,6 +50,24 @@ export const OPERATING_TEMPLATES = [
   'internal-delivery',
   'empty',
 ] as const;
+
+/**
+ * B3. What a download does while a file has no clean scan result: `allow_labeled` serves it with
+ * `scanStatus: not_scanned` so the screen can label it; `block` refuses it with a 409.
+ */
+export const DOWNLOADS_BEFORE_SCAN_VALUES = ['allow_labeled', 'block'] as const;
+export type DownloadsBeforeScan = (typeof DOWNLOADS_BEFORE_SCAN_VALUES)[number];
+
+/**
+ * B3. Keys only the company owner may change. The generic `PUT …/settings/:key` refuses them for
+ * every caller; each has its own owner-only, audited route.
+ */
+export const OWNER_ONLY_SETTING_KEYS: readonly OrgSettingKey[] = ['downloads_before_scan'];
+
+/** Whether `key` may only be changed by the owner, through its own route. */
+export function isOwnerOnlySettingKey(key: OrgSettingKey): boolean {
+  return OWNER_ONLY_SETTING_KEYS.includes(key);
+}
 
 /** A validator for a key whose value must be one of a closed list. */
 function oneOf(values: readonly string[], message: string): OrgSettingSpec['validate'] {
@@ -148,6 +169,12 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
   members_can_invite_clients: { default: 'true', validate: booleanValue },
   clients_can_upload_files: { default: 'true', validate: booleanValue },
   require_two_step: { default: 'false', validate: booleanValue },
+  // B3. Defaults to `allow_labeled`: before the setting existed an unscanned file was simply
+  // unreachable, and the owner decides whether that becomes "allowed, labelled" or stays blocked.
+  downloads_before_scan: {
+    default: 'allow_labeled',
+    validate: oneOf(DOWNLOADS_BEFORE_SCAN_VALUES, 'Choose allow_labeled or block.'),
+  },
 });
 
 /** The on/off keys the A11 routes read through {@link isSettingOn}. */

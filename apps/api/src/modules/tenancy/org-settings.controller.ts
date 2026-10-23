@@ -10,9 +10,11 @@ import {
   ORG_SETTING_KEYS,
   defaultFor,
   isOrgSettingKey,
+  isOwnerOnlySettingKey,
   validateValue,
 } from './org-settings.allowlist.js';
 import { OrgSettingsRepository } from './org-settings.repository.js';
+import { DownloadScanPolicyController } from './download-scan-policy.controller.js';
 
 /**
  * Organization settings / policy (Administration module 18, x153) — the read + update surface the
@@ -96,6 +98,17 @@ export class OrgSettingsController {
         throw new ApiError(400, 'validation_failed', 'That is not a setting we recognise.', [
           { field: 'key', message: 'Unknown setting.' },
         ]);
+      }
+      // B3: an owner-only key has its own owner-only, audited route; this generic one never
+      // writes it, so an org_admin holding `org.manage` cannot reach it from here.
+      if (isOwnerOnlySettingKey(key)) {
+        throw new ApiError(
+          403,
+          'forbidden',
+          'Only the company owner can change this setting.',
+          undefined,
+          `org_settings.write:owner_only:${key}`,
+        );
       }
       const raw = coerceValue(body?.value);
       if (raw === undefined) {
@@ -193,7 +206,8 @@ export class OrgSettingsModule {
       providers: [
         { provide: OrgSettingsRepository, useFactory: () => new OrgSettingsRepository() },
       ],
-      controllers: [OrgSettingsController],
+      // B3: the owner-only "downloads before a virus scan" route, on the same repository.
+      controllers: [OrgSettingsController, DownloadScanPolicyController],
     };
   }
 }

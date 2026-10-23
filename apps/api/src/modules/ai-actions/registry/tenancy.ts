@@ -5,6 +5,7 @@
  * in `NEVER` (plan §2); this file covers only the org-scoped management surface. Role and policy
  * *definitions*, IP allowlist and security settings stay in `NEVER` too, so none appear here.
  */
+import { z } from 'zod';
 import { det, listArgs, pathOnly, bodyArgs, noArgs, f, type AiActionDetail } from './detail.js';
 
 export const tenancyDetails: readonly AiActionDetail[] = [
@@ -105,6 +106,25 @@ export const tenancyDetails: readonly AiActionDetail[] = [
     input: noArgs(),
     redact: 'standard',
     examples: [{ summary: 'Remove', args: {} }],
+  }),
+  // B3: downloads before a virus scan — the company owner's choice.
+  det({
+    id: 'settings.download_scan_policy.get',
+    title: 'Read the downloads-before-scan policy',
+    description:
+      'Whether files may be downloaded before the virus scan (allow_labeled or block), the effective value and whether a scanner is configured.',
+    input: noArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'Policy', args: {} }],
+  }),
+  det({
+    id: 'settings.download_scan_policy.update',
+    title: 'Change the downloads-before-scan policy',
+    description:
+      'Owner only. allow_labeled serves unscanned files labelled not_scanned; block refuses them until scanned. Confirm-class.',
+    input: bodyArgs([], { downloadsBeforeScan: z.enum(['allow_labeled', 'block']) }),
+    redact: 'standard',
+    examples: [{ summary: 'Block', args: { downloadsBeforeScan: 'block' } }],
   }),
   det({
     id: 'members.password_reset.create',

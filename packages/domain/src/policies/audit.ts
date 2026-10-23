@@ -562,6 +562,15 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'google_drive_attachment',
     clause: '§12 — the same link removed (the Drive file itself is never deleted)',
   },
+  /**
+   * B3. The company owner's choice of what a download does before a virus scan (`allow_labeled`
+   * or `block`). Metadata is the previous and the new value — closed tokens, never prose.
+   */
+  'organization.download_scan_policy_changed': {
+    objectType: 'organization',
+    clause:
+      '§12 organization settings — whether unscanned files may be downloaded is a policy change',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the
@@ -670,6 +679,7 @@ export function auditObjectTypeFor(action: AuditAction): string {
  */
 const AUDIT_ACTION_LABELS = {
   'organization.provisioned': 'Set up the organization',
+  'organization.download_scan_policy_changed': 'Changed downloads before a virus scan',
   'project.created': 'Created a project',
   'work_item.created': 'Created a work item',
   'work_item.transitioned': 'Moved a work item to a new stage',

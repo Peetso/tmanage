@@ -4643,6 +4643,23 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // B3: downloads before a virus scan (owner-only write).
+  {
+    id: 'settings.download_scan_policy.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/file-download-policy/',
+    capability: 'org.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'settings.download_scan_policy.update',
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/file-download-policy/',
+    capability: 'org.manage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
   {
     id: 'upload_sessions.list',
     method: 'GET',

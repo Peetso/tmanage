@@ -69,6 +69,10 @@ const asJson = process.argv.includes('--json');
  */
 const EXEMPT = new Map([
   [
+    'DownloadScanPolicyView',
+    'No web consumer yet: B3 is backend only; the owner screen is Figma-first (lane B5). Its shape is pinned against a literal in api-web-shapes.ts until B5 pairs the web type.',
+  ],
+  [
     'ConversationMemberView',
     'No web consumer: membership is never fetched by apps/web; the channel screen reads messages only.',
   ],

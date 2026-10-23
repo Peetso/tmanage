@@ -374,6 +374,7 @@ import type { SearchScopeView as ApiSearchScopeView } from '../../apps/api/src/m
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { OrganizationProfileView as ApiOrganizationProfileView } from '../../apps/api/src/modules/tenancy/organizations.controller.js';
+import type { DownloadScanPolicyView as ApiDownloadScanPolicyView } from '../../apps/api/src/modules/tenancy/download-scan-policy.controller.js';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
 import type { PublicLegalView as ApiPublicLegalView } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type {
@@ -2385,6 +2386,21 @@ type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
 
 /** A11. `OrganizationProfileView` (`GET …/profile`, `PATCH`, `PUT/DELETE …/logo`) — name + logo id. */
 type _organizationProfile = Assert<Exact<ApiOrganizationProfileView, WebOrganizationProfileView>>;
+
+/**
+ * B3. `DownloadScanPolicyView` (`GET/PATCH …/file-download-policy`). No web consumer yet (the screen
+ * is Figma-first, lane B5), so the API shape is pinned here; B5 swaps the literal for its web type.
+ */
+type _downloadScanPolicy = Assert<
+  Exact<
+    ApiDownloadScanPolicyView,
+    {
+      readonly downloadsBeforeScan: 'allow_labeled' | 'block';
+      readonly effective: 'allow_labeled' | 'block';
+      readonly scannerConfigured: boolean;
+    }
+  >
+>;
 
 /**
  * Custom roles (x173). `CustomRoleView` (`GET/POST …/admin/roles`, response) — the organization's custom

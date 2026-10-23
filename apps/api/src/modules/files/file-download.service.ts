@@ -9,6 +9,10 @@ import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import { mayDownloadFor } from './purpose-policy.js';
+import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
+import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
+import type { FileVersionRow } from '../../common/database/schema.js';
 
 /**
  * FILE-002 slice C — the download gate.
@@ -55,7 +59,15 @@ export interface FileDownload {
   readonly mimeType: string;
   readonly sizeBytes: number;
   readonly fileName: string;
+  /**
+   * B3. `clean` for a file the scan cleared; `not_scanned` for one served before any clean scan
+   * result under the owner's `allow_labeled` policy — the screen labels it. Sent as `x-scan-status`.
+   */
+  readonly scanStatus: DownloadScanStatus;
 }
+
+/** B3. Whether the bytes handed out were cleared by a scan. */
+export type DownloadScanStatus = 'clean' | 'not_scanned';
 
 export const DOWNLOAD_CAPABILITY = 'file.download';
 
@@ -67,6 +79,9 @@ export class FileDownloadService {
     private readonly requests: ClientRequestsRepository,
     private readonly store: ObjectStore,
     private readonly audit: AuditService,
+    /** B3. The configured scanner; absent or `none` means unscanned files are allowed, labelled. */
+    private readonly scanner?: ScannerPresence,
+    private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
   ) {}
 
   /** The studio's door. */
@@ -146,22 +161,38 @@ export class FileDownloadService {
     });
     if (!decision.allowed) throw await this.refuse(context, decision.code);
 
+    if (version === null) throw await this.notReady(context, asset.status);
+    let zone: 'private' | 'quarantine' = 'private';
+    let scanStatus: DownloadScanStatus = 'clean';
     if (
-      version === null ||
       !isServableVersion({
         status: asset.status,
         scanVerdict: version.scanVerdict,
         trustZone: version.trustZone,
       })
     ) {
-      throw await this.notReady(context, asset.status);
+      // B3. A verified file with no scan verdict yet (or `unscanned` under the `none` driver) is
+      // the owner's call: `block` keeps a 409, `allow_labeled` serves it labelled `not_scanned`.
+      // An infected, rejected, expired or cancelled file — or one not yet verified — never is.
+      if (!awaitingScan(asset.status, version)) throw await this.notReady(context, asset.status);
+      const policy = await readDownloadScanPolicy(
+        this.database,
+        context,
+        this.scanner,
+        this.settings,
+      );
+      if (policy.effective === 'block') throw await this.blockedByPolicy(context);
+      zone = version.trustZone === 'private' ? 'private' : 'quarantine';
+      scanStatus = 'not_scanned';
     }
     const mimeType = version.detectedMimeType;
     if (mimeType === null) throw await this.refuse(context, 'no_detected_type');
 
     let opened: OpenedObject;
     try {
-      opened = await this.store.openObject({ zone: 'private', objectKey: version.objectKey });
+      // `private` for a cleared file. An unscanned one still sits in quarantine; the zone is one
+      // of the two literals chosen above, never a string read from the row.
+      opened = await this.store.openObject({ zone, objectKey: version.objectKey });
     } catch (error) {
       if (error instanceof ObjectNotFoundError) {
         throw await this.refuse(context, 'private_object_missing');
@@ -180,6 +211,7 @@ export class FileDownloadService {
       size_bytes: version.sizeBytes,
       principal_kind: principal.kind,
       delivery: 'proxy',
+      scan_status: scanStatus,
     };
     try {
       await this.database.transaction(context, (tx) =>
@@ -201,7 +233,27 @@ export class FileDownloadService {
       mimeType,
       sizeBytes: version.sizeBytes,
       fileName: asset.name,
+      scanStatus,
     };
+  }
+
+  /**
+   * B3. The owner chose `block` and a scanner is configured: an authorized caller is told the file
+   * waits for its scan — `409 conflict`, `status: scan_required_by_policy`. One denied audit row.
+   */
+  private async blockedByPolicy(context: TenantContext): Promise<ApiError> {
+    await this.audit.recordDenial(context, 'file_asset.downloaded', {
+      status: 409,
+      capability: DOWNLOAD_CAPABILITY,
+      auditCode: 'not_scanned_blocked_by_policy',
+    });
+    return new ApiError(
+      409,
+      'conflict',
+      'Your company allows downloads only after the virus scan. Try again once it has been checked',
+      [{ field: 'status', message: 'scan_required_by_policy' }],
+      'not_scanned_blocked_by_policy',
+    );
   }
 
   /**
@@ -246,6 +298,17 @@ export function downloadStateFor(assetStatus: string): DownloadState {
   return assetStatus === 'rejected' || assetStatus === 'expired' || assetStatus === 'cancelled'
     ? 'blocked'
     : 'pending_scan';
+}
+
+/**
+ * B3. A version the scan has not judged yet: the asset is `scanning` (or `ready` with a replacement
+ * version still in quarantine), the verifier has detected its type, and its verdict is none yet or
+ * `unscanned` (the `none` driver). `infected` and every terminal refusal are excluded.
+ */
+export function awaitingScan(assetStatus: string, version: FileVersionRow): boolean {
+  if (assetStatus !== 'scanning' && assetStatus !== 'ready') return false;
+  if (version.detectedMimeType === null) return false;
+  return version.scanVerdict === null || version.scanVerdict === 'unscanned';
 }
 
 function destroy(stream: unknown): void {

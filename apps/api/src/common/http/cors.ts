@@ -32,7 +32,8 @@ export const CORS_ALLOWED_HEADERS = [
   'idempotency-key',
 ] as const;
 
-export const CORS_EXPOSED_HEADERS = ['x-correlation-id', 'etag'] as const;
+// B3: `x-scan-status` labels a file downloaded before its virus scan (`not_scanned`).
+export const CORS_EXPOSED_HEADERS = ['x-correlation-id', 'etag', 'x-scan-status'] as const;
 
 /**
  * The shape `@fastify/cors` accepts, spelled here rather than imported: the plugin is

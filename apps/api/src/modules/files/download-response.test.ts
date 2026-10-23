@@ -29,11 +29,11 @@ describe('attachmentDisposition', () => {
 });
 
 describe('respondWithDownload', () => {
-  it('writes the five headers and returns a StreamableFile of the gated stream', () => {
+  it('writes the six headers and returns a StreamableFile of the gated stream', () => {
     const written: Record<string, string> = {};
     const stream = Readable.from([Buffer.from('abc')]);
     const file = respondWithDownload(
-      { stream, mimeType: 'application/pdf', sizeBytes: 3, fileName: 'a.pdf' },
+      { stream, mimeType: 'application/pdf', sizeBytes: 3, fileName: 'a.pdf', scanStatus: 'clean' },
       { header: (name, value) => (written[name] = value) },
     );
     expect(file).toBeInstanceOf(StreamableFile);
@@ -44,6 +44,7 @@ describe('respondWithDownload', () => {
       'content-disposition': `attachment; filename="a.pdf"; filename*=UTF-8''a.pdf`,
       'x-content-type-options': 'nosniff',
       'cache-control': 'private, no-store',
+      'x-scan-status': 'clean',
     });
   });
 });

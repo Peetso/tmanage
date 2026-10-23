@@ -36,6 +36,8 @@ export function respondWithDownload(download: FileDownload, reply: HeaderWriter)
   reply.header('content-disposition', attachmentDisposition(download.fileName));
   reply.header('x-content-type-options', 'nosniff');
   reply.header('cache-control', 'private, no-store');
+  // B3. `clean`, or `not_scanned` for a file served before its virus scan (owner policy).
+  reply.header('x-scan-status', download.scanStatus);
   return new StreamableFile(download.stream as Readable, {
     type: download.mimeType,
     length: download.sizeBytes,

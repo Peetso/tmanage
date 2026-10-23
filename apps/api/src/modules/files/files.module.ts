@@ -278,12 +278,21 @@ export class FilesModule {
     // bytes out shares no method with the write path that takes them in.
     const downloads: Provider = {
       provide: FILE_DOWNLOAD_SERVICE,
-      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, OBJECT_STORE, AUDIT_SERVICE],
+      // B3: and the scanner — without one the owner's "downloads before a virus scan" policy is
+      // always `allow_labeled`; with one, a stored `block` keeps an unscanned file at a 409.
+      inject: [
+        TENANT_DATABASE,
+        FILE_ASSETS_REPOSITORY,
+        OBJECT_STORE,
+        AUDIT_SERVICE,
+        MALWARE_SCANNER,
+      ],
       useFactory: (
         database: TenantDatabase,
         assets: FileAssetsRepository,
         store: ObjectStore,
         audit: AuditService,
+        malwareScanner: MalwareScanner,
       ) =>
         new FileDownloadService(
           database,
@@ -292,6 +301,7 @@ export class FilesModule {
           new ClientRequestsRepository(),
           store,
           audit,
+          malwareScanner,
         ),
     };
 
