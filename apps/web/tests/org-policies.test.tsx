@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
@@ -56,8 +56,10 @@ describe('AdminPoliciesScreen — Administration access policies (x174)', () => 
       ),
     );
 
+    // The control can render a frame before the effect copies the loaded policy into it, so
+    // wait for the value rather than only for the element (flaked under full-suite load).
     const sessionHours = await screen.findByLabelText('Session lifetime (hours)');
-    expect(sessionHours).toHaveValue(12);
+    await waitFor(() => expect(sessionHours).toHaveValue(12));
     expect(screen.getByLabelText('Invite domain allowlist')).toHaveValue(
       'example.com, partner.test',
     );
