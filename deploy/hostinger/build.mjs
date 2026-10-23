@@ -347,6 +347,8 @@ function assemble() {
     'web-socket-preload.mjs',
     // server.mjs imports the web child's restart backoff from here; missing it, boot fails.
     'web-restart.mjs',
+    // server.mjs and web-transport.mjs import the CDN cache policy from here; missing it, boot fails.
+    'cache-headers.mjs',
   ]) {
     cpSync(join(REPO, 'apps/server', file), join(STAGE, file));
   }
