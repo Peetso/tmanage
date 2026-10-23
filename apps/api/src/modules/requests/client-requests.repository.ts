@@ -2,7 +2,7 @@ import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { clientRequestStateMachine, uuidv7 } from '@tmanage/domain';
 import type { ClientRequestState } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { clientRequests } from '../../common/database/schema.js';
+import { clientMemberships, clientRequests, users } from '../../common/database/schema.js';
 import type { ClientRequestRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -141,6 +141,18 @@ export interface TransitionFacts {
   readonly clientSafeScopeSummary?: string;
   readonly commitment?: Commitment;
   readonly linkedWorkItemId?: string;
+}
+
+/**
+ * A7 (0220): when a deferral comes back, and whether its author wants reminding. Not a §6 fact —
+ * the machine does not ask for it — so it travels beside {@link TransitionFacts}, never inside it,
+ * and is written only on a move *to* `deferred`.
+ */
+export interface DeferralSchedule {
+  /** Midnight UTC of the day the request comes back. */
+  readonly until: Date;
+  readonly remindOnReopen: boolean;
+  readonly deferredByUserId: string;
 }
 
 export class ClientRequestsRepository {
@@ -290,6 +302,7 @@ export class ClientRequestsRepository {
     expectedVersion: number,
     to: ClientRequestState,
     facts: TransitionFacts = {},
+    deferral?: DeferralSchedule,
   ): Promise<ClientRequestRow> {
     const current = await this.requireById(runner, context, clientRequestId);
     // The column is `VARCHAR(32)`, so the row's state is a string as far as the type system is
@@ -338,6 +351,13 @@ export class ClientRequestsRepository {
     if (facts.linkedWorkItemId !== undefined) {
       changes['linkedWorkItemId'] = facts.linkedWorkItemId;
     }
+    if (to === 'deferred') {
+      // A7 (0220): a deferral without a date is still a deferral; it simply never comes back
+      // on its own. Written on every move to `deferred` so a stale schedule cannot survive.
+      changes['deferUntil'] = deferral?.until ?? null;
+      changes['reopenReminder'] = deferral?.remindOnReopen ?? false;
+      changes['deferredByUserId'] = deferral ? deferral.deferredByUserId : null;
+    }
 
     const result = await tenantDrizzle(runner)
       .update(clientRequests)
@@ -360,5 +380,68 @@ export class ClientRequestsRepository {
     }
 
     return this.requireById(runner, context, clientRequestId);
+  }
+
+  /**
+   * A7: "Reopen now" — `deferred` back to `triage`, clearing the schedule.
+   *
+   * Not a move `clientRequestStateMachine` draws: the machine's `deferred` has no way out, and
+   * the date a deferral names is exactly a promise to come back. The predicate is the guard — the
+   * row must still be `deferred` at the version the caller read — so this cannot reopen anything
+   * else, and a stale caller gets a conflict rather than a second reopen.
+   */
+  async reopenDeferred(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    clientRequestId: string,
+    expectedVersion: number,
+  ): Promise<ClientRequestRow | null> {
+    const result = await tenantDrizzle(runner)
+      .update(clientRequests)
+      .set({
+        state: 'triage',
+        deferUntil: null,
+        reopenReminder: false,
+        deferredByUserId: null,
+        version: sql`version + 1`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(clientRequests.organizationId, context.organizationId),
+          eq(clientRequests.id, clientRequestId),
+          eq(clientRequests.version, expectedVersion),
+          eq(clientRequests.state, 'deferred'),
+        ),
+      );
+    if (result[0].affectedRows === 0) return null;
+    return this.requireById(runner, context, clientRequestId);
+  }
+
+  /**
+   * A7: the people who sent these requests, by name — the triage list's "Youssef Adel".
+   *
+   * Read through `client_memberships` (tenant-scoped) rather than `users` alone, which is
+   * cross-tenant identity: a submitter is a client member of this organization, and nobody else's
+   * name can come back.
+   */
+  async submitterNames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>> {
+    const unique = [...new Set(userIds)];
+    if (unique.length === 0) return new Map();
+    const rows = await tenantDrizzle(runner)
+      .select({ userId: clientMemberships.userId, displayName: users.displayName })
+      .from(clientMemberships)
+      .innerJoin(users, eq(users.id, clientMemberships.userId))
+      .where(
+        and(
+          eq(clientMemberships.organizationId, context.organizationId),
+          inArray(clientMemberships.userId, unique),
+        ),
+      );
+    return new Map(rows.map((row) => [row.userId, row.displayName]));
   }
 }

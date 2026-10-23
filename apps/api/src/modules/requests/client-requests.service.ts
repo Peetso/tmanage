@@ -22,6 +22,7 @@ import {
 } from './client-requests.repository.js';
 import type {
   Commitment,
+  DeferralSchedule,
   ListClientRequestsOptions,
   SubmitClientRequestInput,
   TransitionFacts,
@@ -98,6 +99,12 @@ export interface ClientRequestView {
   readonly commitment: 'committed' | 'unscheduled' | null;
   readonly committedAt: string | null;
   readonly linkedWorkItemId: string | null;
+  /** A7: who sent it, by name — a client member of this organization. Null when unreadable. */
+  readonly submittedByName: string | null;
+  /** A7 (0220): the day a deferred request comes back, `YYYY-MM-DD`; null when not parked. */
+  readonly deferUntil: string | null;
+  /** A7 (0220): whether the deferrer asked to be reminded when it reopens. */
+  readonly remindOnReopen: boolean;
   /** The concurrency token. A caller must present it to transition. */
   readonly version: number;
   readonly createdAt: string;
@@ -201,6 +208,18 @@ export interface AcceptClientRequestInput {
      */
     readonly audience?: Audience;
   };
+  /**
+   * A7: "Tell <name> it is accepted". `false` marks the transition event so the client is not
+   * told; absent or `true` keeps today's behaviour, where every answer reaches its submitter.
+   */
+  readonly notifyClient?: boolean;
+}
+
+/** A7: "Defer until" — the day it comes back, and whether to remind the deferrer then. */
+export interface DeferUntilInput {
+  /** `YYYY-MM-DD`. */
+  readonly day: string;
+  readonly remindOnReopen: boolean;
 }
 
 export interface AcceptedClientRequestView {
@@ -214,6 +233,7 @@ function toView(
   row: ClientRequestRow,
   clientOrganizationName: string | null,
   correlationId: string,
+  submittedByName: string | null = null,
 ): ClientRequestView {
   // The column is `VARCHAR(32)`, but only `clientRequestStateMachine` ever writes it. A value
   // outside the union means a corrupt row, which is a 500 — never a shape the internal view admits.
@@ -242,6 +262,9 @@ function toView(
     commitment: row.commitment,
     committedAt: row.committedAt,
     linkedWorkItemId: row.linkedWorkItemId,
+    submittedByName,
+    deferUntil: row.deferUntil ? row.deferUntil.toISOString().slice(0, 10) : null,
+    remindOnReopen: Boolean(row.reopenReminder),
     version: Number(row.version),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
@@ -374,8 +397,14 @@ export class ClientRequestsService {
     // One read for the whole page rather than one per row: a triage queue that issued a query
     // per request would make the cost of the queue quadratic in its own length.
     const names = await this.clientOrganizationNames(context, visible);
+    const submitters = await this.submitterNames(context, visible);
     return visible.map((row) =>
-      toView(row, names.get(row.clientOrganizationId) ?? null, context.correlationId),
+      toView(
+        row,
+        names.get(row.clientOrganizationId) ?? null,
+        context.correlationId,
+        submitters.get(row.submittedByUserId) ?? null,
+      ),
     );
   }
 
@@ -389,11 +418,7 @@ export class ClientRequestsService {
     if (!this.mayTriage(principal, row)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
-    return toView(
-      row,
-      await this.clientOrganizationName(context, row.clientOrganizationId),
-      context.correlationId,
-    );
+    return this.internalView(context, row);
   }
 
   /**
@@ -459,7 +484,13 @@ export class ClientRequestsService {
     expectedVersion: number,
     to: ClientRequestState,
     facts: TransitionFacts = {},
+    deferUntil?: DeferUntilInput,
   ): Promise<ClientRequestView> {
+    if (deferUntil !== undefined && to !== 'deferred') {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'deferUntil', message: 'is only accepted on a move to deferred' },
+      ]);
+    }
     const moved = await this.transition(
       context,
       principal,
@@ -467,12 +498,83 @@ export class ClientRequestsService {
       expectedVersion,
       to,
       facts,
+      deferUntil === undefined
+        ? undefined
+        : {
+            until: new Date(`${deferUntil.day}T00:00:00.000Z`),
+            remindOnReopen: deferUntil.remindOnReopen,
+            deferredByUserId: principal.userId,
+          },
     );
-    return toView(
-      moved,
-      await this.clientOrganizationName(context, moved.clientOrganizationId),
-      context.correlationId,
+    return this.internalView(context, moved);
+  }
+
+  /**
+   * A7: "Reopen now" — a deferred request back to `triage` before its date, clearing the
+   * schedule. The worker's defer sweep does the same move when the date arrives.
+   *
+   * Authorised as a move to `triage` (a manager's move), audited and evented like every other
+   * transition, so a consumer cannot tell which door it came through.
+   */
+  async reopen(
+    context: TenantContext,
+    principal: Principal,
+    clientRequestId: string,
+    expectedVersion: number,
+  ): Promise<ClientRequestView> {
+    const before = await this.readForMove(context, principal, clientRequestId, 'triage');
+    if (before.state !== 'deferred') {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        `A client request cannot be reopened from ${before.state}`,
+      );
+    }
+
+    const moved = await this.writing(() =>
+      this.database.transaction(context, async (tx) => {
+        const row = await this.requests.reopenDeferred(
+          tx,
+          context,
+          clientRequestId,
+          expectedVersion,
+        );
+        if (row === null) {
+          throw new ClientRequestVersionConflictError(clientRequestId, Number(before.version));
+        }
+
+        await this.audit?.record(tx, context, {
+          action: 'client_request.transitioned',
+          objectId: row.id,
+          result: 'allowed',
+          metadata: {
+            project_id: row.projectId,
+            client_organization_id: row.clientOrganizationId,
+            state_before: before.state,
+            state_after: row.state,
+            facts_supplied: [],
+            commitment: row.commitment ?? 'none',
+          },
+        });
+
+        await this.outbox?.append(tx, context, {
+          type: 'client_request.transitioned.v1',
+          aggregateId: row.id,
+          payload: {
+            requestId: row.id,
+            projectId: row.projectId,
+            clientOrganizationId: row.clientOrganizationId,
+            fromStatus: before.state,
+            toStatus: row.state,
+            requestVersion: Number(row.version),
+            acceptedWorkItemId: row.linkedWorkItemId,
+          },
+        });
+
+        return row;
+      }),
     );
+    return this.internalView(context, moved);
   }
 
   /**
@@ -488,6 +590,7 @@ export class ClientRequestsService {
     expectedVersion: number,
     to: ClientRequestState,
     facts: TransitionFacts = {},
+    deferral?: DeferralSchedule,
   ): Promise<ClientRequestRow> {
     const before = await this.readForMove(context, principal, clientRequestId, to);
 
@@ -505,6 +608,7 @@ export class ClientRequestsService {
             expectedVersion,
             to,
             facts,
+            deferral,
           );
 
           await this.audit?.record(tx, context, {
@@ -730,6 +834,8 @@ export class ClientRequestsService {
               toStatus: moved.state,
               requestVersion: Number(moved.version),
               acceptedWorkItemId: moved.linkedWorkItemId,
+              // A7: "Tell <name> it is accepted" unticked. Only ever `false`; absent means tell.
+              ...(input.notifyClient === false ? { notifyClient: false } : {}),
             },
           });
 
@@ -738,11 +844,7 @@ export class ClientRequestsService {
       );
 
       return {
-        request: toView(
-          result.moved,
-          await this.clientOrganizationName(context, result.moved.clientOrganizationId),
-          context.correlationId,
-        ),
+        request: await this.internalView(context, result.moved),
         workItemId: result.workItemId,
         workItemCreated: result.created,
       };
@@ -1051,6 +1153,35 @@ export class ClientRequestsService {
       ),
     );
     return new Map(organizations.map((organization) => [organization.id, organization.name]));
+  }
+
+  /** A7: one row as the studio reads it — client organization and submitter both named. */
+  private async internalView(
+    context: TenantContext,
+    row: ClientRequestRow,
+  ): Promise<ClientRequestView> {
+    const submitters = await this.submitterNames(context, [row]);
+    return toView(
+      row,
+      await this.clientOrganizationName(context, row.clientOrganizationId),
+      context.correlationId,
+      submitters.get(row.submittedByUserId) ?? null,
+    );
+  }
+
+  /** A7: the submitters' names for a page of rows, in one read. */
+  private async submitterNames(
+    context: TenantContext,
+    rows: readonly ClientRequestRow[],
+  ): Promise<ReadonlyMap<string, string>> {
+    if (rows.length === 0) return new Map();
+    return this.database.read(context, (runner) =>
+      this.requests.submitterNames(
+        runner,
+        context,
+        rows.map((row) => row.submittedByUserId),
+      ),
+    );
   }
 
   private async clientOrganizationName(

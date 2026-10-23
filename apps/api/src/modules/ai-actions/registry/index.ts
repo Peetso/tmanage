@@ -940,6 +940,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // A7: "Reopen now" on a deferred request.
+  {
+    id: 'client_requests.reopen.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/client-requests/:clientRequestId/reopen',
+    capability: 'client_request.triage',
+    risk: 'write',
+    scope: 'write',
+  },
   {
     id: 'client_requests.messages.list',
     method: 'GET',

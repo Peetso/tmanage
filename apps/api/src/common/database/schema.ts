@@ -3140,6 +3140,12 @@ export const clientRequests = mysqlTable(
     commitment: mysqlEnum('commitment', CLIENT_REQUEST_COMMITMENT),
     committedAt: date('committed_at', { mode: 'string' }),
     linkedWorkItemId: char('linked_work_item_id', { length: 36 }),
+    /** A7 (0220): when a deferred request comes back to triage; null when not parked on a date. */
+    deferUntil: datetime('defer_until', { mode: 'date', fsp: 3 }),
+    /** A7 (0220): remind the deferrer when the request reopens. */
+    reopenReminder: boolean('reopen_reminder').notNull().default(false),
+    /** A7 (0220): who deferred it — the reminder's recipient. */
+    deferredByUserId: char('deferred_by_user_id', { length: 36 }),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
@@ -3158,6 +3164,8 @@ export const clientRequests = mysqlTable(
       table.state,
       table.createdAt,
     ),
+    // A7 (0220): the cross-tenant defer sweep's predicate.
+    index('ix_client_requests_state_defer_until').on(table.state, table.deferUntil),
   ],
 );
 

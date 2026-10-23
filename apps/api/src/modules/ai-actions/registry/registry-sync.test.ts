@@ -69,8 +69,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  BK5 (0217): +4 ops, GET .../meetings/:meetingId/attendees/client-candidates and
  *  GET/GET/PUT .../portal/meetings(/:meetingId(/rsvp)) (client people as attendees).
  *  A14 (0226): +1 op, DELETE .../automations/templates/:id (soft-delete a rule, confirm).
- *  A10 (0223): +1 op, GET .../projects/:projectId/updates (internal updates list, drafts included). */
-const EXPECTED_ROUTE_COUNT = 772;
+ *  A10 (0223): +1 op, GET .../projects/:projectId/updates (internal updates list, drafts included).
+ *  A7 (0220): +1 op, POST .../client-requests/:clientRequestId/reopen ("Reopen now"). */
+const EXPECTED_ROUTE_COUNT = 773;
 
 interface LiveRoute {
   readonly method: string;

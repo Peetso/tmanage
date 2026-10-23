@@ -45,6 +45,12 @@ export interface ClientRequestRecord {
   readonly commitment: 'committed' | 'unscheduled' | null;
   readonly committedAt: string | null;
   readonly linkedWorkItemId: string | null;
+  /** A7: who sent it, by name. Null when the API could not name them. */
+  readonly submittedByName: string | null;
+  /** A7: the day a deferred request comes back, `YYYY-MM-DD`; null when not parked. */
+  readonly deferUntil: string | null;
+  /** A7: whether the deferrer asked to be reminded when it reopens. */
+  readonly remindOnReopen: boolean;
   readonly version: number;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -128,6 +134,45 @@ export async function transitionClientRequest(
   return data;
 }
 
+export interface DeferClientRequestInput {
+  readonly version: number;
+  /** The reason the client reads. */
+  readonly clientVisibleReason: string;
+  /** `YYYY-MM-DD`: the day it comes back to triage. */
+  readonly deferUntil: string;
+  readonly remindOnReopen: boolean;
+}
+
+/** A7: "Defer until" — park the request until a day, optionally reminding the deferrer. */
+export async function deferClientRequest(
+  client: ApiClient,
+  organizationSlug: string,
+  clientRequestId: string,
+  input: DeferClientRequestInput,
+): Promise<ClientRequestRecord> {
+  const { data } = await client.request<ClientRequestRecord>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/client-requests/${encodeURIComponent(clientRequestId)}/transitions`,
+    body: { to: 'deferred', ...input },
+  });
+  return data;
+}
+
+/** A7: "Reopen now" — a deferred request back to triage before its date. */
+export async function reopenClientRequest(
+  client: ApiClient,
+  organizationSlug: string,
+  clientRequestId: string,
+  version: number,
+): Promise<ClientRequestRecord> {
+  const { data } = await client.request<ClientRequestRecord>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/client-requests/${encodeURIComponent(clientRequestId)}/reopen`,
+    body: { version },
+  });
+  return data;
+}
+
 export interface AcceptClientRequestBody {
   readonly version: number;
   readonly clientSafeScopeSummary: string;
@@ -140,6 +185,8 @@ export interface AcceptClientRequestBody {
     readonly ownerUserId?: string;
     readonly audience?: 'internal' | 'client_visible' | 'client_action_required';
   };
+  /** A7: "Tell <name> it is accepted". `false` keeps the client from being told. */
+  readonly notifyClient?: boolean;
 }
 
 export interface AcceptedClientRequest {

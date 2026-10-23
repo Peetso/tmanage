@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { RequestInboxScreen } from '../src/components/screens/RequestInboxScreen';
 import { RequestTriageScreen } from '../src/components/screens/RequestTriageScreen';
 import { ApiClient } from '../src/lib/api/client';
+import { translate, type MessageKey } from '../src/lib/i18n/t';
 import {
   describeAge,
   describeDateGap,
@@ -85,28 +86,12 @@ function record(overrides: Record<string, unknown> = {}) {
     commitment: null,
     committedAt: null,
     linkedWorkItemId: null,
+    submittedByName: null,
+    deferUntil: null,
+    remindOnReopen: false,
     version: 2,
     createdAt: '2026-08-12T09:20:00.000Z',
     updatedAt: '2026-08-12T09:20:00.000Z',
-    ...overrides,
-  };
-}
-
-function workItem(overrides: Record<string, unknown> = {}) {
-  return {
-    id: 'wi-1',
-    projectId: 'proj-1',
-    type: 'task',
-    title: 'Content migration',
-    state: 'in_progress',
-    ownerUserId: null,
-    audience: 'internal',
-    startAt: null,
-    dueAt: '2026-09-08T00:00:00.000Z',
-    version: 1,
-    createdAt: '2026-08-01T00:00:00.000Z',
-    updatedAt: '2026-08-01T00:00:00.000Z',
-    deletedAt: null,
     ...overrides,
   };
 }
@@ -204,254 +189,168 @@ describe('REQ-01 the request inbox', () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('REQ-02 the triage screen', () => {
-  function renderTriage(
-    overrides: Record<string, unknown> = {},
-    work: readonly unknown[] = [workItem()],
-  ) {
-    const sent: { url: string; body: unknown }[] = [];
-    const current = record(overrides);
+describe('A7 requests triage (fq9-triage, fq9-confirm-accept)', () => {
+  const NOW_A7 = new Date('2026-10-27T09:00:00.000Z');
+  const L = (key: string, vars: Record<string, string | number> = {}) => {
+    let text = translate('en-US', key as MessageKey);
+    for (const [name, value] of Object.entries(vars))
+      text = text.split(`{${name}}`).join(String(value));
+    return text;
+  };
+
+  const ROWS = [
+    record({
+      id: 'req-1',
+      title: 'Add an Arabic version of the menu page',
+      submittedByName: 'Youssef Adel',
+      desiredAt: '2026-11-10',
+      createdAt: '2026-10-27T07:00:00.000Z',
+    }),
+    record({
+      id: 'req-2',
+      title: 'Change the hero photo to the pool shot',
+      submittedByName: 'Nadia Fawzy',
+      state: 'submitted',
+    }),
+    record({
+      id: 'req-3',
+      title: 'Spring campaign ideas',
+      submittedByName: 'Nadia Fawzy',
+      state: 'deferred',
+      deferUntil: '2026-11-03',
+      remindOnReopen: true,
+      version: 5,
+    }),
+    record({ id: 'req-4', title: 'Old logo files', state: 'accepted' }),
+  ];
+
+  function renderA7(selected = 'req-1') {
+    const sent: { url: string; body: Record<string, unknown> }[] = [];
     const api = clientOver((url, init) => {
+      const byId = (id: string) => ROWS.find((row) => row.id === id) ?? ROWS[0];
       if (init?.method === 'POST') {
-        sent.push({ url, body: JSON.parse(String(init.body)) });
-        if (url.includes('/acceptance')) {
+        const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+        sent.push({ url, body });
+        const id = /client-requests\/([^/]+)\//.exec(url)?.[1] ?? 'req-1';
+        const current = byId(id);
+        if (url.endsWith('/messages')) {
           return json({
-            request: { ...current, state: 'accepted', version: current.version + 1 },
+            id: 'm1',
+            body: body['body'],
+            authorKind: 'internal',
+            clientVisible: true,
+          });
+        }
+        if (url.endsWith('/acceptance')) {
+          return json({
+            request: { ...current, state: 'accepted', version: Number(current?.version) + 1 },
             workItemId: 'wi-new',
             workItemCreated: true,
           });
         }
-        const body = JSON.parse(String(init.body)) as { to: string };
-        return json({ ...current, state: body.to, version: current.version + 1 });
+        if (url.endsWith('/reopen')) {
+          return json({ ...current, state: 'triage', deferUntil: null, version: 6 });
+        }
+        return json({ ...current, state: body['to'], version: Number(current?.version) + 1 });
       }
-      if (url.includes('/work-items')) return json({ workItems: work });
-      return json(current);
-    });
-
-    const view = render(
-      withQuery(<RequestTriageScreen {...NAMES} clientRequestId="req-1" client={api} />),
-    );
-    return { view, sent };
-  }
-
-  it('says every outcome needs a reason the client can read', async () => {
-    renderTriage();
-    expect(
-      await screen.findByText('Every outcome requires a reason the client can read.'),
-    ).toBeInTheDocument();
-    // Each control names its own cost, so the price of an outcome is visible before it is picked.
-    expect(screen.getByRole('button', { name: 'Commit with a date' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Ask another question' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Defer with a reason' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Decline with a reason' })).toBeInTheDocument();
-  });
-
-  it('will not send a decline with an empty reason', async () => {
-    const user = userEvent.setup();
-    const { sent } = renderTriage();
-
-    await user.click(await screen.findByRole('button', { name: 'Decline with a reason' }));
-    expect(screen.getByRole('button', { name: 'Decline this request' })).toBeDisabled();
-    expect(sent).toHaveLength(0);
-  });
-
-  it('sends the clarification question the client will read word for word', async () => {
-    const user = userEvent.setup();
-    const { sent } = renderTriage();
-
-    await user.click(await screen.findByRole('button', { name: 'Ask another question' }));
-    await user.type(
-      screen.getByLabelText('What do you need to know?'),
-      'How many questions should it cover?',
-    );
-    await user.click(screen.getByRole('button', { name: 'Ask the client' }));
-
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]?.body).toEqual({
-      version: 2,
-      to: 'needs_clarification',
-      clarificationQuestion: 'How many questions should it cover?',
-    });
-  });
-
-  it('offers only "start triaging" on a request nobody has opened', async () => {
-    const user = userEvent.setup();
-    const { sent } = renderTriage({ state: 'submitted' });
-
-    // §6 routes every answer through `triage`. A manager should not discover that by refusal,
-    // so the four outcomes are not offered until the request has actually been opened.
-    const start = await screen.findByRole('button', { name: 'Start triaging' });
-    expect(screen.queryByRole('button', { name: 'Commit with a date' })).not.toBeInTheDocument();
-
-    await user.click(start);
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]?.body).toEqual({ version: 2, to: 'triage' });
-  });
-
-  it('offers only "the client has answered" while a clarification is outstanding', async () => {
-    const user = userEvent.setup();
-    const { sent } = renderTriage({
-      state: 'needs_clarification',
-      clarificationQuestion: 'Which markets does the autumn campaign cover?',
-    });
-
-    // The defect this pins: the screen used to treat `needs_clarification` as open and render
-    // all four outcomes, but `23-ERD` §6 draws no edge from here to accepted, deferred or
-    // declined — the API answered 422 for every one of them. A manager who asked a question
-    // could never answer the request. §6's route back is through `triage`, and that is the
-    // only control this state gets.
-    const answered = await screen.findByRole('button', { name: 'The client has answered' });
-    expect(screen.getByText('Waiting on the client')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Commit with a date' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Defer with a reason' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Decline with a reason' })).not.toBeInTheDocument();
-
-    await user.click(answered);
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]?.body).toEqual({ version: 2, to: 'triage' });
-  });
-
-  it('says an answered request is answered rather than offering dead controls', async () => {
-    renderTriage({ state: 'declined', clientVisibleReason: 'Outside the statement of work.' });
-    expect(await screen.findByText('This request has been answered')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Commit with a date' })).not.toBeInTheDocument();
-    expect(screen.getByText('Outside the statement of work.')).toBeInTheDocument();
-  });
-
-  it('has one h1 and no axe violation', async () => {
-    const { view } = renderTriage();
-    await screen.findByRole('button', { name: 'Commit with a date' });
-    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    await expectNoAxeViolations(view.container);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('REQ-03 the commitment review', () => {
-  function renderTriage(work: readonly unknown[] = [workItem()]) {
-    const sent: { url: string; body: unknown }[] = [];
-    const current = record();
-    const api = clientOver((url, init) => {
-      if (init?.method === 'POST') {
-        sent.push({ url, body: JSON.parse(String(init.body)) });
-        return json({
-          request: { ...current, state: 'accepted', version: 3 },
-          workItemId: 'wi-new',
-          workItemCreated: true,
-        });
+      if (url.includes('/client-requests?')) return json({ clientRequests: ROWS });
+      const one = /client-requests\/([^/?]+)$/.exec(url);
+      if (one?.[1]) return json(byId(one[1]));
+      if (url.endsWith('/projects')) {
+        return json({ projects: [{ id: 'proj-1', name: 'Website relaunch' }] });
       }
-      if (url.includes('/work-items')) return json({ workItems: work });
-      return json(current);
+      if (url.includes('/members')) return json({ members: [] });
+      return json({});
     });
-    const view = render(
-      withQuery(<RequestTriageScreen {...NAMES} clientRequestId="req-1" client={api} />),
+    render(
+      withQuery(
+        <RequestTriageScreen {...NAMES} clientRequestId={selected} client={api} now={NOW_A7} />,
+      ),
     );
-    return { view, sent };
+    return { sent };
   }
 
-  async function compose(user: ReturnType<typeof userEvent.setup>, day: string) {
-    await user.click(await screen.findByRole('button', { name: 'Commit with a date' }));
-    await user.type(
-      screen.getByLabelText('What are you agreeing to do?'),
-      'FAQ, eight questions, Arabic and English.',
+  it('counts New and Deferred, and shows the deferred group with its return date', async () => {
+    renderA7();
+    expect(await screen.findByText('Spring campaign ideas')).toBeInTheDocument();
+    const tabs = screen.getByRole('tablist');
+    const newTab = within(tabs).getByRole('tab', { name: new RegExp(L('RequestTriageA7.tabNew')) });
+    expect(newTab).toHaveAttribute('aria-selected', 'true');
+    expect(newTab).toHaveTextContent('2');
+    expect(
+      within(tabs).getByRole('tab', { name: new RegExp(L('RequestTriageA7.tabDeferred')) }),
+    ).toHaveTextContent('1');
+    expect(
+      screen.getByText(L('RequestTriageA7.backOn', { date: 'Tue 3 Nov' })),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Old logo files')).not.toBeInTheDocument();
+
+    await userEvent.click(
+      within(tabs).getByRole('tab', { name: new RegExp(L('RequestTriageA7.tabAccepted')) }),
     );
-    await user.type(screen.getByLabelText('Committed date'), day);
-  }
-
-  it('states the difference between the promised and the desired date', async () => {
-    const user = userEvent.setup();
-    renderTriage();
-    await compose(user, '2026-09-10');
-
-    // The artifact, in capitals: "10 SEP ≠ THEIR DESIRED 3 SEP · THE DIFFERENCE IS STATED, NOT
-    // HIDDEN". Shown while the date can still be changed.
-    expect(await screen.findByText('That is not the date they asked for')).toBeInTheDocument();
-    expect(screen.getByText(/7 days later/)).toBeInTheDocument();
+    const list = screen.getByRole('region', { name: L('RequestTriageA7.listLabel') });
+    expect(await within(list).findByText('Old logo files')).toBeInTheDocument();
+    expect(within(list).queryByText('Spring campaign ideas')).not.toBeInTheDocument();
   });
 
-  it('counts what else the project already owes that week, and says what the count is not', async () => {
-    const user = userEvent.setup();
-    renderTriage([workItem({ title: 'Content migration', dueAt: '2026-09-08T00:00:00.000Z' })]);
-    await compose(user, '2026-09-10');
-
-    // Scoped to the alert: the impact sentence and its wrapper both match a bare text query.
-    const impact = await screen.findByText(/already due within three days/);
-    expect(impact).toHaveTextContent('Content migration');
-    // Named as what it is. Milestones and capacity do not exist, so nothing claims a collision.
-    expect(impact).toHaveTextContent(/not a check of anybody's capacity/);
-  });
-
-  it('shows the sentence the client will read before anything is written', async () => {
-    const user = userEvent.setup();
-    const { sent } = renderTriage();
-    await compose(user, '2026-09-10');
-    await user.click(screen.getByRole('button', { name: 'Review the commitment' }));
-
-    expect(
-      await screen.findByText(/You are about to promise a date to Atlas Hospitality/),
-    ).toBeInTheDocument();
-    expect(screen.getByText('What the client will read')).toBeInTheDocument();
-    expect(
-      screen.getByText(/We have accepted this and committed to .*FAQ, eight questions/),
-    ).toBeInTheDocument();
-    // Nothing has been written yet. The review is a step, not a receipt.
-    expect(sent).toHaveLength(0);
-  });
-
-  it('commits through the acceptance route, and reports what it did to the plan', async () => {
-    const user = userEvent.setup();
-    const { sent } = renderTriage();
-    await compose(user, '2026-09-10');
-    await user.click(screen.getByRole('button', { name: 'Review the commitment' }));
-    await user.click(screen.getByRole('button', { name: 'Commit and tell the client' }));
-
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]?.url).toContain('/acceptance');
-    expect(sent[0]?.body).toEqual({
+  it('defers until the chosen day and sends the reminder flag', async () => {
+    const { sent } = renderA7();
+    await screen.findByRole('heading', { name: 'Add an Arabic version of the menu page' });
+    await userEvent.click(screen.getByRole('checkbox', { name: L('RequestTriageA7.remind') }));
+    await userEvent.click(screen.getByRole('button', { name: L('RequestTriageA7.defer') }));
+    await waitFor(() => expect(sent.some((call) => call.url.endsWith('/transitions'))).toBe(true));
+    const move = sent.find((call) => call.url.endsWith('/transitions'));
+    expect(move?.body).toMatchObject({
+      to: 'deferred',
       version: 2,
-      clientSafeScopeSummary: 'FAQ, eight questions, Arabic and English.',
-      commitment: '2026-09-10',
+      deferUntil: '2026-11-03',
+      remindOnReopen: false,
     });
-
-    // REQ-002 made the work and the acceptance one transaction; the screen says which happened
-    // in plain English (CQ-07).
-    expect(
-      await screen.findByText('A work item was created for this request.'),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open the work item' })).toHaveAttribute(
-      'href',
-      '/northstar/work/wi-new',
-    );
+    expect(String(move?.body['clientVisibleReason'])).not.toBe('');
   });
 
-  it('lets a manager accept with no date, which §6 allows and silence is not', async () => {
-    const user = userEvent.setup();
-    const { sent } = renderTriage();
-
-    await user.click(await screen.findByRole('button', { name: 'Commit with a date' }));
-    await user.type(
-      screen.getByLabelText('What are you agreeing to do?'),
-      'The FAQ, scope agreed.',
-    );
-    await user.click(screen.getByLabelText(/Accept without a date yet/));
-    await user.click(screen.getByRole('button', { name: 'Review the commitment' }));
-
-    expect(await screen.findByText('No date yet, stated')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Commit and tell the client' }));
-
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect((sent[0]?.body as { commitment: string }).commitment).toBe('unscheduled');
+  it('reopens a deferred request now, with the version it read', async () => {
+    const { sent } = renderA7();
+    await screen.findByText('Spring campaign ideas');
+    await userEvent.click(screen.getByRole('button', { name: L('RequestTriageA7.reopenNow') }));
+    await waitFor(() => expect(sent.some((call) => call.url.endsWith('/reopen'))).toBe(true));
+    const call = sent.find((entry) => entry.url.endsWith('/reopen'));
+    expect(call?.url).toContain('/client-requests/req-3/reopen');
+    expect(call?.body).toEqual({ version: 5 });
   });
 
-  it('will not reach the review without both a scope and an answer to "when"', async () => {
-    const user = userEvent.setup();
-    renderTriage();
-    await user.click(await screen.findByRole('button', { name: 'Commit with a date' }));
+  it('confirms acceptance with the due date and the tell-the-client choice', async () => {
+    const { sent } = renderA7();
+    await screen.findByRole('heading', { name: 'Add an Arabic version of the menu page' });
+    await userEvent.click(screen.getByRole('button', { name: L('RequestTriageA7.accept') }));
+    const dialog = await screen.findByRole('dialog', { name: L('AcceptRequest.title') });
+    expect(within(dialog).getByText('Website relaunch')).toBeInTheDocument();
+    expect(within(dialog).getByText('Tue 10 Nov')).toBeInTheDocument();
+    await userEvent.click(
+      within(dialog).getByRole('checkbox', { name: L('AcceptRequest.tell', { name: 'Youssef' }) }),
+    );
+    await userEvent.click(within(dialog).getByRole('button', { name: L('AcceptRequest.accept') }));
+    await waitFor(() => expect(sent.some((call) => call.url.endsWith('/acceptance'))).toBe(true));
+    expect(sent.find((call) => call.url.endsWith('/acceptance'))?.body).toEqual({
+      version: 2,
+      clientSafeScopeSummary: 'Add an Arabic version of the menu page',
+      commitment: '2026-11-10',
+      notifyClient: false,
+    });
+  });
 
-    // §6 requires both, and the machine would refuse. The screen refuses first, so a manager
-    // is not sent to a review page for a commitment that cannot be made.
-    expect(screen.getByRole('button', { name: 'Review the commitment' })).toBeDisabled();
+  it('sends the team reply to the client on the request thread', async () => {
+    const { sent } = renderA7();
+    const box = await screen.findByRole('textbox', {
+      name: L('RequestTriageA7.replyTo', { name: 'Youssef' }),
+    });
+    await userEvent.type(box, 'Thanks Youssef, we will confirm by Friday.');
+    await userEvent.click(screen.getByRole('button', { name: L('RequestTriageA7.sendReply') }));
+    await waitFor(() => expect(sent.some((call) => call.url.endsWith('/messages'))).toBe(true));
+    expect(sent.find((call) => call.url.endsWith('/messages'))?.body).toMatchObject({
+      body: 'Thanks Youssef, we will confirm by Friday.',
+      clientVisible: true,
+    });
   });
 });
 

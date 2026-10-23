@@ -104,6 +104,16 @@ export const requestsDetails: readonly AiActionDetail[] = [
     notifies: true,
     examples: [{ summary: 'Start', args: { clientRequestId: 'creq_1', to: 'in_progress' } }],
   }),
+  // A7: "Reopen now" — a deferred request back to triage before its date.
+  det({
+    id: 'client_requests.reopen.create',
+    title: 'Reopen a deferred client request',
+    description: 'Bring a deferred client request back to triage now, before its defer date.',
+    input: bodyArgs(['clientRequestId'], { version: f.int() }),
+    redact: 'client_safe',
+    notifies: true,
+    examples: [{ summary: 'Reopen', args: { clientRequestId: 'creq_1', version: 3 } }],
+  }),
   // 0212 (audit gap 4): the client <-> studio message thread on a request.
   det({
     id: 'client_requests.messages.list',

@@ -17,6 +17,9 @@ import { API_URL } from '../setup/stack.js';
  *   the triage screen offered commit, defer and decline in `needs_clarification`, and the
  *   state machine refuses all three from there. `23-ERD` §6 routes every outcome back
  *   through `triage`, and now the screen does too.
+ * - **A7 (fq9-triage)** replaced the old outcome buttons: the studio now replies in the request's
+ *   reply box, accepts through "Accept this request?", and can defer until a day and reopen —
+ *   E2E-01a/b were rewritten onto that screen and E2E-01c added.
  * - **AUTH-06, "Atlas client queries another client request: deny"** — a member of a
  *   *sibling client organization of the same studio* opens the request's URL and gets the
  *   same not-found the request would give if it did not exist.
@@ -56,6 +59,7 @@ async function signIn(context: BrowserContext, userId: string): Promise<void> {
 const TITLE = 'Refresh the homepage hero for autumn';
 const QUESTION = 'Which markets does the autumn campaign cover?';
 const SCOPE = 'A refreshed homepage hero for the autumn campaign, both markets';
+const DEFERRED_TITLE = 'Spring campaign ideas for the pool bar';
 
 test.describe.serial('the client-request journeys', () => {
   let requestUrl: string;
@@ -70,109 +74,110 @@ test.describe.serial('the client-request journeys', () => {
     return { context, page };
   }
 
-  test('E2E-01a: a client asks, and the studio hears a question back', async ({ browser }) => {
-    // The client asks.
-    const client = await openAs(browser, world().atlas.admin.id);
-    await client.page.goto('/northstar-studio/portal/requests/new');
+  /** The client files a request in the portal and the test keeps its page's URL. */
+  async function clientAsks(page: Page, title: string): Promise<string> {
+    await page.goto('/northstar-studio/portal/requests/new');
     // Not a sleep: the screen's own readiness signal. The form ships disabled and enables only
-    // once React has hydrated and the portal-projects query has answered, so an enabled title
-    // field is the app saying it will keep what is typed next. Without this barrier `goto`
-    // returns on `load`, and on a cold compile the first two fills landed before hydration and
-    // were wiped by it.
-    await expect(client.page.getByLabel('The request')).toBeEnabled();
-    await client.page.getByLabel('The request').fill(TITLE);
-    await client.page
-      .getByLabel('Why it matters')
-      .fill('The current hero still shows the spring offer.');
-    await client.page.getByLabel('When you would like it').fill('2026-09-03');
-    await client.page.getByRole('button', { name: 'Send request' }).click();
+    // once React has hydrated and the portal-projects query has answered.
+    await expect(page.getByLabel('The request')).toBeEnabled();
+    await page.getByLabel('The request').fill(title);
+    await page.getByLabel('Why it matters').fill('The current hero still shows the spring offer.');
+    await page.getByLabel('When you would like it').fill('2026-09-03');
+    await page.getByRole('button', { name: 'Send request' }).click();
     await expect(
-      client.page.getByRole('heading', { name: 'Your request is with the studio' }),
+      page.getByRole('heading', { name: 'Your request is with the studio' }),
     ).toBeVisible();
-
-    const detailLink = client.page.getByRole('link', { name: 'See this request' });
-    const href = await detailLink.getAttribute('href');
+    const href = await page.getByRole('link', { name: 'See this request' }).getAttribute('href');
     expect(href).toBeTruthy();
-    requestUrl = href as string;
+    return href as string;
+  }
 
-    // The studio opens the inbox, starts triaging, and asks back.
+  /** The studio opens a request from the inbox onto the A7 triage screen. */
+  async function studioOpens(page: Page, title: string): Promise<void> {
+    await page.goto('/northstar-studio/work/requests');
+    await page.getByRole('link', { name: title }).click();
+    await expect(page.getByRole('heading', { name: title })).toBeVisible();
+  }
+
+  test('E2E-01a: a client asks, and the studio replies on the request', async ({ browser }) => {
+    const client = await openAs(browser, world().atlas.admin.id);
+    requestUrl = await clientAsks(client.page, TITLE);
+
+    // The studio opens it from the inbox and answers in the reply box (A7, fq9-triage).
     const studio = await openAs(browser, world().northstar.manager.id);
-    await studio.page.goto('/northstar-studio/work/requests');
-    await studio.page.getByRole('link', { name: TITLE }).click();
-    await studio.page.getByRole('button', { name: 'Start triaging' }).click();
-    await studio.page.getByRole('button', { name: 'Ask another question' }).click();
-    await studio.page.getByLabel('What do you need to know?').fill(QUESTION);
-    await studio.page.getByRole('button', { name: 'Ask the client' }).click();
+    await studioOpens(studio.page, TITLE);
+    await expect(studio.page.getByRole('tab', { name: /New/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    await studio.page.getByRole('textbox', { name: /^Reply to / }).fill(QUESTION);
+    await studio.page.getByRole('button', { name: 'Send reply' }).click();
+    await expect(studio.page.getByText('Reply sent.')).toBeVisible();
 
-    // The studio's own screen now says whose move it is, and offers the one control §6 draws
-    // out of `needs_clarification`. This panel did not exist before this journey was first run:
-    // the screen used to offer commit/defer/decline here, and the API refused all three.
-    await expect(studio.page.getByText('Waiting on the client')).toBeVisible();
-    await expect(
-      studio.page.getByRole('button', { name: 'The client has answered' }),
-    ).toBeVisible();
-    await expect(studio.page.getByRole('button', { name: 'Commit with a date' })).toHaveCount(0);
-
-    // The client sees the question, word for word.
+    // The client reads the reply, word for word, on their request.
     await client.page.goto(requestUrl);
-    await expect(client.page.getByText('Waiting for your answer')).toBeVisible();
-    await expect(client.page.getByText('Northstar Studio has asked you something')).toBeVisible();
     await expect(client.page.getByText(QUESTION)).toBeVisible();
-
-    // And withdrawing is still open to them. `23-ERD` §6 draws `needs_clarification → withdrawn`,
-    // so the request is *not* out of their hands here — the first run of this journey was written
-    // expecting the opposite, and the state machine settled it. The sentence is the clarifying
-    // one rather than the submitted one, which is the second thing that run corrected.
-    await expect(client.page.getByText('Withdrawing it is an answer too')).toBeVisible();
-    await expect(client.page.getByRole('button', { name: 'Withdraw request' })).toBeVisible();
 
     await client.context.close();
     await studio.context.close();
   });
 
-  test('E2E-01b: the studio commits, and the client reads the promise — not the machinery', async ({
+  test('E2E-01b: the studio accepts, and the client reads the promise — not the machinery', async ({
     browser,
   }) => {
-    // The studio, having heard back out-of-band, records that the answer arrived. §6 routes
-    // every outcome through `triage`, so this step is the machine's, not the screen's.
     const studio = await openAs(browser, world().northstar.manager.id);
-    await studio.page.goto('/northstar-studio/work/requests');
-    await studio.page.getByRole('link', { name: TITLE }).click();
-    await studio.page.getByRole('button', { name: 'The client has answered' }).click();
+    await studioOpens(studio.page, TITLE);
 
-    // Now the outcomes are offered, and now the machine accepts them.
-    await studio.page.getByRole('button', { name: 'Commit with a date' }).click();
-    await studio.page.getByLabel('What are you agreeing to do?').fill(SCOPE);
-    await studio.page.getByLabel('Committed date').fill('2026-09-10');
-    // The gap between asked-for and promised is stated while composing, not hidden.
-    await expect(studio.page.getByText('That is not the date they asked for')).toBeVisible();
-    await studio.page.getByRole('button', { name: 'Review the commitment' }).click();
-    await expect(studio.page.getByText('What the client will read')).toBeVisible();
-    await studio.page.getByRole('button', { name: 'Commit and tell the client' }).click();
-    await expect(studio.page.getByText('Accepted, and the work is committed')).toBeVisible();
-    await expect(studio.page.getByRole('link', { name: 'Open the work item' })).toBeVisible();
+    // Accept opens the confirm (fq9-confirm-accept): the request, its project and sender, the
+    // Owner and Due chips — Due starts on the day the client asked for.
+    await studio.page.getByRole('button', { name: 'Accept', exact: true }).click();
+    const dialog = studio.page.getByRole('dialog', { name: 'Accept this request?' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText(TITLE)).toBeVisible();
+    await dialog.getByRole('button', { name: 'Accept request' }).click();
+    await expect(studio.page.getByText('Accepted. The work item is in the plan.')).toBeVisible();
+    await expect(studio.page.getByRole('link', { name: 'Open work item' })).toBeVisible();
 
-    // The client's page: the promise, both dates, and none of the internals.
+    // The client's page: accepted, the agreed date, and none of the internals.
     const client = await openAs(browser, world().atlas.admin.id);
     await client.page.goto(requestUrl);
-    // The redesigned page names the status in the header tag and explains it in the status
-    // panel, in the client's words.
     await expect(client.page.getByText('Accepted', { exact: true })).toBeVisible();
     await expect(client.page.getByRole('region', { name: 'Where this request is' })).toContainText(
       'The studio has taken this on.',
     );
-    await expect(client.page.getByText(SCOPE)).toBeVisible();
-    // The date they asked for, by its label: on the day this journey runs on 2026-09-03 the
-    // bare date also matches 'Sent September 3, 2026', and a strict locator refuses two.
-    await expect(client.page.getByText('Asked for September 3, 2026')).toBeVisible();
-    await expect(client.page.getByText('Agreed for September 10, 2026')).toBeVisible();
-    // No internal state words, no door into the studio's workspace.
+    await expect(client.page.getByText('Agreed for September 3, 2026')).toBeVisible();
     await expect(client.page.getByText('Needs triage')).toHaveCount(0);
-    await expect(client.page.getByRole('link', { name: 'Open the work item' })).toHaveCount(0);
-    const internalLinks = client.page.locator('a[href*="/work/"]');
-    await expect(internalLinks).toHaveCount(0);
+    await expect(client.page.getByRole('link', { name: 'Open work item' })).toHaveCount(0);
+    await expect(client.page.locator('a[href*="/work/"]')).toHaveCount(0);
 
     await client.context.close();
+    await studio.context.close();
+  });
+
+  test('E2E-01c: the studio defers a request and reopens it', async ({ browser }) => {
+    const client = await openAs(browser, world().atlas.admin.id);
+    await clientAsks(client.page, DEFERRED_TITLE);
+    await client.context.close();
+
+    const studio = await openAs(browser, world().northstar.manager.id);
+    await studioOpens(studio.page, DEFERRED_TITLE);
+
+    // Defer until the panel's day, with the reminder ticked (its default).
+    await expect(
+      studio.page.getByRole('checkbox', { name: 'Reopen it on this date and remind me' }),
+    ).toBeChecked();
+    await studio.page.getByRole('button', { name: 'Defer', exact: true }).click();
+
+    // It now sits in the Deferred group with its return date, and the Deferred tab counts it.
+    const list = studio.page.getByRole('region', { name: 'Requests' });
+    await expect(list.getByText(/^Back on /)).toBeVisible();
+    await expect(studio.page.getByRole('tab', { name: /Deferred/ })).toContainText(/\d/);
+
+    // Reopen now brings it back to triage: the actions are offered again.
+    await list.getByRole('button', { name: 'Reopen now' }).click();
+    await expect(list.getByText(/^Back on /)).toHaveCount(0);
+    await expect(studio.page.getByRole('button', { name: 'Accept', exact: true })).toBeVisible();
+
     await studio.context.close();
   });
 

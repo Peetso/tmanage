@@ -9,6 +9,7 @@ import type {
   AcceptedClientRequestView,
   ClientRequestView,
   ClientRequestsService,
+  DeferUntilInput,
 } from './client-requests.service.js';
 import type { AuditEventView } from '../audit/audit.service.js';
 import type { TransitionFacts } from './client-requests.repository.js';
@@ -48,6 +49,8 @@ interface AcceptanceBody {
   /** Point at existing work. Mutually exclusive with `work`. */
   readonly linkedWorkItemId?: unknown;
   readonly work?: unknown;
+  /** A7: "Tell <name> it is accepted". Absent means tell. */
+  readonly notifyClient?: unknown;
 }
 
 interface TransitionBody {
@@ -59,6 +62,15 @@ interface TransitionBody {
   /** `"unscheduled"` or a `YYYY-MM-DD` date — `23-ERD` §6's two alternatives. */
   readonly commitment?: unknown;
   readonly linkedWorkItemId?: unknown;
+  /** A7: on a move to `deferred`, the `YYYY-MM-DD` day it comes back. */
+  readonly deferUntil?: unknown;
+  /** A7: with `deferUntil`, remind the deferrer when it reopens. */
+  readonly remindOnReopen?: unknown;
+}
+
+/** A7: `POST :id/reopen` — the version the caller read. */
+interface ReopenBody {
+  readonly version?: unknown;
 }
 
 @Controller('v1/organizations/:orgSlug/client-requests')
@@ -186,6 +198,7 @@ export class ClientRequestsController {
     if (body?.linkedWorkItemId !== undefined && linkedWorkItemId === undefined) {
       details.push({ field: 'linkedWorkItemId', message: 'must be a work item id' });
     }
+    const deferUntil = parseDeferUntil(body, to, details);
 
     if (details.length > 0 || version === undefined || !to || !isClientRequestState(to)) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -199,7 +212,36 @@ export class ClientRequestsController {
       ...(linkedWorkItemId === undefined ? {} : { linkedWorkItemId }),
     };
 
-    return this.requests.triage(context, principal, clientRequestId, version, to, facts);
+    return this.requests.triage(
+      context,
+      principal,
+      clientRequestId,
+      version,
+      to,
+      facts,
+      deferUntil,
+    );
+  }
+
+  /**
+   * A7: "Reopen now" — a deferred request back to triage before its date. The worker's defer
+   * sweep makes the same move when the date arrives.
+   */
+  @Post(':clientRequestId/reopen')
+  @RequireCapability('client_request.triage')
+  @HttpCode(200)
+  async reopen(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('clientRequestId') clientRequestId: string,
+    @Body() body: ReopenBody,
+  ): Promise<ClientRequestView> {
+    const details: { field: string; message: string }[] = [];
+    const version = requiredVersion(body?.version, details);
+    if (details.length > 0 || version === undefined) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+    return this.requests.reopen(context, principal, clientRequestId, version);
   }
 
   /**
@@ -275,6 +317,9 @@ export class ClientRequestsController {
       typeof rawWork?.['ownerUserId'] === 'string' && rawWork['ownerUserId'] !== ''
         ? (rawWork['ownerUserId'] as string)
         : undefined;
+    if (body?.notifyClient !== undefined && typeof body.notifyClient !== 'boolean') {
+      details.push({ field: 'notifyClient', message: 'must be true or false' });
+    }
 
     if (
       details.length > 0 ||
@@ -296,6 +341,7 @@ export class ClientRequestsController {
       commitment,
       ...(linkedWorkItemId === undefined ? {} : { linkedWorkItemId }),
       ...(Object.keys(work).length === 0 ? {} : { work }),
+      ...(body?.notifyClient === false ? { notifyClient: false } : {}),
     });
   }
 
@@ -355,6 +401,42 @@ function optionalAudience(
     return undefined;
   }
   return raw as Audience;
+}
+
+/**
+ * A7: `deferUntil` + `remindOnReopen`, accepted only on a move to `deferred`. The day must be a
+ * real `YYYY-MM-DD` calendar date; the reminder flag a boolean (absent reads as no reminder).
+ */
+export function parseDeferUntil(
+  body: TransitionBody | undefined,
+  to: string | undefined,
+  details: { field: string; message: string }[],
+): DeferUntilInput | undefined {
+  const raw = body?.deferUntil;
+  const remind = body?.remindOnReopen;
+  if (raw === undefined || raw === null) {
+    if (remind !== undefined) {
+      details.push({ field: 'remindOnReopen', message: 'needs a deferUntil date' });
+    }
+    return undefined;
+  }
+  if (to !== 'deferred') {
+    details.push({ field: 'deferUntil', message: 'is only accepted on a move to deferred' });
+    return undefined;
+  }
+  const valid =
+    typeof raw === 'string' &&
+    /^\d{4}-\d{2}-\d{2}$/.test(raw) &&
+    new Date(`${raw}T00:00:00.000Z`).toISOString().slice(0, 10) === raw;
+  if (!valid) {
+    details.push({ field: 'deferUntil', message: 'must be a calendar date in YYYY-MM-DD form' });
+    return undefined;
+  }
+  if (remind !== undefined && typeof remind !== 'boolean') {
+    details.push({ field: 'remindOnReopen', message: 'must be true or false' });
+    return undefined;
+  }
+  return { day: raw, remindOnReopen: remind === true };
 }
 
 function isClientRequestState(value: string): value is ClientRequestState {

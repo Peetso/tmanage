@@ -36,6 +36,8 @@ import { createRealtimeServer } from './realtime/server.js';
 import { createDirectMessageFanOut, createMessageFanOut } from './realtime/fan-out.js';
 import { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
 import { sweepOverdueInvitations } from './invitations/invitation-sweep.js';
+import { createRequestDeferSweepStore } from './common/database/request-defer-store.js';
+import { sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
 
 /**
  * The worker process entry point.
@@ -287,6 +289,22 @@ async function main(): Promise<void> {
       process.stdout.write(`${JSON.stringify({ expired: result.expired })}\n`);
       console.warn(
         `[worker] invitation sweep: expired ${String(result.expired)} overdue invitation(s)`,
+      );
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
+  // A7 (0220): the deferred-request sweep — due `deferred` requests back to `triage`, with an
+  // in-app reminder for a deferrer who asked for one. Same shape and exit contract as above.
+  if (command.kind === 'sweep-deferred-requests') {
+    try {
+      const result = await sweepDeferredRequests(createRequestDeferSweepStore(database));
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      console.warn(
+        `[worker] defer sweep: reopened ${String(result.reopened)} deferred request(s), ` +
+          `reminded ${String(result.reminded)}`,
       );
     } finally {
       await database.end();

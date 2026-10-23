@@ -1,886 +1,751 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, Checkbox, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import { RequestMessageThread } from '../requests/RequestMessageThread';
+import { AcceptRequestDialog, type AcceptRequestChoice } from '../requests/AcceptRequestDialog';
+import {
+  addDays,
+  DueDatePicker,
+  formatChipDay,
+  isArabic,
+  todayOf,
+  useA6T,
+} from '../work/DueDatePicker';
+import { firstNameOf } from '../work/OwnerPickerDialog';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { useT } from '../../lib/i18n/use-t';
 import {
   acceptClientRequest,
+  deferClientRequest,
   getClientRequestRecord,
+  listClientRequestRecords,
+  MAX_CLIENT_REQUEST_PAGE,
+  reopenClientRequest,
   transitionClientRequest,
 } from '../../lib/api/client-requests';
-import type { ClientRequestRecord } from '../../lib/api/client-requests';
-import { listWorkItems } from '../../lib/api/work-items';
-import type { WorkItemSummary } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import type { ClientRequestRecord, ClientRequestState } from '../../lib/api/client-requests';
+import { listProjects } from '../../lib/api/projects';
+import { postRequestMessage } from '../../lib/api/request-messages';
+import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { workItemKeys } from '../../lib/query-keys';
-import {
-  describeDateGap,
-  formatDay,
-  previewClientSentence,
-  triageStateLabel,
-} from '../../lib/triage-presentation';
-import '../../styles/screens/work-planning.css';
+import './request-triage.css';
+
+const RLM = '‏';
 
 export interface RequestTriageScreenProps {
   organizationSlug: string;
   organizationName: string;
+  /** The request the page opened on; the list chooses others in place. */
   clientRequestId: string;
   client?: ApiClient;
+  /** Injected in tests; the reader's clock otherwise. */
+  now?: Date;
 }
 
-/** Which of the four outcomes the manager is composing. `null` is the page at rest. */
-type Outcome = 'clarify' | 'accept' | 'defer' | 'decline' | null;
+type Tab = 'new' | 'deferred' | 'accepted' | 'declined';
+
+const TAB_STATES: Record<Tab, readonly ClientRequestState[]> = {
+  // Everything the studio still has to decide: a request nobody opened, one being triaged, and
+  // one whose clarification came back. Accept / Decline / Defer each route through `triage`.
+  new: ['submitted', 'triage', 'needs_clarification'],
+  deferred: ['deferred'],
+  accepted: ['accepted', 'planned', 'delivered'],
+  declined: ['declined', 'withdrawn'],
+};
+
+const TAB_KEY: Record<Tab, string> = {
+  new: 'RequestTriageA7.tabNew',
+  deferred: 'RequestTriageA7.tabDeferred',
+  accepted: 'RequestTriageA7.tabAccepted',
+  declined: 'RequestTriageA7.tabDeclined',
+};
+
+const STATE_KEY: Partial<Record<ClientRequestState, string>> = {
+  accepted: 'RequestTriageA7.stateAccepted',
+  planned: 'RequestTriageA7.statePlanned',
+  delivered: 'RequestTriageA7.stateDelivered',
+  declined: 'RequestTriageA7.stateDeclined',
+  withdrawn: 'RequestTriageA7.stateWithdrawn',
+};
+
+function tabOf(state: ClientRequestState): Tab {
+  return (Object.keys(TAB_STATES) as Tab[]).find((tab) => TAB_STATES[tab].includes(state)) ?? 'new';
+}
+
+/** "YA" for "Youssef Adel"; one letter for Arabic script, the way the catalog draws it. */
+function orbOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const first = parts[0]?.[0] ?? '?';
+  if (/[؀-ۿ]/.test(first)) return first;
+  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
+  return (first + last).toUpperCase();
+}
+
+function intlLocale(locale: string): string {
+  return isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB';
+}
+
+/** "2h" · "1d" in English; "ساعتان" · "3 أيام" in Arabic — the list's age column. */
+export function ageOf(createdAt: string, now: Date, locale: string): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 60_000));
+  const [value, unit] =
+    minutes < 60
+      ? [minutes, 'minute']
+      : minutes < 60 * 24
+        ? [Math.floor(minutes / 60), 'hour']
+        : [Math.floor(minutes / 1440), 'day'];
+  const arabic = isArabic(locale);
+  const text = new Intl.NumberFormat(intlLocale(locale), {
+    style: 'unit',
+    unit,
+    unitDisplay: arabic ? 'long' : 'narrow',
+  }).format(value);
+  // Arabic's singular day reads as the bare noun in the catalog ("يوم").
+  return arabic && value === 1 && unit === 'day' ? 'يوم' : text.replace(/\s+/g, arabic ? ' ' : '');
+}
+
+/** "2 hours ago" · "قبل ساعتين" — the detail's "sent …" line. */
+function agoOf(createdAt: string, now: Date, locale: string): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - new Date(createdAt).getTime()) / 60_000));
+  const format = new Intl.RelativeTimeFormat(intlLocale(locale), { numeric: 'always' });
+  if (minutes < 60) return format.format(-minutes, 'minute');
+  if (minutes < 60 * 24) return format.format(-Math.floor(minutes / 60), 'hour');
+  return format.format(-Math.floor(minutes / 1440), 'day');
+}
 
 /**
- * **REQ-02 Request detail / triage** and **REQ-03 Commitment review** —
- * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §8, and the second half of `WEB-005`.
+ * **Requests — triage (A7, Figma fq9-triage).**
  *
- * The artifact's four actions are "Commit with a date · Ask another question · Defer with a
- * reason · Decline with a reason", under a caption that is the whole design: **"EVERY OUTCOME
- * REQUIRES A REASON THE CLIENT CAN READ."** Every one of the four names what it needs in its own
- * label, so a manager knows the cost of an outcome before choosing it rather than after.
- *
- * That requirement is not this screen's to enforce. `23-ERD` §6 attaches the facts to the moves
- * and `clientRequestStateMachine` refuses a move that arrives without them, so the labels here
- * describe a rule that already holds — which is the right relationship between a screen and a
- * lifecycle, and the opposite of a form that is the only thing standing between a user and a
- * bad row.
- *
- * ## Accepting is two steps, because it is a promise
- *
- * `REQ-03 Commitment review` is a separate artboard headed "You are about to promise a date to
- * Atlas Hospitality", and it earns the extra click. An acceptance creates work, commits a date
- * and tells a client — `REQ-002` makes all three one transaction — and the review shows exactly
- * **what the client will read** before any of it happens.
- *
- * It also states the gap. The artifact is emphatic: "10 SEP ≠ THEIR DESIRED 3 SEP · THE
- * DIFFERENCE IS STATED, NOT HIDDEN". A manager promising a later date than the one asked for
- * should see that sentence while they can still change the date.
- *
- * ## The schedule impact is real or it is absent
- *
- * `WEB-005`'s name includes "schedule impact" and the artifact draws "Impact: collides with
- * Content migration, which already forecasts 8 Sep". Milestones do not exist, and **no ticket
- * in `28-SPRINT-TICKETS` schedules them** — they appear in `07-DATA-MODEL` and in `PRJ-02` and
- * nowhere in the plan's own backlog. Nothing models capacity either, so an impact line here
- * would be invented.
- *
- * What this screen shows instead is a **fact it can check**: the work already due in the same
- * project in the week around the date being promised, counted from `work_items.due_at`. It is
- * labelled as what it is, and the collision analysis the artifact draws is named as missing.
- * A count a manager can verify beats a warning they cannot.
+ * "Requests / Client requests waiting for a decision" with Project and Client filters; tabs New
+ * (n) · Deferred (n) · Accepted · Declined; the list on one side (sender orb and name, client,
+ * title, project chip, age — and under New, the Deferred group with its "Back on <date>" pill and
+ * "Reopen now"); the chosen request on the other with Accept (opens the confirm dialog) and
+ * Decline, the grey "Defer until" panel (date chip, Defer, "Reopen it on this date and remind
+ * me") and "Reply to <first name>", which posts a client-visible message on the request's thread.
  */
 export function RequestTriageScreen({
   organizationSlug,
   organizationName,
   clientRequestId,
   client,
+  now,
 }: RequestTriageScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
-  const t = useT();
+  const t = useA6T();
+  const locale = useActiveLocale();
+  const clock = useMemo(() => now ?? new Date(), [now]);
+  const rtl = isArabic(locale) ? RLM : '';
 
-  const [outcome, setOutcome] = useState<Outcome>(null);
-  const [question, setQuestion] = useState('');
-  const [reason, setReason] = useState('');
-  const [scopeSummary, setScopeSummary] = useState('');
-  const [committedDay, setCommittedDay] = useState('');
-  const [unscheduled, setUnscheduled] = useState(false);
-  const [reviewing, setReviewing] = useState(false);
-  const [working, setWorking] = useState(false);
-  const [failure, setFailure] = useState<string | undefined>(undefined);
-  const [accepted, setAccepted] = useState<{ workItemId: string; created: boolean } | undefined>(
-    undefined,
+  const [tab, setTab] = useState<Tab | null>(null);
+  const [selectedId, setSelectedId] = useState(clientRequestId);
+  const [projectFilter, setProjectFilter] = useState('');
+  const [clientFilter, setClientFilter] = useState('');
+
+  const listKey = ['client-requests', organizationSlug, 'triage-a7'] as const;
+  const requests = useQuery({
+    queryKey: listKey,
+    queryFn: () =>
+      listClientRequestRecords(api, organizationSlug, { limit: MAX_CLIENT_REQUEST_PAGE }),
+  });
+  const projects = useQuery({
+    queryKey: ['projects', organizationSlug],
+    queryFn: () => listProjects(api, organizationSlug),
+  });
+  const selected = useQuery({
+    queryKey: ['client-request', organizationSlug, selectedId],
+    queryFn: () => getClientRequestRecord(api, organizationSlug, selectedId),
+    enabled: selectedId !== '',
+  });
+
+  const projectName = (id: string) =>
+    (projects.data ?? []).find((project) => project.id === id)?.name ?? '';
+  const all = requests.data ?? [];
+  const clients = [
+    ...new Map(
+      all
+        .filter((row) => row.clientOrganizationName !== null)
+        .map((row) => [row.clientOrganizationId, row.clientOrganizationName as string]),
+    ),
+  ];
+  const filtered = all.filter(
+    (row) =>
+      (projectFilter === '' || row.projectId === projectFilter) &&
+      (clientFilter === '' || row.clientOrganizationId === clientFilter),
   );
+  const inTab = (which: Tab) => filtered.filter((row) => TAB_STATES[which].includes(row.state));
+  const current = selected.data ?? all.find((row) => row.id === selectedId);
+  const activeTab: Tab = tab ?? (current ? tabOf(current.state) : 'new');
 
-  const request = useQuery({
-    queryKey: ['client-request', organizationSlug, clientRequestId],
-    queryFn: () => getClientRequestRecord(api, organizationSlug, clientRequestId),
-  });
-
-  const found = request.data;
-
-  // The project's other dated work, for the impact count. Fetched only once there is a project
-  // to ask about, and used for nothing else.
-  const projectWork = useQuery({
-    queryKey: workItemKeys.project(organizationSlug, found?.projectId ?? ''),
-    queryFn: () => listWorkItems(api, organizationSlug, { projectId: found?.projectId ?? '' }),
-    enabled: found !== undefined,
-  });
-
-  function reset() {
-    setOutcome(null);
-    setReviewing(false);
-    setFailure(undefined);
-    setQuestion('');
-    setReason('');
-    setScopeSummary('');
-    setCommittedDay('');
-    setUnscheduled(false);
+  async function refresh(updated?: ClientRequestRecord) {
+    if (updated) queries.setQueryData(['client-request', organizationSlug, updated.id], updated);
+    await queries.invalidateQueries({ queryKey: ['client-requests', organizationSlug] });
   }
 
-  async function run(work: () => Promise<ClientRequestRecord>) {
-    setFailure(undefined);
-    setWorking(true);
-    try {
-      const updated = await work();
-      queries.setQueryData(['client-request', organizationSlug, clientRequestId], updated);
-      await queries.invalidateQueries({ queryKey: ['client-requests', organizationSlug] });
-      reset();
-    } catch (error) {
-      setFailure(describeFailure(error));
-    } finally {
-      setWorking(false);
-    }
+  function chooseTab(next: Tab) {
+    setTab(next);
+    const first = inTab(next)[0];
+    if (first) setSelectedId(first.id);
   }
 
-  async function commit() {
-    if (!found) return;
-    setFailure(undefined);
-    setWorking(true);
-    try {
-      const result = await acceptClientRequest(api, organizationSlug, found.id, {
-        version: found.version,
-        clientSafeScopeSummary: scopeSummary.trim(),
-        // A date input gives 'YYYY-MM-DD' and since 0012 that is what the API stores: a
-        // calendar date, not an invented midnight for a timezone to move.
-        commitment: unscheduled ? 'unscheduled' : committedDay,
-      });
-      queries.setQueryData(['client-request', organizationSlug, clientRequestId], result.request);
-      await queries.invalidateQueries({ queryKey: ['client-requests', organizationSlug] });
-      await queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
-      setAccepted({ workItemId: result.workItemId, created: result.workItemCreated });
-      reset();
-    } catch (error) {
-      setFailure(describeFailure(error));
-    } finally {
-      setWorking(false);
-    }
+  async function reopen(row: ClientRequestRecord) {
+    const updated = await reopenClientRequest(api, organizationSlug, row.id, row.version);
+    await refresh(updated);
   }
 
-  const commitment = unscheduled
-    ? ({ kind: 'unscheduled' } as const)
-    : ({ kind: 'committed', day: committedDay } as const);
-  const gap = unscheduled ? null : describeDateGap(found?.desiredAt ?? null, committedDay || null);
-  const acceptable = scopeSummary.trim() !== '' && (unscheduled || committedDay !== '');
-
-  const outcomeProps: OutcomeFormProps = {
-    outcome,
-    question,
-    onQuestion: setQuestion,
-    reason,
-    onReason: setReason,
-    scopeSummary,
-    onScopeSummary: setScopeSummary,
-    committedDay,
-    onCommittedDay: setCommittedDay,
-    unscheduled,
-    onUnscheduled: setUnscheduled,
-    gap,
-    acceptable,
-    working,
-    impact: impactOf(projectWork.data ?? [], unscheduled ? null : committedDay),
-    onAsk: () => {
-      if (!found) return;
-      void run(() =>
-        transitionClientRequest(api, organizationSlug, found.id, found.version, {
-          to: 'needs_clarification',
-          clarificationQuestion: question.trim(),
-        }),
-      );
-    },
-    onDefer: () => {
-      if (!found) return;
-      void run(() =>
-        transitionClientRequest(api, organizationSlug, found.id, found.version, {
-          to: 'deferred',
-          clientVisibleReason: reason.trim(),
-        }),
-      );
-    },
-    onDecline: () => {
-      if (!found) return;
-      void run(() =>
-        transitionClientRequest(api, organizationSlug, found.id, found.version, {
-          to: 'declined',
-          clientVisibleReason: reason.trim(),
-        }),
-      );
-    },
-    onReview: () => setReviewing(true),
-  };
+  const list = inTab(activeTab);
+  const deferredGroup = activeTab === 'new' ? inTab('deferred') : [];
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="work"
-      title={found?.title ?? t('RequestTriageScreen.clientRequest')}
-      eyebrow={t('RequestTriageScreen.eyebrow')}
+      activeNavigationId="inbox"
+      title={t('RequestTriageA7.title')}
+      description={t('RequestTriageA7.subtitle')}
       actions={
-        <Link className="wp-capsule" href={`/${organizationSlug}/work/requests`}>
-          {t('RequestTriageScreen.backToInbox')}
-        </Link>
+        <div className="tm-rq-filters">
+          <label className="tm-rq-filter">
+            <select
+              value={projectFilter}
+              aria-label={t('AcceptRequest.project')}
+              onChange={(event) => setProjectFilter(event.target.value)}
+            >
+              <option value="">
+                {t('RequestTriageA7.projectFilter', { value: t('RequestTriageA7.all') })}
+              </option>
+              {(projects.data ?? []).map((project) => (
+                <option key={project.id} value={project.id}>
+                  {t('RequestTriageA7.projectFilter', { value: project.name })}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="tm-rq-filter">
+            <select
+              value={clientFilter}
+              aria-label={t('RequestTriageA7.clientLabel')}
+              onChange={(event) => setClientFilter(event.target.value)}
+            >
+              <option value="">
+                {t('RequestTriageA7.clientFilter', { value: t('RequestTriageA7.all') })}
+              </option>
+              {clients.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {t('RequestTriageA7.clientFilter', { value: name })}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       }
     >
-      {request.isError ? (
-        <InlineAlert tone="danger" title={t('RequestTriageScreen.loadFailed')} live>
-          {describeFailure(request.error)}
+      <div
+        className="tm-wk-tabs tm-rq-tabs"
+        role="tablist"
+        aria-label={t('RequestTriageA7.tabsLabel')}
+      >
+        {(Object.keys(TAB_STATES) as Tab[]).map((which) => {
+          const count = inTab(which).length;
+          return (
+            <button
+              key={which}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === which}
+              onClick={() => chooseTab(which)}
+            >
+              {t(TAB_KEY[which])}
+              {(which === 'new' || which === 'deferred') && count > 0 ? (
+                <span className="tm-wk-count">{count}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      {requests.isError ? (
+        <InlineAlert tone="danger" title={t('RequestTriageA7.loadFailed')} live>
+          {t('RequestTriageA7.failed')}
         </InlineAlert>
       ) : null}
 
-      {request.isPending ? (
-        <LoadingRegion label={t('RequestTriageScreen.loading')}>
-          <Skeleton height="56px" />
-          <Skeleton height="220px" />
+      {requests.isPending ? (
+        <LoadingRegion label={t('RequestTriageA7.loading')}>
+          <Skeleton height="420px" />
         </LoadingRegion>
-      ) : null}
+      ) : (
+        <div className="tm-rq-layout">
+          <section className="tm-rq-list" aria-label={t('RequestTriageA7.listLabel')}>
+            {list.length === 0 && deferredGroup.length === 0 ? (
+              <p className="tm-rq-empty">
+                {activeTab === 'new'
+                  ? t('RequestTriageA7.emptyNew')
+                  : t('RequestTriageA7.emptyTab')}
+              </p>
+            ) : null}
+            <ul className="tm-rq-rows">
+              {list.map((row) => (
+                <RequestRow
+                  key={row.id}
+                  row={row}
+                  selected={row.id === selectedId}
+                  projectName={projectName(row.projectId)}
+                  age={ageOf(row.createdAt, clock, locale)}
+                  rtl={rtl}
+                  onChoose={() => setSelectedId(row.id)}
+                  {...(row.state === 'deferred' ? { onReopen: () => void reopen(row) } : {})}
+                />
+              ))}
+            </ul>
+            {deferredGroup.length > 0 ? (
+              <div className="tm-rq-group">
+                <h2 className="tm-rq-group__title">{t('RequestTriageA7.deferredGroup')}</h2>
+                <ul className="tm-rq-rows">
+                  {deferredGroup.map((row) => (
+                    <RequestRow
+                      key={row.id}
+                      row={row}
+                      selected={row.id === selectedId}
+                      projectName={projectName(row.projectId)}
+                      age={ageOf(row.createdAt, clock, locale)}
+                      rtl={rtl}
+                      onChoose={() => setSelectedId(row.id)}
+                      onReopen={() => void reopen(row)}
+                    />
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
 
-      {accepted ? (
-        <InlineAlert tone="success" title={t('RequestTriageScreen.acceptedTitle')} live>
-          <p className="tm-prose">
-            {accepted.created
-              ? t('RequestTriageScreen.workItemCreated')
-              : t('RequestTriageScreen.workItemLinked')}{' '}
-            <Link href={`/${organizationSlug}/work/${accepted.workItemId}`}>
-              {t('RequestTriageScreen.openWorkItem')}
-            </Link>
-          </p>
-        </InlineAlert>
-      ) : null}
-
-      {found ? (
-        <>
-          <StateTrack request={found} />
-
-          {reviewing ? (
-            <CommitmentReview
-              request={found}
-              scopeSummary={scopeSummary}
-              commitment={commitment}
-              gap={gap}
-              working={working}
-              onBack={() => setReviewing(false)}
-              onCommit={() => void commit()}
+          {current ? (
+            <RequestDetail
+              key={current.id}
+              api={api}
+              organizationSlug={organizationSlug}
+              request={current}
+              projectName={projectName(current.projectId)}
+              clock={clock}
+              onChanged={refresh}
+              onReopen={() => void reopen(current)}
             />
           ) : (
-            <>
-              <div className="wp-triage">
-                <section className="wp-triage__asked" aria-labelledby="tm-triage-asked">
-                  <h2 id="tm-triage-asked" className="wp-mono-label">
-                    {t('RequestTriageScreen.whatAsked')}
-                  </h2>
-                  <p className="wp-triage__quote">&ldquo;{found.description}&rdquo;</p>
-                  {found.urgencyReason !== null ? (
-                    <>
-                      <h3 className="wp-mono-label">{t('RequestTriageScreen.whyTiming')}</h3>
-                      <p className="wp-triage__quote">{found.urgencyReason}</p>
-                    </>
-                  ) : null}
-                  {/*
-                    §6 and CL-06 both: a desired date is a wish. The two dates sit side by side,
-                    the wish in warning orange, so the screen where a promise is made is the one
-                    that most plainly distinguishes them.
-                  */}
-                  <dl className="wp-triage__facts">
-                    <div>
-                      <dt>{t('RequestTriageScreen.desired')}</dt>
-                      <dd className={found.desiredAt === null ? 'wp-unset' : 'wp-desired'}>
-                        {found.desiredAt === null
-                          ? t('RequestTriageScreen.noDate')
-                          : formatDay(found.desiredAt)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>{t('RequestTriageScreen.committedTerm')}</dt>
-                      <dd className={found.commitment === 'committed' ? undefined : 'wp-unset'}>
-                        {describeCommitted(found)}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>{t('RequestTriageScreen.category')}</dt>
-                      <dd>{found.category}</dd>
-                    </div>
-                  </dl>
-                  {found.clarificationQuestion !== null ? (
-                    <section className="wp-stack" aria-labelledby="tm-triage-question">
-                      <h3 id="tm-triage-question" className="wp-mono-label">
-                        {t('RequestTriageScreen.whatAlreadyAsked')}
-                      </h3>
-                      <p className="wp-note">{found.clarificationQuestion}</p>
-                    </section>
-                  ) : null}
-                  {found.clientVisibleReason !== null ? (
-                    <section className="wp-stack" aria-labelledby="tm-triage-reason">
-                      <h3 id="tm-triage-reason" className="wp-mono-label">
-                        {t('RequestTriageScreen.reasonGiven')}
-                      </h3>
-                      <p className="wp-note">{found.clientVisibleReason}</p>
-                    </section>
-                  ) : null}
-                </section>
-
-                <TriageActions
-                  request={found}
-                  outcome={outcome}
-                  onChoose={(next) => {
-                    setOutcome(next);
-                    setFailure(undefined);
-                  }}
-                  working={working}
-                  onOpenTriage={() =>
-                    void run(() =>
-                      transitionClientRequest(api, organizationSlug, found.id, found.version, {
-                        to: 'triage',
-                      }),
-                    )
-                  }
-                />
-              </div>
-
-              {found.state === 'triage' && outcome !== null ? (
-                <OutcomeForm {...outcomeProps} />
-              ) : null}
-
-              <RequestMessageThread
-                side="team"
-                className="wp-outcome-form"
-                headingClassName="wp-mono-label"
-                organizationSlug={organizationSlug}
-                clientRequestId={found.id}
-                client={api}
-                studioName={organizationName}
-                clientName={found.clientOrganizationName ?? t('RequestTriageScreen.clientRequest')}
-              />
-            </>
+            <section className="tm-rq-detail tm-rq-detail--empty">
+              <p className="tm-rq-empty">{t('RequestTriageA7.chooseRequest')}</p>
+            </section>
           )}
-
-          {failure ? (
-            <InlineAlert tone="danger" title={t('RequestTriageScreen.didNotGoThrough')} live>
-              {failure}
-            </InlineAlert>
-          ) : null}
-        </>
-      ) : null}
+        </div>
+      )}
     </AppShell>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * REQ-02's state capsule track: received (ink), where it is now (lime, stretching), and the two
- * steps still ahead (dashed). Every step is a fact the record carries — nothing is projected.
- */
-function StateTrack({ request }: { request: ClientRequestRecord }) {
-  const t = useT();
-  const answered = ['accepted', 'planned', 'delivered'].includes(request.state);
-  const planned = request.state === 'planned' || request.state === 'delivered';
-  const committed = request.commitment === 'committed' && request.committedAt !== null;
-  const asked = request.clarificationQuestion !== null && request.state === 'needs_clarification';
+function senderOf(row: ClientRequestRecord, fallback: string): string {
+  return row.submittedByName ?? row.clientOrganizationName ?? fallback;
+}
 
+interface RequestRowProps {
+  row: ClientRequestRecord;
+  selected: boolean;
+  projectName: string;
+  age: string;
+  rtl: string;
+  onChoose: () => void;
+  onReopen?: () => void;
+}
+
+function RequestRow({ row, selected, projectName, age, rtl, onChoose, onReopen }: RequestRowProps) {
+  const t = useA6T();
+  const locale = useActiveLocale();
+  const sender = senderOf(row, t('RequestTriageA7.theClient'));
   return (
-    <ol className="wp-track" aria-label={t('RequestTriageScreen.trackLabel')}>
-      <li className="wp-track__step wp-track__step--done">
-        {t('RequestTriageScreen.received')}
-        {formatDay(request.createdAt)}
-      </li>
-      <li
-        className={`wp-track__step ${answered ? 'wp-track__step--done' : 'wp-track__step--current'}`}
-        aria-current={answered ? undefined : 'step'}
-      >
-        {triageStateLabel(request.state)}
-        {asked ? t('RequestTriageScreen.oneQuestionAsked') : ''}
-      </li>
-      <li
-        className={`wp-track__step ${
-          committed
-            ? planned
-              ? 'wp-track__step--done'
-              : 'wp-track__step--current'
-            : answered && !planned
-              ? 'wp-track__step--current'
-              : ''
-        }`}
-      >
-        {committed && request.committedAt !== null ? (
-          <>
-            {t('RequestTriageScreen.committedPrefix')}
-            {formatDay(request.committedAt)}
-          </>
-        ) : answered ? (
-          t('RequestTriageScreen.acceptedNoDate')
-        ) : (
-          t('RequestTriageScreen.committed')
-        )}
-      </li>
-      <li
-        className={`wp-track__step ${planned ? 'wp-track__step--current' : ''}`}
-        aria-current={planned ? 'step' : undefined}
-      >
-        {t('RequestTriageScreen.planned')}
-      </li>
-    </ol>
-  );
-}
-
-interface TriageActionsProps {
-  request: ClientRequestRecord;
-  outcome: Outcome;
-  onChoose: (outcome: Outcome) => void;
-  working: boolean;
-  onOpenTriage: () => void;
-}
-
-/**
- * The four outcomes, each naming what it needs — REQ-02's right-hand column.
- *
- * Two states get a panel of their own instead, and both exist for the same reason: `23-ERD` §6
- * routes every answer through `triage`, and a manager should not have to discover that by being
- * refused. A request nobody has opened yet gets "Start triaging". A request waiting on a
- * clarification gets "The client has answered", which is the only edge §6 draws out of
- * `needs_clarification` besides the client's own withdrawal — the outcomes are hidden there
- * rather than offered and then rejected.
- */
-function TriageActions({ request, outcome, onChoose, working, onOpenTriage }: TriageActionsProps) {
-  const t = useT();
-  if (request.state === 'submitted') {
-    return (
-      <section className="wp-triage__actions" aria-labelledby="tm-triage-start">
-        <h2 id="tm-triage-start" className="wp-triage__heading">
-          {t('RequestTriageScreen.nobodyPicked')}
-        </h2>
-        <p>{t('RequestTriageScreen.submittedBody')}</p>
-        <Button
-          type="button"
-          tone="ink"
-          size="accessible"
-          loading={working}
-          loadingLabel={t('RequestTriageScreen.opening')}
-          onClick={onOpenTriage}
-        >
-          {t('RequestTriageScreen.startTriaging')}
-        </Button>
-      </section>
-    );
-  }
-
-  if (request.state === 'needs_clarification') {
-    return (
-      <section className="wp-triage__actions" aria-labelledby="tm-triage-waiting">
-        <h2 id="tm-triage-waiting" className="wp-triage__heading">
-          {t('RequestTriageScreen.waitingTitle')}
-        </h2>
-        {/*
-          The three outcomes are deliberately absent here. `23-ERD` §6 routes every answer back
-          through triage — `needs_clarification` to `triage`, and only then to accepted, deferred
-          or declined — so offering them in this state would render three buttons the state
-          machine refuses with a 422.
-        */}
-        <p>{t('RequestTriageScreen.waitingBody')}</p>
-        <Button
-          type="button"
-          tone="ink"
-          size="accessible"
-          loading={working}
-          loadingLabel={t('RequestTriageScreen.reopening')}
-          onClick={onOpenTriage}
-        >
-          {t('RequestTriageScreen.clientAnswered')}
-        </Button>
-      </section>
-    );
-  }
-
-  if (request.state !== 'triage') {
-    return (
-      <section className="wp-triage__actions" aria-labelledby="tm-triage-closed">
-        <h2 id="tm-triage-closed" className="wp-triage__heading">
-          {t('RequestTriageScreen.answeredTitle')}
-        </h2>
-        <p>
-          {t('RequestTriageScreen.answeredBodyPrefix')}
-          {triageStateLabel(request.state).toLowerCase()}
-          {t('RequestTriageScreen.answeredBodySuffix')}
-        </p>
-      </section>
-    );
-  }
-
-  return (
-    <section className="wp-triage__actions" aria-labelledby="tm-triage-actions">
-      <h2 id="tm-triage-actions" className="tm-visually-hidden">
-        {t('RequestTriageScreen.answerThis')}
-      </h2>
+    <li className="tm-rq-row" data-selected={selected || undefined}>
       <button
         type="button"
-        className="wp-outcome wp-outcome--ink"
-        aria-pressed={outcome === 'accept'}
-        onClick={() => onChoose('accept')}
+        className="tm-rq-row__main"
+        aria-current={selected ? 'true' : undefined}
+        onClick={onChoose}
       >
-        {t('RequestTriageScreen.commitWithDate')}
-      </button>
-      <button
-        type="button"
-        className="wp-outcome wp-outcome--strong"
-        aria-pressed={outcome === 'clarify'}
-        onClick={() => onChoose('clarify')}
-      >
-        {t('RequestTriageScreen.askAnother')}
-      </button>
-      <button
-        type="button"
-        className="wp-outcome"
-        aria-pressed={outcome === 'defer'}
-        onClick={() => onChoose('defer')}
-      >
-        {t('RequestTriageScreen.deferWithReason')}
-      </button>
-      <button
-        type="button"
-        className="wp-outcome wp-outcome--danger"
-        aria-pressed={outcome === 'decline'}
-        onClick={() => onChoose('decline')}
-      >
-        {t('RequestTriageScreen.declineWithReason')}
-      </button>
-      {/* The artifact's caption, and it is the design rather than decoration. */}
-      <p className="wp-caption">
-        <strong>{t('RequestTriageScreen.everyOutcome')}</strong>
-      </p>
-    </section>
-  );
-}
-
-interface OutcomeFormProps {
-  outcome: Outcome;
-  question: string;
-  onQuestion: (value: string) => void;
-  reason: string;
-  onReason: (value: string) => void;
-  scopeSummary: string;
-  onScopeSummary: (value: string) => void;
-  committedDay: string;
-  onCommittedDay: (value: string) => void;
-  unscheduled: boolean;
-  onUnscheduled: (value: boolean) => void;
-  gap: string | null;
-  acceptable: boolean;
-  working: boolean;
-  impact: string;
-  onAsk: () => void;
-  onDefer: () => void;
-  onDecline: () => void;
-  onReview: () => void;
-}
-
-/** What the chosen outcome needs, beneath the REQ-02 card. */
-function OutcomeForm({
-  outcome,
-  question,
-  onQuestion,
-  reason,
-  onReason,
-  scopeSummary,
-  onScopeSummary,
-  committedDay,
-  onCommittedDay,
-  unscheduled,
-  onUnscheduled,
-  gap,
-  acceptable,
-  working,
-  impact,
-  onAsk,
-  onDefer,
-  onDecline,
-  onReview,
-}: OutcomeFormProps) {
-  const t = useT();
-  if (outcome === 'clarify') {
-    return (
-      <section className="wp-outcome-form" aria-label={t('RequestTriageScreen.askAnother')}>
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-triage-question-field">
-            {t('RequestTriageScreen.whatToKnow')}
-          </label>
-          <textarea
-            id="tm-triage-question-field"
-            className="tm-field__control tm-field__control--multiline"
-            rows={3}
-            value={question}
-            onChange={(event) => onQuestion(event.target.value)}
-            aria-describedby="tm-triage-question-hint"
-          />
-          <span className="tm-field__hint" id="tm-triage-question-hint">
-            {t('RequestTriageScreen.clarifyHint')}
-          </span>
-        </div>
-        <div className="tm-row">
-          <Button
-            type="button"
-            tone="ink"
-            loading={working}
-            loadingLabel={t('RequestTriageScreen.sending')}
-            disabled={question.trim() === ''}
-            onClick={onAsk}
-          >
-            {t('RequestTriageScreen.askClient')}
-          </Button>
-        </div>
-      </section>
-    );
-  }
-
-  if (outcome === 'defer' || outcome === 'decline') {
-    return (
-      <section
-        className="wp-outcome-form"
-        aria-label={
-          outcome === 'defer'
-            ? t('RequestTriageScreen.deferWithReason')
-            : t('RequestTriageScreen.declineWithReason')
-        }
-      >
-        <div className="tm-field">
-          <label className="tm-field__label" htmlFor="tm-triage-reason-field">
-            {outcome === 'defer'
-              ? t('RequestTriageScreen.whyNotNow')
-              : t('RequestTriageScreen.whyNotAtAll')}
-          </label>
-          <textarea
-            id="tm-triage-reason-field"
-            className="tm-field__control tm-field__control--multiline"
-            rows={3}
-            value={reason}
-            onChange={(event) => onReason(event.target.value)}
-            aria-describedby="tm-triage-reason-hint"
-          />
-          <span className="tm-field__hint" id="tm-triage-reason-hint">
-            {t('RequestTriageScreen.reasonHint')}
-          </span>
-        </div>
-        <div className="tm-row">
-          <Button
-            type="button"
-            tone={outcome === 'decline' ? 'destructive' : 'ink'}
-            loading={working}
-            loadingLabel={t('RequestTriageScreen.sending')}
-            disabled={reason.trim() === ''}
-            onClick={outcome === 'defer' ? onDefer : onDecline}
-          >
-            {outcome === 'defer'
-              ? t('RequestTriageScreen.deferThis')
-              : t('RequestTriageScreen.declineThis')}
-          </Button>
-        </div>
-      </section>
-    );
-  }
-
-  if (outcome !== 'accept') return null;
-
-  return (
-    <section className="wp-outcome-form" aria-label={t('RequestTriageScreen.commitWithDate')}>
-      <div className="tm-field">
-        <label className="tm-field__label" htmlFor="tm-triage-scope-field">
-          {t('RequestTriageScreen.whatAgreeing')}
-        </label>
-        <textarea
-          id="tm-triage-scope-field"
-          className="tm-field__control tm-field__control--multiline"
-          rows={3}
-          value={scopeSummary}
-          onChange={(event) => onScopeSummary(event.target.value)}
-          aria-describedby="tm-triage-scope-hint"
-        />
-        <span className="tm-field__hint" id="tm-triage-scope-hint">
-          {t('RequestTriageScreen.scopeHint')}
+        <span className="tm-rq-orb" aria-hidden="true">
+          {orbOf(sender)}
         </span>
-      </div>
+        <span className="tm-rq-row__who">
+          <span className="tm-rq-row__name">{sender}</span>
+          {row.clientOrganizationName !== null ? (
+            <span className="tm-rq-row__org">{row.clientOrganizationName}</span>
+          ) : null}
+        </span>
+        <span className="tm-rq-row__age">{age}</span>
+        <span className="tm-rq-row__title">{row.title}</span>
+        {projectName !== '' ? <span className="tm-rq-chip">{projectName}</span> : null}
+      </button>
+      {row.state === 'deferred' && onReopen ? (
+        <div className="tm-rq-row__deferred">
+          {row.deferUntil !== null ? (
+            <span className="tm-rq-pill">
+              <span className="tm-rq-pill__dot" aria-hidden="true" />
+              {rtl}
+              {t('RequestTriageA7.backOn', { date: formatChipDay(row.deferUntil, locale) })}
+            </span>
+          ) : (
+            <span />
+          )}
+          <button type="button" className="tm-rq-link" onClick={onReopen}>
+            {t('RequestTriageA7.reopenNow')}
+          </button>
+        </div>
+      ) : null}
+    </li>
+  );
+}
 
-      <Field
-        label={t('RequestTriageScreen.committedDate')}
-        name="committedDay"
-        type="date"
-        value={committedDay}
-        onChange={(event) => onCommittedDay(event.target.value)}
-        dir="ltr"
-        disabled={unscheduled}
-        hint={t('RequestTriageScreen.committedDateHint')}
-      />
+interface RequestDetailProps {
+  api: ApiClient;
+  organizationSlug: string;
+  request: ClientRequestRecord;
+  projectName: string;
+  clock: Date;
+  onChanged: (updated?: ClientRequestRecord) => Promise<void>;
+  onReopen: () => void;
+}
 
-      <label className="tm-choice tm-choice--inline">
-        <input
-          className="tm-choice__input"
-          type="checkbox"
-          checked={unscheduled}
-          onChange={(event) => onUnscheduled(event.target.checked)}
-        />
-        <span className="tm-choice__name">{t('RequestTriageScreen.acceptNoDate')}</span>
-        <span className="tm-choice__detail">{t('RequestTriageScreen.acceptNoDateDetail')}</span>
-      </label>
+function RequestDetail({
+  api,
+  organizationSlug,
+  request,
+  projectName,
+  clock,
+  onChanged,
+  onReopen,
+}: RequestDetailProps) {
+  const t = useA6T();
+  const locale = useActiveLocale();
+  const queries = useQueryClient();
+  const rtl = isArabic(locale) ? RLM : '';
+  const sender = senderOf(request, t('RequestTriageA7.theClient'));
+  const firstName = firstNameOf(sender);
+  const clientName = request.clientOrganizationName ?? t('RequestTriageA7.theClient');
 
-      {gap ? (
-        <InlineAlert tone="warning" title={t('RequestTriageScreen.notTheirDate')}>
-          {gap}
+  const [deferDay, setDeferDay] = useState(addDays(todayOf(clock), 7));
+  const [picking, setPicking] = useState(false);
+  const [remind, setRemind] = useState(true);
+  const [accepting, setAccepting] = useState(false);
+  const [declining, setDeclining] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const [reply, setReply] = useState('');
+  const [replied, setReplied] = useState(false);
+  const [working, setWorking] = useState<'accept' | 'decline' | 'defer' | 'reply' | null>(null);
+  const [failure, setFailure] = useState<string | undefined>(undefined);
+  const [acceptedWork, setAcceptedWork] = useState<string | undefined>(undefined);
+
+  const open = TAB_STATES.new.includes(request.state);
+
+  /** Accept, Decline and Defer all leave from `triage`; a fresh or answered request goes there first. */
+  async function inTriage(): Promise<ClientRequestRecord> {
+    if (request.state === 'triage') return request;
+    return transitionClientRequest(api, organizationSlug, request.id, request.version, {
+      to: 'triage',
+    });
+  }
+
+  async function act(
+    which: 'accept' | 'decline' | 'defer' | 'reply',
+    work: () => Promise<ClientRequestRecord | undefined>,
+  ) {
+    setFailure(undefined);
+    setWorking(which);
+    try {
+      const updated = await work();
+      await onChanged(updated);
+    } catch (error) {
+      setFailure(
+        error instanceof ApiRequestError && error.status === 409
+          ? t('RequestTriageA7.conflict')
+          : t('RequestTriageA7.failed'),
+      );
+    } finally {
+      setWorking(null);
+    }
+  }
+
+  function accept(choice: AcceptRequestChoice) {
+    void act('accept', async () => {
+      const ready = await inTriage();
+      const result = await acceptClientRequest(api, organizationSlug, request.id, {
+        version: ready.version,
+        clientSafeScopeSummary: request.title,
+        commitment: choice.dueDay === '' ? 'unscheduled' : choice.dueDay,
+        ...(choice.ownerUserId === null ? {} : { work: { ownerUserId: choice.ownerUserId } }),
+        ...(choice.notifyClient ? {} : { notifyClient: false }),
+      });
+      setAccepting(false);
+      setAcceptedWork(result.workItemId);
+      await queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+      return result.request;
+    });
+  }
+
+  function decline() {
+    void act('decline', async () => {
+      const ready = await inTriage();
+      const updated = await transitionClientRequest(
+        api,
+        organizationSlug,
+        request.id,
+        ready.version,
+        {
+          to: 'declined',
+          clientVisibleReason: declineReason.trim(),
+        },
+      );
+      setDeclining(false);
+      return updated;
+    });
+  }
+
+  function defer() {
+    void act('defer', async () => {
+      const ready = await inTriage();
+      return deferClientRequest(api, organizationSlug, request.id, {
+        version: ready.version,
+        clientVisibleReason: t('RequestTriageA7.deferReason', {
+          date: formatChipDay(deferDay, locale),
+        }),
+        deferUntil: deferDay,
+        remindOnReopen: remind,
+      });
+    });
+  }
+
+  function sendReply() {
+    const body = reply.trim();
+    if (body === '') return;
+    void act('reply', async () => {
+      await postRequestMessage(api, organizationSlug, request.id, { body, clientVisible: true });
+      setReply('');
+      setReplied(true);
+      await queries.invalidateQueries({
+        queryKey: ['request-messages', 'team', organizationSlug, request.id],
+      });
+      return undefined;
+    });
+  }
+
+  const stateKey = STATE_KEY[request.state];
+
+  return (
+    <section className="tm-rq-detail" aria-labelledby="tm-rq-detail-title">
+      <header className="tm-rq-detail__head">
+        <span className="tm-rq-orb" aria-hidden="true">
+          {orbOf(sender)}
+        </span>
+        <span className="tm-rq-row__who">
+          <span className="tm-rq-row__name">{sender}</span>
+          <span className="tm-rq-row__org">
+            {rtl}
+            {clientName} ·{' '}
+            {t('RequestTriageA7.sentAgo', { ago: agoOf(request.createdAt, clock, locale) })}
+          </span>
+        </span>
+        {projectName !== '' ? <span className="tm-rq-chip">{projectName}</span> : null}
+      </header>
+
+      <h2 id="tm-rq-detail-title" className="tm-rq-detail__title">
+        {request.title}
+      </h2>
+      <p className="tm-rq-detail__prose">{request.description}</p>
+
+      {acceptedWork !== undefined ? (
+        <InlineAlert tone="success" title={t('RequestTriageA7.acceptedNotice')} live>
+          <Link href={`/${organizationSlug}/work/${acceptedWork}`}>
+            {t('RequestTriageA7.openWorkItem')}
+          </Link>
         </InlineAlert>
       ) : null}
 
-      <p className="wp-note">
-        {t('RequestTriageScreen.impactPrefix')}
-        {impact}
-      </p>
-
-      <div className="tm-row">
-        <Button
-          type="button"
-          tone="ink"
-          size="accessible"
-          disabled={!acceptable}
-          onClick={onReview}
-        >
-          {t('RequestTriageScreen.reviewCommitment')}
-        </Button>
-      </div>
-    </section>
-  );
-}
-
-interface CommitmentReviewProps {
-  request: ClientRequestRecord;
-  scopeSummary: string;
-  commitment: { kind: 'committed'; day: string } | { kind: 'unscheduled' };
-  gap: string | null;
-  working: boolean;
-  onBack: () => void;
-  onCommit: () => void;
-}
-
-/**
- * REQ-03 — the promise, restated before it is made: the ink card with its lime ring, and beside
- * it the dark card with the exact sentence the client will read. The gap between their date and
- * ours is stated there, not hidden.
- */
-function CommitmentReview({
-  request,
-  scopeSummary,
-  commitment,
-  gap,
-  working,
-  onBack,
-  onCommit,
-}: CommitmentReviewProps) {
-  const t = useT();
-  return (
-    <section className="wp-review" aria-labelledby="tm-triage-review">
-      <div className="wp-review__promise">
-        <p className="wp-mono-label">{t('RequestTriageScreen.commitmentReview')}</p>
-        <h2 id="tm-triage-review" className="wp-review__title">
-          {t('RequestTriageScreen.promisePrefix')}
-          {request.clientOrganizationName ?? t('RequestTriageScreen.thisClient')}
-        </h2>
-
-        <dl className="wp-review__facts">
-          <div>
-            <dt>{t('RequestTriageScreen.labelScope')}</dt>
-            <dd>{scopeSummary}</dd>
+      {open ? (
+        <>
+          <div className="tm-rq-actions">
+            <Button
+              tone="ink"
+              size="accessible"
+              loading={working === 'accept'}
+              loadingLabel={t('AcceptRequest.accepting')}
+              onClick={() => setAccepting(true)}
+            >
+              {t('RequestTriageA7.accept')}
+            </Button>
+            <button
+              type="button"
+              className="tm-rq-link tm-rq-link--quiet"
+              aria-expanded={declining}
+              onClick={() => setDeclining((value) => !value)}
+            >
+              {t('RequestTriageA7.decline')}
+            </button>
           </div>
-          <div>
-            <dt>{t('RequestTriageScreen.labelCommitted')}</dt>
-            <dd>
-              {commitment.kind === 'unscheduled'
-                ? t('RequestTriageScreen.noDateStated')
-                : formatDay(commitment.day)}
-            </dd>
-          </div>
-          <div>
-            <dt>{t('RequestTriageScreen.labelWork')}</dt>
-            <dd>{t('RequestTriageScreen.workDd')}</dd>
-          </div>
-        </dl>
 
-        <div className="wp-review__buttons">
+          {declining ? (
+            <div className="tm-rq-decline">
+              <label className="tm-field__label" htmlFor="tm-rq-decline-reason">
+                {t('RequestTriageA7.declineWhy', { name: firstName })}
+              </label>
+              <textarea
+                id="tm-rq-decline-reason"
+                className="tm-field__control tm-rq-textarea"
+                rows={2}
+                maxLength={1000}
+                value={declineReason}
+                onChange={(event) => setDeclineReason(event.target.value)}
+              />
+              <div className="tm-rq-decline__buttons">
+                <Button tone="outline" onClick={() => setDeclining(false)}>
+                  {t('RequestTriageA7.cancel')}
+                </Button>
+                <Button
+                  tone="destructive"
+                  disabled={declineReason.trim() === ''}
+                  loading={working === 'decline'}
+                  loadingLabel={t('RequestTriageA7.sending')}
+                  onClick={decline}
+                >
+                  {t('RequestTriageA7.declineConfirm')}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
+          <fieldset className="tm-rq-defer">
+            <legend className="tm-rq-defer__title">{t('RequestTriageA7.deferUntil')}</legend>
+            <div className="tm-rq-defer__row">
+              <div className="tm-wk-popover-anchor">
+                <button
+                  type="button"
+                  className="tm-wk-fact"
+                  aria-haspopup="dialog"
+                  aria-expanded={picking}
+                  onClick={() => setPicking((value) => !value)}
+                >
+                  <span className="tm-wk-fact__text">
+                    <span className="tm-wk-fact__label">{t('RequestTriageA7.date')}</span>
+                    <span className="tm-wk-fact__value">{formatChipDay(deferDay, locale)}</span>
+                  </span>
+                  <span className="tm-wk-fact__caret" aria-hidden="true">
+                    ▾
+                  </span>
+                </button>
+                {picking ? (
+                  <DueDatePicker
+                    heading={t('RequestTriageA7.pickDate')}
+                    value={deferDay}
+                    now={clock}
+                    min={addDays(todayOf(clock), 1)}
+                    onSet={(day) => {
+                      if (day !== null) setDeferDay(day);
+                      setPicking(false);
+                    }}
+                    onClose={() => setPicking(false)}
+                  />
+                ) : null}
+              </div>
+              <Button
+                tone="outline"
+                size="accessible"
+                loading={working === 'defer'}
+                loadingLabel={t('RequestTriageA7.sending')}
+                onClick={defer}
+              >
+                {t('RequestTriageA7.defer')}
+              </Button>
+            </div>
+            <Checkbox
+              label={t('RequestTriageA7.remind')}
+              checked={remind}
+              onChange={(event) => setRemind(event.target.checked)}
+            />
+          </fieldset>
+        </>
+      ) : request.state === 'deferred' ? (
+        <div className="tm-rq-row__deferred">
+          {request.deferUntil !== null ? (
+            <span className="tm-rq-pill">
+              <span className="tm-rq-pill__dot" aria-hidden="true" />
+              {t('RequestTriageA7.backOn', { date: formatChipDay(request.deferUntil, locale) })}
+            </span>
+          ) : (
+            <span />
+          )}
+          <button type="button" className="tm-rq-link" onClick={onReopen}>
+            {t('RequestTriageA7.reopenNow')}
+          </button>
+        </div>
+      ) : stateKey !== undefined ? (
+        <p className="tm-rq-state">{t(stateKey)}</p>
+      ) : null}
+
+      <div className="tm-rq-reply">
+        <label className="tm-rq-reply__label" htmlFor="tm-rq-reply-body">
+          {t('RequestTriageA7.replyTo', { name: firstName })}
+        </label>
+        <textarea
+          id="tm-rq-reply-body"
+          className="tm-field__control tm-rq-reply__body"
+          rows={1}
+          maxLength={10000}
+          value={reply}
+          aria-describedby="tm-rq-reply-hint"
+          onChange={(event) => {
+            setReply(event.target.value);
+            setReplied(false);
+          }}
+        />
+        <p className="tm-rq-reply__hint" id="tm-rq-reply-hint">
+          {replied
+            ? t('RequestTriageA7.replySent')
+            : t('RequestTriageA7.replyHint', { name: firstName })}
+        </p>
+        <div className="tm-rq-reply__send">
           <Button
-            type="button"
             tone="ink"
             size="accessible"
-            loading={working}
-            loadingLabel={t('RequestTriageScreen.committing')}
-            onClick={onCommit}
+            disabled={reply.trim() === ''}
+            loading={working === 'reply'}
+            loadingLabel={t('RequestTriageA7.sending')}
+            onClick={sendReply}
           >
-            {t('RequestTriageScreen.commitAndTell')}
-          </Button>
-          <Button type="button" tone="outline" size="accessible" onClick={onBack}>
-            {t('RequestTriageScreen.back')}
+            {t('RequestTriageA7.sendReply')}
           </Button>
         </div>
       </div>
 
-      <section className="wp-review__client" aria-labelledby="tm-triage-preview">
-        <h3 id="tm-triage-preview">{t('RequestTriageScreen.whatClientReads')}</h3>
-        <p>&ldquo;{previewClientSentence(scopeSummary, commitment)}&rdquo;</p>
-        {gap ? <p className="wp-caption">{gap}</p> : null}
-      </section>
+      {failure ? (
+        <InlineAlert tone="danger" live>
+          {failure}
+        </InlineAlert>
+      ) : null}
+
+      {accepting ? (
+        <AcceptRequestDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          projectId={request.projectId}
+          projectName={projectName}
+          requestTitle={request.title}
+          senderName={sender}
+          clientName={clientName}
+          initialDueDay={request.desiredAt ?? ''}
+          saving={working === 'accept'}
+          onAccept={accept}
+          onClose={() => setAccepting(false)}
+        />
+      ) : null}
     </section>
   );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-
-/**
- * What else is already due in this project in the week around a proposed date.
- *
- * A count of rows, not a capacity judgement, and the wording says so. Milestones are what the
- * artifact's collision warning needs; they do not exist and no ticket schedules them. This is the
- * honest thing that can be computed from `work_items.due_at` today.
- */
-function impactOf(workItems: readonly WorkItemSummary[], committedDay: string | null): string {
-  if (committedDay === null || committedDay === '') {
-    return 'Pick a date to see what else this project already owes around it.';
-  }
-
-  const target = new Date(`${committedDay}T00:00:00.000Z`).getTime();
-  if (Number.isNaN(target)) return 'That is not a date this can be checked against.';
-
-  const week = 3.5 * 86_400_000;
-  const near = workItems.filter((item) => {
-    if (item.dueAt === null || item.deletedAt !== null) return false;
-    const due = new Date(item.dueAt).getTime();
-    return !Number.isNaN(due) && Math.abs(due - target) <= week;
-  });
-
-  if (near.length === 0) {
-    return 'Nothing else in this project is due within three days either side of that date.';
-  }
-  return `${near.length} other ${near.length === 1 ? 'item is' : 'items are'} already due within three days either side of that date: ${near
-    .map((item) => item.title)
-    .join(
-      ', ',
-    )}. This is a count of dated work, not a check of anybody's capacity — nothing in this system models that yet.`;
-}
-
-function describeCommitted(request: ClientRequestRecord): string {
-  if (request.commitment === 'committed' && request.committedAt !== null) {
-    return formatDay(request.committedAt);
-  }
-  if (request.commitment === 'unscheduled') return 'accepted, no date set';
-  return 'not set';
-}
-
-function describeFailure(error: unknown): string {
-  if (error instanceof ApiRequestError) {
-    if (error.status === 409) {
-      return 'Somebody changed this request while you were reading it. Reload the page to see where it is now.';
-    }
-    return error.message;
-  }
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
