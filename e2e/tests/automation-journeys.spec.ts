@@ -217,14 +217,15 @@ test.describe.serial('the automations create-and-run journey', () => {
 
     // The run, as the browser would send it. The outcome is asserted from the response body, not
     // inferred from the screen: an in-app action succeeds and its detail names the effect it carried
-    // out inside the app.
+    // out inside the app. Since AUT-02 (c3831f25) "Run it now" sends the runner a real test notice,
+    // so the effect names the runner's inbox rather than the work owner.
     const response = await owner.context.request.post(`${templatesPath()}/${inAppTemplateId}/run`, {
       headers: await csrfHeaders(owner.context),
     });
     expect(response.status()).toBe(201);
     const run = (await response.json()) as RunView;
     expect(run.status).toBe('succeeded');
-    expect(run.detail['effect']).toBe('Notified the work owner in-app.');
+    expect(run.detail['effect']).toBe('Sent you a test notification in your inbox.');
 
     // The record, read back through the screen a person opens. The redesigned history names each
     // run's template (it falls back to the id only when the template list cannot load), newest-first.
@@ -238,7 +239,7 @@ test.describe.serial('the automations create-and-run journey', () => {
     await row.getByRole('button', { name: 'View details' }).click();
     const detail = owner.page.getByRole('complementary', { name: 'Run detail' });
     await expect(detail).toContainText('Succeeded');
-    await expect(detail).toContainText('Notified the work owner in-app.');
+    await expect(detail).toContainText('Sent you a test notification in your inbox.');
 
     await owner.context.close();
   });

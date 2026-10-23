@@ -30,6 +30,7 @@ import { API_URL } from '../setup/stack.js';
 
 interface SeededUser {
   readonly id: string;
+  readonly email: string;
 }
 
 interface World {
@@ -87,7 +88,11 @@ test.describe.serial('the onboarding journeys', () => {
     await founder.page.waitForURL(`**/${ORG_SLUG}/onboarding/team`);
 
     // ON-04: invite a teammate, read the role preview, create the invitation.
-    await founder.page.getByLabel('Email address').fill('lina@northstar.studio');
+    // The teammate's own seeded address: the invitation screen branches on whether the invited
+    // address already has an account (P1 Getting in, 36d80fac). An address with no account gets
+    // the sign-up form; this journey is the existing-account path that signs in and accepts.
+    const teammateEmail = world().northstar.designer.email;
+    await founder.page.getByLabel('Email address').fill(teammateEmail);
     await expect(founder.page.getByText('What a team member will see')).toBeVisible();
     await founder.page.getByRole('button', { name: 'Add to the list' }).click();
     await founder.page.getByRole('button', { name: 'Create 1 invitation' }).click();
@@ -101,7 +106,7 @@ test.describe.serial('the onboarding journeys', () => {
     const invited = founder.page
       .getByRole('region', { name: 'Links to send' })
       .getByRole('listitem')
-      .filter({ hasText: 'lina@northstar.studio' });
+      .filter({ hasText: teammateEmail });
     await expect(invited).toContainText('Created');
     await expect(invited).not.toContainText('Not created');
     // EMAIL_DRIVER=console: the server's delivery answer is 'none' and the screen says so.
@@ -119,12 +124,12 @@ test.describe.serial('the onboarding journeys', () => {
     // because accepting binds the session's account.
     const teammate = await openAs(browser, world().northstar.designer.id);
     await teammate.page.goto(`/invitations/${token}`);
-    // The redesigned acceptance screen (ID-03) heads with the organization and names the inviter
-    // in a line above it.
+    // The redesigned acceptance screen (ID-03, Figma t1-a) heads with the organization for an
+    // address that has an account, and names the inviter and the organization in a line above it.
     await expect(
       teammate.page.getByRole('heading', { level: 1, name: `Join ${ORG_NAME}` }),
     ).toBeVisible();
-    await expect(teammate.page.getByText(/invited you$/u)).toBeVisible();
+    await expect(teammate.page.getByText(`invited you to ${ORG_NAME}`)).toBeVisible();
     await teammate.page.getByRole('button', { name: 'Accept invitation' }).click();
     await teammate.page.waitForURL('**/organizations');
 

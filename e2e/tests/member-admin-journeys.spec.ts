@@ -113,9 +113,11 @@ test.describe.serial('the project member-admin journeys', () => {
     ).toBeVisible();
     await manager.page
       .getByLabel(`Role for ${world().northstar.manager.displayName}`)
-      .selectOption({ label: 'Workspace admin' });
+      .selectOption({ label: 'Team member' });
 
     // The API refuses a self role change (403); the screen surfaces it rather than swallowing it.
+    // The Team screen offers project roles only (ADM-17, d7a4ea70), so the attempt is a real
+    // project role the ceiling would allow: only the self rule can refuse it.
     await expect(manager.page.getByText('That change was refused')).toBeVisible();
 
     await manager.context.close();
