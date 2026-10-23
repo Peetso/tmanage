@@ -180,7 +180,7 @@ test.describe.serial('J4 — the client approval journeys', () => {
     ).toBeVisible();
     await expect(clientPage.getByLabel('Work email')).toHaveValue(CLIENT_EMAIL);
     await clientPage.getByLabel('Full name').fill(CLIENT_NAME);
-    await clientPage.getByLabel('Password', { exact: true }).fill(CLIENT_PASSWORD);
+    await clientPage.getByRole('textbox', { name: 'Password', exact: true }).fill(CLIENT_PASSWORD);
     await clientPage.getByLabel('Confirm password').fill(CLIENT_PASSWORD);
     await clientPage.getByRole('checkbox', { name: /I agree to the Terms/ }).check();
     await clientPage.getByRole('button', { name: 'Create account and join' }).click();
@@ -224,7 +224,9 @@ test.describe.serial('J4 — the client approval journeys', () => {
     // BG2: Send for approval — the approver picker lists the person who just joined.
     await v1.getByRole('button', { name: 'Send for approval' }).click();
     const send = owner.page.getByRole('dialog', { name: 'Send for approval' });
-    await expect(send.getByLabel('Approver')).toContainText(`${CLIENT_NAME} · ${COMPANY}`);
+    await expect(send.getByRole('combobox', { name: 'Approver' })).toContainText(
+      `${CLIENT_NAME} · ${COMPANY}`,
+    );
     await send.getByLabel('What should they check?').fill(CHECK_NOTE);
     await send.getByRole('button', { name: 'Send for approval' }).click();
     await expect(send).toHaveCount(0);
@@ -275,7 +277,7 @@ test.describe.serial('J4 — the client approval journeys', () => {
 
     await v2.getByRole('button', { name: 'Send for approval' }).click();
     const send = owner.page.getByRole('dialog', { name: 'Send for approval' });
-    await expect(send.getByLabel('Approver')).toContainText(CLIENT_NAME);
+    await expect(send.getByRole('combobox', { name: 'Approver' })).toContainText(CLIENT_NAME);
     await send.getByRole('button', { name: 'Send for approval' }).click();
     await expect(send).toHaveCount(0);
     await expect(v2).toContainText('Waiting for the client');
