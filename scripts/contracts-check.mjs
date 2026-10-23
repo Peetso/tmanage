@@ -112,22 +112,6 @@ const EXEMPT = new Map([
   ],
   // Wave 2026-10-22 backend lanes: API-only until their screens land after Figma approval.
   [
-    'BuiltInRoleView',
-    'No web consumer yet: BK2 built-in role catalogue is API-only; the role picker screen is a follow-up.',
-  ],
-  [
-    'MemberRoleChangeView',
-    "No web consumer yet: BK2 change-a-member's-role response is API-only; the screen is a follow-up.",
-  ],
-  [
-    'MeetingClientAttendeeView',
-    'No web consumer yet: BK5 client attendees (0217) are API-only; the meeting edit screen (Figma 374:1985) is a follow-up.',
-  ],
-  [
-    'ClientAttendeeCandidateView',
-    'No web consumer yet: BK5 "Clients on <project>" picker is API-only; the meeting edit screen is a follow-up.',
-  ],
-  [
     'PortalMeetingView',
     'No web consumer yet: BK5 portal meetings list is API-only; the portal meetings screen is a follow-up.',
   ],
@@ -161,6 +145,13 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
+  // A5 (BK5): the attendee list wrapper. The API returns it as an inline type on
+  // MeetingAttendeesController.list (no named …View to import); both arms, MeetingAttendeeView and
+  // MeetingClientAttendeeView, are paired Exact, so the wrapper adds no unchecked field.
+  [
+    'MeetingAttendeeList',
+    'inline API return type of meeting-attendees.controller.ts list(); its arms MeetingAttendeeView and MeetingClientAttendeeView are paired Exact.',
+  ],
   // Wave 4 (Q2 New project client picker): the API side is ClientOrganizationOption in
   // apps/api/src/modules/clients/clients.service.ts — not a …View name, so the checker cannot pair it.
   [

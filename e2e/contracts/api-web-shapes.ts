@@ -3014,3 +3014,17 @@ type _directConversation = Assert<Exact<ApiDirectConversationView, WebDirectConv
 type _directMessage = Assert<Exact<ApiDirectMessageView, WebDirectMessageSummary>>;
 type _directReadState = Assert<Exact<ApiDirectReadStateView, WebDirectReadState>>;
 type _mentionCandidate = Assert<Exact<ApiMentionCandidateView, WebMentionCandidate>>;
+
+// A1 (BK2): the built-in role catalogue and the change-role response, read by the People screen's
+// Change role and Invite member dialogs (`apps/web/src/lib/api/member-role.ts`). `BuiltInRole`
+// narrows: the web types `role`/`capabilities` as plain strings, the API as the domain unions.
+import type {
+  BuiltInRoleView as ApiBuiltInRoleView,
+  MemberRoleChangeView as ApiMemberRoleChangeView,
+} from '../../apps/api/src/modules/tenancy/member-role.controller.js';
+import type {
+  BuiltInRole as WebBuiltInRole,
+  MemberRoleChange as WebMemberRoleChange,
+} from '../../apps/web/src/lib/api/member-role';
+type _builtInRole = Assert<Narrows<ApiBuiltInRoleView, WebBuiltInRole>>;
+type _memberRoleChange = Assert<Exact<ApiMemberRoleChangeView, WebMemberRoleChange>>;
