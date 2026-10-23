@@ -500,6 +500,8 @@ describe('0029: meetings is a tenant-scoped, project-owned, forward-only table',
         'agenda_note',
         'created_at',
         'created_by_user_id',
+        // 0213 (meeting end time) adds the nullable end instant; the full chain runs here.
+        'ends_at',
         'id',
         'organization_id',
         'project_id',

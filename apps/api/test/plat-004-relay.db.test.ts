@@ -347,7 +347,11 @@ describe('the producers', () => {
     // §5's whole point, asserted at the byte level: the author's words never leave the row.
     expect(JSON.stringify(event.payload)).not.toContain('vendor');
     expect(Object.keys(event.payload).sort()).toEqual([
+      // DM live delivery's additive fields: who posted and whom the post mentions, as
+      // user ids only. Ids, never anything an author typed.
+      'authorUserId',
       'conversationId',
+      'mentionedUserIds',
       'messageId',
       'parentMessageId',
       'projectId',

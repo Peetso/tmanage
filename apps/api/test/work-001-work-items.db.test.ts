@@ -664,7 +664,7 @@ describe('completion (0013)', () => {
     expect(response.statusCode).toBe(422);
     const details = response.json<{ error: { details: { field: string; message: string }[] } }>()
       .error.details;
-    expect(details).toEqual([{ field: 'completedAt', message: 'is required for this transition' }]);
+    expect(details).toEqual([{ field: 'completedAt', message: 'give the date it was completed' }]);
   });
 
   it('clears the completion time when the item is reopened, and keeps it when archived', async () => {
@@ -707,7 +707,7 @@ describe('what the fleet found beside the completion change', () => {
     });
     expect(response.statusCode).toBe(422);
     const error = response.json<{ error: { message: string; details?: unknown[] } }>().error;
-    expect(error.message).toBe('A work item cannot move from backlog to done');
+    expect(error.message).toBe('This item cannot move from backlog to done yet');
     expect(error.details).toBeUndefined();
   });
 
