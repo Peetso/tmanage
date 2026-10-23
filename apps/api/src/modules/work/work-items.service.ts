@@ -447,6 +447,7 @@ export class WorkItemsService {
     }
 
     this.requireProjectRelation(principal, context, input.projectId, 'work.create');
+    if (input.ownerUserId) await this.requireOwnerIsMember(context, input.ownerUserId);
 
     const row = await this.database.transaction(context, async (tx) => {
       const created = await this.workItems.create(tx, context, input);
@@ -495,6 +496,7 @@ export class WorkItemsService {
     input: UpdateWorkItemInput,
   ): Promise<WorkItemView> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.update');
+    if (input.ownerUserId) await this.requireOwnerIsMember(context, input.ownerUserId);
 
     // CQ-07 (WRK-14): "client action needed" is a request to a client, and the worker emails the
     // client people who can act on it. On a project with no client linked that request reaches
@@ -1041,6 +1043,23 @@ export class WorkItemsService {
     }
 
     return { ownerUserId, completedAt };
+  }
+
+  /**
+   * An owner set on create or edit must be an active member of this organization — the rule
+   * `done` already applies to its `ownerId` fact. `owner_user_id` references the global users
+   * table, so without this a hand-made request could put another tenant's person, or a client
+   * person, on this tenant's row (T2c proof: work-011).
+   */
+  private async requireOwnerIsMember(context: TenantContext, ownerUserId: string): Promise<void> {
+    const isMember = await this.database.read(context, (runner) =>
+      this.graph.isActiveInternalMember(runner, context, ownerUserId),
+    );
+    if (!isMember) {
+      throw new ApiError(422, 'validation_failed', 'The owner is not a member', [
+        { field: 'ownerUserId', message: 'must be an active member of this organization' },
+      ]);
+    }
   }
 
   /** A fact column is VARCHAR(1000); refuse an essay before the driver truncates one. */
