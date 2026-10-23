@@ -44,3 +44,34 @@ export async function setOrgSetting(
   });
   return data;
 }
+
+/** A11 — the "What members can do" switches, in the card's order. */
+export const MEMBER_SWITCH_KEYS = [
+  'members_can_create_projects',
+  'members_can_invite_clients',
+  'clients_can_upload_files',
+  'require_two_step',
+] as const;
+
+export type MemberSwitchKey = (typeof MEMBER_SWITCH_KEYS)[number];
+
+/** The defaults the API holds for each switch (no row written yet). */
+export const MEMBER_SWITCH_DEFAULTS: Readonly<Record<MemberSwitchKey, boolean>> = {
+  members_can_create_projects: true,
+  members_can_invite_clients: true,
+  clients_can_upload_files: true,
+  require_two_step: false,
+};
+
+/** Each switch's on/off state from a settings read; a key the read lacks keeps its default. */
+export function memberSwitches(
+  view: OrgSettingsView | undefined,
+): Record<MemberSwitchKey, boolean> {
+  const values = new Map((view?.settings ?? []).map((entry) => [entry.key, entry.value]));
+  const result = { ...MEMBER_SWITCH_DEFAULTS };
+  for (const key of MEMBER_SWITCH_KEYS) {
+    const value = values.get(key);
+    if (value === 'true' || value === 'false') result[key] = value === 'true';
+  }
+  return result;
+}

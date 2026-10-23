@@ -373,6 +373,7 @@ import type { SearchPinView as ApiSearchPinView } from '../../apps/api/src/modul
 import type { SearchScopeView as ApiSearchScopeView } from '../../apps/api/src/modules/search/saved-scopes.service.js';
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
+import type { OrganizationProfileView as ApiOrganizationProfileView } from '../../apps/api/src/modules/tenancy/organizations.controller.js';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
 import type { PublicLegalView as ApiPublicLegalView } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type {
@@ -470,6 +471,7 @@ import type { HomePinView as WebHomePinView } from '../../apps/web/src/lib/api/h
 import type { HomeWidgetPrefsView as WebHomeWidgetPrefsView } from '../../apps/web/src/lib/api/home-widget-prefs';
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
+import type { OrganizationProfileView as WebOrganizationProfileView } from '../../apps/web/src/lib/api/organizations';
 import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
 import type { DataExportRequestView as WebDataExportRequestView } from '../../apps/web/src/lib/api/admin-export-requests';
 import type { AdminInvitationsView as WebAdminInvitationsView } from '../../apps/web/src/lib/api/admin-invitations';
@@ -2380,6 +2382,9 @@ type _notificationKindPrefs = Assert<
  * on the web), so this pair covers it structurally. The wire projection never echoes the tenant id.
  */
 type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
+
+/** A11. `OrganizationProfileView` (`GET …/profile`, `PATCH`, `PUT/DELETE …/logo`) — name + logo id. */
+type _organizationProfile = Assert<Exact<ApiOrganizationProfileView, WebOrganizationProfileView>>;
 
 /**
  * Custom roles (x173). `CustomRoleView` (`GET/POST …/admin/roles`, response) — the organization's custom

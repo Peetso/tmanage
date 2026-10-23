@@ -21,7 +21,8 @@ import type { UploadPurpose } from '../../common/database/schema.js';
  * live path, which is the honest state of a module nobody has built.
  */
 const PERMITTED: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = {
-  internal: ['request_attachment', 'message_attachment', 'deliverable'],
+  // `org_logo` (A11, 0224): the organization's logo. The route that sets it is `org.manage`.
+  internal: ['request_attachment', 'message_attachment', 'deliverable', 'org_logo'],
   client: ['request_attachment'],
   // A service principal never uploads through the API; the worker writes versions directly.
   service: [],
@@ -46,7 +47,7 @@ export function mayUploadFor(kind: PrincipalKind, purpose: UploadPurpose): boole
  * A service principal downloads nothing through the API: a job opens the store directly.
  */
 const DOWNLOADABLE: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = {
-  internal: ['request_attachment', 'message_attachment', 'deliverable'],
+  internal: ['request_attachment', 'message_attachment', 'deliverable', 'org_logo'],
   client: ['request_attachment'],
   service: [],
 };

@@ -313,6 +313,8 @@ export const organizations = mysqlTable(
     name: varchar('name', { length: 190 }).notNull(),
     defaultLocale: varchar('default_locale', { length: 35 }).notNull().default('en'),
     timezone: varchar('timezone', { length: 64 }).notNull().default('UTC'),
+    /** 0224 (A11). The file asset that is the organization's logo; NULL shows the initials orb. */
+    logoFileId: char('logo_file_id', { length: 36 }),
     /**
      * The organization half of the context's policy-version epoch (0023). Bumped by a future
      * org-policy write, never by a rename — so an unrelated `updated_at` change no longer
@@ -3486,6 +3488,8 @@ export const UPLOAD_PURPOSES = [
   'request_attachment',
   'deliverable',
   'document',
+  // 0224 (A11): the organization's logo on the Organization settings card.
+  'org_logo',
 ] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 

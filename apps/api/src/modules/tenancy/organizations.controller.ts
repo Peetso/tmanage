@@ -1,24 +1,37 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Inject,
   Optional,
+  Patch,
   Post,
+  Put,
   Query,
   Req,
 } from '@nestjs/common';
-import { ApiError } from '../../common/http/errors.js';
-import { CurrentSession, NoTenant } from '../../common/http/decorators.js';
+import { authorize } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import {
+  Ctx,
+  CurrentPrincipal,
+  CurrentSession,
+  NoTenant,
+  RequireCapability,
+} from '../../common/http/decorators.js';
 import { isBoundTokenScheme, requireRequestState } from '../../common/http/request-state.js';
 import {
   ORGANIZATION_DIRECTORY_REPOSITORY,
   PROVISIONING_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
-import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { AddressAvailabilityRepository } from './address-availability.repository.js';
+import { OrganizationProfileRepository } from './organization-profile.repository.js';
+import { MAX_NAME_LENGTH } from './organization-input.js';
 import type { AuthenticatedSession } from '../identity/session.service.js';
 import type { OrganizationDirectoryRepository } from './organization-directory.repository.js';
 import { slugProblem, validateOrganizationInput } from './organization-input.js';
@@ -83,11 +96,16 @@ export class OrganizationsController {
     private readonly directory: OrganizationDirectoryRepository,
     @Inject(TENANT_DATABASE) database: TenantDatabase,
     @Optional() @Inject(AddressAvailabilityRepository) availability?: AddressAvailabilityRepository,
+    @Optional() @Inject(OrganizationProfileRepository) profile?: OrganizationProfileRepository,
   ) {
     this.availability = availability ?? new AddressAvailabilityRepository(database);
+    this.database = database;
+    this.profile = profile ?? new OrganizationProfileRepository();
   }
 
   private readonly availability: AddressAvailabilityRepository;
+  private readonly database: TenantDatabase;
+  private readonly profile: OrganizationProfileRepository;
 
   /**
    * ON-02. Whether a workspace address can be used, asked while the person types (debounced in
@@ -213,5 +231,132 @@ export class OrganizationsController {
       }
       throw error;
     }
+  }
+
+  // ── A11: the Organization settings card — name and logo (org.manage) ─────────────────────
+
+  /** The organization's name and logo file id, for the Organization card. */
+  @Get(':orgSlug/profile')
+  @RequireCapability('org.manage')
+  async readProfile(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<OrganizationProfileView> {
+    requireOrgManage(principal, context);
+    return this.readProfileView(context);
+  }
+
+  /** Rename the organization. The slug never changes here (see `OrganizationsRepository`). */
+  @Patch(':orgSlug')
+  @RequireCapability('org.manage')
+  async rename(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: { readonly name?: unknown },
+  ): Promise<OrganizationProfileView> {
+    requireOrgManage(principal, context);
+    const name = typeof body?.name === 'string' ? body.name.trim() : '';
+    if (name === '' || name.length > MAX_NAME_LENGTH) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        {
+          field: 'name',
+          message:
+            name === ''
+              ? 'An organization name is required.'
+              : `Keep the name to ${MAX_NAME_LENGTH} characters.`,
+        },
+      ]);
+    }
+    await this.database.transaction(context, async (tx) => {
+      if (!(await this.profile.find(tx, context))) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      }
+      await this.profile.rename(tx, context, name);
+    });
+    return this.readProfileView(context);
+  }
+
+  /**
+   * Set the logo to an uploaded file. The file must be this organization's own `org_logo` upload
+   * and must not have been refused by the verifier or scanner.
+   */
+  @Put(':orgSlug/logo')
+  @RequireCapability('org.manage')
+  async setLogo(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Body() body: { readonly fileId?: unknown },
+  ): Promise<OrganizationProfileView> {
+    requireOrgManage(principal, context);
+    const fileId = typeof body?.fileId === 'string' ? body.fileId.trim() : '';
+    if (fileId === '' || fileId.length > 36) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'fileId', message: 'must be a file id' },
+      ]);
+    }
+    await this.database.transaction(context, async (tx) => {
+      const asset = await this.profile.findLogoAsset(tx, context, fileId);
+      if (!asset) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      if (asset.purpose !== 'org_logo' || REFUSED_LOGO_STATUSES.includes(asset.status)) {
+        throw new ApiError(400, 'validation_failed', 'That file cannot be used as the logo.', [
+          { field: 'fileId', message: 'Upload a PNG or SVG logo.' },
+        ]);
+      }
+      await this.profile.setLogo(tx, context, asset.id);
+    });
+    return this.readProfileView(context);
+  }
+
+  /** Remove the logo; the card goes back to the initials. Idempotent. */
+  @Delete(':orgSlug/logo')
+  @RequireCapability('org.manage')
+  async removeLogo(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+  ): Promise<OrganizationProfileView> {
+    requireOrgManage(principal, context);
+    await this.database.transaction(context, (tx) => this.profile.setLogo(tx, context, null));
+    return this.readProfileView(context);
+  }
+
+  private async readProfileView(context: TenantContext): Promise<OrganizationProfileView> {
+    const row = await this.database.read(context, (runner) => this.profile.find(runner, context));
+    if (!row) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return { name: row.name, logoFileId: row.logoFileId };
+  }
+}
+
+/** The Organization card's profile. Paired with the web's `OrganizationProfile`. */
+export interface OrganizationProfileView {
+  readonly name: string;
+  readonly logoFileId: string | null;
+}
+
+/** Upload states a logo can never be set from: refused by the pipeline, or abandoned. */
+const REFUSED_LOGO_STATUSES: readonly string[] = ['rejected', 'expired', 'cancelled'];
+
+/**
+ * The real org-wide `org.manage` decision, the shape `OrgSettingsController` uses: the decorator
+ * is the coarse gate; this is the tenant-checked decision a controller test exercises.
+ */
+function requireOrgManage(principal: Principal, context: TenantContext): void {
+  const verdict = authorize({
+    principal,
+    capability: 'org.manage',
+    resource: {
+      organizationId: context.organizationId,
+      projectId: null,
+      audience: 'internal',
+      lifecycle: 'active',
+    },
+  });
+  if (!verdict.allowed) {
+    throw new ApiError(
+      403,
+      'forbidden',
+      MESSAGES.forbidden,
+      undefined,
+      `organization.write:${verdict.code}`,
+    );
   }
 }

@@ -5,6 +5,7 @@ import {
   Get,
   HttpCode,
   Inject,
+  Optional,
   Param,
   Post,
   Query,
@@ -28,8 +29,9 @@ import {
   INVITATION_REGISTRATION_ADMISSION,
   INVITATION_REGISTRATION_SESSIONS,
 } from './invitation-registration.tokens.js';
-import { INVITATIONS_SERVICE } from '../../common/http/tokens.js';
-import type { TenantContext } from '../../common/database/tenant-context.js';
+import { INVITATIONS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { requireOrgPermission } from './org-policy.js';
 import type { InvitationStatus } from './invitations.repository.js';
 import type {
   AcceptedInvitationView,
@@ -111,7 +113,12 @@ const MAX_EMAIL_LENGTH = 320;
 
 @Controller('v1/organizations/:orgSlug/invitations')
 export class InvitationsController {
-  constructor(@Inject(INVITATIONS_SERVICE) private readonly invitations: InvitationsService) {}
+  constructor(
+    @Inject(INVITATIONS_SERVICE) private readonly invitations: InvitationsService,
+    // A11: read for the "Members can invite clients" switch. Optional so a unit test can build
+    // the controller from the service alone.
+    @Optional() @Inject(TENANT_DATABASE) private readonly database?: TenantDatabase,
+  ) {}
 
   @Get()
   @RequireCapability('org.manage')
@@ -188,6 +195,11 @@ export class InvitationsController {
       note === undefined
     ) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+
+    // A11: "Members can invite clients" off leaves client invitations to admins and project leads.
+    if (clientOrganizationId !== null) {
+      await requireOrgPermission(this.database, context, principal, 'members_can_invite_clients');
     }
 
     return this.invitations.issue(context, principal, {

@@ -72,6 +72,40 @@ export const tenancyDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'Set a key', args: { key: 'work.default_view', value: 'board' } }],
   }),
+  // A11: the Organization settings card — name and logo.
+  det({
+    id: 'settings.organization.get',
+    title: 'Read the organization profile',
+    description: 'The organization name and the file id of its logo (null when none is set).',
+    input: noArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'Profile', args: {} }],
+  }),
+  det({
+    id: 'settings.organization.update',
+    title: 'Rename the organization',
+    description:
+      'Change the organization name shown in the app, in emails and in the client portal.',
+    input: bodyArgs([], { name: f.shortText(190) }),
+    redact: 'standard',
+    examples: [{ summary: 'Rename', args: { name: 'Northstar Studio' } }],
+  }),
+  det({
+    id: 'settings.logo.set',
+    title: 'Set the organization logo',
+    description: 'Use an uploaded org_logo file as the organization logo.',
+    input: bodyArgs([], { fileId: f.id() }),
+    redact: 'standard',
+    examples: [{ summary: 'Set logo', args: { fileId: 'file_1' } }],
+  }),
+  det({
+    id: 'settings.logo.delete',
+    title: 'Remove the organization logo',
+    description: 'Go back to the initials. Confirm-class.',
+    input: noArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'Remove', args: {} }],
+  }),
   det({
     id: 'members.password_reset.create',
     title: 'Send a member a password reset link',

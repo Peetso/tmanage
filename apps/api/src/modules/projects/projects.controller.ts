@@ -1,9 +1,20 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Optional,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { PROJECTS_SERVICE } from '../../common/http/tokens.js';
-import type { TenantContext } from '../../common/database/tenant-context.js';
+import { PROJECTS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { requireOrgPermission } from '../tenancy/org-policy.js';
 import type { ProjectView, ProjectsService } from './projects.service.js';
 
 /**
@@ -40,7 +51,12 @@ const MAX_PROJECT_NAME_LENGTH = 190;
 
 @Controller('v1/organizations/:orgSlug/projects')
 export class ProjectsController {
-  constructor(@Inject(PROJECTS_SERVICE) private readonly projects: ProjectsService) {}
+  constructor(
+    @Inject(PROJECTS_SERVICE) private readonly projects: ProjectsService,
+    // A11: read for the "Members can create projects" switch. Optional so a unit test can build
+    // the controller from the service alone.
+    @Optional() @Inject(TENANT_DATABASE) private readonly database?: TenantDatabase,
+  ) {}
 
   @Get()
   @RequireCapability('work.read')
@@ -81,6 +97,7 @@ export class ProjectsController {
   async create(
     @Ctx() context: TenantContext,
     @Body() body: CreateProjectBody,
+    @CurrentPrincipal() principal?: Principal,
   ): Promise<ProjectView> {
     const workspaceId = typeof body?.workspaceId === 'string' ? body.workspaceId : undefined;
     const name = typeof body?.name === 'string' ? body.name.trim() : undefined;
@@ -120,6 +137,11 @@ export class ProjectsController {
     // assumed, so an edit that removes the check fails here instead of inserting a null name.
     if (!workspaceId || !name) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+
+    // A11: "Members can create projects" off leaves project creation to the admins.
+    if (principal) {
+      await requireOrgPermission(this.database, context, principal, 'members_can_create_projects');
     }
 
     return this.projects.create(context, {

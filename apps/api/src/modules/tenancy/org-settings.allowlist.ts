@@ -25,6 +25,11 @@ export const ORG_SETTING_KEYS = [
   'client_visible_project_default',
   'working_week',
   'operating_template',
+  // A11 — "What members can do" on the Organization settings card. Each one narrows; none widens.
+  'members_can_create_projects',
+  'members_can_invite_clients',
+  'clients_can_upload_files',
+  'require_two_step',
 ] as const;
 
 export type OrgSettingKey = (typeof ORG_SETTING_KEYS)[number];
@@ -49,6 +54,13 @@ function oneOf(values: readonly string[], message: string): OrgSettingSpec['vali
     const value = raw.trim().toLowerCase();
     return values.includes(value) ? { ok: true, value } : { ok: false, message };
   };
+}
+
+/** A validator for an on/off key, stored as `'true'`/`'false'`. */
+function booleanValue(raw: string): OrgSettingValidation {
+  const value = raw.trim().toLowerCase();
+  if (value !== 'true' && value !== 'false') return { ok: false, message: 'Enter true or false.' };
+  return { ok: true, value };
 }
 
 /** A validator's verdict: the canonical string to store, or a message naming what was wrong. */
@@ -129,7 +141,33 @@ const SPECS: Readonly<Record<OrgSettingKey, OrgSettingSpec>> = Object.freeze({
     default: 'delivery-client-review',
     validate: oneOf(OPERATING_TEMPLATES, 'Choose one of the offered templates.'),
   },
+  // A11. The three permission switches default to `true`: before they existed every role the
+  // capability ceiling allowed could do each of these, and a new setting must not take anything
+  // away until an admin turns it off. Two-step sign-in defaults to off for the same reason.
+  members_can_create_projects: { default: 'true', validate: booleanValue },
+  members_can_invite_clients: { default: 'true', validate: booleanValue },
+  clients_can_upload_files: { default: 'true', validate: booleanValue },
+  require_two_step: { default: 'false', validate: booleanValue },
 });
+
+/** The on/off keys the A11 routes read through {@link isSettingOn}. */
+export type OrgBooleanSettingKey =
+  | 'members_can_create_projects'
+  | 'members_can_invite_clients'
+  | 'clients_can_upload_files'
+  | 'require_two_step';
+
+/**
+ * Whether an on/off setting is on, given the stored value (or `undefined` when no row was written).
+ * Anything other than the canonical `'false'` falls back to the key's default, so a missing row
+ * never changes behaviour.
+ */
+export function isSettingOn(key: OrgBooleanSettingKey, stored: string | undefined): boolean {
+  const value = stored ?? SPECS[key].default;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return SPECS[key].default === 'true';
+}
 
 /** Whether `key` is an allowlisted setting. Narrows to {@link OrgSettingKey} for the callers. */
 export function isOrgSettingKey(key: string): key is OrgSettingKey {

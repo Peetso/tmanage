@@ -1,75 +1,86 @@
 'use client';
 
-import Link from 'next/link';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { hasCapability, isRole } from '@tmanage/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
-import { browserApiClient } from '../../lib/api/browser-client';
-import { readOrgSettings, setOrgSetting } from '../../lib/api/org-settings';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
+import {
+  MEMBER_SWITCH_KEYS,
+  memberSwitches,
+  readOrgSettings,
+  setOrgSetting,
+  type MemberSwitchKey,
+} from '../../lib/api/org-settings';
+import {
+  LOGO_ACCEPT,
+  readOrganizationProfile,
+  removeOrganizationLogo,
+  renameOrganization,
+  setOrganizationLogo,
+  uploadOrganizationLogo,
+} from '../../lib/api/organizations';
+import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import './org-settings.css';
 
 export interface OrgSettingsScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
+  /** Injected by tests: the logo upload (defaults to the real upload pipeline). */
+  uploadLogo?: (file: File) => Promise<string>;
 }
 
-/** Human labels and hints for the allowlisted keys. A key without an entry falls back to its raw name. */
-const LABELS: Readonly<Record<string, { label: string; hint: string }>> = {
-  default_timezone: {
-    label: 'Default timezone',
-    hint: 'An IANA name such as Europe/London. New projects and deadlines fall back to this.',
+/** The switch rows, in the frame's order, with their English defaults until the catalog merges. */
+const SWITCH_COPY: Readonly<Record<MemberSwitchKey, { label: string; hint?: string }>> = {
+  members_can_create_projects: { label: 'Members can create projects' },
+  members_can_invite_clients: {
+    label: 'Members can invite clients',
+    hint: 'When off, only admins and project leads can.',
   },
-  require_reauth_minutes: {
-    label: 'Re-authentication window (minutes)',
-    hint: 'How long before a sensitive action asks for the password again. 0 disables it.',
-  },
-  client_visible_project_default: {
-    label: 'New projects client-visible by default',
-    hint: 'Enter true or false. Off by default, so nothing is shared until you choose to.',
-  },
-  working_week: { label: 'Working week', hint: 'mon-fri, sun-thu, sat-wed or mon-sat.' },
-  operating_template: {
-    label: 'Operating template',
-    hint: 'delivery-client-review, intake-commitment, internal-delivery or empty.',
+  clients_can_upload_files: { label: 'Clients can upload files' },
+  require_two_step: {
+    label: 'Everyone must use two-step sign-in',
+    hint: 'People without it are asked to set it up at their next sign-in.',
   },
 };
 
+/** "Northstar Studio" → "NS"; one word gives its first two letters. */
+function initialsOf(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return `${parts[0]![0] ?? ''}${parts[parts.length - 1]![0] ?? ''}`.toUpperCase();
+}
+
 /**
- * **Organization settings / policy (Administration module 18, x153).**
+ * **Organization settings (A11, Figma `fq12-organization-settings`).**
  *
- * `22-SCREEN-BY-SCREEN` §Administration (org settings/policy). This screen reads the organization's
- * settings — every allowlisted key with its current value — and sets one at a time. It is a faithful
- * reader of the API's fixed-key allowlist: the fields shown are exactly the keys the API returns, and
- * a save PUTs one key, which the API validates against its allowlist and per-key validator.
+ * One card: the organization's logo (initials until one is uploaded) and name, then "What members
+ * can do" — four switches stored as allowlisted org settings. Upload logo / Remove apply at once;
+ * the name and the switches are drafts until Save changes, which writes the name (when it changed)
+ * and each switch that changed. Cancel puts every draft back.
  *
- * ## What it does, and what it cannot
- *
- * - **The role / capability editor is not here.** ADM-03 is blocked pending the permission-matrix
- *   work; this screen is the flat key/value policy surface only. Security-policy escalations are
- *   deferred (NEXT-SCOPES-13).
- * - **A setting is set, never cleared here.** The API grants no delete path, so there is no reset
- *   control — a setting is changed to a new value, and the default stands until it is.
+ * `/settings` is behind `org.manage` (ACT-13): a person whose role cannot manage the organization
+ * is sent to their own Preferences, and the refused reads are never made.
  */
 export function OrgSettingsScreen({
   organizationSlug,
   organizationName: passedOrganizationName,
   client,
+  uploadLogo,
 }: OrgSettingsScreenProps) {
   const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tr = useTOr();
 
-  // ACT-13: `/settings` is the organization's settings, behind `org.manage`. A person whose role
-  // cannot manage the organization (a member who typed the address) is sent to their own
-  // Preferences instead of the admin menu and a permission error — and the refused read, which
-  // would only add a denied row to the audit log, is never made.
   const { role, known } = useOrganizationRole(organizationSlug);
   const mayManage = known
     ? role !== undefined && isRole(role) && hasCapability(role, 'org.manage')
@@ -83,33 +94,82 @@ export function OrgSettingsScreen({
     queryFn: () => readOrgSettings(api, organizationSlug),
     enabled: mayManage === true,
   });
+  const profile = useQuery({
+    queryKey: ['org-profile', organizationSlug],
+    queryFn: () => readOrganizationProfile(api, organizationSlug),
+    enabled: mayManage === true,
+  });
 
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const [savedKey, setSavedKey] = useState<string | null>(null);
+  const loadedSwitches = memberSwitches(settings.data);
+  const loadedName = profile.data?.name ?? '';
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [switchDrafts, setSwitchDrafts] = useState<Partial<Record<MemberSwitchKey, boolean>>>({});
+  const [saved, setSaved] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
 
-  // Seed the editable drafts from the loaded values once they arrive, without clobbering edits.
-  useEffect(() => {
-    if (!settings.data) return;
-    setDrafts((current) => {
-      const next = { ...current };
-      for (const entry of settings.data.settings) {
-        if (!(entry.key in next)) next[entry.key] = entry.value;
-      }
-      return next;
-    });
-  }, [settings.data]);
+  const name = nameDraft ?? loadedName;
+  const switchValue = (key: MemberSwitchKey) => switchDrafts[key] ?? loadedSwitches[key];
+  const changedSwitches = MEMBER_SWITCH_KEYS.filter(
+    (key) => switchDrafts[key] !== undefined && switchDrafts[key] !== loadedSwitches[key],
+  );
+  const nameChanged = nameDraft !== null && nameDraft.trim() !== loadedName;
+  const dirty = nameChanged || changedSwitches.length > 0;
+
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['org-settings', organizationSlug] }),
+      queryClient.invalidateQueries({ queryKey: ['org-profile', organizationSlug] }),
+      queryClient.invalidateQueries({ queryKey: ['shell', 'organizations'] }),
+    ]);
+  };
 
   const save = useMutation({
-    mutationFn: (key: string) => setOrgSetting(api, organizationSlug, key, drafts[key] ?? ''),
-    onSuccess: async (_data, key) => {
-      setSavedKey(key);
-      await queryClient.invalidateQueries({ queryKey: ['org-settings', organizationSlug] });
+    mutationFn: async () => {
+      if (nameChanged) await renameOrganization(api, organizationSlug, (nameDraft ?? '').trim());
+      for (const key of changedSwitches) {
+        await setOrgSetting(api, organizationSlug, key, String(switchDrafts[key]));
+      }
+    },
+    onSuccess: async () => {
+      setNameDraft(null);
+      setSwitchDrafts({});
+      setSaved(true);
+      await refresh();
     },
   });
 
-  const rows = settings.data?.settings ?? [];
+  const logo = useMutation({
+    mutationFn: async (action: { kind: 'upload'; file: File } | { kind: 'remove' }) => {
+      if (action.kind === 'remove') return removeOrganizationLogo(api, organizationSlug);
+      const fileId = await (
+        uploadLogo ?? ((file: File) => uploadOrganizationLogo(api, organizationSlug, file))
+      )(action.file);
+      return setOrganizationLogo(api, organizationSlug, fileId);
+    },
+    onSuccess: async (view) => {
+      queryClient.setQueryData(['org-profile', organizationSlug], view);
+      await refresh();
+    },
+  });
+
+  const onFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (file) logo.mutate({ kind: 'upload', file });
+  };
+
+  const cancel = () => {
+    setNameDraft(null);
+    setSwitchDrafts({});
+    setSaved(false);
+    save.reset();
+  };
 
   if (mayManage === false) return null;
+
+  const loading = settings.isPending || profile.isPending;
+  const loadError = settings.isError || profile.isError;
+  const logoFileId = profile.data?.logoFileId ?? null;
 
   return (
     <ControlCenterShell
@@ -118,166 +178,211 @@ export function OrgSettingsScreen({
       section="organization"
       crumbs={[t('OrgSettingsScreen.crumbOrganization')]}
       title={organizationName}
-      actions={
-        <Link
-          href={`/${organizationSlug}/admin`}
-          className="tm-button tm-button--outline tm-button--compact"
-        >
-          {t('OrgSettingsScreen.controlCenter')}
-        </Link>
-      }
     >
-      <div className="tm-cc-split tm-cc-split--even">
-        <section className="tm-cc-card" aria-labelledby="tm-org-settings-heading">
-          <h2 id="tm-org-settings-heading" className="tm-cc-eyebrow">
-            {t('OrgSettingsScreen.settingsHeading')}
-          </h2>
+      <section className="tm-orgset" aria-labelledby="tm-orgset-title">
+        <h2 id="tm-orgset-title" className="tm-orgset__title">
+          {tr('OrgSettingsScreen.a11.title', 'Organization')}
+        </h2>
 
-          {settings.isError ? (
-            <InlineAlert tone="danger" title={t('OrgSettingsScreen.loadErrorTitle')} live>
-              {describeError(settings.error)}
-            </InlineAlert>
-          ) : null}
+        {loadError ? (
+          <InlineAlert
+            tone="danger"
+            title={tr('OrgSettingsScreen.a11.loadError', 'Could not load the settings')}
+            live
+          >
+            {tr('OrgSettingsScreen.a11.tryAgain', 'Reload the page to try again.')}
+          </InlineAlert>
+        ) : null}
 
-          {settings.isPending ? (
-            <LoadingRegion label={t('OrgSettingsScreen.loading')}>
-              <Skeleton height="var(--row)" />
-              <Skeleton height="var(--row)" />
-            </LoadingRegion>
-          ) : null}
+        {loading && !loadError ? (
+          <LoadingRegion label={t('OrgSettingsScreen.loading')}>
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-          {!settings.isPending && !settings.isError && rows.length === 0 ? (
-            <InlineAlert tone="neutral" title={t('OrgSettingsScreen.emptyTitle')}>
-              {t('OrgSettingsScreen.emptyBody')}
-            </InlineAlert>
-          ) : null}
+        {!loading && !loadError ? (
+          <>
+            <div className="tm-orgset-logo">
+              <span className="tm-orgset-logo__orb" aria-hidden="true">
+                {logoFileId ? (
+                  <img
+                    src={`${apiBaseUrl()}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(logoFileId)}/content`}
+                    alt=""
+                  />
+                ) : (
+                  initialsOf(loadedName || organizationName)
+                )}
+              </span>
+              <div className="tm-orgset-logo__text">
+                <p className="tm-orgset-logo__label" id="tm-orgset-logo-label">
+                  {tr('OrgSettingsScreen.a11.logo', 'Logo')}
+                </p>
+                <p className="tm-orgset-logo__hint">
+                  {tr(
+                    'OrgSettingsScreen.a11.logoHint',
+                    'PNG or SVG, at least 256 px. Shown in the app, in emails and in the client portal.',
+                  )}
+                </p>
+              </div>
+              <div className="tm-orgset-logo__actions">
+                {logoFileId ? (
+                  <Button
+                    type="button"
+                    tone="text"
+                    onClick={() => logo.mutate({ kind: 'remove' })}
+                    disabled={logo.isPending}
+                  >
+                    {tr('OrgSettingsScreen.a11.removeLogo', 'Remove')}
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  tone="outline"
+                  className="tm-orgset-btn"
+                  loading={logo.isPending}
+                  loadingLabel={tr('OrgSettingsScreen.a11.uploading', 'Uploading')}
+                  onClick={() => fileInput.current?.click()}
+                >
+                  {tr('OrgSettingsScreen.a11.uploadLogo', 'Upload logo')}
+                </Button>
+                <input
+                  ref={fileInput}
+                  className="tm-orgset-file"
+                  type="file"
+                  accept={LOGO_ACCEPT}
+                  aria-labelledby="tm-orgset-logo-label"
+                  tabIndex={-1}
+                  onChange={onFile}
+                />
+              </div>
+            </div>
+            {logo.isError ? (
+              <InlineAlert
+                tone="danger"
+                title={tr('OrgSettingsScreen.a11.logoError', 'Could not change the logo')}
+                live
+              >
+                {logoProblem(logo.error, tr)}
+              </InlineAlert>
+            ) : null}
 
-          {rows.length > 0 ? (
-            <ul className="tm-cc-rows">
-              {rows.map((entry) => {
-                const meta = LABELS[entry.key];
+            <div className="tm-orgset-name">
+              <Field
+                label={tr('OrgSettingsScreen.a11.name', 'Organization name')}
+                name="organization-name"
+                value={name}
+                maxLength={190}
+                onChange={(event) => {
+                  setSaved(false);
+                  setNameDraft(event.target.value);
+                }}
+              />
+            </div>
+
+            <hr className="tm-orgset-rule" />
+
+            <h3 className="tm-orgset__section">
+              {tr('OrgSettingsScreen.a11.membersTitle', 'What members can do')}
+            </h3>
+            <ul className="tm-orgset-switches">
+              {MEMBER_SWITCH_KEYS.map((key) => {
+                const copy = SWITCH_COPY[key];
+                const labelId = `tm-orgset-${key}-label`;
+                const hintId = `tm-orgset-${key}-hint`;
                 return (
-                  <li key={entry.key}>
-                    <form
-                      className="tm-stack tm-cc-rows__grow"
-                      noValidate
-                      aria-label={`${meta?.label ?? entry.key} ${t('OrgSettingsScreen.settingSuffix')}`}
-                      onSubmit={(event: FormEvent<HTMLFormElement>) => {
-                        event.preventDefault();
-                        if (!save.isPending) save.mutate(entry.key);
+                  <li key={key} className="tm-orgset-switch">
+                    <span className="tm-orgset-switch__text">
+                      <span className="tm-orgset-switch__label" id={labelId}>
+                        {tr(`OrgSettingsScreen.a11.${key}`, copy.label)}
+                      </span>
+                      {copy.hint ? (
+                        <span className="tm-orgset-switch__hint" id={hintId}>
+                          {tr(`OrgSettingsScreen.a11.${key}Hint`, copy.hint)}
+                        </span>
+                      ) : null}
+                    </span>
+                    <input
+                      type="checkbox"
+                      role="switch"
+                      className="tm-switch"
+                      aria-labelledby={labelId}
+                      aria-describedby={copy.hint ? hintId : undefined}
+                      checked={switchValue(key)}
+                      onChange={(event) => {
+                        setSaved(false);
+                        const checked = event.target.checked;
+                        setSwitchDrafts((current) => ({ ...current, [key]: checked }));
                       }}
-                    >
-                      <div className="tm-cc-setting">
-                        <Field
-                          label={meta?.label ?? entry.key}
-                          name={`setting-${entry.key}`}
-                          value={drafts[entry.key] ?? entry.value}
-                          onChange={(event) =>
-                            setDrafts((current) => ({
-                              ...current,
-                              [entry.key]: event.target.value,
-                            }))
-                          }
-                          hint={meta?.hint}
-                        />
-                        <Button
-                          type="submit"
-                          tone="ink"
-                          size="default"
-                          loading={save.isPending && save.variables === entry.key}
-                          loadingLabel={t('OrgSettingsScreen.saving')}
-                        >
-                          {t('OrgSettingsScreen.save')}
-                        </Button>
-                      </div>
-                      {save.isError && save.variables === entry.key ? (
-                        <InlineAlert
-                          tone="danger"
-                          title={t('OrgSettingsScreen.saveErrorTitle')}
-                          live
-                        >
-                          {describeError(save.error)}
-                        </InlineAlert>
-                      ) : null}
-                      {savedKey === entry.key && !save.isPending && !save.isError ? (
-                        <InlineAlert tone="success" title={t('OrgSettingsScreen.savedTitle')} live>
-                          {t('OrgSettingsScreen.savedBody')}
-                        </InlineAlert>
-                      ) : null}
-                    </form>
+                    />
                   </li>
                 );
               })}
             </ul>
-          ) : null}
-        </section>
 
-        <div className="tm-cc-column">
-          <section className="tm-cc-card" aria-labelledby="tm-org-settings-elsewhere">
-            <h2 id="tm-org-settings-elsewhere" className="tm-cc-card__title">
-              {t('OrgSettingsScreen.elsewhereTitle')}
-            </h2>
-            <ul className="tm-cc-rows">
-              <li>
-                <div className="tm-cc-rows__text">
-                  <p className="tm-cc-rows__title">{t('OrgSettingsScreen.signInTitle')}</p>
-                  <p className="tm-cc-rows__sub">{t('OrgSettingsScreen.signInSub')}</p>
-                </div>
-                <Link
-                  href={`/${organizationSlug}/admin/security`}
-                  className="tm-button tm-button--outline tm-button--compact"
-                >
-                  {t('OrgSettingsScreen.security')}
-                </Link>
-              </li>
-              <li>
-                <div className="tm-cc-rows__text">
-                  <p className="tm-cc-rows__title">{t('OrgSettingsScreen.sessionTitle')}</p>
-                  <p className="tm-cc-rows__sub">{t('OrgSettingsScreen.sessionSub')}</p>
-                </div>
-                <Link
-                  href={`/${organizationSlug}/policies`}
-                  className="tm-button tm-button--outline tm-button--compact"
-                >
-                  {t('OrgSettingsScreen.accessPolicy')}
-                </Link>
-              </li>
-              <li>
-                <div className="tm-cc-rows__text">
-                  <p className="tm-cc-rows__title">{t('OrgSettingsScreen.modulesTitle')}</p>
-                  <p className="tm-cc-rows__sub">{t('OrgSettingsScreen.modulesSub')}</p>
-                </div>
-                <Link
-                  href={`/${organizationSlug}/admin/feature-flags`}
-                  className="tm-button tm-button--outline tm-button--compact"
-                >
-                  {t('OrgSettingsScreen.modules')}
-                </Link>
-              </li>
-            </ul>
-          </section>
+            <hr className="tm-orgset-rule" />
 
-          <section
-            className="tm-cc-card tm-cc-card--quiet tm-cc-card--fill"
-            aria-labelledby="tm-org-settings-effect"
-          >
-            <p className="tm-cc-eyebrow">{t('OrgSettingsScreen.effectEyebrow')}</p>
-            <h2 id="tm-org-settings-effect" className="tm-cc-card__title">
-              {t('OrgSettingsScreen.effectTitle')}
-            </h2>
-            <p className="tm-cc-card__body">
-              {t('OrgSettingsScreen.effectBodyPrefix')} {organizationName}{' '}
-              {t('OrgSettingsScreen.effectBodySuffix')}
-            </p>
-          </section>
-        </div>
-      </div>
+            {save.isError ? (
+              <InlineAlert
+                tone="danger"
+                title={tr('OrgSettingsScreen.a11.saveError', 'Could not save the changes')}
+                live
+              >
+                {save.error instanceof ApiRequestError
+                  ? save.error.message
+                  : tr('OrgSettingsScreen.a11.tryAgainLater', 'Something went wrong. Try again.')}
+              </InlineAlert>
+            ) : null}
+            {saved && !dirty ? (
+              <InlineAlert
+                tone="success"
+                title={tr('OrgSettingsScreen.a11.saved', 'Changes saved')}
+                live
+              >
+                {tr('OrgSettingsScreen.a11.savedBody', 'They apply to everyone right away.')}
+              </InlineAlert>
+            ) : null}
+
+            <div className="tm-orgset-footer">
+              <Button
+                type="button"
+                tone="outline"
+                className="tm-orgset-btn"
+                onClick={cancel}
+                disabled={save.isPending}
+              >
+                {tr('OrgSettingsScreen.a11.cancel', 'Cancel')}
+              </Button>
+              <Button
+                type="button"
+                tone="ink"
+                className="tm-orgset-btn"
+                loading={save.isPending}
+                loadingLabel={t('OrgSettingsScreen.saving')}
+                disabled={nameChanged && (nameDraft ?? '').trim() === ''}
+                onClick={() => save.mutate()}
+              >
+                {tr('OrgSettingsScreen.a11.save', 'Save changes')}
+              </Button>
+            </div>
+          </>
+        ) : null}
+      </section>
     </ControlCenterShell>
   );
 }
 
-function describeError(error: unknown): string {
+/** The sentence for a failed logo change. */
+function logoProblem(error: unknown, tr: (key: string, english: string) => string): string {
   if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
+  if (error instanceof Error && error.message === 'logo_type') {
+    return tr('OrgSettingsScreen.a11.logoType', 'Choose a PNG or SVG file.');
+  }
+  if (error instanceof Error && error.message === 'logo_no_project') {
+    return tr(
+      'OrgSettingsScreen.a11.logoNoProject',
+      'Create a project first, then upload the logo.',
+    );
+  }
+  return tr('OrgSettingsScreen.a11.tryAgainLater', 'Something went wrong. Try again.');
 }

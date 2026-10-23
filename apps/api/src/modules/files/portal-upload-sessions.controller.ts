@@ -1,10 +1,21 @@
-import { Body, Controller, Get, Headers, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  HttpCode,
+  Inject,
+  Optional,
+  Param,
+  Post,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { API_CONFIG, FILES_SERVICE } from '../../common/http/tokens.js';
+import { API_CONFIG, FILES_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
-import type { TenantContext } from '../../common/database/tenant-context.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import { requireOrgPermission } from '../tenancy/org-policy.js';
 import type { ClientFileAssetView, FilesService, UploadSessionView } from './files.service.js';
 import { parseParts, parseUploadBody, requiredIdempotencyKey } from './upload-input.js';
 import type { ValidationDetail } from './upload-input.js';
@@ -23,6 +34,8 @@ export class PortalUploadSessionsController {
   constructor(
     @Inject(FILES_SERVICE) private readonly files: FilesService,
     @Inject(API_CONFIG) private readonly config: ApiConfig,
+    // A11: read for the "Clients can upload files" switch.
+    @Optional() @Inject(TENANT_DATABASE) private readonly database?: TenantDatabase,
   ) {}
 
   @Post()
@@ -40,6 +53,8 @@ export class PortalUploadSessionsController {
     if (details.length > 0 || !idempotencyKey || !parsed) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
+    // A11: "Clients can upload files" off refuses a new client upload; one already open may finish.
+    await requireOrgPermission(this.database, context, principal, 'clients_can_upload_files');
     return this.files.createForClient(context, principal, { ...parsed, idempotencyKey });
   }
 
