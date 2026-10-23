@@ -300,6 +300,15 @@ describe('subscriptions, against current rows', () => {
   });
 
   it('an internal non-member and a foreign conversation are refused indistinguishably', async () => {
+    // Since CQ-12 (c3831f25) a new project channel holds the whole project team, so Omar —
+    // on the project, not org-wide — joins it at creation. Take his channel row away so he is
+    // an internal non-member again: still on the project, still holding `conversation.read`,
+    // and refused only because he is not in the channel. The next case re-adds him.
+    await db.admin.execute(
+      'delete from conversation_memberships where organization_id = ? and conversation_id = ? and user_id = ?',
+      [world.northstar.organizationId, conversationId, world.northstar.manager.id],
+    );
+
     const client = await connectAs(world.northstar.manager.id); // Not in the channel.
     client.socket.send(JSON.stringify({ type: 'subscribe', conversationId }));
     expect(await client.next()).toEqual({ type: 'refused', conversationId });
