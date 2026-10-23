@@ -109,12 +109,17 @@ const WORK_ITEM_FIELDS: readonly MessageKey[] = [
 /** "See it in a demo" (SITE-SPEC) — the demo request form on the contact page. */
 const DEMO_HREF = '/contact#book-demo-form';
 
-type TemplateStep = { title: string; when: string; tone: PhaseTone };
+/*
+ * The template cards read every line from `FeaturesWorkPage.tpl*` keys, so the Arabic page shows
+ * Arabic plans (slice M3). Week labels keep Western digits, as the rest of the Arabic copy does.
+ */
+type TemplateStep = { titleKey: MessageKey; whenKey: MessageKey; tone: PhaseTone };
 
 interface TemplateData {
-  title: string;
-  meta: string;
-  length: string;
+  id: string;
+  titleKey: MessageKey;
+  metaKey: MessageKey;
+  lengthKey: MessageKey;
   phases: readonly PhaseTone[];
   /** The three steps the closed card shows. */
   steps: readonly TemplateStep[];
@@ -122,59 +127,68 @@ interface TemplateData {
   plan: readonly TemplateStep[];
 }
 
+const step = (titleKey: MessageKey, whenKey: MessageKey, tone: PhaseTone): TemplateStep => ({
+  titleKey,
+  whenKey,
+  tone,
+});
+
 const TEMPLATES: readonly TemplateData[] = [
   {
-    title: 'Website relaunch',
-    meta: '6 milestones · 38 work items · 2 client reviews',
-    length: '8 weeks',
+    id: 'website',
+    titleKey: 'FeaturesWorkPage.tplWebsiteTitle',
+    metaKey: 'FeaturesWorkPage.tplWebsiteMeta',
+    lengthKey: 'FeaturesWorkPage.tplWebsiteLength',
     phases: ['internal', 'internal', 'client', 'internal', 'client', 'launch'],
     steps: [
-      { title: 'Discovery and sitemap', when: 'WK 1–2', tone: 'internal' },
-      { title: 'Homepage direction review', when: 'WK 3', tone: 'client' },
-      { title: 'Launch and handover', when: 'WK 8', tone: 'launch' },
+      step('FeaturesWorkPage.tplStepDiscovery', 'FeaturesWorkPage.tplWk1to2', 'internal'),
+      step('FeaturesWorkPage.tplStepHomepageReview', 'FeaturesWorkPage.tplWk3', 'client'),
+      step('FeaturesWorkPage.tplStepLaunch', 'FeaturesWorkPage.tplWk8', 'launch'),
     ],
     plan: [
-      { title: 'Discovery and sitemap', when: 'WK 1–2', tone: 'internal' },
-      { title: 'Content audit and wireframes', when: 'WK 2–3', tone: 'internal' },
-      { title: 'Homepage direction review', when: 'WK 3', tone: 'client' },
-      { title: 'Templates and content build', when: 'WK 4–6', tone: 'internal' },
-      { title: 'Staging review with client', when: 'WK 7', tone: 'client' },
-      { title: 'Launch and handover', when: 'WK 8', tone: 'launch' },
+      step('FeaturesWorkPage.tplStepDiscovery', 'FeaturesWorkPage.tplWk1to2', 'internal'),
+      step('FeaturesWorkPage.tplStepContentAudit', 'FeaturesWorkPage.tplWk2to3', 'internal'),
+      step('FeaturesWorkPage.tplStepHomepageReview', 'FeaturesWorkPage.tplWk3', 'client'),
+      step('FeaturesWorkPage.tplStepBuild', 'FeaturesWorkPage.tplWk4to6', 'internal'),
+      step('FeaturesWorkPage.tplStepStagingReview', 'FeaturesWorkPage.tplWk7', 'client'),
+      step('FeaturesWorkPage.tplStepLaunch', 'FeaturesWorkPage.tplWk8', 'launch'),
     ],
   },
   {
-    title: 'Brand identity sprint',
-    meta: '4 milestones · 22 work items · 3 concept rounds',
-    length: '5 weeks',
+    id: 'brand',
+    titleKey: 'FeaturesWorkPage.tplBrandTitle',
+    metaKey: 'FeaturesWorkPage.tplBrandMeta',
+    lengthKey: 'FeaturesWorkPage.tplBrandLength',
     phases: ['internal', 'client', 'client', 'internal', 'launch'],
     steps: [
-      { title: 'Brief and brand audit', when: 'WK 1', tone: 'internal' },
-      { title: 'Concept round with client', when: 'WK 2–3', tone: 'client' },
-      { title: 'Final identity kit', when: 'WK 5', tone: 'launch' },
+      step('FeaturesWorkPage.tplStepBrief', 'FeaturesWorkPage.tplWk1', 'internal'),
+      step('FeaturesWorkPage.tplStepConceptRound', 'FeaturesWorkPage.tplWk2to3', 'client'),
+      step('FeaturesWorkPage.tplStepIdentityKit', 'FeaturesWorkPage.tplWk5', 'launch'),
     ],
     plan: [
-      { title: 'Brief and brand audit', when: 'WK 1', tone: 'internal' },
-      { title: 'Concept round with client', when: 'WK 2', tone: 'client' },
-      { title: 'Refined direction review', when: 'WK 3', tone: 'client' },
-      { title: 'Guidelines and asset build', when: 'WK 4', tone: 'internal' },
-      { title: 'Final identity kit', when: 'WK 5', tone: 'launch' },
+      step('FeaturesWorkPage.tplStepBrief', 'FeaturesWorkPage.tplWk1', 'internal'),
+      step('FeaturesWorkPage.tplStepConceptRound', 'FeaturesWorkPage.tplWk2', 'client'),
+      step('FeaturesWorkPage.tplStepRefinedReview', 'FeaturesWorkPage.tplWk3', 'client'),
+      step('FeaturesWorkPage.tplStepGuidelines', 'FeaturesWorkPage.tplWk4', 'internal'),
+      step('FeaturesWorkPage.tplStepIdentityKit', 'FeaturesWorkPage.tplWk5', 'launch'),
     ],
   },
   {
-    title: 'Monthly retainer',
-    meta: 'Recurs monthly · request intake · Pulse update',
-    length: 'Monthly',
+    id: 'retainer',
+    titleKey: 'FeaturesWorkPage.tplRetainerTitle',
+    metaKey: 'FeaturesWorkPage.tplRetainerMeta',
+    lengthKey: 'FeaturesWorkPage.tplRetainerLength',
     phases: ['internal', 'internal', 'client', 'launch'],
     steps: [
-      { title: 'Request intake and triage', when: 'WK 1', tone: 'internal' },
-      { title: 'Deliverables in review', when: 'WK 2–3', tone: 'client' },
-      { title: 'Pulse update to client', when: 'WK 4', tone: 'launch' },
+      step('FeaturesWorkPage.tplStepIntake', 'FeaturesWorkPage.tplWk1', 'internal'),
+      step('FeaturesWorkPage.tplStepDeliverables', 'FeaturesWorkPage.tplWk2to3', 'client'),
+      step('FeaturesWorkPage.tplStepPulse', 'FeaturesWorkPage.tplWk4', 'launch'),
     ],
     plan: [
-      { title: 'Request intake and triage', when: 'WK 1', tone: 'internal' },
-      { title: 'Planned work in progress', when: 'WK 1–3', tone: 'internal' },
-      { title: 'Deliverables in review', when: 'WK 2–3', tone: 'client' },
-      { title: 'Pulse update to client', when: 'WK 4', tone: 'launch' },
+      step('FeaturesWorkPage.tplStepIntake', 'FeaturesWorkPage.tplWk1', 'internal'),
+      step('FeaturesWorkPage.tplStepPlannedWork', 'FeaturesWorkPage.tplWk1to3', 'internal'),
+      step('FeaturesWorkPage.tplStepDeliverables', 'FeaturesWorkPage.tplWk2to3', 'client'),
+      step('FeaturesWorkPage.tplStepPulse', 'FeaturesWorkPage.tplWk4', 'launch'),
     ],
   },
 ];
@@ -206,20 +220,32 @@ function TemplateCard({ tpl }: { tpl: TemplateData }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const previewId = useId();
-  const shown = open ? tpl.plan : tpl.steps;
+  const title = t(tpl.titleKey);
+  const shown = (open ? tpl.plan : tpl.steps).map((s) => ({
+    title: t(s.titleKey),
+    when: t(s.whenKey),
+    tone: s.tone,
+  }));
+  const stepsAlt = shown
+    .map((s) =>
+      t('FeaturesWorkPage.tplStepAlt').replace('{title}', s.title).replace('{when}', s.when),
+    )
+    .join(t('FeaturesWorkPage.tplStepSep'));
   return (
     <li className="tm-fw-template">
       <div id={previewId}>
         <TemplatePreview
-          label={`${tpl.title} template: ${shown.map((s) => `${s.title}, ${s.when}`).join('; ')}.`}
+          label={t('FeaturesWorkPage.tplPreviewAlt')
+            .replace('{title}', title)
+            .replace('{steps}', stepsAlt)}
           phases={tpl.phases}
           steps={shown}
         />
       </div>
-      <h3 className="tm-fw-template__title">{tpl.title}</h3>
-      <p className="tm-fw-template__meta">{tpl.meta}</p>
+      <h3 className="tm-fw-template__title">{title}</h3>
+      <p className="tm-fw-template__meta">{t(tpl.metaKey)}</p>
       <div className="tm-fw-template__foot">
-        <Badge>{tpl.length}</Badge>
+        <Badge>{t(tpl.lengthKey)}</Badge>
         <span className="tm-fw-template__actions">
           <Button
             tone="outline"
@@ -398,7 +424,7 @@ export function FeaturesWorkPage() {
         />
         <ul className="tm-fw-templates">
           {TEMPLATES.map((tpl) => (
-            <TemplateCard key={tpl.title} tpl={tpl} />
+            <TemplateCard key={tpl.id} tpl={tpl} />
           ))}
         </ul>
       </WebSection>
