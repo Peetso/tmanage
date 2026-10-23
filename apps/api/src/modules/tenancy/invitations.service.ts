@@ -1,4 +1,4 @@
-import { authorize, isClientRole, isInternalRole, uuidv7 } from '@tmanage/domain';
+import { authorize, isClientRole, isInternalRole, PROJECT_ROLES, uuidv7 } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import { serializeForLog } from '../../common/observability/logger.js';
@@ -187,6 +187,22 @@ export interface InvitationPreviewView {
    * can never pass. Same audience as `inviteeEmail`, so it tells nobody anything new.
    */
   readonly hasAccount: boolean;
+  /** A1 (0218). The inviter's personal note, or null. Same audience as `inviteeEmail`. */
+  readonly note: string | null;
+}
+
+/** A1: at most this many projects on one invitation (the invite dialog's multi-select). */
+export const MAX_INVITATION_PROJECTS = 20;
+/** A1: `invitations.note` is `VARCHAR(500)`. */
+export const MAX_INVITATION_NOTE_LENGTH = 500;
+
+/**
+ * The project role an accepted invitee gets on each "Add to projects" project: their organization
+ * role when it is also a project role (manager, member, guest), otherwise `member` — an owner or
+ * admin already reaches every project through their org-wide scope.
+ */
+export function projectRoleForInvitation(role: string): string {
+  return (PROJECT_ROLES as readonly string[]).includes(role) ? role : 'member';
 }
 
 export interface AcceptedInvitationView {
@@ -255,6 +271,10 @@ export class InvitationsService {
       readonly email: string;
       readonly role: string;
       readonly clientOrganizationId?: string | null;
+      /** A1: projects the invitee joins on acceptance. Internal invitations only. */
+      readonly projectIds?: readonly string[];
+      /** A1: the inviter's personal note. */
+      readonly note?: string | null;
     },
     now: Date = new Date(),
   ): Promise<IssuedInvitationView> {
@@ -264,6 +284,25 @@ export class InvitationsService {
     const email = input.email.trim().toLowerCase();
     this.requireRoleMatchesDestination(input.role, clientOrganizationId);
     requireOwnerToGrantOwner(principal, input.role, 'invitation.issue');
+
+    const projectIds = [...new Set(input.projectIds ?? [])];
+    if (projectIds.length > 0 && clientOrganizationId !== null) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'projectIds', message: 'a client invitation cannot add projects' },
+      ]);
+    }
+    if (projectIds.length > MAX_INVITATION_PROJECTS) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'projectIds', message: `at most ${MAX_INVITATION_PROJECTS} projects` },
+      ]);
+    }
+    const trimmedNote = typeof input.note === 'string' ? input.note.trim() : '';
+    if (trimmedNote.length > MAX_INVITATION_NOTE_LENGTH) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'note', message: `at most ${MAX_INVITATION_NOTE_LENGTH} characters` },
+      ]);
+    }
+    const note = trimmedNote === '' ? null : trimmedNote;
 
     const { token, tokenHash } = issueInvitationToken();
     const expiresAt = this.expiryFrom(now);
@@ -281,6 +320,16 @@ export class InvitationsService {
         ]);
       }
 
+      if (projectIds.length > 0) {
+        // A foreign, unknown or archived project is one 400 naming the field, never which id.
+        const live = await this.invitations.liveProjectIds(tx, context, projectIds);
+        if (live.length !== projectIds.length) {
+          throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+            { field: 'projectIds', message: 'every project must be a live project here' },
+          ]);
+        }
+      }
+
       const issued = await this.invitations.issue(tx, context, {
         email,
         role: input.role,
@@ -288,7 +337,9 @@ export class InvitationsService {
         tokenHash,
         expiresAt,
         invitedByUserId: context.userId,
+        note,
       });
+      await this.invitations.attachProjects(tx, context, issued.id, projectIds);
 
       await this.audit?.record(tx, context, {
         action: 'invitation.issued',
@@ -296,6 +347,8 @@ export class InvitationsService {
         result: 'allowed',
         metadata: {
           role: issued.role,
+          // How many projects, never the note: prose is not audit metadata.
+          ...(projectIds.length > 0 ? { project_count: String(projectIds.length) } : {}),
           // Which kind of invitation, never the address. An email is personal data and §12's
           // metadata rule is identifiers and classifications — see `isSafeAuditMetadata`.
           destination: clientOrganizationId === null ? 'organization' : 'client_organization',
@@ -348,6 +401,7 @@ export class InvitationsService {
           metadata: { revocation: 'reissued' },
         });
 
+        const carriedProjects = await this.invitations.projectIdsFor(tx, context, revoked.id);
         const issued = await this.invitations.issue(tx, context, {
           email: previous.email,
           role,
@@ -355,7 +409,10 @@ export class InvitationsService {
           tokenHash,
           expiresAt,
           invitedByUserId: context.userId,
+          // A1: the re-issued invitation keeps the note and the projects of the one it replaces.
+          note: previous.note ?? null,
         });
+        await this.invitations.attachProjects(tx, context, issued.id, carriedProjects);
         await this.audit?.record(tx, context, {
           action: 'invitation.issued',
           objectId: issued.id,
@@ -572,11 +629,26 @@ export class InvitationsService {
         'active',
       );
 
+      // A1: the "Add to projects" choice lands now, not at issue — only an accepted invitation
+      // makes anyone a project member. A project archived since issue is skipped.
+      const projectIds = await this.invitations.projectIdsFor(tx, context, accepted.id);
+      const joined = await this.invitations.addProjectMemberships(
+        tx,
+        context,
+        userId,
+        projectIds,
+        projectRoleForInvitation(accepted.role),
+      );
+
       await this.audit?.record(tx, context, {
         action: 'invitation.accepted',
         objectId: accepted.id,
         result: 'allowed',
-        metadata: { role: accepted.role, destination: 'organization' },
+        metadata: {
+          role: accepted.role,
+          destination: 'organization',
+          ...(joined > 0 ? { project_count: String(joined) } : {}),
+        },
       });
 
       return {
@@ -669,6 +741,7 @@ export class InvitationsService {
       expiresAt: row.expiresAt.toISOString(),
       inviteeEmail: row.inviteeEmail,
       hasAccount: account !== null,
+      note: row.note ?? null,
     };
   }
 

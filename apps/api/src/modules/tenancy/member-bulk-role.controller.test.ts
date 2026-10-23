@@ -16,7 +16,7 @@ import type { CustomRoleRow } from '../../common/database/schema.js';
  * these cases prove the rules that are the whole of this slice's safety — the addressed role is resolved
  * tenant-scoped BEFORE authorize (a cross-tenant/unknown role id is a 404 with no write, the Known trap);
  * the privilege-escalation guard refuses a role whose capability subset the caller cannot exercise
- * org-wide (a reviewer-gated capability like `approval.decide` is a 403 with no write for anyone, so a bulk assign
+ * org-wide (a reviewer-gated capability like `approval.decide` is a 403 with no write for a non-owner, so a bulk assign
  * can never hand out a role beyond the caller); a foreign/unknown membership id is reported not-found and
  * never written; the batch is bounded (over the cap is a 400); and the route sits behind `org.manage`.
  */
@@ -170,6 +170,17 @@ describe('MemberBulkRoleController (ADM bulk role assignment, x222)', () => {
       403,
     );
     expect(repo.applied).toHaveLength(0);
+  });
+
+  it('lets the owner assign a role carrying approval.decide (ADM-08)', async () => {
+    const repo = new FakeBulkRoleRepository(
+      [role('r1', 'Approver', ['work.read', 'approval.decide'])],
+      new Set(['m1']),
+    );
+    const controller = controllerWith(repo);
+
+    await controller.assign(context, owner(), 'org', { roleId: 'r1', membershipIds: ['m1'] });
+    expect(repo.applied).toEqual([{ membershipId: 'm1', roleId: 'r1' }]);
   });
 
   it('reports a foreign/unknown membership id not-found and never writes it', async () => {

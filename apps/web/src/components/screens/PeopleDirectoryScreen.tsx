@@ -1,20 +1,29 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
-import { AppShell } from '../shell/AppShell';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { ControlCenterShell } from '../admin/ControlCenterShell';
+import {
+  ChangeRoleDialog,
+  fill,
+  firstNameOf,
+  initialsOf,
+  useRoleChipLabel,
+} from '../people/ChangeRoleDialog';
+import type { ChangeRoleTarget } from '../people/ChangeRoleDialog';
+import { InviteMemberDialog } from '../people/InviteMemberDialog';
+import { MemberPasswordResetDialog } from '../people/MemberPasswordResetDialog';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listPeople } from '../../lib/api/people';
 import type { PersonSummary } from '../../lib/api/people';
-import { listTeams } from '../../lib/api/people-teams';
-import { listOrganizations } from '../../lib/api/organizations';
-import { describeInternalRole } from '../../lib/roles';
-import { useHydrated } from '../../lib/use-hydrated';
+import { fetchPendingInvitations } from '../../lib/api/admin-invitations';
 import type { ApiClient } from '../../lib/api/client';
-import { describePeopleError, initialsOf } from './peopleShared';
-import { useT } from '../../lib/i18n/use-t';
+import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { describePeopleError } from './peopleShared';
 import '../../styles/screens/people.css';
 
 export interface PeopleDirectoryScreenProps {
@@ -24,25 +33,73 @@ export interface PeopleDirectoryScreenProps {
   client?: ApiClient;
 }
 
-/** Owner and org admin may invite; everyone else is never offered a button they would be refused. */
-const INVITING_ROLES = new Set(['owner', 'org_admin', 'admin']);
+/**
+ * The roster row as this screen reads it. `email`, `lastActiveAt` and `version` are drawn when the
+ * directory read carries them (r-people's second line, LAST ACTIVE, the role change's
+ * compare-and-swap token); an API that omits them shows no address, "—", and a PATCH without a
+ * version.
+ */
+type MemberRow = PersonSummary & {
+  readonly email?: string | null;
+  readonly lastActiveAt?: string | null;
+  readonly version?: number;
+};
+
+/** Owner and org admin assign roles and invite (`12-PERMISSION-MATRIX` §2 "Assign roles"). */
+const ROLE_ASSIGNERS = new Set(['owner', 'org_admin']);
+
+const PLURAL_EN: Record<string, { one: string; other: string }> = {
+  members: { one: '1 member', other: '{count} members' },
+  invitations: { one: '1 invitation waiting', other: '{count} invitations waiting' },
+  projects: { one: '1 project', other: '{count} projects' },
+};
+
+/** A count in the active locale's plural form — Arabic has six, English two. */
+function usePlural(): (kind: 'members' | 'invitations' | 'projects', count: number) => string {
+  const tr = useTOr();
+  const locale = useActiveLocale();
+  return (kind, count) => {
+    const category = new Intl.PluralRules(locale).select(count);
+    const english = PLURAL_EN[kind] ?? { one: '{count}', other: '{count}' };
+    const fallback = category === 'one' ? english.one : english.other;
+    return fill(tr(`PeopleDirectoryScreen.${kind}.${category}`, fallback), {
+      count: count.toLocaleString(locale),
+    });
+  };
+}
+
+/** "Online now"-style wording for LAST ACTIVE, in the active locale; "—" when unknown. */
+function useLastActive(): (iso: string | null | undefined) => string {
+  const tr = useTOr();
+  const locale = useActiveLocale();
+  return (iso) => {
+    const at = iso ? Date.parse(iso) : Number.NaN;
+    if (Number.isNaN(at)) return tr('PeopleDirectoryScreen.lastActiveUnknown', '—');
+    const minutes = Math.round((at - Date.now()) / 60_000);
+    const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' });
+    if (Math.abs(minutes) < 60) return format.format(minutes, 'minute');
+    const hours = Math.round(minutes / 60);
+    if (Math.abs(hours) < 24) return format.format(hours, 'hour');
+    const days = Math.round(hours / 24);
+    if (Math.abs(days) < 7) return format.format(days, 'day');
+    return format.format(Math.round(days / 7), 'week');
+  };
+}
+
+type Dialog =
+  | { readonly kind: 'role'; readonly target: ChangeRoleTarget }
+  | { readonly kind: 'reset'; readonly person: MemberRow }
+  | { readonly kind: 'invite' };
 
 /**
- * **People & capacity** — module 14, audit #4; drawn as PEO-01 "Directory".
+ * **Members and roles** — Control Center › People (Figma 374:1985, r-people; A1).
  *
- * Everyone in the organization, by name, with the role they hold, whether they are active, and how
- * many projects they are on. The design's collection: a mono eyebrow and a 44px headline, the search
- * capsule and "Invite person" at the end of the header, a row of filter chips, the roster as a
- * bordered table, and a context column (the selected person, the teams, and what the directory
- * never lists).
- *
- * The roster is grouped by team (the first team a person is assigned to; nobody is listed twice)
- * with a "No team" group last, and each row carries the open work the person owns (with how much is
- * past due) and what they have **declared** for the next two weeks — never inferred: no window
- * declared reads "Full week". The role's own authority comes from `lib/roles`.
- *
- * The search is the server's: the list is one page, so typing a name asks the API to narrow the
- * roster rather than filtering whatever page the browser happens to hold.
+ * The PEOPLE eyebrow, "Members and roles", "N members · M invitations waiting", the black
+ * "Invite member", and the roster as a table: NAME (initials, name, address), ROLE (a chip that
+ * opens Change role for an owner or admin), PROJECTS, LAST ACTIVE and a row menu — Change role,
+ * Send password reset link, View profile, and the red "Remove from <organization>" that opens
+ * offboarding. The footnote says the one rule the menu enforces: only an owner changes an owner's
+ * role. The screen draws its own header (the frame's), so the shell's is hidden.
  */
 export function PeopleDirectoryScreen({
   organizationSlug,
@@ -50,432 +107,403 @@ export function PeopleDirectoryScreen({
   client,
 }: PeopleDirectoryScreenProps) {
   const api = client ?? browserApiClient();
-  const t = useT();
-  // The standing `useHydrated` barrier: the search ships disabled in the server render, so a name
-  // typed before hydration cannot sit in the DOM while the roster query still searches for nothing.
-  const hydrated = useHydrated();
-  const [search, setSearch] = useState('');
-  const [roleFilter, setRoleFilter] = useState<string | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const term = search.trim();
+  const tr = useTOr();
+  const plural = usePlural();
+  const queryClient = useQueryClient();
+  const workspace = useOrganizationName(organizationSlug, organizationName) || organizationName;
+  const { role: myRole } = useOrganizationRole(organizationSlug);
+  const canAssign = myRole !== undefined && ROLE_ASSIGNERS.has(myRole);
+  const iAmOwner = myRole === 'owner';
+  const [dialog, setDialog] = useState<Dialog | null>(null);
+  const [announcement, setAnnouncement] = useState('');
+  const chip = useRoleChipLabel();
 
   const people = useQuery({
-    queryKey: ['people-directory', organizationSlug, term],
-    queryFn: () => listPeople(api, organizationSlug, term === '' ? {} : { q: term }),
+    queryKey: ['people-directory', organizationSlug, ''],
+    queryFn: () => listPeople(api, organizationSlug, {}),
   });
 
-  const teams = useQuery({
-    queryKey: ['people-teams', organizationSlug],
-    queryFn: () => listTeams(api, organizationSlug),
+  const invitations = useQuery({
+    queryKey: ['admin-invitations', organizationSlug],
+    queryFn: () => fetchPendingInvitations(api, organizationSlug),
+    enabled: canAssign,
+    retry: false,
   });
 
-  const organizations = useQuery({
-    queryKey: ['shell', 'organizations'],
-    queryFn: () => listOrganizations(api),
-    staleTime: 5 * 60_000,
-  });
-  const myRole = Array.isArray(organizations.data)
-    ? organizations.data.find((org) => org.slug === organizationSlug)?.role
-    : undefined;
-  const canInvite = myRole !== undefined && INVITING_ROLES.has(myRole);
+  const roster: readonly MemberRow[] = people.isSuccess ? people.data.people : [];
+  const complete = people.isSuccess && people.data.nextAfter === null;
+  const activeOwners = roster.filter((person) => person.role === 'owner').length;
+  const waiting = Array.isArray(invitations.data?.invitations)
+    ? invitations.data.invitations.filter((invitation) => !invitation.isExpired).length
+    : null;
 
-  const roster = useMemo(
-    () => (people.isSuccess ? people.data.people : ([] as readonly PersonSummary[])),
-    [people.isSuccess, people.data],
-  );
-  const roles = useMemo(() => [...new Set(roster.map((person) => person.role))], [roster]);
-  const shown =
-    roleFilter === null ? roster : roster.filter((person) => person.role === roleFilter);
-  const selected = shown.find((person) => person.userId === selectedId) ?? shown[0];
-  const teamList = Array.isArray(teams.data?.teams) ? teams.data.teams : [];
-  const groups = groupByTeam(shown);
+  const reload = () => {
+    void queryClient.invalidateQueries({ queryKey: ['people-directory', organizationSlug] });
+    void queryClient.invalidateQueries({ queryKey: ['admin-invitations', organizationSlug] });
+  };
+
+  const summary = people.isSuccess
+    ? [
+        plural('members', roster.length),
+        ...(waiting !== null ? [plural('invitations', waiting)] : []),
+      ].join(' · ')
+    : null;
+
+  const title = tr('PeopleDirectoryScreen.membersTitle', 'Members and roles');
 
   return (
-    <AppShell
+    <ControlCenterShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
-      activeNavigationId="people"
-      eyebrow={
-        people.isSuccess
-          ? `${t('PeopleDirectoryScreen.eyebrow')} · ${roster.length} ${t('PeopleDirectoryScreen.internalSuffix')}`
-          : t('PeopleDirectoryScreen.eyebrow')
-      }
-      title={t('PeopleDirectoryScreen.title')}
-      actions={
-        <div className="ppl-header-actions">
-          <form role="search" onSubmit={(event) => event.preventDefault()}>
-            <fieldset className="tm-fieldset" disabled={!hydrated}>
-              <SearchField
-                className="ppl-search"
-                label={t('PeopleDirectoryScreen.searchLabel')}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={t('PeopleDirectoryScreen.searchPlaceholder')}
-              />
-            </fieldset>
-          </form>
-          {canInvite ? (
-            <Link
-              href={`/${organizationSlug}/onboarding/team`}
-              className="tm-button tm-button--ink ppl-cta"
-            >
-              {t('PeopleDirectoryScreen.invitePerson')}
-            </Link>
-          ) : null}
-        </div>
-      }
+      section="members"
+      crumbs={[title]}
+      title={title}
+      client={api}
     >
-      <div className="ppl-screen">
-        <div
-          className="ppl-filters"
-          role="group"
-          aria-label={t('PeopleDirectoryScreen.filterByRole')}
-        >
-          <button
-            type="button"
-            className="tm-chip"
-            aria-pressed={roleFilter === null}
-            onClick={() => setRoleFilter(null)}
-          >
-            {t('PeopleDirectoryScreen.everyone')}
-          </button>
-          {roles.map((role) => (
+      <div className="ppl-screen ppl-screen--own-header">
+        <header className="ppl-members-header">
+          <div>
+            <p className="ppl-mono ppl-members-header__eyebrow">
+              {tr('PeopleDirectoryScreen.membersEyebrow', 'People')}
+            </p>
+            <h1 className="ppl-members-header__title">{title}</h1>
+            {summary ? <p className="ppl-members-header__summary">{summary}</p> : null}
+          </div>
+          {canAssign ? (
             <button
-              key={role}
               type="button"
-              className="tm-chip"
-              aria-pressed={roleFilter === role}
-              onClick={() => setRoleFilter(role)}
+              className="tm-button tm-button--ink ppl-members-header__cta"
+              onClick={() => setDialog({ kind: 'invite' })}
             >
-              {describeInternalRole(role).label}
+              {tr('PeopleDirectoryScreen.inviteMember', 'Invite member')}
             </button>
-          ))}
-          <div className="ppl-filters__end">
-            <span className="ppl-mono">{t('PeopleDirectoryScreen.groupedByTeam')}</span>
-            <span className="ppl-static-chip">{t('PeopleDirectoryScreen.sortName')}</span>
-          </div>
-        </div>
+          ) : null}
+        </header>
 
-        <div className="ppl-body">
-          <section className="ppl-card ppl-card--flush ppl-main" aria-labelledby="tm-people-list">
-            <h2 id="tm-people-list" className="tm-visually-hidden">
-              {t('PeopleDirectoryScreen.peopleHeading')}
-            </h2>
-            <div className="ppl-table-head" aria-hidden="true">
-              <span className="ppl-col-person">{t('PeopleDirectoryScreen.colPerson')}</span>
-              <span className="ppl-col-role">{t('PeopleDirectoryScreen.colRole')}</span>
-              <span className="ppl-col-projects">{t('PeopleDirectoryScreen.colProjects')}</span>
-              <span className="ppl-col-commit">{t('PeopleDirectoryScreen.colCommitments')}</span>
-              <span className="ppl-col-declared">{t('PeopleDirectoryScreen.colDeclared')}</span>
-            </div>
+        <p className="tm-visually-hidden" role="status" aria-live="polite">
+          {announcement}
+        </p>
 
-            {people.isPending ? (
-              <LoadingRegion
-                label={t('PeopleDirectoryScreen.loading')}
-                className="tm-stack tm-stack--tight ppl-loading"
-              >
-                <Skeleton height="var(--row)" />
-                <Skeleton height="var(--row)" />
-              </LoadingRegion>
-            ) : null}
+        {people.isPending ? (
+          <LoadingRegion
+            label={tr('PeopleDirectoryScreen.loadingMembers', 'Loading members')}
+            className="tm-stack tm-stack--tight ppl-members-loading"
+          >
+            <Skeleton height="68px" />
+            <Skeleton height="68px" />
+          </LoadingRegion>
+        ) : null}
 
-            {people.isError ? (
-              <div className="ppl-loading">
-                <InlineAlert tone="danger" title={t('PeopleDirectoryScreen.loadError')} live>
-                  {describePeopleError(people.error)}
-                </InlineAlert>
-              </div>
-            ) : null}
+        {people.isError ? (
+          <InlineAlert
+            tone="danger"
+            title={tr('PeopleDirectoryScreen.membersLoadError', 'Members could not be loaded')}
+            live
+          >
+            {describePeopleError(people.error)}
+          </InlineAlert>
+        ) : null}
 
-            {people.isSuccess ? (
-              <>
-                {shown.length === 0 ? (
-                  <div className="ppl-loading">
-                    <InlineAlert tone="neutral">
-                      {term === ''
-                        ? t('PeopleDirectoryScreen.emptyNobody')
-                        : `${t('PeopleDirectoryScreen.noMatch')} “${term}”.`}
-                    </InlineAlert>
-                  </div>
-                ) : null}
-                <ul className="ppl-people" aria-label={t('PeopleDirectoryScreen.peopleListLabel')}>
-                  {groups.map((group) => (
-                    <li key={group.key} className="ppl-people__group">
-                      <p className="ppl-mono ppl-group" id={`ppl-group-${group.key}`}>
-                        {group.label} · {group.people.length}
-                      </p>
-                      <ul className="ppl-people" aria-labelledby={`ppl-group-${group.key}`}>
-                        {group.people.map((person) => (
-                          <PersonRow
-                            key={person.userId}
-                            person={person}
-                            selected={person.userId === selected?.userId}
-                            onSelect={() => setSelectedId(person.userId)}
-                          />
-                        ))}
-                      </ul>
-                    </li>
-                  ))}
-                </ul>
-              </>
-            ) : null}
-
-            {people.isSuccess && people.data.nextAfter !== null ? (
-              <div className="ppl-loading">
-                <InlineAlert tone="neutral">{t('PeopleDirectoryScreen.morePeople')}</InlineAlert>
-              </div>
-            ) : null}
-          </section>
-
-          <div className="ppl-aside">
-            {selected ? (
-              <SelectedPerson person={selected} organizationSlug={organizationSlug} />
-            ) : null}
-
-            <section className="ppl-card ppl-card--tight" aria-labelledby="tm-people-teams">
-              <h2 id="tm-people-teams" className="ppl-mono">
-                {t('PeopleDirectoryScreen.teamsHeading')}
-              </h2>
-              {teams.isPending ? (
-                <LoadingRegion label={t('PeopleDirectoryScreen.loadingTeams')}>
-                  <Skeleton height="40px" />
-                </LoadingRegion>
-              ) : teams.isError ? (
-                <p className="ppl-note">{t('PeopleDirectoryScreen.teamsError')}</p>
-              ) : teamList.length === 0 ? (
-                <p className="ppl-note">
-                  {t('PeopleDirectoryScreen.noTeams')}{' '}
-                  <Link href={`/${organizationSlug}/people/teams`}>
-                    {t('PeopleDirectoryScreen.openTeams')}
-                  </Link>
-                </p>
-              ) : (
-                <ul className="ppl-soft-list">
-                  {teamList.map((team) => (
-                    <li key={team.id}>
-                      <Link href={`/${organizationSlug}/people/teams`} className="ppl-soft-row">
-                        {team.name}
-                        <span className="ppl-soft-row__end">{team.memberCount}</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            <section
-              className="ppl-card ppl-card--tight ppl-card--ink"
-              aria-labelledby="tm-people-never"
+        {people.isSuccess ? (
+          <div className="ppl-members-card">
+            <table
+              className="ppl-members"
+              aria-label={tr('PeopleDirectoryScreen.listLabel', 'People in this organization')}
             >
-              <h2 id="tm-people-never" className="ppl-mono">
-                {t('PeopleDirectoryScreen.neverTitle')}
-              </h2>
-              <p className="ppl-note ppl-note--ink">{t('PeopleDirectoryScreen.neverBody')}</p>
-            </section>
+              <thead>
+                <tr>
+                  <th scope="col">{tr('PeopleDirectoryScreen.membersColName', 'Name')}</th>
+                  <th scope="col">{tr('PeopleDirectoryScreen.membersColRole', 'Role')}</th>
+                  <th scope="col">{tr('PeopleDirectoryScreen.membersColProjects', 'Projects')}</th>
+                  <th scope="col">
+                    {tr('PeopleDirectoryScreen.membersColLastActive', 'Last active')}
+                  </th>
+                  <th scope="col">
+                    <span className="tm-visually-hidden">
+                      {tr('PeopleDirectoryScreen.membersColActions', 'Actions')}
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {roster.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="ppl-members__empty">
+                      {tr('PeopleDirectoryScreen.noMembers', 'No members yet.')}
+                    </td>
+                  </tr>
+                ) : (
+                  roster.map((person) => {
+                    // Only an owner changes an owner's seat (the API's CQ-06 rule, drawn here).
+                    const mayChange = canAssign && (person.role !== 'owner' || iAmOwner);
+                    return (
+                      <MemberRowView
+                        key={person.userId}
+                        person={person}
+                        organizationSlug={organizationSlug}
+                        organizationName={workspace}
+                        mayChangeRole={mayChange}
+                        mayManage={canAssign}
+                        chipLabel={chip(person.role)}
+                        projectsLabel={plural('projects', person.projectCount)}
+                        onChangeRole={() =>
+                          setDialog({
+                            kind: 'role',
+                            target: {
+                              userId: person.userId,
+                              displayName: person.displayName,
+                              role: person.role,
+                              ...(typeof person.version === 'number'
+                                ? { version: person.version }
+                                : {}),
+                            },
+                          })
+                        }
+                        onSendReset={() => setDialog({ kind: 'reset', person })}
+                      />
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-        </div>
+        ) : null}
+
+        {people.isSuccess && !complete ? (
+          <p className="ppl-members-footnote">
+            {tr(
+              'PeopleDirectoryScreen.moreMembers',
+              'There are more members than this list shows.',
+            )}
+          </p>
+        ) : null}
+
+        <p className="ppl-members-footnote">
+          {tr(
+            'PeopleDirectoryScreen.ownerFootnote',
+            "Only an owner can change another owner's role.",
+          )}
+        </p>
       </div>
-    </AppShell>
+
+      {dialog?.kind === 'role' ? (
+        <ChangeRoleDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          organizationName={workspace}
+          target={dialog.target}
+          isOnlyOwner={complete && activeOwners === 1}
+          onStale={reload}
+          onClose={(changed) => {
+            setDialog(null);
+            if (changed?.changed) {
+              setAnnouncement(
+                fill(tr('PeopleDirectoryScreen.roleChanged', '{name} is now {role}.'), {
+                  name: dialog.target.displayName,
+                  role: chip(changed.role),
+                }),
+              );
+              reload();
+            }
+          }}
+        />
+      ) : null}
+
+      {dialog?.kind === 'reset' ? (
+        <MemberPasswordResetDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          membershipId={dialog.person.membershipId}
+          displayName={dialog.person.displayName}
+          firstName={firstNameOf(dialog.person.displayName)}
+          onClose={() => setDialog(null)}
+        />
+      ) : null}
+
+      {dialog?.kind === 'invite' ? (
+        <InviteMemberDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          organizationName={workspace}
+          onClose={(issued) => {
+            setDialog(null);
+            if (issued) {
+              setAnnouncement(
+                fill(tr('PeopleDirectoryScreen.inviteSent', 'Invitation sent to {email}.'), {
+                  email: issued.invitation.email,
+                }),
+              );
+              reload();
+            }
+          }}
+        />
+      ) : null}
+    </ControlCenterShell>
   );
 }
 
-function PersonRow({
+function MemberRowView({
   person,
-  selected,
-  onSelect,
+  organizationSlug,
+  organizationName,
+  mayChangeRole,
+  mayManage,
+  chipLabel,
+  projectsLabel,
+  onChangeRole,
+  onSendReset,
 }: {
-  person: PersonSummary;
-  selected: boolean;
-  onSelect: () => void;
+  person: MemberRow;
+  organizationSlug: string;
+  organizationName: string;
+  mayChangeRole: boolean;
+  mayManage: boolean;
+  chipLabel: string;
+  projectsLabel: string;
+  onChangeRole: () => void;
+  onSendReset: () => void;
 }) {
-  const t = useT();
-  const role = describeInternalRole(person.role);
-  const overdue = person.overdueCommitments ?? 0;
-  const declared = describeDeclared(person.declared ?? null, new Date());
+  const tr = useTOr();
+  const lastActive = useLastActive();
+  const [open, setOpen] = useState(false);
+  const menuId = useId();
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLUListElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    const onDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (!menuRef.current?.contains(target) && !triggerRef.current?.contains(target)) {
+        setOpen(false);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const profileHref = person.membershipId
+    ? `/${organizationSlug}/people/${encodeURIComponent(person.membershipId)}`
+    : null;
+
   return (
-    <li className="ppl-person" data-selected={selected}>
-      <span className="ppl-col-person">
-        <button
-          type="button"
-          className="ppl-person__who"
-          aria-pressed={selected}
-          onClick={onSelect}
-        >
-          <span className="ppl-avatar" aria-hidden="true">
+    <tr className="ppl-member">
+      <td>
+        <span className="ppl-member__who">
+          <span className="ppl-avatar ppl-avatar--40" aria-hidden="true">
             {initialsOf(person.displayName)}
           </span>
           <span>
-            <span className="ppl-person__name">{person.displayName}</span>
-            <span className="ppl-person__sub">■ internal</span>
+            <span className="ppl-member__name">{person.displayName}</span>
+            {person.email ? (
+              <span className="ppl-member__email" dir="ltr">
+                {person.email}
+              </span>
+            ) : null}
           </span>
-        </button>
-      </span>
-      <span className="ppl-col-role">
-        <span className="ppl-cell-strong">{role.label}</span>
-        {role.grants[0] ? <span className="ppl-cell-sub">{role.grants[0]}</span> : null}
-      </span>
-      <span className="ppl-col-projects ppl-cell-strong">
-        {/* The design reads "4 projects"; the accessible text keeps the full sentence. */}
-        <span className="tm-visually-hidden">
-          {t('PeopleDirectoryScreen.onPrefix')} {person.projectCount}{' '}
-          {person.projectCount === 1
-            ? t('PeopleDirectoryScreen.projectWord')
-            : t('PeopleDirectoryScreen.projectsWord')}
         </span>
-        <span aria-hidden="true">
-          {person.projectCount}{' '}
-          {person.projectCount === 1
-            ? t('PeopleDirectoryScreen.projectWord')
-            : t('PeopleDirectoryScreen.projectsWord')}
-        </span>
-      </span>
-      <span className="ppl-col-commit">
-        <span className="ppl-commit">
-          <span className="tm-visually-hidden">
-            {t('PeopleDirectoryScreen.openCommitmentsLabel')}{' '}
-          </span>
-          {person.openCommitments ?? '—'}
-        </span>
-        {overdue > 0 ? (
-          <span className="ppl-pill ppl-pill--warning">
-            {overdue} {t('PeopleDirectoryScreen.overdue')}
-          </span>
-        ) : null}
-      </span>
-      <span className="ppl-col-declared ppl-cell-strong">
-        <span className="tm-visually-hidden">{t('PeopleDirectoryScreen.declaredLabel')} </span>
-        {person.declared === undefined ? (
-          '—'
-        ) : declared === null ? (
-          t('PeopleDirectoryScreen.fullWeek')
-        ) : (
-          <span className="ppl-declared-off" title={declared.title}>
-            {declared.label}
-          </span>
-        )}
-      </span>
-    </li>
-  );
-}
-
-function SelectedPerson({
-  person,
-  organizationSlug,
-}: {
-  person: PersonSummary;
-  organizationSlug: string;
-}) {
-  const t = useT();
-  const role = describeInternalRole(person.role);
-  const team = person.teams?.[0]?.name;
-  return (
-    <section
-      className="ppl-card ppl-card--tight ppl-card--selected"
-      aria-label={`${t('PeopleDirectoryScreen.selectedPrefix')}: ${person.displayName}`}
-    >
-      <div className="ppl-person-card__who">
-        <span className="ppl-avatar ppl-avatar--56" aria-hidden="true">
-          {initialsOf(person.displayName)}
-        </span>
-        <div>
-          <p className="ppl-person-card__name">{person.displayName}</p>
-          <p className="ppl-person-card__role">
-            {role.label} ·{' '}
-            {team ??
-              `${t('PeopleDirectoryScreen.onLowerPrefix')} ${person.projectCount} ${
-                person.projectCount === 1
-                  ? t('PeopleDirectoryScreen.projectWord')
-                  : t('PeopleDirectoryScreen.projectsWord')
-              }`}
-          </p>
-        </div>
-      </div>
-      <hr className="ppl-rule" />
-      <p className="ppl-mono">{t('PeopleDirectoryScreen.roleDecide')}</p>
-      {role.grants[0] ? <p className="ppl-lime-block">{role.grants[0]}</p> : null}
-      <p className="ppl-note ppl-note--body">{role.withholds}</p>
-      {person.membershipId ? (
-        <div className="ppl-person-card__actions">
-          <Link
-            href={`/${organizationSlug}/people/${encodeURIComponent(person.membershipId)}`}
-            className="tm-button tm-button--ink"
+      </td>
+      <td>
+        {mayChangeRole ? (
+          <button
+            type="button"
+            className="ppl-role-chip"
+            aria-label={fill(
+              tr('PeopleDirectoryScreen.roleChip', 'Role of {name}: {role}. Change role'),
+              { name: person.displayName, role: chipLabel },
+            )}
+            onClick={onChangeRole}
           >
-            {t('PeopleDirectoryScreen.openProfile')}
-          </Link>
-        </div>
-      ) : null}
-    </section>
+            {chipLabel}
+            <span className="ppl-role-chip__caret" aria-hidden="true" />
+          </button>
+        ) : (
+          <span className="ppl-role-chip ppl-role-chip--static">{chipLabel}</span>
+        )}
+      </td>
+      <td className="ppl-member__cell">{projectsLabel}</td>
+      <td className="ppl-member__cell">{lastActive(person.lastActiveAt)}</td>
+      <td className="ppl-member__actions">
+        <button
+          ref={triggerRef}
+          type="button"
+          className="ppl-kebab"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={open ? menuId : undefined}
+          aria-label={fill(tr('PeopleDirectoryScreen.rowActions', 'Actions for {name}'), {
+            name: person.displayName,
+          })}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <span aria-hidden="true">•••</span>
+        </button>
+        {open ? (
+          <ul ref={menuRef} id={menuId} role="menu" className="ppl-row-menu">
+            {mayChangeRole ? (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ppl-row-menu__item"
+                  onClick={() => {
+                    setOpen(false);
+                    onChangeRole();
+                  }}
+                >
+                  {tr('PeopleDirectoryScreen.menuChangeRole', 'Change role')}
+                </button>
+              </li>
+            ) : null}
+            {mayManage && person.membershipId ? (
+              <li role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  className="ppl-row-menu__item"
+                  onClick={() => {
+                    setOpen(false);
+                    onSendReset();
+                  }}
+                >
+                  {tr('PeopleDirectoryScreen.menuSendReset', 'Send password reset link')}
+                </button>
+              </li>
+            ) : null}
+            {profileHref ? (
+              <li role="none">
+                <Link role="menuitem" className="ppl-row-menu__item" href={profileHref}>
+                  {tr('PeopleDirectoryScreen.menuViewProfile', 'View profile')}
+                </Link>
+              </li>
+            ) : null}
+            {mayChangeRole ? (
+              <li role="none">
+                <Link
+                  role="menuitem"
+                  className="ppl-row-menu__item ppl-row-menu__item--danger"
+                  href={`/${organizationSlug}/people/offboarding?member=${encodeURIComponent(person.userId)}`}
+                >
+                  {fill(tr('PeopleDirectoryScreen.menuRemove', 'Remove from {org}'), {
+                    org: organizationName,
+                  })}
+                </Link>
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
+      </td>
+    </tr>
   );
-}
-
-interface TeamGroup {
-  readonly key: string;
-  readonly label: string;
-  readonly people: readonly PersonSummary[];
-}
-
-/**
- * PEO-01's grouping: each person under the first team they are assigned to (the API lists teams by
- * name), groups by team name, and everyone without a team in a last "No team" group. A person is
- * listed once, so the counts add up to the roster.
- */
-export function groupByTeam(people: readonly PersonSummary[]): readonly TeamGroup[] {
-  const byTeam = new Map<string, { label: string; people: PersonSummary[] }>();
-  const unassigned: PersonSummary[] = [];
-  for (const person of people) {
-    const team = person.teams?.[0];
-    if (!team) {
-      unassigned.push(person);
-      continue;
-    }
-    const group = byTeam.get(team.id) ?? { label: team.name, people: [] };
-    group.people.push(person);
-    byTeam.set(team.id, group);
-  }
-  const groups: TeamGroup[] = [...byTeam.entries()]
-    .sort(([, a], [, b]) => a.label.localeCompare(b.label))
-    .map(([key, group]) => ({ key, label: group.label, people: group.people }));
-  if (unassigned.length > 0) {
-    groups.push({ key: 'no-team', label: 'No team', people: unassigned });
-  }
-  return groups;
-}
-
-const DAY_MS = 86_400_000;
-
-function shortDate(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-GB', {
-    day: 'numeric',
-    month: 'short',
-    timeZone: 'UTC',
-  });
-}
-
-function weekday(isoDate: string): string {
-  return new Date(`${isoDate}T00:00:00Z`).toLocaleDateString('en-GB', {
-    weekday: 'short',
-    timeZone: 'UTC',
-  });
-}
-
-/**
- * The DECLARED cell: what the person declared, in the design's short form — "Off Thu–Fri" for a
- * window ahead, "Off until Fri" for one already running, "Off Thu" for a single day. `null` means
- * nothing declared, which the caller shows as "Full week". The title keeps the full dates and kind.
- */
-export function describeDeclared(
-  declared: PersonSummary['declared'] | null,
-  now: Date,
-): { label: string; title: string } | null {
-  if (!declared) return null;
-  const today = now.toISOString().slice(0, 10);
-  const { startDate, endDate, kind } = declared;
-  const title = `${kind} · ${startDate} to ${endDate}`;
-  const span = (Date.parse(endDate) - Date.parse(startDate)) / DAY_MS;
-  if (span >= 7) return { label: `Off until ${shortDate(endDate)}`, title };
-  if (startDate <= today) {
-    return { label: endDate === today ? 'Off today' : `Off until ${weekday(endDate)}`, title };
-  }
-  if (startDate === endDate) return { label: `Off ${weekday(startDate)}`, title };
-  return { label: `Off ${weekday(startDate)}–${weekday(endDate)}`, title };
 }

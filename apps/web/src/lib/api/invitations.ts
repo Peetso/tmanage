@@ -52,6 +52,10 @@ export interface IssueInvitationInput {
   readonly role: string;
   /** Null or omitted for an internal invitation; a client organization id for portal access. */
   readonly clientOrganizationId?: string | null;
+  /** A1 (r-invite "Add to projects"): projects the person joins when they accept. Internal only. */
+  readonly projectIds?: readonly string[];
+  /** A1 (r-invite "Personal note"): at most 500 characters; blank is none. */
+  readonly note?: string | null;
 }
 
 export async function issueInvitation(
@@ -109,6 +113,8 @@ export interface InvitationPreview {
    * send them to a sign-in they cannot pass (ACC-01).
    */
   readonly hasAccount: boolean;
+  /** A1: the inviter's personal note, or null. */
+  readonly note: string | null;
 }
 
 /** No slug: the invitation says which organization this is. */

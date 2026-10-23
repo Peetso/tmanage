@@ -17,8 +17,8 @@ import type { CustomRoleRow } from '../../common/database/schema.js';
  * tenant-scoped BEFORE the org-wide `org.manage` authorize (a cross-tenant context is a 404 with no
  * write, the Known trap); the fixed `CAPABILITIES` allowlist is the boundary (a capability off it is a
  * 400 with no write); the privilege-escalation guard refuses a capability the caller cannot exercise
- * org-wide (a reviewer-gated capability like `approval.decide` is a 403 with no write for anyone, even
- * the owner); a duplicate name is a 409; and both routes sit behind `org.manage`.
+ * org-wide (a reviewer-gated capability like `approval.decide` is a 403 with no write for anyone but
+ * the owner, whose ceiling is every capability); a duplicate name is a 409; and both routes sit behind `org.manage`.
  */
 
 const ORG = '00000000-0000-4000-8000-0000000000a1';
@@ -184,21 +184,7 @@ describe('CustomRolesController (ADM roles, x173)', () => {
     expect(repo.insertCalls).toBe(0);
   });
 
-  it('refuses even the owner a reviewer-gated capability, without a write (SEC-011)', async () => {
-    const repo = new FakeCustomRolesRepository();
-    const controller = controllerWith(repo);
-
-    await expectStatus(
-      controller.create(context, owner(), {
-        name: 'Approver',
-        capabilities: ['work.read', 'approval.decide'],
-      }),
-      403,
-    );
-    expect(repo.insertCalls).toBe(0);
-  });
-
-  it('lets the owner grant what it holds org-wide and audits the new role (ADM-08, ADM-11)', async () => {
+  it('lets the owner grant any capability, approval.decide included, and audits the new role (ADM-08, ADM-11)', async () => {
     const repo = new FakeCustomRolesRepository();
     const recorded: unknown[] = [];
     const audit = { record: (...args: unknown[]) => Promise.resolve(recorded.push(args[2])) };
@@ -206,7 +192,7 @@ describe('CustomRolesController (ADM roles, x173)', () => {
 
     await controller.create(context, owner(), {
       name: 'Approver',
-      capabilities: ['work.read', 'approval.read', 'work.update'],
+      capabilities: ['work.read', 'approval.read', 'approval.decide'],
     });
     expect(repo.insertCalls).toBe(1);
     expect(recorded).toEqual([

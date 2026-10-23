@@ -10,13 +10,15 @@ import { API_URL } from '../setup/stack.js';
  * `apps/api/src/modules/people/directory.controller.test.ts`; this journey proves the `/people`
  * screen actually carries a member through the loop — the roster by name, the role each holds, the
  * active status, and the one capacity fact a directory adds over the member picker: how many
- * projects each person is on. It also proves the server-side search narrows the roster rather than
- * filtering a page the browser already holds, and that the staff roster stays closed to a client
+ * projects each person is on. It also proves that the staff roster stays closed to a client
  * principal at the route, not merely in the screen that draws it.
  *
- * All cases are pure reads, so there is no serial ordering and no state to restore: the journey
- * asserts only on members no mutating journey touches (the owner, the manager and the designer —
- * never the offboardee, whom the member-admin and offboarding journeys re-role and revoke).
+ * A1 rebuilt the screen to Members and roles (Figma 374:1985, r-people): a table, no search box
+ * (the server search stays proved in `directory.controller.test.ts`). The read cases assert only on
+ * members no mutating journey touches (the owner, the manager and the designer — never the
+ * offboardee, whom the member-admin and offboarding journeys re-role and revoke). E2E-PPL-02 is the
+ * one write: it changes the designer's organization role and changes it back before it ends, and
+ * runs last in the file (the suite runs one worker, in order).
  */
 
 interface SeededUser {
@@ -57,19 +59,25 @@ async function openAs(
 
 const PEOPLE_URL = '/northstar-studio/people';
 
-/** The directory's own list, scoped so the signed-in user's name in the shell never collides. */
+/** The roster table, scoped so the signed-in user's name in the shell never collides. */
 function roster(page: Page) {
-  return page.getByRole('list', { name: 'People in this organization' });
+  return page.getByRole('table', { name: 'People in this organization' });
 }
 
-/**
- * One person's row. The redesigned roster groups people by team — each group is itself a list
- * item holding a nested list — so the row is the item that holds no list of its own.
- */
+/** One person's row of the Members and roles table. */
 function personRow(page: Page, displayName: string) {
-  return roster(page)
-    .getByRole('listitem')
-    .filter({ hasText: displayName, hasNot: page.getByRole('list') });
+  return roster(page).getByRole('row').filter({ hasText: displayName });
+}
+
+/** Open Change role from the row's role chip, pick `label`, confirm, and wait for the new chip. */
+async function changeRole(page: Page, displayName: string, from: string, label: string) {
+  await page.getByRole('button', { name: `Role of ${displayName}: ${from}. Change role` }).click();
+  const dialog = page.getByRole('dialog', { name: 'Change role' });
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('radio', { name: new RegExp(`^${label}`) }).check();
+  await dialog.getByRole('button', { name: `Change to ${label}` }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(personRow(page, displayName)).toContainText(label);
 }
 
 test.describe('the People & capacity directory journeys', () => {
@@ -93,7 +101,7 @@ test.describe('the People & capacity directory journeys', () => {
 
     const designerRow = personRow(member.page, world().northstar.designer.displayName);
     await expect(designerRow).toBeVisible();
-    await expect(designerRow).toContainText('Team member');
+    await expect(designerRow).toContainText('Member');
 
     await member.context.close();
   });
@@ -107,61 +115,11 @@ test.describe('the People & capacity directory journeys', () => {
     // The manager is on the Atlas project and the internal project; the designer is on one. The
     // count, and its singular/plural wording, is what distinguishes the directory from the picker.
     await expect(personRow(member.page, world().northstar.manager.displayName)).toContainText(
-      'On 2 projects',
+      '2 projects',
     );
     await expect(personRow(member.page, world().northstar.designer.displayName)).toContainText(
-      'On 1 project',
+      '1 project',
     );
-
-    await member.context.close();
-  });
-
-  test('E2E-PPL-01c: the server narrows the roster by name', async ({ browser }) => {
-    const member = await openAs(browser, world().northstar.owner.id);
-    await member.page.goto(PEOPLE_URL);
-
-    // Everyone is present first, so the narrowing below is a change and not the initial state.
-    await expect(personRow(member.page, world().northstar.manager.displayName)).toBeVisible();
-
-    await expect(member.page.getByLabel('Search people by name')).toBeEnabled();
-    await member.page
-      .getByLabel('Search people by name')
-      .fill(world().northstar.manager.displayName);
-
-    // Only the match survives — the owner and the designer fall out of the list the server returns.
-    await expect(personRow(member.page, world().northstar.manager.displayName)).toBeVisible();
-    await expect(personRow(member.page, world().northstar.owner.displayName)).toHaveCount(0);
-    await expect(personRow(member.page, world().northstar.designer.displayName)).toHaveCount(0);
-
-    await member.context.close();
-  });
-
-  test('E2E-PPL-01d: a search no one matches says so', async ({ browser }) => {
-    const member = await openAs(browser, world().northstar.owner.id);
-    await member.page.goto(PEOPLE_URL);
-
-    await expect(member.page.getByLabel('Search people by name')).toBeEnabled();
-    await member.page.getByLabel('Search people by name').fill('Nobody By That Name');
-
-    await expect(member.page.getByText(/No active member matches/)).toBeVisible();
-    await expect(roster(member.page).getByRole('listitem')).toHaveCount(0);
-
-    await member.context.close();
-  });
-
-  test('E2E-PPL-01e: the server search is a case-insensitive contains, not a prefix', async ({
-    browser,
-  }) => {
-    const member = await openAs(browser, world().northstar.owner.id);
-    await member.page.goto(PEOPLE_URL);
-
-    // "del" is the middle of "Omar Adel", lower-cased: a match proves the LIKE is both
-    // case-insensitive and a contains rather than a prefix the browser could have faked.
-    await expect(member.page.getByLabel('Search people by name')).toBeEnabled();
-    await member.page.getByLabel('Search people by name').fill('del');
-
-    await expect(personRow(member.page, world().northstar.manager.displayName)).toBeVisible();
-    await expect(personRow(member.page, world().northstar.owner.displayName)).toHaveCount(0);
 
     await member.context.close();
   });
@@ -179,5 +137,28 @@ test.describe('the People & capacity directory journeys', () => {
     expect(refused.status()).toBe(403);
 
     await client.context.close();
+  });
+
+  test('E2E-PPL-02: an owner changes a member role from Members and roles', async ({ browser }) => {
+    const owner = await openAs(browser, world().northstar.owner.id);
+    const designer = world().northstar.designer.displayName;
+    await owner.page.goto(PEOPLE_URL);
+    await expect(personRow(owner.page, designer)).toContainText('Member');
+
+    try {
+      await changeRole(owner.page, designer, 'Member', 'Manager');
+      // The change is the server's: a fresh read of the roster still says Manager.
+      await owner.page.reload();
+      await expect(personRow(owner.page, designer)).toContainText('Manager');
+    } finally {
+      // Restore the seed so the journeys that sign in as the designer see her role unchanged.
+      await owner.page.goto(PEOPLE_URL);
+      const row = personRow(owner.page, designer);
+      await expect(row).toBeVisible();
+      if (!((await row.textContent()) ?? '').includes('Member')) {
+        await changeRole(owner.page, designer, 'Manager', 'Member');
+      }
+      await owner.context.close();
+    }
   });
 });

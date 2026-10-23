@@ -2653,6 +2653,8 @@ export const invitations = mysqlTable(
     clientOrganizationId: char('client_organization_id', { length: 36 }),
     email: varchar('email', { length: 320 }).notNull(),
     role: varchar('role', { length: 64 }).notNull(),
+    /** A1 (0218). The inviter's personal note, shown to the invitee; null when none. */
+    note: varchar('note', { length: 500 }),
     /** SHA-256 hex. The token itself is never stored — see `0005_invitations.sql`. */
     tokenHash: char('token_hash', { length: 64 }).notNull(),
     status: mysqlEnum('status', INVITATION_STATUS).notNull().default('pending'),
@@ -2669,6 +2671,30 @@ export const invitations = mysqlTable(
     uniqueIndex('uq_invitations_token').on(table.tokenHash),
     index('ix_invitations_org_email').on(table.organizationId, table.email, table.status),
     index('ix_invitations_expiry').on(table.status, table.expiresAt),
+  ],
+);
+
+/**
+ * A1 (0218). A project an invited person joins on acceptance (r-invite "Add to projects"). Nothing is
+ * granted at issue; `0218_invitation_projects_note.sql` is the source of truth, this its typed mirror.
+ */
+export const invitationProjects = mysqlTable(
+  'invitation_projects',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    invitationId: char('invitation_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_invitation_projects_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_invitation_projects_pair').on(
+      table.organizationId,
+      table.invitationId,
+      table.projectId,
+    ),
+    index('ix_invitation_projects_project').on(table.organizationId, table.projectId),
   ],
 );
 
@@ -8627,6 +8653,7 @@ export const TABLES = {
   client_organizations: clientOrganizations,
   client_memberships: clientMemberships,
   invitations: invitations,
+  invitation_projects: invitationProjects,
   project_clients: projectClients,
   work_items: workItems,
   work_item_dependencies: workItemDependencies,

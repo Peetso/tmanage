@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import { PeopleDirectoryScreen } from '../src/components/screens/PeopleDirectoryScreen';
@@ -58,46 +58,24 @@ describe('PeopleDirectoryScreen', () => {
   it('lists the organization members by name with their project count, accessibly', async () => {
     const { container } = mount({ body: PEOPLE });
 
-    const list = await screen.findByRole('list', { name: /people in this organization/i });
-    const rows = within(list);
+    // A1 (r-people): the roster is a table; the role controls are A1's own tests.
+    const table = await screen.findByRole('table', { name: /people in this organization/i });
+    const rows = within(table);
     expect(rows.getByText('Priya Raman')).toBeTruthy();
-    expect(rows.getByText('On 3 projects')).toBeTruthy();
-    expect(rows.getByText('On 0 projects')).toBeTruthy();
+    expect(rows.getByText('3 projects')).toBeTruthy();
+    expect(rows.getByText('0 projects')).toBeTruthy();
 
     await expectNoAxeViolations(container);
   });
 
-  it('groups by team with open commitments and what each person declared', async () => {
-    mount({
-      body: {
-        people: [
-          {
-            ...PEOPLE.people[0],
-            membershipId: 'm-1',
-            teams: [{ id: 't-d', name: 'Design' }],
-            openCommitments: 6,
-            overdueCommitments: 2,
-            declared: { kind: 'vacation', startDate: '2099-01-01', endDate: '2099-01-02' },
-          },
-          {
-            ...PEOPLE.people[1],
-            membershipId: 'm-2',
-            teams: [],
-            openCommitments: 0,
-            declared: null,
-          },
-        ],
-        nextAfter: null,
-      },
-    });
+  it('offers no role controls or invite to someone whose role is not known to assign', async () => {
+    mount({ body: { ...PEOPLE, people: [{ ...PEOPLE.people[0], membershipId: 'm-1' }] } });
 
-    const design = await screen.findByRole('list', { name: /design · 1/i });
-    expect(within(design).getByText('Priya Raman')).toBeTruthy();
-    expect(within(design).getByText('2 overdue')).toBeTruthy();
-    expect(within(design).getByText('Off Thu–Fri')).toBeTruthy();
-    const noTeam = screen.getByRole('list', { name: /no team · 1/i });
-    expect(within(noTeam).getByText('Full week')).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Open profile' }).getAttribute('href')).toBe(
+    await screen.findByRole('table', { name: /people in this organization/i });
+    expect(screen.queryByRole('button', { name: 'Invite member' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Change role/ })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Priya Raman' }));
+    expect(screen.getByRole('menuitem', { name: 'View profile' }).getAttribute('href')).toBe(
       '/northstar/people/m-1',
     );
   });

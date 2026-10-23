@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { InvitationRow } from '../../common/database/schema.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { CredentialsRepository } from '../identity/credentials.repository.js';
@@ -13,6 +13,7 @@ import {
   ACCOUNT_EXISTS_MESSAGE,
   ALREADY_MEMBER_MESSAGE,
   InvitationsService,
+  projectRoleForInvitation,
   requireOwnerToGrantOwner,
 } from './invitations.service.js';
 
@@ -69,6 +70,9 @@ interface Harness {
   readonly setPassword: ReturnType<typeof vi.fn>;
   readonly invite: ReturnType<typeof vi.fn>;
   readonly markAccepted: ReturnType<typeof vi.fn>;
+  readonly addProjectMemberships: ReturnType<typeof vi.fn>;
+  readonly issue: ReturnType<typeof vi.fn>;
+  readonly attachProjects: ReturnType<typeof vi.fn>;
 }
 
 function harness(
@@ -76,6 +80,9 @@ function harness(
     readonly pending?: InvitationRow | undefined;
     readonly invite?: () => Promise<unknown>;
     readonly insertUser?: () => Promise<void>;
+    /** A1: the invitation's live projects, and which ids the tenant holds live. */
+    readonly projectIds?: readonly string[];
+    readonly liveProjectIds?: readonly string[];
   } = {},
 ): Harness {
   const pending = 'pending' in options ? options.pending : INVITATION;
@@ -91,9 +98,22 @@ function harness(
   } as unknown as TenantDatabase;
 
   const markAccepted = vi.fn(() => Promise.resolve({ ...INVITATION, status: 'accepted' }));
+  const addProjectMemberships = vi.fn(
+    (_r: unknown, _c: unknown, _u: string, ids: readonly string[]) => Promise.resolve(ids.length),
+  );
+  const issue = vi.fn((_r: unknown, _c: unknown, input: Record<string, unknown>) =>
+    Promise.resolve({ ...INVITATION, ...input, id: 'inv-2' }),
+  );
+  const attachProjects = vi.fn(() => Promise.resolve());
   const invitations = {
     findPendingByTokenHash: vi.fn(() => Promise.resolve(pending)),
     markAccepted,
+    projectIdsFor: vi.fn(() => Promise.resolve(options.projectIds ?? [])),
+    addProjectMemberships,
+    findPendingForEmail: vi.fn(() => Promise.resolve([])),
+    liveProjectIds: vi.fn(() => Promise.resolve(options.liveProjectIds ?? [])),
+    issue,
+    attachProjects,
   } as unknown as InvitationsRepository;
 
   const invite = vi.fn(
@@ -118,7 +138,16 @@ function harness(
     { insertUser } as unknown as InviteeAccountsRepository,
     { setPassword } as unknown as CredentialsRepository,
   );
-  return { service, insertUser, setPassword, invite, markAccepted };
+  return {
+    service,
+    insertUser,
+    setPassword,
+    invite,
+    markAccepted,
+    addProjectMemberships,
+    issue,
+    attachProjects,
+  };
 }
 
 async function refusal(work: Promise<unknown>): Promise<ApiError> {
@@ -254,5 +283,93 @@ describe('requireOwnerToGrantOwner (CQ-06)', () => {
     expect(() =>
       requireOwnerToGrantOwner(caller('org_admin'), 'org_admin', 'invitation.issue'),
     ).not.toThrow();
+  });
+});
+
+describe('A1: "Add to projects" and "Personal note" on an invitation', () => {
+  const owner: Principal = {
+    userId: OWNER,
+    organizationId: ORG,
+    kind: 'internal',
+    role: 'owner',
+    membershipId: 'm-owner',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: true,
+  };
+  const context = { organizationId: ORG, userId: OWNER } as unknown as TenantContext;
+  const P1 = '01a14fe5-ada6-7287-922a-9079a2b2b0p1';
+  const P2 = '01a14fe5-ada6-7287-922a-9079a2b2b0p2';
+
+  it('adds the accepted invitee to the invitation projects, as their project role', async () => {
+    const { service, addProjectMemberships } = harness({ projectIds: [P1, P2] });
+
+    await service.accept(TOKEN, USER, CORR);
+
+    expect(addProjectMemberships).toHaveBeenCalledWith(
+      {},
+      expect.anything(),
+      USER,
+      [P1, P2],
+      'member',
+    );
+    expect(projectRoleForInvitation('manager')).toBe('manager');
+    expect(projectRoleForInvitation('org_admin')).toBe('member');
+  });
+
+  it('stores the trimmed note and the projects at issue, granting nothing yet', async () => {
+    const { service, issue, attachProjects, addProjectMemberships } = harness({
+      liveProjectIds: [P1],
+    });
+
+    await service.issue(context, owner, {
+      email: 'omar@example.com',
+      role: 'manager',
+      projectIds: [P1, P1],
+      note: '  Welcome aboard  ',
+    });
+
+    expect(issue.mock.calls[0]?.[2]).toMatchObject({ note: 'Welcome aboard', role: 'manager' });
+    expect(attachProjects).toHaveBeenCalledWith({}, context, 'inv-2', [P1]);
+    expect(addProjectMemberships).not.toHaveBeenCalled();
+  });
+
+  it('refuses a project that is not live in this tenant (400), without a write', async () => {
+    const { service, issue } = harness({ liveProjectIds: [P1] });
+
+    const error = await refusal(
+      service.issue(context, owner, {
+        email: 'omar@example.com',
+        role: 'member',
+        projectIds: [P1, P2],
+      }),
+    );
+
+    expect(error.status).toBe(400);
+    expect(issue).not.toHaveBeenCalled();
+  });
+
+  it('refuses projects on a client invitation and a note over 500 characters (400)', async () => {
+    const { service } = harness();
+
+    const client = await refusal(
+      service.issue(context, owner, {
+        email: 'c@example.com',
+        role: 'client_member',
+        clientOrganizationId: 'co-1',
+        projectIds: [P1],
+      }),
+    );
+    const long = await refusal(
+      service.issue(context, owner, {
+        email: 'o@example.com',
+        role: 'member',
+        note: 'x'.repeat(501),
+      }),
+    );
+
+    expect(client.status).toBe(400);
+    expect(long.status).toBe(400);
   });
 });

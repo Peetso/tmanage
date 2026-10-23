@@ -2,8 +2,14 @@ import 'reflect-metadata';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
-import { CLIENT_ROLES, INTERNAL_ROLES, hasCapability, uuidv7 } from '@tmanage/domain';
-import type { Capability, InternalRole, Role } from '@tmanage/domain';
+import {
+  CLIENT_ROLES,
+  INTERNAL_ROLES,
+  hasCapability,
+  mayGrantCapability,
+  uuidv7,
+} from '@tmanage/domain';
+import type { Capability, InternalRole, Principal, Role } from '@tmanage/domain';
 import { ACCEPTED_CEILING_DIVERGENCES, PERMISSION_MATRIX } from '@tmanage/test-kit';
 import type { TestDatabase } from './support/test-database.js';
 import type { SeedWorld } from './seed-two-tenants.js';
@@ -586,6 +592,23 @@ describe('§2 prohibitions, transcribed by hand and not derived', () => {
       'owner:client_request.submit',
       'org_admin:client_request.submit',
     ]);
+  });
+
+  it('only the owner may grant the reviewer-gated approval.decide; org_admin stays refused (ADM-08, SEC-011)', () => {
+    const principal = (role: InternalRole): Principal => ({
+      userId: '01890000-0000-7000-8000-0000000000f1',
+      organizationId: '01890000-0000-7000-8000-0000000000f0',
+      kind: 'internal',
+      role,
+      membershipId: '01890000-0000-7000-8000-0000000000f2',
+      membershipStatus: 'active',
+      clientOrganizationId: null,
+      projectIds: [],
+      hasOrgWideScope: true,
+    });
+    const org = '01890000-0000-7000-8000-0000000000f0';
+    expect(mayGrantCapability(principal('owner'), 'approval.decide', org).allowed).toBe(true);
+    expect(mayGrantCapability(principal('org_admin'), 'approval.decide', org).allowed).toBe(false);
   });
 });
 

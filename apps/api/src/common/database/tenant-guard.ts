@@ -96,6 +96,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // TEN-003. Tenant-owned like every other grant: an invitation names one organization, and
   // the acceptance path reaches it through `bootstrapRead` rather than by being global.
   invitations: 'organization_id',
+  // A1 (0218). Projects an invited person joins on acceptance; an unscoped read would be which
+  // projects every studio's pending invitees are headed for.
+  invitation_projects: 'organization_id',
   work_items: 'organization_id',
   // WORK-003. Both tenant-owned: an edge names two tenant rows, and a blocker's reason and
   // ask are internal prose about a studio's work.

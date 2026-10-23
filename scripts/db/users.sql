@@ -251,6 +251,9 @@ GRANT INSERT                 ON `tmanage`.`client_projections`    TO 'tmanage_ap
 -- needed for exactly those three status moves; the immutability trigger in 0005 refuses the
 -- two columns that must never change.
 GRANT INSERT, UPDATE         ON `tmanage`.`invitations`           TO 'tmanage_app'@'%';
+-- A1 (0218): projects an invited person joins on acceptance. Written once at issue (INSERT);
+-- never updated or deleted (0218's trigger pins every identity column), so INSERT only.
+GRANT INSERT                 ON `tmanage`.`invitation_projects`   TO 'tmanage_app'@'%';
 -- CHAT-001 conversations. A channel is archived rather than dropped, so **no DELETE**: the
 -- messages in it are the project's record of how a decision was reached, and a credential that
 -- could remove the channel could remove the thread that explains the work.

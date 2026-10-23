@@ -77,6 +77,10 @@ interface IssueBody {
   readonly email?: unknown;
   readonly role?: unknown;
   readonly clientOrganizationId?: unknown;
+  /** A1: projects the invitee joins on acceptance (r-invite "Add to projects"). */
+  readonly projectIds?: unknown;
+  /** A1: the inviter's personal note (r-invite "Personal note"). */
+  readonly note?: unknown;
 }
 
 interface ReissueBody {
@@ -166,11 +170,33 @@ export class InvitationsController {
       details.push({ field: 'clientOrganizationId', message: 'must be a string or null' });
     }
 
-    if (details.length > 0 || email === undefined || !role || clientOrganizationId === undefined) {
+    const projectIds = optionalIdList(body?.projectIds, details);
+    const note =
+      body?.note === undefined || body.note === null
+        ? null
+        : typeof body.note === 'string'
+          ? body.note
+          : undefined;
+    if (note === undefined) details.push({ field: 'note', message: 'must be a string or null' });
+
+    if (
+      details.length > 0 ||
+      email === undefined ||
+      !role ||
+      clientOrganizationId === undefined ||
+      projectIds === undefined ||
+      note === undefined
+    ) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
 
-    return this.invitations.issue(context, principal, { email, role, clientOrganizationId });
+    return this.invitations.issue(context, principal, {
+      email,
+      role,
+      clientOrganizationId,
+      projectIds,
+      note,
+    });
   }
 
   /**
@@ -397,4 +423,20 @@ function requiredEmail(
     return undefined;
   }
   return value;
+}
+
+/** A1: an optional array of non-empty id strings (at most 36 characters each); undefined = invalid. */
+function optionalIdList(
+  value: unknown,
+  details: { field: string; message: string }[],
+): readonly string[] | undefined {
+  if (value === undefined || value === null) return [];
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === 'string' && item !== '' && item.length <= 36)
+  ) {
+    details.push({ field: 'projectIds', message: 'must be an array of project ids' });
+    return undefined;
+  }
+  return value as string[];
 }

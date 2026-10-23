@@ -3,8 +3,11 @@ import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   clientOrganizations,
+  invitationProjects,
   invitations,
   organizations,
+  projectMemberships,
+  projects,
   users,
 } from '../../common/database/schema.js';
 import type { InvitationRow } from '../../common/database/schema.js';
@@ -76,6 +79,8 @@ export interface IssueInvitationInput {
   readonly tokenHash: string;
   readonly expiresAt: Date;
   readonly invitedByUserId: string;
+  /** A1 (0218). The inviter's personal note, already trimmed and bounded; null for none. */
+  readonly note?: string | null;
 }
 
 export interface ListInvitationsOptions {
@@ -102,6 +107,8 @@ export interface InvitationPreviewRow {
   readonly clientOrganizationName: string | null;
   /** The address the invitation was sent to — the invitee's own, shown back to them. */
   readonly inviteeEmail: string;
+  /** A1 (0218). The inviter's personal note, or null. */
+  readonly note: string | null;
 }
 
 /** The names the invitation email interpolates — `previewByTokenHash`'s joins, tenant-scoped. */
@@ -238,6 +245,7 @@ export class InvitationsRepository {
         clientOrganizationId: input.clientOrganizationId,
         email: input.email,
         role: input.role,
+        note: input.note ?? null,
         tokenHash: input.tokenHash,
         status: 'pending',
         expiresAt: input.expiresAt,
@@ -429,6 +437,7 @@ export class InvitationsRepository {
         inviterEmail: users.email,
         clientOrganizationName: clientOrganizations.name,
         inviteeEmail: invitations.email,
+        note: invitations.note,
       })
       .from(invitations)
       .innerJoin(organizations, eq(organizations.id, invitations.organizationId))
@@ -444,5 +453,118 @@ export class InvitationsRepository {
       .limit(1);
 
     return rows[0];
+  }
+  // ── A1 (0218): the projects an invited person joins on acceptance ─────────
+
+  /**
+   * Which of `projectIds` are live (not archived) projects of this tenant. A foreign or unknown id
+   * is simply absent, so the caller cannot tell "another tenant's" from "does not exist".
+   */
+  async liveProjectIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly string[]> {
+    if (projectIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({ id: projects.id })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.organizationId, context.organizationId),
+          inArray(projects.id, [...projectIds]),
+          sql`${projects.archivedAt} is null`,
+        ),
+      );
+    return rows.map((row) => row.id);
+  }
+
+  /** Record the projects an invitation adds its invitee to. Written once, at issue. */
+  async attachProjects(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    invitationId: string,
+    projectIds: readonly string[],
+  ): Promise<void> {
+    if (projectIds.length === 0) return;
+    await tenantDrizzle(runner)
+      .insert(invitationProjects)
+      .values(
+        projectIds.map((projectId) => ({
+          id: uuidv7(),
+          organizationId: context.organizationId,
+          invitationId,
+          projectId,
+          createdAt: sql`current_timestamp(3)`,
+        })),
+      );
+  }
+
+  /** The invitation's projects that are still live in the tenant, in id order. */
+  async projectIdsFor(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    invitationId: string,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .select({ projectId: invitationProjects.projectId })
+      .from(invitationProjects)
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.organizationId, invitationProjects.organizationId),
+          eq(projects.id, invitationProjects.projectId),
+        ),
+      )
+      .where(
+        and(
+          eq(invitationProjects.organizationId, context.organizationId),
+          eq(invitationProjects.invitationId, invitationId),
+          eq(projects.organizationId, context.organizationId),
+          sql`${projects.archivedAt} is null`,
+        ),
+      )
+      .orderBy(asc(invitationProjects.projectId));
+    return rows.map((row) => row.projectId);
+  }
+
+  /**
+   * Put the person who just accepted on each project, skipping one they are already on (a
+   * returning member). Returns how many memberships were created.
+   */
+  async addProjectMemberships(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+    projectIds: readonly string[],
+    role: string,
+  ): Promise<number> {
+    if (projectIds.length === 0) return 0;
+    const existing = await tenantDrizzle(runner)
+      .select({ projectId: projectMemberships.projectId })
+      .from(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.organizationId, context.organizationId),
+          eq(projectMemberships.userId, userId),
+          inArray(projectMemberships.projectId, [...projectIds]),
+        ),
+      );
+    const already = new Set(existing.map((row) => row.projectId));
+    const missing = projectIds.filter((projectId) => !already.has(projectId));
+    if (missing.length === 0) return 0;
+    await tenantDrizzle(runner)
+      .insert(projectMemberships)
+      .values(
+        missing.map((projectId) => ({
+          id: uuidv7(),
+          organizationId: context.organizationId,
+          projectId,
+          userId,
+          role,
+          createdAt: sql`current_timestamp(3)`,
+        })),
+      );
+    return missing.length;
   }
 }
