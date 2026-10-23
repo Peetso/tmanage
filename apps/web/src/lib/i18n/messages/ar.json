@@ -10802,5 +10802,12 @@
   "WebsiteTitle.status": "حالة الخدمة",
   "WebsiteTitle.notFound": "الصفحة غير موجودة",
   "WebsiteTitle.forbidden": "تم رفض الوصول",
-  "WebsiteTitle.offline": "غير متصل"
+  "WebsiteTitle.offline": "غير متصل",
+  "ProductPageScenes.bilingualAltActive": "بطاقة إعدادات الاستوديو ذاتها مرتين: من اليسار إلى اليمين ومعكوسة من اليمين إلى اليسار، بالعربية في الاتجاهين.",
+  "ProductPageScenes.bilingualTagLtrActive": "من اليسار لليمين · العربية",
+  "ProductPageScenes.bilingualNameLabel": "اسم الاستوديو",
+  "ProductPageScenes.bilingualHint": "يرى العملاء هذا الاسم في كل تحديث.",
+  "ProductPageScenes.bilingualPortalLabel": "إظهار في بوابة العميل",
+  "ProductPageScenes.bilingualSave": "حفظ التغييرات",
+  "ProductPageScenes.bilingualCancel": "إلغاء"
 }

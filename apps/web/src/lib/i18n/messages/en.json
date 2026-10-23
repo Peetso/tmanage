@@ -10802,5 +10802,12 @@
   "WebsiteTitle.status": "Service status",
   "WebsiteTitle.notFound": "Page not found",
   "WebsiteTitle.forbidden": "Access denied",
-  "WebsiteTitle.offline": "Offline"
+  "WebsiteTitle.offline": "Offline",
+  "ProductPageScenes.bilingualAltActive": "The same studio settings card twice: left-to-right and mirrored right-to-left, with the right-to-left card in Arabic.",
+  "ProductPageScenes.bilingualTagLtrActive": "LTR · English",
+  "ProductPageScenes.bilingualNameLabel": "Studio name",
+  "ProductPageScenes.bilingualHint": "Clients see this name on every update.",
+  "ProductPageScenes.bilingualPortalLabel": "Show in client portal",
+  "ProductPageScenes.bilingualSave": "Save changes",
+  "ProductPageScenes.bilingualCancel": "Cancel"
 }

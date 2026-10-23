@@ -6,7 +6,8 @@ import { Wordmark } from '../../../brand/Wordmark';
 import { CalloutPin } from '../../sections';
 import { WebIcon, type WebIconName } from '../../WebIcon';
 import { cx } from '../../primitives';
-import type { MessageKey } from '../../../../lib/i18n/t';
+import { translate, type MessageKey } from '../../../../lib/i18n/t';
+import { useActiveLocale } from '../../../../lib/i18n/use-active-locale';
 import { useT } from '../../../../lib/i18n/use-t';
 
 /**
@@ -722,69 +723,67 @@ export function AdminScene() {
 /* ── 6. Bilingual — the same card, LTR and RTL ────────────────────────────── */
 
 /*
- * This card is the one deliberate exception to "follow the active locale": it shows the same
- * settings card in English and in Arabic side by side, whichever language the page is in. Only
- * the two direction tags above the cards are translated.
+ * The same studio settings card twice, left-to-right and mirrored right-to-left. Every string is a
+ * `ProductPageScenes.bilingual*` key (N2). The right-to-left card always reads the Arabic catalog;
+ * the left-to-right card follows the active locale. So the English page shows the card in English
+ * and in Arabic, and the Arabic page shows the Arabic card in both directions — no English on the
+ * Arabic page. The studio name (Northstar Studio) stays Latin, like every other scene.
  */
-const BILINGUAL = [
-  {
-    dir: 'ltr',
-    lang: 'en',
-    tag: 'ProductPageScenes.bilingualTagLtr',
-    org: 'Northstar Studio',
-    nameLabel: 'Studio name',
-    portalLabel: 'Show in client portal',
-    hint: 'Clients see this name on every update.',
-    save: 'Save changes',
-    cancel: 'Cancel',
-  },
-  {
-    dir: 'rtl',
-    lang: 'ar',
-    tag: 'ProductPageScenes.bilingualTagRtl',
-    org: 'استوديو نورث ستار',
-    nameLabel: 'اسم الاستوديو',
-    portalLabel: 'إظهار في بوابة العميل',
-    hint: 'يرى العملاء هذا الاسم في كل تحديث.',
-    save: 'حفظ التغييرات',
-    cancel: 'إلغاء',
-  },
-] as const satisfies readonly { readonly tag: MessageKey; readonly [field: string]: string }[];
+const BILINGUAL_ORG = 'Northstar Studio';
+
+const BILINGUAL_FIELDS = {
+  nameLabel: 'ProductPageScenes.bilingualNameLabel',
+  hint: 'ProductPageScenes.bilingualHint',
+  portalLabel: 'ProductPageScenes.bilingualPortalLabel',
+  save: 'ProductPageScenes.bilingualSave',
+  cancel: 'ProductPageScenes.bilingualCancel',
+} as const satisfies Record<string, MessageKey>;
+
+const BILINGUAL_SIDES = [
+  { dir: 'ltr', tag: 'ProductPageScenes.bilingualTagLtrActive', fixedLocale: null },
+  { dir: 'rtl', tag: 'ProductPageScenes.bilingualTagRtl', fixedLocale: 'ar' },
+] as const satisfies readonly { dir: 'ltr' | 'rtl'; tag: MessageKey; fixedLocale: 'ar' | null }[];
 
 export function BilingualScene() {
   const t = useT();
+  const locale = useActiveLocale();
   return (
-    <Scene label={t('ProductPageScenes.bilingualAlt')} className="tm-pp-scene--bilingual">
+    <Scene label={t('ProductPageScenes.bilingualAltActive')} className="tm-pp-scene--bilingual">
       <div className="tm-pp-bilingual">
-        {BILINGUAL.map((side) => (
-          <div key={side.lang} className="tm-pp-bilingual__side" dir={side.dir} lang={side.lang}>
-            <span className="tm-pp-bilingual__tag">
-              <Mono>{t(side.tag)}</Mono>
-            </span>
-            <div className="tm-pp-mini-card tm-pp-bilingual__card">
-              <p className="tm-pp-scene-title">{side.org}</p>
-              <span className="tm-pp-field">
-                <span className="tm-pp-field__label">{side.nameLabel}</span>
-                <span className="tm-pp-field__input">{side.org}</span>
-                <span className="tm-pp-field__hint">{side.hint}</span>
+        {BILINGUAL_SIDES.map((side) => {
+          const sideLocale = side.fixedLocale ?? locale;
+          const lang = sideLocale.split('-')[0]?.toLowerCase() === 'ar' ? 'ar' : 'en';
+          const s = (key: MessageKey) => translate(sideLocale, key);
+          return (
+            <div key={side.dir} className="tm-pp-bilingual__side" dir={side.dir} lang={lang}>
+              <span className="tm-pp-bilingual__tag">
+                <Mono>{t(side.tag)}</Mono>
               </span>
-              <span className="tm-pp-switch">
-                <span className="tm-pp-switch__track">
-                  <span className="tm-pp-switch__thumb" />
+              <div className="tm-pp-mini-card tm-pp-bilingual__card">
+                <p className="tm-pp-scene-title">{BILINGUAL_ORG}</p>
+                <span className="tm-pp-field">
+                  <span className="tm-pp-field__label">{s(BILINGUAL_FIELDS.nameLabel)}</span>
+                  <span className="tm-pp-field__input">{BILINGUAL_ORG}</span>
+                  <span className="tm-pp-field__hint">{s(BILINGUAL_FIELDS.hint)}</span>
                 </span>
-                {side.portalLabel}
-              </span>
-              <span className="tm-pp-row">
-                <Button tone="ink" size="compact">
-                  {side.save}
-                </Button>
-                <Button tone="outline" size="compact">
-                  {side.cancel}
-                </Button>
-              </span>
+                <span className="tm-pp-switch">
+                  <span className="tm-pp-switch__track">
+                    <span className="tm-pp-switch__thumb" />
+                  </span>
+                  {s(BILINGUAL_FIELDS.portalLabel)}
+                </span>
+                <span className="tm-pp-row">
+                  <Button tone="ink" size="compact">
+                    {s(BILINGUAL_FIELDS.save)}
+                  </Button>
+                  <Button tone="outline" size="compact">
+                    {s(BILINGUAL_FIELDS.cancel)}
+                  </Button>
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </Scene>
   );
