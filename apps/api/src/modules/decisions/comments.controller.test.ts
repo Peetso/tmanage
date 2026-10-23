@@ -47,6 +47,11 @@ function decision(over: Partial<DecisionRow> = {}): DecisionRow {
     organizationId: ORG,
     projectId: PROJECT,
     meetingId: null,
+    // A15 (0225).
+    number: 1,
+    rationale: null,
+    sourceMessageId: null,
+    audience: 'internal',
     title: 'Adopt the new brand palette',
     statement: 'We will ship the revised palette in Q4.',
     status: 'accepted',

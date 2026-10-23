@@ -1691,6 +1691,9 @@ export const docReviews = mysqlTable(
  */
 export const DECISION_STATUSES = ['proposed', 'accepted', 'superseded'] as const;
 
+/** A15 (0225). Who a decision is visible to; mirrors the `decisions.audience` ENUM. */
+export const DECISION_AUDIENCES = ['internal', 'client_visible'] as const;
+
 /**
  * DEC-01 (x113). A project's decision register — the cross-meeting record of what a project has
  * decided: a title, the decision in words, its status, who took it and when, and an optional link to
@@ -1713,6 +1716,14 @@ export const decisions = mysqlTable(
     title: varchar('title', { length: 300 }).notNull(),
     statement: text('statement').notNull(),
     status: mysqlEnum('status', DECISION_STATUSES).notNull().default('proposed'),
+    /** A15 (0225). The per-organization register number printed as `DEC-014`. */
+    number: int('number', { unsigned: true }),
+    /** A15 (0225). "Why we decided this" — optional prose. */
+    rationale: text('rationale'),
+    /** A15 (0225). The chat message the decision came from, resolved in-tenant by the service. */
+    sourceMessageId: char('source_message_id', { length: 36 }),
+    /** A15 (0225). "Visible to": the team only, or the team and the project's client people. */
+    audience: mysqlEnum('audience', DECISION_AUDIENCES).notNull().default('internal'),
     decidedBy: char('decided_by', { length: 36 }).notNull(),
     decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),

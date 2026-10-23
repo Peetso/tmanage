@@ -34,6 +34,10 @@ export const decisionsDetails: readonly AiActionDetail[] = [
       statement: f.text(20_000),
       projectId: f.id().optional(),
       meetingId: f.id().optional(),
+      // A15: the Decision detail page's fields.
+      rationale: f.text(20_000).optional(),
+      sourceMessageId: f.id().optional(),
+      audience: f.shortText(40).optional(),
     }),
     redact: 'standard',
     notifies: true,
@@ -47,11 +51,15 @@ export const decisionsDetails: readonly AiActionDetail[] = [
   det({
     id: 'decisions.update',
     title: 'Update a decision',
-    description: 'Change a decision’s title, statement or status. Confirm-class.',
+    description:
+      'Accept a decision, or change why it was decided and who can see it. Confirm-class.',
     input: bodyArgs(['decisionId'], {
       title: f.shortText(300).optional(),
       statement: f.text(20_000).optional(),
       status: f.shortText(40).optional(),
+      // A15: the detail page's Edit (`internal` | `client_visible`).
+      rationale: f.text(20_000).nullish(),
+      audience: f.shortText(40).optional(),
     }),
     redact: 'standard',
     examples: [{ summary: 'Accept', args: { decisionId: 'dec_1', status: 'accepted' } }],

@@ -149,10 +149,13 @@ function build(options: {
             link,
             workItemTitle: item?.title ?? '',
             workItemState: item?.state ?? '',
+            workItemOwnerName: item?.ownerUserId ? 'Lina Samir' : null,
+            workItemDueAt: item?.dueAt ?? null,
           };
         }),
     findById: async (_runner: unknown, ctx: TenantContext, linkId: string) =>
       store.find((row) => row.id === linkId && row.organizationId === ctx.organizationId) ?? null,
+    findMemberName: async () => 'Lina Samir',
     create: async (_runner: unknown, ctx: TenantContext, input: CreateDecisionWorkLinkInput) => {
       if (
         store.some(
@@ -202,6 +205,16 @@ describe('DecisionWorkLinksController link → list → unlink', () => {
 
     await controller.unlink(context, owner, DECISION, created.linkId);
     expect(store).toHaveLength(0);
+  });
+
+  it('A15: a link carries its owner name and due date for the decision page', async () => {
+    const { controller } = build({});
+    const created = await controller.link(context, owner, DECISION, { workItemId: WORK_ITEM });
+    expect(created.workItemOwnerName).toBe('Lina Samir');
+    expect(created.workItemDueAt).toBeNull();
+    const listed = await controller.list(context, owner, DECISION);
+    expect(listed.workLinks[0]?.workItemOwnerName).toBe('Lina Samir');
+    expect(listed.workLinks[0]?.workItemDueAt).toBeNull();
   });
 });
 

@@ -87,4 +87,28 @@ test.describe.serial('the decision-lifecycle journeys', () => {
     await secondRow.getByRole('button', { name: /^Supersede$/ }).click();
     await expect(secondRow.getByRole('cell', { name: /Superseded/ })).toBeVisible();
   });
+
+  test("DEC-b: a member opens a decision's page and its linked work", async () => {
+    await page.goto(`/${SLUG}/decisions`);
+    await page
+      .getByLabel(/show the register for/i)
+      .selectOption({ label: world().northstar.projectName });
+
+    // A15: the register row's title opens the decision's own page.
+    await page.getByRole('link', { name: FIRST, exact: true }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/${SLUG}/decisions/[^/]+$`));
+    await expect(page.getByRole('heading', { level: 2, name: FIRST })).toBeVisible();
+    await expect(page.getByText(/^DEC-\d{3,}/)).toBeVisible();
+
+    const details = page.getByRole('complementary', { name: 'Details' });
+    await expect(details.getByText('Decided', { exact: true })).toBeVisible();
+    await expect(details.getByText(world().northstar.projectName)).toBeVisible();
+
+    // Linked work: the section is on the page (this journey links none, so it says so).
+    await expect(page.getByRole('heading', { name: 'Linked work' })).toBeVisible();
+    await expect(page.getByText('No work is linked yet.')).toBeVisible();
+
+    // The decisions column lists the register and inks this decision.
+    await expect(page.getByRole('link', { name: SECOND })).toBeVisible();
+  });
 });

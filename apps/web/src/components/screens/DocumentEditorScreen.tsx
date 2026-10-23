@@ -1,11 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
-import '../../styles/screens/docs.css';
+import { DocsSidebar } from '../docs/DocsSidebar';
+import '../docs/docs-shell.css';
+import {
+  DOC_TOOL_EDITS,
+  applyDocEdit,
+  isBlankBody,
+  rtlLine,
+  tagFor,
+  type DocToolId,
+} from '../docs/doc-markdown';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   getDocument,
@@ -14,10 +23,13 @@ import {
   listDocumentVersions,
   restoreDocumentVersion,
   saveDocumentVersion,
+  setDocumentAudience,
 } from '../../lib/api/documents';
+import { listProjects } from '../../lib/api/projects';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
-import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 
 export interface DocumentEditorScreenProps {
   organizationSlug: string;
@@ -25,72 +37,92 @@ export interface DocumentEditorScreenProps {
   /** The document being edited — its id arrives in the route path. */
   documentId: string;
   client?: ApiClient;
+  /** How long typing must pause before the draft is saved. Tests pass a short one. */
+  autosaveDelayMs?: number;
 }
 
+/** The toolbar of 383:3806, in its order. `words` marks a label drawn in the UI font in Arabic. */
+const TOOLS: readonly {
+  readonly id: DocToolId;
+  readonly key: string;
+  readonly english: string;
+  readonly glyph?: string;
+  readonly words?: boolean;
+}[] = [
+  { id: 'h1', key: 'DocumentEditorScreen.toolH1', english: 'H1' },
+  { id: 'h2', key: 'DocumentEditorScreen.toolH2', english: 'H2' },
+  { id: 'bold', key: 'DocumentEditorScreen.toolBold', english: 'B' },
+  { id: 'italic', key: 'DocumentEditorScreen.toolItalic', english: 'I' },
+  { id: 'list', key: 'DocumentEditorScreen.toolList', english: 'List', glyph: '•', words: true },
+  {
+    id: 'checklist',
+    key: 'DocumentEditorScreen.toolChecklist',
+    english: 'Checklist',
+    glyph: '☐',
+    words: true,
+  },
+  { id: 'link', key: 'DocumentEditorScreen.toolLink', english: 'Link', glyph: '↗', words: true },
+];
+
 /**
- * **DOC-02 editor + DOC-03 version history / compare / restore.**
+ * **DOC-02 editor** — the blank new doc of Figma 383:3806 / 383:4019 (A15).
  *
- * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §Docs DOC-02 (editor) and DOC-03 (version history,
- * compare, restore). This screen is the *write* half of the docs module: it edits a document's body
- * and saves each edit as an immutable version, lists the versions newest-first, shows one snapshot
- * side-by-side for compare, and restores a prior one. It is disjoint from the DOC-01 hub/read
- * screens (x106): those own the document record and its current-body read; this owns the editor and
- * the version trail.
+ * The Slack-like docs column on the start side; a top bar with the breadcrumb ("Docs / <project>"),
+ * the save state ("Saved · just now"), Share (copies the document's link) and Publish (the client
+ * audience, offered only when the API says the caller may publish); the toolbar (markdown edits on
+ * the body at the selection); then the sheet: the title, the Draft pill with who can see it, the
+ * body with its placeholder and — while the body is empty — "Or start from a template".
  *
- * ## What it does, and what it cannot
- *
- * - **A save is a new version, never a rewrite.** The API appends a snapshot and bumps the current
- *   body in one transaction; the editor shows the newest version at the top after each save.
- * - **Restore is forward-append.** Restoring version *n* writes a new version equal to it — history
- *   is never mutated, so the trail only ever grows.
- * - **People are shown by name.** "Saved by" resolves the editor's user id through the document's
- *   collaborators (`documents/:id/sharing`, names anchored on this tenant's memberships); an id the
- *   API could not name falls back to "A former member".
- * - **Compare is a read of one snapshot**, not a three-way diff: rendering a diff is deferred
- *   (NEXT-SCOPES-9). The pane shows the selected version's body beside the editor.
+ * **Every pause is a save.** Typing stops for {@link DocumentEditorScreenProps.autosaveDelayMs} and
+ * the body is saved as a new immutable version (the API appends a snapshot); restore stays
+ * forward-append. Once a document has more than one version, its history sits folded under the
+ * sheet, so the blank document reads exactly as designed.
  */
 export function DocumentEditorScreen({
   organizationSlug,
   organizationName,
   documentId,
   client,
+  autosaveDelayMs = 1200,
 }: DocumentEditorScreenProps) {
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
-  const t = useT();
+  const tOr = useTOr();
+  const locale = useActiveLocale();
+  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
 
   const document = useQuery({
     queryKey: ['document', organizationSlug, documentId],
     queryFn: () => getDocument(api, organizationSlug, documentId),
   });
-
   const versions = useQuery({
     queryKey: ['document-versions', organizationSlug, documentId],
     queryFn: () => listDocumentVersions(api, organizationSlug, documentId),
   });
-
-  // Collaborators carry the display names "Saved by" shows (same key as the read screen's top bar).
   const sharing = useQuery({
     queryKey: ['document-sharing', organizationSlug, documentId],
     queryFn: () => getDocumentSharing(api, organizationSlug, documentId),
   });
-  const nameOf = (userId: string): string =>
-    sharing.data?.collaborators?.find((person) => person.userId === userId)?.displayName ??
-    (sharing.isPending ? '…' : t('DocumentEditorScreen.formerMember'));
-
-  // `null` means "not yet edited" — the textarea then shows the document's current body. Once the
-  // person types, the draft is what they typed; a restore clears it back to `null` so the restored
-  // body shows through.
-  const [draft, setDraft] = useState<string | null>(null);
-  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
-
-  const body = draft ?? document.data?.body ?? '';
-
-  const comparison = useQuery({
-    queryKey: ['document-version', organizationSlug, documentId, selectedVersion],
-    queryFn: () => getDocumentVersion(api, organizationSlug, documentId, selectedVersion as number),
-    enabled: selectedVersion !== null,
+  const projects = useQuery({
+    queryKey: ['projects', organizationSlug],
+    queryFn: () => listProjects(api, organizationSlug),
   });
+
+  // `null` = not edited yet: the body shows the document's current text (blank shows as empty).
+  const [draft, setDraft] = useState<string | null>(null);
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [copied, setCopied] = useState(false);
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  // Keep the newest `now` when the document (re)loads, so a fresh document reads "just now".
+  const loadedAt = document.dataUpdatedAt;
+  useEffect(() => {
+    if (loadedAt > 0) setNow(Date.now());
+  }, [loadedAt]);
+
+  const data = document.data;
+  const stored = data && !isBlankBody(data.body) ? data.body : '';
+  const body = draft ?? stored;
 
   const invalidate = async () => {
     await Promise.all([
@@ -102,9 +134,10 @@ export function DocumentEditorScreen({
   };
 
   const save = useMutation({
-    mutationFn: () => saveDocumentVersion(api, organizationSlug, documentId, body),
+    mutationFn: (text: string) => saveDocumentVersion(api, organizationSlug, documentId, text),
     onSuccess: async () => {
-      setDraft(null);
+      setSavedAt(Date.now());
+      setNow(Date.now());
       await invalidate();
     },
   });
@@ -115,273 +148,300 @@ export function DocumentEditorScreen({
     onSuccess: async () => {
       setDraft(null);
       setSelectedVersion(null);
+      setSavedAt(Date.now());
       await invalidate();
     },
   });
 
+  const publish = useMutation({
+    mutationFn: () => setDocumentAudience(api, organizationSlug, documentId, 'client'),
+    onSuccess: (next) => {
+      queryClient.setQueryData(['document-sharing', organizationSlug, documentId], next);
+    },
+  });
+
+  const comparison = useQuery({
+    queryKey: ['document-version', organizationSlug, documentId, selectedVersion],
+    queryFn: () => getDocumentVersion(api, organizationSlug, documentId, selectedVersion as number),
+    enabled: selectedVersion !== null,
+  });
+
+  // Autosave: a pause in typing saves the draft once, if it differs from what is stored.
+  const { mutate: saveNow } = save;
+  useEffect(() => {
+    if (draft === null || draft.trim() === '' || draft === stored) return undefined;
+    const timer = setTimeout(() => saveNow(draft), autosaveDelayMs);
+    return () => clearTimeout(timer);
+  }, [draft, stored, autosaveDelayMs, saveNow]);
+
+  // "Saved · just now" ages into a clock time after a minute.
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const projectName =
+    (Array.isArray(projects.data) ? projects.data : []).find(
+      (project) => project.id === data?.projectId,
+    )?.name ?? '';
+  const published = sharing.data?.audience === 'client';
   const rows = versions.data ?? [];
-  const canSave = body.trim() !== '' && !document.isPending;
-  const data = document.data;
-  const latest = rows[0];
+
+  function applyTool(id: DocToolId) {
+    const control = bodyRef.current;
+    const start = control?.selectionStart ?? body.length;
+    const end = control?.selectionEnd ?? body.length;
+    const result = applyDocEdit(
+      body,
+      start,
+      end,
+      DOC_TOOL_EDITS[id],
+      tOr('DocumentEditorScreen.toolPlaceholder', 'text'),
+    );
+    setDraft(result.text);
+    requestAnimationFrame(() => {
+      control?.focus();
+      control?.setSelectionRange(result.caret, result.caret);
+    });
+  }
+
+  async function share() {
+    const href =
+      typeof window === 'undefined'
+        ? ''
+        : `${window.location.origin}/${organizationSlug}/docs/${documentId}`;
+    try {
+      await navigator.clipboard?.writeText(href);
+    } catch {
+      // Clipboard refused (an insecure context); the link is still the page's own address.
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  const savedInstant = savedAt ?? (data ? Date.parse(data.updatedAt) : Number.NaN);
+  const savedLabel = save.isPending
+    ? tOr('DocumentEditorScreen.saving', 'Saving…')
+    : Number.isNaN(savedInstant)
+      ? ''
+      : now - savedInstant < 60_000
+        ? tOr('DocumentEditorScreen.savedJustNow', 'Saved · just now')
+        : `${tOr('DocumentEditorScreen.savedAt', 'Saved ·')} ${formatClock(
+            new Date(savedInstant).toISOString(),
+            locale,
+          )}`;
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="docs"
-      eyebrow={t('DocumentEditorScreen.eyebrow')}
-      title={
-        data
-          ? `${t('DocumentEditorScreen.editPrefix')}${data.title}`
-          : t('DocumentEditorScreen.editFallback')
+      title={data ? data.title : tOr('DocumentEditorScreen.editFallback', 'Document')}
+      contextRail={
+        <DocsSidebar
+          api={api}
+          organizationSlug={organizationSlug}
+          activeDocumentId={documentId}
+          {...(data ? { projectId: data.projectId } : {})}
+        />
       }
-      actions={
-        <div className="tm-dx-topbar">
-          <Link className="tm-dx-back" href={`/${organizationSlug}/docs/${documentId}`}>
-            <span className="tm-dx-back__orb" aria-hidden="true">
-              ←
+    >
+      <div className="tm-docpage">
+        <div className="tm-docpage__bar">
+          <nav aria-label={tOr('DocumentEditorScreen.breadcrumbAria', 'Breadcrumb')}>
+            <ol className="tm-docpage__crumbs">
+              <li>
+                <Link href={`/${organizationSlug}/docs`}>
+                  {tOr('DocumentEditorScreen.crumbDocs', 'Docs')}
+                </Link>
+              </li>
+              {projectName !== '' ? (
+                <>
+                  <li aria-hidden="true">/</li>
+                  <li>{projectName}</li>
+                </>
+              ) : null}
+            </ol>
+          </nav>
+          <div className="tm-docpage__bar-end">
+            <span className="tm-docpage__saved" role="status">
+              {savedLabel}
             </span>
-            {t('DocumentEditorScreen.backToDocument')}
-          </Link>
-          {data ? (
-            <span className="tm-dx-stamp">
-              {latest ? `${t('DocumentEditorScreen.versionPrefix')}${latest.versionNo} · ` : ''}
-              {t('DocumentEditorScreen.saved')} {formatWhen(data.updatedAt)}
-            </span>
-          ) : null}
-          <div className="tm-dx-topbar__end">
-            <nav className="tm-segmented" aria-label={t('DocumentEditorScreen.documentViewsAria')}>
-              <Link href={`/${organizationSlug}/docs/${documentId}`}>
-                {t('DocumentEditorScreen.read')}
-              </Link>
-              <Link href={`/${organizationSlug}/docs/${documentId}/edit`} aria-current="page">
-                {t('DocumentEditorScreen.editAndHistory')}
-              </Link>
-            </nav>
-            {data ? (
-              <Button
-                type="submit"
-                form="tm-doc-editor-form"
-                tone="ink"
-                size="default"
-                loading={save.isPending}
-                loadingLabel={t('DocumentEditorScreen.saving')}
-                disabled={!canSave}
+            <button type="button" className="tm-docpage__btn" onClick={() => void share()}>
+              {copied
+                ? tOr('DocumentEditorScreen.linkCopied', 'Link copied')
+                : tOr('DocumentEditorScreen.share', 'Share')}
+            </button>
+            {sharing.data?.canPublish && !published ? (
+              <button
+                type="button"
+                className="tm-docpage__btn"
+                data-tone="ink"
+                disabled={publish.isPending}
+                onClick={() => publish.mutate()}
               >
-                {t('DocumentEditorScreen.saveNewVersion')}
-              </Button>
+                {tOr('DocumentEditorScreen.publish', 'Publish')}
+              </button>
             ) : null}
           </div>
         </div>
-      }
-    >
-      {document.isError ? (
-        <InlineAlert tone="danger" title={t('DocumentEditorScreen.loadError')} live>
-          {describeError(document.error)}
-        </InlineAlert>
-      ) : null}
 
-      {document.isPending ? (
-        <LoadingRegion label={t('DocumentEditorScreen.loading')}>
-          <Skeleton height="var(--row)" />
-          <Skeleton height="var(--row)" />
-        </LoadingRegion>
-      ) : null}
-
-      <div className="tm-dx-doc">
-        <div className="tm-dx-doc__stage">
-          {data ? (
-            <section className="tm-dx-sheet" aria-labelledby="tm-doc-editor-heading">
-              <header className="tm-dx-sheet__head">
-                <h2 id="tm-doc-editor-heading" className="tm-dx-sheet__eyebrow">
-                  {t('DocumentEditorScreen.editingPrefix')}
-                  {data.title}
-                </h2>
-                {/* The shell's h1 names the screen for assistive technology; this is the title
-                    on paper, hidden from the accessibility tree so it is not read twice. */}
-                <p className="tm-dx-sheet__title" aria-hidden="true">
-                  {data.title}
-                </p>
-              </header>
-              <hr className="tm-dx-sheet__rule" />
-              <form
-                id="tm-doc-editor-form"
-                className="tm-dx-sheet__editor"
-                noValidate
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (canSave) save.mutate();
-                }}
-              >
-                <label className="tm-visually-hidden" htmlFor="tm-doc-body">
-                  {t('DocumentEditorScreen.documentBody')}
-                </label>
-                <textarea
-                  id="tm-doc-body"
-                  name="body"
-                  className="tm-dx-sheet__textarea"
-                  rows={16}
-                  value={body}
-                  onChange={(event) => setDraft(event.target.value)}
-                  aria-describedby="tm-doc-body-hint"
-                />
-                <span className="tm-dx-sheet__hint" id="tm-doc-body-hint">
-                  {t('DocumentEditorScreen.bodyHint')}
-                </span>
-
-                {save.isError ? (
-                  <InlineAlert tone="danger" title={t('DocumentEditorScreen.saveError')} live>
-                    {describeError(save.error)}
-                  </InlineAlert>
-                ) : null}
-              </form>
-            </section>
-          ) : null}
+        <div
+          className="tm-docpage__tools"
+          role="toolbar"
+          aria-label={tOr('DocumentEditorScreen.toolbarAria', 'Formatting')}
+        >
+          {TOOLS.map((tool) => (
+            <button
+              key={tool.id}
+              type="button"
+              className="tm-docpage__tool"
+              data-words={tool.words ? 'true' : 'false'}
+              onClick={() => applyTool(tool.id)}
+            >
+              {tool.glyph ? <span aria-hidden="true">{tool.glyph}</span> : null}
+              {tOr(tool.key, tool.english)}
+            </button>
+          ))}
         </div>
 
-        <section className="tm-dx-edge" aria-labelledby="tm-doc-history-heading">
-          <h2 id="tm-doc-history-heading" className="tm-dx-edge__caption">
-            {t('DocumentEditorScreen.versionHistory')}
-            {rows.length > 0 ? ` · ${rows.length}` : ''}
-          </h2>
+        {document.isError ? (
+          <InlineAlert
+            tone="danger"
+            title={tOr('DocumentEditorScreen.loadError', 'Could not load this document')}
+            live
+          >
+            {describeError(document.error)}
+          </InlineAlert>
+        ) : null}
+        {document.isPending ? (
+          <LoadingRegion label={tOr('DocumentEditorScreen.loading', 'Loading the document')}>
+            <Skeleton height="var(--row)" />
+            <Skeleton height="var(--row)" />
+          </LoadingRegion>
+        ) : null}
 
-          {versions.isError ? (
-            <InlineAlert tone="danger" title={t('DocumentEditorScreen.loadHistoryError')} live>
-              {describeError(versions.error)}
-            </InlineAlert>
-          ) : null}
+        {data ? (
+          <section className="tm-docpage__sheet" aria-labelledby="tm-doc-title">
+            <h2 id="tm-doc-title" className="tm-docpage__title">
+              {data.title}
+            </h2>
+            <p className="tm-docpage__meta">
+              <span className="tm-docpage__pill">
+                {published
+                  ? tOr('DocumentEditorScreen.published', 'Published')
+                  : tOr('DocumentEditorScreen.draft', 'Draft')}
+              </span>
+              <span>
+                {rtlLine(
+                  `${projectName !== '' ? `${projectName} · ` : ''}${
+                    published
+                      ? tOr(
+                          'DocumentEditorScreen.publishedNote',
+                          "The project's client people can read this document",
+                        )
+                      : tOr(
+                          'DocumentEditorScreen.draftNote',
+                          'Only you can see this draft until you share it',
+                        )
+                  }`,
+                  locale,
+                )}
+              </span>
+            </p>
+            <label className="tm-visually-hidden" htmlFor="tm-doc-body">
+              {tOr('DocumentEditorScreen.documentBody', 'Document body')}
+            </label>
+            <textarea
+              id="tm-doc-body"
+              ref={bodyRef}
+              name="body"
+              className="tm-docpage__body"
+              value={body}
+              placeholder={tOr(
+                'DocumentEditorScreen.placeholder',
+                'Start writing, or type / for headings, lists and checklists.',
+              )}
+              onChange={(event) => setDraft(event.target.value)}
+            />
+            {body.trim() === '' ? (
+              <Link className="tm-docpage__template" href={`/${organizationSlug}/docs/templates`}>
+                {tOr('DocumentEditorScreen.fromTemplate', 'Or start from a template')}
+              </Link>
+            ) : null}
 
-          {versions.isPending ? (
-            <LoadingRegion label={t('DocumentEditorScreen.loadingHistory')}>
-              <Skeleton height="var(--row)" />
-              <Skeleton height="var(--row)" />
-            </LoadingRegion>
-          ) : null}
+            {save.isError ? (
+              <InlineAlert
+                tone="danger"
+                title={tOr('DocumentEditorScreen.saveError', 'Could not save')}
+                live
+              >
+                {describeError(save.error)}
+              </InlineAlert>
+            ) : null}
+            {publish.isError ? (
+              <InlineAlert
+                tone="danger"
+                title={tOr('DocumentEditorScreen.publishError', 'Could not publish')}
+                live
+              >
+                {describeError(publish.error)}
+              </InlineAlert>
+            ) : null}
 
-          {restore.isError ? (
-            <InlineAlert tone="danger" title={t('DocumentEditorScreen.restoreError')} live>
-              {describeError(restore.error)}
-            </InlineAlert>
-          ) : null}
-
-          {!versions.isPending && !versions.isError && rows.length === 0 ? (
-            <div className="tm-dx-empty">
-              <p className="tm-dx-empty__title">{t('DocumentEditorScreen.emptyTitle')}</p>
-              <p className="tm-dx-empty__body">{t('DocumentEditorScreen.emptyBody')}</p>
-            </div>
-          ) : null}
-
-          {rows.length > 0 ? (
-            <div
-              // A scrollable region must be focusable or a keyboard cannot reach its overflow
-              // (WCAG 2.2 2.1.1), matching the work screens' tables.
-              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-              tabIndex={0}
-              role="region"
-              aria-label={t('DocumentEditorScreen.savedVersionsAria')}
-            >
-              {/* Explicit roles keep the table's semantics while it is drawn as DOC-03's stack of
-                  version cards. */}
-              {/* eslint-disable jsx-a11y/no-redundant-roles */}
-              <table className="tm-dx-versions" role="table">
-                <caption className="tm-visually-hidden">
-                  {t('DocumentEditorScreen.captionPrefix')} {rows.length}{' '}
-                  {t('DocumentEditorScreen.captionSuffix')}
-                </caption>
-                <thead role="rowgroup">
-                  <tr role="row">
-                    <th scope="col" role="columnheader">
-                      {t('DocumentEditorScreen.thVersion')}
-                    </th>
-                    <th scope="col" role="columnheader">
-                      {t('DocumentEditorScreen.thSavedBy')}
-                    </th>
-                    <th scope="col" role="columnheader">
-                      {t('DocumentEditorScreen.thWhen')}
-                    </th>
-                    <th scope="col" role="columnheader">
-                      {t('DocumentEditorScreen.thActions')}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody role="rowgroup">
+            {rows.length > 1 ? (
+              <details className="tm-docpage__history">
+                <summary>
+                  {tOr('DocumentEditorScreen.versionHistory', 'Version history')} · {rows.length}
+                </summary>
+                <ol aria-label={tOr('DocumentEditorScreen.savedVersionsAria', 'Saved versions')}>
                   {rows.map((version) => (
-                    <tr key={version.id} role="row">
-                      <th scope="row" role="rowheader" className="tm-dx-versions__no">
-                        {version.versionNo}
-                      </th>
-                      <td className="tm-dx-versions__who">{nameOf(version.editedByUserId)}</td>
-                      <td className="tm-dx-versions__when">{formatWhen(version.createdAt)}</td>
-                      <td className="tm-dx-versions__act">
-                        <div>
-                          <Button
-                            type="button"
-                            tone="outline"
-                            size="compact"
-                            aria-pressed={selectedVersion === version.versionNo}
-                            onClick={() => setSelectedVersion(version.versionNo)}
-                          >
-                            {t('DocumentEditorScreen.compare')}
-                          </Button>
-                          <Button
-                            type="button"
-                            tone="outline"
-                            size="compact"
-                            loading={restore.isPending && restore.variables === version.versionNo}
-                            loadingLabel={t('DocumentEditorScreen.restoring')}
-                            onClick={() => restore.mutate(version.versionNo)}
-                          >
-                            {t('DocumentEditorScreen.restore')}
-                          </Button>
-                        </div>
-                      </td>
-                    </tr>
+                    <li key={version.id}>
+                      <span>
+                        {tOr('DocumentEditorScreen.versionPrefix', 'v')}
+                        {version.versionNo} · {formatClock(version.createdAt, locale)}
+                      </span>
+                      <button
+                        type="button"
+                        className="tm-docpage__tool"
+                        aria-pressed={selectedVersion === version.versionNo}
+                        onClick={() => setSelectedVersion(version.versionNo)}
+                      >
+                        {tOr('DocumentEditorScreen.compare', 'Compare')}
+                      </button>
+                      <button
+                        type="button"
+                        className="tm-docpage__tool"
+                        disabled={restore.isPending}
+                        onClick={() => restore.mutate(version.versionNo)}
+                      >
+                        {tOr('DocumentEditorScreen.restore', 'Restore')}
+                      </button>
+                    </li>
                   ))}
-                </tbody>
-              </table>
-              {/* eslint-enable jsx-a11y/no-redundant-roles */}
-            </div>
-          ) : null}
-
-          {selectedVersion !== null ? (
-            <section className="tm-dx-compare" aria-labelledby="tm-doc-compare-heading">
-              <h3 id="tm-doc-compare-heading" className="tm-dx-edge__caption">
-                {t('DocumentEditorScreen.comparePrefix')}
-                {selectedVersion}
-                {t('DocumentEditorScreen.compareSuffix')}
-              </h3>
-              {comparison.isPending ? (
-                <LoadingRegion label={t('DocumentEditorScreen.loadingVersion')}>
-                  <Skeleton height="var(--row)" />
-                </LoadingRegion>
-              ) : null}
-              {comparison.isError ? (
-                <InlineAlert tone="danger" title={t('DocumentEditorScreen.loadVersionError')} live>
-                  {describeError(comparison.error)}
-                </InlineAlert>
-              ) : null}
-              {comparison.data ? (
-                <>
-                  <pre
-                    className="tm-doc-snapshot tm-dx-compare__block"
-                    aria-label={`${t('DocumentEditorScreen.bodyOfVersionPrefix')}${selectedVersion}`}
-                  >
-                    {comparison.data.body}
-                  </pre>
-                  <p className="tm-dx-note">{t('DocumentEditorScreen.restoreNote')}</p>
-                </>
-              ) : null}
-            </section>
-          ) : null}
-        </section>
+                </ol>
+                {comparison.data ? <pre>{comparison.data.body}</pre> : null}
+              </details>
+            ) : null}
+          </section>
+        ) : null}
       </div>
     </AppShell>
   );
 }
 
-function formatWhen(iso: string): string {
-  const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? iso : date.toISOString().slice(0, 16).replace('T', ' ');
+/** "10:51" today, else "16 Oct, 10:51" — Latin digits in Arabic. */
+function formatClock(iso: string, locale: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  const tag = tagFor(locale);
+  const sameDay = new Date().toDateString() === at.toDateString();
+  return new Intl.DateTimeFormat(tag, {
+    ...(sameDay ? {} : { day: 'numeric', month: 'short' }),
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(at);
 }
 
 function describeError(error: unknown): string {

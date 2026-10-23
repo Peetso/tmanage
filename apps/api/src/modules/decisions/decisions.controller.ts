@@ -3,10 +3,10 @@ import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { DECISIONS_SERVICE } from '../../common/http/tokens.js';
-import { DECISION_STATUSES } from '../../common/database/schema.js';
+import { DECISION_AUDIENCES, DECISION_STATUSES } from '../../common/database/schema.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { DecisionDetailView, DecisionView, DecisionsService } from './decisions.service.js';
-import type { DecisionStatus } from './decisions.repository.js';
+import type { DecisionAudience, DecisionStatus } from './decisions.repository.js';
 
 /**
  * DEC-01 (x113). The decision-register endpoints: author a decision, and list a project's register.
@@ -25,6 +25,12 @@ interface CreateDecisionBody {
   readonly status?: unknown;
   /** An ISO-8601 instant, e.g. `2026-10-01T14:00:00.000Z`. Optional; defaults to now. */
   readonly decidedAt?: unknown;
+  /** A15. Optional "Why we decided this". */
+  readonly rationale?: unknown;
+  /** A15. Optional chat message the decision came from (a message of this project's channels). */
+  readonly sourceMessageId?: unknown;
+  /** A15. `internal` (default) or `client_visible`. */
+  readonly audience?: unknown;
 }
 
 /** `decisions.title` is `VARCHAR(300)`. */
@@ -34,6 +40,41 @@ const MAX_STATEMENT_LENGTH = 20_000;
 
 function isDecisionStatus(value: unknown): value is DecisionStatus {
   return typeof value === 'string' && (DECISION_STATUSES as readonly string[]).includes(value);
+}
+
+function isDecisionAudience(value: unknown): value is DecisionAudience {
+  return typeof value === 'string' && (DECISION_AUDIENCES as readonly string[]).includes(value);
+}
+
+/**
+ * A15. Validate the optional `rationale` and `audience` a create or an edit may carry. `rationale`
+ * is a string (empty clears it) or `null`; `audience` is one of {@link DECISION_AUDIENCES}.
+ */
+function detailFields(
+  body: { readonly rationale?: unknown; readonly audience?: unknown } | undefined,
+  details: { field: string; message: string }[],
+): { readonly rationale?: string | null; readonly audience?: DecisionAudience } {
+  const out: { rationale?: string | null; audience?: DecisionAudience } = {};
+  if (body?.rationale !== undefined) {
+    if (body.rationale === null) out.rationale = null;
+    else if (typeof body.rationale !== 'string') {
+      details.push({ field: 'rationale', message: 'must be a string or null' });
+    } else if (body.rationale.trim().length > MAX_STATEMENT_LENGTH) {
+      details.push({
+        field: 'rationale',
+        message: `must be ${MAX_STATEMENT_LENGTH} characters or fewer`,
+      });
+    } else out.rationale = body.rationale.trim() === '' ? null : body.rationale.trim();
+  }
+  if (body?.audience !== undefined) {
+    if (isDecisionAudience(body.audience)) out.audience = body.audience;
+    else
+      details.push({
+        field: 'audience',
+        message: `must be one of ${DECISION_AUDIENCES.join(', ')}`,
+      });
+  }
+  return out;
 }
 
 @Controller('v1/organizations/:orgSlug/decisions')
@@ -104,6 +145,14 @@ export class DecisionsController {
     ];
 
     const decidedAt = parseInstant(body?.decidedAt, details);
+    const extra = detailFields(body, details);
+    const sourceMessageId =
+      typeof body?.sourceMessageId === 'string' && body.sourceMessageId !== ''
+        ? body.sourceMessageId
+        : undefined;
+    if (body?.sourceMessageId !== undefined && body.sourceMessageId !== null && !sourceMessageId) {
+      details.push({ field: 'sourceMessageId', message: 'must be a non-empty string' });
+    }
 
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -122,6 +171,8 @@ export class DecisionsController {
       statement,
       status,
       decidedAt,
+      ...extra,
+      ...(sourceMessageId === undefined ? {} : { sourceMessageId }),
     });
   }
 
@@ -148,6 +199,8 @@ export class DecisionsController {
    * DEC-01-b (x117). Move a decision through its lifecycle. This slice supports one transition,
    * `proposed → accepted`, so the body's only accepted `status` is `accepted`; the guarded state
    * machine (an illegal transition is a 409 with no write) lives in the service.
+   *
+   * A15. Without a `status`, the body is the detail page's Edit: `rationale` and/or `audience`.
    */
   @Patch(':decisionId')
   @RequireCapability('meeting.write')
@@ -161,6 +214,17 @@ export class DecisionsController {
       throw new ApiError(400, 'validation_failed', 'decisionId is required', [
         { field: 'decisionId', message: 'must be a non-empty string' },
       ]);
+    }
+    if (
+      body?.status === undefined &&
+      (body?.rationale !== undefined || body?.audience !== undefined)
+    ) {
+      const details: { field: string; message: string }[] = [];
+      const changes = detailFields(body, details);
+      if (details.length > 0) {
+        throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+      }
+      return this.decisions.updateDetails(context, principal, decisionId, changes);
     }
     if (body?.status !== 'accepted') {
       throw new ApiError(422, 'validation_failed', 'Only accepting a decision is supported', [
@@ -205,6 +269,9 @@ export class DecisionsController {
 
 interface PatchDecisionBody {
   readonly status?: unknown;
+  /** A15. The detail page's Edit. */
+  readonly rationale?: unknown;
+  readonly audience?: unknown;
 }
 
 interface SupersedeDecisionBody {

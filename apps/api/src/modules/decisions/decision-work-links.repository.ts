@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { decisionWorkLinks, workItems } from '../../common/database/schema.js';
+import { decisionWorkLinks, memberships, users, workItems } from '../../common/database/schema.js';
 import type { DecisionWorkLinkRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -53,6 +53,10 @@ export interface DecisionWorkLinkWithItem {
   readonly link: DecisionWorkLinkRow;
   readonly workItemTitle: string;
   readonly workItemState: string;
+  /** A15. The work item's owner, by display name in this tenant; `null` when unowned. */
+  readonly workItemOwnerName: string | null;
+  /** A15. The work item's due instant; `null` when it has none. */
+  readonly workItemDueAt: Date | null;
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -78,7 +82,13 @@ export class DecisionWorkLinksRepository {
   ): Promise<readonly DecisionWorkLinkWithItem[]> {
     const db = tenantDrizzle(runner);
     const rows = await db
-      .select({ link: decisionWorkLinks, title: workItems.title, state: workItems.state })
+      .select({
+        link: decisionWorkLinks,
+        title: workItems.title,
+        state: workItems.state,
+        dueAt: workItems.dueAt,
+        ownerName: users.displayName,
+      })
       .from(decisionWorkLinks)
       .innerJoin(
         workItems,
@@ -87,6 +97,15 @@ export class DecisionWorkLinksRepository {
           eq(workItems.id, decisionWorkLinks.workItemId),
         ),
       )
+      // A15. The owner's name through this tenant's membership, so another tenant's user never shows.
+      .leftJoin(
+        memberships,
+        and(
+          eq(memberships.organizationId, workItems.organizationId),
+          eq(memberships.userId, workItems.ownerUserId),
+        ),
+      )
+      .leftJoin(users, eq(users.id, memberships.userId))
       .where(
         and(
           eq(decisionWorkLinks.organizationId, context.organizationId),
@@ -100,7 +119,26 @@ export class DecisionWorkLinksRepository {
       link: row.link,
       workItemTitle: row.title,
       workItemState: row.state,
+      workItemOwnerName: row.ownerName ?? null,
+      workItemDueAt: row.dueAt ?? null,
     }));
+  }
+
+  /** A15. A member's display name in this tenant (a new link's owner), or `null`. */
+  async findMemberName(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<string | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ displayName: users.displayName })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(eq(memberships.organizationId, context.organizationId), eq(memberships.userId, userId)),
+      )
+      .limit(1);
+    return rows[0]?.displayName ?? null;
   }
 
   /**

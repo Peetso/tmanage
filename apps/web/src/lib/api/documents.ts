@@ -85,6 +85,30 @@ export async function getDocument(
   return data;
 }
 
+/**
+ * A15. Create a document (`POST …/documents`, `doc.write`). The API requires a non-empty body, so a
+ * blank document is created with {@link BLANK_DOCUMENT_BODY} — a single newline the editor treats as
+ * empty and shows its placeholder for.
+ */
+export const BLANK_DOCUMENT_BODY = '\n';
+
+export async function createDocument(
+  client: ApiClient,
+  organizationSlug: string,
+  input: { readonly projectId: string; readonly title: string; readonly body?: string },
+): Promise<DocumentView> {
+  const { data } = await client.request<DocumentView>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/documents`,
+    body: {
+      projectId: input.projectId,
+      title: input.title,
+      body: input.body && input.body !== '' ? input.body : BLANK_DOCUMENT_BODY,
+    },
+  });
+  return data;
+}
+
 /** List a document's versions, newest first. */
 export async function listDocumentVersions(
   client: ApiClient,

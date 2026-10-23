@@ -35,6 +35,8 @@ const UNKNOWN_PROJECT = 'project-0000-0000-0000-0000-0000000000ff';
 const MEETING = 'meeting-0000-0000-0000-0000-000000000001';
 const UNKNOWN_MEETING = 'meeting-0000-0000-0000-0000-0000000000ff';
 const USER = 'user-0000-0000-0000-0000-000000000001';
+/** A15. A chat message in one of PROJECT's channels. */
+const SOURCE_MESSAGE = 'message-0000-0000-0000-0000-000000000001';
 
 function member(projectIds: readonly string[], hasOrgWideScope = false): Principal {
   return {
@@ -80,6 +82,41 @@ function serviceWith(
     transaction: async (_context: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
   const repository = {
+    // A15. The detail page's extra reads: the decider's name and a message of this project's
+    // channels (`SOURCE_MESSAGE` only, and only for PROJECT).
+    findMemberName: async (_runner: unknown, _ctx: unknown, userId: string) =>
+      userId === USER ? 'Omar Adel' : null,
+    findSourceMessage: async (
+      _runner: unknown,
+      _ctx: unknown,
+      projectId: string,
+      messageId: string,
+    ) =>
+      projectId === PROJECT && messageId === SOURCE_MESSAGE
+        ? {
+            messageId,
+            conversationId: 'conversation-0000-0000-0000-000000000001',
+            channelName: 'atlas-relaunch',
+            authorName: 'Salma Riad',
+            body: '  Can we also see the mobile booking flow before launch?  ',
+            createdAt: new Date('2026-10-15T10:51:00.000Z'),
+          }
+        : null,
+    updateDetails: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      decisionId: string,
+      input: { readonly rationale?: string | null; readonly audience?: DecisionRow['audience'] },
+    ) => {
+      const row = store.find(
+        (candidate) =>
+          candidate.id === decisionId && candidate.organizationId === ctx.organizationId,
+      );
+      if (!row) throw new Error(`decision ${decisionId} not found`);
+      if (input.rationale !== undefined) row.rationale = input.rationale;
+      if (input.audience !== undefined) row.audience = input.audience;
+      return row;
+    },
     list: async (_runner: unknown, _ctx: unknown, options: { readonly projectId: string }) =>
       store
         .filter((row) => row.projectId === options.projectId)
@@ -113,9 +150,16 @@ function serviceWith(
         readonly status: DecisionRow['status'];
         readonly decidedBy: string;
         readonly decidedAt: Date;
+        readonly rationale?: string | null;
+        readonly sourceMessageId?: string | null;
+        readonly audience?: DecisionRow['audience'];
       },
     ) => {
       const row = {
+        number: store.length + 1,
+        rationale: input.rationale ?? null,
+        sourceMessageId: input.sourceMessageId ?? null,
+        audience: input.audience ?? 'internal',
         id: `decision-0000-0000-0000-00000000000${++seq}`,
         organizationId: ctx.organizationId,
         projectId: input.projectId,
@@ -448,6 +492,71 @@ describe('DecisionsService lifecycle (DEC-01-b / DEC-02)', () => {
       .catch((caught: unknown) => caught);
     expect((error as ApiError).status).toBe(409);
     expect(edges).toHaveLength(0);
+  });
+
+  it('A15: the detail carries the number, rationale, audience, decider name and source card', async () => {
+    const { service } = serviceWith();
+    const created = await service.create(context, member([PROJECT]), {
+      projectId: PROJECT,
+      title: 'Launch the mobile booking flow first',
+      statement: 'Desktop follows two weeks later.',
+      status: 'accepted',
+      decidedAt: DECIDED_AT,
+      rationale: 'Most bookings come from phones.',
+      sourceMessageId: SOURCE_MESSAGE,
+      audience: 'client_visible',
+    });
+    const detail = await service.detail(context, member([PROJECT]), created.id);
+    expect(detail.number).toBe(1);
+    expect(detail.rationale).toBe('Most bookings come from phones.');
+    expect(detail.audience).toBe('client_visible');
+    expect(detail.decidedByName).toBe('Omar Adel');
+    expect(detail.source).toEqual({
+      messageId: SOURCE_MESSAGE,
+      conversationId: 'conversation-0000-0000-0000-000000000001',
+      channelName: 'atlas-relaunch',
+      authorName: 'Salma Riad',
+      quote: 'Can we also see the mobile booking flow before launch?',
+      at: '2026-10-15T10:51:00.000Z',
+    });
+  });
+
+  it('A15: a source message outside the decision’s project is a 404 with no write', async () => {
+    const { service, store } = serviceWith();
+    const error = await service
+      .create(context, member([PROJECT]), {
+        projectId: PROJECT,
+        title: 'T',
+        statement: 'S',
+        status: 'proposed',
+        decidedAt: DECIDED_AT,
+        sourceMessageId: 'message-of-another-project',
+      })
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
+    expect(store).toHaveLength(0);
+  });
+
+  it('A15: Edit changes the rationale and audience; a locked decision refuses it', async () => {
+    const { service, lockStore } = serviceWith([{ ...PROPOSED }]);
+    const edited = await service.updateDetails(context, member([PROJECT]), PROPOSED.id, {
+      rationale: 'Because phones.',
+      audience: 'client_visible',
+    });
+    expect(edited.rationale).toBe('Because phones.');
+    expect(edited.audience).toBe('client_visible');
+
+    lockStore.push({
+      id: 'lock-1',
+      organizationId: ORG,
+      decisionId: PROPOSED.id,
+      lockedBy: USER,
+      lockedAt: new Date(),
+    } as DecisionLockRow);
+    const error = await service
+      .updateDetails(context, member([PROJECT]), PROPOSED.id, { rationale: 'Again' })
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(409);
   });
 
   it('hides a decision’s detail from a non-member, as not-found', async () => {

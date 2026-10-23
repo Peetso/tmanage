@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
@@ -325,6 +326,7 @@ export function DecisionRegisterScreen({
                       <tbody>
                         {visibleRows.map((decision) => (
                           <DecisionRow
+                            organizationSlug={organizationSlug}
                             key={decision.id}
                             decision={decision}
                             candidates={rows}
@@ -454,6 +456,7 @@ export function DecisionRegisterScreen({
 }
 
 function DecisionRow({
+  organizationSlug,
   decision,
   candidates,
   locked,
@@ -464,6 +467,8 @@ function DecisionRow({
   linksSelected,
   onToggleLinks,
 }: {
+  /** A15: the row's title opens the decision's own page. */
+  organizationSlug: string;
   decision: DecisionSummary;
   candidates: readonly DecisionSummary[];
   /** SEC / Decisions (x150): the decision has been sealed this session; no further write is offered. */
@@ -487,7 +492,7 @@ function DecisionRow({
   return (
     <tr data-state={decision.status} {...(linksSelected ? { 'data-current': 'true' } : {})}>
       <th scope="row" className="tm-dx-table__title">
-        {decision.title}
+        <Link href={`/${organizationSlug}/decisions/${decision.id}`}>{decision.title}</Link>
         <span className="tm-dx-table__sub">{decision.statement}</span>
       </th>
       <td>

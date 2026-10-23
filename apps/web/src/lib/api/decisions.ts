@@ -16,6 +16,9 @@ import type { ApiClient } from './client';
 /** Where a decision sits in its short lifecycle. Mirrors the API's `DecisionStatus`. */
 export type DecisionStatus = 'proposed' | 'accepted' | 'superseded';
 
+/** A15. Who a decision is visible to. Mirrors the API's `DecisionAudience`. */
+export type DecisionAudience = 'internal' | 'client_visible';
+
 export interface DecisionSummary {
   readonly id: string;
   readonly projectId: string;
@@ -28,6 +31,18 @@ export interface DecisionSummary {
   /** An ISO-8601 instant. */
   readonly decidedAt: string;
   readonly createdAt: string;
+  /** A15. The register number, printed as `DEC-014`; `null` only on a legacy row. */
+  readonly number: number | null;
+  /** A15. "Why we decided this". */
+  readonly rationale: string | null;
+  /** A15. The chat message the decision came from. */
+  readonly sourceMessageId: string | null;
+  readonly audience: DecisionAudience;
+}
+
+/** A15. `DEC-014` — the register number padded to three digits; `DEC-—` for a legacy row. */
+export function decisionCode(number: number | null): string {
+  return number === null ? 'DEC-—' : `DEC-${String(number).padStart(3, '0')}`;
 }
 
 export async function listDecisions(
@@ -80,6 +95,17 @@ export async function createDecision(
 export interface DecisionDetail extends DecisionSummary {
   readonly supersededBy: { readonly decisionId: string; readonly at: string } | null;
   readonly supersedes: readonly { readonly decisionId: string; readonly at: string }[];
+  /** A15. The decider's display name; `null` when they are no longer a member. */
+  readonly decidedByName: string | null;
+  /** A15. The Source card: the chat message the decision came from. */
+  readonly source: {
+    readonly messageId: string;
+    readonly conversationId: string;
+    readonly channelName: string;
+    readonly authorName: string;
+    readonly quote: string;
+    readonly at: string;
+  } | null;
 }
 
 export async function getDecision(
@@ -103,6 +129,21 @@ export async function acceptDecision(
     method: 'PATCH',
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/decisions/${encodeURIComponent(decisionId)}`,
     body: { status: 'accepted' },
+  });
+  return data;
+}
+
+/** A15. The detail page's Edit: "Why we decided this" and "Visible to". */
+export async function updateDecisionDetails(
+  client: ApiClient,
+  organizationSlug: string,
+  decisionId: string,
+  changes: { readonly rationale?: string | null; readonly audience?: DecisionAudience },
+): Promise<DecisionSummary> {
+  const { data } = await client.request<DecisionSummary>({
+    method: 'PATCH',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/decisions/${encodeURIComponent(decisionId)}`,
+    body: changes,
   });
   return data;
 }

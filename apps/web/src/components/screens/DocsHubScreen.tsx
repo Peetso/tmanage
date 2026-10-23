@@ -7,6 +7,7 @@ import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/docs.css';
 import { AudienceBadge } from '../docs/DocumentAudience';
+import { useCreateBlankDocument } from '../docs/DocsSidebar';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { listRecentDocuments } from '../../lib/api/documents';
@@ -39,7 +40,8 @@ type HubTab = 'recent' | 'project' | 'favourites';
  * Each row shows its project and its **audience** (internal, or published to the project's client
  * people with how many there are). Documents in projects the caller cannot read are never listed;
  * the API returns only how many there were, drawn as DOC-01's quiet "in a space you cannot read" row.
- * "New doc" and "Templates" go to the template gallery, where a document is created from a template.
+ * "Templates" goes to the template gallery. A15: "New doc" creates a blank document in the chosen
+ * project (or the first one) and opens it in the editor (383:3806).
  */
 export function DocsHubScreen({
   organizationSlug,
@@ -76,6 +78,12 @@ export function DocsHubScreen({
     enabled: scope !== null,
   });
 
+  const createBlank = useCreateBlankDocument(
+    api,
+    organizationSlug,
+    tab === 'project' && projectId !== '' ? projectId : undefined,
+  );
+
   const rows = documents.data?.documents ?? [];
   const hidden = documents.data?.hiddenCount ?? 0;
 
@@ -93,12 +101,17 @@ export function DocsHubScreen({
       eyebrow={t('DocsHubScreen.eyebrow')}
       title={t('DocsHubScreen.title')}
       actions={
-        <Link className="tm-dx-new" href={`/${organizationSlug}/docs/templates`}>
+        <button
+          type="button"
+          className="tm-dx-new"
+          disabled={createBlank.isPending}
+          onClick={() => createBlank.mutate()}
+        >
           <span className="tm-dx-new__orb" aria-hidden="true">
             +
           </span>
           {t('DocsHubScreen.newDoc')}
-        </Link>
+        </button>
       }
     >
       <div className="tm-dx">
@@ -132,6 +145,12 @@ export function DocsHubScreen({
               </button>
             ))}
           </div>
+        ) : null}
+
+        {createBlank.isError ? (
+          <InlineAlert tone="danger" title={t('DocsHubScreen.loadDocsError')} live>
+            {describeError(createBlank.error)}
+          </InlineAlert>
         ) : null}
 
         {tab === 'project' && projects.isError ? (

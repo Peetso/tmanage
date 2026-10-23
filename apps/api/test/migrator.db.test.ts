@@ -1221,6 +1221,11 @@ describe('0037: decisions is a tenant-scoped, project-owned, append-only registe
         'statement',
         'status',
         'title',
+        // A15 (0225): the Decision detail page's columns.
+        'number',
+        'rationale',
+        'source_message_id',
+        'audience',
       ].sort(),
     );
     // A decision's statement is prose a person types — TEXT, and NOT NULL like documents.body.

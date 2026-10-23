@@ -17,6 +17,10 @@ export interface DecisionWorkLink {
   readonly workItemId: string;
   readonly workItemTitle: string;
   readonly workItemState: string;
+  /** A15. The work item's owner by name; `null` when unowned. */
+  readonly workItemOwnerName: string | null;
+  /** A15. The work item's due instant (ISO-8601); `null` when it has none. */
+  readonly workItemDueAt: string | null;
   /** An ISO-8601 instant. */
   readonly createdAt: string;
 }

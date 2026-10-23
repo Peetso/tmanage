@@ -1,9 +1,15 @@
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { decisions } from '../../common/database/schema.js';
+import {
+  conversations,
+  decisions,
+  memberships,
+  messages,
+  users,
+} from '../../common/database/schema.js';
 import type { DecisionRow } from '../../common/database/schema.js';
-import type { DECISION_STATUSES } from '../../common/database/schema.js';
+import type { DECISION_AUDIENCES, DECISION_STATUSES } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -25,6 +31,19 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
 
 /** The decision status set, mirroring the `0037` `ENUM`. */
 export type DecisionStatus = (typeof DECISION_STATUSES)[number];
+
+/** A15 (0225). Who a decision is visible to, mirroring the `decisions.audience` ENUM. */
+export type DecisionAudience = (typeof DECISION_AUDIENCES)[number];
+
+/** A15. The chat message a decision came from, as the detail page's Source card draws it. */
+export interface DecisionSourceMessage {
+  readonly messageId: string;
+  readonly conversationId: string;
+  readonly channelName: string;
+  readonly authorName: string;
+  readonly body: string;
+  readonly createdAt: Date;
+}
 
 export class DecisionNotFoundError extends Error {
   constructor(readonly decisionId: string) {
@@ -50,6 +69,18 @@ export interface CreateDecisionInput {
   readonly decidedBy: string;
   /** A point in time, stored as a UTC instant (the column is `DATETIME(3)`). */
   readonly decidedAt: Date;
+  /** A15 (0225). Optional "Why we decided this". */
+  readonly rationale?: string | null;
+  /** A15 (0225). The chat message it came from — already resolved in-tenant by the service. */
+  readonly sourceMessageId?: string | null;
+  /** A15 (0225). Defaults to `internal`. */
+  readonly audience?: DecisionAudience;
+}
+
+/** A15. The fields the detail page's Edit may change (the 0038 trigger pins the rest). */
+export interface UpdateDecisionDetailsInput {
+  readonly rationale?: string | null;
+  readonly audience?: DecisionAudience;
 }
 
 export interface ListDecisionsOptions {
@@ -145,14 +176,26 @@ export class DecisionsRepository {
     const db = tenantDrizzle(runner);
     const id = uuidv7();
 
+    // A15 (0225). The next register number of this tenant, read inside the caller's transaction;
+    // `uq_decisions_org_number` refuses a concurrent duplicate rather than storing two DEC-014s.
+    const [highest] = await db
+      .select({ value: sql<number | null>`MAX(${decisions.number})` })
+      .from(decisions)
+      .where(eq(decisions.organizationId, context.organizationId));
+    const number = Number(highest?.value ?? 0) + 1;
+
     await db.insert(decisions).values({
       id,
       // From the context. Not from `input` — there is no such field.
       organizationId: context.organizationId,
       projectId: input.projectId,
       meetingId: input.meetingId ?? null,
+      number,
       title: input.title,
       statement: input.statement,
+      rationale: input.rationale ?? null,
+      sourceMessageId: input.sourceMessageId ?? null,
+      audience: input.audience ?? 'internal',
       status: input.status,
       decidedBy: input.decidedBy,
       decidedAt: input.decidedAt,
@@ -186,5 +229,100 @@ export class DecisionsRepository {
         and(eq(decisions.organizationId, context.organizationId), eq(decisions.id, decisionId)),
       );
     return this.requireById(runner, context, decisionId);
+  }
+
+  /**
+   * A15. Write the detail page's editable fields — `rationale` and `audience` — and read the row
+   * back. The predicate carries both `organization_id` and `id`, so a cross-tenant id updates nothing.
+   */
+  async updateDetails(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    decisionId: string,
+    input: UpdateDecisionDetailsInput,
+  ): Promise<DecisionRow> {
+    const changes = {
+      ...(input.rationale !== undefined ? { rationale: input.rationale } : {}),
+      ...(input.audience !== undefined ? { audience: input.audience } : {}),
+    };
+    if (Object.keys(changes).length > 0) {
+      await tenantDrizzle(runner)
+        .update(decisions)
+        .set(changes)
+        .where(
+          and(eq(decisions.organizationId, context.organizationId), eq(decisions.id, decisionId)),
+        );
+    }
+    return this.requireById(runner, context, decisionId);
+  }
+
+  /**
+   * A15. The display name of a member of this tenant (the "Decided by" row). Read through the
+   * membership, so a user id of another tenant resolves to nothing.
+   */
+  async findMemberName(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<string | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({ displayName: users.displayName })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(eq(memberships.organizationId, context.organizationId), eq(memberships.userId, userId)),
+      )
+      .limit(1);
+    return rows[0]?.displayName ?? null;
+  }
+
+  /**
+   * A15. A chat message of this tenant **in the given project's channels**, with its channel and
+   * author — the decision's Source card, and the create-time check that a `sourceMessageId` belongs
+   * to the decision's own project. A deleted message resolves to nothing.
+   */
+  async findSourceMessage(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    messageId: string,
+  ): Promise<DecisionSourceMessage | null> {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        messageId: messages.id,
+        conversationId: messages.conversationId,
+        channelName: conversations.name,
+        authorName: users.displayName,
+        body: messages.body,
+        createdAt: messages.createdAt,
+        deletedAt: messages.deletedAt,
+      })
+      .from(messages)
+      .innerJoin(
+        conversations,
+        and(
+          eq(conversations.organizationId, messages.organizationId),
+          eq(conversations.id, messages.conversationId),
+        ),
+      )
+      .innerJoin(users, eq(users.id, messages.authorUserId))
+      .where(
+        and(
+          eq(messages.organizationId, context.organizationId),
+          eq(messages.id, messageId),
+          eq(conversations.projectId, projectId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row || row.deletedAt !== null) return null;
+    return {
+      messageId: row.messageId,
+      conversationId: row.conversationId,
+      channelName: row.channelName,
+      authorName: row.authorName,
+      body: row.body,
+      createdAt: row.createdAt,
+    };
   }
 }

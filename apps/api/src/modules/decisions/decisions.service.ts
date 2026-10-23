@@ -13,7 +13,12 @@ import type {
   DecisionRow,
   DecisionSupersessionRow,
 } from '../../common/database/schema.js';
-import type { DecisionStatus } from './decisions.repository.js';
+import type {
+  DecisionAudience,
+  DecisionSourceMessage,
+  DecisionStatus,
+  UpdateDecisionDetailsInput,
+} from './decisions.repository.js';
 
 /**
  * The application service for DEC-01 (x113) — the decision register's object-level decisions the
@@ -50,7 +55,30 @@ export interface DecisionView {
   /** An ISO-8601 instant on the wire. */
   readonly decidedAt: string;
   readonly createdAt: string;
+  /** A15 (0225). The register number the page prints as `DEC-014`; `null` only on a legacy row. */
+  readonly number: number | null;
+  /** A15 (0225). "Why we decided this". */
+  readonly rationale: string | null;
+  /** A15 (0225). The chat message the decision came from. */
+  readonly sourceMessageId: string | null;
+  /** A15 (0225). Who sees it: the team only, or the team and the project's client people. */
+  readonly audience: DecisionAudience;
 }
+
+/** A15. The Source card of the detail page. Inline and unexported, a member of the detail. */
+interface DecisionSourceView {
+  readonly messageId: string;
+  readonly conversationId: string;
+  readonly channelName: string;
+  readonly authorName: string;
+  /** The message text, cut to {@link SOURCE_QUOTE_LIMIT} characters. */
+  readonly quote: string;
+  /** An ISO-8601 instant. */
+  readonly at: string;
+}
+
+/** The Source card quotes a message, not a whole thread. */
+const SOURCE_QUOTE_LIMIT = 280;
 
 /** One end of a supersede edge, on the wire. Inline and anonymous, not a named `…View`. */
 interface SupersedeEdgeView {
@@ -68,6 +96,10 @@ interface SupersedeEdgeView {
 export interface DecisionDetailView extends DecisionView {
   readonly supersededBy: SupersedeEdgeView | null;
   readonly supersedes: readonly SupersedeEdgeView[];
+  /** A15. The decider's display name in this tenant; `null` when they are no longer a member. */
+  readonly decidedByName: string | null;
+  /** A15. The Source card, or `null` when the decision names no (still visible) message. */
+  readonly source: DecisionSourceView | null;
 }
 
 /**
@@ -108,6 +140,23 @@ function toView(row: DecisionRow): DecisionView {
     decidedBy: row.decidedBy,
     decidedAt: row.decidedAt.toISOString(),
     createdAt: row.createdAt.toISOString(),
+    number: row.number ?? null,
+    rationale: row.rationale ?? null,
+    sourceMessageId: row.sourceMessageId ?? null,
+    audience: row.audience ?? 'internal',
+  };
+}
+
+function toSourceView(source: DecisionSourceMessage | null): DecisionSourceView | null {
+  if (!source) return null;
+  const text = source.body.trim();
+  return {
+    messageId: source.messageId,
+    conversationId: source.conversationId,
+    channelName: source.channelName,
+    authorName: source.authorName,
+    quote: text.length > SOURCE_QUOTE_LIMIT ? `${text.slice(0, SOURCE_QUOTE_LIMIT - 1)}…` : text,
+    at: source.createdAt.toISOString(),
   };
 }
 
@@ -115,9 +164,13 @@ function toDetailView(
   row: DecisionRow,
   supersededBy: DecisionSupersessionRow | null,
   supersedes: readonly DecisionSupersessionRow[],
+  decidedByName: string | null = null,
+  source: DecisionSourceMessage | null = null,
 ): DecisionDetailView {
   return {
     ...toView(row),
+    decidedByName,
+    source: toSourceView(source),
     supersededBy: supersededBy
       ? {
           decisionId: supersededBy.supersededByDecisionId,
@@ -303,6 +356,24 @@ export class DecisionsService {
   }
 
   /**
+   * A15. The detail page's Edit: change "Why we decided this" and "Visible to". Resolved writable
+   * first (Known-trap), and a locked decision refuses it like every other write — 409, no change.
+   */
+  async updateDetails(
+    context: TenantContext,
+    principal: Principal,
+    decisionId: string,
+    input: UpdateDecisionDetailsInput,
+  ): Promise<DecisionView> {
+    await this.requireWritableDecision(context, principal, decisionId);
+    await this.assertNotLocked(context, decisionId);
+    const row = await this.database.transaction(context, (tx) =>
+      this.decisions.updateDetails(tx, context, decisionId, input),
+    );
+    return toView(row);
+  }
+
+  /**
    * DEC-01-b / DEC-02 (x117). Supersede a decision **by another decision**.
    *
    * Both ids are resolved tenant- and project-scoped BEFORE the write (Known-trap): the superseded
@@ -403,13 +474,25 @@ export class DecisionsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'decision_not_visible');
     }
 
-    const [supersededBy, supersedes] = await this.database.read(context, async (runner) => {
-      const by = await this.supersessions.findSupersededBy(runner, context, decisionId);
-      const of = await this.supersessions.listSupersedes(runner, context, decisionId);
-      return [by, of] as const;
-    });
+    const [supersededBy, supersedes, decidedByName, source] = await this.database.read(
+      context,
+      async (runner) => {
+        const by = await this.supersessions.findSupersededBy(runner, context, decisionId);
+        const of = await this.supersessions.listSupersedes(runner, context, decisionId);
+        const name = await this.decisions.findMemberName(runner, context, decision.decidedBy);
+        const message = decision.sourceMessageId
+          ? await this.decisions.findSourceMessage(
+              runner,
+              context,
+              decision.projectId,
+              decision.sourceMessageId,
+            )
+          : null;
+        return [by, of, name, message] as const;
+      },
+    );
 
-    return toDetailView(decision, supersededBy, supersedes);
+    return toDetailView(decision, supersededBy, supersedes, decidedByName, source);
   }
 
   /**
@@ -473,6 +556,9 @@ export class DecisionsService {
       readonly statement: string;
       readonly status: DecisionStatus;
       readonly decidedAt: Date;
+      readonly rationale?: string | null;
+      readonly sourceMessageId?: string | null;
+      readonly audience?: DecisionAudience;
     },
   ): Promise<DecisionView> {
     const project = await this.database.read(context, (runner) =>
@@ -509,6 +595,17 @@ export class DecisionsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
     }
 
+    // A15. A source message must be a message of this tenant in one of this project's channels.
+    const sourceMessageId = input.sourceMessageId ?? null;
+    if (sourceMessageId !== null) {
+      const source = await this.database.read(context, (runner) =>
+        this.decisions.findSourceMessage(runner, context, input.projectId, sourceMessageId),
+      );
+      if (!source) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'message_not_visible');
+      }
+    }
+
     const toWrite: CreateDecisionInput = {
       projectId: input.projectId,
       meetingId: input.meetingId ?? null,
@@ -517,6 +614,9 @@ export class DecisionsService {
       status: input.status,
       decidedBy: context.userId,
       decidedAt: input.decidedAt,
+      ...(input.rationale !== undefined ? { rationale: input.rationale } : {}),
+      ...(sourceMessageId !== null ? { sourceMessageId } : {}),
+      ...(input.audience !== undefined ? { audience: input.audience } : {}),
     };
 
     const row = await this.database.transaction(context, (tx) =>

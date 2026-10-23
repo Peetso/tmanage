@@ -45,6 +45,10 @@ export interface DecisionWorkLinkView {
   readonly workItemId: string;
   readonly workItemTitle: string;
   readonly workItemState: string;
+  /** A15. The owner's display name ("Lina Samir · due 24 Oct"); `null` when unowned. */
+  readonly workItemOwnerName: string | null;
+  /** A15. The work item's due instant, ISO-8601; `null` when it has none. */
+  readonly workItemDueAt: string | null;
   readonly createdAt: string;
 }
 
@@ -60,6 +64,8 @@ function toView(joined: DecisionWorkLinkWithItem): DecisionWorkLinkView {
     workItemId: joined.link.workItemId,
     workItemTitle: joined.workItemTitle,
     workItemState: joined.workItemState,
+    workItemOwnerName: joined.workItemOwnerName ?? null,
+    workItemDueAt: joined.workItemDueAt ? joined.workItemDueAt.toISOString() : null,
     createdAt: joined.link.createdAt.toISOString(),
   };
 }
@@ -164,7 +170,18 @@ export class DecisionWorkLinksService {
           createdBy: context.userId,
         }),
       );
-      return toView({ link: row, workItemTitle: workItem.title, workItemState: workItem.state });
+      const ownerName = workItem.ownerUserId
+        ? await this.database.read(context, (runner) =>
+            this.links.findMemberName(runner, context, workItem.ownerUserId as string),
+          )
+        : null;
+      return toView({
+        link: row,
+        workItemTitle: workItem.title,
+        workItemState: workItem.state,
+        workItemOwnerName: ownerName,
+        workItemDueAt: workItem.dueAt ?? null,
+      });
     } catch (error) {
       if (error instanceof DuplicateDecisionWorkLinkError) {
         throw new ApiError(
