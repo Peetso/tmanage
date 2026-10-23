@@ -466,6 +466,23 @@ export const projectsDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'List project milestones', args: { projectId: 'proj_1' } }],
   }),
+  // A9: the Milestones list read and "Delete milestone".
+  det({
+    id: 'projects.milestone_plan.list',
+    title: 'List the project milestone plan',
+    description: 'Every milestone of a project with what it delivers and its owner.',
+    input: listArgs(['projectId']),
+    redact: 'standard',
+    examples: [{ summary: 'List the project milestone plan', args: { projectId: 'proj_1' } }],
+  }),
+  det({
+    id: 'projects.milestones.delete',
+    title: 'Delete project milestones',
+    description: 'Delete project milestones. Confirm-class: needs your approval before it runs.',
+    input: pathOnly('projectId', 'id'),
+    redact: 'standard',
+    examples: [{ summary: 'Delete project milestones', args: { projectId: 'proj_1', id: 'x_1' } }],
+  }),
   det({
     id: 'projects.milestones.update',
     title: 'Update project milestones',
@@ -475,6 +492,8 @@ export const projectsDetails: readonly AiActionDetail[] = [
       dueOn: f.iso().nullish(),
       status: f.shortText(40).optional(),
       published: f.bool().optional(),
+      description: f.text().nullish(),
+      ownerUserId: f.id().nullish(),
     }),
     redact: 'standard',
     examples: [
@@ -787,6 +806,9 @@ export const projectsDetails: readonly AiActionDetail[] = [
     input: bodyArgs(['templateId'], {
       workspaceId: f.id().optional(),
       name: f.shortText().optional(),
+      startDate: f.iso().optional(),
+      clientOrganizationId: f.id().optional(),
+      leadUserId: f.id().optional(),
     }),
     redact: 'standard',
     examples: [

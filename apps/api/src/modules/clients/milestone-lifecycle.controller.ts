@@ -1,11 +1,24 @@
-import { Body, Controller, HttpCode, Inject, Param, Patch, Post } from '@nestjs/common';
-import { authorize } from '@tmanage/domain';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
+import { authorize, isInternalRole } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { MILESTONE_LIFECYCLE_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import { MembershipsRepository } from '../tenancy/memberships.repository.js';
+import { ClientOrganizationsRepository } from './client-organizations.repository.js';
+import { ProjectClientsRepository } from './project-clients.repository.js';
 import { ProjectMilestonesRepository } from './project-milestones.repository.js';
 import type { UpdateProjectMilestonePatch } from './project-milestones.repository.js';
 import { toProjectMilestoneView } from './project-milestones.projection.js';
@@ -50,8 +63,40 @@ export interface MilestoneEditView {
   readonly updatedAt: string;
 }
 
+/**
+ * A9 — one milestone as the Milestones list and Edit milestone read it (`project.manage`, internal).
+ *
+ * The edit view's fields plus the two A9 columns (0222): "what is delivered" and the owner. Like
+ * {@link MilestoneEditView} it never leaves the internal `projects` path.
+ */
+export interface MilestoneDetailView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  /** "What is delivered"; null when not written. */
+  readonly description: string | null;
+  /** A 'YYYY-MM-DD' target day, or null when the date is not committed. */
+  readonly dueOn: string | null;
+  readonly status: ProjectMilestoneView['status'];
+  /** "Show on the client timeline". */
+  readonly published: boolean;
+  readonly ownerUserId: string | null;
+  /** An ISO-8601 instant — for a met milestone, when it was marked done. */
+  readonly updatedAt: string;
+}
+
+/** A9 — the project's milestone plan: every milestone, and the client that would see it. */
+export interface MilestonePlanView {
+  /** The name of the client company the project is shared with, or null for an internal project. */
+  readonly clientName: string | null;
+  readonly milestones: readonly MilestoneDetailView[];
+}
+
 /** `project_milestones.title` is VARCHAR(300). */
 const MAX_MILESTONE_TITLE_LENGTH = 300;
+
+/** A9: "What is delivered" is a sentence or two, not a document. */
+const MAX_MILESTONE_DESCRIPTION_LENGTH = 2000;
 
 /** A calendar day, `YYYY-MM-DD` — the shape a MySQL `DATE` column round-trips as a string. */
 const DUE_ON_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -83,7 +128,71 @@ export class MilestoneLifecycleService {
     private readonly database: TenantDatabase,
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     private readonly milestones: ProjectMilestonesRepository = new ProjectMilestonesRepository(),
+    private readonly members: MembershipsRepository = new MembershipsRepository(),
+    private readonly shares: ProjectClientsRepository = new ProjectClientsRepository(),
+    private readonly clientOrganizations: ClientOrganizationsRepository = new ClientOrganizationsRepository(),
   ) {}
+
+  /**
+   * A9 — the project's milestones with their details, and the client company that sees the
+   * published ones. Same resolve-then-authorize order as {@link edit}.
+   */
+  async plan(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<MilestonePlanView> {
+    await this.resolveManageable(context, principal, projectId);
+
+    return this.database.read(context, async (runner) => {
+      const rows = await this.milestones.list(runner, context, { projectId, publishedOnly: false });
+      const [share] = await this.shares.list(runner, context, { projectId, limit: 1 });
+      const client = share
+        ? await this.clientOrganizations.findById(runner, context, share.clientOrganizationId)
+        : null;
+      return { clientName: client?.name ?? null, milestones: rows.map(toMilestoneDetailView) };
+    });
+  }
+
+  /**
+   * A9 — delete a milestone (`project.manage`). Refused with 409 while a dependency edge, a retro
+   * note or a phase placement still names it, so a delete never strands a link.
+   */
+  async remove(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    milestoneId: string,
+  ): Promise<void> {
+    await this.resolveManageable(context, principal, projectId);
+    await this.resolveMilestone(context, projectId, milestoneId);
+
+    await this.database.transaction(context, async (tx) => {
+      const links = await this.milestones.countLinks(tx, context, milestoneId);
+      if (links > 0) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'This milestone is still linked to other work',
+          undefined,
+          'milestone_in_use',
+        );
+      }
+      await this.milestones.delete(tx, context, milestoneId);
+    });
+  }
+
+  /** A9 — the owner must be an active internal member of this tenant; otherwise a 400. */
+  private async requireOwner(context: TenantContext, ownerUserId: string): Promise<void> {
+    const membership = await this.database.read(context, (runner) =>
+      this.members.findByUserId(runner, context, ownerUserId),
+    );
+    if (!membership || membership.status !== 'active' || !isInternalRole(membership.role)) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'ownerUserId', message: 'must be an active member of this organization' },
+      ]);
+    }
+  }
 
   /**
    * Edit a milestone's mutable fields — `project.manage`, internal only.
@@ -103,6 +212,9 @@ export class MilestoneLifecycleService {
   ): Promise<MilestoneEditView> {
     await this.resolveManageable(context, principal, input.projectId);
     await this.resolveMilestone(context, input.projectId, input.milestoneId);
+    if (typeof input.patch.ownerUserId === 'string') {
+      await this.requireOwner(context, input.patch.ownerUserId);
+    }
 
     const row = await this.database.transaction(context, (tx) =>
       this.milestones.update(tx, context, input.milestoneId, input.patch),
@@ -195,7 +307,13 @@ function parseEditBody(
 ): EditMilestoneCommand {
   const record = (body ?? {}) as Record<string, unknown>;
   const details: { field: string; message: string }[] = [];
-  const patch: { title?: string; dueOn?: string | null } = {};
+  const patch: {
+    title?: string;
+    dueOn?: string | null;
+    description?: string | null;
+    ownerUserId?: string | null;
+    published?: boolean;
+  } = {};
 
   if ('title' in record) {
     const rawTitle = record['title'];
@@ -223,16 +341,67 @@ function parseEditBody(
     }
   }
 
+  parseA9Fields(record, patch, details);
+
   if (details.length > 0) {
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
   }
-  if (patch.title === undefined && patch.dueOn === undefined) {
+  if (Object.keys(patch).length === 0) {
     throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
-      { field: 'title', message: 'provide at least one of title or dueOn to edit' },
+      { field: 'title', message: 'provide at least one field to edit' },
     ]);
   }
 
   return { projectId, milestoneId, patch };
+}
+
+/** A9 — `description` (string or null), `ownerUserId` (id or null) and `published` (boolean). */
+function parseA9Fields(
+  record: Record<string, unknown>,
+  patch: { description?: string | null; ownerUserId?: string | null; published?: boolean },
+  details: { field: string; message: string }[],
+): void {
+  if ('description' in record) {
+    const raw = record['description'];
+    if (raw === null || (typeof raw === 'string' && raw.trim() === '')) {
+      patch.description = null;
+    } else if (typeof raw === 'string' && raw.trim().length <= MAX_MILESTONE_DESCRIPTION_LENGTH) {
+      patch.description = raw.trim();
+    } else {
+      details.push({
+        field: 'description',
+        message: `must be a string of ${MAX_MILESTONE_DESCRIPTION_LENGTH} characters or fewer`,
+      });
+    }
+  }
+  if ('ownerUserId' in record) {
+    const raw = record['ownerUserId'];
+    if (raw === null) patch.ownerUserId = null;
+    else if (typeof raw === 'string' && raw !== '' && raw.length <= 36) patch.ownerUserId = raw;
+    else details.push({ field: 'ownerUserId', message: 'must be a user id or null' });
+  }
+  if ('published' in record) {
+    const raw = record['published'];
+    if (typeof raw === 'boolean') patch.published = raw;
+    else details.push({ field: 'published', message: 'must be a boolean' });
+  }
+}
+
+/** A9 — the detail view, built field by field. */
+function toMilestoneDetailView(
+  row: Parameters<typeof toProjectMilestoneView>[0],
+): MilestoneDetailView {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    title: row.title,
+    description: row.description,
+    dueOn: row.dueOn,
+    status: row.status,
+    published: row.published,
+    ownerUserId: row.ownerUserId,
+    updatedAt: row.updatedAt.toISOString(),
+  };
 }
 
 /** The internal edit view — the full record plus `updatedAt`. Built field by field. */
@@ -251,6 +420,30 @@ export class MilestoneLifecycleController {
   constructor(
     @Inject(MILESTONE_LIFECYCLE_SERVICE) private readonly lifecycle: MilestoneLifecycleService,
   ) {}
+
+  /** A9 — the Milestones list and Edit milestone read. */
+  @Get(':projectId/milestone-plan')
+  @RequireCapability('project.manage')
+  async plan(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<MilestonePlanView> {
+    return this.lifecycle.plan(context, principal, projectId);
+  }
+
+  /** A9 — "Delete milestone". 409 while anything still links to it. */
+  @Delete(':projectId/milestones/:id')
+  @RequireCapability('project.manage')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Param('id') milestoneId: string,
+  ): Promise<void> {
+    await this.lifecycle.remove(context, principal, projectId, milestoneId);
+  }
 
   @Patch(':projectId/milestones/:id')
   @RequireCapability('project.manage')

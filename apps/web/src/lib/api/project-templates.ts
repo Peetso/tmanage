@@ -20,6 +20,14 @@ export interface ProjectTemplateView {
   readonly description: string | null;
   /** The objective titles a project made from this template starts with; `[]` when none declared. */
   readonly defaultObjectives: readonly string[];
+  /** A9. How many milestones a project made from it starts with. */
+  readonly milestoneCount: number;
+  /** A9. How many work items a project made from it starts with. */
+  readonly workItemCount: number;
+  /** A9. Whether a project made from it is shared with the chosen client. */
+  readonly clientPortalOn: boolean;
+  /** A9. `monthly` for a retainer; null for a one-off project. */
+  readonly repeatInterval: 'monthly' | null;
   readonly createdBy: string;
   /** An ISO-8601 instant. */
   readonly createdAt: string;
@@ -63,6 +71,12 @@ export interface InstantiateProjectTemplateInput {
   readonly workspaceId: string;
   /** Optional; without one the project takes the template's name. */
   readonly name?: string;
+  /** A9. 'YYYY-MM-DD'; every template date moves to it. Today when absent. */
+  readonly startDate?: string;
+  /** A9. The client company the new project is shared with. */
+  readonly clientOrganizationId?: string;
+  /** A9. The project lead (owner, and manager on the project). */
+  readonly leadUserId?: string;
 }
 
 /** Create a project from a template. Returns the newly created project. */

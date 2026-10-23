@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/projects.css';
 
-export type ProjectTabId = 'overview' | 'plan' | 'work' | 'team' | 'risks' | 'objectives';
+export type ProjectTabId =
+  'overview' | 'plan' | 'milestones' | 'work' | 'team' | 'risks' | 'objectives';
 
 export interface ProjectTabsProps {
   organizationSlug: string;
@@ -24,10 +26,17 @@ export interface ProjectTabsProps {
  */
 export function ProjectTabs({ organizationSlug, projectId, current, end }: ProjectTabsProps) {
   const t = useT();
+  const tOr = useTOr();
   const base = `/${organizationSlug}/projects/${encodeURIComponent(projectId ?? '')}`;
   const tabs: readonly { id: ProjectTabId; label: string; href: string }[] = [
     { id: 'overview', label: t('ProjectTabs.overview'), href: base },
     { id: 'plan', label: t('ProjectTabs.plan'), href: `${base}/baselines` },
+    // A9: the project's milestones list.
+    {
+      id: 'milestones',
+      label: tOr('ProjectTabs.milestones', 'Milestones'),
+      href: `${base}/milestones`,
+    },
     {
       id: 'work',
       label: t('ProjectTabs.work'),

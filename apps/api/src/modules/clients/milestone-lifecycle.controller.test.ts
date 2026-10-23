@@ -178,3 +178,100 @@ describe('milestone lifecycle route capabilities', () => {
     expect(capabilityOf(MilestoneLifecycleController.prototype, 'complete')).toBe('project.manage');
   });
 });
+
+/** A9 — the Milestones list, Edit milestone (owner, delivered, client timeline) and Delete. */
+describe('A9 milestone plan, details and delete', () => {
+  function a9Service(links: number, ownerActive = true) {
+    const store = fakeMilestones({ description: null, ownerUserId: null });
+    const deleted: string[] = [];
+    const repo = Object.assign(store.repo, {
+      list: () => Promise.resolve([store.row]),
+      countLinks: () => Promise.resolve(links),
+      delete: (_r: never, _c: TenantContext, id: string) => {
+        deleted.push(id);
+        return Promise.resolve();
+      },
+    });
+    const members = {
+      findByUserId: (_r: never, _c: TenantContext, userId: string) =>
+        Promise.resolve(
+          ownerActive && userId === 'user-mona'
+            ? { userId, status: 'active', role: 'member' }
+            : null,
+        ),
+    };
+    const shares = { list: () => Promise.resolve([{ clientOrganizationId: 'client-atlas' }]) };
+    const clientOrganizations = {
+      findById: () => Promise.resolve({ id: 'client-atlas', name: 'Atlas Hospitality' }),
+    };
+    const service = new MilestoneLifecycleService(
+      fakeDatabase(),
+      fakeProjects([PROJECT]),
+      repo,
+      members as never,
+      shares as never,
+      clientOrganizations as never,
+    );
+    return { service, store, deleted };
+  }
+
+  it('reads the plan with the client name and each milestone’s details', async () => {
+    const { service } = a9Service(0);
+    const plan = await service.plan(context, internalManager(), PROJECT);
+    expect(plan.clientName).toBe('Atlas Hospitality');
+    expect(plan.milestones[0]).toMatchObject({
+      id: MILESTONE,
+      description: null,
+      ownerUserId: null,
+      published: true,
+    });
+  });
+
+  it('accepts description, owner and the client-timeline flag through PATCH', async () => {
+    const { service, store } = a9Service(0);
+    const controller = new MilestoneLifecycleController(service);
+    await controller.edit(context, internalManager(), PROJECT, MILESTONE, {
+      description: 'Approved homepage, menu and booking page designs',
+      ownerUserId: 'user-mona',
+      published: false,
+    });
+    expect(store.updates.at(-1)).toEqual({
+      description: 'Approved homepage, menu and booking page designs',
+      ownerUserId: 'user-mona',
+      published: false,
+    });
+  });
+
+  it('refuses an owner who is not an active member, writing nothing', async () => {
+    const { service, store } = a9Service(0, false);
+    const controller = new MilestoneLifecycleController(service);
+    await expect(
+      controller.edit(context, internalManager(), PROJECT, MILESTONE, { ownerUserId: 'user-mona' }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(store.updates).toHaveLength(0);
+  });
+
+  it('deletes an unlinked milestone', async () => {
+    const { service, deleted } = a9Service(0);
+    await service.remove(context, internalManager(), PROJECT, MILESTONE);
+    expect(deleted).toEqual([MILESTONE]);
+  });
+
+  it('refuses to delete a milestone that is still linked (409), deleting nothing', async () => {
+    const { service, deleted } = a9Service(2);
+    await expect(
+      service.remove(context, internalManager(), PROJECT, MILESTONE),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(deleted).toHaveLength(0);
+  });
+
+  it('guards plan and delete with project.manage', () => {
+    const proto = MilestoneLifecycleController.prototype as unknown as Record<string, object>;
+    expect(Reflect.getMetadata(REQUIRED_CAPABILITY, proto['plan'] as object)).toBe(
+      'project.manage',
+    );
+    expect(Reflect.getMetadata(REQUIRED_CAPABILITY, proto['remove'] as object)).toBe(
+      'project.manage',
+    );
+  });
+});

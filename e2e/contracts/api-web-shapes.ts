@@ -3038,3 +3038,15 @@ import type {
 } from '../../apps/web/src/lib/api/member-role';
 type _builtInRole = Assert<Narrows<ApiBuiltInRoleView, WebBuiltInRole>>;
 type _memberRoleChange = Assert<Exact<ApiMemberRoleChangeView, WebMemberRoleChange>>;
+
+// A9 — the project Milestones list and Edit milestone (`GET …/projects/:projectId/milestone-plan`).
+import type {
+  MilestoneDetailView as ApiMilestoneDetailView,
+  MilestonePlanView as ApiMilestonePlanView,
+} from '../../apps/api/src/modules/clients/milestone-lifecycle.controller.js';
+import type {
+  MilestoneDetail as WebMilestoneDetail,
+  MilestonePlan as WebMilestonePlan,
+} from '../../apps/web/src/lib/api/project-milestones';
+type _a9MilestoneDetail = Assert<Exact<ApiMilestoneDetailView, WebMilestoneDetail>>;
+type _a9MilestonePlan = Assert<Exact<ApiMilestonePlanView, WebMilestonePlan>>;

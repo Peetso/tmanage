@@ -177,4 +177,43 @@ test.describe.serial('the projects portfolio and milestone journeys', () => {
       await context.close();
     }
   });
+
+  // A9 — the Milestones tab: a manager moves the due date and takes the milestone off the client
+  // timeline, and the client stops seeing it.
+  test("a manager edits a milestone's due date and hides it from the client", async ({
+    browser,
+  }) => {
+    const manager = await openAs(browser, world().northstar.owner.id);
+    try {
+      await manager.page.goto(
+        `/northstar-studio/projects/${world().northstar.projectId}/milestones`,
+      );
+      const row = manager.page
+        .getByRole('listitem')
+        .filter({ hasText: PUBLISHED_MILESTONE })
+        .first();
+      await expect(row.getByText('Client can see')).toBeVisible();
+
+      await row.getByRole('button', { name: `Edit ${PUBLISHED_MILESTONE}` }).click();
+      const dialog = manager.page.getByRole('dialog', { name: 'Edit milestone' });
+      await dialog.getByLabel('Due').fill('2026-12-12');
+      await dialog.getByRole('switch', { name: 'Show on the client timeline' }).uncheck();
+      await dialog.getByRole('button', { name: 'Save' }).click();
+      await expect(dialog).toHaveCount(0);
+
+      await expect(row).toContainText('Due Sat 12 Dec');
+      await expect(row.getByText('Client can see')).toHaveCount(0);
+    } finally {
+      await manager.context.close();
+    }
+
+    const client = await openAs(browser, world().atlas.reviewer.id);
+    try {
+      await client.page.goto('/northstar-studio/portal/timeline');
+      await expect(client.page.getByRole('region', { name: 'Every date, in order' })).toBeVisible();
+      await expect(client.page.getByText(PUBLISHED_MILESTONE)).toHaveCount(0);
+    } finally {
+      await client.context.close();
+    }
+  });
 });

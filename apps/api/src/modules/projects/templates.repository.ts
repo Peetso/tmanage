@@ -2,7 +2,11 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { projectTemplates } from '../../common/database/schema.js';
-import type { ProjectTemplateRow } from '../../common/database/schema.js';
+import type {
+  ProjectTemplateMilestone,
+  ProjectTemplateRow,
+  ProjectTemplateWorkItem,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -37,6 +41,11 @@ export interface CreateProjectTemplateInput {
   readonly name: string;
   readonly description?: string | null;
   readonly defaultObjectives?: readonly string[];
+  /** A9 (0222). The plan a project made from it starts with. */
+  readonly milestones?: readonly ProjectTemplateMilestone[];
+  readonly workItems?: readonly ProjectTemplateWorkItem[];
+  readonly clientPortalOn?: boolean;
+  readonly repeatInterval?: 'monthly' | null;
   /** The person who authored the template — the service passes `context.userId`. */
   readonly createdBy: string;
 }
@@ -145,6 +154,10 @@ export class ProjectTemplatesRepository {
       name: input.name,
       description: input.description ?? null,
       defaultObjectivesJson: input.defaultObjectives ?? null,
+      milestonesJson: input.milestones ?? null,
+      workItemsJson: input.workItems ?? null,
+      clientPortalOn: input.clientPortalOn ?? false,
+      repeatInterval: input.repeatInterval ?? null,
       createdBy: input.createdBy,
       createdAt: sql`current_timestamp(3)`,
     });

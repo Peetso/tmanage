@@ -758,6 +758,10 @@ export const projectMilestones = mysqlTable(
     organizationId: char('organization_id', { length: 36 }).notNull(),
     projectId: char('project_id', { length: 36 }).notNull(),
     title: varchar('title', { length: 300 }).notNull(),
+    /** A9 (0222). "What is delivered" — optional prose. */
+    description: text('description'),
+    /** A9 (0222). The person answerable for the milestone; an active member of the tenant. */
+    ownerUserId: char('owner_user_id', { length: 36 }),
     dueOn: date('due_on', { mode: 'string' }),
     status: mysqlEnum('status', PROJECT_MILESTONE_STATUSES).notNull().default('planned'),
     published: boolean('published').notNull().default(false),
@@ -2344,6 +2348,23 @@ export const projectRetroNotes = mysqlTable(
   ],
 );
 
+/** A9 (0222). One milestone a template copies; `offsetDays` counts from the project's start date. */
+export interface ProjectTemplateMilestone {
+  readonly title: string;
+  readonly offsetDays: number;
+  readonly description?: string;
+  readonly clientVisible?: boolean;
+}
+
+/** A9 (0222). One work item a template copies; `offsetDays` (optional) sets its due date. */
+export interface ProjectTemplateWorkItem {
+  readonly title: string;
+  readonly offsetDays?: number;
+}
+
+/** A9 (0222). Mirrors the `project_templates.repeat_interval` ENUM. */
+export const PROJECT_TEMPLATE_REPEAT_INTERVALS = ['monthly'] as const;
+
 /**
  * PROJ / module 8 (x234). A reusable project template — a saved shape a studio can stamp out a new
  * project from: a `name`, an optional `description`, and the objective titles a project made from the
@@ -2365,6 +2386,14 @@ export const projectTemplates = mysqlTable(
     name: varchar('name', { length: 190 }).notNull(),
     description: text('description'),
     defaultObjectivesJson: json('default_objectives_json').$type<readonly string[]>(),
+    /** A9 (0222). The milestones a project made from the template starts with. */
+    milestonesJson: json('milestones_json').$type<readonly ProjectTemplateMilestone[]>(),
+    /** A9 (0222). The work items a project made from the template starts with. */
+    workItemsJson: json('work_items_json').$type<readonly ProjectTemplateWorkItem[]>(),
+    /** A9 (0222). Whether a project made from it is shared with the chosen client. */
+    clientPortalOn: boolean('client_portal_on').notNull().default(false),
+    /** A9 (0222). `monthly` for a retainer; NULL for a one-off project. */
+    repeatInterval: mysqlEnum('repeat_interval', PROJECT_TEMPLATE_REPEAT_INTERVALS),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },

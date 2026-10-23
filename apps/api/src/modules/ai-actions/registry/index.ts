@@ -4055,6 +4055,23 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // A9: the Milestones list read and "Delete milestone".
+  {
+    id: 'projects.milestone_plan.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/milestone-plan',
+    capability: 'project.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'projects.milestones.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/milestones/:id',
+    capability: 'project.manage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
   {
     id: 'projects.objectives.list',
     method: 'GET',

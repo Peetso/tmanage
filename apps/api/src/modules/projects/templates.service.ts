@@ -1,4 +1,4 @@
-import { authorize } from '@tmanage/domain';
+import { authorize, isInternalRole, PROJECT_CREATOR_ROLE } from '@tmanage/domain';
 import type { Capability, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -8,7 +8,18 @@ import {
 } from './templates.repository.js';
 import type { CreateProjectTemplateInput } from './templates.repository.js';
 import type { ProjectView, ProjectsService } from './projects.service.js';
-import type { ProjectTemplateRow } from '../../common/database/schema.js';
+import type {
+  ProjectTemplateMilestone,
+  ProjectTemplateRow,
+  ProjectTemplateWorkItem,
+} from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { MembershipsRepository } from '../tenancy/memberships.repository.js';
+import { ProjectMembershipsRepository } from './project-memberships.repository.js';
+import { ClientOrganizationsRepository } from '../clients/client-organizations.repository.js';
+import { ProjectClientsRepository } from '../clients/project-clients.repository.js';
+import { ProjectMilestonesRepository } from '../clients/project-milestones.repository.js';
+import { WorkItemsRepository } from '../work/work-items.repository.js';
 
 /**
  * The application service for PROJ / module 8 (x234) — reusable project templates. It follows the
@@ -44,9 +55,41 @@ export interface ProjectTemplateView {
   readonly description: string | null;
   /** The objective titles a project made from this template starts with; `[]` when none declared. */
   readonly defaultObjectives: readonly string[];
+  /** A9. How many milestones a project made from it starts with. */
+  readonly milestoneCount: number;
+  /** A9. How many work items a project made from it starts with. */
+  readonly workItemCount: number;
+  /** A9. Whether a project made from it is shared with the chosen client. */
+  readonly clientPortalOn: boolean;
+  /** A9. `monthly` for a retainer; null for a one-off project. */
+  readonly repeatInterval: 'monthly' | null;
   readonly createdBy: string;
   /** An ISO-8601 instant. */
   readonly createdAt: string;
+}
+
+/** A9 — what "New project from a template" sends besides the template id. */
+export interface InstantiateProjectTemplateCommand {
+  readonly workspaceId: string;
+  readonly name?: string;
+  /** 'YYYY-MM-DD'. Every template offset counts from it; today when absent. */
+  readonly startDate?: string;
+  /** The client company the new project is shared with. */
+  readonly clientOrganizationId?: string;
+  /** The project lead: the project's owner, put on the project as its manager. */
+  readonly leadUserId?: string;
+}
+
+/** A9 — `start` ('YYYY-MM-DD') moved by `offsetDays`, as 'YYYY-MM-DD'. Calendar arithmetic in UTC. */
+export function shiftDay(start: string, offsetDays: number): string {
+  const [year, month, day] = start.split('-').map(Number) as [number, number, number];
+  const shifted = new Date(Date.UTC(year, month - 1, day + offsetDays));
+  return shifted.toISOString().slice(0, 10);
+}
+
+/** Today's calendar day in UTC, 'YYYY-MM-DD'. */
+function todayUtc(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 /**
@@ -59,6 +102,10 @@ function toView(row: ProjectTemplateRow): ProjectTemplateView {
     name: row.name,
     description: row.description,
     defaultObjectives: row.defaultObjectivesJson ?? [],
+    milestoneCount: row.milestonesJson?.length ?? 0,
+    workItemCount: row.workItemsJson?.length ?? 0,
+    clientPortalOn: row.clientPortalOn,
+    repeatInterval: row.repeatInterval ?? null,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
   };
@@ -73,6 +120,14 @@ export class ProjectTemplatesService {
      * so a template-made project carries the same audit row and invariants as any other.
      */
     private readonly projects?: ProjectsService,
+    /** A9: the lead grant, the client share and the template copy are audited. */
+    private readonly audit?: AuditService,
+    private readonly members: MembershipsRepository = new MembershipsRepository(),
+    private readonly projectMembers: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
+    private readonly clientOrganizations: ClientOrganizationsRepository = new ClientOrganizationsRepository(),
+    private readonly shares: ProjectClientsRepository = new ProjectClientsRepository(),
+    private readonly milestones: ProjectMilestonesRepository = new ProjectMilestonesRepository(),
+    private readonly workItems: WorkItemsRepository = new WorkItemsRepository(),
   ) {}
 
   /**
@@ -123,6 +178,10 @@ export class ProjectTemplatesService {
       readonly name: string;
       readonly description?: string | null;
       readonly defaultObjectives?: readonly string[];
+      readonly milestones?: readonly ProjectTemplateMilestone[];
+      readonly workItems?: readonly ProjectTemplateWorkItem[];
+      readonly clientPortalOn?: boolean;
+      readonly repeatInterval?: 'monthly' | null;
     },
   ): Promise<ProjectTemplateView> {
     this.authorizeOrg(context, principal, 'project.manage');
@@ -133,6 +192,10 @@ export class ProjectTemplatesService {
       ...(input.defaultObjectives === undefined
         ? {}
         : { defaultObjectives: input.defaultObjectives }),
+      ...(input.milestones === undefined ? {} : { milestones: input.milestones }),
+      ...(input.workItems === undefined ? {} : { workItems: input.workItems }),
+      ...(input.clientPortalOn === undefined ? {} : { clientPortalOn: input.clientPortalOn }),
+      ...(input.repeatInterval === undefined ? {} : { repeatInterval: input.repeatInterval }),
       createdBy: context.userId,
     };
 
@@ -164,7 +227,7 @@ export class ProjectTemplatesService {
     context: TenantContext,
     principal: Principal,
     templateId: string,
-    input: { readonly workspaceId: string; readonly name?: string },
+    input: InstantiateProjectTemplateCommand,
   ): Promise<ProjectView> {
     const template = await this.database.read(context, (runner) =>
       this.templates.findById(runner, context, templateId),
@@ -181,7 +244,113 @@ export class ProjectTemplatesService {
       throw new ApiError(500, 'internal_error', MESSAGES.internal);
     }
 
+    // A9: the client and the lead are checked before anything is written, so a bad id is a 400
+    // and no half-made project is left behind.
+    if (input.clientOrganizationId !== undefined) {
+      await this.requireClient(context, input.clientOrganizationId);
+    }
+    if (input.leadUserId !== undefined) await this.requireMember(context, input.leadUserId);
+
     const name = input.name ?? template.name;
-    return this.projects.create(context, { workspaceId: input.workspaceId, name });
+    const project = await this.projects.create(context, {
+      workspaceId: input.workspaceId,
+      name,
+      ...(input.leadUserId === undefined ? {} : { ownerUserId: input.leadUserId }),
+    });
+
+    await this.copyPlan(context, template, project.id, input);
+    return project;
+  }
+
+  /**
+   * A9 — copy the template's plan into the new project in one transaction: the lead's project role,
+   * the client share, every milestone (dates moved to the start date) and every work item.
+   */
+  private async copyPlan(
+    context: TenantContext,
+    template: ProjectTemplateRow,
+    projectId: string,
+    input: InstantiateProjectTemplateCommand,
+  ): Promise<void> {
+    const start = input.startDate ?? todayUtc();
+    const milestones = template.milestonesJson ?? [];
+    const workItems = template.workItemsJson ?? [];
+    const shared = input.clientOrganizationId !== undefined;
+
+    await this.database.transaction(context, async (tx) => {
+      if (input.leadUserId !== undefined && input.leadUserId !== context.userId) {
+        const lead = await this.projectMembers.add(tx, context, {
+          projectId,
+          userId: input.leadUserId,
+          role: PROJECT_CREATOR_ROLE,
+        });
+        await this.audit?.record(tx, context, {
+          action: 'project_membership.granted',
+          result: 'allowed',
+          objectId: lead.id,
+          metadata: { project_id: projectId, target_user_id: lead.userId, granted_role: lead.role },
+        });
+      }
+
+      if (input.clientOrganizationId !== undefined) {
+        const share = await this.shares.share(tx, context, {
+          projectId,
+          clientOrganizationId: input.clientOrganizationId,
+        });
+        await this.audit?.record(tx, context, {
+          action: 'project.client_linked',
+          objectId: share.id,
+          result: 'allowed',
+          metadata: { project_id: projectId, client_organization_id: share.clientOrganizationId },
+        });
+      }
+
+      for (const milestone of milestones) {
+        await this.milestones.create(tx, context, {
+          projectId,
+          title: milestone.title,
+          description: milestone.description ?? null,
+          dueOn: shiftDay(start, milestone.offsetDays),
+          status: 'planned',
+          // Client-visible only when the project is actually shared and the template says so.
+          published: shared && template.clientPortalOn && milestone.clientVisible !== false,
+          createdByUserId: context.userId,
+        });
+      }
+
+      for (const item of workItems) {
+        await this.workItems.create(tx, context, {
+          projectId,
+          title: item.title,
+          ...(item.offsetDays === undefined
+            ? {}
+            : { dueAt: new Date(`${shiftDay(start, item.offsetDays)}T00:00:00.000Z`) }),
+        });
+      }
+    });
+  }
+
+  /** A9 — the client must be a live client company of this tenant. */
+  private async requireClient(context: TenantContext, clientOrganizationId: string): Promise<void> {
+    const client = await this.database.read(context, (runner) =>
+      this.clientOrganizations.findById(runner, context, clientOrganizationId),
+    );
+    if (!client || client.archivedAt !== null) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'clientOrganizationId', message: 'must be an active client of this organization' },
+      ]);
+    }
+  }
+
+  /** A9 — the lead must be an active internal member of this tenant. */
+  private async requireMember(context: TenantContext, userId: string): Promise<void> {
+    const membership = await this.database.read(context, (runner) =>
+      this.members.findByUserId(runner, context, userId),
+    );
+    if (!membership || membership.status !== 'active' || !isInternalRole(membership.role)) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'leadUserId', message: 'must be an active member of this organization' },
+      ]);
+    }
   }
 }

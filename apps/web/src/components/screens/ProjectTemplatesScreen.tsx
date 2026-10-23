@@ -7,12 +7,13 @@ import { AppShell } from '../shell/AppShell';
 import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
+import { createProjectTemplate, listProjectTemplates } from '../../lib/api/project-templates';
 import {
-  createProjectTemplate,
-  instantiateProjectTemplate,
-  listProjectTemplates,
-} from '../../lib/api/project-templates';
-import type { ProjectTemplateView } from '../../lib/api/project-templates';
+  NewProjectFromTemplateDialog,
+  templateMeta,
+} from '../projects/NewProjectFromTemplateDialog';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import '../projects/templates-milestones.css';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 
@@ -27,8 +28,9 @@ export interface ProjectTemplatesScreenProps {
  *
  * `41-WHOLE-APP-SCREEN-AND-STATE-MATRIX` §Projects: a studio's saved project shapes. This screen
  * defines a template — a name, an optional description, and the default objective titles a project
- * made from it should start with — and lists the organization's templates in creation order, then
- * instantiates a new project from one into a named workspace. It reads `GET …/projects/templates` and
+ * made from it should start with — and lists the organization's templates in creation order. A9: a
+ * template is turned into a project through the "New project from a template" dialog (Figma
+ * `fq6-new-from-template`). It reads `GET …/projects/templates` and
  * writes `POST …/projects/templates` and `POST …/projects/templates/:id/instantiate`, all gated on the
  * server by `project.manage`.
  *
@@ -44,11 +46,12 @@ export function ProjectTemplatesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
+  const [picking, setPicking] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [objectives, setObjectives] = useState('');
-  const [workspaceId, setWorkspaceId] = useState('');
 
   const templates = useQuery({
     queryKey: ['project-templates', organizationSlug],
@@ -79,16 +82,8 @@ export function ProjectTemplatesScreen({
     },
   });
 
-  const instantiate = useMutation({
-    mutationFn: (templateId: string) =>
-      instantiateProjectTemplate(api, organizationSlug, templateId, {
-        workspaceId: workspaceId.trim(),
-      }),
-  });
-
   const rows = useMemo(() => templates.data ?? [], [templates.data]);
   const canSubmit = name.trim() !== '';
-  const canInstantiate = workspaceId.trim() !== '';
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -207,126 +202,53 @@ export function ProjectTemplatesScreen({
 
             {rows.length > 0 ? (
               <section
-                className="tm-card tm-prj-card"
+                className="tm-card tm-prj-card tm-stack"
                 aria-labelledby="tm-project-templates-heading"
               >
-                <h2 id="tm-project-templates-heading" className="tm-prj-eyebrow">
-                  {t('ProjectTemplatesScreen.templates')}
-                </h2>
-
-                <Field
-                  label={t('ProjectTemplatesScreen.workspaceId')}
-                  name="workspaceId"
-                  value={workspaceId}
-                  onChange={(event) => setWorkspaceId(event.target.value)}
-                  hint={t('ProjectTemplatesScreen.workspaceHint')}
-                />
-
-                {instantiate.isError ? (
-                  <InlineAlert
-                    tone="danger"
-                    title={t('ProjectTemplatesScreen.instantiateFailed')}
-                    live
+                <div className="tm-a9-ms__head">
+                  <h2 id="tm-project-templates-heading" className="tm-prj-eyebrow">
+                    {t('ProjectTemplatesScreen.templates')}
+                  </h2>
+                  <Button
+                    type="button"
+                    tone="ink"
+                    size="accessible"
+                    onClick={() => setPicking(rows[0]?.id ?? '')}
                   >
-                    {describeError(instantiate.error)}
-                  </InlineAlert>
-                ) : null}
-
-                {instantiate.isSuccess ? (
-                  <InlineAlert tone="success" title={t('ProjectTemplatesScreen.created')} live>
-                    {t('ProjectTemplatesScreen.createdBodyPrefix')}
-                    {instantiate.data.name}
-                    {t('ProjectTemplatesScreen.createdBodySuffix')}
-                  </InlineAlert>
-                ) : null}
-
-                <div
-                  className="tm-table-scroll"
-                  // A scrollable region must be focusable or a keyboard cannot reach its overflow columns
-                  // (WCAG 2.2 2.1.1), matching the sibling screens' tables.
-                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-                  tabIndex={0}
-                  role="region"
-                  aria-label={t('ProjectTemplatesScreen.tableLabel')}
-                >
-                  <table className="tm-table">
-                    <caption className="tm-visually-hidden">
-                      {t('ProjectTemplatesScreen.captionPrefix')}
-                      {rows.length}
-                      {t('ProjectTemplatesScreen.captionSuffix')}
-                    </caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">{t('ProjectTemplatesScreen.colTemplate')}</th>
-                        <th scope="col">{t('ProjectTemplatesScreen.defaultObjectives')}</th>
-                        <th scope="col">{t('ProjectTemplatesScreen.colCreate')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((template) => (
-                        <TemplateRow
-                          key={template.id}
-                          template={template}
-                          onInstantiate={() => instantiate.mutate(template.id)}
-                          busy={instantiate.isPending}
-                          canInstantiate={canInstantiate}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
+                    {tOr('NewFromTemplate.open', 'New project from a template')}
+                  </Button>
                 </div>
+                <ul className="tm-a9-choices">
+                  {rows.map((template) => (
+                    <li key={template.id}>
+                      <button
+                        type="button"
+                        className="tm-a9-choice tm-a9-choice--button"
+                        onClick={() => setPicking(template.id)}
+                      >
+                        <span className="tm-a9-choice__text">
+                          <span className="tm-a9-choice__name">{template.name}</span>
+                          <span className="tm-a9-choice__meta">{templateMeta(template, tOr)}</span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </section>
             ) : null}
           </div>
         </div>
       </div>
+      {picking !== null ? (
+        <NewProjectFromTemplateDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          templates={rows}
+          initialTemplateId={picking}
+          onClose={() => setPicking(null)}
+        />
+      ) : null}
     </AppShell>
-  );
-}
-
-function TemplateRow({
-  template,
-  onInstantiate,
-  busy,
-  canInstantiate,
-}: {
-  template: ProjectTemplateView;
-  onInstantiate: () => void;
-  busy: boolean;
-  canInstantiate: boolean;
-}) {
-  const t = useT();
-  return (
-    <tr>
-      <th scope="row" className="tm-table__title">
-        {template.name}
-        {template.description ? (
-          <span className="tm-field__hint">{template.description}</span>
-        ) : null}
-      </th>
-      <td>
-        {template.defaultObjectives.length > 0 ? (
-          <ul className="tm-list">
-            {template.defaultObjectives.map((title, index) => (
-              <li key={`${template.id}-${index}`}>{title}</li>
-            ))}
-          </ul>
-        ) : (
-          <span className="tm-field__hint">—</span>
-        )}
-      </td>
-      <td>
-        <Button
-          type="button"
-          tone="ink"
-          size="accessible"
-          onClick={onInstantiate}
-          disabled={busy || !canInstantiate}
-        >
-          {t('ProjectTemplatesScreen.createProject')}
-        </Button>
-      </td>
-    </tr>
   );
 }
 

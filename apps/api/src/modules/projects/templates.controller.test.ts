@@ -193,3 +193,148 @@ describe('org-level authorization (real authorize)', () => {
     expect(cap(ProjectTemplatesController.prototype.instantiate)).toBe('project.manage');
   });
 });
+
+/** A9 — "New project from a template": the plan is copied with dates moved to the start date. */
+describe('A9 instantiate copies the template plan', () => {
+  function buildA9(template: Partial<ProjectTemplateRow>) {
+    const row = {
+      id: 'template-a9',
+      organizationId: ORG,
+      name: 'Website build',
+      description: null,
+      defaultObjectivesJson: null,
+      milestonesJson: [
+        { title: 'Discovery', offsetDays: 0, clientVisible: true },
+        { title: 'Launch', offsetDays: 37, clientVisible: false },
+      ],
+      workItemsJson: [{ title: 'Kickoff call', offsetDays: 2 }, { title: 'Sitemap' }],
+      clientPortalOn: true,
+      repeatInterval: null,
+      createdBy: USER,
+      createdAt: new Date(),
+      ...template,
+    } as ProjectTemplateRow;
+    const database = {
+      read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+      transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
+    } as unknown as TenantDatabase;
+    const repository = {
+      findById: async (_r: unknown, _c: TenantContext, id: string) => (id === row.id ? row : null),
+      list: async () => [row],
+    } as unknown as ProjectTemplatesRepository;
+    const created: Record<string, unknown>[] = [];
+    const projects = {
+      create: async (_c: TenantContext, input: Record<string, unknown>) => {
+        created.push(input);
+        return { id: 'project-new', name: input['name'] } as unknown as ProjectView;
+      },
+    } as unknown as ProjectsService;
+    const writes = {
+      milestones: [] as Record<string, unknown>[],
+      workItems: [] as Record<string, unknown>[],
+      shares: [] as Record<string, unknown>[],
+      leads: [] as Record<string, unknown>[],
+    };
+    const members = {
+      findByUserId: async (_r: unknown, _c: TenantContext, userId: string) =>
+        userId === 'user-lead' ? { userId, status: 'active', role: 'manager' } : null,
+    };
+    const projectMembers = {
+      add: async (_r: unknown, _c: TenantContext, input: Record<string, unknown>) => {
+        writes.leads.push(input);
+        return { id: 'pm-1', ...input };
+      },
+    };
+    const clientOrganizations = {
+      findById: async (_r: unknown, _c: TenantContext, id: string) =>
+        id === 'client-atlas' ? { id, name: 'Atlas Hospitality', archivedAt: null } : null,
+    };
+    const shares = {
+      share: async (_r: unknown, _c: TenantContext, input: Record<string, unknown>) => {
+        writes.shares.push(input);
+        return { id: 'share-1', ...input };
+      },
+    };
+    const milestones = {
+      create: async (_r: unknown, _c: TenantContext, input: Record<string, unknown>) => {
+        writes.milestones.push(input);
+        return input;
+      },
+    };
+    const workItems = {
+      create: async (_r: unknown, _c: TenantContext, input: Record<string, unknown>) => {
+        writes.workItems.push(input);
+        return input;
+      },
+    };
+    const service = new ProjectTemplatesService(
+      database,
+      repository,
+      projects,
+      undefined,
+      members as never,
+      projectMembers as never,
+      clientOrganizations as never,
+      shares as never,
+      milestones as never,
+      workItems as never,
+    );
+    return { controller: new ProjectTemplatesController(service), created, writes };
+  }
+
+  it('lists milestone and work-item counts and whether the client portal is on', async () => {
+    const { controller } = buildA9({});
+    const [view] = (await controller.list(context, owner)).templates;
+    expect(view).toMatchObject({ milestoneCount: 2, workItemCount: 2, clientPortalOn: true });
+  });
+
+  it('shifts every date to the start date, shares the project and adds the lead', async () => {
+    const { controller, created, writes } = buildA9({});
+    await controller.instantiate(context, owner, 'template-a9', {
+      workspaceId: WORKSPACE,
+      name: 'Atlas spa microsite',
+      startDate: '2026-11-03',
+      clientOrganizationId: 'client-atlas',
+      leadUserId: 'user-lead',
+    });
+
+    expect(created).toEqual([
+      { workspaceId: WORKSPACE, name: 'Atlas spa microsite', ownerUserId: 'user-lead' },
+    ]);
+    expect(writes.milestones.map((m) => [m['title'], m['dueOn'], m['published']])).toEqual([
+      ['Discovery', '2026-11-03', true],
+      ['Launch', '2026-12-10', false],
+    ]);
+    expect(writes.workItems.map((w) => w['dueAt'])).toEqual([
+      new Date('2026-11-05T00:00:00.000Z'),
+      undefined,
+    ]);
+    expect(writes.shares).toEqual([
+      { projectId: 'project-new', clientOrganizationId: 'client-atlas' },
+    ]);
+    expect(writes.leads).toEqual([
+      { projectId: 'project-new', userId: 'user-lead', role: 'manager' },
+    ]);
+  });
+
+  it('refuses an unknown lead with a 400 before any project is created', async () => {
+    const { controller, created } = buildA9({});
+    await expect(
+      controller.instantiate(context, owner, 'template-a9', {
+        workspaceId: WORKSPACE,
+        leadUserId: 'user-stranger',
+      }),
+    ).rejects.toEqual(expect.objectContaining({ status: 400, code: 'validation_failed' }));
+    expect(created).toHaveLength(0);
+  });
+
+  it('rejects a malformed start date with a 400', async () => {
+    const { controller } = buildA9({});
+    await expect(
+      controller.instantiate(context, owner, 'template-a9', {
+        workspaceId: WORKSPACE,
+        startDate: '3 Nov',
+      }),
+    ).rejects.toEqual(expect.objectContaining({ status: 400 }));
+  });
+});

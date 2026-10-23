@@ -1,7 +1,12 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, or, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { projectMilestones } from '../../common/database/schema.js';
+import {
+  milestoneLinks,
+  projectMilestones,
+  projectPhases,
+  projectRetroNotes,
+} from '../../common/database/schema.js';
 import type { ProjectMilestoneRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -39,6 +44,10 @@ export interface CreateProjectMilestoneInput {
   readonly published: boolean;
   /** The person creating the milestone — the service passes `context.userId`. */
   readonly createdByUserId: string;
+  /** A9 (0222). "What is delivered"; absent stores none. */
+  readonly description?: string | null;
+  /** A9 (0222). The owner; absent stores none. */
+  readonly ownerUserId?: string | null;
 }
 
 /**
@@ -54,6 +63,12 @@ export interface UpdateProjectMilestonePatch {
   /** A 'YYYY-MM-DD' target day, or null to clear the committed date. */
   readonly dueOn?: string | null;
   readonly status?: ProjectMilestoneStatus;
+  /** A9 (0222). "What is delivered"; `null` clears it. */
+  readonly description?: string | null;
+  /** A9 (0222). The owner; `null` clears it. The service has checked the member first. */
+  readonly ownerUserId?: string | null;
+  /** A9. "Show on the client timeline" — the client-visibility gate. */
+  readonly published?: boolean;
 }
 
 export interface ListProjectMilestonesOptions {
@@ -162,6 +177,8 @@ export class ProjectMilestonesRepository {
       organizationId: context.organizationId,
       projectId: input.projectId,
       title: input.title,
+      description: input.description ?? null,
+      ownerUserId: input.ownerUserId ?? null,
       dueOn: input.dueOn,
       status: input.status,
       published: input.published,
@@ -203,6 +220,9 @@ export class ProjectMilestonesRepository {
     if (patch.title !== undefined) values['title'] = patch.title;
     if (patch.dueOn !== undefined) values['dueOn'] = patch.dueOn;
     if (patch.status !== undefined) values['status'] = patch.status;
+    if (patch.description !== undefined) values['description'] = patch.description;
+    if (patch.ownerUserId !== undefined) values['ownerUserId'] = patch.ownerUserId;
+    if (patch.published !== undefined) values['published'] = patch.published;
 
     await db
       .update(projectMilestones)
@@ -215,5 +235,65 @@ export class ProjectMilestonesRepository {
       );
 
     return this.findById(runner, context, milestoneId);
+  }
+
+  /**
+   * A9. How many records still point at this milestone — dependency edges on either side, retro
+   * notes held for it and its phase placement. The delete route refuses while this is non-zero, so
+   * removing a milestone never strands a link or trips a foreign key.
+   */
+  async countLinks(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    milestoneId: string,
+  ): Promise<number> {
+    const db = tenantDrizzle(runner);
+    const [links] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(milestoneLinks)
+      .where(
+        and(
+          eq(milestoneLinks.organizationId, context.organizationId),
+          or(
+            eq(milestoneLinks.milestoneId, milestoneId),
+            eq(milestoneLinks.dependsOnMilestoneId, milestoneId),
+          ),
+        ),
+      );
+    const [notes] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(projectRetroNotes)
+      .where(
+        and(
+          eq(projectRetroNotes.organizationId, context.organizationId),
+          eq(projectRetroNotes.milestoneId, milestoneId),
+        ),
+      );
+    const [phases] = await db
+      .select({ n: sql<number>`count(*)` })
+      .from(projectPhases)
+      .where(
+        and(
+          eq(projectPhases.organizationId, context.organizationId),
+          eq(projectPhases.milestoneId, milestoneId),
+        ),
+      );
+    return Number(links?.n ?? 0) + Number(notes?.n ?? 0) + Number(phases?.n ?? 0);
+  }
+
+  /** A9. Delete one milestone within the acting tenant. Both predicates, as every write here. */
+  async delete(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    milestoneId: string,
+  ): Promise<void> {
+    await tenantDrizzle(runner)
+      .delete(projectMilestones)
+      .where(
+        and(
+          eq(projectMilestones.organizationId, context.organizationId),
+          eq(projectMilestones.id, milestoneId),
+        ),
+      );
   }
 }

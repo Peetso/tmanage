@@ -1,0 +1,479 @@
+/*
+ * A9 — "New project from a template", the project Milestones list and Edit milestone (Figma 376:17695
+ * task 6: fq6-new-from-template, fq6-milestones, fq6-edit-milestone). TManage tokens only; logical
+ * properties so the Arabic (RTL) frames mirror without overrides.
+ */
+
+/* ── The dialog card ────────────────────────────────────────────────────────────────── */
+
+.tm-a9-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: min(720px, 100%);
+  padding: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-feature);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-a9-dialog--narrow {
+  inline-size: min(560px, 100%);
+}
+
+.tm-a9-dialog__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+.tm-a9-dialog__lede {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-a9-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+/* ── Template choices ───────────────────────────────────────────────────────────────── */
+
+.tm-a9-choices {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.tm-a9-choice {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 14px var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  cursor: pointer;
+}
+
+.tm-a9-choice:hover {
+  border-color: var(--ink-650);
+}
+
+.tm-a9-choice--on {
+  border-color: var(--ink-950);
+  background: var(--lime-100);
+}
+
+.tm-a9-choice--button {
+  inline-size: 100%;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+}
+
+.tm-a9-choice--button:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tm-a9-choices > li {
+  list-style: none;
+}
+
+.tm-a9-choice input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.tm-a9-choice:has(input:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tm-a9-choice__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-a9-choice__name {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-a9-choice__meta {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-a9-choice__check {
+  flex: none;
+  font-size: 18px;
+  line-height: 1;
+}
+
+/* ── Fields ─────────────────────────────────────────────────────────────────────────── */
+
+.tm-a9-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-a9-label {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-a9-input {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 48px;
+  padding: 10px var(--s4);
+  border: var(--b-quiet) solid var(--ink-650);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-a9-input:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── Chips (Client / Start date / Lead / Due / Owner) ───────────────────────────────── */
+
+.tm-a9-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-a9-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-block-size: 58px;
+  padding: 8px var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-a9-chip:has(:focus-visible) {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tm-a9-chip__text {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-a9-chip__label {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--ink-500);
+}
+
+.tm-a9-chip__value {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  white-space: nowrap;
+}
+
+.tm-a9-chip__caret {
+  align-self: center;
+  margin-inline-start: 4px;
+  font-size: 8px;
+  line-height: 1;
+  color: var(--ink-650);
+}
+
+/* The native control covers the chip: one click opens the real picker, keyboard included. */
+.tm-a9-chip__control {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.tm-a9-orb {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  inline-size: 40px;
+  block-size: 40px;
+  border-radius: var(--r-capsule);
+  background: var(--paper-250);
+  color: var(--ink-800);
+  font-size: 13px;
+  line-height: 1;
+  font-weight: 500;
+}
+
+/* ── Toggle row ─────────────────────────────────────────────────────────────────────── */
+
+.tm-a9-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.tm-a9-toggle__title {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-a9-toggle__hint {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+/* ── Footer ─────────────────────────────────────────────────────────────────────────── */
+
+.tm-a9-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s3);
+  margin-block-start: var(--s2);
+}
+
+.tm-a9-footer--split {
+  justify-content: space-between;
+}
+
+.tm-a9-footer__end {
+  display: flex;
+  gap: var(--s3);
+}
+
+.tm-a9-btn {
+  min-block-size: 48px;
+  padding: 12px 20px;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 400;
+}
+
+.tm-a9-delete {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--danger-600);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  cursor: pointer;
+}
+
+.tm-a9-delete:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tm-a9-error {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--danger-600);
+}
+
+/* ── Milestones list ────────────────────────────────────────────────────────────────── */
+
+.tm-a9-ms {
+  max-inline-size: 720px;
+  padding: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-feature);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-a9-ms__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  margin-block-end: var(--s2);
+}
+
+.tm-a9-ms__eyebrow {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-a9-ms__title {
+  margin: 0;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+.tm-a9-ms__list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-a9-ms__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s6) var(--s3);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-a9-ms__row:first-child {
+  padding-block-start: var(--s3);
+}
+
+.tm-a9-ms__row:last-child {
+  border-block-end: 0;
+  padding-block-end: var(--s2);
+}
+
+.tm-a9-ms__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.tm-a9-ms__name {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-a9-ms__when {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-a9-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 11px;
+  border: var(--b-quiet) solid var(--client-500);
+  border-radius: var(--r-capsule);
+  color: var(--client-500);
+  font-size: 13px;
+  line-height: 18px;
+  white-space: nowrap;
+}
+
+.tm-a9-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border: var(--b-structural) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  white-space: nowrap;
+}
+
+.tm-a9-pill--done {
+  border-color: var(--success-600);
+  color: var(--ink-950);
+}
+
+.tm-a9-pill--done .tm-a9-pill__glyph {
+  color: var(--success-600);
+}
+
+.tm-a9-pill--inProgress {
+  border-color: var(--warning-600);
+  color: var(--ink-950);
+}
+
+.tm-a9-pill--inProgress .tm-a9-pill__glyph {
+  color: var(--warning-600);
+  font-size: 10px;
+}
+
+.tm-a9-pill__glyph {
+  line-height: 1;
+}
+
+.tm-a9-edit {
+  padding: 4px 6px;
+  border: 0;
+  background: none;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  cursor: pointer;
+}
+
+.tm-a9-edit:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.tm-a9-ms__empty {
+  margin: 0;
+  padding: var(--s6) var(--s3);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+@media (max-width: 640px) {
+  .tm-a9-dialog,
+  .tm-a9-ms {
+    padding: var(--s6);
+  }
+
+  .tm-a9-ms__row {
+    flex-wrap: wrap;
+  }
+
+  .tm-a9-ms__text {
+    flex-basis: 100%;
+  }
+}

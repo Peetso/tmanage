@@ -6,6 +6,10 @@ import { PROJECT_TEMPLATES_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { ProjectTemplateView, ProjectTemplatesService } from './templates.service.js';
 import type { ProjectView } from './projects.service.js';
+import type {
+  ProjectTemplateMilestone,
+  ProjectTemplateWorkItem,
+} from '../../common/database/schema.js';
 
 /**
  * PROJ / module 8 (x234). Reusable project templates: define, list, and instantiate.
@@ -22,11 +26,125 @@ interface CreateTemplateBody {
   readonly name?: unknown;
   readonly description?: unknown;
   readonly defaultObjectives?: unknown;
+  readonly milestones?: unknown;
+  readonly workItems?: unknown;
+  readonly clientPortalOn?: unknown;
+  readonly repeatInterval?: unknown;
 }
 
 interface InstantiateBody {
   readonly workspaceId?: unknown;
   readonly name?: unknown;
+  readonly startDate?: unknown;
+  readonly clientOrganizationId?: unknown;
+  readonly leadUserId?: unknown;
+}
+
+/** A9: a calendar day, `YYYY-MM-DD`. */
+const DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+/** A9: a template copies a bounded plan. */
+const MAX_TEMPLATE_MILESTONES = 100;
+const MAX_TEMPLATE_WORK_ITEMS = 200;
+/** A9: offsets stay within ten years of the start date. */
+const MAX_OFFSET_DAYS = 3650;
+/** `project_milestones.title` / `work_items.title` are VARCHAR(300). */
+const MAX_PLAN_TITLE_LENGTH = 300;
+
+type Details = { field: string; message: string }[];
+
+function isOffset(value: unknown): value is number {
+  return (
+    typeof value === 'number' &&
+    Number.isSafeInteger(value) &&
+    value >= 0 &&
+    value <= MAX_OFFSET_DAYS
+  );
+}
+
+function planTitle(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed !== '' && trimmed.length <= MAX_PLAN_TITLE_LENGTH ? trimmed : undefined;
+}
+
+/** A9 — `milestones`: `[{ title, offsetDays, description?, clientVisible? }]`, bounded. */
+function parseTemplateMilestones(
+  raw: unknown,
+  details: Details,
+): readonly ProjectTemplateMilestone[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw) || raw.length > MAX_TEMPLATE_MILESTONES) {
+    details.push({
+      field: 'milestones',
+      message: `must be an array of ${MAX_TEMPLATE_MILESTONES} milestones or fewer`,
+    });
+    return undefined;
+  }
+  const cleaned: ProjectTemplateMilestone[] = [];
+  for (const entry of raw as unknown[]) {
+    const record = (entry ?? {}) as Record<string, unknown>;
+    const title = planTitle(record['title']);
+    const description = record['description'];
+    const clientVisible = record['clientVisible'];
+    if (
+      !title ||
+      !isOffset(record['offsetDays']) ||
+      (description !== undefined && typeof description !== 'string') ||
+      (clientVisible !== undefined && typeof clientVisible !== 'boolean')
+    ) {
+      details.push({
+        field: 'milestones',
+        message: 'each milestone needs a title and a whole-day offsetDays',
+      });
+      return undefined;
+    }
+    cleaned.push({
+      title,
+      offsetDays: record['offsetDays'] as number,
+      ...(typeof description === 'string' && description.trim() !== ''
+        ? { description: description.trim() }
+        : {}),
+      ...(typeof clientVisible === 'boolean' ? { clientVisible } : {}),
+    });
+  }
+  return cleaned;
+}
+
+/** A9 — `workItems`: `[{ title, offsetDays? }]`, bounded. */
+function parseTemplateWorkItems(
+  raw: unknown,
+  details: Details,
+): readonly ProjectTemplateWorkItem[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw) || raw.length > MAX_TEMPLATE_WORK_ITEMS) {
+    details.push({
+      field: 'workItems',
+      message: `must be an array of ${MAX_TEMPLATE_WORK_ITEMS} work items or fewer`,
+    });
+    return undefined;
+  }
+  const cleaned: ProjectTemplateWorkItem[] = [];
+  for (const entry of raw as unknown[]) {
+    const record = (entry ?? {}) as Record<string, unknown>;
+    const title = planTitle(record['title']);
+    const offsetDays = record['offsetDays'];
+    if (!title || (offsetDays !== undefined && !isOffset(offsetDays))) {
+      details.push({ field: 'workItems', message: 'each work item needs a title' });
+      return undefined;
+    }
+    cleaned.push({ title, ...(offsetDays === undefined ? {} : { offsetDays }) });
+  }
+  return cleaned;
+}
+
+/** An optional id field: absent or blank ⇒ undefined; otherwise a string of at most 36 chars. */
+function optionalId(raw: unknown, field: string, details: Details): string | undefined {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (typeof raw !== 'string' || raw.length > 36) {
+    details.push({ field, message: 'must be an id' });
+    return undefined;
+  }
+  return raw;
 }
 
 /** `project_templates.name` is `VARCHAR(190)`, matching `projects.name`. */
@@ -141,6 +259,16 @@ export class ProjectTemplatesController {
     ];
 
     const defaultObjectives = parseDefaultObjectives(body?.defaultObjectives, details);
+    const milestones = parseTemplateMilestones(body?.milestones, details);
+    const workItems = parseTemplateWorkItems(body?.workItems, details);
+    const clientPortalOn = body?.clientPortalOn;
+    if (clientPortalOn !== undefined && typeof clientPortalOn !== 'boolean') {
+      details.push({ field: 'clientPortalOn', message: 'must be a boolean' });
+    }
+    const repeatInterval = body?.repeatInterval;
+    if (repeatInterval !== undefined && repeatInterval !== null && repeatInterval !== 'monthly') {
+      details.push({ field: 'repeatInterval', message: "must be 'monthly' or null" });
+    }
 
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -154,6 +282,10 @@ export class ProjectTemplatesController {
       name,
       ...(description === undefined ? {} : { description }),
       ...(defaultObjectives === undefined ? {} : { defaultObjectives }),
+      ...(milestones === undefined ? {} : { milestones }),
+      ...(workItems === undefined ? {} : { workItems }),
+      ...(typeof clientPortalOn === 'boolean' ? { clientPortalOn } : {}),
+      ...(repeatInterval === 'monthly' ? { repeatInterval } : {}),
     });
   }
 
@@ -187,6 +319,18 @@ export class ProjectTemplatesController {
         ? [{ field: 'name', message: `must be ${MAX_NAME_LENGTH} characters or fewer` }]
         : []),
     ];
+    const rawStart = body?.startDate;
+    const startDate =
+      typeof rawStart === 'string' && DAY_PATTERN.test(rawStart) ? rawStart : undefined;
+    if (rawStart !== undefined && rawStart !== null && startDate === undefined) {
+      details.push({ field: 'startDate', message: 'must be a YYYY-MM-DD date' });
+    }
+    const clientOrganizationId = optionalId(
+      body?.clientOrganizationId,
+      'clientOrganizationId',
+      details,
+    );
+    const leadUserId = optionalId(body?.leadUserId, 'leadUserId', details);
 
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -199,6 +343,9 @@ export class ProjectTemplatesController {
     return this.templates.instantiate(context, principal, templateId, {
       workspaceId,
       ...(name === undefined ? {} : { name }),
+      ...(startDate === undefined ? {} : { startDate }),
+      ...(clientOrganizationId === undefined ? {} : { clientOrganizationId }),
+      ...(leadUserId === undefined ? {} : { leadUserId }),
     });
   }
 }

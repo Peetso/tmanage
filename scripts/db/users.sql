@@ -844,6 +844,10 @@ GRANT INSERT, DELETE         ON `tmanage`.`document_template_variables` TO 'tman
 -- it, per this file's rule that a grant names a statement that exists (the same treatment
 -- `project_updates`, `meetings` and `documents` have above).
 GRANT INSERT                 ON `tmanage`.`project_milestones` TO 'tmanage_app'@'%';
+-- A9 (0222). The milestone lifecycle edits a milestone (x202 PATCH: title, due date, status; A9 adds
+-- description, owner and the client-visibility flag) and deletes one (A9 `DELETE …/milestones/:id`,
+-- refused while anything links to it), so the statements those routes run are granted here.
+GRANT UPDATE, DELETE         ON `tmanage`.`project_milestones` TO 'tmanage_app'@'%';
 -- Portal risks (x140, 0049). A risk is recorded (INSERT) and read (the database-wide SELECT above);
 -- `severity`, `status`, `internal_note`, `client_summary` and `published` are set at INSERT time, and
 -- this slice ships no edit/unpublish endpoint, so **no UPDATE and no DELETE** — least privilege, and

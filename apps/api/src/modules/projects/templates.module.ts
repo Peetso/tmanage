@@ -45,6 +45,7 @@ export class ProjectTemplatesModule {
           database,
           templates,
           new ProjectsService(database, new ProjectsRepository(), audit),
+          audit,
         ),
     };
 
