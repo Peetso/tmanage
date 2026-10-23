@@ -295,20 +295,17 @@ export function isAuthorized(request: AuthorizationRequest): boolean {
  * The rule is "you can only grant what you hold yourself", decided by the real evaluator against
  * an org-wide internal resource, so a role can never widen access past the person defining it.
  *
- * The owner is the one principal for whom that question has a fixed answer: the owner's ceiling is
- * every capability, so nothing an owner grants is an escalation. Asking the evaluator anyway
- * refused the owner every reviewer-gated capability (`approval.decide` needs an assignment no
- * org-wide resource carries), which is why "there is nothing an owner cannot do" read as false.
- * An owner is still checked for an active membership, the tenant, the ceiling and organization
- * policy; only the per-object reviewer relation is taken as held, because a role does not carry
- * that relation — whoever is given the role still needs it on each approval.
+ * There is no exemption, the owner included. A reviewer-gated capability (`approval.decide`) is
+ * one nobody can exercise org-wide: even the owner needs the reviewer relation on each object.
+ * Minting a role that grants it org-wide would widen access past its author, so the evaluator's
+ * refusal stands for every principal (SEC-011, the privilege-escalation guard; an owner exemption
+ * added for ADM-08 reopened that hole and is removed).
  */
 export function mayGrantCapability(
   principal: Principal,
   capability: Capability,
   organizationId: string,
 ): AuthorizationDecision {
-  const isOwner = principal.kind === 'internal' && principal.role === 'owner';
   return authorize({
     principal,
     capability,
@@ -317,7 +314,6 @@ export function mayGrantCapability(
       projectId: null,
       audience: 'internal',
       lifecycle: 'active',
-      ...(isOwner ? { isAssignedReviewer: true } : {}),
     },
   });
 }

@@ -16,8 +16,8 @@ import type { CustomRoleRow } from '../../common/database/schema.js';
  * tenant-scoped BEFORE authorize (a cross-tenant/unknown id is a 404 with no write, the Known trap); the
  * fixed `CAPABILITIES` allowlist bounds an edit (a capability off it is a 400 with no write); the
  * privilege-escalation guard refuses a capability the caller cannot exercise org-wide on both edit and
- * clone (a reviewer-gated capability like `approval.decide` is a 403 with no write for anyone but the
- * owner, so a clone can never carry caps beyond the caller); and both routes sit behind `org.manage`.
+ * clone (a reviewer-gated capability like `approval.decide` is a 403 with no write for anyone, the
+ * owner included, so a clone can never carry caps beyond the caller); and both routes sit behind `org.manage`.
  */
 
 const ORG = '00000000-0000-4000-8000-0000000000a1';

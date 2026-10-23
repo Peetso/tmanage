@@ -251,7 +251,7 @@ function assertAllAllowlisted(values: readonly unknown[]): asserts values is Cap
 /**
  * The privilege-escalation guard: every capability must be one the caller can exercise org-wide right
  * now (the real evaluator), so neither a clone nor an edit can widen a role past its author. A capability
- * the caller cannot exercise is a 403 with no write. The owner may grant any capability (ADM-08).
+ * the caller cannot exercise is a 403 with no write. No exemption, the owner included (SEC-011).
  */
 function assertCallerHolds(
   principal: Principal,

@@ -443,11 +443,12 @@ const HTTP_PROHIBITIONS: readonly {
  * One `security.capability_denied` row per refusal above, and nothing else.
  *
  * Written as a literal, not as `HTTP_PROHIBITIONS.length` and certainly not as a count
- * derived from `hasCapability`: nine requests are made, nine are refused, nine security
+ * derived from `hasCapability`: eight requests are made, eight are refused, eight security
  * events are expected. The equality against the table's length is itself asserted, so the
- * two statements have to agree.
+ * two statements have to agree. (Nine until CQ-06/ADM-03 moved the Org Admin
+ * "Billing/ownership = Policy" row out of the table, as its note said it would.)
  */
-const EXPECTED_DENIAL_EVENTS = 9;
+const EXPECTED_DENIAL_EVENTS = 8;
 
 beforeAll(async () => {
   ({ app, db } = await bootHttpHarness({ secretTag: 'the_role_prohibitions_suite' }));

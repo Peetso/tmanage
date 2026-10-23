@@ -483,9 +483,10 @@ describe('capability coverage', () => {
 describe('mayGrantCapability (ADM-08) and the org admin ceiling (ADM-03)', () => {
   const owner = internal({ role: 'owner', projectIds: [], hasOrgWideScope: true });
 
-  it('lets the owner grant a reviewer-gated capability, but not in another tenant', () => {
-    expect(mayGrantCapability(owner, 'approval.decide', ORG_A).allowed).toBe(true);
-    expect(mayGrantCapability(owner, 'approval.decide', ORG_B).allowed).toBe(false);
+  it('refuses even the owner a reviewer-gated capability (SEC-011), and anything in another tenant', () => {
+    expect(mayGrantCapability(owner, 'approval.decide', ORG_A).allowed).toBe(false);
+    expect(mayGrantCapability(owner, 'work.update', ORG_A).allowed).toBe(true);
+    expect(mayGrantCapability(owner, 'work.update', ORG_B).allowed).toBe(false);
   });
 
   it('keeps the strict check for everyone else', () => {
