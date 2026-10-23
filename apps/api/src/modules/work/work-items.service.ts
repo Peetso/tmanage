@@ -5,6 +5,7 @@ import { logUnrecognisedRowState } from '../../common/observability/logger.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectClientsRepository } from '../clients/project-clients.repository.js';
+import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
 import {
   effectivePageSize,
   MAX_PAGE_SIZE,
@@ -74,6 +75,11 @@ export interface WorkItemView {
   readonly projectId: string;
   readonly type: string;
   readonly title: string;
+  /**
+   * A6 (0219). The plain-text description, `null` when none was written. Optional in the type
+   * only so projections built elsewhere keep compiling; {@link toWorkItemView} always sets it.
+   */
+  readonly description?: string | null;
   readonly state: WorkItemState;
   readonly ownerUserId: string | null;
   readonly audience: Audience;
@@ -111,6 +117,7 @@ export function toWorkItemView(row: WorkItemRow, correlationId: string): WorkIte
     projectId: row.projectId,
     type: row.type,
     title: row.title,
+    description: row.description ?? null,
     state,
     ownerUserId: row.ownerUserId,
     audience: row.audience,
@@ -314,6 +321,11 @@ export class WorkItemsService {
      * so a default is safe, and appended last so existing call sites keep working.
      */
     private readonly projectClients: ProjectClientsRepository = new ProjectClientsRepository(),
+    /**
+     * A6: read-only, used for one thing — when an item moves to another project, whether its
+     * owner is on that project. Stateless, so a default is safe, and appended last.
+     */
+    private readonly projectMemberships: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
   ) {}
 
   /**
@@ -493,10 +505,12 @@ export class WorkItemsService {
     principal: Principal,
     workItemId: string,
     expectedVersion: number,
-    input: UpdateWorkItemInput,
+    requested: UpdateWorkItemInput,
   ): Promise<WorkItemView> {
     const before = await this.readForWrite(context, principal, workItemId, 'work.update');
-    if (input.ownerUserId) await this.requireOwnerIsMember(context, input.ownerUserId);
+    if (requested.ownerUserId) await this.requireOwnerIsMember(context, requested.ownerUserId);
+    const input = await this.resolveMove(context, principal, before, requested);
+    const targetProjectId = input.projectId ?? before.projectId;
 
     // CQ-07 (WRK-14): "client action needed" is a request to a client, and the worker emails the
     // client people who can act on it. On a project with no client linked that request reaches
@@ -504,7 +518,7 @@ export class WorkItemsService {
     // exist. Checked before the transaction opens; `client_visible` and `internal` are unaffected.
     if (input.audience === 'client_action_required') {
       const linked = await this.database.read(context, (runner) =>
-        this.projectClients.list(runner, context, { projectId: before.projectId, limit: 1 }),
+        this.projectClients.list(runner, context, { projectId: targetProjectId, limit: 1 }),
       );
       if (linked.length === 0) {
         throw new ApiError(
@@ -1060,6 +1074,44 @@ export class WorkItemsService {
         { field: 'ownerUserId', message: 'must be an active member of this organization' },
       ]);
     }
+  }
+
+  /**
+   * A6: a move to another project. The target must exist in this tenant, not be archived, and
+   * be one this principal may file work into — every refusal the same 404 `create` gives, so a
+   * caller cannot learn which project ids are real. The owner stays only when they are on the
+   * target project; otherwise the moved item arrives unassigned rather than owned by someone
+   * who cannot see it there. A "move" to the project the item is already in is dropped.
+   */
+  private async resolveMove(
+    context: TenantContext,
+    principal: Principal,
+    before: WorkItemRow,
+    input: UpdateWorkItemInput,
+  ): Promise<UpdateWorkItemInput> {
+    if (input.projectId === undefined) return input;
+    if (input.projectId === before.projectId) {
+      const rest: { -readonly [K in keyof UpdateWorkItemInput]: UpdateWorkItemInput[K] } = {
+        ...input,
+      };
+      delete rest.projectId;
+      return rest;
+    }
+    const targetProjectId = input.projectId;
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, targetProjectId),
+    );
+    if (!project || project.archivedAt !== null) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    this.requireProjectRelation(principal, context, targetProjectId, 'work.create');
+
+    const ownerUserId = input.ownerUserId !== undefined ? input.ownerUserId : before.ownerUserId;
+    if (ownerUserId === null) return input;
+    const onTarget = await this.database.read(context, (runner) =>
+      this.projectMemberships.findByProjectAndUser(runner, context, targetProjectId, ownerUserId),
+    );
+    return onTarget ? input : { ...input, ownerUserId: null };
   }
 
   /** A fact column is VARCHAR(1000); refuse an essay before the driver truncates one. */

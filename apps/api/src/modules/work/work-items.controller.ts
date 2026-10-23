@@ -52,6 +52,7 @@ import type {
 interface CreateWorkItemBody {
   readonly projectId?: unknown;
   readonly title?: unknown;
+  readonly description?: unknown;
   readonly type?: unknown;
   readonly ownerUserId?: unknown;
   readonly audience?: unknown;
@@ -62,6 +63,9 @@ interface CreateWorkItemBody {
 interface UpdateWorkItemBody {
   readonly version?: unknown;
   readonly title?: unknown;
+  readonly description?: unknown;
+  /** A6: move the item to another project of this organization. */
+  readonly projectId?: unknown;
   readonly type?: unknown;
   readonly ownerUserId?: unknown;
   readonly audience?: unknown;
@@ -80,6 +84,8 @@ interface TransitionBody {
 const MAX_TITLE_LENGTH = 300;
 /** `work_items.type` is `VARCHAR(32)`. */
 const MAX_TYPE_LENGTH = 32;
+/** A6 (0219). `work_items.description` is `TEXT`; the route bounds it well below that. */
+const MAX_DESCRIPTION_LENGTH = 5000;
 
 const AUDIENCES: readonly Audience[] = ['internal', 'client_visible', 'client_action_required'];
 
@@ -160,6 +166,7 @@ export class WorkItemsController {
     }
 
     const type = optionalShortString(body?.type, 'type', MAX_TYPE_LENGTH, details);
+    const description = optionalDescription(body?.description, details);
     const audience = optionalAudience(body?.audience, details);
     const startAt = optionalInstant(body?.startAt, 'startAt', details);
     const dueAt = optionalInstant(body?.dueAt, 'dueAt', details);
@@ -176,6 +183,7 @@ export class WorkItemsController {
       projectId,
       title,
       ...(type === undefined ? {} : { type }),
+      ...(description === undefined ? {} : { description }),
       ...(audience === undefined ? {} : { audience }),
       ...(ownerUserId === undefined ? {} : { ownerUserId }),
       ...(startAt === undefined ? {} : { startAt }),
@@ -203,6 +211,8 @@ export class WorkItemsController {
 
     const title = optionalShortString(body?.title, 'title', MAX_TITLE_LENGTH, details);
     const type = optionalShortString(body?.type, 'type', MAX_TYPE_LENGTH, details);
+    const description = optionalDescription(body?.description, details);
+    const projectId = optionalShortString(body?.projectId, 'projectId', 64, details);
     const audience = optionalAudience(body?.audience, details);
     const startAt = optionalInstant(body?.startAt, 'startAt', details);
     const dueAt = optionalInstant(body?.dueAt, 'dueAt', details);
@@ -220,6 +230,8 @@ export class WorkItemsController {
     return this.workItems.update(context, principal, workItemId, version, {
       ...(title === undefined ? {} : { title }),
       ...(type === undefined ? {} : { type }),
+      ...(description === undefined ? {} : { description }),
+      ...(projectId === undefined ? {} : { projectId }),
       ...(audience === undefined ? {} : { audience }),
       ...(ownerUserId === undefined ? {} : { ownerUserId }),
       ...(startAt === undefined ? {} : { startAt }),
@@ -407,6 +419,31 @@ function optionalShortString(
     return undefined;
   }
   return value;
+}
+
+/**
+ * A6 (0219). A description: absent leaves it alone, `null` or blank clears it, anything else is
+ * trimmed and bounded. Blank-as-clear because the edit dialog sends what its box holds.
+ */
+function optionalDescription(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): string | null | undefined {
+  if (raw === undefined) return undefined;
+  if (raw === null) return null;
+  if (typeof raw !== 'string') {
+    details.push({ field: 'description', message: 'must be a string or null' });
+    return undefined;
+  }
+  const value = raw.trim();
+  if (value.length > MAX_DESCRIPTION_LENGTH) {
+    details.push({
+      field: 'description',
+      message: `must be ${MAX_DESCRIPTION_LENGTH} characters or fewer`,
+    });
+    return undefined;
+  }
+  return value === '' ? null : value;
 }
 
 function optionalAudience(

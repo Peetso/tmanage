@@ -103,6 +103,8 @@ export class WorkItemTransitionError extends Error {
 export interface CreateWorkItemInput {
   readonly projectId: string;
   readonly title: string;
+  /** A6 (0219). Plain text; `null` or absent stores no description. */
+  readonly description?: string | null;
   readonly type?: string;
   readonly ownerUserId?: string | null;
   readonly audience?: Audience;
@@ -113,6 +115,13 @@ export interface CreateWorkItemInput {
 /** No `state`. See the note on the class about why that is deliberate. */
 export interface UpdateWorkItemInput {
   readonly title?: string;
+  /** A6 (0219). `null` clears the description. */
+  readonly description?: string | null;
+  /**
+   * A6: move the item to another project of the same tenant. The service has already proved
+   * the project exists here and that the caller may file work into it.
+   */
+  readonly projectId?: string;
   readonly type?: string;
   readonly ownerUserId?: string | null;
   readonly audience?: Audience;
@@ -361,6 +370,7 @@ export class WorkItemsRepository {
         projectId: input.projectId,
         type: input.type ?? 'task',
         title: input.title,
+        description: input.description ?? null,
         state: workItemStateMachine.definition.initial,
         ownerUserId: input.ownerUserId ?? null,
         audience: input.audience ?? 'internal',
@@ -389,6 +399,8 @@ export class WorkItemsRepository {
       updatedAt: sql`current_timestamp(3)`,
     };
     if (input.title !== undefined) changes['title'] = input.title;
+    if (input.description !== undefined) changes['description'] = input.description;
+    if (input.projectId !== undefined) changes['projectId'] = input.projectId;
     if (input.type !== undefined) changes['type'] = input.type;
     if (input.ownerUserId !== undefined) changes['ownerUserId'] = input.ownerUserId;
     if (input.audience !== undefined) changes['audience'] = input.audience;

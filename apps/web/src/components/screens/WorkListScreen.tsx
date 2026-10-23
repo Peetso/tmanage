@@ -27,6 +27,9 @@ import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { OPEN_COMMAND_PALETTE_EVENT } from './CommandPalette';
+import { WorkBoardView } from './WorkBoardView';
+import { useA6T } from '../work/DueDatePicker';
 
 export interface WorkListScreenProps {
   organizationSlug: string;
@@ -36,6 +39,8 @@ export interface WorkListScreenProps {
   client?: ApiClient;
   /** Injected in tests so the overdue rule can be exercised without waiting for a date. */
   now?: Date;
+  /** A6: open on the board rather than the list. */
+  initialView?: 'list' | 'board';
 }
 
 type SortKey = 'loaded' | 'title' | 'state' | 'due';
@@ -94,8 +99,11 @@ export function WorkListScreen({
   initialProjectId,
   client,
   now = new Date(),
+  initialView = 'list',
 }: WorkListScreenProps) {
   const t = useT();
+  const ta = useA6T();
+  const [view, setView] = useState<'list' | 'board'>(initialView);
   const api = client ?? browserApiClient();
   const canCreateProjects = useCanCreateProjects(organizationSlug, client);
   const queries = useQueryClient();
@@ -281,37 +289,44 @@ export function WorkListScreen({
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow={t('WorkListScreen.eyebrow')}
+      eyebrow={view === 'board' ? (selectedProjectName ?? undefined) : t('WorkListScreen.eyebrow')}
       title={
-        selectedProjectName ??
-        (activeView ? t(activeView.labelKey) : t('WorkListScreen.filteredWork'))
+        view === 'board'
+          ? ta('WorkBoard.title')
+          : (selectedProjectName ??
+            (activeView ? t(activeView.labelKey) : t('WorkListScreen.filteredWork')))
       }
       titleMeta={
-        workItems.isPending
+        view === 'board' || workItems.isPending
           ? undefined
           : `${countLabel} ${itemWord} · ${blockedCount} ${t('WorkListScreen.metaBlocked')} · ${clientWaitingCount} ${t('WorkListScreen.metaClientWaiting')}`
       }
       actions={
-        <>
-          <nav className="tm-segmented tm-wk-views" aria-label={t('WorkListScreen.workViewsNav')}>
-            <Link href={`/${organizationSlug}/work`} aria-current="page">
-              {t('WorkListScreen.viewList')}
+        view === 'board' ? (
+          <>
+            <button
+              type="button"
+              className="tm-wk-search"
+              data-kind="trigger"
+              onClick={() => window.dispatchEvent(new Event(OPEN_COMMAND_PALETTE_EVENT))}
+            >
+              <span className="tm-wk-search__icon" aria-hidden="true">
+                ⌕
+              </span>
+              <span className="tm-wk-search__placeholder">{ta('WorkBoard.search')}</span>
+              <kbd className="tm-wk-search__key" aria-hidden="true">
+                ⌘K
+              </kbd>
+            </button>
+            <Link
+              href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
+              className="tm-wk-pill-button"
+              data-tone="ink"
+            >
+              {ta('WorkBoard.newWorkItem')}
             </Link>
-            {/*
-              CQ-07 (WRK-08): carry the chosen project across the switch, so moving from a
-              project-filtered list to the timeline / calendar / workload keeps that project
-              rather than dropping the reader onto the first one.
-            */}
-            <Link href={`/${organizationSlug}/work/timeline${viewQuery}`}>
-              {t('WorkListScreen.viewTimeline')}
-            </Link>
-            <Link href={`/${organizationSlug}/work/calendar${viewQuery}`}>
-              {t('WorkListScreen.viewCalendar')}
-            </Link>
-            <Link href={`/${organizationSlug}/work/workload${viewQuery}`}>
-              {t('WorkListScreen.viewWorkload')}
-            </Link>
-          </nav>
+          </>
+        ) : (
           <Link
             href={`/${organizationSlug}/capture${projectId === '' ? '' : `?project=${encodeURIComponent(projectId)}`}`}
             className="tm-wk-new"
@@ -321,7 +336,7 @@ export function WorkListScreen({
             </span>
             {t('WorkListScreen.newWork')}
           </Link>
-        </>
+        )
       }
       contextRail={
         <div className="tm-wk-rail">
@@ -400,12 +415,55 @@ export function WorkListScreen({
         </div>
       }
     >
-      <section className="tm-wk-toolbar" aria-labelledby="tm-work-filters">
-        <h2 id="tm-work-filters" className="tm-visually-hidden">
-          {t('WorkListScreen.filters')}
-        </h2>
+      <nav className="tm-wk-tabs" aria-label={ta('WorkBoard.viewsLabel')}>
+        <button
+          type="button"
+          aria-current={view === 'list' ? 'page' : undefined}
+          onClick={() => setView('list')}
+        >
+          {t('WorkListScreen.viewList')}
+        </button>
+        <button
+          type="button"
+          aria-current={view === 'board' ? 'page' : undefined}
+          onClick={() => setView('board')}
+        >
+          {ta('WorkBoard.tab')}
+        </button>
+        <Link href={`/${organizationSlug}/work/timeline${viewQuery}`}>
+          {t('WorkListScreen.viewTimeline')}
+        </Link>
+      </nav>
 
-        {/*
+      {view === 'board' ? (
+        <>
+          {workItems.isError ? (
+            <InlineAlert tone="danger" title={t('WorkListScreen.loadListError')} live>
+              {describeError(workItems.error)}
+            </InlineAlert>
+          ) : null}
+          {workItems.isPending ? (
+            <LoadingRegion label={t('WorkListScreen.loadingList')}>
+              <Skeleton height="120px" />
+            </LoadingRegion>
+          ) : (
+            <WorkBoardView
+              organizationSlug={organizationSlug}
+              items={loadedRows}
+              members={directory.members}
+              membersPending={directory.isPending}
+              now={now}
+            />
+          )}
+        </>
+      ) : (
+        <>
+          <section className="tm-wk-toolbar" aria-labelledby="tm-work-filters">
+            <h2 id="tm-work-filters" className="tm-visually-hidden">
+              {t('WorkListScreen.filters')}
+            </h2>
+
+            {/*
           Inert until the projects query has answered. Every filter here is a controlled input
           shipped in the server HTML, so a choice made before React hydrated was held only by
           the DOM: hydration re-applied `''` and an empty state list, the list below silently
@@ -414,405 +472,416 @@ export function WorkListScreen({
           moment one was used. `isError` means `isPending === false`, so a failed project list
           still leaves the state filters usable.
         */}
-        <fieldset className="tm-wk-filters" disabled={projects.isPending}>
-          <legend>{t('WorkListScreen.filters')}</legend>
-          <span className="tm-wk-select">
-            <label htmlFor="tm-work-project">{t('WorkListScreen.projectLabel')}</label>
-            <select
-              id="tm-work-project"
-              value={projectId}
-              onChange={(event) => chooseProject(event.target.value)}
-            >
-              <option value="">{t('WorkListScreen.allProjects')}</option>
-              {(projects.data ?? []).map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </span>
-
-          <fieldset className="tm-wk-filters" aria-describedby="tm-work-state-hint">
-            <legend>{t('WorkListScreen.stateLegend')}</legend>
-            {WORK_ITEM_STATES.map((state) => (
-              <label
-                key={state}
-                className="tm-wk-filter"
-                {...(state === 'blocked' ? { 'data-tone': 'warning' } : {})}
-              >
-                <input
-                  type="checkbox"
-                  name="state"
-                  value={state}
-                  checked={states.includes(state)}
-                  onChange={() => toggleState(state)}
-                />
-                {t(STATE_FILTER_LABEL[state])}
-              </label>
-            ))}
-          </fieldset>
-        </fieldset>
-        <span id="tm-work-state-hint" className="tm-visually-hidden">
-          {t('WorkListScreen.stateHint')}
-        </span>
-      </section>
-
-      {workItems.isError ? (
-        <InlineAlert tone="danger" title={t('WorkListScreen.loadListError')} live>
-          {describeError(workItems.error)}
-        </InlineAlert>
-      ) : null}
-
-      {workItems.isPending ? (
-        <LoadingRegion label={t('WorkListScreen.loadingList')}>
-          <Skeleton height="38px" />
-          <Skeleton height="38px" />
-          <Skeleton height="38px" />
-        </LoadingRegion>
-      ) : null}
-
-      {!workItems.isPending && !workItems.isError && rows.length === 0 ? (
-        <InlineAlert tone="neutral" title={t('WorkListScreen.emptyTitle')}>
-          {projectId === '' && states.length === 0
-            ? t('WorkListScreen.emptyNoneOrg')
-            : t('WorkListScreen.emptyNoMatch')}
-        </InlineAlert>
-      ) : null}
-
-      {bulkReport !== undefined ? (
-        <InlineAlert
-          tone={bulkReport.failed.length === 0 ? 'neutral' : 'warning'}
-          title={`${t('WorkListScreen.audienceChangedPrefix')} ${bulkReport.updated} ${bulkReport.updated === 1 ? t('WorkListScreen.itemSingular') : t('WorkListScreen.itemPlural')}`}
-          live
-        >
-          {bulkReport.failed.length > 0 ? (
-            <>
-              <p className="tm-prose">
-                {t('WorkListScreen.bulkFailedPre')}{' '}
-                <strong>{t('WorkListScreen.bulkFailedNot')}</strong>{' '}
-                {t('WorkListScreen.bulkFailedPost')}
-              </p>
-              <ul className="tm-list">
-                {bulkReport.failed.map((failure) => (
-                  <li key={failure.title}>
-                    “{failure.title}” — {failure.reason}
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </InlineAlert>
-      ) : null}
-
-      {selectedRows.length > 0 ? (
-        <section className="tm-wk-bulk" aria-labelledby="tm-work-bulk">
-          <span className="tm-wk-bulk__count" aria-hidden="true">
-            {selectedRows.length}
-          </span>
-          <h2 id="tm-work-bulk" className="tm-wk-bulk__label">
-            <span className="tm-visually-hidden">{selectedRows.length} </span>
-            {t('WorkListScreen.selectedSetAudience')}
-          </h2>
-          <span className="tm-wk-bulk__rule" aria-hidden="true" />
-          {(['internal', 'client_visible', 'client_action_required'] as const).map((audience) => (
-            <button
-              key={audience}
-              type="button"
-              disabled={bulkChange.isPending}
-              onClick={() => startBulk(audience)}
-            >
-              {audienceLabel(audience)}
-            </button>
-          ))}
-          <button
-            type="button"
-            className="tm-wk-bulk__close"
-            aria-label={t('WorkListScreen.clearSelection')}
-            onClick={() => {
-              setSelected(new Set());
-              setPendingBulk(undefined);
-            }}
-          >
-            ✕
-          </button>
-        </section>
-      ) : null}
-
-      {selectedRows.length > 0 && pendingBulk !== undefined ? (
-        <section className="tm-wk-review" role="status" aria-labelledby="tm-work-review">
-          <h3 id="tm-work-review" className="tm-wk-review__title">
-            {t('WorkListScreen.reviewTitle')}
-          </h3>
-          {widening.length === 0 ? (
-            <p className="tm-wk-review__line">
-              <span className="tm-wk-review__mark" aria-hidden="true">
-                ✓
-              </span>
-              <span>
-                {t('WorkListScreen.reviewAlreadyPre')} {audienceLabel(pendingBulk).toLowerCase()}{' '}
-                {t('WorkListScreen.reviewAlreadyPost')}
-              </span>
-            </p>
-          ) : (
-            <div className="tm-wk-review__line">
-              <span className="tm-wk-review__mark" aria-hidden="true">
-                ✓
-              </span>
-              <div>
-                <p className="tm-prose">
-                  {widening.length} {t('WorkListScreen.reviewWideningOf')} {selectedRows.length}{' '}
-                  {t('WorkListScreen.reviewWideningSelected')}{' '}
-                  {selectedRows.length === 1
-                    ? t('WorkListScreen.itemSingular')
-                    : t('WorkListScreen.itemPlural')}{' '}
-                  {t('WorkListScreen.reviewWideningWillBecome')}{' '}
-                  {audienceLabel(pendingBulk).toLowerCase()}{' '}
-                  {t('WorkListScreen.reviewWideningPortal')}
-                </p>
-                <ul className="tm-wk-review__list">
-                  {widening.map((row) => (
-                    <li key={row.id}>“{row.title}”</li>
+            <fieldset className="tm-wk-filters" disabled={projects.isPending}>
+              <legend>{t('WorkListScreen.filters')}</legend>
+              <span className="tm-wk-select">
+                <label htmlFor="tm-work-project">{t('WorkListScreen.projectLabel')}</label>
+                <select
+                  id="tm-work-project"
+                  value={projectId}
+                  onChange={(event) => chooseProject(event.target.value)}
+                >
+                  <option value="">{t('WorkListScreen.allProjects')}</option>
+                  {(projects.data ?? []).map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.name}
+                    </option>
                   ))}
-                </ul>
-              </div>
-            </div>
-          )}
-          {widening.length > 0 && widening.length < selectedRows.length ? (
-            <p className="tm-wk-review__line" data-tone="warning">
-              <span className="tm-wk-review__mark" aria-hidden="true">
-                !
+                </select>
               </span>
-              <span>
-                {selectedRows.length - widening.length} {t('WorkListScreen.reviewPartialAlready')}{' '}
-                {audienceLabel(pendingBulk).toLowerCase()} {t('WorkListScreen.reviewPartialLeft')}
-              </span>
-            </p>
-          ) : null}
-          <div className="tm-wk-review__actions">
-            {widening.length > 0 ? (
-              <Button
-                tone="ink"
-                size="accessible"
-                loading={bulkChange.isPending}
-                loadingLabel={t('WorkListScreen.publishing')}
-                onClick={() => bulkChange.mutate({ audience: pendingBulk, targets: widening })}
-              >
-                {t('WorkListScreen.showPrefix')}{' '}
-                {widening.length === 1 ? t('WorkListScreen.showIt') : t('WorkListScreen.showThem')}{' '}
-                {t('WorkListScreen.showToClient')}
-              </Button>
-            ) : null}
-            <Button tone="outline" size="accessible" onClick={() => setPendingBulk(undefined)}>
-              {t('WorkListScreen.keepAsIs')}
-            </Button>
-            <span className="tm-wk-review__receipt">{t('WorkListScreen.keepsVersion')}</span>
-          </div>
-        </section>
-      ) : null}
 
-      {rows.length > 0 ? (
-        <div className="tm-wk-table-frame">
-          <div
-            className="tm-table-scroll"
-            // A scrollable region must be focusable or a keyboard cannot reach its overflow
-            // columns (WCAG 2.2 2.1.1); the .tm-table-scroll CSS comment states the same.
-            // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
-            tabIndex={0}
-            role="region"
-            aria-label={t('WorkListScreen.tableRegion')}
-          >
-            <table className="tm-wk-table">
-              <caption className="tm-visually-hidden">
-                {t('WorkListScreen.colCaption')}
-                {projectId === '' ? '' : ` ${t('WorkListScreen.colCaptionInProject')}`},{' '}
-                {rows.length} {t('WorkListScreen.shown')}
-              </caption>
-              <thead>
-                <tr>
-                  <th scope="col" className="tm-wk-cell--check">
+              <fieldset className="tm-wk-filters" aria-describedby="tm-work-state-hint">
+                <legend>{t('WorkListScreen.stateLegend')}</legend>
+                {WORK_ITEM_STATES.map((state) => (
+                  <label
+                    key={state}
+                    className="tm-wk-filter"
+                    {...(state === 'blocked' ? { 'data-tone': 'warning' } : {})}
+                  >
                     <input
-                      className="tm-choice__input"
                       type="checkbox"
-                      aria-label={t('WorkListScreen.selectAll')}
-                      checked={allVisibleSelected}
-                      onChange={() =>
-                        setSelected(
-                          allVisibleSelected ? new Set() : new Set(rows.map((row) => row.id)),
-                        )
-                      }
+                      name="state"
+                      value={state}
+                      checked={states.includes(state)}
+                      onChange={() => toggleState(state)}
                     />
-                  </th>
-                  <th scope="col" className="tm-wk-cell--type">
-                    <span className="tm-visually-hidden">{t('WorkListScreen.typeHidden')}</span>
-                  </th>
-                  <SortableHeader
-                    label={t('WorkListScreen.colWorkItem')}
-                    active={sortKey === 'title'}
-                    direction={sortDirection}
-                    onToggle={() => toggleSort('title')}
-                  />
-                  <th scope="col" className="tm-wk-cell--owner">
-                    {t('WorkListScreen.colOwner')}
-                  </th>
-                  <SortableHeader
-                    label={t('WorkListScreen.colState')}
-                    className="tm-wk-cell--state"
-                    active={sortKey === 'state'}
-                    direction={sortDirection}
-                    onToggle={() => toggleSort('state')}
-                  />
-                  <SortableHeader
-                    label={t('WorkListScreen.colDue')}
-                    className="tm-wk-cell--date"
-                    active={sortKey === 'due'}
-                    direction={sortDirection}
-                    onToggle={() => toggleSort('due')}
-                  />
-                  <th scope="col" className="tm-wk-cell--audience">
-                    {t('WorkListScreen.colAudience')}
-                  </th>
-                  <th scope="col" className="tm-wk-cell--fresh">
-                    {t('WorkListScreen.colFresh')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {groups.map((group) => (
-                  <Fragment key={group.key}>
-                    {group.label !== undefined ? (
-                      <tr className="tm-wk-table__group">
-                        <td colSpan={8}>
-                          {t('WorkListScreen.groupProjectPrefix')} {group.label}
-                          <span className="tm-wk-table__group-count">
-                            {group.rows.length}{' '}
-                            {group.rows.length === 1
-                              ? t('WorkListScreen.itemSingular')
-                              : t('WorkListScreen.itemPlural')}
-                          </span>
-                        </td>
-                      </tr>
-                    ) : null}
-                    {group.rows.map((item) => {
-                      const owner = memberDisplayName(
-                        item.ownerUserId,
-                        directory.members,
-                        directory.isPending,
-                      );
-                      const overdue = isOverdue(item, now);
-                      const fresh = freshness(item.updatedAt, now);
-                      return (
-                        <tr key={item.id} data-selected={selected.has(item.id)}>
-                          <td>
-                            <input
-                              className="tm-choice__input"
-                              type="checkbox"
-                              aria-label={`${t('WorkListScreen.selectRowPrefix')} ${item.title}`}
-                              checked={selected.has(item.id)}
-                              onChange={() => toggleRow(item.id)}
-                            />
-                          </td>
-                          <td className="tm-wk-cell--type">
-                            <abbr className="tm-wk-table__type" title={item.type}>
-                              {typeCode(item.type)}
-                            </abbr>
-                          </td>
-                          <th scope="row" className="tm-table__title" title={item.title}>
-                            <Link href={`/${organizationSlug}/work/${item.id}`}>{item.title}</Link>
-                          </th>
-                          {/*
+                    {t(STATE_FILTER_LABEL[state])}
+                  </label>
+                ))}
+              </fieldset>
+            </fieldset>
+            <span id="tm-work-state-hint" className="tm-visually-hidden">
+              {t('WorkListScreen.stateHint')}
+            </span>
+          </section>
+
+          {workItems.isError ? (
+            <InlineAlert tone="danger" title={t('WorkListScreen.loadListError')} live>
+              {describeError(workItems.error)}
+            </InlineAlert>
+          ) : null}
+
+          {workItems.isPending ? (
+            <LoadingRegion label={t('WorkListScreen.loadingList')}>
+              <Skeleton height="38px" />
+              <Skeleton height="38px" />
+              <Skeleton height="38px" />
+            </LoadingRegion>
+          ) : null}
+
+          {!workItems.isPending && !workItems.isError && rows.length === 0 ? (
+            <InlineAlert tone="neutral" title={t('WorkListScreen.emptyTitle')}>
+              {projectId === '' && states.length === 0
+                ? t('WorkListScreen.emptyNoneOrg')
+                : t('WorkListScreen.emptyNoMatch')}
+            </InlineAlert>
+          ) : null}
+
+          {bulkReport !== undefined ? (
+            <InlineAlert
+              tone={bulkReport.failed.length === 0 ? 'neutral' : 'warning'}
+              title={`${t('WorkListScreen.audienceChangedPrefix')} ${bulkReport.updated} ${bulkReport.updated === 1 ? t('WorkListScreen.itemSingular') : t('WorkListScreen.itemPlural')}`}
+              live
+            >
+              {bulkReport.failed.length > 0 ? (
+                <>
+                  <p className="tm-prose">
+                    {t('WorkListScreen.bulkFailedPre')}{' '}
+                    <strong>{t('WorkListScreen.bulkFailedNot')}</strong>{' '}
+                    {t('WorkListScreen.bulkFailedPost')}
+                  </p>
+                  <ul className="tm-list">
+                    {bulkReport.failed.map((failure) => (
+                      <li key={failure.title}>
+                        “{failure.title}” — {failure.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              ) : null}
+            </InlineAlert>
+          ) : null}
+
+          {selectedRows.length > 0 ? (
+            <section className="tm-wk-bulk" aria-labelledby="tm-work-bulk">
+              <span className="tm-wk-bulk__count" aria-hidden="true">
+                {selectedRows.length}
+              </span>
+              <h2 id="tm-work-bulk" className="tm-wk-bulk__label">
+                <span className="tm-visually-hidden">{selectedRows.length} </span>
+                {t('WorkListScreen.selectedSetAudience')}
+              </h2>
+              <span className="tm-wk-bulk__rule" aria-hidden="true" />
+              {(['internal', 'client_visible', 'client_action_required'] as const).map(
+                (audience) => (
+                  <button
+                    key={audience}
+                    type="button"
+                    disabled={bulkChange.isPending}
+                    onClick={() => startBulk(audience)}
+                  >
+                    {audienceLabel(audience)}
+                  </button>
+                ),
+              )}
+              <button
+                type="button"
+                className="tm-wk-bulk__close"
+                aria-label={t('WorkListScreen.clearSelection')}
+                onClick={() => {
+                  setSelected(new Set());
+                  setPendingBulk(undefined);
+                }}
+              >
+                ✕
+              </button>
+            </section>
+          ) : null}
+
+          {selectedRows.length > 0 && pendingBulk !== undefined ? (
+            <section className="tm-wk-review" role="status" aria-labelledby="tm-work-review">
+              <h3 id="tm-work-review" className="tm-wk-review__title">
+                {t('WorkListScreen.reviewTitle')}
+              </h3>
+              {widening.length === 0 ? (
+                <p className="tm-wk-review__line">
+                  <span className="tm-wk-review__mark" aria-hidden="true">
+                    ✓
+                  </span>
+                  <span>
+                    {t('WorkListScreen.reviewAlreadyPre')}{' '}
+                    {audienceLabel(pendingBulk).toLowerCase()}{' '}
+                    {t('WorkListScreen.reviewAlreadyPost')}
+                  </span>
+                </p>
+              ) : (
+                <div className="tm-wk-review__line">
+                  <span className="tm-wk-review__mark" aria-hidden="true">
+                    ✓
+                  </span>
+                  <div>
+                    <p className="tm-prose">
+                      {widening.length} {t('WorkListScreen.reviewWideningOf')} {selectedRows.length}{' '}
+                      {t('WorkListScreen.reviewWideningSelected')}{' '}
+                      {selectedRows.length === 1
+                        ? t('WorkListScreen.itemSingular')
+                        : t('WorkListScreen.itemPlural')}{' '}
+                      {t('WorkListScreen.reviewWideningWillBecome')}{' '}
+                      {audienceLabel(pendingBulk).toLowerCase()}{' '}
+                      {t('WorkListScreen.reviewWideningPortal')}
+                    </p>
+                    <ul className="tm-wk-review__list">
+                      {widening.map((row) => (
+                        <li key={row.id}>“{row.title}”</li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
+              {widening.length > 0 && widening.length < selectedRows.length ? (
+                <p className="tm-wk-review__line" data-tone="warning">
+                  <span className="tm-wk-review__mark" aria-hidden="true">
+                    !
+                  </span>
+                  <span>
+                    {selectedRows.length - widening.length}{' '}
+                    {t('WorkListScreen.reviewPartialAlready')}{' '}
+                    {audienceLabel(pendingBulk).toLowerCase()}{' '}
+                    {t('WorkListScreen.reviewPartialLeft')}
+                  </span>
+                </p>
+              ) : null}
+              <div className="tm-wk-review__actions">
+                {widening.length > 0 ? (
+                  <Button
+                    tone="ink"
+                    size="accessible"
+                    loading={bulkChange.isPending}
+                    loadingLabel={t('WorkListScreen.publishing')}
+                    onClick={() => bulkChange.mutate({ audience: pendingBulk, targets: widening })}
+                  >
+                    {t('WorkListScreen.showPrefix')}{' '}
+                    {widening.length === 1
+                      ? t('WorkListScreen.showIt')
+                      : t('WorkListScreen.showThem')}{' '}
+                    {t('WorkListScreen.showToClient')}
+                  </Button>
+                ) : null}
+                <Button tone="outline" size="accessible" onClick={() => setPendingBulk(undefined)}>
+                  {t('WorkListScreen.keepAsIs')}
+                </Button>
+                <span className="tm-wk-review__receipt">{t('WorkListScreen.keepsVersion')}</span>
+              </div>
+            </section>
+          ) : null}
+
+          {rows.length > 0 ? (
+            <div className="tm-wk-table-frame">
+              <div
+                className="tm-table-scroll"
+                // A scrollable region must be focusable or a keyboard cannot reach its overflow
+                // columns (WCAG 2.2 2.1.1); the .tm-table-scroll CSS comment states the same.
+                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+                tabIndex={0}
+                role="region"
+                aria-label={t('WorkListScreen.tableRegion')}
+              >
+                <table className="tm-wk-table">
+                  <caption className="tm-visually-hidden">
+                    {t('WorkListScreen.colCaption')}
+                    {projectId === '' ? '' : ` ${t('WorkListScreen.colCaptionInProject')}`},{' '}
+                    {rows.length} {t('WorkListScreen.shown')}
+                  </caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" className="tm-wk-cell--check">
+                        <input
+                          className="tm-choice__input"
+                          type="checkbox"
+                          aria-label={t('WorkListScreen.selectAll')}
+                          checked={allVisibleSelected}
+                          onChange={() =>
+                            setSelected(
+                              allVisibleSelected ? new Set() : new Set(rows.map((row) => row.id)),
+                            )
+                          }
+                        />
+                      </th>
+                      <th scope="col" className="tm-wk-cell--type">
+                        <span className="tm-visually-hidden">{t('WorkListScreen.typeHidden')}</span>
+                      </th>
+                      <SortableHeader
+                        label={t('WorkListScreen.colWorkItem')}
+                        active={sortKey === 'title'}
+                        direction={sortDirection}
+                        onToggle={() => toggleSort('title')}
+                      />
+                      <th scope="col" className="tm-wk-cell--owner">
+                        {t('WorkListScreen.colOwner')}
+                      </th>
+                      <SortableHeader
+                        label={t('WorkListScreen.colState')}
+                        className="tm-wk-cell--state"
+                        active={sortKey === 'state'}
+                        direction={sortDirection}
+                        onToggle={() => toggleSort('state')}
+                      />
+                      <SortableHeader
+                        label={t('WorkListScreen.colDue')}
+                        className="tm-wk-cell--date"
+                        active={sortKey === 'due'}
+                        direction={sortDirection}
+                        onToggle={() => toggleSort('due')}
+                      />
+                      <th scope="col" className="tm-wk-cell--audience">
+                        {t('WorkListScreen.colAudience')}
+                      </th>
+                      <th scope="col" className="tm-wk-cell--fresh">
+                        {t('WorkListScreen.colFresh')}
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {groups.map((group) => (
+                      <Fragment key={group.key}>
+                        {group.label !== undefined ? (
+                          <tr className="tm-wk-table__group">
+                            <td colSpan={8}>
+                              {t('WorkListScreen.groupProjectPrefix')} {group.label}
+                              <span className="tm-wk-table__group-count">
+                                {group.rows.length}{' '}
+                                {group.rows.length === 1
+                                  ? t('WorkListScreen.itemSingular')
+                                  : t('WorkListScreen.itemPlural')}
+                              </span>
+                            </td>
+                          </tr>
+                        ) : null}
+                        {group.rows.map((item) => {
+                          const owner = memberDisplayName(
+                            item.ownerUserId,
+                            directory.members,
+                            directory.isPending,
+                          );
+                          const overdue = isOverdue(item, now);
+                          const fresh = freshness(item.updatedAt, now);
+                          return (
+                            <tr key={item.id} data-selected={selected.has(item.id)}>
+                              <td>
+                                <input
+                                  className="tm-choice__input"
+                                  type="checkbox"
+                                  aria-label={`${t('WorkListScreen.selectRowPrefix')} ${item.title}`}
+                                  checked={selected.has(item.id)}
+                                  onChange={() => toggleRow(item.id)}
+                                />
+                              </td>
+                              <td className="tm-wk-cell--type">
+                                <abbr className="tm-wk-table__type" title={item.type}>
+                                  {typeCode(item.type)}
+                                </abbr>
+                              </td>
+                              <th scope="row" className="tm-table__title" title={item.title}>
+                                <Link href={`/${organizationSlug}/work/${item.id}`}>
+                                  {item.title}
+                                </Link>
+                              </th>
+                              {/*
                             D16: who this is waiting on, by name. Resolved through the one
                             directory loaded above — no fetch per row. The orb shows initials;
                             the name is in the accessible text and the tooltip.
                           */}
-                          <td className="tm-wk-cell--owner" title={owner}>
-                            <span
-                              className="tm-wk-avatar"
-                              aria-hidden="true"
-                              data-empty={item.ownerUserId === null}
-                            >
-                              {item.ownerUserId === null ? '?' : initialsOf(owner)}
-                            </span>
-                            <span className="tm-visually-hidden">{owner}</span>
-                          </td>
-                          <td>
-                            <StateCapsule state={stateCapsule(item.state)}>
-                              {stateLabel(item.state)}
-                            </StateCapsule>
-                          </td>
-                          <td>
-                            <span
-                              className="tm-wk-mono"
-                              {...(item.dueAt === null
-                                ? { 'data-tone': 'muted' }
-                                : overdue
-                                  ? { 'data-tone': 'warning' }
-                                  : {})}
-                            >
-                              {item.dueAt === null
-                                ? t('WorkListScreen.dueNotSet')
-                                : shortDay(item.dueAt)}
-                            </span>
-                            {overdue ? (
-                              <>
-                                {' '}
-                                <StateCapsule state="blocked">
-                                  {t('WorkListScreen.overdue')}
+                              <td className="tm-wk-cell--owner" title={owner}>
+                                <span
+                                  className="tm-wk-avatar"
+                                  aria-hidden="true"
+                                  data-empty={item.ownerUserId === null}
+                                >
+                                  {item.ownerUserId === null ? '?' : initialsOf(owner)}
+                                </span>
+                                <span className="tm-visually-hidden">{owner}</span>
+                              </td>
+                              <td>
+                                <StateCapsule state={stateCapsule(item.state)}>
+                                  {stateLabel(item.state)}
                                 </StateCapsule>
-                              </>
-                            ) : null}
-                          </td>
-                          <td className="tm-wk-cell--audience">
-                            <span className="tm-wk-halo" data-audience={item.audience}>
-                              <span className="tm-wk-halo__ring" aria-hidden="true">
-                                {AUDIENCE_GLYPH[item.audience]}
-                              </span>
-                              {audienceLabel(item.audience)}
-                            </span>
-                          </td>
-                          <td className="tm-wk-cell--fresh">
-                            <time
-                              className="tm-wk-mono"
-                              data-tone={fresh.stale ? 'warning' : 'muted'}
-                              dateTime={item.updatedAt}
-                              // Minutes since the change differ between the server render and
-                              // hydration by however long the page took to arrive.
-                              suppressHydrationWarning
-                              title={`${t('WorkListScreen.lastChangedPrefix')} ${formatInstant(item.updatedAt)}`}
-                            >
-                              {fresh.label}
-                            </time>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="tm-wk-table__foot">
-            {t('WorkListScreen.footRowsPrefix')}
-            {rows.length}
-            {workItems.hasNextPage ? (
-              <>
-                {' · '}
-                <span>{t('WorkListScreen.footNotAll')}</span> {t('WorkListScreen.footSortNote')}
-                <Button
-                  tone="outline"
-                  size="accessible"
-                  loading={workItems.isFetchingNextPage}
-                  loadingLabel={t('WorkListScreen.loadingMore')}
-                  onClick={() => void workItems.fetchNextPage()}
-                >
-                  {t('WorkListScreen.loadMore')}
-                </Button>
-              </>
-            ) : (
-              ` · ${t('WorkListScreen.footAllLoaded')}`
-            )}
-          </p>
-        </div>
-      ) : null}
+                              </td>
+                              <td>
+                                <span
+                                  className="tm-wk-mono"
+                                  {...(item.dueAt === null
+                                    ? { 'data-tone': 'muted' }
+                                    : overdue
+                                      ? { 'data-tone': 'warning' }
+                                      : {})}
+                                >
+                                  {item.dueAt === null
+                                    ? t('WorkListScreen.dueNotSet')
+                                    : shortDay(item.dueAt)}
+                                </span>
+                                {overdue ? (
+                                  <>
+                                    {' '}
+                                    <StateCapsule state="blocked">
+                                      {t('WorkListScreen.overdue')}
+                                    </StateCapsule>
+                                  </>
+                                ) : null}
+                              </td>
+                              <td className="tm-wk-cell--audience">
+                                <span className="tm-wk-halo" data-audience={item.audience}>
+                                  <span className="tm-wk-halo__ring" aria-hidden="true">
+                                    {AUDIENCE_GLYPH[item.audience]}
+                                  </span>
+                                  {audienceLabel(item.audience)}
+                                </span>
+                              </td>
+                              <td className="tm-wk-cell--fresh">
+                                <time
+                                  className="tm-wk-mono"
+                                  data-tone={fresh.stale ? 'warning' : 'muted'}
+                                  dateTime={item.updatedAt}
+                                  // Minutes since the change differ between the server render and
+                                  // hydration by however long the page took to arrive.
+                                  suppressHydrationWarning
+                                  title={`${t('WorkListScreen.lastChangedPrefix')} ${formatInstant(item.updatedAt)}`}
+                                >
+                                  {fresh.label}
+                                </time>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="tm-wk-table__foot">
+                {t('WorkListScreen.footRowsPrefix')}
+                {rows.length}
+                {workItems.hasNextPage ? (
+                  <>
+                    {' · '}
+                    <span>{t('WorkListScreen.footNotAll')}</span> {t('WorkListScreen.footSortNote')}
+                    <Button
+                      tone="outline"
+                      size="accessible"
+                      loading={workItems.isFetchingNextPage}
+                      loadingLabel={t('WorkListScreen.loadingMore')}
+                      onClick={() => void workItems.fetchNextPage()}
+                    >
+                      {t('WorkListScreen.loadMore')}
+                    </Button>
+                  </>
+                ) : (
+                  ` · ${t('WorkListScreen.footAllLoaded')}`
+                )}
+              </p>
+            </div>
+          ) : null}
+        </>
+      )}
 
       {/*
         WCAG 2.2 4.1.3: "Load more" appends rows to a table that is in no live region, so a

@@ -148,6 +148,7 @@ export const workDetails: readonly AiActionDetail[] = [
     input: bodyArgs([], {
       projectId: f.id().optional(),
       title: f.shortText().optional(),
+      description: f.text().optional(),
       type: f.shortText().optional(),
       ownerUserId: f.id().optional(),
       audience: z.enum(['internal', 'client_visible', 'client_action_required']).optional(),
@@ -526,6 +527,8 @@ export const workDetails: readonly AiActionDetail[] = [
     input: bodyArgs(['workItemId'], {
       version: f.int().optional(),
       title: f.shortText().optional(),
+      description: f.text().optional(),
+      projectId: f.id().optional(),
       type: f.shortText().optional(),
       ownerUserId: f.id().optional(),
       audience: z.enum(['internal', 'client_visible', 'client_action_required']).optional(),

@@ -103,11 +103,11 @@ function workUrl(organizationSlug: string, workItemId: string): string {
 }
 
 /**
- * The item's own facts panel. The redesign titles it "This item · {type}" and states the state
- * and audience in a sentence ("Currently in progress, internal."), so the state is matched
- * case-insensitively; the sibling panel "Move this item" never matches this anchored name.
+ * The item's status pills (A6, fq7-work-item-detail): the state pill and, for a client-facing
+ * item, "Client can see". Found by test id because the pills carry no heading of their own, and
+ * matched case-insensitively by containment so the state is read from the pill's own words.
  */
-const THIS_ITEM = /^This item · /;
+const STATUS = 'work-item-status';
 
 const BLOCKER_REASON = 'The booking provider has not sent the sandbox credentials';
 const BLOCKER_ASK = 'Ahmed at Atlas to forward the sandbox key from the provider';
@@ -120,9 +120,9 @@ test.describe.serial('the work-delivery journeys', () => {
     const maker = await openAs(browser, world().northstar.designer.id);
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
 
-    // Where it starts. Scoped to the item's facts panel (see THIS_ITEM) and asserted by
-    // containment, because the panel states the state inside a sentence.
-    const header = maker.page.getByRole('region', { name: THIS_ITEM });
+    // Where it starts. Scoped to the item's status pills (see STATUS) and asserted by
+    // containment, because the pill states the state in words.
+    const header = maker.page.getByTestId(STATUS);
     await expect(header).toContainText(/in progress/i);
 
     // `23-ERD-AND-STATE-MACHINES` §5 requires two facts to enter `blocked`, and the form asks
@@ -179,7 +179,7 @@ test.describe.serial('the work-delivery journeys', () => {
   }) => {
     const maker = await openAs(browser, world().northstar.designer.id);
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
-    const header = maker.page.getByRole('region', { name: THIS_ITEM });
+    const header = maker.page.getByTestId(STATUS);
     await expect(header).toContainText(/blocked/i);
 
     // Leaving `blocked` costs the outcome — §5 will not take "unblocked" as an answer, and the
@@ -235,9 +235,9 @@ test.describe.serial('the work-delivery journeys', () => {
     // and the item's own page and the manager's list both read the stored fact back.
     const maker = await openAs(browser, world().northstar.designer.id);
     await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
-    const header = maker.page.getByRole('region', { name: THIS_ITEM });
+    const header = maker.page.getByTestId(STATUS);
     await expect(header).toContainText(/internal review/i);
-    await expect(header).not.toContainText('Completed');
+    await expect(maker.page.getByText('Completed', { exact: true })).toHaveCount(0);
 
     await maker.page.getByLabel('Move to').selectOption({ label: 'Done' });
     // The owner opens filled with the item's current owner — the seed gives it to the
@@ -263,7 +263,7 @@ test.describe.serial('the work-delivery journeys', () => {
     await completedField.fill(finishedAt.toISOString().slice(0, 16));
     await maker.page.getByRole('button', { name: 'Move to Done', exact: true }).click();
     await expect(header).toContainText(/done/i);
-    await expect(header).toContainText('Completed');
+    await expect(maker.page.getByText('Completed', { exact: true })).toBeVisible();
 
     // The stored fact, read from the API rather than inferred from the screen. The browser is
     // pinned to UTC by playwright.config.ts, so the local time typed above *is* the instant.
@@ -295,6 +295,46 @@ test.describe.serial('the work-delivery journeys', () => {
     await maker.context.close();
     await manager.context.close();
   });
+
+  test("E2E-03d: edit a work item's description and due date from the dialog", async ({
+    browser,
+  }) => {
+    // A6 (0219). The Edit work item dialog writes the new description and a due date picked
+    // from the date picker in one PATCH; the item's own Description card and the API both read
+    // the stored values back. Runs after 03c, so the item is done — editing is not a move.
+    const maker = await openAs(browser, world().northstar.designer.id);
+    await maker.page.goto(workUrl('northstar-studio', world().northstar.workItemId));
+    await expect(maker.page.getByTestId(STATUS)).toContainText(/done/i);
+
+    const description = 'Write the hero headline and keep it under 12 words.';
+    await maker.page.getByRole('button', { name: 'Edit', exact: true }).click();
+    const dialog = maker.page.getByRole('dialog', { name: 'Edit work item' });
+    await dialog.getByLabel('Description').fill(description);
+    await dialog.getByRole('button', { name: /^Due/u }).click();
+    await maker.page
+      .getByTestId('due-date-picker')
+      .getByRole('button', { name: /^Tomorrow/u })
+      .click();
+    await dialog.getByRole('button', { name: 'Save changes' }).click();
+    await expect(dialog).toHaveCount(0);
+
+    await expect(
+      maker.page.getByRole('region', { name: 'Description', exact: true }),
+    ).toContainText(description);
+
+    // The browser is pinned to UTC, so "tomorrow" is the UTC day after the run's own clock,
+    // stored at noon UTC (`dayToInstant`).
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60_000).toISOString().slice(0, 10);
+    const stored = await maker.context.request.get(
+      `${API_URL}/v1/organizations/northstar-studio/work-items/${world().northstar.workItemId}`,
+    );
+    expect(stored.ok()).toBe(true);
+    const body = (await stored.json()) as { description: string | null; dueAt: string | null };
+    expect(body.description).toBe(description);
+    expect(body.dueAt).toBe(`${tomorrow}T12:00:00.000Z`);
+
+    await maker.context.close();
+  });
 });
 
 /**
@@ -314,7 +354,7 @@ test.describe('the cross-tenant object-id journey', () => {
     await expect(member.page.getByText('The requested resource was not found')).toBeVisible();
     await expect(member.page.getByText(world().brightops.workItemTitle)).toHaveCount(0);
     // Not a word of the record: no state, no audience, no version.
-    await expect(member.page.getByRole('region', { name: THIS_ITEM })).toHaveCount(0);
+    await expect(member.page.getByTestId(STATUS)).toHaveCount(0);
 
     // The adversarial twin, whose work item carries the *same title* as Northstar's own. The
     // absence of a title proves nothing here, so the claim is that the page is the refusal.
@@ -322,7 +362,7 @@ test.describe('the cross-tenant object-id journey', () => {
     await member.page.goto(workUrl('northstar-studio', world().twin.workItemId));
     await expect(member.page.getByText('Could not load this work item')).toBeVisible();
     await expect(member.page.getByText('The requested resource was not found')).toBeVisible();
-    await expect(member.page.getByRole('region', { name: THIS_ITEM })).toHaveCount(0);
+    await expect(member.page.getByTestId(STATUS)).toHaveCount(0);
 
     // The write, which no screen can reach because no screen renders. A route guard answers
     // the read; only the organization-scoped lookup inside the write path answers this, and
@@ -351,15 +391,21 @@ test.describe('the cross-tenant object-id journey', () => {
     await member.context.close();
 
     // "Zero side effects", checked from the far side rather than inferred from the refusal:
-    // BrightOps' owner opens their own item and finds it untouched, at the version it was
-    // seeded with. The badge's whole text is asserted — `toContainText('v1')` would also be
-    // satisfied by `v12`, which is precisely the outcome this line exists to rule out.
+    // BrightOps' owner opens their own item and finds it untouched — still in progress and
+    // internal on screen, and at exactly the version it was seeded with in the API's answer
+    // (the A6 detail no longer prints the version, so the number is read where it is stored).
     const tarek = await openAs(browser, world().brightops.owner.id);
     await tarek.page.goto(workUrl('brightops-consulting', world().brightops.workItemId));
-    const header = tarek.page.getByRole('region', { name: THIS_ITEM });
+    const header = tarek.page.getByTestId(STATUS);
     await expect(header).toContainText(/in progress/i);
-    await expect(header).toContainText(/internal/i);
-    await expect(header.getByText('v1', { exact: true })).toBeVisible();
+    await expect(header).not.toContainText(/client/i);
+    const untouched = await tarek.context.request.get(
+      `${API_URL}/v1/organizations/brightops-consulting/work-items/${world().brightops.workItemId}`,
+    );
+    expect(untouched.ok()).toBe(true);
+    const seeded = (await untouched.json()) as { version: number; audience: string };
+    expect(seeded.version).toBe(1);
+    expect(seeded.audience).toBe('internal');
 
     await tarek.context.close();
   });

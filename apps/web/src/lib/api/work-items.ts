@@ -23,6 +23,8 @@ export interface WorkItemSummary {
   readonly projectId: string;
   readonly type: string;
   readonly title: string;
+  /** A6 (0219). Plain text, `null` when none was written. Always sent by the API. */
+  readonly description?: string | null;
   readonly state: WorkItemState;
   readonly ownerUserId: string | null;
   readonly audience: WorkItemAudience;
@@ -87,6 +89,7 @@ export async function getWorkItem(
 export interface CreateWorkItemInput {
   readonly projectId: string;
   readonly title: string;
+  readonly description?: string;
   readonly type?: string;
   readonly ownerUserId?: string;
   readonly audience?: WorkItemAudience;
@@ -110,6 +113,10 @@ export async function createWorkItem(
 export interface UpdateWorkItemInput {
   readonly version: number;
   readonly title?: string;
+  /** A6. `null` (or a blank string) clears the description. */
+  readonly description?: string | null;
+  /** A6. Move the item to another project of this organization; an owner not on it is cleared. */
+  readonly projectId?: string;
   readonly type?: string;
   readonly ownerUserId?: string | null;
   readonly audience?: WorkItemAudience;
@@ -129,6 +136,30 @@ export async function updateWorkItem(
     body: input,
   });
   return data;
+}
+
+/**
+ * A6 "Duplicate": a new item with the same project, type, owner, dates, audience and
+ * description, titled `copyTitle` (the screen's "Copy of …"). It starts at the lifecycle's
+ * first state — a copy is new work, so neither the state nor the checklist travel with it.
+ */
+export async function duplicateWorkItem(
+  client: ApiClient,
+  organizationSlug: string,
+  item: WorkItemSummary,
+  copyTitle: string,
+): Promise<WorkItemSummary> {
+  const description = item.description ?? null;
+  return createWorkItem(client, organizationSlug, {
+    projectId: item.projectId,
+    title: copyTitle.slice(0, 300),
+    type: item.type,
+    audience: item.audience,
+    ...(item.ownerUserId === null ? {} : { ownerUserId: item.ownerUserId }),
+    ...(item.startAt === null ? {} : { startAt: item.startAt }),
+    ...(item.dueAt === null ? {} : { dueAt: item.dueAt }),
+    ...(description === null ? {} : { description }),
+  });
 }
 
 /**

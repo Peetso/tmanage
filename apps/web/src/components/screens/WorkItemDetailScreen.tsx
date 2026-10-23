@@ -1,50 +1,65 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { workItemStateMachine } from '@tmanage/domain';
 import type { WorkItemState } from '@tmanage/domain';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { MemberSelect } from '../MemberSelect';
-import { WorkItemDependenciesScreen } from './WorkItemDependenciesScreen';
 import './work-core.css';
-import { WorkChecklistPanel } from './WorkChecklistPanel';
 import { WorkCommentsPanel } from './WorkCommentsPanel';
-import { WorkWatchersPanel } from './WorkWatchersPanel';
-import { browserApiClient } from '../../lib/api/browser-client';
+import { WorkChecklistPanel } from './WorkChecklistPanel';
+import { SendForApprovalDialog } from './SendForApprovalDialog';
+import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import {
+  attachWorkItemFile,
   deleteWorkItem,
+  duplicateWorkItem,
   getWorkItem,
+  listWorkItemFiles,
   transitionWorkItem,
   updateWorkItem,
 } from '../../lib/api/work-items';
 import type {
+  ItemFile,
   UpdateWorkItemInput,
   WorkItemAudience,
   WorkItemSummary,
 } from '../../lib/api/work-items';
+import { listProjects } from '../../lib/api/projects';
+import { listWorkActivity } from '../../lib/api/work-activity';
+import {
+  addDeliverableVersion,
+  getDeliverable,
+  listApprovers,
+  listDeliverables,
+} from '../../lib/api/deliverables';
+import type { DeliverableDetailView, DeliverableVersionView } from '../../lib/api/deliverables';
+import { listClientOrganizationOptions } from '../../lib/api/project-client';
+import { listProjectShares } from '../../lib/api/clients';
+import { uploadProjectFile } from '../../lib/api/uploads';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import {
   audienceLabel,
   dayToInstant,
   formatDay,
-  formatInstant,
-  instantToDay,
-  isClientFacing,
-  isOverdue,
   stateCapsule,
-  stateLabel,
 } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
-import { WorkItemTagsAndFiles } from './WorkItemTagsAndFiles';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { dayOf, DueDatePicker, formatChipDay, formatShortDay, useA6T } from '../work/DueDatePicker';
+import { initialsOf, OwnerPickerDialog, useOwnerCandidates } from '../work/OwnerPickerDialog';
+import { EditWorkItemDialog, type WorkItemChanges } from '../work/EditWorkItemDialog';
+import { DeleteWorkItemDialog } from '../work/DeleteWorkItemDialog';
+import { WorkItemActionsMenu, type WorkItemAction } from '../work/WorkItemActionsMenu';
 
 export interface WorkItemDetailScreenProps {
   organizationSlug: string;
@@ -56,6 +71,10 @@ export interface WorkItemDetailScreenProps {
    * falls back to a full navigation to the work list.
    */
   onDeleted?: () => void;
+  /** Where "Duplicate" goes: the new copy. The page passes the router. */
+  onOpenItem?: (workItemId: string) => void;
+  /** Injected in tests so the date picker's "today" is fixed. */
+  now?: Date;
 }
 
 /** The label a person reads for each fact the machine can require. */
@@ -69,105 +88,88 @@ const FACT_LABEL: Record<string, string> = {
   reopenReason: 'Why it is being reopened',
 };
 
-const FACT_HINT: Record<string, string> = {
-  blockerReason: 'Plain words. This is read by whoever picks the item up next.',
-  blockerAsk: 'The specific thing that would unblock it, and who can give it.',
-  blockerOwnerUserId:
-    'Optional. The member who can act on the ask, so the blocker shows up in their list rather than only in prose.',
-  blockerResolution: 'What actually changed. "Resolved" on its own tells nobody anything.',
-  ownerId:
-    'The person accountable for it, not whoever moved the card. Filled in with the current owner when there is one.',
-  completedAt: 'When the work was actually finished, which need not be right now.',
-  reopenReason: 'What was wrong with it. This is the record when a deliverable comes back.',
-};
-
-/**
- * The facts that name a person — D16.
- *
- * Each of these is stored as a `user_id`, and each was asked for as a text box a person had
- * to paste a UUID into. They are the two fields the finding is about, and they are listed
- * here rather than detected by name-shape so that a third one is a decision somebody makes
- * rather than a regex that happens to match.
- */
+/** The facts that name a person — D16: asked for with the member picker, never a UUID box. */
 const MEMBER_FACTS: readonly string[] = ['ownerId', 'blockerOwnerUserId'];
 
+const STATE_KEY: Record<WorkItemState, MessageKey> = {
+  backlog: 'WorkListScreen.stateBacklog',
+  ready: 'WorkListScreen.stateReady',
+  in_progress: 'WorkListScreen.stateInProgress',
+  blocked: 'WorkListScreen.stateBlocked',
+  internal_review: 'WorkListScreen.stateInternalReview',
+  done: 'WorkListScreen.stateDone',
+  archived: 'WorkListScreen.stateArchived',
+};
+
+/** Approval states that mean "waiting on the reviewer". */
+const OPEN_APPROVAL = new Set(['requested', 'viewed']);
+
 /**
- * `completedAt` is asked for with a date-and-time control rather than as an ISO string a
- * person would have to type. The control speaks the browser's local time without a zone;
- * `toIsoInstant` turns what it holds back into the UTC instant the API stores, and
- * `toLocalControlValue` does the reverse for the default the field opens with.
+ * The shortest run of moves from `from` to `done` that asks for nothing but what `done` asks
+ * for — an owner and a completion time. "Mark done" on an item in progress therefore sends it
+ * through internal review and on to done, each step its own audited transition the server
+ * re-checks; a state with no such run (blocked, done, archived) has no "Mark done" at all.
  */
+export function pathToDone(from: WorkItemState): readonly WorkItemState[] | null {
+  const queue: (readonly WorkItemState[])[] = [[from]];
+  const seen = new Set<WorkItemState>([from]);
+  while (queue.length > 0) {
+    const path = queue.shift() as readonly WorkItemState[];
+    const at = path[path.length - 1] as WorkItemState;
+    for (const next of workItemStateMachine.allowedFrom(at)) {
+      const needs = workItemStateMachine.requirementsFor(at, next);
+      if (next === 'done') {
+        if (needs.every((fact) => fact === 'ownerId' || fact === 'completedAt')) {
+          return [...path.slice(1), next];
+        }
+        continue;
+      }
+      if (needs.length > 0 || seen.has(next) || next === 'archived') continue;
+      seen.add(next);
+      queue.push([...path, next]);
+    }
+  }
+  return null;
+}
+
+/** A date-and-time control's value for an instant, in the browser's local time. */
 function toLocalControlValue(instant: Date): string {
   const pad = (value: number) => String(value).padStart(2, '0');
   return `${instant.getFullYear()}-${pad(instant.getMonth() + 1)}-${pad(instant.getDate())}T${pad(instant.getHours())}:${pad(instant.getMinutes())}`;
 }
 
-function toIsoInstant(controlValue: string): string {
-  const parsed = new Date(controlValue);
-  return Number.isNaN(parsed.getTime()) ? controlValue : parsed.toISOString();
+function describe(error: unknown, t: (key: string) => string): string {
+  if (error instanceof ApiRequestError) return error.message;
+  if (error instanceof NetworkError) return t('WorkDetail.networkError');
+  return t('WorkDetail.genericError');
 }
 
-/** Facts whose wire form differs from what the control holds. Everything else travels as typed. */
-function factsForWire(
-  facts: Readonly<Record<string, string>>,
-  optional: readonly string[],
-): Record<string, string> {
-  const wire: Record<string, string> = {};
-  for (const [key, value] of Object.entries(facts)) {
-    // An optional fact left blank is not sent at all. The API would otherwise read an empty
-    // owner as "the member whose id is the empty string", and refuse.
-    if (optional.includes(key) && value.trim() === '') continue;
-    wire[key] = key === 'completedAt' ? toIsoInstant(value) : value;
-  }
-  return wire;
+function fileKind(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot < 0
+    ? 'FILE'
+    : name
+        .slice(dot + 1)
+        .toUpperCase()
+        .slice(0, 5);
 }
 
 /**
- * **TM-13 Work item detail.**
+ * **TM-13 Work item detail — A6 (Figma fq7-work-item-detail).**
  *
- * `22-SCREEN-BY-SCREEN` §5: "Header: type/title/state/audience; fields; description;
- * checklist; dependencies/blocker; source; discussion; files; decisions; activity. Transition
- * presents only fields required for next state. Internal notes are separate objects, never
- * hidden client comments."
+ * The header reads "<Project> / Work", the title, and Delete · Edit · Mark done. Under it the
+ * state and audience pills, then the facts as chips — Owner (the owner picker), Start and Due
+ * (the date picker), and Reviewer when a file of this item is a deliverable version: the open
+ * approval's reviewer, and the chip opens "Send for approval". Three tabs follow: Details (the
+ * description and checklist beside the Files card), Files (n) and Activity (n).
  *
- * ## The sentence this screen exists to honour
+ * Every write carries the version this screen read. A version `409` says somebody else changed
+ * the item, reloads it and never retries — a retry with a fresh version is the lost update the
+ * token exists to prevent. Field refusals stay on the field that caused them.
  *
- * "Transition presents only fields required for next state." The form below asks
- * `workItemStateMachine` two questions — which states can be reached from this one, and what
- * does *this particular* move require — and renders exactly that. Nothing here restates the
- * lifecycle. If §5 gains a transition or a requirement tomorrow, this screen asks for the new
- * fact without being edited, and the one place the rule is written stays the one place.
- *
- * The server validates the same facts through the same machine, so this form is a courtesy
- * rather than a gate: it exists so a person is not refused for a fact they were never asked
- * for. A screen that guessed at the requirements would eventually guess wrong, and the
- * refusal would arrive with the fields already filled in.
- *
- * ## The version, and what happens when somebody else wins
- *
- * Every write carries the version this screen read. When the API answers `409` *for the
- * version* — the envelope names the `version` field — the screen says so in the words of
- * what actually happened — someone else changed it, your change was not applied, here is the
- * current state — and refetches. It does not retry. A retry with a fresh version is precisely
- * the lost update the token exists to prevent, and doing it automatically would make the
- * protection ornamental. A `409` that names no field is a different refusal (today: the item
- * already has an active blocker) and is shown in the API's words, because "reload and try
- * again" is advice that cannot help it.
- *
- * ## What `done` costs, and where it goes
- *
- * §5 makes `done` cost an owner and a completion time, and since 0013 both are stored: the
- * owner on the row's `ownerUserId`, the time on `completedAt`, which this screen then shows
- * as "Completed". The owner field opens filled with the item's current owner and the time
- * with now; both can be changed before the move is made.
- *
- * ## What is not here
- *
- * Description, checklist, dependencies, source, discussion, decisions and activity are each
- * their own object and their own ticket. None is drawn as an empty section: an empty heading
- * looks like an item with nothing in it rather than a feature that does not exist.
- * `BackendPending` names them once, plainly. Labels and attached files are shown, read-only
- * ({@link WorkItemTagsAndFiles}) — they are what the New work capsule adds to an item.
+ * The Files card's "Version history" block exists only for files that are versions of a
+ * deliverable (`lib/api/deliverables.ts`): plain attachments have no history to show, so the
+ * block is omitted for them rather than drawn empty.
  */
 export function WorkItemDetailScreen({
   organizationSlug,
@@ -175,10 +177,13 @@ export function WorkItemDetailScreen({
   workItemId,
   client,
   onDeleted,
+  onOpenItem,
+  now,
 }: WorkItemDetailScreenProps) {
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
+  const ta = useA6T();
 
   const item = useQuery({
     queryKey: ['work-item', organizationSlug, workItemId],
@@ -193,13 +198,42 @@ export function WorkItemDetailScreen({
     client,
   });
 
+  const projects = useQuery({
+    queryKey: ['projects', organizationSlug],
+    queryFn: () => listProjects(api, organizationSlug),
+  });
+  const projectName =
+    projects.data?.find((project) => project.id === item.data?.projectId)?.name ?? '';
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="work"
-      eyebrow={t('WorkItemDetailScreen.eyebrow')}
+      eyebrow={
+        <span className="tm-wk-crumbs">
+          {item.data && projectName !== '' ? (
+            <>
+              <Link href={`/${organizationSlug}/projects/${item.data.projectId}`}>
+                {projectName}
+              </Link>
+              <span aria-hidden="true"> / </span>
+            </>
+          ) : null}
+          <Link href={`/${organizationSlug}/work`}>{ta('WorkDetail.work')}</Link>
+        </span>
+      }
       title={item.data?.title ?? t('WorkItemDetailScreen.fallbackTitle')}
+      actions={
+        item.data ? (
+          <HeaderActions
+            item={item.data}
+            onAction={(action) =>
+              window.dispatchEvent(new CustomEvent(ACTION_EVENT, { detail: action }))
+            }
+          />
+        ) : undefined
+      }
     >
       {item.isPending ? (
         <LoadingRegion label={t('WorkItemDetailScreen.loading')}>
@@ -223,6 +257,9 @@ export function WorkItemDetailScreen({
           item={item.data}
           api={api}
           organizationSlug={organizationSlug}
+          projects={projects.data ?? []}
+          projectName={projectName}
+          {...(now === undefined ? {} : { now })}
           onChanged={(next) => {
             queries.setQueryData(['work-item', organizationSlug, workItemId], next);
             void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
@@ -235,9 +272,58 @@ export function WorkItemDetailScreen({
             if (onDeleted) onDeleted();
             else window.location.assign(`/${organizationSlug}/work`);
           }}
+          onOpenItem={(id) => {
+            void queries.invalidateQueries({ queryKey: workItemKeys.all(organizationSlug) });
+            if (onOpenItem) onOpenItem(id);
+            else window.location.assign(`/${organizationSlug}/work/${id}`);
+          }}
         />
       ) : null}
     </AppShell>
+  );
+}
+
+/**
+ * The header's buttons live in the shell's action slot, the body owns the dialogs they open;
+ * a window event carries the press across without lifting every dialog into the shell.
+ */
+const ACTION_EVENT = 'tm:work-item-action';
+type HeaderAction = WorkItemAction | 'done';
+
+function HeaderActions({
+  item,
+  onAction,
+}: {
+  item: WorkItemSummary;
+  onAction: (action: HeaderAction) => void;
+}) {
+  const ta = useA6T();
+  const canFinish = pathToDone(item.state) !== null;
+  return (
+    <div className="tm-wk-head-actions">
+      <WorkItemActionsMenu itemTitle={item.title} onAction={onAction} />
+      <button type="button" className="tm-wk-text-button" onClick={() => onAction('delete')}>
+        {ta('WorkDetail.delete')}
+      </button>
+      <button
+        type="button"
+        className="tm-wk-pill-button"
+        data-tone="outline"
+        onClick={() => onAction('edit')}
+      >
+        {ta('WorkDetail.edit')}
+      </button>
+      {canFinish ? (
+        <button
+          type="button"
+          className="tm-wk-pill-button"
+          data-tone="ink"
+          onClick={() => onAction('done')}
+        >
+          {ta('WorkDetail.markDone')}
+        </button>
+      ) : null}
+    </div>
   );
 }
 
@@ -245,79 +331,119 @@ interface WorkItemBodyProps {
   item: WorkItemSummary;
   api: ApiClient;
   organizationSlug: string;
+  projects: readonly { readonly id: string; readonly name: string }[];
+  projectName: string;
+  now?: Date;
   onChanged: (next: WorkItemSummary) => void;
   onConflict: () => void;
   onDeleted: () => void;
+  onOpenItem: (workItemId: string) => void;
 }
 
-/** Which inline editor is open under the chip row — at most one at a time. */
-type EditorKind = 'owner' | 'dates' | 'details' | 'delete';
+type Overlay =
+  | { kind: 'edit'; focusProject: boolean }
+  | { kind: 'owner' }
+  | { kind: 'due' }
+  | { kind: 'start' }
+  | { kind: 'delete' }
+  | { kind: 'approval' }
+  | null;
+
+type Tab = 'details' | 'files' | 'activity';
 
 function WorkItemBody({
   item,
   api,
   organizationSlug,
+  projects,
+  projectName,
+  now,
   onChanged,
   onConflict,
   onDeleted,
+  onOpenItem,
 }: WorkItemBodyProps) {
   const t = useT();
-  // P9's keys arrive through the wave's i18n fragment and are merged into the catalogs by the
-  // committer; until then `translate` falls back to the key, so the cast is only a type bridge.
-  const te = (key: `WorkItemEdit.${string}`) => t(key as MessageKey);
-  const [editor, setEditor] = useState<EditorKind | null>(null);
+  const ta = useA6T();
+  const locale = useActiveLocale();
+  const queries = useQueryClient();
+  const [overlay, setOverlay] = useState<Overlay>(null);
+  const [tab, setTab] = useState<Tab>('details');
   const [fieldErrors, setFieldErrors] = useState<ReadonlyMap<string, string>>(new Map());
-  const [draftTitle, setDraftTitle] = useState('');
-  const [draftType, setDraftType] = useState('');
-  const [draftStart, setDraftStart] = useState('');
-  const [draftDue, setDraftDue] = useState('');
-  const [target, setTarget] = useState<WorkItemState | ''>('');
-  const [facts, setFacts] = useState<Record<string, string>>({});
   const [failure, setFailure] = useState<string | undefined>(undefined);
   const [conflict, setConflict] = useState(false);
-  const [missing, setMissing] = useState<readonly string[]>([]);
-  const [pendingAudience, setPendingAudience] = useState<WorkItemAudience | undefined>(undefined);
 
-  // D16. One query for both the owner line and the pickers, so the name a person reads above
-  // and the name they choose below can never come from two different answers. `memberSearch`
-  // is what a picker last typed: the roster is longer than one page in any real organization,
-  // so the search that finds somebody has to reach the server rather than the page already in
-  // hand. `useMembers` merges each answer into what is known, so neither the owner line nor a
-  // field already filled in changes because somebody typed in a picker.
-  const [memberSearch, setMemberSearch] = useState('');
-  const directory = useMembers(api, organizationSlug, memberSearch);
+  const directory = useMembers(api, organizationSlug);
+  const owners = useOwnerCandidates(api, organizationSlug, item.projectId);
 
-  const reachable = workItemStateMachine.allowedFrom(item.state);
-  const required = target === '' ? [] : workItemStateMachine.requirementsFor(item.state, target);
-  const optional = target === '' ? [] : workItemStateMachine.optionalFor(item.state, target);
+  const files = useQuery({
+    queryKey: ['work-item-files', organizationSlug, item.id],
+    queryFn: () => listWorkItemFiles(api, organizationSlug, item.id),
+  });
+  const activity = useQuery({
+    queryKey: ['work-activity', organizationSlug, item.id],
+    queryFn: () => listWorkActivity(api, organizationSlug, item.id),
+  });
 
-  function describe(error: unknown): string {
-    if (error instanceof ApiRequestError) return error.message;
-    if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-    return 'Something went wrong. Try again.';
-  }
+  // The client of this project, for "<Client> can see this item" and the delete note.
+  const shares = useQuery({
+    queryKey: ['project-shares', organizationSlug, item.projectId],
+    queryFn: () => listProjectShares(api, organizationSlug, item.projectId),
+    enabled: item.audience !== 'internal' || overlay?.kind === 'edit',
+  });
+  const clientOptions = useQuery({
+    queryKey: ['client-organization-options', organizationSlug],
+    queryFn: () => listClientOrganizationOptions(api, organizationSlug),
+    enabled: (shares.data?.length ?? 0) > 0,
+  });
+  const clientId = shares.data?.[0]?.clientOrganizationId;
+  const clientName = clientOptions.data?.find((option) => option.id === clientId)?.name;
 
-  /**
-   * A `409` is its own outcome, not a failure message — when it is the version token's. The
-   * API answers 409 for two different things: the item changed since this screen read it,
-   * which the envelope says by naming the `version` field, and "this item already has an
-   * active blocker", which names no field because no field of the request was wrong. Only
-   * the first is "somebody else changed this first"; telling a person to reload for the
-   * second would send them round a loop that ends where it started. Any other 409 is shown
-   * in the API's own words.
-   */
+  // Deliverable-backed files: a file of this item that is a version of one of the project's
+  // deliverables. Only those carry a version history, a reviewer and "Upload new version".
+  const attached = files.data ?? [];
+  const deliverables = useQuery({
+    queryKey: ['deliverables', organizationSlug, item.projectId],
+    queryFn: () => listDeliverables(api, organizationSlug, item.projectId),
+    enabled: attached.length > 0,
+  });
+  const details = useQueries({
+    queries: (deliverables.data ?? []).slice(0, 20).map((deliverable) => ({
+      queryKey: ['deliverable', organizationSlug, deliverable.id],
+      queryFn: () => getDeliverable(api, organizationSlug, deliverable.id),
+    })),
+  });
+  const backed = details
+    .map((query) => query.data)
+    .filter((detail): detail is DeliverableDetailView => detail !== undefined);
+  const backingOf = (file: ItemFile) =>
+    backed.find((detail) =>
+      detail.versions.some((version) => version.fileAssetId === file.fileAssetId),
+    );
+  const firstBacking = attached.map(backingOf).find((detail) => detail !== undefined);
+  const latestOf = (detail: DeliverableDetailView) =>
+    [...detail.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))[0];
+  const reviewVersion = firstBacking ? latestOf(firstBacking) : undefined;
+  const openApproval =
+    reviewVersion?.approval && OPEN_APPROVAL.has(reviewVersion.approval.state)
+      ? reviewVersion.approval
+      : null;
+  const approvers = useQuery({
+    queryKey: ['deliverable-approvers', organizationSlug, firstBacking?.id ?? ''],
+    queryFn: () => listApprovers(api, organizationSlug, firstBacking?.id ?? ''),
+    enabled: openApproval !== null && firstBacking !== undefined,
+  });
+  const reviewerId = openApproval?.reviewerIds[0];
+  const reviewerName =
+    approvers.data?.find((approver) => approver.userId === reviewerId)?.displayName ??
+    (reviewerId === undefined ? undefined : ta('WorkDetail.clientReviewer'));
+
   function handleWriteError(error: unknown) {
     if (error instanceof ApiRequestError && error.status === 409) {
       if (error.fieldErrors().has('version')) {
         setConflict(true);
         setFailure(undefined);
-        // The move and its facts were composed against the row that has just been
-        // superseded — an owner seeded from a stale item would otherwise ride the next
-        // attempt over a colleague's change with a fresh version, which is the lost update
-        // the banner tells the reader to avoid. Re-pick against the reloaded row.
-        setTarget('');
-        setFacts({});
-        setMissing([]);
+        setOverlay(null);
         onConflict();
         return;
       }
@@ -325,53 +451,19 @@ function WorkItemBody({
       setFailure(error.message);
       return;
     }
-    if (error instanceof ApiRequestError && error.status === 422) {
-      // The machine's own refusal, which names what it wanted. CQ-07 (WRK-07): a known
-      // transition fact is shown by its human label (`FACT_LABEL`) rather than its schema
-      // token, so the list says which field is missing in plain words. The server stays
-      // authoritative about *which* facts are missing; only the word a person reads is the
-      // screen's. An unrecognised field keeps the server's `field: message`.
-      setMissing(
-        [...error.fieldErrors().entries()].map(
-          ([field, message]) => FACT_LABEL[field] ?? `${field}: ${message}`,
-        ),
-      );
-      setFailure(error.message);
-      return;
-    }
-    setFailure(describe(error));
+    setFailure(describe(error, ta));
   }
 
-  const move = useMutation({
-    mutationFn: (to: WorkItemState) =>
-      transitionWorkItem(api, organizationSlug, item.id, {
-        version: item.version,
-        to,
-        facts: factsForWire(facts, optional),
-      }),
-    onSuccess: (next) => {
-      onChanged(next);
-      setTarget('');
-      setFacts({});
-      setMissing([]);
-      setFailure(undefined);
-      setConflict(false);
-    },
-    onError: handleWriteError,
-  });
-
-  /**
-   * Every inline edit is one PATCH with the version this screen read. A field refusal (`400` /
-   * `422` naming fields) is shown on the field that caused it and keeps the editor open; a
-   * version `409` closes it and goes through {@link handleWriteError}, which reloads the item and
-   * says somebody else changed it.
-   */
+  /** Every edit is one PATCH with the version this screen read. */
   const edit = useMutation({
-    mutationFn: (input: Omit<UpdateWorkItemInput, 'version'>) =>
-      updateWorkItem(api, organizationSlug, item.id, { ...input, version: item.version }),
+    mutationFn: (input: WorkItemChanges) =>
+      updateWorkItem(api, organizationSlug, item.id, {
+        ...input,
+        version: item.version,
+      } satisfies UpdateWorkItemInput),
     onSuccess: (next) => {
       onChanged(next);
-      setEditor(null);
+      setOverlay(null);
       setFieldErrors(new Map());
       setFailure(undefined);
       setConflict(false);
@@ -383,74 +475,749 @@ function WorkItemBody({
         error.fieldErrors().size > 0
       ) {
         setFieldErrors(error.fieldErrors());
-        setFailure(undefined);
+        setFailure(overlay?.kind === 'edit' ? undefined : error.message);
         return;
       }
-      setEditor(null);
-      setFieldErrors(new Map());
+      setOverlay(null);
       handleWriteError(error);
     },
   });
 
-  const remove = useMutation({
-    mutationFn: () => deleteWorkItem(api, organizationSlug, item.id),
-    onSuccess: () => onDeleted(),
-    onError: (error) => {
-      setEditor(null);
-      setFailure(describe(error));
+  const finish = useMutation({
+    mutationFn: async () => {
+      const path = pathToDone(item.state) ?? [];
+      let current = item;
+      for (const to of path) {
+        current = await transitionWorkItem(api, organizationSlug, item.id, {
+          version: current.version,
+          to,
+          facts:
+            to === 'done' && current.ownerUserId !== null
+              ? { ownerId: current.ownerUserId, completedAt: new Date().toISOString() }
+              : {},
+        });
+        onChanged(current);
+      }
+      return current;
     },
-  });
-
-  function openEditor(kind: EditorKind) {
-    if (editor === kind) {
-      setEditor(null);
-      return;
-    }
-    setFieldErrors(new Map());
-    setDraftTitle(item.title);
-    setDraftType(item.type);
-    setDraftStart(instantToDay(item.startAt));
-    setDraftDue(instantToDay(item.dueAt));
-    setEditor(kind);
-  }
-
-  function submitDates(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    edit.mutate({ startAt: dayToInstant(draftStart), dueAt: dayToInstant(draftDue) });
-  }
-
-  function submitDetails(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const title = draftTitle.trim();
-    if (title === '') {
-      setFieldErrors(new Map([['title', te('WorkItemEdit.titleRequired')]]));
-      return;
-    }
-    edit.mutate({ title, type: draftType.trim() });
-  }
-
-  const changeAudience = useMutation({
-    mutationFn: (audience: WorkItemAudience) =>
-      updateWorkItem(api, organizationSlug, item.id, { version: item.version, audience }),
-    onSuccess: (next) => {
-      onChanged(next);
-      setPendingAudience(undefined);
+    onSuccess: () => {
       setFailure(undefined);
       setConflict(false);
     },
     onError: handleWriteError,
   });
 
-  /**
-   * One fact, asked for with the control that fits what it is.
-   *
-   * A fact naming a person gets the member picker; everything else keeps the text box it had.
-   * The value the form holds is identical either way — a `user_id` — which is what lets D16 be
-   * fixed here rather than in the state machine, the request body or the API.
-   */
-  function renderFact(fact: string, isRequired: boolean) {
-    const hint = FACT_HINT[fact];
+  const duplicate = useMutation({
+    mutationFn: () =>
+      duplicateWorkItem(
+        api,
+        organizationSlug,
+        item,
+        ta('WorkDetail.copyOf', { title: item.title }),
+      ),
+    onSuccess: (copy) => onOpenItem(copy.id),
+    onError: (error) => setFailure(describe(error, ta)),
+  });
 
+  const remove = useMutation({
+    mutationFn: () => deleteWorkItem(api, organizationSlug, item.id),
+    onSuccess: () => onDeleted(),
+    onError: (error) => {
+      setOverlay(null);
+      setFailure(describe(error, ta));
+    },
+  });
+
+  function act(action: HeaderAction) {
+    setFieldErrors(new Map());
+    if (action === 'edit') setOverlay({ kind: 'edit', focusProject: false });
+    else if (action === 'move') setOverlay({ kind: 'edit', focusProject: true });
+    else if (action === 'owner') setOverlay({ kind: 'owner' });
+    else if (action === 'dates') setOverlay({ kind: 'due' });
+    else if (action === 'duplicate') duplicate.mutate();
+    else if (action === 'delete') setOverlay({ kind: 'delete' });
+    else if (action === 'done') {
+      if (item.ownerUserId === null) {
+        setFailure(ta('WorkDetail.ownerFirst'));
+        setOverlay({ kind: 'owner' });
+      } else {
+        finish.mutate();
+      }
+    }
+  }
+
+  // The header's buttons are rendered by the shell; their presses arrive as a window event.
+  useWindowEvent(ACTION_EVENT, (event) => act((event as CustomEvent<HeaderAction>).detail));
+
+  // "Unassigned" when nobody owns it — the directory's own word (D16).
+  const ownerName = memberDisplayName(item.ownerUserId, directory.members, directory.isPending);
+  const fileCount = attached.length;
+  const activityCount = activity.data?.length ?? 0;
+
+  return (
+    <div className="tm-wk-detail">
+      <div className="tm-wk-detail__pills" data-testid="work-item-status">
+        <span className="tm-wk-pill" data-state={stateCapsule(item.state)}>
+          <span className="tm-wk-pill__dot" aria-hidden="true" />
+          {t(STATE_KEY[item.state])}
+        </span>
+        {item.audience !== 'internal' ? (
+          <span className="tm-wk-pill" data-tone="client">
+            {item.audience === 'client_action_required'
+              ? ta('WorkDetail.clientAction')
+              : ta('WorkDetail.clientCanSee')}
+          </span>
+        ) : null}
+      </div>
+
+      <div className="tm-wk-fact-chips" role="group" aria-label={ta('WorkDetail.factsLabel')}>
+        <button
+          type="button"
+          className="tm-wk-fact"
+          aria-haspopup="dialog"
+          onClick={() => act('owner')}
+        >
+          {item.ownerUserId !== null ? (
+            <span className="tm-wk-orb" aria-hidden="true">
+              {initialsOf(ownerName)}
+            </span>
+          ) : null}
+          <span className="tm-wk-fact__text">
+            <span className="tm-wk-fact__label">{ta('WorkDetail.owner')}</span>
+            <span className="tm-wk-fact__value">{ownerName}</span>
+          </span>
+          <span className="tm-wk-fact__caret" aria-hidden="true">
+            ▾
+          </span>
+        </button>
+
+        <DateChip
+          label={ta('WorkDetail.start')}
+          heading={ta('DueDatePicker.startHeading')}
+          value={dayOf(item.startAt)}
+          open={overlay?.kind === 'start'}
+          {...(now === undefined ? {} : { now })}
+          onOpen={() => setOverlay(overlay?.kind === 'start' ? null : { kind: 'start' })}
+          onClose={() => setOverlay(null)}
+          onSet={(day) => edit.mutate({ startAt: day === null ? null : dayToInstant(day) })}
+        />
+        <DateChip
+          label={ta('WorkDetail.due')}
+          heading={ta('DueDatePicker.dueHeading')}
+          value={dayOf(item.dueAt)}
+          min={dayOf(item.startAt)}
+          open={overlay?.kind === 'due'}
+          {...(now === undefined ? {} : { now })}
+          onOpen={() => setOverlay(overlay?.kind === 'due' ? null : { kind: 'due' })}
+          onClose={() => setOverlay(null)}
+          onSet={(day) => edit.mutate({ dueAt: day === null ? null : dayToInstant(day) })}
+        />
+
+        {firstBacking && reviewVersion ? (
+          <button
+            type="button"
+            className="tm-wk-fact"
+            aria-haspopup="dialog"
+            onClick={() => setOverlay({ kind: 'approval' })}
+          >
+            {reviewerName ? (
+              <span className="tm-wk-orb" aria-hidden="true">
+                {initialsOf(reviewerName)}
+              </span>
+            ) : null}
+            <span className="tm-wk-fact__text">
+              <span className="tm-wk-fact__label">{ta('WorkDetail.reviewer')}</span>
+              <span className="tm-wk-fact__value">
+                {reviewerName ?? ta('WorkDetail.sendForApproval')}
+              </span>
+            </span>
+            <span className="tm-wk-fact__caret" aria-hidden="true">
+              ▾
+            </span>
+          </button>
+        ) : null}
+      </div>
+      {fieldErrors.size > 0 && overlay?.kind !== 'edit' ? (
+        <p className="tm-field__error" role="alert">
+          {[...fieldErrors.values()].join(' ')}
+        </p>
+      ) : null}
+
+      {conflict ? (
+        <InlineAlert tone="warning" title={t('WorkItemDetailScreen.conflictTitle')} live>
+          {t('WorkItemDetailScreen.conflictBody')}
+        </InlineAlert>
+      ) : null}
+      {failure ? (
+        <InlineAlert tone="danger" title={t('WorkItemDetailScreen.failureTitle')} live>
+          {failure}
+        </InlineAlert>
+      ) : null}
+
+      <div className="tm-wk-tabs" role="tablist" aria-label={ta('WorkDetail.tabsLabel')}>
+        {(
+          [
+            ['details', ta('WorkDetail.tabDetails'), undefined],
+            ['files', ta('WorkDetail.tabFiles'), fileCount],
+            ['activity', ta('WorkDetail.tabActivity'), activityCount],
+          ] as const
+        ).map(([id, label, count]) => (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={tab === id}
+            aria-controls={`tm-wk-panel-${id}`}
+            id={`tm-wk-tab-${id}`}
+            onClick={() => setTab(id)}
+          >
+            {label}
+            {count === undefined ? null : <span className="tm-wk-count">{count}</span>}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'details' ? (
+        <div
+          className="tm-wk-detail__grid"
+          role="tabpanel"
+          id="tm-wk-panel-details"
+          aria-labelledby="tm-wk-tab-details"
+        >
+          <div className="tm-wk-detail__stack">
+            <DescriptionCard item={item} api={api} organizationSlug={organizationSlug} />
+            <MovePanel
+              item={item}
+              api={api}
+              organizationSlug={organizationSlug}
+              onMoved={onChanged}
+              onError={handleWriteError}
+            />
+            <AudiencePanel
+              item={item}
+              api={api}
+              organizationSlug={organizationSlug}
+              onChanged={onChanged}
+              onError={handleWriteError}
+            />
+            <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+          </div>
+          <FilesCard
+            api={api}
+            organizationSlug={organizationSlug}
+            item={item}
+            files={attached}
+            loading={files.isPending}
+            failed={files.isError}
+            backingOf={backingOf}
+            latestOf={latestOf}
+            members={directory}
+            locale={locale}
+          />
+        </div>
+      ) : null}
+
+      {tab === 'files' ? (
+        <div role="tabpanel" id="tm-wk-panel-files" aria-labelledby="tm-wk-tab-files">
+          <FilesCard
+            api={api}
+            organizationSlug={organizationSlug}
+            item={item}
+            files={attached}
+            loading={files.isPending}
+            failed={files.isError}
+            backingOf={backingOf}
+            latestOf={latestOf}
+            members={directory}
+            locale={locale}
+          />
+        </div>
+      ) : null}
+
+      {tab === 'activity' ? (
+        <div
+          className="tm-wk-detail__stack"
+          role="tabpanel"
+          id="tm-wk-panel-activity"
+          aria-labelledby="tm-wk-tab-activity"
+        >
+          <section className="tm-wk-card" aria-labelledby="tm-wk-activity-heading">
+            <h2 id="tm-wk-activity-heading" className="tm-wk-card__title">
+              {ta('WorkDetail.tabActivity')}
+            </h2>
+            {activity.isPending ? <Skeleton height="var(--row)" /> : null}
+            {activity.isError ? (
+              <p className="tm-field__hint">{ta('WorkDetail.activityError')}</p>
+            ) : null}
+            <ol className="tm-wk-activity">
+              {(activity.data ?? []).map((entry) => (
+                <li key={entry.id}>
+                  <span>{entry.summary}</span>
+                  <time dateTime={entry.occurredAt}>
+                    {formatShortDay(dayOf(entry.occurredAt), locale)}
+                  </time>
+                </li>
+              ))}
+            </ol>
+          </section>
+        </div>
+      ) : null}
+
+      {overlay?.kind === 'edit' ? (
+        <EditWorkItemDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          item={item}
+          projects={projects}
+          {...(clientName === undefined ? {} : { clientName })}
+          focusProject={overlay.focusProject}
+          saving={edit.isPending}
+          fieldErrors={fieldErrors}
+          onSave={(changes) => edit.mutate(changes)}
+          onClose={() => setOverlay(null)}
+        />
+      ) : null}
+
+      {overlay?.kind === 'owner' ? (
+        <OwnerPickerDialog
+          projectName={projectName}
+          candidates={owners.candidates}
+          loading={owners.loading}
+          value={item.ownerUserId}
+          saving={edit.isPending}
+          onAssign={(userId) => {
+            if (userId === item.ownerUserId) setOverlay(null);
+            else edit.mutate({ ownerUserId: userId });
+          }}
+          onClose={() => setOverlay(null)}
+        />
+      ) : null}
+
+      {overlay?.kind === 'delete' ? (
+        <DeleteWorkItemDialog
+          title={item.title}
+          fileCount={fileCount}
+          clientVisible={item.audience !== 'internal'}
+          {...(clientName === undefined ? {} : { clientName })}
+          deleting={remove.isPending}
+          onConfirm={() => remove.mutate()}
+          onClose={() => setOverlay(null)}
+        />
+      ) : null}
+
+      {overlay?.kind === 'approval' && firstBacking && reviewVersion ? (
+        <SendForApprovalDialog
+          api={api}
+          organizationSlug={organizationSlug}
+          deliverableId={firstBacking.id}
+          deliverableTitle={firstBacking.title}
+          version={reviewVersion}
+          onClose={() => setOverlay(null)}
+          onSent={() => {
+            setOverlay(null);
+            void queries.invalidateQueries({
+              queryKey: ['deliverable', organizationSlug, firstBacking.id],
+            });
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/** A window event, handled by the latest `handler` without re-subscribing on every render. */
+function useWindowEvent(name: string, handler: (event: Event) => void): void {
+  const latest = useRef(handler);
+  useEffect(() => {
+    latest.current = handler;
+  });
+  useEffect(() => {
+    const listener = (event: Event) => latest.current(event);
+    window.addEventListener(name, listener);
+    return () => window.removeEventListener(name, listener);
+  }, [name]);
+}
+
+function DateChip({
+  label,
+  heading,
+  value,
+  min,
+  open,
+  now,
+  onOpen,
+  onClose,
+  onSet,
+}: {
+  label: string;
+  heading: string;
+  value: string;
+  min?: string;
+  open: boolean;
+  now?: Date;
+  onOpen: () => void;
+  onClose: () => void;
+  onSet: (day: string | null) => void;
+}) {
+  const ta = useA6T();
+  const locale = useActiveLocale();
+  return (
+    <div className="tm-wk-popover-anchor">
+      <button
+        type="button"
+        className="tm-wk-fact"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={onOpen}
+      >
+        <span className="tm-wk-fact__text">
+          <span className="tm-wk-fact__label">{label}</span>
+          <span className="tm-wk-fact__value">
+            {value === '' ? ta('WorkDetail.noDate') : formatChipDay(value, locale)}
+          </span>
+        </span>
+        <span className="tm-wk-fact__caret" aria-hidden="true">
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <DueDatePicker
+          heading={heading}
+          value={value}
+          {...(min === undefined || min === '' ? {} : { min })}
+          {...(now === undefined ? {} : { now })}
+          onSet={(day) => {
+            onClose();
+            if (day !== (value === '' ? null : value)) onSet(day);
+          }}
+          onClose={onClose}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * The Details tab's left card: the description, a rule, and the checklist. The checklist is the
+ * shared `WorkChecklistPanel` (its own count, toggles and add form), drawn flat inside the card.
+ */
+function DescriptionCard({
+  item,
+  api,
+  organizationSlug,
+}: {
+  item: WorkItemSummary;
+  api: ApiClient;
+  organizationSlug: string;
+}) {
+  const ta = useA6T();
+  return (
+    <section className="tm-wk-card tm-wk-description" aria-labelledby="tm-wk-description">
+      <h2 id="tm-wk-description" className="tm-wk-card__title">
+        {ta('WorkDetail.description')}
+      </h2>
+      <p className="tm-wk-card__prose" data-empty={!item.description}>
+        {item.description ? item.description : ta('WorkDetail.noDescription')}
+      </p>
+      <hr className="tm-wk-card__rule" />
+      <WorkChecklistPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
+    </section>
+  );
+}
+
+interface FilesCardProps {
+  api: ApiClient;
+  organizationSlug: string;
+  item: WorkItemSummary;
+  files: readonly ItemFile[];
+  loading: boolean;
+  failed: boolean;
+  backingOf: (file: ItemFile) => DeliverableDetailView | undefined;
+  latestOf: (detail: DeliverableDetailView) => DeliverableVersionView | undefined;
+  members: ReturnType<typeof useMembers>;
+  locale: string;
+}
+
+/** The Files card: attachments, "Attach file", and a version history for deliverable files. */
+function FilesCard({
+  api,
+  organizationSlug,
+  item,
+  files,
+  loading,
+  failed,
+  backingOf,
+  latestOf,
+  members,
+  locale,
+}: FilesCardProps) {
+  const ta = useA6T();
+  const queries = useQueryClient();
+  const picker = useRef<HTMLInputElement>(null);
+  const versionPicker = useRef<HTMLInputElement>(null);
+  const [versionTarget, setVersionTarget] = useState<string | null>(null);
+  const [problem, setProblem] = useState<string | undefined>(undefined);
+  const base = apiBaseUrl();
+  const href = (fileAssetId: string) =>
+    `${base}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(fileAssetId)}/content`;
+
+  const attach = useMutation({
+    mutationFn: async (file: File) => {
+      const fileAssetId = await uploadProjectFile(api, organizationSlug, {
+        projectId: item.projectId,
+        file,
+      });
+      return attachWorkItemFile(api, organizationSlug, item.id, { fileAssetId });
+    },
+    onSuccess: () => {
+      setProblem(undefined);
+      void queries.invalidateQueries({ queryKey: ['work-item-files', organizationSlug, item.id] });
+    },
+    onError: (error) => setProblem(describe(error, ta)),
+  });
+
+  const addVersion = useMutation({
+    mutationFn: async (input: {
+      deliverableId: string;
+      fileAssetId: string;
+      note: string | null;
+    }) =>
+      addDeliverableVersion(api, organizationSlug, input.deliverableId, {
+        fileAssetId: input.fileAssetId,
+        note: input.note,
+      }),
+    onSuccess: (_version, input) => {
+      setProblem(undefined);
+      void queries.invalidateQueries({
+        queryKey: ['deliverable', organizationSlug, input.deliverableId],
+      });
+    },
+    onError: (error) => setProblem(describe(error, ta)),
+  });
+
+  async function uploadVersion(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || versionTarget === null) return;
+    try {
+      const fileAssetId = await uploadProjectFile(api, organizationSlug, {
+        projectId: item.projectId,
+        file,
+      });
+      addVersion.mutate({ deliverableId: versionTarget, fileAssetId, note: null });
+    } catch (error) {
+      setProblem(describe(error, ta));
+    }
+  }
+
+  const nameOf = (userId: string) => memberDisplayName(userId, members.members, members.isPending);
+
+  return (
+    <section className="tm-wk-card" aria-labelledby="tm-wk-files">
+      <div className="tm-wk-card__head">
+        <h2 id="tm-wk-files" className="tm-wk-card__title">
+          {ta('WorkDetail.files')}
+        </h2>
+        <button
+          type="button"
+          className="tm-wk-pill-button"
+          data-tone="outline"
+          disabled={attach.isPending}
+          onClick={() => picker.current?.click()}
+        >
+          {attach.isPending ? ta('WorkDetail.attaching') : ta('WorkDetail.attachFile')}
+        </button>
+        <input
+          ref={picker}
+          type="file"
+          hidden
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) attach.mutate(file);
+          }}
+        />
+        <input
+          ref={versionPicker}
+          type="file"
+          hidden
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(event) => void uploadVersion(event)}
+        />
+      </div>
+
+      {problem ? (
+        <InlineAlert tone="danger" title={ta('WorkDetail.fileProblem')} live>
+          {problem}
+        </InlineAlert>
+      ) : null}
+      {loading ? <Skeleton height="var(--row)" /> : null}
+      {failed ? <p className="tm-field__hint">{ta('WorkDetail.filesError')}</p> : null}
+      {!loading && !failed && files.length === 0 ? (
+        <p className="tm-field__hint">{ta('WorkDetail.noFiles')}</p>
+      ) : null}
+
+      <ul className="tm-wk-files">
+        {files.map((file) => {
+          const backing = backingOf(file);
+          const latest = backing ? latestOf(backing) : undefined;
+          const servedAsset = latest?.fileAssetId ?? file.fileAssetId;
+          const history = backing
+            ? [...backing.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))
+            : [];
+          return (
+            <li key={file.id} className="tm-wk-file" data-backed={backing !== undefined}>
+              <div className="tm-wk-file__row">
+                <span className="tm-wk-badge">{fileKind(file.fileName)}</span>
+                <span className="tm-wk-file__text">
+                  <span className="tm-wk-file__name">{file.fileName}</span>
+                  <span className="tm-wk-file__meta">
+                    {latest
+                      ? ta('WorkDetail.versionUpdated', {
+                          n: latest.versionNo ?? 1,
+                          day: formatShortDay(dayOf(latest.createdAt), locale),
+                          name: nameOf(latest.createdByUserId),
+                        })
+                      : ta('WorkDetail.versionOn', {
+                          n: 1,
+                          day: formatShortDay(dayOf(file.createdAt), locale),
+                        })}
+                  </span>
+                </span>
+                {file.availability === 'ready' ? (
+                  <a
+                    className="tm-wk-text-button"
+                    href={href(servedAsset)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {ta('WorkDetail.download')}
+                  </a>
+                ) : (
+                  <span className="tm-wk-file__meta" role="status">
+                    {file.availability === 'scanning'
+                      ? ta('WorkDetail.scanning')
+                      : ta('WorkDetail.unavailable')}
+                  </span>
+                )}
+              </div>
+
+              {backing ? (
+                <>
+                  <div className="tm-wk-history">
+                    <p className="tm-wk-history__title">{ta('WorkDetail.versionHistory')}</p>
+                    <ul>
+                      {history.map((version, index) => (
+                        <li key={version.id} data-current={index === 0}>
+                          <span>
+                            {index === 0
+                              ? ta('WorkDetail.versionCurrent', { n: version.versionNo ?? 1 })
+                              : ta('WorkDetail.versionBy', {
+                                  n: version.versionNo ?? 1,
+                                  name: nameOf(version.createdByUserId),
+                                })}
+                          </span>
+                          {index === 0 ? (
+                            <span>{formatShortDay(dayOf(version.createdAt), locale)}</span>
+                          ) : version.fileAssetId !== null ? (
+                            <button
+                              type="button"
+                              className="tm-wk-text-button"
+                              disabled={addVersion.isPending}
+                              onClick={() =>
+                                addVersion.mutate({
+                                  deliverableId: backing.id,
+                                  fileAssetId: version.fileAssetId as string,
+                                  note: ta('WorkDetail.restoredNote', {
+                                    n: version.versionNo ?? 1,
+                                  }),
+                                })
+                              }
+                            >
+                              {ta('WorkDetail.restore')}
+                            </button>
+                          ) : null}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    className="tm-wk-pill-button"
+                    data-tone="outline"
+                    disabled={addVersion.isPending}
+                    onClick={() => {
+                      setVersionTarget(backing.id);
+                      versionPicker.current?.click();
+                    }}
+                  >
+                    {ta('WorkDetail.uploadVersion')}
+                  </button>
+                </>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * The rest of the lifecycle — block, review, reopen, archive — for the moves "Mark done" does
+ * not make. It asks `workItemStateMachine` which states are reachable and what this move
+ * requires, and renders exactly that; the server validates the same facts.
+ */
+function MovePanel({
+  item,
+  api,
+  organizationSlug,
+  onMoved,
+  onError,
+}: {
+  item: WorkItemSummary;
+  api: ApiClient;
+  organizationSlug: string;
+  onMoved: (next: WorkItemSummary) => void;
+  onError: (error: unknown) => void;
+}) {
+  const t = useT();
+  const [target, setTarget] = useState<WorkItemState | ''>('');
+  const [facts, setFacts] = useState<Record<string, string>>({});
+  const [memberSearch, setMemberSearch] = useState('');
+  const directory = useMembers(api, organizationSlug, memberSearch);
+  const reachable = workItemStateMachine.allowedFrom(item.state);
+  const required = target === '' ? [] : workItemStateMachine.requirementsFor(item.state, target);
+  const optional = target === '' ? [] : workItemStateMachine.optionalFor(item.state, target);
+
+  const move = useMutation({
+    mutationFn: (to: WorkItemState) => {
+      const wire: Record<string, string> = {};
+      for (const [key, value] of Object.entries(facts)) {
+        if (optional.includes(key) && value.trim() === '') continue;
+        wire[key] =
+          key === 'completedAt' && !Number.isNaN(new Date(value).getTime())
+            ? new Date(value).toISOString()
+            : value;
+      }
+      return transitionWorkItem(api, organizationSlug, item.id, {
+        version: item.version,
+        to,
+        facts: wire,
+      });
+    },
+    onSuccess: (next) => {
+      onMoved(next);
+      setTarget('');
+      setFacts({});
+    },
+    onError,
+  });
+
+  function renderFact(fact: string, isRequired: boolean) {
     if (MEMBER_FACTS.includes(fact)) {
       return (
         <MemberSelect
@@ -463,12 +1230,10 @@ function WorkItemBody({
           onSearchChange={setMemberSearch}
           loading={directory.isPending}
           failed={directory.isError}
-          {...(hint === undefined ? {} : { hint })}
           {...(isRequired ? { required: true } : {})}
         />
       );
     }
-
     return (
       <Field
         key={fact}
@@ -477,571 +1242,173 @@ function WorkItemBody({
         type={fact === 'completedAt' ? 'datetime-local' : 'text'}
         value={facts[fact] ?? ''}
         onChange={(event) => setFacts({ ...facts, [fact]: event.target.value })}
-        {...(hint === undefined ? {} : { hint })}
         {...(isRequired ? { required: true } : {})}
       />
     );
   }
 
-  function submitTransition(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (target === '') return;
-    setMissing([]);
-    move.mutate(target);
+  const completed =
+    item.completedAt === null ? null : (
+      <dl className="tm-wk-facts-line">
+        <dt>{t('WorkItemDetailScreen.completed')}</dt>
+        <dd>{formatDay(item.completedAt)}</dd>
+      </dl>
+    );
+
+  if (reachable.length === 0) {
+    return (
+      <section className="tm-wk-card" aria-labelledby="tm-work-transition">
+        <h2 id="tm-work-transition" className="tm-wk-card__title">
+          {t('WorkItemDetailScreen.moveThisItem')}
+        </h2>
+        {completed}
+        <p className="tm-wk-card__prose">
+          {t(STATE_KEY[item.state])} {t('WorkItemDetailScreen.endOfLifecycle')}
+        </p>
+      </section>
+    );
   }
 
-  const owner = memberDisplayName(item.ownerUserId, directory.members, directory.isPending);
-  const overdue = isOverdue(item, new Date());
-  const focus = FOCUS[item.state];
-  const base = `/${organizationSlug}/work/${item.id}`;
-
   return (
-    <div className="tm-wk-item">
-      <div className="tm-wk-item__main">
-        <div className="tm-wk-item__chips">
-          <Link href={`/${organizationSlug}/work`} className="tm-wk-chip">
-            <span className="tm-wk-chip__orb" aria-hidden="true">
-              ←
-            </span>
-            {t('WorkItemDetailScreen.workList')}
-          </Link>
-          <StateCapsule state={stateCapsule(item.state)}>{stateLabel(item.state)}</StateCapsule>
-          {/*
-            D16's acceptance sentence: a member "can see who is accountable". The chip says who
-            by name; "Unassigned" when nobody is.
-          */}
-          <button
-            type="button"
-            className="tm-wk-chip"
-            aria-expanded={editor === 'owner'}
-            aria-controls="tm-work-editor"
-            aria-label={`${t('WorkItemDetailScreen.ownerLabel')} ${owner}. ${te('WorkItemEdit.changeOwner')}`}
-            onClick={() => openEditor('owner')}
+    <section className="tm-wk-card" aria-labelledby="tm-work-transition">
+      <h2 id="tm-work-transition" className="tm-wk-card__title">
+        {t('WorkItemDetailScreen.moveThisItem')}
+      </h2>
+      {completed}
+      <form
+        className="tm-stack"
+        noValidate
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (target !== '') move.mutate(target);
+        }}
+      >
+        <div className="tm-field">
+          <label className="tm-field__label" htmlFor="tm-work-target">
+            {t('WorkItemDetailScreen.moveTo')}
+          </label>
+          <select
+            id="tm-work-target"
+            className="tm-field__control"
+            value={target}
+            onChange={(event) => {
+              const next = event.target.value as WorkItemState | '';
+              setTarget(next);
+              const needs =
+                next === '' ? [] : workItemStateMachine.requirementsFor(item.state, next);
+              const seeded: Record<string, string> = {};
+              if (needs.includes('ownerId') && item.ownerUserId !== null) {
+                seeded['ownerId'] = item.ownerUserId;
+              }
+              if (needs.includes('completedAt')) {
+                seeded['completedAt'] = toLocalControlValue(new Date());
+              }
+              setFacts(seeded);
+            }}
           >
-            <span
-              className="tm-wk-avatar"
-              aria-hidden="true"
-              data-empty={item.ownerUserId === null}
-            >
-              {item.ownerUserId === null ? '?' : initialsOf(owner)}
-            </span>
-            {owner}
-          </button>
-          <button
-            type="button"
-            className="tm-wk-chip"
-            aria-expanded={editor === 'dates'}
-            aria-controls="tm-work-editor"
-            aria-label={`${te('WorkItemEdit.changeDue')} ${formatDay(item.dueAt)}`}
-            onClick={() => openEditor('dates')}
-            {...(overdue ? { 'data-tone': 'warning' } : {})}
-          >
-            <span className="tm-wk-chip__orb" aria-hidden="true">
-              ◷
-            </span>
-            {item.dueAt === null ? te('WorkItemEdit.noDue') : formatDay(item.dueAt)}
-          </button>
-          <span
-            className="tm-wk-chip"
-            {...(isClientFacing(item.audience) ? { 'data-tone': 'client' } : {})}
-          >
-            <span className="tm-wk-halo" data-audience={item.audience}>
-              <span className="tm-wk-halo__ring" aria-hidden="true">
-                {AUDIENCE_GLYPH[item.audience]}
-              </span>
-            </span>
-            {audienceLabel(item.audience)}
-          </span>
-          <button
-            type="button"
-            className="tm-wk-chip"
-            aria-expanded={editor === 'details'}
-            aria-controls="tm-work-editor"
-            onClick={() => openEditor('details')}
-          >
-            {te('WorkItemEdit.edit')}
-          </button>
-          <button
-            type="button"
-            className="tm-wk-chip"
-            data-tone="danger"
-            aria-expanded={editor === 'delete'}
-            aria-controls="tm-work-editor"
-            onClick={() => openEditor('delete')}
-          >
-            {te('WorkItemEdit.delete')}
-          </button>
-        </div>
-
-        {editor !== null ? (
-          <section id="tm-work-editor" className="tm-wk-card tm-stack">
-            {editor === 'owner' ? (
-              <>
-                <h2 className="tm-wk-card__eyebrow">{te('WorkItemEdit.ownerTitle')}</h2>
-                <MemberSelect
-                  label={te('WorkItemEdit.ownerLabel')}
-                  name="ownerUserId"
-                  members={directory.members}
-                  value={item.ownerUserId ?? ''}
-                  onChange={(userId) => {
-                    if (userId !== '' && userId !== item.ownerUserId) {
-                      edit.mutate({ ownerUserId: userId });
-                    }
-                  }}
-                  onSearchChange={setMemberSearch}
-                  loading={directory.isPending}
-                  failed={directory.isError}
-                  disabled={edit.isPending}
-                  openOnFocus
-                />
-                {fieldErrors.has('ownerUserId') ? (
-                  <span className="tm-field__error" role="alert">
-                    {fieldErrors.get('ownerUserId')}
-                  </span>
-                ) : null}
-                <div className="tm-row">
-                  {item.ownerUserId !== null ? (
-                    <Button
-                      tone="outline"
-                      size="accessible"
-                      loading={edit.isPending}
-                      loadingLabel={te('WorkItemEdit.saving')}
-                      onClick={() => edit.mutate({ ownerUserId: null })}
-                    >
-                      {te('WorkItemEdit.unassign')}
-                    </Button>
-                  ) : null}
-                  <Button tone="outline" size="accessible" onClick={() => setEditor(null)}>
-                    {te('WorkItemEdit.cancel')}
-                  </Button>
-                </div>
-              </>
-            ) : null}
-
-            {editor === 'dates' ? (
-              <form className="tm-stack" noValidate onSubmit={submitDates}>
-                <h2 className="tm-wk-card__eyebrow">{te('WorkItemEdit.datesTitle')}</h2>
-                <Field
-                  label={te('WorkItemEdit.startLabel')}
-                  name="startAt"
-                  type="date"
-                  value={draftStart}
-                  onChange={(event) => setDraftStart(event.target.value)}
-                  {...(fieldErrors.has('startAt') ? { error: fieldErrors.get('startAt') } : {})}
-                />
-                <Field
-                  label={te('WorkItemEdit.dueLabel')}
-                  name="dueAt"
-                  type="date"
-                  value={draftDue}
-                  {...(draftStart === '' ? {} : { min: draftStart })}
-                  onChange={(event) => setDraftDue(event.target.value)}
-                  {...(fieldErrors.has('dueAt') ? { error: fieldErrors.get('dueAt') } : {})}
-                />
-                <div className="tm-row">
-                  <Button
-                    type="submit"
-                    tone="ink"
-                    size="accessible"
-                    loading={edit.isPending}
-                    loadingLabel={te('WorkItemEdit.saving')}
-                  >
-                    {te('WorkItemEdit.saveDates')}
-                  </Button>
-                  <Button tone="outline" size="accessible" onClick={() => setEditor(null)}>
-                    {te('WorkItemEdit.cancel')}
-                  </Button>
-                </div>
-              </form>
-            ) : null}
-
-            {editor === 'details' ? (
-              <form className="tm-stack" noValidate onSubmit={submitDetails}>
-                <h2 className="tm-wk-card__eyebrow">{te('WorkItemEdit.detailsTitle')}</h2>
-                <Field
-                  label={te('WorkItemEdit.titleLabel')}
-                  name="title"
-                  value={draftTitle}
-                  maxLength={300}
-                  required
-                  onChange={(event) => setDraftTitle(event.target.value)}
-                  {...(fieldErrors.has('title') ? { error: fieldErrors.get('title') } : {})}
-                />
-                <Field
-                  label={te('WorkItemEdit.typeLabel')}
-                  name="type"
-                  value={draftType}
-                  maxLength={32}
-                  onChange={(event) => setDraftType(event.target.value)}
-                  {...(fieldErrors.has('type') ? { error: fieldErrors.get('type') } : {})}
-                />
-                <div className="tm-row">
-                  <Button
-                    type="submit"
-                    tone="ink"
-                    size="accessible"
-                    loading={edit.isPending}
-                    loadingLabel={te('WorkItemEdit.saving')}
-                  >
-                    {te('WorkItemEdit.save')}
-                  </Button>
-                  <Button tone="outline" size="accessible" onClick={() => setEditor(null)}>
-                    {te('WorkItemEdit.cancel')}
-                  </Button>
-                </div>
-              </form>
-            ) : null}
-
-            {editor === 'delete' ? (
-              <InlineAlert tone="danger" title={te('WorkItemEdit.deleteTitle')} live>
-                <p className="tm-prose">
-                  “{item.title}” {te('WorkItemEdit.deleteBody')}
-                </p>
-                <div className="tm-row">
-                  <Button
-                    tone="destructive"
-                    size="accessible"
-                    loading={remove.isPending}
-                    loadingLabel={te('WorkItemEdit.deleting')}
-                    onClick={() => remove.mutate()}
-                  >
-                    {te('WorkItemEdit.confirmDelete')}
-                  </Button>
-                  <Button tone="outline" size="accessible" onClick={() => setEditor(null)}>
-                    {te('WorkItemEdit.keep')}
-                  </Button>
-                </div>
-              </InlineAlert>
-            ) : null}
-          </section>
-        ) : null}
-
-        <nav
-          className="tm-segmented tm-wk-subnav"
-          aria-label={t('WorkItemDetailScreen.subnavLabel')}
-        >
-          <Link href={base} aria-current="page">
-            {t('WorkItemDetailScreen.overview')}
-          </Link>
-          <Link href={`${base}/activity`}>{t('WorkItemDetailScreen.activity')}</Link>
-          <Link href={`${base}/time-logs`}>{t('WorkItemDetailScreen.time')}</Link>
-          <Link href={`${base}/estimate`}>{t('WorkItemDetailScreen.estimate')}</Link>
-        </nav>
-
-        {focus !== undefined ? (
-          <div className="tm-focus-capsule">
-            <span className="tm-focus-capsule__orb" aria-hidden="true">
-              ▸
-            </span>
-            <div className="tm-focus-capsule__text">
-              <p className="tm-focus-capsule__title">{focus.title}</p>
-              <p className="tm-focus-capsule__why">
-                {focus.why}{' '}
-                {item.dueAt === null
-                  ? t('WorkItemDetailScreen.noDueCommitted')
-                  : overdue
-                    ? `${t('WorkItemDetailScreen.wasDuePrefix')} ${formatDay(item.dueAt)}.`
-                    : `${t('WorkItemDetailScreen.isDuePrefix')} ${formatDay(item.dueAt)}.`}
-              </p>
-            </div>
-            <div className="tm-focus-capsule__end">
-              <a className="tm-wk-chip" href="#tm-work-transition">
-                {t('WorkItemDetailScreen.moveThisItem')}
-              </a>
-            </div>
-          </div>
-        ) : null}
-
-        <section className="tm-wk-card" aria-labelledby="tm-work-header">
-          <h2 id="tm-work-header" className="tm-wk-card__eyebrow">
-            {t('WorkItemDetailScreen.thisItem')} {item.type}
-          </h2>
-          <dl className="tm-wk-facts">
-            <div>
-              <dt>{t('WorkItemDetailScreen.starts')}</dt>
-              <dd>{formatDay(item.startAt)}</dd>
-            </div>
-            <div>
-              <dt>{t('WorkItemDetailScreen.due')}</dt>
-              <dd {...(overdue ? { 'data-tone': 'warning' } : {})}>{formatDay(item.dueAt)}</dd>
-            </div>
-            {item.completedAt !== null ? (
-              <div>
-                <dt>{t('WorkItemDetailScreen.completed')}</dt>
-                <dd>{formatDay(item.completedAt)}</dd>
-              </div>
-            ) : null}
-            <div>
-              <dt>{t('WorkItemDetailScreen.lastChanged')}</dt>
-              <dd title={formatInstant(item.updatedAt)}>{formatDay(item.updatedAt)}</dd>
-            </div>
-            <div>
-              <dt>{t('WorkItemDetailScreen.version')}</dt>
-              <dd>v{item.version}</dd>
-            </div>
-          </dl>
-          <p className="tm-wk-facts__note">
-            {overdue
-              ? `${t('WorkItemDetailScreen.pastDuePrefix')} ${stateLabel(item.state).toLowerCase()}.`
-              : `${t('WorkItemDetailScreen.currently')} ${stateLabel(item.state).toLowerCase()}, ${audienceLabel(item.audience).toLowerCase()}.`}
-          </p>
-        </section>
-
-        <WorkItemTagsAndFiles
-          organizationSlug={organizationSlug}
-          workItemId={item.id}
-          client={api}
-        />
-
-        {conflict ? (
-          <InlineAlert tone="warning" title={t('WorkItemDetailScreen.conflictTitle')} live>
-            {t('WorkItemDetailScreen.conflictBody')}
-          </InlineAlert>
-        ) : null}
-
-        {failure ? (
-          <InlineAlert tone="danger" title={t('WorkItemDetailScreen.failureTitle')} live>
-            {failure}
-          </InlineAlert>
-        ) : null}
-
-        {missing.length > 0 ? (
-          <InlineAlert tone="warning" title={t('WorkItemDetailScreen.missingTitle')} live>
-            <ul className="tm-list">
-              {missing.map((line) => (
-                <li key={line}>{line}</li>
-              ))}
-            </ul>
-          </InlineAlert>
-        ) : null}
-        <section className="tm-panel tm-stack" aria-labelledby="tm-work-transition">
-          <h2 id="tm-work-transition" className="tm-eyebrow">
-            {t('WorkItemDetailScreen.moveThisItem')}
-          </h2>
-
-          {reachable.length === 0 ? (
-            <p className="tm-prose">
-              {stateLabel(item.state)} {t('WorkItemDetailScreen.endOfLifecycle')}
-            </p>
-          ) : (
-            <form className="tm-stack" noValidate onSubmit={submitTransition}>
-              <div className="tm-field">
-                <label className="tm-field__label" htmlFor="tm-work-target">
-                  {t('WorkItemDetailScreen.moveTo')}
-                </label>
-                <select
-                  id="tm-work-target"
-                  className="tm-field__control"
-                  value={target}
-                  onChange={(event) => {
-                    const next = event.target.value as WorkItemState | '';
-                    setTarget(next);
-                    // Two of `done`'s facts have sensible starting values: the owner the item
-                    // already has, and "now" for the completion time. Both are offered, not
-                    // imposed — the fields stay editable — so a person is not made to retype an
-                    // id that is already on the row.
-                    const needs =
-                      next === '' ? [] : workItemStateMachine.requirementsFor(item.state, next);
-                    const seeded: Record<string, string> = {};
-                    if (needs.includes('ownerId') && item.ownerUserId !== null) {
-                      seeded['ownerId'] = item.ownerUserId;
-                    }
-                    if (needs.includes('completedAt')) {
-                      seeded['completedAt'] = toLocalControlValue(new Date());
-                    }
-                    setFacts(seeded);
-                    setMissing([]);
-                  }}
-                >
-                  <option value="">{t('WorkItemDetailScreen.chooseState')}</option>
-                  {reachable.map((state) => (
-                    <option key={state} value={state}>
-                      {stateLabel(state)}
-                    </option>
-                  ))}
-                </select>
-                <span className="tm-field__hint">
-                  {t('WorkItemDetailScreen.movesHintPrefix')} {stateLabel(item.state)}{' '}
-                  {t('WorkItemDetailScreen.movesHintSuffix')}
-                </span>
-              </div>
-
-              {required.map((fact) => renderFact(fact, true))}
-
-              {/*
-                What the move will take but does not need. Rendered after the requirements and
-                never marked required, so the asterisks say exactly what the machine says.
-              */}
-              {optional.map((fact) => renderFact(fact, false))}
-
-              {target !== '' && required.length === 0 && optional.length === 0 ? (
-                <p className="tm-prose">{t('WorkItemDetailScreen.needsNothing')}</p>
-              ) : null}
-
-              <div className="tm-row">
-                <Button
-                  type="submit"
-                  tone="ink"
-                  size="accessible"
-                  loading={move.isPending}
-                  loadingLabel={t('WorkItemDetailScreen.moving')}
-                  disabled={target === ''}
-                >
-                  {t('WorkItemDetailScreen.moveToPrefix')}{' '}
-                  {target === '' ? t('WorkItemDetailScreen.chosenState') : stateLabel(target)}
-                </Button>
-              </div>
-            </form>
-          )}
-        </section>
-        <section className="tm-panel tm-stack" aria-labelledby="tm-work-audience">
-          <h2 id="tm-work-audience" className="tm-eyebrow">
-            {t('WorkItemDetailScreen.whoCanSee')}
-          </h2>
-          <p className="tm-prose">
-            {t('WorkItemDetailScreen.currently')} <strong>{audienceLabel(item.audience)}</strong>.
-          </p>
-
-          {/*
-            Widening is confirmed; narrowing is not.
-            `25-AUTHORIZATION-AND-TENANT-ISOLATION-SPEC` makes audience the control that decides
-            what a client can ever see, and widening is the direction that discloses. Narrowing
-            takes something away from a client who may already have read it — worth doing, and
-            not worth a modal, because nothing new escapes.
-          */}
-          <div className="tm-row tm-row--wrap">
-            {(['internal', 'client_visible', 'client_action_required'] as const).map((audience) => (
-              <Button
-                key={audience}
-                tone={audience === item.audience ? 'ink' : 'outline'}
-                size="accessible"
-                disabled={audience === item.audience || changeAudience.isPending}
-                onClick={() => {
-                  if (audience === 'internal') {
-                    changeAudience.mutate(audience);
-                  } else {
-                    setPendingAudience(audience);
-                  }
-                }}
-              >
-                {audienceLabel(audience)}
-              </Button>
+            <option value="">{t('WorkItemDetailScreen.chooseState')}</option>
+            {reachable.map((state) => (
+              <option key={state} value={state}>
+                {t(STATE_KEY[state])}
+              </option>
             ))}
-          </div>
-
-          {pendingAudience !== undefined ? (
-            <InlineAlert tone="client" title={t('WorkItemDetailScreen.showToClientTitle')} live>
-              <p className="tm-prose">
-                “{item.title}” {t('WorkItemDetailScreen.becomes')}{' '}
-                {audienceLabel(pendingAudience).toLowerCase()}{' '}
-                {t('WorkItemDetailScreen.inClientPortal')}
-              </p>
-              <div className="tm-row">
-                <Button
-                  tone="ink"
-                  size="accessible"
-                  loading={changeAudience.isPending}
-                  loadingLabel={t('WorkItemDetailScreen.publishing')}
-                  onClick={() => changeAudience.mutate(pendingAudience)}
-                >
-                  {t('WorkItemDetailScreen.showToClient')}
-                </Button>
-                <Button
-                  tone="outline"
-                  size="accessible"
-                  onClick={() => setPendingAudience(undefined)}
-                >
-                  {t('WorkItemDetailScreen.keepInternal')}
-                </Button>
-              </div>
-            </InlineAlert>
-          ) : null}
-        </section>
-        <WorkChecklistPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
-
-        <WorkCommentsPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
-      </div>
-
-      <aside className="tm-wk-item__aside" aria-label={t('WorkItemDetailScreen.asideLabel')}>
-        <section className="tm-wk-card" aria-labelledby="tm-work-story">
-          <h2 id="tm-work-story" className="tm-wk-card__eyebrow">
-            {t('WorkItemDetailScreen.workStory')}
-          </h2>
-          <ol className="tm-wk-story">
-            <li>
-              <span className="tm-wk-story__when">
-                {t('WorkItemDetailScreen.created')} {formatDay(item.createdAt)}
-              </span>
-              <span className="tm-wk-story__what">
-                {t('WorkItemDetailScreen.addedAs')} {item.type}
-              </span>
-            </li>
-            {item.completedAt !== null ? (
-              <li>
-                <span className="tm-wk-story__when">
-                  {t('WorkItemDetailScreen.doneStory')} {formatDay(item.completedAt)}
-                </span>
-                <span className="tm-wk-story__what">
-                  {t('WorkItemDetailScreen.finishedByOwner')}
-                </span>
-              </li>
-            ) : null}
-            <li>
-              <span className="tm-wk-story__when">
-                {t('WorkItemDetailScreen.changed')} {formatDay(item.updatedAt)}
-              </span>
-              <span className="tm-wk-story__what">
-                {t('WorkItemDetailScreen.nowAtVersion')} {item.version}
-              </span>
-            </li>
-            <li data-state="now">
-              <span className="tm-wk-story__when">
-                {t('WorkItemDetailScreen.nowStory')} {stateLabel(item.state)}
-              </span>
-              <span className="tm-wk-story__what">
-                {item.dueAt === null
-                  ? t('WorkItemDetailScreen.noDueDate')
-                  : `${t('WorkItemDetailScreen.dueShort')} ${formatDay(item.dueAt)}`}
-              </span>
-            </li>
-          </ol>
-        </section>
-
-        <div className="tm-wk-card tm-wk-deps">
-          <WorkItemDependenciesScreen
-            organizationSlug={organizationSlug}
-            workItemId={item.id}
-            api={api}
-          />
+          </select>
         </div>
-
-        <WorkWatchersPanel organizationSlug={organizationSlug} workItemId={item.id} api={api} />
-      </aside>
-    </div>
+        {required.map((fact) => renderFact(fact, true))}
+        {optional.map((fact) => renderFact(fact, false))}
+        {target !== '' && required.length === 0 && optional.length === 0 ? (
+          <p className="tm-wk-card__prose">{t('WorkItemDetailScreen.needsNothing')}</p>
+        ) : null}
+        <div className="tm-row">
+          <Button
+            type="submit"
+            tone="ink"
+            size="accessible"
+            loading={move.isPending}
+            loadingLabel={t('WorkItemDetailScreen.moving')}
+            disabled={target === ''}
+          >
+            {t('WorkItemDetailScreen.moveToPrefix')}{' '}
+            {target === '' ? t('WorkItemDetailScreen.chosenState') : t(STATE_KEY[target])}
+          </Button>
+        </div>
+      </form>
+    </section>
   );
 }
 
-/** One Focus Capsule per surface: what to do next with the item, and why now. */
-const FOCUS: Partial<Record<WorkItemState, { title: string; why: string }>> = {
-  backlog: { title: 'Get this ready to start', why: 'It is in the backlog.' },
-  ready: { title: 'Start this item', why: 'It is ready and waiting for its owner.' },
-  in_progress: { title: 'Move it on when it is ready', why: 'Work is in progress.' },
-  blocked: {
-    title: 'Resolve the blocker',
-    why: 'Nothing moves until the blocker is cleared.',
-  },
-  internal_review: { title: 'Finish the internal review', why: 'It is waiting on a reviewer.' },
-};
+/**
+ * Who can see this item. Widening is confirmed and narrowing is not: audience is the control
+ * that decides what a client can ever see, and widening is the direction that discloses.
+ */
+function AudiencePanel({
+  item,
+  api,
+  organizationSlug,
+  onChanged,
+  onError,
+}: {
+  item: WorkItemSummary;
+  api: ApiClient;
+  organizationSlug: string;
+  onChanged: (next: WorkItemSummary) => void;
+  onError: (error: unknown) => void;
+}) {
+  const t = useT();
+  const [pending, setPending] = useState<WorkItemAudience | undefined>(undefined);
+  const change = useMutation({
+    mutationFn: (audience: WorkItemAudience) =>
+      updateWorkItem(api, organizationSlug, item.id, { version: item.version, audience }),
+    onSuccess: (next) => {
+      onChanged(next);
+      setPending(undefined);
+    },
+    onError,
+  });
 
-const AUDIENCE_GLYPH: Record<WorkItemAudience, string> = {
-  internal: '■',
-  client_visible: '◎',
-  client_action_required: '!',
-};
-
-function initialsOf(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const first = parts[0]?.[0] ?? '';
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? '') : '';
-  return (first + last).toUpperCase() || '?';
+  return (
+    <section className="tm-wk-card" aria-labelledby="tm-work-audience">
+      <h2 id="tm-work-audience" className="tm-wk-card__title">
+        {t('WorkItemDetailScreen.whoCanSee')}
+      </h2>
+      <div className="tm-row tm-row--wrap">
+        {(['internal', 'client_visible', 'client_action_required'] as const).map((audience) => (
+          <Button
+            key={audience}
+            tone={audience === item.audience ? 'ink' : 'outline'}
+            size="accessible"
+            disabled={audience === item.audience || change.isPending}
+            onClick={() => {
+              if (audience === 'internal') change.mutate(audience);
+              else setPending(audience);
+            }}
+          >
+            {audienceLabel(audience)}
+          </Button>
+        ))}
+      </div>
+      {pending !== undefined ? (
+        <InlineAlert tone="client" title={t('WorkItemDetailScreen.showToClientTitle')} live>
+          <p className="tm-prose">
+            “{item.title}” {t('WorkItemDetailScreen.becomes')}{' '}
+            {audienceLabel(pending).toLowerCase()} {t('WorkItemDetailScreen.inClientPortal')}
+          </p>
+          <div className="tm-row">
+            <Button
+              tone="ink"
+              size="accessible"
+              loading={change.isPending}
+              loadingLabel={t('WorkItemDetailScreen.publishing')}
+              onClick={() => change.mutate(pending)}
+            >
+              {t('WorkItemDetailScreen.showToClient')}
+            </Button>
+            <Button tone="outline" size="accessible" onClick={() => setPending(undefined)}>
+              {t('WorkItemDetailScreen.keepInternal')}
+            </Button>
+          </div>
+        </InlineAlert>
+      ) : null}
+    </section>
+  );
 }

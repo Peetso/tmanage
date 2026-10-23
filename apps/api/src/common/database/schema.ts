@@ -2732,6 +2732,8 @@ export const workItems = mysqlTable(
     projectId: char('project_id', { length: 36 }).notNull(),
     type: varchar('type', { length: 32 }).notNull().default('task'),
     title: varchar('title', { length: 300 }).notNull(),
+    /** A6 (0219). The item's plain-text description; `NULL` when none was written. */
+    description: text('description'),
     state: varchar('state', { length: 32 }).notNull().default('triage'),
     ownerUserId: char('owner_user_id', { length: 36 }),
     audience: mysqlEnum('audience', WORK_ITEM_AUDIENCE).notNull().default('internal'),
@@ -8845,7 +8847,13 @@ export type OrganizationRow = typeof organizations.$inferSelect;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type ProjectRow = typeof projects.$inferSelect;
 export type NewProjectRow = typeof projects.$inferInsert;
-export type WorkItemRow = typeof workItems.$inferSelect;
+/**
+ * A6 (0219): `description` is optional in the row type only, so the hand-built test rows that
+ * predate the column keep compiling; a row read from the database always carries it.
+ */
+export type WorkItemRow = Omit<typeof workItems.$inferSelect, 'description'> & {
+  description?: string | null;
+};
 export type NewWorkItemRow = typeof workItems.$inferInsert;
 export type WorkItemChecklistItemRow = typeof workItemChecklistItems.$inferSelect;
 export type NewWorkItemChecklistItemRow = typeof workItemChecklistItems.$inferInsert;

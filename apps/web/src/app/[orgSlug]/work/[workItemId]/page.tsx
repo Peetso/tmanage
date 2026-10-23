@@ -13,7 +13,8 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
  * proved in `work-001-work-items.db.test.ts` — so it is safe in a URL and a link to an item is
  * a link a colleague can follow.
  *
- * Deleting the item sends the reader back to the work list through the router (P9).
+ * Deleting the item sends the reader back to the work list through the router (P9); a
+ * duplicate opens the new copy the same way (A6).
  */
 export default function WorkItemPage({
   params,
@@ -29,6 +30,7 @@ export default function WorkItemPage({
       organizationName={FIXTURE_ORGANIZATION_NAME}
       workItemId={workItemId}
       onDeleted={() => router.push(`/${orgSlug}/work`)}
+      onOpenItem={(id) => router.push(`/${orgSlug}/work/${id}`)}
     />
   );
 }
