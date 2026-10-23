@@ -1,5 +1,11 @@
+import type { Metadata } from 'next';
 import { LEGAL_DOCUMENTS } from '@tmanage/domain';
 import { MarketingLegalScreen } from '../../../../components/screens/MarketingLegalScreen';
+
+/** The root layout's template adds ' · TManage'; `WebsiteDocumentTitle` swaps in the Arabic name. */
+export const metadata: Metadata = {
+  title: 'Terms of Service',
+};
 
 /**
  * **Terms of Service (x188).** The public terms page, routed at `/legal/terms` (and `/terms`, which redirects
