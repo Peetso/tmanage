@@ -8,6 +8,13 @@ Status: written 2026-10-22 (AUDIT-2026-10-22 top-10 #10). The pure helpers are u
 scripts themselves have **not yet been run against the live database**. The first scheduled
 backup and the first restore drill below are what close that gap.
 
+Updated 2026-10-23 (restore drill, run `claude-auto-1792715640`, local only): backup and restore
+were run end to end on a private MariaDB 11.8.9 with all migrations 0001–0217; after deliberate
+damage the restored database matched the original exactly (row checksums, 215 ledger rows, 231
+tables, 168 triggers) and the uploads folder was identical. The same drill **disproved** the
+earlier rollback advice "old code ignores what it does not know": see "Rollback" below. Still
+untested on Hostinger itself: `backup.mjs` there, and the manifest sha it records.
+
 ## What a backup contains
 
 `node scripts/ops/backup.mjs` writes `backups/<UTC stamp>/` (or `BACKUP_DIR`):
@@ -64,39 +71,88 @@ Migrations are **forward-only** (the migrator has no down files). A rollback is 
 code on a database that still works for it", and only falls back to restoring data when it
 does not.
 
+**Old code does not ignore newer migrations.** On every start `server.mjs` runs the migrator
+before it opens the port. The migrator compares the `schema_migrations` ledger with the
+`migrations/*.sql` files in the bundle, and a ledger row with no matching file is an error
+("recorded as applied, but the file is missing", `apps/api/src/common/database/migrator.ts`).
+That error stops the boot. So uploading only the previous ZIP after a deploy that applied a new
+migration leaves the site **down**. This was proved locally on 2026-10-23: old file set applied,
+newer migrations applied, then the old bundle alone was refused; the old bundle with the newer
+migration files copied in started with "nothing to apply".
+
+### Steps
+
 1. **Stop traffic.** In hPanel stop the Node app (or point the domain at a maintenance page).
    Disable the cron passes so nothing writes during the switch.
 2. **Back up the current state first**: `node scripts/ops/backup.mjs`. Never roll back without a
    copy of what you are rolling back from.
-3. **Put the previous build back.** Redeploy the previous release's build (the previous commit
-   on the deploy branch, or the previous uploaded build archive) and restart the app with the
-   same environment variables. Find the previous sha in the last backup's `manifest.json`.
-4. **Decide on the database** using the migration list below:
-   - If every migration added since the previous build is additive (new tables, new nullable
-     columns), **leave the database as it is**. Old code ignores what it does not know.
-   - If a migration changed something the old code depends on, **restore the pre-deploy backup**
-     with `--target "$DATABASE_MIGRATION_URL" --apply --i-know`, then restore uploads the same way.
-     Everything written since that backup is lost; export it first if it matters.
-5. **Check** `/health` (or the login page), then re-enable the cron passes.
+3. **Find the previous build.** Every uploaded build is kept as
+   `deploy-live/tmanage-hostinger-<sha>.zip` next to its `STATUS-<sha>.md` / `SMOKE-<sha>.md`.
+   The previous one is the last STATUS file that ends in a confirmed live check (a STATUS that
+   stops at "build started" did not finish and is not the previous version). The last backup's
+   `manifest.json` also records the sha. Check the ZIP with `unzip -t` before using it.
+4. **Decide on the database** using the migration table below. List the migrations that are in
+   the current build but not in the previous one (compare the two ZIPs' `migrations/` folders).
+   - If **every** one of them is additive (new tables, new nullable or defaulted columns), keep
+     the database and **copy those newer `migrations/*.sql` files into the previous build's
+     `migrations/` folder**, then re-zip it as `tmanage-hostinger.zip`. The migrator then finds
+     every ledger row's file, has nothing to apply, and the old code runs on the wider schema.
+     Copy the files unchanged: the ledger stores a checksum per file.
+   - If any of them changed something the old code depends on (drop, rename, narrowed type,
+     changed meaning), copying files is **not** valid. Restore the pre-deploy backup with
+     `node scripts/ops/restore.mjs --from <backup> --target "$DATABASE_MIGRATION_URL" --apply --i-know`,
+     then restore uploads the same way, and upload the previous ZIP unchanged. Everything
+     written since that backup is lost; export it first if it matters.
+   - Never delete `schema_migrations` rows by hand to make old code start.
+5. **Upload and build on Hostinger** (hPanel, the existing Web app for `tmanage.peetrix.com`):
+   1. Open the app's deployments and upload the ZIP from step 4 as **`tmanage-hostinger.zip`**
+      (look for _Deployments_ / _Redeploy_ / _Upload new files_). Check the uploaded size
+      matches the local file.
+   2. Start the build with the **same build settings** as every deploy (see
+      `deploy/hostinger/DEPLOY-HOSTINGER.md` Part 2 step 5):
 
-### Migrations 0205–0214: what a rollback must consider
+      | Setting                      | Value                                                  |
+      | ---------------------------- | ------------------------------------------------------ |
+      | Framework / app type         | **Other** — never _Next.js_ (the ZIP is already built) |
+      | Node version                 | **22**                                                 |
+      | Root directory               | `./` (where `server.mjs` is)                           |
+      | Package manager              | **npm**                                                |
+      | Build command / build script | `npm run build` (prebuilt: it only prints "prebuilt")  |
+      | Entry file                   | `server.mjs` (start command, if asked: `npm start`)    |
 
-| Migration                           | Change                                                                                    | Old code still works?                                                                         |
-| ----------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| 0205 user_identities                | new table                                                                                 | Yes, additive                                                                                 |
-| 0206 platform_admin                 | `organizations.suspended_at` NULL column + 3 new tables                                   | Yes; suspensions set while on the new build are **not enforced** by old code                  |
-| 0207 mentions_kind_and_channel_team | `notification_kind_prefs.kind` ENUM gains `mention`; backfills `conversation_memberships` | Mostly; old code may fail to read a `mention` preference row — delete those rows if it errors |
-| 0208 oauth_core                     | 4 new OAuth tables                                                                        | Yes; issued OAuth tokens stop working until the new build returns                             |
-| 0209 pending_ai_actions             | new table                                                                                 | Yes, additive                                                                                 |
-| 0210 google_drive_storage           | 3 new tables + immutability trigger                                                       | Yes; Drive attachments are invisible to old code                                              |
-| 0211 deliverables                   | new table + 4 NULL columns on `deliverable_versions`                                      | Yes, additive; deliverables made on the new build are invisible                               |
-| 0212 request_messages               | new table + immutability trigger                                                          | Yes, additive                                                                                 |
-| 0213 meeting_ends_at                | `meetings.ends_at` NULL column                                                            | Yes, additive                                                                                 |
-| 0214 direct_conversations           | 2 new tables + immutability trigger                                                       | Yes; direct messages are invisible to old code                                                |
+   3. Leave the environment variables and the database untouched. A build takes about 70–80
+      seconds; expect a brief 307/503 while the app restarts.
+6. **Check** `/healthz` returns 200 `{"status":"ok"}`, `/` and `/sign-in` return 200, and the
+   runtime log shows "nothing to apply (<n> already applied)" with no migrator error. Then
+   re-enable the cron passes.
 
-None of 0205–0214 drops or renames anything, so going back one deploy across them normally needs
-**no data restore**. Re-deploying the newer build later is safe: the migrator sees the versions
-already in `schema_migrations` and skips them. Do **not** delete ledger rows by hand.
+Worked example (from the 2026-10-23 drill): rolling back from `9c6d816c` to `014a9d51` means
+copying `migrations/0215_member_profile_job_title.sql` from the `9c6d816c` ZIP into the
+`014a9d51` bundle's `migrations/` (0215 only adds a column), uploading that as
+`tmanage-hostinger.zip` with the settings above, and checking `/healthz`.
+
+### Migrations 0205–0217: what a rollback must consider
+
+| Migration                             | Change                                                                                    | Old code still works?                                                                         |
+| ------------------------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| 0205 user_identities                  | new table                                                                                 | Yes, additive                                                                                 |
+| 0206 platform_admin                   | `organizations.suspended_at` NULL column + 3 new tables                                   | Yes; suspensions set while on the new build are **not enforced** by old code                  |
+| 0207 mentions_kind_and_channel_team   | `notification_kind_prefs.kind` ENUM gains `mention`; backfills `conversation_memberships` | Mostly; old code may fail to read a `mention` preference row — delete those rows if it errors |
+| 0208 oauth_core                       | 4 new OAuth tables                                                                        | Yes; issued OAuth tokens stop working until the new build returns                             |
+| 0209 pending_ai_actions               | new table                                                                                 | Yes, additive                                                                                 |
+| 0210 google_drive_storage             | 3 new tables + immutability trigger                                                       | Yes; Drive attachments are invisible to old code                                              |
+| 0211 deliverables                     | new table + 4 NULL columns on `deliverable_versions`                                      | Yes, additive; deliverables made on the new build are invisible                               |
+| 0212 request_messages                 | new table + immutability trigger                                                          | Yes, additive                                                                                 |
+| 0213 meeting_ends_at                  | `meetings.ends_at` NULL column                                                            | Yes, additive                                                                                 |
+| 0214 direct_conversations             | 2 new tables + immutability trigger                                                       | Yes; direct messages are invisible to old code                                                |
+| 0215 member_profile_job_title         | `member_profiles.job_title` NULL column                                                   | Yes, additive (proved in the 2026-10-23 drill)                                                |
+| 0216 direct_conversation_read_markers | 2 `NOT NULL DEFAULT 0` columns on `direct_conversations`                                  | Yes, additive; old code does not write them, unread counts may be off after returning         |
+| 0217 meeting_client_attendees         | new table + immutability trigger                                                          | Yes, additive; client attendees are invisible to old code                                     |
+
+None of 0205–0217 drops or renames anything, so going back one deploy across them needs **no
+data restore** — but it does need the newer migration files copied into the older bundle (step
+4). Re-deploying the newer build later is safe: the migrator sees the versions already in
+`schema_migrations` and skips them.
 
 When a future migration drops, renames or narrows a column, add it to this table with "No" and
 the restore step becomes mandatory for a rollback across it.
