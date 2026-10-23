@@ -1603,6 +1603,8 @@ describe('0041: project_updates is a tenant-scoped, project-owned, forward-only 
         'published',
         'title',
         'updated_at',
+        // A10 (0223): the milestone the update reports on (nullable, no FK).
+        'milestone_id',
       ].sort(),
     );
     // The body is prose a person types — TEXT, and NOT NULL like documents.body.

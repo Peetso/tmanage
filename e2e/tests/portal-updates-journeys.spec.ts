@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { API_URL } from '../setup/stack.js';
+import { API_URL, WEB_URL } from '../setup/stack.js';
 
 /**
  * CLIENT-003 — the project-updates timeline, through a real browser against the real stack.
@@ -143,6 +143,65 @@ test.describe.serial('the project-updates journeys', () => {
       // The gate: the unpublished draft is nowhere on the client's page.
       await expect(page.getByText(DRAFT_TITLE)).toHaveCount(0);
       await expect(page.getByText(DRAFT_BODY)).toHaveCount(0);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test('unpublishing returns the update to drafts and hides it from the client', async ({
+    browser,
+  }) => {
+    const manager = await browser.newContext();
+    try {
+      await signIn(manager, world().northstar.owner.id);
+      const csrf = (await manager.cookies(API_URL)).find(
+        (cookie) => cookie.name === 'tmanage_session_csrf',
+      )?.value;
+      expect(csrf).toBeTruthy();
+      const headers = { 'x-csrf-token': csrf as string, origin: WEB_URL };
+      const base = `${API_URL}/v1/organizations/northstar-studio/projects/${world().northstar.projectId}/updates`;
+
+      interface Listed {
+        readonly id: string;
+        readonly title: string;
+        readonly published: boolean;
+        readonly clientOpened: { readonly clientName: string } | null;
+      }
+      const list = async (): Promise<readonly Listed[]> => {
+        const response = await manager.request.get(base);
+        expect(response.ok()).toBe(true);
+        return ((await response.json()) as { updates: readonly Listed[] }).updates;
+      };
+
+      // The client read the timeline in the journey above, so the access log names their company.
+      const live = (await list()).find((update) => update.title === PUBLISHED_TITLE);
+      expect(live?.published).toBe(true);
+      expect(live?.clientOpened?.clientName).toBeTruthy();
+
+      const unpublished = await manager.request.post(`${base}/${live?.id as string}/unpublish`, {
+        headers,
+      });
+      expect(unpublished.ok()).toBe(true);
+
+      const after = (await list()).find((update) => update.id === live?.id);
+      expect(after?.published).toBe(false);
+      expect(after?.clientOpened).toBeNull();
+    } finally {
+      await manager.close();
+    }
+
+    const { context, page } = await openAs(browser, world().atlas.reviewer.id);
+    try {
+      // Wait for the timeline read itself, so the absence below is not read before it loads.
+      const timeline = page.waitForResponse((response) =>
+        /\/portal\/projects\/[^/]+\/updates$/.test(new URL(response.url()).pathname),
+      );
+      await page.goto('/northstar-studio/portal/updates');
+      expect((await timeline).ok()).toBe(true);
+      await expect(
+        page.getByRole('region', { name: 'Updates from Northstar Studio' }),
+      ).toBeVisible();
+      await expect(page.getByText(PUBLISHED_TITLE)).toHaveCount(0);
     } finally {
       await context.close();
     }

@@ -804,6 +804,10 @@ GRANT INSERT, DELETE         ON `tmanage`.`billing_discounts` TO 'tmanage_app'@'
 -- it, per this file's rule that a grant names a statement that exists (the same treatment
 -- `meetings` and `documents` have above).
 GRANT INSERT                 ON `tmanage`.`project_updates`  TO 'tmanage_app'@'%';
+-- A10 (x201 edit/unpublish, 0223 milestone link). The lifecycle above landed: `PATCH …/updates/:id`
+-- rewrites title/body/milestone_id and `POST …/unpublish` flips `published`, both UPDATE
+-- statements, so UPDATE is granted with them. Still no DELETE.
+GRANT UPDATE                 ON `tmanage`.`project_updates`  TO 'tmanage_app'@'%';
 -- SEC / Portal update comments (x203, 0084). A comment is posted (INSERT) and read (the
 -- database-wide SELECT above); every row is internal-authored and there is no edit/unpublish or
 -- client-reply endpoint this slice, so **no UPDATE and no DELETE** — least privilege, and the 0084

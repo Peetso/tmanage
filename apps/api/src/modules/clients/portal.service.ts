@@ -26,6 +26,9 @@ import type {
   WorkItemRow,
 } from '../../common/database/schema.js';
 import type { PortalAccessRecorder } from './portal-access-log.controller.js';
+import { PortalAccessLogRepository } from './portal-access-log.repository.js';
+import { ProjectMilestonesRepository } from './project-milestones.repository.js';
+import type { ManagedProjectUpdateRow } from './project-updates.repository.js';
 
 /**
  * How many repository pages one portal list may walk while filling a page of readable rows.
@@ -211,6 +214,69 @@ export interface UpdateEditView {
   readonly updatedAt: string;
 }
 
+/**
+ * A10 — one update as the internal updates list returns it (behind `project.manage`, never on the
+ * `/portal` path). Unlike the client projection it names the author, because the studio's own card
+ * reads "Published <date> by <name>", and it carries the linked milestone and — for a published
+ * update — the first time a client opened the project's updates after it was posted (from the
+ * portal access log), which the unpublish confirmation warns about.
+ */
+export interface ManagedUpdateView {
+  readonly id: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly body: string;
+  readonly published: boolean;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly authorName: string;
+  readonly milestone: {
+    readonly id: string;
+    readonly title: string;
+    /** `YYYY-MM-DD`, or null when the milestone has no due date. */
+    readonly dueOn: string | null;
+  } | null;
+  readonly clientOpened: { readonly clientName: string; readonly openedAt: string } | null;
+}
+
+/**
+ * A10 — the earliest client read of the updates timeline at or after `since` (the update's
+ * posting), or null. `opens` may be in any order. Exported for the unit suite.
+ */
+export function firstOpenSince(
+  opens: readonly { readonly accessedAt: Date; readonly clientName: string }[],
+  since: Date,
+): { readonly clientName: string; readonly openedAt: string } | null {
+  let first: { readonly accessedAt: Date; readonly clientName: string } | null = null;
+  for (const open of opens) {
+    if (open.accessedAt.getTime() < since.getTime()) continue;
+    if (!first || open.accessedAt.getTime() < first.accessedAt.getTime()) first = open;
+  }
+  return first ? { clientName: first.clientName, openedAt: first.accessedAt.toISOString() } : null;
+}
+
+/** A10 — the internal list projection, field by field. Exported for the unit suite. */
+export function toManagedUpdateView(
+  row: ManagedProjectUpdateRow,
+  opens: readonly { readonly accessedAt: Date; readonly clientName: string }[],
+): ManagedUpdateView {
+  const update = row.update;
+  return {
+    id: update.id,
+    projectId: update.projectId,
+    title: update.title,
+    body: update.body,
+    published: update.published,
+    createdAt: update.createdAt.toISOString(),
+    updatedAt: update.updatedAt.toISOString(),
+    authorName: row.authorName,
+    milestone: row.milestone
+      ? { id: row.milestone.id, title: row.milestone.title, dueOn: row.milestone.dueOn }
+      : null,
+    clientOpened: update.published ? firstOpenSince(opens, update.createdAt) : null,
+  };
+}
+
 function toUpdateEditView(row: ProjectUpdateRow): UpdateEditView {
   return {
     id: row.id,
@@ -229,6 +295,8 @@ export interface PostProjectUpdateInput {
   readonly title: string;
   readonly body: string;
   readonly published: boolean;
+  /** A10 (0223). Optional linked milestone; must belong to the same project. */
+  readonly milestoneId?: string | null;
 }
 
 /**
@@ -241,6 +309,8 @@ export interface EditProjectUpdateInput {
   readonly updateId: string;
   readonly title?: string;
   readonly body?: string;
+  /** A10 (0223). `null` clears the link; absent leaves it. */
+  readonly milestoneId?: string | null;
 }
 
 /** The audiences a client may ever see. `internal` is not among them and never will be. */
@@ -341,6 +411,69 @@ export class PortalService {
      */
     private readonly accessRecorder?: PortalAccessRecorder,
   ) {}
+
+  /** A10 — the linked-milestone check and the unpublish dialog's "already opened" read. */
+  private readonly milestones = new ProjectMilestonesRepository();
+  private readonly accessLog = new PortalAccessLogRepository();
+
+  /**
+   * A10 — refuse a `milestoneId` that is not a milestone of this project in this tenant (400 on
+   * the field, so the form can say so). `null`/absent pass: no link, or clearing it.
+   */
+  private async assertMilestoneOfProject(
+    context: TenantContext,
+    projectId: string,
+    milestoneId: string | null | undefined,
+  ): Promise<void> {
+    if (milestoneId === undefined || milestoneId === null) return;
+    const milestone = await this.database.read(context, (runner) =>
+      this.milestones.findById(runner, context, milestoneId),
+    );
+    if (!milestone || milestone.projectId !== projectId) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'milestoneId', message: 'must be a milestone of this project' },
+      ]);
+    }
+  }
+
+  /**
+   * A10 — the internal updates list: one project's updates, drafts included, newest first, with
+   * author, linked milestone and the first client open of each published update.
+   *
+   * The Known-trap order: the project is resolved tenant-scoped first, then `project.manage` is
+   * authorized with it in hand; both refusals are 404, never a 403 that confirms the project.
+   */
+  async managedUpdatesFor(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+  ): Promise<readonly ManagedUpdateView[]> {
+    const project = await this.database.read(context, (runner) =>
+      this.projects.findById(runner, context, projectId),
+    );
+    if (!project) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+    const permitted = authorize({
+      principal,
+      capability: 'project.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+    if (!permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
+    }
+
+    const { rows, opens } = await this.database.read(context, async (runner) => ({
+      rows: await this.updates.listManaged(runner, context, { projectId }),
+      opens: await this.accessLog.listUpdateOpens(runner, context, { projectId }),
+    }));
+    return rows.map((row) => toManagedUpdateView(row, opens));
+  }
 
   /**
    * Record a client access event, best-effort. A logging failure must never deny a client the read
@@ -608,6 +741,8 @@ export class PortalService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
     }
 
+    await this.assertMilestoneOfProject(context, input.projectId, input.milestoneId);
+
     const row = await this.database.transaction(context, (tx) =>
       this.updates.create(tx, context, {
         projectId: input.projectId,
@@ -615,6 +750,7 @@ export class PortalService {
         body: input.body,
         published: input.published,
         createdByUserId: context.userId,
+        ...(input.milestoneId !== undefined ? { milestoneId: input.milestoneId } : {}),
       }),
     );
 
@@ -647,6 +783,7 @@ export class PortalService {
     input: EditProjectUpdateInput,
   ): Promise<UpdateEditView> {
     await this.resolveManageableUpdate(context, principal, input.projectId, input.updateId);
+    await this.assertMilestoneOfProject(context, input.projectId, input.milestoneId);
 
     const row = await this.database.transaction(context, (tx) =>
       this.updates.updateContent(tx, context, {
@@ -654,6 +791,7 @@ export class PortalService {
         projectId: input.projectId,
         ...(input.title !== undefined ? { title: input.title } : {}),
         ...(input.body !== undefined ? { body: input.body } : {}),
+        ...(input.milestoneId !== undefined ? { milestoneId: input.milestoneId } : {}),
       }),
     );
     if (!row)

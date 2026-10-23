@@ -2,7 +2,11 @@ import { and, desc, eq, lt } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { portalAccessLog } from '../../common/database/schema.js';
+import {
+  clientMemberships,
+  clientOrganizations,
+  portalAccessLog,
+} from '../../common/database/schema.js';
 import type { PortalAccessLogRow, PortalAccessResourceKind } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -123,6 +127,49 @@ export class PortalAccessLogRepository {
       .select()
       .from(portalAccessLog)
       .where(and(...predicates))
+      .orderBy(desc(portalAccessLog.id))
+      .limit(limit);
+  }
+
+  /**
+   * A10 — the project's recent client reads of its updates timeline (`resource_kind = 'update'`),
+   * newest first, each with the client company's name. The unpublish dialog uses the earliest one
+   * after an update was posted to say "<Client> already opened this update on <date>". Every joined
+   * table carries the tenant predicate.
+   */
+  async listUpdateOpens(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: { readonly projectId: string; readonly limit?: number },
+  ): Promise<readonly { readonly accessedAt: Date; readonly clientName: string }[]> {
+    const limit = Math.min(Math.max(options.limit ?? 500, 1), 500);
+    const db = tenantDrizzle(runner);
+    return db
+      .select({ accessedAt: portalAccessLog.accessedAt, clientName: clientOrganizations.name })
+      .from(portalAccessLog)
+      .innerJoin(
+        clientMemberships,
+        and(
+          eq(clientMemberships.organizationId, portalAccessLog.organizationId),
+          eq(clientMemberships.id, portalAccessLog.clientMemberId),
+        ),
+      )
+      .innerJoin(
+        clientOrganizations,
+        and(
+          eq(clientOrganizations.organizationId, clientMemberships.organizationId),
+          eq(clientOrganizations.id, clientMemberships.clientOrganizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(portalAccessLog.organizationId, context.organizationId),
+          eq(clientMemberships.organizationId, context.organizationId),
+          eq(clientOrganizations.organizationId, context.organizationId),
+          eq(portalAccessLog.projectId, options.projectId),
+          eq(portalAccessLog.resourceKind, 'update'),
+        ),
+      )
       .orderBy(desc(portalAccessLog.id))
       .limit(limit);
   }

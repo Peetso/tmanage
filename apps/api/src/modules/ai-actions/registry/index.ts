@@ -4214,6 +4214,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // A10: the internal updates list (drafts, author, linked milestone, first client open).
+  {
+    id: 'projects.updates.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/projects/:projectId/updates',
+    capability: 'project.manage',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'projects.updates.create',
     method: 'POST',

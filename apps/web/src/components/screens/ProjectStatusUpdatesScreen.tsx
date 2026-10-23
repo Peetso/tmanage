@@ -16,6 +16,9 @@ import type {
 } from '../../lib/api/project-status-updates';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { listManagedUpdates } from '../../lib/api/managed-updates';
+import { useA10T } from '../projects/UnpublishUpdateDialog';
+import { UpdateLifecycleControls } from './UpdateLifecycleControls';
 
 export interface ProjectStatusUpdatesScreenProps {
   organizationSlug: string;
@@ -54,6 +57,7 @@ export function ProjectStatusUpdatesScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const a10 = useA10T();
 
   const [statusBand, setStatusBand] = useState<ProjectStatusBand>('on_track');
   const [body, setBody] = useState('');
@@ -62,6 +66,13 @@ export function ProjectStatusUpdatesScreen({
     queryKey: ['project-status-updates', organizationSlug, projectId],
     queryFn: () => listProjectStatusUpdates(api, organizationSlug, projectId),
   });
+
+  // A10 — the project's client updates (drafts included), each drawn as the published-update card.
+  const clientUpdates = useQuery({
+    queryKey: ['managed-updates', organizationSlug, projectId],
+    queryFn: () => listManagedUpdates(api, organizationSlug, projectId),
+  });
+  const clientRows = clientUpdates.data ?? [];
 
   async function refetch() {
     await queryClient.invalidateQueries({
@@ -192,6 +203,31 @@ export function ProjectStatusUpdatesScreen({
           <ol className="tm-stack tm-stack--loose">
             {rows.map((update) => (
               <StatusUpdateItem key={update.id} update={update} />
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
+      {clientUpdates.isError ? (
+        <InlineAlert tone="danger" title={a10('UpdateCard.loadFailed')} live>
+          {describeError(clientUpdates.error)}
+        </InlineAlert>
+      ) : null}
+
+      {clientRows.length > 0 ? (
+        <section className="tm-stack" aria-labelledby="tm-client-updates-heading">
+          <h2 id="tm-client-updates-heading" className="tm-eyebrow">
+            {a10('UpdateCard.sectionTitle')}
+          </h2>
+          <ol className="tm-upd-list">
+            {clientRows.map((update) => (
+              <li key={update.id}>
+                <UpdateLifecycleControls
+                  api={api}
+                  organizationSlug={organizationSlug}
+                  update={update}
+                />
+              </li>
             ))}
           </ol>
         </section>

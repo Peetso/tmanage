@@ -523,6 +523,8 @@ export const projectUpdates = mysqlTable(
     projectId: char('project_id', { length: 36 }).notNull(),
     title: varchar('title', { length: 300 }).notNull(),
     body: text('body').notNull(),
+    /** A10 (0223). The milestone this update reports on; no FK — see the migration header. */
+    milestoneId: char('milestone_id', { length: 36 }),
     published: boolean('published').notNull().default(false),
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),

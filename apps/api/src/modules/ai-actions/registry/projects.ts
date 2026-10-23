@@ -831,6 +831,15 @@ export const projectsDetails: readonly AiActionDetail[] = [
       },
     ],
   }),
+  // A10: the internal updates list.
+  det({
+    id: 'projects.updates.list',
+    title: 'List project updates',
+    description: 'List project updates, drafts included.',
+    input: listArgs(['projectId']),
+    redact: 'standard',
+    examples: [{ summary: 'List project updates', args: { projectId: 'proj_1' } }],
+  }),
   det({
     id: 'projects.updates.create',
     title: 'Create project updates',
@@ -839,6 +848,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
       title: f.shortText().optional(),
       body: f.text().optional(),
       published: f.bool().optional(),
+      milestoneId: f.id().optional(),
     }),
     redact: 'standard',
     notifies: true,
@@ -864,6 +874,7 @@ export const projectsDetails: readonly AiActionDetail[] = [
     input: bodyArgs(['projectId', 'id'], {
       title: f.shortText().optional(),
       body: f.text().optional(),
+      milestoneId: f.id().optional(),
     }),
     redact: 'standard',
     examples: [

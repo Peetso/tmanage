@@ -198,6 +198,9 @@ import type { PortalInboxPageView as ApiPortalInboxPageView } from '../../apps/a
 import type { PortalProjectView as ApiPortalProjectView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalUpdateView as ApiPortalUpdateView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { UpdateEditView as ApiUpdateEditView } from '../../apps/api/src/modules/clients/portal.service.js';
+// A10: the internal updates list (published card + unpublish confirm).
+import type { ManagedUpdateView as ApiManagedUpdateView } from '../../apps/api/src/modules/clients/portal.service.js';
+import type { ManagedUpdate as WebManagedUpdate } from '../../apps/web/src/lib/api/managed-updates';
 import type { PortalPersonView as ApiPortalPersonView } from '../../apps/api/src/modules/clients/portal-people.repository.js';
 import type { PortalWorkItemView as ApiPortalWorkItemView } from '../../apps/api/src/modules/clients/portal.service.js';
 import type { PortalDeliverableView as ApiPortalDeliverableView } from '../../apps/api/src/modules/clients/portal.service.js';
@@ -1010,6 +1013,8 @@ type _portalProject = Assert<Exact<ApiPortalProjectView, WebPortalProject>>;
 type _portalUpdate = Assert<Exact<ApiPortalUpdateView, WebPortalUpdate>>;
 // x201: the internal edit/unpublish response carries updatedAt (the client PortalUpdate does not).
 type _updateEdit = Assert<Exact<ApiUpdateEditView, WebUpdateEdit>>;
+// A10: the internal updates list names the author, the linked milestone and the first client open.
+type _managedUpdate = Assert<Exact<ApiManagedUpdateView, WebManagedUpdate>>;
 // SEC / Portal update comments (x203): the internal thread and the client projection. The panel
 // reads exactly these responses, so both pairs are Exact; the client view drops the staff author.
 type _updateComment = Assert<Exact<ApiUpdateCommentView, WebUpdateComment>>;

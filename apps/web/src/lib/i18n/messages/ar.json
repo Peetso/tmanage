@@ -11347,5 +11347,22 @@
   "AutomationRule.action.notify_owner": "تذكير المسؤول",
   "AutomationRule.action.create_work_item": "إنشاء بند عمل",
   "AutomationRule.action.post_message": "نشر رسالة",
-  "AutomationRule.action.send_email_digest": "إرسال ملخص بالبريد"
+  "AutomationRule.action.send_email_digest": "إرسال ملخص بالبريد",
+  "UpdateCard.sectionTitle": "تحديثات العميل",
+  "UpdateCard.loadFailed": "تعذّر تحميل تحديثات العميل",
+  "UpdateCard.publishedBy": "نشره {name} {date}",
+  "UpdateCard.draftBy": "مسودة كتبها {name} {date}",
+  "UpdateCard.clientCanSee": "يراه العميل",
+  "UpdateCard.draft": "مسودة",
+  "UpdateCard.linked": "مرتبط",
+  "UpdateCard.linkedDue": "‏{milestone} · تستحق {date}",
+  "UpdateCard.unpublish": "إلغاء النشر",
+  "UpdateCard.editUpdate": "تعديل التحديث",
+  "UnpublishUpdate.title": "‏إلغاء نشر «{title}»؟",
+  "UnpublishUpdate.body": "سيختفي من بوابة العميل ويعود إلى المسودات. يمكنك تعديله ونشره من جديد.",
+  "UnpublishUpdate.opened": "‏فتحت {client} هذا التحديث بالفعل {date}.",
+  "UnpublishUpdate.keep": "إبقاؤه منشورًا",
+  "UnpublishUpdate.confirm": "إلغاء النشر",
+  "UnpublishUpdate.unpublishing": "جارٍ إلغاء النشر…",
+  "UnpublishUpdate.failed": "لم يُلغَ نشر التحديث"
 }

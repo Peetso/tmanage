@@ -2,7 +2,7 @@ import { and, desc, eq, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { projectUpdates } from '../../common/database/schema.js';
+import { projectMilestones, projectUpdates, users } from '../../common/database/schema.js';
 import type { ProjectUpdateRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -36,6 +36,8 @@ export interface CreateProjectUpdateInput {
   readonly published: boolean;
   /** The person posting the update — the service passes `context.userId`. */
   readonly createdByUserId: string;
+  /** A10 (0223). The milestone this update reports on — already resolved to this project. */
+  readonly milestoneId?: string | null;
 }
 
 /**
@@ -48,6 +50,22 @@ export interface EditProjectUpdateInput {
   readonly projectId: string;
   readonly title?: string;
   readonly body?: string;
+  /** A10 (0223). `null` clears the link; absent leaves it. */
+  readonly milestoneId?: string | null;
+}
+
+/**
+ * A10 — one update as the internal updates list reads it: the row, its author's display name and
+ * the linked milestone (null when none is linked or it no longer exists in this tenant).
+ */
+export interface ManagedProjectUpdateRow {
+  readonly update: ProjectUpdateRow;
+  readonly authorName: string;
+  readonly milestone: {
+    readonly id: string;
+    readonly title: string;
+    readonly dueOn: string | null;
+  } | null;
 }
 
 /** Set one update's client-visibility flag — x201's unpublish flips it to `false`. */
@@ -108,6 +126,56 @@ export class ProjectUpdatesRepository {
   }
 
   /**
+   * A10 — one project's updates for the internal updates list, drafts included, newest first.
+   *
+   * Tenant- and project-scoped like {@link list}. The author's display name comes from `users`
+   * (the internal surface may name staff; the client projection never does), and the milestone is
+   * a tenant-scoped LEFT JOIN, so a link whose milestone has gone reads as no milestone.
+   */
+  async listManaged(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: { readonly projectId: string; readonly limit?: number },
+  ): Promise<readonly ManagedProjectUpdateRow[]> {
+    const limit = effectivePageSize(options.limit);
+    const db = tenantDrizzle(runner);
+    const rows = await db
+      .select({
+        update: projectUpdates,
+        authorName: users.displayName,
+        milestoneId: projectMilestones.id,
+        milestoneTitle: projectMilestones.title,
+        milestoneDueOn: projectMilestones.dueOn,
+      })
+      .from(projectUpdates)
+      .innerJoin(users, eq(users.id, projectUpdates.createdByUserId))
+      .leftJoin(
+        projectMilestones,
+        and(
+          eq(projectMilestones.organizationId, projectUpdates.organizationId),
+          eq(projectMilestones.id, projectUpdates.milestoneId),
+        ),
+      )
+      .where(
+        and(
+          eq(projectUpdates.organizationId, context.organizationId),
+          eq(projectUpdates.projectId, options.projectId),
+        ),
+      )
+      .orderBy(desc(projectUpdates.createdAt), desc(projectUpdates.id))
+      .limit(limit);
+
+    return rows.map((row) => ({
+      update: row.update,
+      authorName: row.authorName,
+      milestone:
+        row.milestoneId !== null && row.milestoneTitle !== null
+          ? { id: row.milestoneId, title: row.milestoneTitle, dueOn: row.milestoneDueOn ?? null }
+          : null,
+    }));
+  }
+
+  /**
    * Fetch one update by id, within the acting tenant.
    *
    * No `findById(id)` without a context: on MySQL that would return another customer's row,
@@ -159,6 +227,7 @@ export class ProjectUpdatesRepository {
       title: input.title,
       body: input.body,
       published: input.published,
+      milestoneId: input.milestoneId ?? null,
       createdByUserId: input.createdByUserId,
       createdAt: sql`current_timestamp(3)`,
       updatedAt: sql`current_timestamp(3)`,
@@ -189,11 +258,12 @@ export class ProjectUpdatesRepository {
     input: EditProjectUpdateInput,
   ): Promise<ProjectUpdateRow | null> {
     const db = tenantDrizzle(runner);
-    const values: { title?: string; body?: string; updatedAt: SQL } = {
+    const values: { title?: string; body?: string; milestoneId?: string | null; updatedAt: SQL } = {
       updatedAt: sql`current_timestamp(3)`,
     };
     if (input.title !== undefined) values.title = input.title;
     if (input.body !== undefined) values.body = input.body;
+    if (input.milestoneId !== undefined) values.milestoneId = input.milestoneId;
 
     await db
       .update(projectUpdates)

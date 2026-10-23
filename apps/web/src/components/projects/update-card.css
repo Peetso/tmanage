@@ -1,0 +1,165 @@
+/* A10 — published update card + unpublish confirm (Figma fq6-published-update, fq6-unpublish-confirm). */
+
+.tm-upd-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-upd-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  padding: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+}
+
+.tm-upd-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.tm-upd-card__heading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-upd-card__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-upd-card__meta {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-upd-card__pill {
+  flex: none;
+}
+
+.tm-upd-card__body {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+  white-space: pre-line;
+}
+
+.tm-upd-linked {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: var(--s5) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+}
+
+.tm-upd-linked__label {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-upd-linked__value {
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-950);
+}
+
+.tm-upd-card__rule {
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-upd-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s3);
+}
+
+/* Unpublish confirm */
+
+.tm-upd-dialog__scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: rgb(0 0 0 / 28%);
+}
+
+.tm-upd-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  inline-size: min(560px, 100%);
+  max-block-size: calc(100dvh - var(--s8));
+  padding: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  overflow: auto;
+}
+
+.tm-upd-dialog:focus {
+  outline: none;
+}
+
+.tm-upd-dialog__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-upd-dialog__lede {
+  margin: 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-upd-note {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border: var(--b-structural) solid var(--client-500);
+  border-radius: var(--r-control);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-950);
+}
+
+.tm-upd-note__mark {
+  color: var(--client-500);
+}
+
+@media (max-width: 599px) {
+  .tm-upd-card,
+  .tm-upd-dialog {
+    padding: var(--s6);
+  }
+}

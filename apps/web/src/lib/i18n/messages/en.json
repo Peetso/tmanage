@@ -11347,5 +11347,22 @@
   "AutomationRule.action.notify_owner": "Remind the owner",
   "AutomationRule.action.create_work_item": "Create a work item",
   "AutomationRule.action.post_message": "Post a message",
-  "AutomationRule.action.send_email_digest": "Send an email digest"
+  "AutomationRule.action.send_email_digest": "Send an email digest",
+  "UpdateCard.sectionTitle": "Client updates",
+  "UpdateCard.loadFailed": "Could not load the client updates",
+  "UpdateCard.publishedBy": "Published {date} by {name}",
+  "UpdateCard.draftBy": "Draft from {date} by {name}",
+  "UpdateCard.clientCanSee": "Client can see",
+  "UpdateCard.draft": "Draft",
+  "UpdateCard.linked": "Linked",
+  "UpdateCard.linkedDue": "{milestone} · due {date}",
+  "UpdateCard.unpublish": "Unpublish",
+  "UpdateCard.editUpdate": "Edit update",
+  "UnpublishUpdate.title": "Unpublish “{title}”?",
+  "UnpublishUpdate.body": "It disappears from the client portal and goes back to drafts. You can edit it and publish again.",
+  "UnpublishUpdate.opened": "{client} already opened this update on {date}.",
+  "UnpublishUpdate.keep": "Keep it published",
+  "UnpublishUpdate.confirm": "Unpublish",
+  "UnpublishUpdate.unpublishing": "Unpublishing…",
+  "UnpublishUpdate.failed": "The update was not unpublished"
 }

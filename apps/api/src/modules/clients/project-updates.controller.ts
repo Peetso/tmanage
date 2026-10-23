@@ -1,10 +1,10 @@
-import { Body, Controller, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { PORTAL_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { PortalService, PortalUpdateView } from './portal.service.js';
+import type { ManagedUpdateView, PortalService, PortalUpdateView } from './portal.service.js';
 
 /**
  * CLIENT-003's internal write surface — a project manager posting an update to a client's portal
@@ -39,11 +39,40 @@ interface PostUpdateBody {
    * a later slice (NEXT-SCOPES-12).
    */
   readonly published?: unknown;
+  /** A10 (0223). Optional: a milestone of this project the update reports on, or null. */
+  readonly milestoneId?: unknown;
+}
+
+/** A10 — `milestoneId` is absent, null, or a non-empty string id (the service checks it is real). */
+export function readMilestoneId(
+  value: unknown,
+  details: { field: string; message: string }[],
+): string | null | undefined {
+  if (value === undefined || value === null) return value;
+  if (typeof value !== 'string' || value.trim() === '' || value.length > 36) {
+    details.push({ field: 'milestoneId', message: 'must be a milestone id or null' });
+    return undefined;
+  }
+  return value;
 }
 
 @Controller('v1/organizations/:orgSlug/projects')
 export class ProjectUpdatesController {
   constructor(@Inject(PORTAL_SERVICE) private readonly portal: PortalService) {}
+
+  /**
+   * A10 — the internal updates list (drafts included) behind `project.manage`: author, linked
+   * milestone and, for a published update, the first client open from the portal access log.
+   */
+  @Get(':projectId/updates')
+  @RequireCapability('project.manage')
+  async list(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+  ): Promise<{ updates: readonly ManagedUpdateView[] }> {
+    return { updates: await this.portal.managedUpdatesFor(context, principal, projectId) };
+  }
 
   @Post(':projectId/updates')
   @RequireCapability('project.manage')
@@ -75,6 +104,7 @@ export class ProjectUpdatesController {
       details.push({ field: 'published', message: 'must be a boolean' });
     }
     const published = body?.published === undefined ? true : (body.published as boolean);
+    const milestoneId = readMilestoneId(body?.milestoneId, details);
 
     if (details.length > 0 || !title || !updateBody) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -85,6 +115,7 @@ export class ProjectUpdatesController {
       title,
       body: updateBody,
       published,
+      ...(milestoneId !== undefined ? { milestoneId } : {}),
     });
   }
 }

@@ -5,6 +5,7 @@ import { ApiError } from '../../common/http/errors.js';
 import { PORTAL_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import type { PortalService, UpdateEditView } from './portal.service.js';
+import { readMilestoneId } from './project-updates.controller.js';
 
 /**
  * x201's internal write surface — editing and unpublishing a project update that pass 19/20
@@ -29,6 +30,8 @@ const MAX_UPDATE_TITLE_LENGTH = 300;
 interface EditUpdateBody {
   readonly title?: unknown;
   readonly body?: unknown;
+  /** A10 (0223). A milestone of this project, or null to clear the link. */
+  readonly milestoneId?: unknown;
 }
 
 @Controller('v1/organizations/:orgSlug/projects')
@@ -74,7 +77,14 @@ export class UpdateLifecycleController {
       }
     }
 
-    if (title === undefined && updateBody === undefined && details.length === 0) {
+    const milestoneId = readMilestoneId(body?.milestoneId, details);
+
+    if (
+      title === undefined &&
+      updateBody === undefined &&
+      milestoneId === undefined &&
+      details.length === 0
+    ) {
       details.push({ field: 'title', message: 'at least one of title or body is required' });
     }
 
@@ -87,6 +97,7 @@ export class UpdateLifecycleController {
       updateId,
       ...(title !== undefined ? { title } : {}),
       ...(updateBody !== undefined ? { body: updateBody } : {}),
+      ...(milestoneId !== undefined ? { milestoneId } : {}),
     });
   }
 
