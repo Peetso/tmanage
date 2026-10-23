@@ -54,6 +54,10 @@ export const ALLOWED_REACTIONS: readonly string[] = Object.freeze([
   '\u{1F615}', // 😕 confused face
   '\u{1F680}', // 🚀 rocket
   '\u{1F440}', // 👀 eyes
+  // A16 (chat basics): the quick reactions the approved Figma draws — ♥ ✓ ☺ ★.
+  '\u{2713}', // ✓ check mark
+  '\u{263A}', // ☺ smiling face
+  '\u{2605}', // ★ black star
 ]);
 
 export function isAllowedReaction(emoji: string): boolean {

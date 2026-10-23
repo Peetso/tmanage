@@ -16,7 +16,7 @@ import {
   type MentionGroup,
 } from '../chat/MentionPicker';
 import { RichTextBody } from '../RichTextBody';
-import { browserApiClient } from '../../lib/api/browser-client';
+import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { newCorrelationId } from '../../lib/api/client';
 import { getProject } from '../../lib/api/projects';
 import { listProjectMembers } from '../../lib/api/project-members';
@@ -28,6 +28,7 @@ import {
   convertMessageToWork,
   getConversation,
   getDraft,
+  listChannelDirectory,
   listMessages,
   listRevisions,
   moderateMessage,
@@ -35,6 +36,7 @@ import {
   saveDraft,
 } from '../../lib/api/conversations';
 import type {
+  ChannelDirectoryEntry,
   ConvertMessageResult,
   MessageSummary,
   PostMessageInput,
@@ -50,7 +52,20 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useDictation } from '../voice/useDictation';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
+import {
+  addChannelMember,
+  editChannelMessage,
+  listChannelMembers,
+} from '../../lib/api/channel-members';
+import {
+  listMessageAttachments,
+  type MessageAttachmentSummary,
+} from '../../lib/api/message-attachments';
+import { useIsMobile } from '../../lib/hooks/useIsMobile';
+import { MessageReactionPills, useMessageReactionTally } from './MessageReactionsView';
+import { MessageActionsSheet } from '../chat/MessageActionsSheet';
 import '../../styles/screens/chat.css';
+import '../chat/chat-shell.css';
 
 type Translate = ReturnType<typeof useT>;
 
@@ -274,75 +289,123 @@ export function ProjectChannelScreen({
   const selectedId = convertTargetId ?? threadRootId;
   const channelName = conversation.data?.name;
 
+  /*
+   * A16 — who is in the room. The channel directory (the same cache entry the chat sidebar reads)
+   * carries the authoritative member and client counts; the channel's member list names them.
+   * A person counts as a client when the directory preview marks them so or their org role is a
+   * client role — the transcript's "Client" chip and the Members panel's CLIENT group agree.
+   */
+  const isMobile = useIsMobile();
+  const channelDirectory = useQuery({
+    queryKey: ['conversations', organizationSlug, 'directory'],
+    queryFn: () => listChannelDirectory(api, organizationSlug),
+  });
+  const directoryEntry: ChannelDirectoryEntry | undefined = Array.isArray(channelDirectory.data)
+    ? (channelDirectory.data as readonly ChannelDirectoryEntry[]).find(
+        (entry) => entry.id === conversationId,
+      )
+    : undefined;
+  const channelMembers = useQuery({
+    queryKey: ['channel-members', organizationSlug, conversationId],
+    queryFn: () => listChannelMembers(api, organizationSlug, conversationId),
+    enabled: conversation.data !== undefined,
+  });
+  const memberIds = useMemo(
+    () => (Array.isArray(channelMembers.data) ? channelMembers.data.map((m) => m.userId) : []),
+    [channelMembers.data],
+  );
+  const previewClients = useMemo(
+    () =>
+      new Set(
+        (directoryEntry?.memberPreview ?? [])
+          .filter((member) => member.isClient)
+          .map((member) => member.userId),
+      ),
+    [directoryEntry],
+  );
+  const isClient = (userId: string) =>
+    previewClients.has(userId) || (roles.get(userId)?.startsWith('client') ?? false);
+  const listedClients = memberIds.filter(isClient).length;
+  const totalMembers = directoryEntry?.memberCount ?? memberIds.length;
+  const clientMembers = directoryEntry?.clientMemberCount ?? listedClients;
+  const internalMembers = Math.max(0, totalMembers - clientMembers);
+  const clientVisible = clientMembers > 0;
+
+  const [editingId, setEditingId] = useState<string | undefined>(undefined);
+  const [pickerFor, setPickerFor] = useState<string | undefined>(undefined);
+  const [moreFor, setMoreFor] = useState<string | undefined>(undefined);
+  const [sheetFor, setSheetFor] = useState<string | undefined>(undefined);
+  const sheetReturnFocusRef = useRef<HTMLElement | null>(null);
+  const closeSheet = () => {
+    setSheetFor(undefined);
+    const trigger = sheetReturnFocusRef.current;
+    sheetReturnFocusRef.current = null;
+    trigger?.focus();
+  };
+
+  const countsLine = `${internalMembers} ${tOr('ProjectChannelScreen.internalCount', 'internal')} · ${clientMembers} ${tOr('ProjectChannelScreen.clientMembersCount', 'client members')}`;
+  const phoneCountsLine = `${internalMembers} ${tOr('ProjectChannelScreen.internalCount', 'internal')} · ${clientMembers} ${tOr('ProjectChannelScreen.clientCount', 'client')}`;
+  const hash = channelName === undefined ? undefined : `#${channelName}`;
+
+  const rowContext: ChannelRowContext = {
+    api,
+    organizationSlug,
+    conversationId,
+    isMobile,
+    nameOf,
+    isClient,
+    archived,
+    threadRootId,
+    convertTargetId,
+    historyMessageId,
+    removeTargetId,
+    editingId,
+    pickerFor,
+    moreFor,
+    sheetFor,
+    openThread,
+    setConvertTargetId,
+    setHistoryMessageId,
+    setRemoveTargetId,
+    setEditingId,
+    setPickerFor,
+    setMoreFor,
+    openSheet: (messageId, trigger) => {
+      sheetReturnFocusRef.current = trigger;
+      setSheetFor(messageId);
+    },
+    closeSheet,
+    moderate,
+  };
+
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
-      title={
-        channelName === undefined ? t('ProjectChannelScreen.channelFallback') : `#${channelName}`
-      }
+      title={hash ?? t('ProjectChannelScreen.channelFallback')}
       actionsPlacement="inline"
       actions={
-        <div className="tm-chat-header-tools">
-          <span className="tm-chat-audience">
-            <span className="tm-chat-audience__orb" aria-hidden="true">
-              ■
-            </span>
-            {t('ProjectChannelScreen.internalNotice')}
-          </span>
-        </div>
-      }
-      headerAside={
-        <div className="tm-chat-header-tools">
-          <Link
-            className="tm-chat-icon"
-            href={`/${organizationSlug}/chat/${conversationId}/search`}
-            aria-label={t('ProjectChannelScreen.searchChannel')}
-            title={t('ProjectChannelScreen.searchChannel')}
-          >
-            <span aria-hidden="true">⌕</span>
-          </Link>
-          <Link
-            className="tm-chat-icon"
-            href={`/${organizationSlug}/chat/mentions`}
-            aria-label={t('ProjectChannelScreen.yourMentions')}
-            title={t('ProjectChannelScreen.yourMentions')}
-          >
-            <span aria-hidden="true">@</span>
-          </Link>
-        </div>
+        <span className={`tm-chat-pill${clientVisible ? ' tm-chat-pill--client' : ''}`}>
+          {clientVisible
+            ? tOr('ProjectChannelScreen.clientVisible', 'Client visible')
+            : tOr('ProjectChannelScreen.internalPill', 'Internal')}
+        </span>
       }
       description={
         <>
-          {t('ProjectChannelScreen.projectChannelDesc')}
-          {project.data ? <> · {project.data.name}</> : null}
-          {archived ? <> · {t('ProjectChannelScreen.archived')}</> : null} ·{' '}
-          <Link href={`/${organizationSlug}/chat`}>
-            {t('ProjectChannelScreen.backToAllChannels')}
-          </Link>
+          {t('ProjectChannelScreen.projectChannelDesc')} · {countsLine}
+          {archived ? <> · {t('ProjectChannelScreen.archived')}</> : null}
+          {liveStatus === 'retrying' ? ' · ' : null}
           {/*
-           * The separator belongs only before a status that actually renders text. Keying it off
-           * `!== 'off'` left a dangling " · " while the socket was `'connecting'` or `'revoked'`,
-           * states in which the status span below is deliberately empty.
-           */}
-          {liveStatus === 'live' || liveStatus === 'retrying' ? ' · ' : null}
-          {/*
-           * WCAG 2.2 4.1.3. This region is mounted from the first render — empty while the socket
-           * is off — so a later flip (a dropped connection, above all) is a text mutation of a
-           * region that already exists, which is what assistive technology announces; the old chip
-           * was mounted together with its text and so was routinely not announced, and a person
-           * whose channel had silently stopped updating was told nothing. A live region's
-           * *announcement* is built from its content, not from `aria-label`, so the fuller sentence
-           * lives in visually-hidden text inside the region; the short visible word is hidden from
-           * assistive technology so what is heard is the sentence, not "Live Live updates connected".
+           * WCAG 2.2 4.1.3. Mounted from the first render so a later flip is a text mutation of a
+           * region that already exists, which is what assistive technology announces. A16: the
+           * steady "Live" state is announced but not drawn (the approved frame shows no chip);
+           * a dropped connection still shows its short visible word, since that is a fault.
            */}
           <span role="status">
             {liveStatus === 'live' ? (
-              <>
-                <span aria-hidden="true">{t('ProjectChannelScreen.liveShort')}</span>
-                <VisuallyHidden>{t('ProjectChannelScreen.liveConnected')}</VisuallyHidden>
-              </>
+              <VisuallyHidden>{t('ProjectChannelScreen.liveConnected')}</VisuallyHidden>
             ) : liveStatus === 'retrying' ? (
               <>
                 <span aria-hidden="true">{t('ProjectChannelScreen.reconnectingShort')}</span>
@@ -380,11 +443,8 @@ export function ProjectChannelScreen({
         ) : threadRoot ? (
           <ThreadPane
             /*
-             * WCAG 2.2 2.4.3, second half. Without a key, opening thread B while thread A's pane
-             * is open re-renders the *same* ThreadPane instance: the mount effect that moves focus
-             * to the heading never re-runs, so focus stays on "Reply in thread" and nothing tells
-             * the person the pane now holds a different thread. Keying on the root id makes each
-             * open a fresh mount, so the focus move happens on every open, not only the first.
+             * WCAG 2.2 2.4.3, second half. Keying on the root id makes each open a fresh mount,
+             * so the focus move to the pane heading happens on every open, not only the first.
              */
             key={threadRoot.id}
             api={api}
@@ -395,10 +455,45 @@ export function ProjectChannelScreen({
             nameOf={nameOf}
             onClose={closeThread}
           />
+        ) : conversation.data !== undefined && !channelRevoked && !isMobile ? (
+          <ChannelMembersPanel
+            api={api}
+            organizationSlug={organizationSlug}
+            conversationId={conversationId}
+            memberIds={memberIds}
+            total={totalMembers}
+            nameOf={nameOf}
+            isClient={isClient}
+            archived={archived}
+          />
         ) : undefined
       }
     >
-      <div className="tm-chat-channel">
+      <div className={`tm-chat-channel${isMobile ? ' tm-chat-channel--phone' : ''}`}>
+        {isMobile ? (
+          <div className="tm-chat-phone-head">
+            <Link
+              className="tm-chat-phone-head__back"
+              href={`/${organizationSlug}/chat`}
+              aria-label={t('ProjectChannelScreen.backToAllChannels')}
+            >
+              <span aria-hidden="true">←</span>
+            </Link>
+            <span className="tm-chat-phone-head__text">
+              <span className="tm-chat-phone-head__name">
+                {hash ?? t('ProjectChannelScreen.channelFallback')}
+              </span>
+              <span className="tm-chat-phone-head__sub">{phoneCountsLine}</span>
+            </span>
+            <span
+              className="tm-chat-phone-head__members"
+              aria-label={`${totalMembers} ${tOr('ProjectChannelScreen.membersCount', 'members')}`}
+            >
+              <span aria-hidden="true">☺ {totalMembers}</span>
+            </span>
+          </div>
+        ) : null}
+
         {channelRevoked ? (
           <InlineAlert tone="warning" title={t('ProjectChannelScreen.noAccessTitle')} live>
             <p className="tm-prose">{t('ProjectChannelScreen.noAccessBody')}</p>
@@ -449,117 +544,15 @@ export function ProjectChannelScreen({
             aria-label={t('ProjectChannelScreen.messagesListAria')}
             aria-live={announceMessages ? 'polite' : 'off'}
             aria-relevant="additions"
+            {...(sheetFor === undefined ? {} : { 'data-sheet-open': 'true' })}
           >
             {rows.map((message) => (
-              <li
+              <ChannelMessage
                 key={message.id}
-                id={`message-${message.id}`}
-                className="tm-chat-message"
-                {...(selectedId === message.id ? { 'data-selected': 'true' } : {})}
-              >
-                <AuthorOrb name={nameOf(message.authorUserId)} />
-                <div className="tm-chat-message__main">
-                  <MessageHeader
-                    message={message}
-                    author={nameOf(message.authorUserId)}
-                    selected={selectedId === message.id}
-                  />
-                  <MessageBody message={message} nameOf={nameOf} />
-
-                  <div className="tm-chat-message__actions">
-                    <button
-                      type="button"
-                      className="tm-chat-chip"
-                      aria-expanded={threadRootId === message.id}
-                      onClick={(event) => openThread(message.id, event.currentTarget)}
-                    >
-                      {t('ProjectChannelScreen.replyInThread')}
-                    </button>
-                    {message.deletedAt === null ? (
-                      <>
-                        <button
-                          type="button"
-                          className="tm-chat-chip tm-chat-chip--ink"
-                          aria-expanded={convertTargetId === message.id}
-                          onClick={() =>
-                            setConvertTargetId((current) =>
-                              current === message.id ? undefined : message.id,
-                            )
-                          }
-                        >
-                          {t('ProjectChannelScreen.createWorkFromThis')}
-                        </button>
-                        <button
-                          type="button"
-                          className="tm-chat-chip tm-chat-chip--danger"
-                          aria-expanded={removeTargetId === message.id}
-                          onClick={() =>
-                            setRemoveTargetId((current) =>
-                              current === message.id ? undefined : message.id,
-                            )
-                          }
-                        >
-                          {t('ProjectChannelScreen.remove')}
-                        </button>
-                      </>
-                    ) : null}
-                    {message.editedAt !== null ? (
-                      <button
-                        type="button"
-                        className="tm-chat-chip"
-                        aria-expanded={historyMessageId === message.id}
-                        onClick={() =>
-                          setHistoryMessageId((current) =>
-                            current === message.id ? undefined : message.id,
-                          )
-                        }
-                      >
-                        {t('ProjectChannelScreen.editHistory')}
-                      </button>
-                    ) : null}
-                  </div>
-
-                  {removeTargetId === message.id ? (
-                    <InlineAlert
-                      tone="warning"
-                      title={t('ProjectChannelScreen.removeConfirmTitle')}
-                      live
-                    >
-                      <p className="tm-prose">{t('ProjectChannelScreen.removeConfirmBody')}</p>
-                      <div className="tm-row">
-                        <Button
-                          tone="destructive"
-                          size="accessible"
-                          loading={moderate.isPending}
-                          loadingLabel={t('ProjectChannelScreen.removing')}
-                          onClick={() => moderate.mutate(message.id)}
-                        >
-                          {t('ProjectChannelScreen.removeIt')}
-                        </Button>
-                        <Button
-                          tone="outline"
-                          size="accessible"
-                          onClick={() => setRemoveTargetId(undefined)}
-                        >
-                          {t('ProjectChannelScreen.leaveIt')}
-                        </Button>
-                      </div>
-                      {moderate.isError ? (
-                        <p className="tm-prose">{describeError(moderate.error, t)}</p>
-                      ) : null}
-                    </InlineAlert>
-                  ) : null}
-
-                  {historyMessageId === message.id ? (
-                    <RevisionHistory
-                      api={api}
-                      organizationSlug={organizationSlug}
-                      conversationId={conversationId}
-                      messageId={message.id}
-                    />
-                  ) : null}
-                </div>
-              </li>
+                message={message}
+                selected={selectedId === message.id}
+                context={rowContext}
+              />
             ))}
           </ol>
         ) : null}
@@ -586,27 +579,630 @@ export function ProjectChannelScreen({
          */}
         {conversation.data !== undefined && !channelRevoked ? (
           <div className="tm-chat-foot">
-            {!archived ? (
-              <span className="tm-chat-notice">
-                <span className="tm-chat-audience__orb" aria-hidden="true">
-                  ■
-                </span>
-                {t('ProjectChannelScreen.sendVisibleNotice')}
-              </span>
-            ) : null}
             <Composer
               api={api}
               organizationSlug={organizationSlug}
               conversationId={conversationId}
               archived={archived}
               label={t('ProjectChannelScreen.messageChannelLabel')}
-              placeholder={`${t('ProjectChannelScreen.messagePrefix')} #${conversation.data.name}…`}
+              placeholder={`${t('ProjectChannelScreen.messagePrefix')} #${conversation.data.name}`}
               mentions={{ projectMemberIds, subtitleOf }}
             />
           </div>
         ) : null}
       </div>
     </AppShell>
+  );
+}
+
+/** What one transcript row needs from the screen — state and the setters that change it. */
+interface ChannelRowContext {
+  api: ApiClient;
+  organizationSlug: string;
+  conversationId: string;
+  isMobile: boolean;
+  nameOf: (userId: string) => string;
+  isClient: (userId: string) => boolean;
+  archived: boolean;
+  threadRootId: string | undefined;
+  convertTargetId: string | undefined;
+  historyMessageId: string | undefined;
+  removeTargetId: string | undefined;
+  editingId: string | undefined;
+  pickerFor: string | undefined;
+  moreFor: string | undefined;
+  sheetFor: string | undefined;
+  openThread: (messageId: string, trigger: HTMLElement) => void;
+  setConvertTargetId: (update: (current: string | undefined) => string | undefined) => void;
+  setHistoryMessageId: (update: (current: string | undefined) => string | undefined) => void;
+  setRemoveTargetId: (next: string | undefined) => void;
+  setEditingId: (next: string | undefined) => void;
+  setPickerFor: (next: string | undefined) => void;
+  setMoreFor: (next: string | undefined) => void;
+  openSheet: (messageId: string, trigger: HTMLElement) => void;
+  closeSheet: () => void;
+  moderate: { isPending: boolean; isError: boolean; error: unknown; mutate: (id: string) => void };
+}
+
+const LONG_PRESS_MS = 500;
+
+/** The download address of a stored file — the same route the work item's files use. */
+function fileContentHref(organizationSlug: string, fileAssetId: string): string {
+  return `${apiBaseUrl()}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(fileAssetId)}/content`;
+}
+
+/** "4.2 MB" / "820 KB" — the Figma's attachment size line. */
+export function formatFileSize(bytes: number | null): string | undefined {
+  if (bytes === null || !Number.isFinite(bytes) || bytes < 0) return undefined;
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${bytes} B`;
+}
+
+/** "atlas-mobile-flow-v3.pdf" → "PDF"; a name without an extension has no type line. */
+export function fileTypeOf(name: string): string | undefined {
+  const dot = name.lastIndexOf('.');
+  if (dot <= 0 || dot === name.length - 1) return undefined;
+  return name.slice(dot + 1).toUpperCase();
+}
+
+/**
+ * A16 — one transcript row as the approved Figma draws it: orb (client-ringed for a client),
+ * author · time · "Client" chip · "(edited)", the body or the inline edit card, the attachment
+ * cards, the reaction pills, and — on desktop — the hover bar Reply · React · Edit · ⋯ (⋯ holds
+ * Create work from this, Edit history and Delete message). On a phone the row opens the actions
+ * sheet on a long press, or from its "More actions" control for keyboard and screen-reader users.
+ */
+function ChannelMessage({
+  message,
+  selected,
+  context,
+}: {
+  message: MessageSummary;
+  selected: boolean;
+  context: ChannelRowContext;
+}) {
+  const t = useT();
+  const tOr = useTOr();
+  const queries = useQueryClient();
+  const { api, organizationSlug, conversationId, isMobile, nameOf, isClient, archived, moderate } =
+    context;
+  const author = nameOf(message.authorUserId);
+  const client = isClient(message.authorUserId);
+  const removed = message.deletedAt !== null;
+  // Only a plain-text message is edited in place: a rich document has no notation to round-trip.
+  const editable = !removed && !archived && message.bodyRich === null && message.body !== null;
+  const editing = context.editingId === message.id;
+
+  const attachments = useQuery({
+    queryKey: ['message-attachments', organizationSlug, conversationId, message.id],
+    queryFn: () => listMessageAttachments(api, organizationSlug, conversationId, message.id),
+    enabled: !removed,
+    staleTime: 30_000,
+  });
+  const files: readonly MessageAttachmentSummary[] = Array.isArray(attachments.data)
+    ? attachments.data
+    : [];
+  const reactions = useMessageReactionTally(api, organizationSlug, conversationId, message.id);
+
+  const pressTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const rowRef = useRef<HTMLLIElement>(null);
+  const cancelPress = () => {
+    if (pressTimer.current !== undefined) clearTimeout(pressTimer.current);
+    pressTimer.current = undefined;
+  };
+  useEffect(() => cancelPress, []);
+  const pressProps = isMobile
+    ? {
+        onPointerDown: () => {
+          cancelPress();
+          pressTimer.current = setTimeout(() => {
+            if (rowRef.current !== null) context.openSheet(message.id, rowRef.current);
+          }, LONG_PRESS_MS);
+        },
+        onPointerUp: cancelPress,
+        onPointerLeave: cancelPress,
+        onPointerCancel: cancelPress,
+        onContextMenu: (event: { preventDefault: () => void }) => {
+          event.preventDefault();
+          if (rowRef.current !== null) context.openSheet(message.id, rowRef.current);
+        },
+      }
+    : {};
+
+  const sheetOpen = context.sheetFor === message.id;
+  const reactedSet = new Set(reactions.rows.filter((row) => row.reacted).map((row) => row.emoji));
+
+  return (
+    <li
+      ref={rowRef}
+      id={`message-${message.id}`}
+      className="tm-chat-message"
+      {...(selected ? { 'data-selected': 'true' } : {})}
+      {...(sheetOpen ? { 'data-sheet-target': 'true' } : {})}
+      {...pressProps}
+    >
+      <AuthorOrb name={author} client={client} />
+      <div className="tm-chat-message__main">
+        <div className="tm-chat-message__head">
+          <span className="tm-chat-message__author">{author}</span>
+          <span className="tm-chat-mono">
+            <time dateTime={message.createdAt}>{formatStamp(message.createdAt)}</time>
+          </span>
+          {client ? (
+            <span className="tm-chat-pill tm-chat-pill--client tm-chat-pill--sm">
+              {tOr('MentionPicker.client', 'Client')}
+            </span>
+          ) : null}
+          {message.editedAt !== null && !removed ? (
+            <span className="tm-chat-message__edited">({t('ProjectChannelScreen.edited')})</span>
+          ) : null}
+          {selected ? (
+            <VisuallyHidden>{t('ProjectChannelScreen.selectedMessage')}</VisuallyHidden>
+          ) : null}
+        </div>
+
+        {editing ? (
+          <InlineEditCard
+            api={api}
+            organizationSlug={organizationSlug}
+            conversationId={conversationId}
+            message={message}
+            onDone={() => {
+              context.setEditingId(undefined);
+              void queries.invalidateQueries({
+                queryKey: ['messages', organizationSlug, conversationId],
+              });
+              void queries.invalidateQueries({
+                queryKey: ['revisions', organizationSlug, conversationId, message.id],
+              });
+            }}
+            onCancel={() => context.setEditingId(undefined)}
+          />
+        ) : (
+          <MessageBody message={message} nameOf={nameOf} />
+        )}
+
+        {files.length > 0 ? (
+          <ul className="tm-chat-files">
+            {files.map((file) => {
+              const meta = [formatFileSize(file.sizeBytes), fileTypeOf(file.name)]
+                .filter(Boolean)
+                .join(' · ');
+              return (
+                <li key={file.fileAssetId} className="tm-chat-file">
+                  <span className="tm-chat-file__icon" aria-hidden="true">
+                    ▣
+                  </span>
+                  <span className="tm-chat-file__text">
+                    <span className="tm-chat-file__name">{file.name}</span>
+                    {meta !== '' ? <span className="tm-chat-file__meta">{meta}</span> : null}
+                  </span>
+                  {isMobile ? null : (
+                    <a
+                      className="tm-chat-file__open"
+                      href={fileContentHref(organizationSlug, file.fileAssetId)}
+                      aria-label={`${tOr('ProjectChannelScreen.openFile', 'Open')} ${file.name}`}
+                    >
+                      {tOr('ProjectChannelScreen.openFile', 'Open')}
+                    </a>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+
+        {removed ? null : (
+          <MessageReactionPills
+            api={api}
+            organizationSlug={organizationSlug}
+            conversationId={conversationId}
+            messageId={message.id}
+            pickerOpen={context.pickerFor === message.id}
+            onPickerOpenChange={(open) => context.setPickerFor(open ? message.id : undefined)}
+            showAdd={!isMobile}
+          />
+        )}
+
+        {isMobile ? (
+          <button
+            type="button"
+            className="tm-chat-phone-more"
+            aria-haspopup="dialog"
+            aria-expanded={sheetOpen}
+            onClick={(event) => context.openSheet(message.id, event.currentTarget)}
+          >
+            {tOr('ProjectChannelScreen.moreActions', 'More actions')}
+          </button>
+        ) : (
+          <div className="tm-chat-message__actions">
+            <button
+              type="button"
+              className="tm-chat-hover"
+              aria-label={t('ProjectChannelScreen.replyInThread')}
+              aria-expanded={context.threadRootId === message.id}
+              onClick={(event) => context.openThread(message.id, event.currentTarget)}
+            >
+              <span aria-hidden="true">↩</span>
+              {tOr('ProjectChannelScreen.replyShort', 'Reply')}
+            </button>
+            {removed ? null : (
+              <button
+                type="button"
+                className="tm-chat-hover"
+                aria-expanded={context.pickerFor === message.id}
+                onClick={() =>
+                  context.setPickerFor(context.pickerFor === message.id ? undefined : message.id)
+                }
+              >
+                <span aria-hidden="true">☺</span>
+                {tOr('ProjectChannelScreen.reactShort', 'React')}
+              </button>
+            )}
+            {editable ? (
+              <button
+                type="button"
+                className="tm-chat-hover"
+                aria-expanded={editing}
+                onClick={() => context.setEditingId(editing ? undefined : message.id)}
+              >
+                <span aria-hidden="true">✎</span>
+                {tOr('ProjectChannelScreen.editShort', 'Edit')}
+              </button>
+            ) : null}
+            {removed && message.editedAt === null ? null : (
+              <button
+                type="button"
+                className="tm-chat-hover"
+                aria-label={tOr('ProjectChannelScreen.moreActions', 'More actions')}
+                aria-expanded={context.moreFor === message.id}
+                onClick={() =>
+                  context.setMoreFor(context.moreFor === message.id ? undefined : message.id)
+                }
+              >
+                <span aria-hidden="true">⋯</span>
+              </button>
+            )}
+            {context.moreFor === message.id ? (
+              <div className="tm-chat-more">
+                {removed ? null : (
+                  <button
+                    type="button"
+                    className="tm-chat-more__item"
+                    aria-expanded={context.convertTargetId === message.id}
+                    onClick={() => {
+                      context.setMoreFor(undefined);
+                      context.setConvertTargetId((current) =>
+                        current === message.id ? undefined : message.id,
+                      );
+                    }}
+                  >
+                    {t('ProjectChannelScreen.createWorkFromThis')}
+                  </button>
+                )}
+                {message.editedAt !== null ? (
+                  <button
+                    type="button"
+                    className="tm-chat-more__item"
+                    aria-expanded={context.historyMessageId === message.id}
+                    onClick={() => {
+                      context.setMoreFor(undefined);
+                      context.setHistoryMessageId((current) =>
+                        current === message.id ? undefined : message.id,
+                      );
+                    }}
+                  >
+                    {t('ProjectChannelScreen.editHistory')}
+                  </button>
+                ) : null}
+                {removed ? null : (
+                  <button
+                    type="button"
+                    className="tm-chat-more__item tm-chat-more__item--danger"
+                    onClick={() => {
+                      context.setMoreFor(undefined);
+                      context.setRemoveTargetId(message.id);
+                    }}
+                  >
+                    {tOr('MessageActionsSheet.delete', 'Delete message')}
+                  </button>
+                )}
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {context.removeTargetId === message.id ? (
+          <InlineAlert tone="warning" title={t('ProjectChannelScreen.removeConfirmTitle')} live>
+            <p className="tm-prose">{t('ProjectChannelScreen.removeConfirmBody')}</p>
+            <div className="tm-row">
+              <Button
+                tone="destructive"
+                size="accessible"
+                loading={moderate.isPending}
+                loadingLabel={t('ProjectChannelScreen.removing')}
+                onClick={() => moderate.mutate(message.id)}
+              >
+                {t('ProjectChannelScreen.removeIt')}
+              </Button>
+              <Button
+                tone="outline"
+                size="accessible"
+                onClick={() => context.setRemoveTargetId(undefined)}
+              >
+                {t('ProjectChannelScreen.leaveIt')}
+              </Button>
+            </div>
+            {moderate.isError ? (
+              <p className="tm-prose">{describeError(moderate.error, t)}</p>
+            ) : null}
+          </InlineAlert>
+        ) : null}
+
+        {context.historyMessageId === message.id ? (
+          <RevisionHistory
+            api={api}
+            organizationSlug={organizationSlug}
+            conversationId={conversationId}
+            messageId={message.id}
+          />
+        ) : null}
+      </div>
+
+      {sheetOpen ? (
+        <MessageActionsSheet
+          reacted={reactedSet}
+          onReact={reactions.react}
+          onMoreReactions={() => context.setPickerFor(message.id)}
+          onReply={() => {
+            if (rowRef.current !== null) context.openThread(message.id, rowRef.current);
+          }}
+          {...(editable ? { onEdit: () => context.setEditingId(message.id) } : {})}
+          {...(!removed && message.body !== null
+            ? {
+                onCopy: () => {
+                  const text = message.body ?? '';
+                  void navigator.clipboard?.writeText(text).catch(() => {});
+                },
+              }
+            : {})}
+          {...(files[0] !== undefined
+            ? {
+                attachmentHref: fileContentHref(organizationSlug, files[0].fileAssetId),
+                attachmentName: files[0].name,
+              }
+            : {})}
+          {...(removed ? {} : { onDelete: () => context.setRemoveTargetId(message.id) })}
+          onClose={context.closeSheet}
+        />
+      ) : null}
+    </li>
+  );
+}
+
+/**
+ * A16 — the inline edit card: the message's text in place, "Enter to save · Esc to cancel",
+ * Cancel and Save. Saving PATCHes the body; the API keeps the replaced text as a revision, which
+ * is what the "(edited)" mark and Edit history read.
+ */
+function InlineEditCard({
+  api,
+  organizationSlug,
+  conversationId,
+  message,
+  onDone,
+  onCancel,
+}: {
+  api: ApiClient;
+  organizationSlug: string;
+  conversationId: string;
+  message: MessageSummary;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const t = useT();
+  const tOr = useTOr();
+  const [draft, setDraft] = useState(message.body ?? '');
+  const controlRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const control = controlRef.current;
+    if (control === null) return;
+    control.focus();
+    control.setSelectionRange(control.value.length, control.value.length);
+  }, []);
+  const save = useMutation({
+    mutationFn: (body: string) =>
+      editChannelMessage(api, organizationSlug, conversationId, message.id, body),
+    onSuccess: onDone,
+  });
+  const trimmed = draft.trim();
+  const unchanged = trimmed === (message.body ?? '').trim();
+  const performSave = () => {
+    if (trimmed === '' || save.isPending) return;
+    if (unchanged) {
+      onCancel();
+      return;
+    }
+    save.mutate(trimmed);
+  };
+  const controlId = `tm-edit-${message.id}`;
+
+  return (
+    <div className="tm-chat-edit">
+      <label className="tm-visually-hidden" htmlFor={controlId}>
+        {tOr('MessageActionsSheet.edit', 'Edit message')}
+      </label>
+      <textarea
+        id={controlId}
+        ref={controlRef}
+        className="tm-chat-edit__input"
+        rows={1}
+        maxLength={16000}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Escape') {
+            event.preventDefault();
+            onCancel();
+          } else if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
+            event.preventDefault();
+            performSave();
+          }
+        }}
+      />
+      {save.isError ? (
+        <InlineAlert tone="danger" title={tOr('ProjectChannelScreen.notSaved', 'Not saved')} live>
+          {describeError(save.error, t)}
+        </InlineAlert>
+      ) : null}
+      <div className="tm-chat-edit__foot">
+        <span className="tm-chat-edit__hint">
+          {tOr('ProjectChannelScreen.editHint', 'Enter to save · Esc to cancel')}
+        </span>
+        <button type="button" className="tm-chat-edit__cancel" onClick={onCancel}>
+          {t('ProjectChannelScreen.cancel')}
+        </button>
+        <button
+          type="button"
+          className="tm-chat-edit__save"
+          disabled={trimmed === '' || save.isPending}
+          aria-busy={save.isPending}
+          onClick={performSave}
+        >
+          {tOr('ProjectChannelScreen.save', 'Save')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * A16 — the right Members panel: "Members · n", INTERNAL · n and CLIENT · n groups (a client
+ * ringed and chipped "Client"), and "Add people", which lists the organization's members who are
+ * not in the channel yet and adds the one picked. Presence is not drawn: the API has no online
+ * signal, and a dot that always said "Online" would be invented.
+ */
+function ChannelMembersPanel({
+  api,
+  organizationSlug,
+  conversationId,
+  memberIds,
+  total,
+  nameOf,
+  isClient,
+  archived,
+}: {
+  api: ApiClient;
+  organizationSlug: string;
+  conversationId: string;
+  memberIds: readonly string[];
+  total: number;
+  nameOf: (userId: string) => string;
+  isClient: (userId: string) => boolean;
+  archived: boolean;
+}) {
+  const tOr = useTOr();
+  const queries = useQueryClient();
+  const [adding, setAdding] = useState(false);
+  const directory = useMembers(api, organizationSlug);
+  const internal = memberIds.filter((id) => !isClient(id));
+  const clients = memberIds.filter((id) => isClient(id));
+  const inChannel = new Set(memberIds);
+  const candidates = (directory.members ?? []).filter(
+    (member) => !inChannel.has(member.userId) && member.status !== 'suspended',
+  );
+  const add = useMutation({
+    mutationFn: (userId: string) => addChannelMember(api, organizationSlug, conversationId, userId),
+    onSuccess: () => {
+      void queries.invalidateQueries({
+        queryKey: ['channel-members', organizationSlug, conversationId],
+      });
+      void queries.invalidateQueries({
+        queryKey: ['conversations', organizationSlug, 'directory'],
+      });
+    },
+  });
+
+  const person = (userId: string, client: boolean) => (
+    <li key={userId} className="tm-chat-members__row">
+      <AuthorOrb name={nameOf(userId)} size="sm" client={client} />
+      <span className="tm-chat-members__name">{nameOf(userId)}</span>
+      {client ? (
+        <span className="tm-chat-pill tm-chat-pill--client tm-chat-pill--sm">
+          {tOr('MentionPicker.client', 'Client')}
+        </span>
+      ) : null}
+    </li>
+  );
+
+  return (
+    <section
+      className="tm-chat-members"
+      aria-label={tOr('ProjectChannelScreen.membersHeading', 'Members')}
+    >
+      <h2 className="tm-chat-members__head">
+        <span>{tOr('ProjectChannelScreen.membersHeading', 'Members')}</span>
+        <span className="tm-chat-members__total">{total}</span>
+      </h2>
+      <h3 className="tm-chat-members__group">
+        {tOr('ProjectChannelScreen.internalGroup', 'Internal')} · {internal.length}
+      </h3>
+      <ul className="tm-chat-members__list">{internal.map((id) => person(id, false))}</ul>
+      {clients.length > 0 ? (
+        <>
+          <h3 className="tm-chat-members__group">
+            {tOr('ProjectChannelScreen.clientGroup', 'Client')} · {clients.length}
+          </h3>
+          <ul className="tm-chat-members__list">{clients.map((id) => person(id, true))}</ul>
+        </>
+      ) : null}
+      {archived ? null : (
+        <button
+          type="button"
+          className="tm-chat-members__add"
+          aria-expanded={adding}
+          onClick={() => setAdding((open) => !open)}
+        >
+          {tOr('ProjectChannelScreen.addPeople', 'Add people')}
+        </button>
+      )}
+      {adding ? (
+        candidates.length === 0 ? (
+          <p className="tm-chat-members__empty">
+            {tOr('ProjectChannelScreen.everyoneIsHere', 'Everyone in the organization is here.')}
+          </p>
+        ) : (
+          <ul
+            className="tm-chat-members__list"
+            aria-label={tOr('ProjectChannelScreen.addPeople', 'Add people')}
+          >
+            {candidates.map((member) => (
+              <li key={member.userId}>
+                <button
+                  type="button"
+                  className="tm-chat-members__pick"
+                  disabled={add.isPending}
+                  onClick={() => add.mutate(member.userId)}
+                >
+                  <AuthorOrb name={member.displayName} size="sm" />
+                  <span className="tm-chat-members__name">{member.displayName}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      ) : null}
+      {add.isError ? (
+        <InlineAlert
+          tone="danger"
+          title={tOr('ProjectChannelScreen.couldNotAdd', 'Not added')}
+          live
+        >
+          {add.error instanceof ApiRequestError ? add.error.message : ''}
+        </InlineAlert>
+      ) : null}
+    </section>
   );
 }
 
@@ -631,10 +1227,18 @@ function initialsOf(name: string): string {
   return name.slice(0, 2).toUpperCase();
 }
 
-function AuthorOrb({ name, size }: { name: string; size?: 'sm' | 'md' }) {
+function AuthorOrb({
+  name,
+  size,
+  client = false,
+}: {
+  name: string;
+  size?: 'sm' | 'md';
+  client?: boolean;
+}) {
   return (
     <span
-      className={`tm-chat-orb${size === undefined ? '' : ` tm-chat-orb--${size}`}`}
+      className={`tm-chat-orb${size === undefined ? '' : ` tm-chat-orb--${size}`}${client ? ' tm-chat-orb--client' : ''}`}
       aria-hidden="true"
     >
       {initialsOf(name)}
@@ -856,6 +1460,7 @@ function Composer({
   });
   const [attemptId, setAttemptId] = useState<string | undefined>(undefined);
   const [inadmissible, setInadmissible] = useState<string | undefined>(undefined);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const controlRef = useRef<HTMLTextAreaElement | null>(null);
   const tOr = useTOr();
   const mention = useMentionComposer({
@@ -1000,6 +1605,29 @@ function Composer({
   }
 
   const controlId = parentMessageId === undefined ? 'tm-composer' : 'tm-thread-composer';
+  // A16: the channel composer is the Figma's "+ · @ · →" card — the formatting toolbar sits
+  // behind "+" — while the thread reply keeps its full toolbar, dictation and labelled Send.
+  const channelStyle = parentMessageId === undefined;
+  const toolbar = (
+    <div
+      className="tm-chat-composer__tools"
+      role="group"
+      aria-label={t('ProjectChannelScreen.formattingGroup')}
+    >
+      {TOOLBAR.map((tool) => (
+        <button
+          key={tool.labelKey}
+          type="button"
+          className="tm-chat-composer__tool"
+          aria-label={t(tool.labelKey)}
+          title={t(tool.labelKey)}
+          onClick={() => applyEdit(tool.edit)}
+        >
+          <span aria-hidden="true">{tool.glyph}</span>
+        </button>
+      ))}
+    </div>
+  );
 
   if (archived) {
     return <p className="tm-chat-archived">{t('ProjectChannelScreen.channelArchived')}</p>;
@@ -1014,7 +1642,7 @@ function Composer({
         id={controlId}
         ref={controlRef}
         className="tm-chat-composer__input"
-        rows={parentMessageId === undefined ? 2 : 3}
+        rows={parentMessageId === undefined ? 1 : 3}
         maxLength={16000}
         value={draft}
         placeholder={placeholder ?? label}
@@ -1061,45 +1689,60 @@ function Composer({
         </InlineAlert>
       ) : null}
 
-      <div className="tm-chat-composer__bar">
-        <div
-          className="tm-chat-composer__tools"
-          role="group"
-          aria-label={t('ProjectChannelScreen.formattingGroup')}
-        >
-          {TOOLBAR.map((tool) => (
-            <button
-              key={tool.labelKey}
-              type="button"
-              className="tm-chat-composer__tool"
-              aria-label={t(tool.labelKey)}
-              title={t(tool.labelKey)}
-              onClick={() => applyEdit(tool.edit)}
-            >
-              <span aria-hidden="true">{tool.glyph}</span>
-            </button>
-          ))}
+      {channelStyle ? (
+        <div className="tm-chat-composer__bar tm-chat-composer__bar--channel">
+          <button
+            type="button"
+            className="tm-chat-side__round"
+            aria-label={tOr('ProjectChannelScreen.formattingToggle', 'Formatting')}
+            title={tOr('ProjectChannelScreen.formattingToggle', 'Formatting')}
+            aria-expanded={toolsOpen}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setToolsOpen((open) => !open)}
+          >
+            <span aria-hidden="true">+</span>
+          </button>
+          {toolsOpen ? toolbar : null}
+          <span className="tm-chat-composer__spacer" aria-hidden="true" />
+          {mentionsOn ? (
+            <MentionButton
+              label={tOr('MentionPicker.button', 'Mention someone')}
+              onClick={mention.openAtCaret}
+            />
+          ) : null}
+          <button
+            type="submit"
+            className="tm-chat-side__send"
+            aria-label={
+              send.isPending ? t('ProjectChannelScreen.sending') : t('ProjectChannelScreen.send')
+            }
+            title={t('ProjectChannelScreen.send')}
+            disabled={composed === undefined || send.isPending}
+            aria-busy={send.isPending}
+          >
+            <span className="tm-chat-side__send-arrow" aria-hidden="true">
+              →
+            </span>
+          </button>
         </div>
-        <MicButton dictation={dictation} compact />
-        {mentionsOn ? (
-          <MentionButton
-            label={tOr('MentionPicker.button', 'Mention someone')}
-            onClick={mention.openAtCaret}
-          />
-        ) : null}
-        <button
-          type="submit"
-          className="tm-chat-send"
-          disabled={composed === undefined || send.isPending}
-          aria-busy={send.isPending}
-        >
-          <span className="tm-chat-send__orb" aria-hidden="true">
-            ↑
-          </span>
-          {send.isPending ? t('ProjectChannelScreen.sending') : t('ProjectChannelScreen.send')}
-        </button>
-      </div>
-      <MicNotice dictation={dictation} />
+      ) : (
+        <div className="tm-chat-composer__bar">
+          {toolbar}
+          <MicButton dictation={dictation} compact />
+          <button
+            type="submit"
+            className="tm-chat-send"
+            disabled={composed === undefined || send.isPending}
+            aria-busy={send.isPending}
+          >
+            <span className="tm-chat-send__orb" aria-hidden="true">
+              ↑
+            </span>
+            {send.isPending ? t('ProjectChannelScreen.sending') : t('ProjectChannelScreen.send')}
+          </button>
+        </div>
+      )}
+      {channelStyle ? null : <MicNotice dictation={dictation} />}
     </form>
   );
 }

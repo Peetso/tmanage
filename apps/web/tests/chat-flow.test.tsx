@@ -169,7 +169,28 @@ function channelHandler(
     if (call.url.includes('/revisions')) {
       return (overrides['revisions'] ?? (() => json({ revisions: [] })))(call);
     }
+    // A16: the reaction pills, attachment cards, Members panel and channel counts.
+    if (/\/organizations\/northstar\/members/u.test(call.url)) {
+      return (overrides['orgMembers'] ?? (() => json({}, 404)))(call);
+    }
+    if (call.url.includes('/reactions')) {
+      return (overrides['reactions'] ?? (() => json({ messageId: 'msg-1', reactions: [] })))(call);
+    }
+    if (call.url.includes('/attachments')) {
+      return (overrides['attachments'] ?? (() => json({ attachments: [] })))(call);
+    }
+    if (call.url.includes('/conversations/conv-1/members')) {
+      return (overrides['members'] ?? (() => json({ members: [] })))(call);
+    }
+    if (call.url.includes('/conversations/directory')) {
+      return (overrides['directory'] ?? (() => json({}, 404)))(call);
+    }
     if (call.url.includes('/messages')) {
+      if (call.method === 'PATCH') {
+        return (
+          overrides['edit'] ?? (() => json(message({ editedAt: '2026-08-27T12:00:00.000Z' })))
+        )(call);
+      }
       if (call.method === 'POST') {
         return (overrides['post'] ?? (() => json(message({ id: 'msg-new' }), 201)))(call);
       }
@@ -617,6 +638,8 @@ describe('TM-09 the convert dialog', () => {
     renderChannel(client);
     const list = await screen.findByRole('list', { name: 'Messages, oldest first' });
     const firstItem = within(list).getAllByRole('listitem')[0] as HTMLElement;
+    // A16: Create work sits in the hover bar's ⋯ menu.
+    await userEvent.click(within(firstItem).getByRole('button', { name: 'More actions' }));
     await userEvent.click(within(firstItem).getByRole('button', { name: 'Create work from this' }));
     await screen.findByRole('form', { name: 'Create work from this message' });
   }
@@ -746,6 +769,8 @@ describe('the rich composer — WEB-003 second half', () => {
     const box = (await screen.findByLabelText('Message the channel')) as HTMLTextAreaElement;
     await userEvent.type(box, 'make this bold');
     box.setSelectionRange(5, 9); // "this"
+    // A16: the formatting toolbar sits behind the composer's "+".
+    await userEvent.click(screen.getByRole('button', { name: 'Formatting' }));
     await userEvent.click(screen.getByRole('button', { name: 'Bold' }));
 
     expect(box).toHaveValue('make **this** bold');
@@ -863,10 +888,10 @@ describe('the live feed — RT-001 second half', () => {
     await waitFor(() => expect(sockets).toHaveLength(1));
 
     // Minor 1: while the socket is 'connecting' the status span is deliberately empty, so the
-    // breadcrumb must not trail a dangling ' · ' separator with nothing after it.
-    expect(
-      screen.getByText('Back to all channels').closest('p')?.textContent?.replace(/\s+$/u, ''),
-    ).not.toMatch(/·$/u);
+    // header line must not trail a dangling ' · ' separator with nothing after it.
+    expect(screen.getByText(/^Project channel · /u).textContent?.replace(/\s+$/u, '')).not.toMatch(
+      /·$/u,
+    );
 
     const socket = sockets[0] as FakeSocket;
     socket.emitOpen();
@@ -1083,5 +1108,125 @@ describe('the live feed — RT-001 second half', () => {
     expect(screen.queryByText('Reconnecting to live updates')).toBeNull();
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(sockets).toHaveLength(2);
+  });
+});
+
+describe('A16 chat basics — members panel, inline edit, reactions', () => {
+  const ORG_MEMBERS = {
+    members: [
+      { userId: 'user-aaaa-1111', displayName: 'Lina Samir', role: 'member', status: 'active' },
+      { userId: 'user-omar', displayName: 'Omar Adel', role: 'owner', status: 'active' },
+      { userId: 'user-salma', displayName: 'Salma Riad', role: 'client', status: 'active' },
+      { userId: 'user-nour', displayName: 'Nour Ali', role: 'member', status: 'active' },
+    ],
+    nextAfter: null,
+  };
+
+  it('counts internal and client members in the header and groups them in the Members panel', async () => {
+    const { client } = clientOver(
+      channelHandler({
+        orgMembers: () => json(ORG_MEMBERS),
+        members: () =>
+          json({
+            members: [
+              { userId: 'user-aaaa-1111', joinedAt: '2026-08-26T00:00:00.000Z' },
+              { userId: 'user-omar', joinedAt: '2026-08-26T00:00:00.000Z' },
+              { userId: 'user-salma', joinedAt: '2026-08-26T00:00:00.000Z' },
+            ],
+          }),
+        directory: () =>
+          json({
+            channels: [
+              directoryEntry({
+                memberCount: 3,
+                clientMemberCount: 1,
+                memberPreview: [
+                  { userId: 'user-salma', displayName: 'Salma Riad', isClient: true },
+                ],
+              }),
+            ],
+          }),
+      }),
+    );
+    renderChannel(client);
+
+    expect(
+      await screen.findByText(/Project channel · 2 internal · 1 client members/u),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Client visible')).toBeInTheDocument();
+
+    const panel = await screen.findByRole('region', { name: 'Members' });
+    await within(panel).findByText('Salma Riad');
+    expect(within(panel).getByText('Internal · 2')).toBeInTheDocument();
+    expect(within(panel).getByText('Client · 1')).toBeInTheDocument();
+    expect(within(panel).getByText('Lina Samir')).toBeInTheDocument();
+
+    // "Add people" offers only the organization members not in the channel yet.
+    await userEvent.click(within(panel).getByRole('button', { name: 'Add people' }));
+    const picker = within(panel).getByRole('list', { name: 'Add people' });
+    expect(within(picker).getByRole('button', { name: /Nour Ali/u })).toBeInTheDocument();
+    expect(within(picker).queryByRole('button', { name: /Omar Adel/u })).toBeNull();
+  });
+
+  it('edits a message in place: Enter PATCHes the new body, Esc leaves it untouched', async () => {
+    const { client, calls } = clientOver(channelHandler());
+    renderChannel(client);
+
+    const list = await screen.findByRole('list', { name: 'Messages, oldest first' });
+    const firstItem = within(list).getAllByRole('listitem')[0] as HTMLElement;
+
+    await userEvent.click(within(firstItem).getByRole('button', { name: 'Edit' }));
+    expect(within(firstItem).getByText('Enter to save · Esc to cancel')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(within(firstItem).queryByText('Enter to save · Esc to cancel')).toBeNull();
+    expect(calls.some((call) => call.method === 'PATCH')).toBe(false);
+
+    await userEvent.click(within(firstItem).getByRole('button', { name: 'Edit' }));
+    const box = within(firstItem).getByLabelText('Edit message');
+    await userEvent.clear(box);
+    await userEvent.type(box, 'The hero copy is final.{Enter}');
+
+    await waitFor(() => expect(calls.some((call) => call.method === 'PATCH')).toBe(true));
+    const patch = calls.find((call) => call.method === 'PATCH');
+    expect(patch?.url).toMatch(/\/conversations\/conv-1\/messages\/msg-1$/u);
+    expect(patch?.body).toEqual({ body: 'The hero copy is final.' });
+    await waitFor(() =>
+      expect(within(firstItem).queryByText('Enter to save · Esc to cancel')).toBeNull(),
+    );
+  });
+
+  it('draws used reactions as pills with counts and toggles the member own reaction', async () => {
+    const { client, calls } = clientOver(
+      channelHandler({
+        reactions: (call) =>
+          call.url.includes('/messages/msg-1/')
+            ? json({
+                messageId: 'msg-1',
+                reactions: [
+                  { emoji: '❤️', count: 3, reacted: true },
+                  { emoji: '\u{2713}', count: 2, reacted: false },
+                ],
+              })
+            : json({ messageId: 'other', reactions: [] }),
+      }),
+    );
+    renderChannel(client);
+
+    const heart = await screen.findByRole('button', { name: 'Heart, 3' });
+    expect(heart).toHaveAttribute('aria-pressed', 'true');
+    const check = screen.getByRole('button', { name: 'Done, 2' });
+    expect(check).toHaveAttribute('aria-pressed', 'false');
+
+    await userEvent.click(check);
+    await waitFor(() =>
+      expect(
+        calls.some(
+          (call) =>
+            call.method === 'PUT' &&
+            call.url.endsWith('/messages/msg-1/reactions') &&
+            (call.body as { emoji?: string }).emoji === '\u{2713}',
+        ),
+      ).toBe(true),
+    );
   });
 });

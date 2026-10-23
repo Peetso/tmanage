@@ -97,6 +97,7 @@ test.describe.serial('the chat journeys', () => {
       .getByRole('listitem')
       .filter({ hasText: MESSAGE });
     await posted.hover();
+    await posted.getByRole('button', { name: 'More actions' }).click();
     await page.getByRole('button', { name: 'Create work from this' }).click();
     await expect(page.getByLabel('Title')).toHaveValue(MESSAGE);
     await page.getByRole('button', { name: 'Create work item' }).click();
@@ -108,6 +109,7 @@ test.describe.serial('the chat journeys', () => {
 
     // Convert it AGAIN — the retry that must not duplicate.
     await posted.hover();
+    await posted.getByRole('button', { name: 'More actions' }).click();
     await page.getByRole('button', { name: 'Create work from this' }).click();
     await page.getByRole('button', { name: 'Create work item' }).click();
     await expect(page.getByText('Already converted')).toBeVisible();
