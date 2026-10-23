@@ -1,24 +1,25 @@
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 /**
- * Pricing page copy (SITE-SPEC "PAGE: Pricing", as drawn in the approved 11-pricing design).
- * Prices are not set before paid beta, so every plan shows "$ —" and the launch-price note.
- * The words themselves live in the i18n catalogs; this file holds only keys, links and flags.
+ * Pricing page data (approved Figma section 376:2087, frames pr-desktop / pr-mobile).
+ * Flat prices for the whole team — never per seat — with yearly billing at −20 %.
+ * The words themselves live in the i18n catalogs; this file holds only keys, prices, links and flags.
  */
 
 export type BillingPeriod = 'monthly' | 'yearly';
 
-/**
- * A pricing catalog key. Every visible word on the plan cards, the comparison table and the FAQ
- * comes from `en.json`/`ar.json` under `PricingPage.*`, so the Arabic page never falls back to the
- * English copy (live check 014a9d51, report lines 106-107).
- */
+/** A pricing catalog key: every visible word comes from `en.json`/`ar.json` under `PricingPage.*`. */
 export type PricingKey = `PricingPage.${string}`;
+
+/** Yearly billing saves 20 %: the yearly price per month is the monthly price × 0.8. */
+export const YEARLY_FACTOR = 0.8;
 
 export interface PricingPlan {
   id: 'free' | 'starter' | 'studio' | 'business' | 'enterprise';
   /** The tier name. English and Arabic both show the Latin name (Arabic prefixes U+200F). */
   nameKey: PricingKey;
   positioningKey: PricingKey;
+  /** Flat monthly price for the whole team in US cents; `null` is Enterprise's custom quote. */
+  monthlyCents: number | null;
   cta: { labelKey: PricingKey; href: string };
   featureKeys: readonly PricingKey[];
   /** Studio: the lime-bordered "Most teams start here" card with the lime CTA. */
@@ -31,138 +32,106 @@ export const PRICING_PLANS: readonly PricingPlan[] = [
   {
     id: 'free',
     nameKey: 'PricingPage.planFreeName',
-    positioningKey: 'PricingPage.planFreePositioning',
+    positioningKey: 'PricingPage.flatFreePositioning',
+    monthlyCents: 0,
     cta: { labelKey: 'PricingPage.planFreeCta', href: SIGN_UP_HREF },
     featureKeys: [
-      'PricingPage.planFreeFeature1',
-      'PricingPage.planFreeFeature2',
-      'PricingPage.planFreeFeature3',
-      'PricingPage.planFreeFeature4',
+      'PricingPage.flatFreeFeature1',
+      'PricingPage.flatFreeFeature2',
+      'PricingPage.flatFreeFeature3',
+      'PricingPage.flatFreeFeature4',
     ],
   },
   {
     id: 'starter',
     nameKey: 'PricingPage.planStarterName',
-    positioningKey: 'PricingPage.planStarterPositioning',
+    positioningKey: 'PricingPage.flatStarterPositioning',
+    monthlyCents: 1900,
     cta: { labelKey: 'PricingPage.planStarterCta', href: SIGN_UP_HREF },
     featureKeys: [
-      'PricingPage.planStarterFeature1',
-      'PricingPage.planStarterFeature2',
-      'PricingPage.planStarterFeature3',
-      'PricingPage.planStarterFeature4',
+      'PricingPage.flatStarterFeature1',
+      'PricingPage.flatStarterFeature2',
+      'PricingPage.flatStarterFeature3',
+      'PricingPage.flatStarterFeature4',
     ],
   },
   {
     id: 'studio',
     nameKey: 'PricingPage.planStudioName',
-    positioningKey: 'PricingPage.planStudioPositioning',
+    positioningKey: 'PricingPage.flatStudioPositioning',
+    monthlyCents: 4900,
     cta: { labelKey: 'PricingPage.planStudioCta', href: SIGN_UP_HREF },
     featureKeys: [
-      'PricingPage.planStudioFeature1',
-      'PricingPage.planStudioFeature2',
-      'PricingPage.planStudioFeature3',
-      'PricingPage.planStudioFeature4',
+      'PricingPage.flatStudioFeature1',
+      'PricingPage.flatStudioFeature2',
+      'PricingPage.flatStudioFeature3',
+      'PricingPage.flatStudioFeature4',
     ],
     featured: true,
   },
   {
     id: 'business',
     nameKey: 'PricingPage.planBusinessName',
-    positioningKey: 'PricingPage.planBusinessPositioning',
+    positioningKey: 'PricingPage.flatBusinessPositioning',
+    monthlyCents: 8900,
     cta: { labelKey: 'PricingPage.planBusinessCta', href: SIGN_UP_HREF },
     featureKeys: [
-      'PricingPage.planBusinessFeature1',
-      'PricingPage.planBusinessFeature2',
-      'PricingPage.planBusinessFeature3',
-      'PricingPage.planBusinessFeature4',
+      'PricingPage.flatBusinessFeature1',
+      'PricingPage.flatBusinessFeature2',
+      'PricingPage.flatBusinessFeature3',
+      'PricingPage.flatBusinessFeature4',
     ],
   },
   {
     id: 'enterprise',
     nameKey: 'PricingPage.planEnterpriseName',
-    positioningKey: 'PricingPage.planEnterprisePositioning',
+    positioningKey: 'PricingPage.flatEnterprisePositioning',
+    monthlyCents: null,
     cta: { labelKey: 'PricingPage.planEnterpriseCta', href: '/contact' },
     featureKeys: [
-      'PricingPage.planEnterpriseFeature1',
-      'PricingPage.planEnterpriseFeature2',
-      'PricingPage.planEnterpriseFeature3',
-      'PricingPage.planEnterpriseFeature4',
+      'PricingPage.flatEnterpriseFeature1',
+      'PricingPage.flatEnterpriseFeature2',
+      'PricingPage.flatEnterpriseFeature3',
+      'PricingPage.flatEnterpriseFeature4',
     ],
     ink: true,
   },
 ];
 
-/** A comparison cell: included, not included, or a short word ("Limited", "Add-on", "Contract"). */
-export type CompareCell = true | false | PricingKey;
-
-const LIMITED: PricingKey = 'PricingPage.cellLimited';
-const ADD_ON: PricingKey = 'PricingPage.cellAddOn';
-const CONTRACT: PricingKey = 'PricingPage.cellContract';
-
-export interface CompareGroup {
-  categoryKey: PricingKey;
-  rows: readonly { featureKey: PricingKey; cells: readonly CompareCell[] }[];
+/** `$19` for whole dollars, `$15.20` otherwise — the two forms the design draws. */
+export function formatUsd(cents: number, decimals: 'auto' | 'always' = 'auto'): string {
+  const dollars = cents / 100;
+  const whole = Number.isInteger(dollars) && decimals === 'auto';
+  return `$${whole ? dollars.toFixed(0) : dollars.toFixed(2)}`;
 }
 
-export const COMPARE_GROUPS: readonly CompareGroup[] = [
-  {
-    categoryKey: 'PricingPage.compareCatWork',
-    rows: [
-      { featureKey: 'PricingPage.compareRowProjects', cells: [true, true, true, true, true] },
-      { featureKey: 'PricingPage.compareRowIntake', cells: [LIMITED, true, true, true, true] },
-    ],
-  },
-  {
-    categoryKey: 'PricingPage.compareCatChat',
-    rows: [
-      { featureKey: 'PricingPage.compareRowChat', cells: [true, true, true, true, true] },
-      { featureKey: 'PricingPage.compareRowCalendars', cells: [LIMITED, true, true, true, true] },
-    ],
-  },
-  {
-    categoryKey: 'PricingPage.compareCatDocs',
-    rows: [
-      { featureKey: 'PricingPage.compareRowDocs', cells: [LIMITED, LIMITED, true, true, true] },
-      { featureKey: 'PricingPage.compareRowApprovals', cells: [false, true, true, true, true] },
-    ],
-  },
-  {
-    categoryKey: 'PricingPage.compareCatPortal',
-    rows: [
-      { featureKey: 'PricingPage.compareRowClientSeats', cells: [true, true, true, true, true] },
-      { featureKey: 'PricingPage.compareRowBranding', cells: [false, true, true, true, true] },
-    ],
-  },
-  {
-    categoryKey: 'PricingPage.compareCatInsights',
-    rows: [
-      { featureKey: 'PricingPage.compareRowInsights', cells: [false, false, true, true, true] },
-      {
-        featureKey: 'PricingPage.compareRowAutomations',
-        cells: [false, LIMITED, true, true, true],
-      },
-    ],
-  },
-  {
-    categoryKey: 'PricingPage.compareCatSecurity',
-    rows: [
-      { featureKey: 'PricingPage.compareRowSso', cells: [false, false, false, ADD_ON, true] },
-      {
-        featureKey: 'PricingPage.compareRowResidency',
-        cells: [false, false, false, ADD_ON, CONTRACT],
-      },
-    ],
-  },
-];
+export interface PlanPrice {
+  /** The big figure: per month at the chosen period ($19 monthly, $15.20 yearly). */
+  perMonth: string;
+  /** The whole year billed yearly ($182.40). */
+  perYear: string;
+  /** The monthly-billed price ($19). */
+  monthly: string;
+  /** The yearly-billed price per month ($15.20). */
+  yearlyPerMonth: string;
+}
+
+/** The figures a paid card shows. Cents are rounded once, so ×0.8 never drifts a cent. */
+export function planPrice(monthlyCents: number, period: BillingPeriod): PlanPrice {
+  const yearlyMonthCents = Math.round(monthlyCents * YEARLY_FACTOR);
+  const yearlyPerMonth = formatUsd(yearlyMonthCents, 'always');
+  const monthly = formatUsd(monthlyCents);
+  return {
+    perMonth: period === 'yearly' ? yearlyPerMonth : monthly,
+    perYear: formatUsd(yearlyMonthCents * 12, 'always'),
+    monthly,
+    yearlyPerMonth,
+  };
+}
 
 export const PRICING_FAQ: readonly { questionKey: PricingKey; answerKey: PricingKey }[] = [
-  { questionKey: 'PricingPage.faqSeatQuestion', answerKey: 'PricingPage.faqSeatAnswer' },
-  { questionKey: 'PricingPage.faqNoPriceQuestion', answerKey: 'PricingPage.faqNoPriceAnswer' },
+  { questionKey: 'PricingPage.faqPersonQuestion', answerKey: 'PricingPage.faqPersonAnswer' },
+  { questionKey: 'PricingPage.faqFoundingQuestion', answerKey: 'PricingPage.faqFoundingAnswer' },
   { questionKey: 'PricingPage.faqSwitchQuestion', answerKey: 'PricingPage.faqSwitchAnswer' },
-  { questionKey: 'PricingPage.faqFreeQuestion', answerKey: 'PricingPage.faqFreeAnswer' },
-  { questionKey: 'PricingPage.faqYearlyQuestion', answerKey: 'PricingPage.faqYearlyAnswer' },
-  {
-    questionKey: 'PricingPage.faqEnterpriseQuestion',
-    answerKey: 'PricingPage.faqEnterpriseAnswer',
-  },
+  { questionKey: 'PricingPage.faqFreePlanQuestion', answerKey: 'PricingPage.faqFreePlanAnswer' },
 ];

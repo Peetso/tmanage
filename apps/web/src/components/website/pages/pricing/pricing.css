@@ -1,24 +1,25 @@
 /*
- * Pricing page (/pricing) — composed from the website layer and Limeframe tokens only
+ * Pricing page (/pricing) — approved frames pr-desktop / pr-mobile (Figma section 376:2087),
+ * composed from the website layer and Limeframe tokens only
  * (packages/ui/src/styles/tokens.css, components.css). No new colours, fonts or sizes.
  */
 
 /* ── Hero ────────────────────────────────────────────────────────────────── */
 
-/* 11-pricing draws its section eyebrows as plain small grey sans capitals, with no dot. */
-.tm-pricing .tm-web-eyebrow {
+/* The page eyebrow is plain small grey sans capitals with no dot; the FAQ eyebrow keeps its dot. */
+.tm-pricing-hero .tm-web-eyebrow {
   font-family: inherit;
 }
 
-.tm-pricing .tm-web-eyebrow__dot {
+.tm-pricing-hero .tm-web-eyebrow__dot {
   display: none;
 }
 
 .tm-pricing-hero.tm-web-section--default {
-  padding-block: var(--s20) var(--s24);
+  padding-block: var(--s16) var(--s16);
 }
 
-/* The page head runs wider than a section head so the title breaks as drawn. */
+/* The page head runs wider than a section head so the title holds one line, as drawn. */
 .tm-pricing-hero .tm-web-header {
   max-inline-size: calc(var(--doc) + var(--s20));
 }
@@ -39,11 +40,6 @@
   margin-block-start: var(--s4);
 }
 
-/* The plan picker (a packages/ui Select) only shows where one plan is shown at a time. */
-.tm-pricing-picker.tm-field {
-  display: none;
-}
-
 .tm-pricing-hero__note {
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
@@ -54,8 +50,8 @@
   background: var(--paper-150);
 }
 
-/* The segmented switch from components.css. 11-pricing draws the pressed segment as a paper
- * pill with a flat lime rule under its label, not the app's ink fill. */
+/* The segmented switch from components.css, drawn with the pressed segment as a paper pill with
+ * a flat lime rule under its label, not the app's ink fill. */
 .tm-pricing-toggle.tm-segmented > .tm-pricing-toggle__item {
   position: relative;
   min-block-size: var(--orb-default);
@@ -87,18 +83,59 @@
   box-shadow: var(--focus-ring);
 }
 
-/* ── Plan cards ──────────────────────────────────────────────────────────── */
+/* ── Founding offer banner ───────────────────────────────────────────────── */
 
-.tm-pricing .tm-pricing-plans,
-.tm-pricing .tm-pricing-compare {
-  margin-block-start: var(--s12);
+.tm-pricing-founding {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s5);
+  inline-size: fit-content;
+  max-inline-size: 100%;
+  margin: var(--s8) auto 0;
+  padding: var(--s4) var(--s5);
+  border: var(--b-quiet) solid var(--lime-500);
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  color: var(--ink-950);
 }
+
+.tm-pricing-founding__badge.tm-badge {
+  flex: none;
+  background: var(--paper-0);
+}
+
+.tm-pricing-founding__text {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-pricing-founding__cta {
+  flex: none;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+  text-decoration: none;
+}
+
+.tm-pricing-founding__cta:hover {
+  text-decoration: underline;
+}
+
+.tm-pricing-founding__cta:focus-visible {
+  outline: none;
+  border-radius: var(--r-micro);
+  box-shadow: var(--focus-ring);
+}
+
+/* ── Plan cards ──────────────────────────────────────────────────────────── */
 
 .tm-pricing-plans {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: var(--s4);
   align-items: stretch;
+  margin-block-start: var(--s12);
 }
 
 .tm-pricing-plan {
@@ -166,13 +203,14 @@
   display: flex;
   align-items: flex-end;
   flex-wrap: wrap;
-  gap: var(--s2);
+  gap: var(--s1);
+  margin-block-end: var(--s1);
 }
 
 .tm-pricing-plan__amount {
-  font-size: var(--t-display-metric);
-  line-height: var(--t-display-metric-line);
-  font-weight: 300;
+  font-size: var(--t-heading-page);
+  line-height: var(--t-heading-page-line);
+  font-weight: 500;
   color: inherit;
   white-space: nowrap;
 }
@@ -181,18 +219,17 @@
   padding-block-end: var(--s1);
   font-size: var(--t-ui-sm);
   line-height: var(--t-ui-sm-line);
-  color: var(--ink-800);
+  color: var(--ink-650);
 }
 
 .tm-pricing-plan__note {
-  margin-block-start: var(--s1);
   font-size: var(--t-caption);
   line-height: var(--t-caption-line);
   color: var(--ink-650);
 }
 
 .tm-pricing-plan--ink .tm-pricing-plan__note {
-  color: var(--web-on-ink-muted);
+  color: var(--tm-paper-absolute);
 }
 
 .tm-pricing-plan__cta.tm-button {
@@ -205,7 +242,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  margin-block-start: var(--s6);
+  margin-block-start: var(--s5);
   padding-block-start: var(--s5);
   border-block-start: var(--b-quiet) solid var(--line-300);
 }
@@ -233,157 +270,35 @@
   color: var(--lime-500);
 }
 
-/* ── How it's counted ────────────────────────────────────────────────────── */
+/* ── Compared with Basecamp ──────────────────────────────────────────────── */
 
-.tm-pricing-counted.tm-web-section--default {
-  padding-block: var(--s20);
-}
-
-.tm-pricing-rules {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--s6);
-}
-
-.tm-pricing-rule {
-  display: flex;
-  flex-direction: column;
-  padding: var(--s8);
-  border: var(--b-quiet) solid var(--line-300);
-  border-radius: var(--r-card);
-  background: var(--paper-0);
-}
-
-.tm-pricing-rule__scene {
+.tm-pricing-basecamp {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: var(--s2);
-  min-block-size: var(--orb-default);
-}
-
-.tm-pricing-rule__scene--compact {
-  gap: var(--s3);
-}
-
-.tm-pricing-rule__avatar.tm-avatar,
-[data-theme='dark'] .tm-pricing-rule__avatar.tm-avatar {
-  background: var(--paper-250);
-  color: var(--ink-800);
-}
-
-.tm-pricing-rule__mono {
-  font-family: var(--font-mono);
-}
-
-.tm-pricing-rule__ink {
-  color: var(--ink-950);
-}
-
-.tm-pricing-rule__title {
-  margin-block-start: var(--s4);
-  font-size: var(--t-heading-card);
-  line-height: var(--t-heading-card-line);
-  font-weight: 500;
-  color: var(--ink-950);
-}
-
-.tm-pricing-rule__body {
-  margin-block-start: var(--s4);
-  font-size: var(--t-body-md);
-  line-height: var(--t-body-md-line);
-  color: var(--ink-650);
-}
-
-/* ── Comparison table ────────────────────────────────────────────────────── */
-
-.tm-pricing-compare {
-  position: relative;
-  border: var(--b-quiet) solid var(--line-300);
+  justify-content: space-between;
+  gap: var(--s6);
+  margin-block-start: var(--s20);
+  padding: var(--s6) var(--s8);
   border-radius: var(--r-card);
-  background: var(--paper-0);
-  overflow: clip;
+  background: var(--paper-150);
 }
 
-.tm-pricing-compare__table {
-  inline-size: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.tm-pricing-compare__table th,
-.tm-pricing-compare__table td {
-  padding: var(--s4) var(--s6);
-  font-weight: 400;
-  text-align: center;
-}
-
-.tm-pricing-compare__table thead th {
-  position: sticky;
-  inset-block-start: var(--web-nav-h);
-  z-index: 1;
-  padding-block: var(--s5);
-  background: var(--paper-0);
-  box-shadow: inset 0 calc(var(--b-quiet) * -1) 0 var(--line-700);
-}
-
-.tm-pricing-compare__corner {
-  inline-size: 38%;
-  font-size: var(--t-ui-md);
-  line-height: var(--t-ui-md-line);
-  color: var(--ink-650);
-}
-
-.tm-pricing-compare__table .tm-pricing-compare__corner,
-.tm-pricing-compare__table .tm-pricing-compare__feature,
-.tm-pricing-compare__group th {
-  text-align: start;
-}
-
-.tm-pricing-compare__table .tm-pricing-compare__plan {
+.tm-pricing-basecamp__title {
   font-size: var(--t-heading-card);
   line-height: var(--t-heading-card-line);
   font-weight: 500;
   color: var(--ink-950);
 }
 
-.tm-pricing-compare__group th {
-  padding-block: var(--s3);
-  border-block-start: var(--b-quiet) solid var(--line-300);
-  background: var(--paper-150);
-  font-size: var(--t-ui-md);
-  line-height: var(--t-ui-md-line);
-  font-weight: 500;
-  color: var(--ink-950);
-}
-
-.tm-pricing-compare__table tbody:first-of-type .tm-pricing-compare__group th {
-  border-block-start: 0;
-}
-
-.tm-pricing-compare__table tbody tr:not(.tm-pricing-compare__group) > * {
-  border-block-start: var(--b-quiet) solid var(--line-300);
-}
-
-.tm-pricing-compare__table .tm-pricing-compare__feature {
+.tm-pricing-basecamp__body {
+  margin-block-start: var(--s1);
   font-size: var(--t-body-md);
   line-height: var(--t-body-md-line);
-  color: var(--ink-800);
-}
-
-.tm-pricing-compare__check {
-  color: var(--ink-950);
-  vertical-align: middle;
-}
-
-.tm-pricing-compare__none {
-  color: var(--ink-500);
-}
-
-.tm-pricing-compare__word {
-  font-size: var(--t-ui-sm);
-  line-height: var(--t-ui-sm-line);
   color: var(--ink-650);
+}
+
+.tm-pricing-basecamp__cta.tm-button {
+  flex: none;
 }
 
 /* ── FAQ ─────────────────────────────────────────────────────────────────── */
@@ -418,17 +333,6 @@
   color: var(--ink-650);
 }
 
-/* ── CTA band (text-only, two buttons) ───────────────────────────────────── */
-
-.tm-pricing-cta .tm-web-cta__title {
-  max-inline-size: var(--doc);
-}
-
-.tm-pricing-cta .tm-web-cta__lede {
-  max-inline-size: var(--reading);
-  margin-block-start: var(--s5);
-}
-
 /* ── Responsive ──────────────────────────────────────────────────────────── */
 
 @media (max-width: 1279px) {
@@ -444,88 +348,38 @@
   .tm-pricing-plan__positioning {
     min-block-size: 0;
   }
-
-  .tm-pricing-rules {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .tm-pricing-compare__table thead th {
-    position: static;
-  }
-
-  .tm-pricing-compare__table th,
-  .tm-pricing-compare__table td {
-    padding-inline: var(--s4);
-  }
 }
 
-/* Below 1024 the five plan columns no longer fit: the table shows one plan at a time,
- * picked with the Select above it (Slack's mobile pattern), so nothing scrolls sideways. */
-@media (max-width: 1023px) {
-  .tm-pricing-picker--compare.tm-field {
-    display: flex;
-  }
-
-  .tm-pricing .tm-pricing-picker--compare + .tm-pricing-compare {
-    margin-block-start: var(--s4);
-  }
-
-  .tm-pricing-compare__plan:not(.is-active),
-  .tm-pricing-compare__cell:not(.is-active) {
-    display: none;
-  }
-
-  /* Auto layout lets the hidden plan columns collapse to nothing. */
-  .tm-pricing-compare__table {
-    table-layout: auto;
-  }
-
-  .tm-pricing-compare__corner {
-    inline-size: 60%;
-  }
-}
-
+/* pr-mobile: the banner stacks with its link centred, the cards stack one per row, the Basecamp
+ * block stacks its button under the text, and the FAQ runs in one column. */
 @media (max-width: 767px) {
   .tm-pricing-hero.tm-web-section--default {
-    padding-block: var(--s16);
+    padding-block: var(--s10) var(--s12);
+  }
+
+  .tm-pricing-founding {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s3);
+    inline-size: auto;
+    padding: var(--s5);
+    border-radius: var(--r-card);
+  }
+
+  .tm-pricing-founding__cta {
+    align-self: center;
   }
 
   .tm-pricing-plans {
     grid-template-columns: minmax(0, 1fr);
+    margin-block-start: var(--s8);
   }
 
-  /* One plan card at a time on a phone, picked with the Select above the cards. */
-  .tm-pricing-picker--plans.tm-field {
-    display: flex;
-  }
-
-  .tm-pricing .tm-pricing-picker--plans + .tm-pricing-plans {
-    margin-block-start: var(--s6);
-  }
-
-  .tm-pricing-plan:not(.is-active) {
-    display: none;
-  }
-
-  /* Section heads read from the start edge on a phone, as the FAQ head already does. */
-  .tm-pricing .tm-web-header--center:not(.tm-web-header--page) {
+  .tm-pricing-basecamp {
+    flex-direction: column;
     align-items: flex-start;
-    margin-inline: 0;
-    text-align: start;
-  }
-
-  .tm-pricing-compare__table th,
-  .tm-pricing-compare__table td {
-    padding: var(--s3) var(--s4);
-  }
-
-  .tm-pricing-compare__table thead th {
-    padding-block: var(--s4);
-  }
-
-  .tm-pricing-compare__table .tm-pricing-compare__feature {
-    font-size: var(--t-ui-md);
-    line-height: var(--t-ui-md-line);
+    margin-block-start: var(--s10);
+    padding: var(--s6);
   }
 
   .tm-pricing-faq {
@@ -534,17 +388,5 @@
 
   .tm-pricing-faq__item:nth-last-child(2) {
     padding-block-end: var(--s8);
-  }
-
-  .tm-pricing-counted.tm-web-section--default {
-    padding-block: var(--s16);
-  }
-
-  .tm-pricing-rule {
-    padding: var(--s6);
-  }
-
-  .tm-pricing-cta.tm-web-cta {
-    padding: var(--s12) var(--s6);
   }
 }

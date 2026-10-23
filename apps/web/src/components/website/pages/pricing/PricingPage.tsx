@@ -1,33 +1,38 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
-import { Avatar, Badge, Select, StatusDot, VisuallyHidden } from '@tmanage/ui';
+import { Badge } from '@tmanage/ui';
+import { localeDirection } from '../../../../lib/i18n/direction';
 import type { MessageKey } from '../../../../lib/i18n/t';
+import { useActiveLocale } from '../../../../lib/i18n/use-active-locale';
 import { useT } from '../../../../lib/i18n/use-t';
+import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 import { ButtonLink, SectionHeader, WebIcon, WebSection } from '../..';
 import { cx } from '../../primitives';
 import {
-  COMPARE_GROUPS,
   PRICING_FAQ,
   PRICING_PLANS,
+  planPrice,
   type BillingPeriod,
-  type CompareCell,
   type PricingKey,
   type PricingPlan,
 } from './pricing-data';
 import './pricing.css';
-import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
 /**
- * The page's catalog lookup. `PricingKey` is `PricingPage.*`; the keys the data file names are
- * shipped in `en.json`/`ar.json`, and a missing one shows the key itself, never English in Arabic.
+ * The page's catalog lookup. `PricingKey` is `PricingPage.*`; the wave's new keys arrive through
+ * the i18n fragment `i18n-A2.*.json`, so the call goes through the typed cast until it is merged.
  */
-function usePricingT(): (key: PricingKey) => string {
+function usePricingT(): (key: PricingKey, amount?: string) => string {
   const t = useT();
-  return (key) => t(key as MessageKey);
+  return (key, amount) => {
+    const text = t(key as MessageKey);
+    return amount === undefined ? text : text.replace('{amount}', amount);
+  };
 }
 
-/* ── Hero with the Monthly / Yearly toggle ────────────────────────────────────── */
+/* ── Hero: the Monthly / Yearly −20% toggle ───────────────────────────────── */
 
 function BillingToggle({
   period,
@@ -36,10 +41,10 @@ function BillingToggle({
   period: BillingPeriod;
   onChange: (next: BillingPeriod) => void;
 }) {
-  const t = useT();
+  const t = usePricingT();
   const options: readonly { id: BillingPeriod; label: string }[] = [
     { id: 'monthly', label: t('PricingPage.toggleMonthly') },
-    { id: 'yearly', label: t('PricingPage.toggleYearly') },
+    { id: 'yearly', label: t('PricingPage.toggleYearlyDiscount') },
   ];
   return (
     <div
@@ -62,47 +67,73 @@ function BillingToggle({
   );
 }
 
-/* ── Plan picker — phones and tablets show one plan at a time ─────────────────── */
+/* ── Founding offer banner ────────────────────────────────────────────────── */
 
-type PlanId = PricingPlan['id'];
-
-function PlanPicker({
-  plan,
-  onChange,
-  className,
-}: {
-  plan: PlanId;
-  onChange: (next: PlanId) => void;
-  className: string;
-}) {
+function FoundingBanner() {
   const t = usePricingT();
   return (
-    <Select
-      label={t('PricingPage.showPlan')}
-      className={cx('tm-pricing-picker', className)}
-      value={plan}
-      onChange={(event) => onChange(event.target.value as PlanId)}
-    >
-      {PRICING_PLANS.map((option) => (
-        <option key={option.id} value={option.id}>
-          {t(option.nameKey)}
-        </option>
-      ))}
-    </Select>
+    <aside className="tm-pricing-founding" aria-label={t('PricingPage.foundingBadge')}>
+      <Badge mono className="tm-pricing-founding__badge">
+        {t('PricingPage.foundingBadge')}
+      </Badge>
+      <p className="tm-pricing-founding__text">{t('PricingPage.foundingText')}</p>
+      <Link href="/contact" className="tm-pricing-founding__cta">
+        {t('PricingPage.foundingCta')}
+      </Link>
+    </aside>
   );
 }
 
-/* ── Plan card ────────────────────────────────────────────────────────────────── */
+/* ── Plan card ────────────────────────────────────────────────────────────── */
 
-function PlanCard({
-  plan,
-  period,
-  active,
-}: {
-  plan: PricingPlan;
-  period: BillingPeriod;
-  active: boolean;
-}) {
+function PlanFigure({ plan, period }: { plan: PricingPlan; period: BillingPeriod }) {
+  const t = usePricingT();
+  if (plan.monthlyCents === null) {
+    return (
+      <div className="tm-pricing-plan__price">
+        <p className="tm-pricing-plan__figure">
+          <span className="tm-pricing-plan__amount">{t('PricingPage.customPrice')}</span>
+        </p>
+        <p className="tm-pricing-plan__note">{t('PricingPage.customNote')}</p>
+      </div>
+    );
+  }
+  if (plan.monthlyCents === 0) {
+    return (
+      <div className="tm-pricing-plan__price">
+        <p className="tm-pricing-plan__figure">
+          <span className="tm-pricing-plan__amount">$0</span>
+          <span className="tm-pricing-plan__unit">{t('PricingPage.unitForever')}</span>
+        </p>
+        <p className="tm-pricing-plan__note">{t('PricingPage.noCardNeeded')}</p>
+      </div>
+    );
+  }
+  const price = planPrice(plan.monthlyCents, period);
+  return (
+    <div className="tm-pricing-plan__price">
+      <p className="tm-pricing-plan__figure">
+        <span className="tm-pricing-plan__amount">{price.perMonth}</span>
+        <span className="tm-pricing-plan__unit">{t('PricingPage.unitPerMonth')}</span>
+      </p>
+      {period === 'yearly' ? (
+        <>
+          <p className="tm-pricing-plan__note">{t('PricingPage.flatPerYear', price.perYear)}</p>
+          <p className="tm-pricing-plan__note">{t('PricingPage.ifBilledMonthly', price.monthly)}</p>
+        </>
+      ) : (
+        <>
+          <p className="tm-pricing-plan__note">{t('PricingPage.flatWholeTeam')}</p>
+          <p className="tm-pricing-plan__note">
+            {t('PricingPage.ifBilledYearly', price.yearlyPerMonth)}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function PlanCard({ plan, period }: { plan: PricingPlan; period: BillingPeriod }) {
   const t = usePricingT();
   const headingId = `plan-${plan.id}`;
   return (
@@ -111,29 +142,17 @@ function PlanCard({
         'tm-pricing-plan',
         plan.featured && 'tm-pricing-plan--featured',
         plan.ink && 'tm-pricing-plan--ink',
-        active && 'is-active',
       )}
       aria-labelledby={headingId}
     >
       {plan.featured ? (
-        <Badge className="tm-pricing-plan__flag">{t('PricingPage.planFlag')}</Badge>
+        <Badge className="tm-pricing-plan__flag">{t('PricingPage.flatFlag')}</Badge>
       ) : null}
       <h3 id={headingId} className="tm-pricing-plan__name">
         {t(plan.nameKey)}
       </h3>
       <p className="tm-pricing-plan__positioning">{t(plan.positioningKey)}</p>
-      <div className="tm-pricing-plan__price">
-        <p className="tm-pricing-plan__figure">
-          <span className="tm-pricing-plan__amount" aria-label={t('PricingPage.priceAria')}>
-            $ —
-          </span>
-          <span className="tm-pricing-plan__unit">
-            / {t('PricingPage.seatWord')} /{' '}
-            {period === 'monthly' ? t('PricingPage.moWord') : t('PricingPage.yrWord')}
-          </span>
-        </p>
-        <p className="tm-pricing-plan__note">{t('PricingPage.launchNote')}</p>
-      </div>
+      <PlanFigure plan={plan} period={period} />
       <ButtonLink
         href={plan.cta.href}
         tone={plan.featured || plan.ink ? 'lime' : 'outline'}
@@ -154,183 +173,63 @@ function PlanCard({
   );
 }
 
-/* ── "How it's counted" — three mini product scenes ──────────────────────────── */
-
-function CountedCards() {
-  const t = usePricingT();
-  return (
-    <div className="tm-pricing-rules">
-      <article className="tm-pricing-rule">
-        <div className="tm-pricing-rule__scene" aria-hidden="true">
-          <Avatar name="Peter Adel" decorative className="tm-pricing-rule__avatar" />
-          <Avatar name="Mona Kamal" decorative className="tm-pricing-rule__avatar" />
-          <Avatar name="Sara Rashed" decorative className="tm-pricing-rule__avatar" />
-          <Badge mono>{t('PricingPage.ruleSeatsBadge')}</Badge>
-        </div>
-        <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleSeatsTitle')}</h3>
-        <p className="tm-pricing-rule__body">{t('PricingPage.ruleSeatsBody')}</p>
-      </article>
-      <article className="tm-pricing-rule">
-        <div className="tm-pricing-rule__scene" aria-hidden="true">
-          <Avatar name="Nadia Victor" audience="client" decorative />
-          <Avatar name="Laila Hosny" audience="client" decorative />
-          <Badge tone="client">
-            <span className="tm-pricing-rule__mono">{t('PricingPage.rulePortalLabel')}</span>
-            <span className="tm-pricing-rule__ink">{t('PricingPage.ruleClientsBadge')}</span>
-          </Badge>
-        </div>
-        <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleClientsTitle')}</h3>
-        <p className="tm-pricing-rule__body">{t('PricingPage.ruleClientsBody')}</p>
-      </article>
-      <article className="tm-pricing-rule">
-        <div className="tm-pricing-rule__scene tm-pricing-rule__scene--compact" aria-hidden="true">
-          <StatusDot tone="success">{t('PricingPage.ruleCountedOnce')}</StatusDot>
-          <Badge mono>{t('PricingPage.rulePooled')}</Badge>
-        </div>
-        <h3 className="tm-pricing-rule__title">{t('PricingPage.ruleStorageTitle')}</h3>
-        <p className="tm-pricing-rule__body">{t('PricingPage.ruleStorageBody')}</p>
-      </article>
-    </div>
-  );
-}
-
-/* ── Comparison table ─────────────────────────────────────────────────────────── */
-
-function Cell({ value }: { value: CompareCell }) {
-  const t = usePricingT();
-  if (value === true) {
-    return (
-      <>
-        <WebIcon name="check" size={16} className="tm-pricing-compare__check" />
-        <VisuallyHidden>{t('PricingPage.cellIncluded')}</VisuallyHidden>
-      </>
-    );
-  }
-  if (value === false) {
-    return (
-      <>
-        <span className="tm-pricing-compare__none" aria-hidden="true">
-          –
-        </span>
-        <VisuallyHidden>{t('PricingPage.cellNotIncluded')}</VisuallyHidden>
-      </>
-    );
-  }
-  return <span className="tm-pricing-compare__word">{t(value)}</span>;
-}
-
-function CompareTable({ active }: { active: PlanId }) {
-  const t = usePricingT();
-  const on = (id: PlanId) => (id === active ? 'is-active' : undefined);
-  return (
-    <div className="tm-pricing-compare" role="region" aria-label={t('PricingPage.compareAria')}>
-      <table className="tm-pricing-compare__table">
-        <thead>
-          <tr>
-            <th scope="col" className="tm-pricing-compare__corner">
-              {t('PricingPage.compareFeatures')}
-            </th>
-            {PRICING_PLANS.map((plan) => (
-              <th key={plan.id} scope="col" className={cx('tm-pricing-compare__plan', on(plan.id))}>
-                {t(plan.nameKey)}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        {COMPARE_GROUPS.map((group) => (
-          <tbody key={group.categoryKey}>
-            <tr className="tm-pricing-compare__group">
-              <th scope="colgroup" colSpan={PRICING_PLANS.length + 1}>
-                {t(group.categoryKey)}
-              </th>
-            </tr>
-            {group.rows.map((row) => (
-              <tr key={row.featureKey}>
-                <th scope="row" className="tm-pricing-compare__feature">
-                  {t(row.featureKey)}
-                </th>
-                {row.cells.map((cell, i) => (
-                  <td
-                    key={PRICING_PLANS[i]?.id ?? i}
-                    className={cx(
-                      'tm-pricing-compare__cell',
-                      PRICING_PLANS[i] && on(PRICING_PLANS[i].id),
-                    )}
-                  >
-                    <Cell value={cell} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        ))}
-      </table>
-    </div>
-  );
-}
-
-/* ── Page ─────────────────────────────────────────────────────────────────────── */
+/* ── Page ─────────────────────────────────────────────────────────────────── */
 
 export function PricingPage() {
   const t = usePricingT();
-  const [period, setPeriod] = useState<BillingPeriod>('monthly');
-  const [plan, setPlan] = useState<PlanId>('studio');
+  const locale = useActiveLocale();
+  const [period, setPeriod] = useState<BillingPeriod>('yearly');
 
   return (
-    <div className="tm-pricing">
+    <div className="tm-pricing" dir={localeDirection(locale)}>
       <WebSection className="tm-pricing-hero" aria-labelledby="pricing-title">
         <SectionHeader
           as="h1"
           size="page"
           align="center"
           id="pricing-title"
-          eyebrow={t('PricingPage.heroEyebrow')}
-          title={t('PricingPage.heroTitle')}
-          lede={t('PricingPage.heroLede')}
+          eyebrow={t('PricingPage.flatEyebrow')}
+          title={t('PricingPage.flatTitle')}
+          lede={t('PricingPage.flatLede')}
         >
           <div className="tm-pricing-hero__toggle">
             <BillingToggle period={period} onChange={setPeriod} />
-            <p className="tm-pricing-hero__note">{t('PricingPage.heroNote')}</p>
+            <p className="tm-pricing-hero__note">
+              {t(period === 'yearly' ? 'PricingPage.noteYearly' : 'PricingPage.noteMonthly')}
+            </p>
           </div>
         </SectionHeader>
-        <PlanPicker plan={plan} onChange={setPlan} className="tm-pricing-picker--plans" />
+        <FoundingBanner />
         <div className="tm-pricing-plans">
           {PRICING_PLANS.map((option) => (
-            <PlanCard key={option.id} plan={option} period={period} active={option.id === plan} />
+            <PlanCard key={option.id} plan={option} period={period} />
           ))}
         </div>
+        <section className="tm-pricing-basecamp" aria-labelledby="pricing-basecamp">
+          <div className="tm-pricing-basecamp__text">
+            <h2 id="pricing-basecamp" className="tm-pricing-basecamp__title">
+              {t('PricingPage.basecampTitle')}
+            </h2>
+            <p className="tm-pricing-basecamp__body">{t('PricingPage.basecampBody')}</p>
+          </div>
+          <ButtonLink
+            href={SIGN_UP_HREF}
+            tone="outline"
+            size="default"
+            className="tm-pricing-basecamp__cta"
+          >
+            {t('PricingPage.startFree')}
+          </ButtonLink>
+        </section>
       </WebSection>
 
-      <WebSection tone="sunken" className="tm-pricing-counted" aria-labelledby="pricing-counted">
-        <SectionHeader
-          align="center"
-          id="pricing-counted"
-          eyebrow={t('PricingPage.countedEyebrow')}
-          title={t('PricingPage.countedTitle')}
-          lede={t('PricingPage.countedLede')}
-        />
-        <CountedCards />
-      </WebSection>
-
-      <WebSection aria-labelledby="pricing-compare">
-        <SectionHeader
-          align="center"
-          id="pricing-compare"
-          eyebrow={t('PricingPage.compareEyebrow')}
-          title={t('PricingPage.compareTitle')}
-          lede={t('PricingPage.compareLede')}
-        />
-        <PlanPicker plan={plan} onChange={setPlan} className="tm-pricing-picker--compare" />
-        <CompareTable active={plan} />
-      </WebSection>
-
-      <WebSection tone="sunken" aria-labelledby="pricing-faq">
+      <WebSection tone="sunken" className="tm-pricing-faq-section" aria-labelledby="pricing-faq">
         <SectionHeader
           id="pricing-faq"
           eyebrow={t('PricingPage.faqEyebrow')}
-          title={t('PricingPage.faqTitle')}
-          lede={t('PricingPage.faqLede')}
-          link={{ label: t('PricingPage.faqLink'), href: '/contact' }}
+          title={t('PricingPage.faqFlatTitle')}
+          lede={t('PricingPage.faqFlatLede')}
+          link={{ label: t('PricingPage.faqFlatLink'), href: '/contact' }}
         />
         <dl className="tm-pricing-faq">
           {PRICING_FAQ.map((item) => (
@@ -341,28 +240,6 @@ export function PricingPage() {
           ))}
         </dl>
       </WebSection>
-
-      <section className="tm-web-cta-section" aria-labelledby="pricing-cta">
-        <div className="tm-web-container">
-          <div className="tm-web-cta tm-web-cta--text tm-pricing-cta">
-            <div className="tm-web-cta__text">
-              <h2 id="pricing-cta" className="tm-web-cta__title">
-                {t('PricingPage.ctaTitle')}
-              </h2>
-              <p className="tm-web-cta__lede">{t('PricingPage.ctaLede')}</p>
-              <div className="tm-web-cta__actions">
-                <ButtonLink href={SIGN_UP_HREF} tone="lime" size="default">
-                  {t('PricingPage.startFree')}
-                </ButtonLink>
-                <ButtonLink href="/contact" tone="outline-ink" size="default">
-                  {t('PricingPage.bookDemo')}
-                </ButtonLink>
-              </div>
-              <p className="tm-web-cta__note">{t('PricingPage.ctaNote')}</p>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

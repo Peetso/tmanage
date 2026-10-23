@@ -8,7 +8,8 @@ import { PlanCatalogService } from './plan-catalog.service.js';
  * FEAT · module 1 Public site (x157). The public pricing endpoint's controller, over the real
  * service (the catalog is static, so there are no fakes and no database — nothing to stub). The
  * subject is the contract the marketing page depends on and the fact that the route is genuinely
- * public: no session, no capability, every tier priced with a seat rule, in a stable order.
+ * public: no session, no capability, the five flat plans (free/starter/studio/business/enterprise)
+ * with one flat-price rule, in a stable order.
  */
 
 function build(): PlanCatalogController {
@@ -16,33 +17,30 @@ function build(): PlanCatalogController {
 }
 
 describe('GET /v1/public/site/plans', () => {
-  it('returns every tier, priced, with a seat rule, in a stable order', () => {
+  it('returns the five flat plans the website draws, in a stable order', () => {
     const first = build().plans().plans;
     const second = build().plans().plans;
 
-    // A non-empty catalog in a deterministic order — the same tiers, same order, every call.
-    expect(first.length).toBeGreaterThan(0);
-    expect(first.map((tier) => tier.id)).toEqual(second.map((tier) => tier.id));
-    // Cheapest first: prices are non-decreasing down the catalog.
-    for (let i = 1; i < first.length; i += 1) {
-      expect(first[i]!.monthlyPriceCents).toBeGreaterThanOrEqual(first[i - 1]!.monthlyPriceCents);
-    }
+    // The same five tiers, same order, every call — Studio is the one recommended card.
+    expect(first.map((tier) => tier.id)).toEqual([
+      'free',
+      'starter',
+      'studio',
+      'business',
+      'enterprise',
+    ]);
+    expect(second.map((tier) => tier.id)).toEqual(first.map((tier) => tier.id));
+    expect(first.map((tier) => tier.monthlyPriceCents)).toEqual([0, 1900, 4900, 8900, 0]);
+    expect(first.filter((tier) => tier.featured).map((tier) => tier.id)).toEqual(['studio']);
 
     for (const tier of first) {
-      // Each tier has a price (a non-negative integer of minor units) and a currency.
+      // A flat price for the whole team: never a per-member or per-seat rule.
+      expect(tier.seatRule).toBe('Flat price for the whole team');
       expect(Number.isInteger(tier.monthlyPriceCents)).toBe(true);
-      expect(tier.monthlyPriceCents).toBeGreaterThanOrEqual(0);
       expect(tier.currency).toBe('usd');
-      // Each tier has a seat rule and at least one feature bullet — the two things the page renders.
-      expect(tier.seatRule.length).toBeGreaterThan(0);
       expect(tier.name.length).toBeGreaterThan(0);
-      expect(tier.features.length).toBeGreaterThan(0);
-    }
-
-    // Exactly one recommended tier — the highlighted card.
-    expect(first.filter((tier) => tier.featured)).toHaveLength(1);
-    // The response never carries a tenant or a principal — it is display copy only.
-    for (const tier of first) {
+      expect(tier.features).toHaveLength(4);
+      // The response never carries a tenant or a principal — it is display copy only.
       const record = tier as unknown as Record<string, unknown>;
       expect(record['organizationId']).toBeUndefined();
       expect(record['userId']).toBeUndefined();

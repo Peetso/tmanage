@@ -21,17 +21,20 @@
  * tenant-scoped or personal — the endpoint has no principal to scope to.
  */
 export interface PublicPlanView {
-  /** Stable tier id, e.g. `team`. Carried by the sign-up CTA; never a database key. */
+  /** Stable tier id, e.g. `studio`. Carried by the sign-up CTA; never a database key. */
   readonly id: string;
-  /** The tier's display name, e.g. `Team`. */
+  /** The tier's display name, e.g. `Studio`. */
   readonly name: string;
   /** One line under the name. */
   readonly tagline: string;
-  /** The per-member monthly price in minor units. `0` is a genuinely free tier, never "call us". */
+  /**
+   * The flat monthly price for the whole team in minor units. `0` is the free tier, and also
+   * Enterprise, which is quoted per contract (its tagline says "Custom").
+   */
   readonly monthlyPriceCents: number;
   /** ISO-4217, lowercased — the unit `monthlyPriceCents` is counted in. */
   readonly currency: string;
-  /** A human-readable seat rule, e.g. `Up to 5 members`. Always present, never empty. */
+  /** A human-readable seat rule, e.g. `Flat price for the whole team`. Always present. */
   readonly seatRule: string;
   /** Exactly one tier is the recommended one, rendered as the highlighted card. */
   readonly featured: boolean;
@@ -39,71 +42,90 @@ export interface PublicPlanView {
   readonly features: readonly string[];
 }
 
+/** Every tier is one flat monthly price for the whole team, never a per-member price. */
+const FLAT_SEAT_RULE = 'Flat price for the whole team';
+
 /**
- * The catalog, frozen so a caller cannot mutate the shared constant, and in the order the page
- * renders it (cheapest first, `featured` in the middle). Deterministic: the same array every call.
+ * The catalog, frozen so a caller cannot mutate the shared constant, in the order the page renders
+ * it (cheapest first, Studio `featured` in the middle, Enterprise last). The same five flat plans
+ * the website `/pricing` page draws (approved Figma section 376:2087). Enterprise is quoted per
+ * contract, so its `monthlyPriceCents` is `0` with "Custom" in its tagline — the one tier where `0`
+ * does not mean free. Deterministic: the same array every call.
  */
 const PLAN_CATALOG: readonly PublicPlanView[] = Object.freeze([
   {
     id: 'free',
     name: 'Free',
-    tagline: 'For a first project and a small team finding its feet.',
+    tagline: 'For a small team trying TManage on real client work.',
     monthlyPriceCents: 0,
     currency: 'usd',
-    seatRule: 'Up to 3 members',
+    seatRule: FLAT_SEAT_RULE,
     featured: false,
     features: Object.freeze([
-      '1 workspace',
-      'Work items, requests and documents',
-      'Client portal for 1 project',
-      'Community support',
+      'Up to 3 internal people',
+      '3 active projects',
+      'Unlimited clients, always free',
+      'Work, chat and calendar',
     ]),
   },
   {
-    id: 'team',
-    name: 'Team',
-    tagline: 'For a growing team running client work end to end.',
-    monthlyPriceCents: 1200,
+    id: 'starter',
+    name: 'Starter',
+    tagline: 'For small teams moving their projects off spreadsheets.',
+    monthlyPriceCents: 1900,
     currency: 'usd',
-    seatRule: 'Per member, billed monthly',
+    seatRule: FLAT_SEAT_RULE,
     featured: false,
     features: Object.freeze([
-      'Everything in Free',
-      'Unlimited workspaces and projects',
-      'Meetings, decisions and objectives',
-      'Insights and portfolio roll-ups',
-      'Email support',
+      'Up to 10 internal people',
+      'Unlimited projects',
+      'Requests and approvals',
+      'Branded client portal',
+    ]),
+  },
+  {
+    id: 'studio',
+    name: 'Studio',
+    tagline: 'For agencies running many clients and projects at once.',
+    monthlyPriceCents: 4900,
+    currency: 'usd',
+    seatRule: FLAT_SEAT_RULE,
+    featured: true,
+    features: Object.freeze([
+      'Unlimited internal people',
+      'Docs and decisions',
+      'Workload insights',
+      'Automations',
     ]),
   },
   {
     id: 'business',
     name: 'Business',
-    tagline: 'For an organization that needs control and an audit trail.',
-    monthlyPriceCents: 2400,
+    tagline: 'For firms that need control, roles and reporting across teams.',
+    monthlyPriceCents: 8900,
     currency: 'usd',
-    seatRule: 'Per member, billed monthly',
-    featured: true,
+    seatRule: FLAT_SEAT_RULE,
+    featured: false,
     features: Object.freeze([
-      'Everything in Team',
-      'Custom roles and access policies',
-      'Full audit log and export',
-      'Usage quotas and reconciliation',
-      'Priority support',
+      'Unlimited internal people',
+      'SSO and security controls',
+      'Admin console and roles',
+      'Audit log and priority support',
     ]),
   },
   {
     id: 'enterprise',
     name: 'Enterprise',
-    tagline: 'For scale, procurement and a security review.',
-    monthlyPriceCents: 4800,
+    tagline: 'Custom: for large teams with security reviews and contracts.',
+    monthlyPriceCents: 0,
     currency: 'usd',
-    seatRule: 'Volume pricing for 50+ members',
+    seatRule: FLAT_SEAT_RULE,
     featured: false,
     features: Object.freeze([
       'Everything in Business',
-      'SSO and enterprise identity',
-      'Data residency and retention controls',
-      'A named contact and an SLA',
+      'SCIM and data residency',
+      'Contract and invoicing',
+      'Named success lead',
     ]),
   },
 ]);
