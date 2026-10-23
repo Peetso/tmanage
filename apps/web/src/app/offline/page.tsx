@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { OfflineState } from '../../components/state/OfflineState';
 import { StateScreen } from '../../components/state/StateScreens';
 
 /**
@@ -12,7 +13,8 @@ import { StateScreen } from '../../components/state/StateScreens';
  *
  * Being offline is not an error the person caused and not a dead end, so the copy is matter of
  * fact and the one action simply re-attempts the app root — which succeeds the moment the
- * connection returns.
+ * connection returns. The words follow the active locale (`OfflineState`), and the bar carries
+ * the language switch, since a signed-out visitor has no other way to pick Arabic here.
  */
 export const metadata: Metadata = {
   title: 'Offline',
@@ -21,31 +23,8 @@ export const metadata: Metadata = {
 
 export default function OfflinePage() {
   return (
-    <StateScreen label="Offline">
-      <section className="tm-state" aria-labelledby="tm-offline-title" data-state="offline">
-        <div className="tm-state__panel">
-          <span className="tm-state__glyph" aria-hidden="true">
-            ⊘
-          </span>
-          <div className="tm-state__text">
-            <p className="tm-state__eyebrow" aria-hidden="true">
-              Offline and reconnecting
-            </p>
-            <h1 id="tm-offline-title" className="tm-state__title">
-              You’re offline
-            </h1>
-            <p className="tm-state__description">
-              TManage can’t reach the network right now. Check your connection — the app reconnects
-              on its own, or you can try again.
-            </p>
-          </div>
-          <div className="tm-state__actions">
-            <a className="tm-button tm-button--ink tm-button--accessible" href="/">
-              Try again
-            </a>
-          </div>
-        </div>
-      </section>
+    <StateScreen label="Offline" labelKey="StateScreens.labelOffline" languageSwitch>
+      <OfflineState />
     </StateScreen>
   );
 }

@@ -7087,6 +7087,13 @@
   "StateScreens.brandHome": "TManage home",
   "StateScreens.notFoundTitle": "We couldn’t find that page",
   "StateScreens.notFoundDescription": "The page you asked for doesn’t exist, or the link that brought you here is out of date. Check the address, or head back and try again.",
+  "StateScreens.forbiddenTitle": "You don’t have access to this",
+  "StateScreens.forbiddenDescription": "You’re signed in, but this account isn’t allowed to open this page. If you think you should be, ask whoever administers your TManage workspace to grant you access.",
+  "StateScreens.labelOffline": "Offline",
+  "StateScreens.offlineEyebrow": "Offline and reconnecting",
+  "StateScreens.offlineTitle": "You’re offline",
+  "StateScreens.offlineDescription": "TManage can’t reach the network right now. Check your connection — the app reconnects on its own, or you can try again.",
+  "StateScreens.offlineTryAgain": "Try again",
   "PublicSite.brandHome": "TManage home",
   "PublicSite.primaryNav": "Primary",
   "PublicSite.footerNav": "Site",
@@ -10753,5 +10760,7 @@
   "WebsiteTitle.solutionsConsultancies": "Consultancies",
   "WebsiteTitle.solutionsInHouse": "In-house teams",
   "WebsiteTitle.status": "Service status",
-  "WebsiteTitle.notFound": "Page not found"
+  "WebsiteTitle.notFound": "Page not found",
+  "WebsiteTitle.forbidden": "Access denied",
+  "WebsiteTitle.offline": "Offline"
 }

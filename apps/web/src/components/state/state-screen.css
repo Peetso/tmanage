@@ -1,0 +1,34 @@
+/*
+ * The language switch at the end of the platform-state bar (/forbidden, /offline). The switch
+ * is the website's own Web/Language switch; its look is repeated here because `website.css`
+ * only loads inside the website chrome, and these states render outside it.
+ */
+.tm-state-screen__lang {
+  margin-inline-start: auto;
+}
+
+.tm-state-screen__lang .tm-web-lang {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s1);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-950);
+}
+
+.tm-state-screen__lang .tm-web-lang__option {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-state-screen__lang .tm-web-lang__option[lang='ar'] {
+  font-family: var(--font-arabic);
+}
+
+.tm-state-screen__lang .tm-web-lang__option:hover {
+  text-decoration: underline;
+}

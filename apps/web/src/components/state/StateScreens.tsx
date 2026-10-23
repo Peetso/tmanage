@@ -3,10 +3,13 @@
 import { useCallback, useId, useState, type ReactNode } from 'react';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
+import { LanguageSwitch } from '../website/WebFooter';
+import { WebsiteDocumentTitle } from '../website/WebsiteDocumentTitle';
 import { STATE_COPY, type StateKey } from './state-copy';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import './state-screen.css';
 
 /**
  * The standard platform-state matrix as shared, presentational components.
@@ -183,14 +186,16 @@ export function ForbiddenState({
   autoFocusAction = true,
   className,
 }: NavStateProps) {
+  const t = useT();
+  const tOr = useTOr();
   const focusRef = useFocusOnMount(autoFocusAction);
   const copy = STATE_COPY.forbidden;
   return (
     <StatePanel
       state="forbidden"
       headingLevel={headingLevel}
-      title={title ?? copy.title}
-      description={description ?? copy.description}
+      title={title ?? tOr('StateScreens.forbiddenTitle', copy.title)}
+      description={description ?? tOr('StateScreens.forbiddenDescription', copy.description)}
       className={className}
       action={
         <a
@@ -198,7 +203,7 @@ export function ForbiddenState({
           className="tm-button tm-button--ink tm-button--accessible"
           href={homeHref}
         >
-          {actionLabel ?? copy.action}
+          {actionLabel ?? t('StateScreens.backToHome')}
         </a>
       }
     />
@@ -413,9 +418,23 @@ export function LoadingState({
  * and satisfies `A11Y-01`'s skip-link / main / heading requirement structurally. The state's
  * own `<section>` region and `<h1>` nest inside the `<main>`.
  */
-export function StateScreen({ children, label }: { children: ReactNode; label?: string }) {
+export function StateScreen({
+  children,
+  label,
+  labelKey,
+  languageSwitch = false,
+}: {
+  children: ReactNode;
+  /** The state's name in the bar, in English (the fallback while `labelKey` is not in the catalog). */
+  label?: string;
+  /** Catalog key for `label`, so the bar follows the active locale. */
+  labelKey?: string;
+  /** Show the English · العربية switch at the end of the bar (public, signed-out states). */
+  languageSwitch?: boolean;
+}) {
   const t = useT();
   const tOr = useTOr();
+  const barLabel = label && labelKey ? tOr(labelKey, label) : label;
   return (
     <LiveAnnouncer label={tOr('Shell.liveAnnouncements', 'Live announcements')}>
       <div className="tm-state-screen">
@@ -425,8 +444,15 @@ export function StateScreen({ children, label }: { children: ReactNode; label?: 
           <a href="/" className="tm-state-screen__mark">
             <Wordmark variant="icon" label={t('StateScreens.brandHome')} />
           </a>
-          {label ? <p className="tm-state-screen__label">{label}</p> : null}
+          {barLabel ? <p className="tm-state-screen__label">{barLabel}</p> : null}
+          {languageSwitch ? (
+            <div className="tm-state-screen__lang">
+              <LanguageSwitch />
+            </div>
+          ) : null}
         </header>
+        {/* The route's English `metadata.title`, rewritten in the active locale. */}
+        <WebsiteDocumentTitle />
         <main id="tm-main" className="tm-state-screen__main" tabIndex={-1}>
           {children}
         </main>

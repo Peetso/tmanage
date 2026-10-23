@@ -39,6 +39,8 @@ export const WEBSITE_TITLE_KEYS: Readonly<Record<string, string>> = {
   'In-house teams': 'WebsiteTitle.solutionsInHouse',
   'Service status': 'WebsiteTitle.status',
   'Page not found': 'WebsiteTitle.notFound',
+  'Access denied': 'WebsiteTitle.forbidden',
+  Offline: 'WebsiteTitle.offline',
 };
 
 /** The home page's absolute title is the brand plus its hero line. */

@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 
 export default function ForbiddenPage() {
   return (
-    <StateScreen label="No access">
+    <StateScreen label="No access" labelKey="StateScreens.eyebrowForbidden" languageSwitch>
       <ForbiddenState />
     </StateScreen>
   );

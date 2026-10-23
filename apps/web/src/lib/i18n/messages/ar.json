@@ -7087,6 +7087,13 @@
   "StateScreens.brandHome": "الصفحة الرئيسية لـ TManage",
   "StateScreens.notFoundTitle": "لم نعثر على هذه الصفحة",
   "StateScreens.notFoundDescription": "الصفحة التي طلبتها غير موجودة، أو أن الرابط الذي أوصلك إلى هنا قديم. تحقّق من العنوان، أو ارجع وحاول مرة أخرى.",
+  "StateScreens.forbiddenTitle": "ليست لديك صلاحية الوصول إلى هذه الصفحة",
+  "StateScreens.forbiddenDescription": "أنت مسجّل الدخول، لكن هذا الحساب غير مسموح له بفتح هذه الصفحة. إذا كنت تعتقد أنه ينبغي أن يكون لديك وصول، فاطلب من مسؤول مساحة عمل TManage الخاصة بك منحك الصلاحية.",
+  "StateScreens.labelOffline": "غير متصل",
+  "StateScreens.offlineEyebrow": "غير متصل وجارٍ إعادة الاتصال",
+  "StateScreens.offlineTitle": "أنت غير متصل بالإنترنت",
+  "StateScreens.offlineDescription": "لا يستطيع TManage الوصول إلى الشبكة الآن. تحقّق من اتصالك — سيعيد التطبيق الاتصال تلقائيًا، أو يمكنك المحاولة مرة أخرى.",
+  "StateScreens.offlineTryAgain": "حاول مرة أخرى",
   "PublicSite.brandHome": "الصفحة الرئيسية لـ TManage",
   "PublicSite.primaryNav": "التنقل الرئيسي",
   "PublicSite.footerNav": "الموقع",
@@ -10753,5 +10760,7 @@
   "WebsiteTitle.solutionsConsultancies": "الشركات الاستشارية",
   "WebsiteTitle.solutionsInHouse": "الفرق الداخلية",
   "WebsiteTitle.status": "حالة الخدمة",
-  "WebsiteTitle.notFound": "الصفحة غير موجودة"
+  "WebsiteTitle.notFound": "الصفحة غير موجودة",
+  "WebsiteTitle.forbidden": "تم رفض الوصول",
+  "WebsiteTitle.offline": "غير متصل"
 }
