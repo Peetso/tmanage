@@ -152,6 +152,12 @@ export interface PortfolioOptions {
   readonly after?: string;
   /** Requested page size, clamped by {@link portfolioPageSize}. */
   readonly limit?: number;
+  /**
+   * A13 "Projects in this report": keep only these project ids. Ids the caller cannot read (or
+   * that do not exist in this tenant) are dropped silently — the filter never widens access.
+   * Absent or empty means every readable project.
+   */
+  readonly projectIds?: readonly string[];
 }
 
 /**
@@ -250,6 +256,8 @@ export class InsightsService {
     const now = new Date();
     const limit = portfolioPageSize(options.limit);
     const pageSize = projectPageSize(undefined);
+    const only =
+      options.projectIds && options.projectIds.length > 0 ? new Set(options.projectIds) : null;
 
     const accessible = await this.database.read(context, async (runner) => {
       const collected: ProjectRow[] = [];
@@ -260,6 +268,7 @@ export class InsightsService {
           limit: pageSize,
         });
         for (const row of page) {
+          if (only !== null && !only.has(row.id)) continue;
           if (this.mayReadProject(principal, row)) collected.push(row);
         }
         const last = page[page.length - 1];

@@ -1,0 +1,109 @@
+/* A13 — "Projects in this report" (Figma fq12-insights-project-picker). Tokens only. */
+
+.tm-ins-picker-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-ins-capsule[data-kind='trigger'] {
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-950);
+}
+
+.tm-ins-capsule[data-kind='trigger']:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--lime-500);
+}
+
+.tm-ins-picker {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-end: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  inline-size: min(340px, calc(100vw - 2 * var(--s4)));
+  padding: var(--s3) var(--s3) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--ink-950) 10%, transparent);
+  text-align: start;
+}
+
+.tm-ins-picker__title {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-ins-picker__search {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  min-block-size: 48px;
+  padding-inline: var(--s4) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-650);
+  cursor: text;
+}
+
+.tm-ins-picker__search:focus-within {
+  border-color: var(--ink-950);
+}
+
+.tm-ins-picker__search-icon {
+  flex: none;
+}
+
+.tm-ins-picker__search input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  outline: none;
+}
+
+.tm-ins-picker__key {
+  padding: 2px 6px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-micro);
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: var(--t-micro);
+}
+
+.tm-ins-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0 var(--s1);
+  list-style: none;
+  max-block-size: 280px;
+  overflow-y: auto;
+}
+
+.tm-ins-picker__empty {
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+}
+
+.tm-ins-picker__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding-block-start: var(--s3);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}

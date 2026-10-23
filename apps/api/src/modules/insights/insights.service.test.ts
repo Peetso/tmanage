@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { InsightsService } from './insights.service.js';
+import { parseProjectIds } from './insights.controller.js';
 import { DeliveryFlowRepository } from './delivery-flow.repository.js';
 import {
   ApprovalCycleRepository,
@@ -219,5 +220,40 @@ describe('InsightsService.portfolio', () => {
     expect(row.deliveryFlow.itemCount).toBe(directFlow.itemCount);
     expect(row.approvalCycle.metrics).toEqual(directCycle.metrics);
     expect(row.approvalCycle.approvalCount).toBe(directCycle.approvalCount);
+  });
+
+  it('A13: keeps only the requested readable projects and silently drops the rest', async () => {
+    const PROJECT_C = 'project-c-0000-0000-0000-000000000003';
+    const service = serviceWith({
+      projects: [
+        projectRow(PROJECT_A),
+        projectRow(PROJECT_B),
+        projectRow(PROJECT_C),
+        projectRow(PROJECT_X, { organizationId: OTHER_ORG }),
+      ],
+      workItems: [],
+      approvals: [],
+    });
+
+    // Member reads A and C; asks for A, B (off-project), X (cross-tenant) and an unknown id.
+    const view = await service.portfolio(context, member([PROJECT_A, PROJECT_C]), {
+      projectIds: [PROJECT_A, PROJECT_B, PROJECT_X, 'project-missing'],
+    });
+
+    expect(view.projects.map((p) => p.projectId)).toEqual([PROJECT_A]);
+    expect(JSON.stringify(view)).not.toContain(PROJECT_B);
+    expect(JSON.stringify(view)).not.toContain(PROJECT_X);
+
+    const all = await service.portfolio(context, member([PROJECT_A, PROJECT_C]), {
+      projectIds: [],
+    });
+    expect(all.projects.map((p) => p.projectId)).toEqual([PROJECT_A, PROJECT_C]);
+  });
+
+  it('A13: parses ?projectIds= into a trimmed, de-duplicated, capped list', () => {
+    expect(parseProjectIds(undefined)).toEqual([]);
+    expect(parseProjectIds(' a, b ,,a ')).toEqual(['a', 'b']);
+    const many = Array.from({ length: 80 }, (_, i) => `p${i}`).join(',');
+    expect(parseProjectIds(many)).toHaveLength(50);
   });
 });

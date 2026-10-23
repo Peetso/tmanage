@@ -37,12 +37,19 @@ export interface InsightsPortfolio {
 /** One roll-up row, named for the screen — the element type of {@link InsightsPortfolio.projects}. */
 export type InsightsPortfolioProject = InsightsPortfolio['projects'][number];
 
+/**
+ * Read the roll-up. `projectIds` (A13, "Projects in this report") narrows it to those ids; the
+ * server drops any the caller cannot read, so the filter only ever narrows. Empty means all.
+ */
 export async function fetchInsightsPortfolio(
   client: ApiClient,
   organizationSlug: string,
+  projectIds: readonly string[] = [],
 ): Promise<InsightsPortfolio> {
+  const query =
+    projectIds.length > 0 ? `?projectIds=${projectIds.map(encodeURIComponent).join(',')}` : '';
   const { data } = await client.request<InsightsPortfolio>({
-    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/insights/portfolio`,
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/insights/portfolio${query}`,
   });
   return data;
 }

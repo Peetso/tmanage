@@ -11197,5 +11197,15 @@
   "WorkBoard.dueAny": "Due: Any time",
   "WorkBoard.dueWeek": "Due: This week",
   "WorkBoard.dueMonth": "Due: This month",
-  "WorkBoard.dueOverdue": "Due: Overdue"
+  "WorkBoard.dueOverdue": "Due: Overdue",
+  "InsightsPicker.title": "Projects in this report",
+  "InsightsPicker.search": "Search projects",
+  "InsightsPicker.all": "All projects",
+  "InsightsPicker.clear": "Clear",
+  "InsightsPicker.noMatch": "No projects match",
+  "InsightsPicker.showAll": "Show all projects",
+  "InsightsPicker.showOne": "Show 1 project",
+  "InsightsPicker.showTwo": "Show 2 projects",
+  "InsightsPicker.showFew": "Show {count} projects",
+  "InsightsPicker.showMany": "Show {count} projects"
 }

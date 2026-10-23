@@ -11197,5 +11197,15 @@
   "WorkBoard.dueAny": "الاستحقاق: أي وقت",
   "WorkBoard.dueWeek": "الاستحقاق: هذا الأسبوع",
   "WorkBoard.dueMonth": "الاستحقاق: هذا الشهر",
-  "WorkBoard.dueOverdue": "الاستحقاق: متأخر"
+  "WorkBoard.dueOverdue": "الاستحقاق: متأخر",
+  "InsightsPicker.title": "المشاريع في هذا التقرير",
+  "InsightsPicker.search": "ابحث في المشاريع",
+  "InsightsPicker.all": "كل المشاريع",
+  "InsightsPicker.clear": "مسح",
+  "InsightsPicker.noMatch": "لا توجد مشاريع مطابقة",
+  "InsightsPicker.showAll": "عرض كل المشاريع",
+  "InsightsPicker.showOne": "عرض مشروع واحد",
+  "InsightsPicker.showTwo": "عرض مشروعين",
+  "InsightsPicker.showFew": "عرض {count} مشاريع",
+  "InsightsPicker.showMany": "عرض {count} مشروعًا"
 }

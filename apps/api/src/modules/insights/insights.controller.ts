@@ -23,6 +23,23 @@ function parseLimit(raw: string | undefined): number | undefined {
   return Number.isFinite(value) ? value : undefined;
 }
 
+/** The most project ids one `?projectIds=` filter carries — the portfolio's own hard page max. */
+const MAX_PROJECT_IDS = 50;
+
+/**
+ * Parse A13's `?projectIds=a,b,c` ("Projects in this report") into a de-duplicated id list. Blank
+ * entries are ignored and the list is capped; an id the caller cannot read is not an error here —
+ * the service drops it silently, so the filter can only narrow, never widen, the roll-up.
+ */
+export function parseProjectIds(raw: string | undefined): string[] {
+  if (raw === undefined) return [];
+  const ids = raw
+    .split(',')
+    .map((id) => id.trim())
+    .filter((id) => id.length > 0 && id.length <= 64);
+  return [...new Set(ids)].slice(0, MAX_PROJECT_IDS);
+}
+
 /**
  * INS-01's HTTP surface — the insights module's first read.
  *
@@ -54,6 +71,7 @@ export class InsightsController {
     @CurrentPrincipal() principal: Principal,
     @Query('after') after?: string,
     @Query('limit') limit?: string,
+    @Query('projectIds') projectIds?: string,
   ): Promise<InsightsPortfolioView> {
     const parsedLimit = limit === undefined ? undefined : Number(limit);
     if (parsedLimit !== undefined && !Number.isSafeInteger(parsedLimit)) {
@@ -62,9 +80,11 @@ export class InsightsController {
       ]);
     }
 
+    const parsedIds = parseProjectIds(projectIds);
     return this.insights.portfolio(context, principal, {
       ...(after ? { after } : {}),
       ...(parsedLimit !== undefined ? { limit: parsedLimit } : {}),
+      ...(parsedIds.length > 0 ? { projectIds: parsedIds } : {}),
     });
   }
 

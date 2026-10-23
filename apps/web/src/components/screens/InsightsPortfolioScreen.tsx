@@ -1,11 +1,12 @@
 'use client';
 
-import type { ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { useQuery } from '@tanstack/react-query';
 import type { WorkItemState } from '@tmanage/domain';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ProjectPickerPopover, useA13T } from '../insights/ProjectPickerPopover';
 import { InsightsPortfolioMobileSummary } from './InsightsPortfolioMobileSummary';
 import {
   InsightsBars,
@@ -62,10 +63,30 @@ export function InsightsPortfolioScreen({
   const isMobile = useIsMobile();
   const t = useT();
 
-  const portfolio = useQuery({
+  const pickerT = useA13T();
+  // A13: the report's project selection lives in the URL (`?projects=a,b`), read once on mount.
+  const [selected, setSelected] = useState<readonly string[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  useEffect(() => setSelected(readProjectsParam()), []);
+
+  // Every readable project — the picker's options (and the report when nothing is selected).
+  const everything = useQuery({
     queryKey: ['insights-portfolio', organizationSlug],
     queryFn: () => fetchInsightsPortfolio(api, organizationSlug),
   });
+  const narrowed = useQuery({
+    queryKey: ['insights-portfolio', organizationSlug, selected],
+    queryFn: () => fetchInsightsPortfolio(api, organizationSlug, selected),
+    enabled: selected.length > 0,
+  });
+  const portfolio = selected.length > 0 ? narrowed : everything;
+
+  const apply = useCallback((projectIds: readonly string[]) => {
+    setSelected(projectIds);
+    writeProjectsParam(projectIds);
+    setPickerOpen(false);
+  }, []);
+  const closePicker = useCallback(() => setPickerOpen(false), []);
 
   const projectCount = portfolio.data?.projectCount;
 
@@ -79,11 +100,29 @@ export function InsightsPortfolioScreen({
       actions={
         <>
           {projectCount !== undefined ? (
-            <span className="tm-ins-capsule">
-              {projectCount}{' '}
-              {projectCount === 1
-                ? t('InsightsPortfolioScreen.nounProject')
-                : t('InsightsPortfolioScreen.nounProjects')}
+            <span className="tm-ins-picker-anchor">
+              <button
+                type="button"
+                className="tm-ins-capsule"
+                data-kind="trigger"
+                aria-haspopup="dialog"
+                aria-expanded={pickerOpen}
+                title={pickerT('InsightsPicker.title')}
+                onClick={() => setPickerOpen((open) => !open)}
+              >
+                {projectCount}{' '}
+                {projectCount === 1
+                  ? t('InsightsPortfolioScreen.nounProject')
+                  : t('InsightsPortfolioScreen.nounProjects')}
+              </button>
+              {pickerOpen && everything.data ? (
+                <ProjectPickerPopover
+                  projects={everything.data.projects}
+                  value={selected}
+                  onApply={apply}
+                  onClose={closePicker}
+                />
+              ) : null}
             </span>
           ) : null}
           {headerActions}
@@ -363,6 +402,23 @@ function StageBars({ projects }: { projects: readonly InsightsPortfolioProject[]
       </p>
     </>
   );
+}
+
+/** The `?projects=` selection in the address bar, or none. */
+function readProjectsParam(): string[] {
+  if (typeof window === 'undefined') return [];
+  const raw = new URLSearchParams(window.location.search).get('projects');
+  if (!raw) return [];
+  return [...new Set(raw.split(',').map((id) => id.trim()))].filter((id) => id !== '');
+}
+
+/** Put the selection back in the address bar without a navigation; empty removes the param. */
+function writeProjectsParam(projectIds: readonly string[]): void {
+  if (typeof window === 'undefined') return;
+  const url = new URL(window.location.href);
+  if (projectIds.length > 0) url.searchParams.set('projects', projectIds.join(','));
+  else url.searchParams.delete('projects');
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
 /** Add up one field across rows. */

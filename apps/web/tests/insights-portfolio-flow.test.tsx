@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
 import { InsightsPortfolioScreen } from '../src/components/screens/InsightsPortfolioScreen';
 import { expectNoAxeViolations } from './axe';
@@ -12,14 +12,18 @@ import { expectNoAxeViolations } from './axe';
  */
 type Reply = { body: unknown; status?: number };
 
-function mount(reply: Reply) {
-  const routed: typeof globalThis.fetch = (() =>
-    Promise.resolve(
-      new Response(JSON.stringify(reply.body), {
-        status: reply.status ?? 200,
+function mount(reply: Reply | ((url: string) => Reply), seen: string[] = []) {
+  const routed: typeof globalThis.fetch = ((input: RequestInfo | URL) => {
+    const url = String(input);
+    seen.push(url);
+    const answer = typeof reply === 'function' ? reply(url) : reply;
+    return Promise.resolve(
+      new Response(JSON.stringify(answer.body), {
+        status: answer.status ?? 200,
         headers: { 'content-type': 'application/json' },
       }),
-    )) as typeof globalThis.fetch;
+    );
+  }) as typeof globalThis.fetch;
 
   const client = new ApiClient({
     baseUrl: 'https://api.example.test',
@@ -126,5 +130,57 @@ describe('InsightsPortfolioScreen', () => {
     mount(refusal('You need work.read.'));
 
     expect(await screen.findByText('You need work.read.')).toBeTruthy();
+  });
+
+  describe('A13 — Projects in this report', () => {
+    afterEach(() => window.history.replaceState(null, '', '/'));
+
+    /** The roll-up narrowed the way the server narrows it: only the requested ids. */
+    function filtering(url: string): Reply {
+      const ids = new URL(url).searchParams.get('projectIds');
+      if (!ids) return { body: PORTFOLIO };
+      const keep = ids.split(',');
+      const projects = PORTFOLIO.projects.filter((p) => keep.includes(p.projectId));
+      return { body: { ...PORTFOLIO, projects, projectCount: projects.length } };
+    }
+
+    it('narrows the report to the checked projects and writes them to the URL', async () => {
+      const seen: string[] = [];
+      mount(filtering, seen);
+
+      fireEvent.click(await screen.findByRole('button', { name: /2/ }));
+      const picker = screen.getByRole('dialog');
+      fireEvent.click(within(picker).getByRole('checkbox', { name: 'Website' }));
+      expect(
+        (within(picker).getByRole('checkbox', { name: 'All projects' }) as HTMLInputElement)
+          .checked,
+      ).toBe(false);
+      fireEvent.click(within(picker).getByRole('button', { name: 'Show 1 project' }));
+
+      expect(await screen.findByRole('link', { name: 'Website' })).toBeTruthy();
+      expect(screen.queryByRole('link', { name: 'Rebrand' })).toBeNull();
+      expect(seen.some((url) => url.endsWith('/insights/portfolio?projectIds=project-2'))).toBe(
+        true,
+      );
+      expect(new URLSearchParams(window.location.search).get('projects')).toBe('project-2');
+    });
+
+    it('reads ?projects= on load, and Clear + Show all returns to every project', async () => {
+      window.history.replaceState(null, '', '/northstar/insights?projects=project-1');
+      const seen: string[] = [];
+      mount(filtering, seen);
+
+      expect(await screen.findByRole('link', { name: 'Rebrand' })).toBeTruthy();
+      await waitFor(() => expect(screen.queryByRole('link', { name: 'Website' })).toBeNull());
+      expect(seen.some((url) => url.endsWith('?projectIds=project-1'))).toBe(true);
+
+      fireEvent.click(screen.getByRole('button', { name: /1/ }));
+      const picker = screen.getByRole('dialog');
+      fireEvent.click(within(picker).getByRole('button', { name: 'Clear' }));
+      fireEvent.click(within(picker).getByRole('button', { name: 'Show all projects' }));
+
+      expect(await screen.findByRole('link', { name: 'Website' })).toBeTruthy();
+      expect(window.location.search).toBe('');
+    });
   });
 });
