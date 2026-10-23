@@ -2995,3 +2995,22 @@ type _requestMessage = Assert<Exact<ApiRequestMessageView, WebRequestMessageView
 type _requestMessageClient = Assert<
   Exact<ApiRequestMessageClientView, WebRequestMessageClientView>
 >;
+
+// A4 (BK3 + 0dece203): direct messages and the @ picker — all four leave EXEMPT now that
+// `apps/web/src/lib/api/direct-conversations.ts` and `mention-candidates.ts` consume them.
+import type {
+  DirectConversationView as ApiDirectConversationView,
+  DirectMessageView as ApiDirectMessageView,
+  DirectReadStateView as ApiDirectReadStateView,
+} from '../../apps/api/src/modules/conversations/direct-conversations.service.js';
+import type { MentionCandidateView as ApiMentionCandidateView } from '../../apps/api/src/modules/conversations/mention-candidates.controller.js';
+import type {
+  DirectConversationSummary as WebDirectConversationSummary,
+  DirectMessageSummary as WebDirectMessageSummary,
+  DirectReadState as WebDirectReadState,
+} from '../../apps/web/src/lib/api/direct-conversations';
+import type { MentionCandidate as WebMentionCandidate } from '../../apps/web/src/lib/api/mention-candidates';
+type _directConversation = Assert<Exact<ApiDirectConversationView, WebDirectConversationSummary>>;
+type _directMessage = Assert<Exact<ApiDirectMessageView, WebDirectMessageSummary>>;
+type _directReadState = Assert<Exact<ApiDirectReadStateView, WebDirectReadState>>;
+type _mentionCandidate = Assert<Exact<ApiMentionCandidateView, WebMentionCandidate>>;

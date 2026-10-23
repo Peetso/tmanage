@@ -71,6 +71,12 @@ export type LiveFeedStatus = 'off' | 'connecting' | 'live' | 'retrying' | 'revok
 export interface ChannelLiveFeedOptions {
   readonly api: ApiClient;
   readonly organizationSlug: string;
+  /**
+   * The channel — or, since BK3-left, a **direct conversation** — to follow. The worker's
+   * subscribe takes either id (both are uuidv7, so they never collide): it tries the channel
+   * check first and falls back to the direct-message relation rule, and it publishes
+   * `direct_message.created.v1` on the DM's id. `DirectMessageScreen` passes its DM id here.
+   */
   readonly conversationId: string;
   readonly enabled: boolean;
   /** Called on every frame and once on subscribe. Refetch; never apply frame content. */
@@ -93,6 +99,16 @@ const RECONNECT_CAP_MS = 30_000;
 function defaultFactory(url: string): LiveSocket | null {
   if (typeof WebSocket === 'undefined') return null;
   return new WebSocket(url) as unknown as LiveSocket;
+}
+
+/** The same feed, named for a direct conversation: `directConversationId` is its id. */
+export function useDirectConversationLiveFeed(
+  options: Omit<ChannelLiveFeedOptions, 'conversationId'> & {
+    readonly directConversationId: string;
+  },
+): LiveFeedStatus {
+  const { directConversationId, ...rest } = options;
+  return useChannelLiveFeed({ ...rest, conversationId: directConversationId });
 }
 
 export function useChannelLiveFeed(options: ChannelLiveFeedOptions): LiveFeedStatus {

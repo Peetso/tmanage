@@ -13,6 +13,10 @@ import { API_URL } from '../setup/stack.js';
  *   leak"** — a member of the organization who is not in the channel opens its URL and
  *   learns nothing: not the message, not the channel's existence beyond a load error.
  *
+ * - **E2E-DM, "a member starts a direct message and the other member reads it"** (A4) — New
+ *   message from the chat column, Open conversation, send; the other member sees the unread pill,
+ *   opens the conversation and the pill is gone (the screen marked it read).
+ *
  * Serial on purpose: the second journey visits the room the first one made, which is the
  * honest shape of the scenario — the denial is about a room where something was said.
  */
@@ -78,7 +82,8 @@ test.describe.serial('the chat journeys', () => {
     await form.getByRole('button', { name: 'Create channel' }).click();
 
     // Enter it and say the thing.
-    await page.getByRole('link', { name: '#e2e-room' }).click();
+    // The chat column lists the room too (its name carries the project); take the browser's row.
+    await page.getByRole('main').getByRole('link', { name: '#e2e-room', exact: true }).click();
     await expect(page.getByLabel('Message the channel')).toBeVisible();
     channelUrl = page.url();
     await page.getByLabel('Message the channel').fill(MESSAGE);
@@ -152,5 +157,60 @@ test.describe.serial('the chat journeys', () => {
     await expect(page.getByLabel('Message the channel')).toHaveCount(0);
 
     await context.close();
+  });
+
+  test('E2E-DM: a member starts a direct message and the other member reads it', async ({
+    browser,
+  }) => {
+    const ownerId = world().northstar.owner.id;
+    const designerId = world().northstar.designer.id;
+    const text = `E2E-DM hello ${Date.now()}`;
+
+    const owner = await browser.newContext();
+    await signIn(owner, ownerId);
+    const roster = await owner.request.get(`${API_URL}/v1/organizations/northstar-studio/members`);
+    expect(roster.ok()).toBe(true);
+    const { members } = (await roster.json()) as {
+      members: { userId: string; displayName: string }[];
+    };
+    const ownerName = members.find((m) => m.userId === ownerId)?.displayName as string;
+    const designerName = members.find((m) => m.userId === designerId)?.displayName as string;
+    expect(ownerName && designerName, 'both seeded members are in the roster').toBeTruthy();
+
+    const page = await owner.newPage();
+    await page.goto('/northstar-studio/chat');
+    await page.getByRole('button', { name: 'New message' }).click();
+    const dialog = page.getByRole('dialog', { name: 'New message' });
+    await dialog.getByLabel('To').fill(designerName.split(' ')[0] as string);
+    await dialog.getByRole('button', { name: new RegExp(designerName) }).click();
+    await dialog.getByRole('button', { name: 'Open conversation' }).click();
+    await expect(page).toHaveURL(/\/northstar-studio\/chat\/dm\//u);
+    const composer = page.getByLabel(`Message ${designerName}`);
+    await composer.fill(text);
+    await page.getByRole('button', { name: 'Send', exact: true }).click();
+    await expect(page.getByText(text)).toBeVisible();
+    await owner.close();
+
+    const designer = await browser.newContext();
+    await signIn(designer, designerId);
+    const other = await designer.newPage();
+    await other.goto('/northstar-studio/chat');
+    const row = other
+      .getByRole('navigation')
+      .getByRole('link', { name: new RegExp(`${ownerName}.*unread`, 'u') });
+    await expect(row).toBeVisible();
+    await row.click();
+    await expect(other.getByText(text)).toBeVisible();
+    // Opening it marked it read: the row carries no unread count any more.
+    await other.goto('/northstar-studio/chat');
+    await expect(
+      other.getByRole('navigation').getByRole('link', { name: new RegExp(ownerName, 'u') }),
+    ).toBeVisible();
+    await expect(
+      other
+        .getByRole('navigation')
+        .getByRole('link', { name: new RegExp(`${ownerName}.*unread`, 'u') }),
+    ).toHaveCount(0);
+    await designer.close();
   });
 });

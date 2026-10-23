@@ -120,19 +120,6 @@ const EXEMPT = new Map([
     "No web consumer yet: BK2 change-a-member's-role response is API-only; the screen is a follow-up.",
   ],
   [
-    'MentionCandidateView',
-    'No web consumer yet: BK3 @mention candidate search is API-only; the composer picker is a follow-up.',
-  ],
-  [
-    'DirectConversationView',
-    'No web consumer yet: BK3 one-to-one direct messages are API-only; the DM screen is a follow-up.',
-  ],
-  ['DirectMessageView', 'No web consumer yet: same as DirectConversationView (BK3, API-only).'],
-  [
-    'DirectReadStateView',
-    'No web consumer yet: BK3-left direct-message mark-read is API-only; the DM screen is a follow-up.',
-  ],
-  [
     'MeetingClientAttendeeView',
     'No web consumer yet: BK5 client attendees (0217) are API-only; the meeting edit screen (Figma 374:1985) is a follow-up.',
   ],

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ChatSidebar } from '../chat/ChatSidebar';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { createConversation, listChannelDirectory } from '../../lib/api/conversations';
@@ -111,6 +112,14 @@ export function ChatScreen({ organizationSlug, organizationName, client }: ChatS
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="chat"
+      contextRail={
+        // A4: the Slack-like two-pane layout — the chat column beside the channel browser.
+        <ChatSidebar
+          api={api}
+          organizationSlug={organizationSlug}
+          organizationName={organizationName}
+        />
+      }
       eyebrow={t('ChatScreen.eyebrow')}
       title={t('ChatScreen.title')}
       actions={

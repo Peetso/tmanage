@@ -6,10 +6,21 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
 import { Button, InlineAlert, LoadingRegion, Skeleton, VisuallyHidden } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
+import { ChatSidebar } from '../chat/ChatSidebar';
+import {
+  MentionButton,
+  MentionPicker,
+  decodeMentions,
+  memberRoleLabel,
+  useMentionComposer,
+  type MentionGroup,
+} from '../chat/MentionPicker';
 import { RichTextBody } from '../RichTextBody';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { newCorrelationId } from '../../lib/api/client';
 import { getProject } from '../../lib/api/projects';
+import { listProjectMembers } from '../../lib/api/project-members';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { useMembers } from '../../lib/use-members';
 import {
   MAX_MESSAGE_PAGE,
@@ -17,7 +28,6 @@ import {
   convertMessageToWork,
   getConversation,
   getDraft,
-  listConversations,
   listMessages,
   listRevisions,
   moderateMessage,
@@ -228,6 +238,38 @@ export function ProjectChannelScreen({
   }, [directory.members]);
   const nameOf = (userId: string) => names.get(userId) ?? shortAuthor(userId);
 
+  // A4 (m-mention): who is on the channel's project, for the picker's PROJECT MEMBERS group.
+  const tOr = useTOr();
+  const projectId = conversation.data?.projectId;
+  const projectMembers = useQuery({
+    queryKey: ['project-members', organizationSlug, projectId],
+    queryFn: () => listProjectMembers(api, organizationSlug, projectId ?? ''),
+    enabled: projectId !== undefined,
+  });
+  const projectMemberIds = useMemo(
+    () =>
+      new Set(
+        (Array.isArray(projectMembers.data) ? projectMembers.data : []).map(
+          (member) => member.userId,
+        ),
+      ),
+    [projectMembers.data],
+  );
+  const roles = useMemo(() => {
+    const byId = new Map<string, string>();
+    for (const member of directory.members ?? []) byId.set(member.userId, member.role);
+    return byId;
+  }, [directory.members]);
+  const projectName = project.data?.name;
+  const subtitleOf = useMemo(
+    () => (userId: string, group: MentionGroup) => {
+      const role = memberRoleLabel(roles.get(userId), tOr) ?? tOr('MentionPicker.client', 'Client');
+      const place = group === 'project' ? projectName : organizationName;
+      return [role, place].filter(Boolean).join(' · ');
+    },
+    [roles, tOr, projectName, organizationName],
+  );
+
   const convertTarget = rows.find((message) => message.id === convertTargetId);
   const selectedId = convertTargetId ?? threadRootId;
   const channelName = conversation.data?.name;
@@ -311,10 +353,11 @@ export function ProjectChannelScreen({
         </>
       }
       contextRail={
-        <ChannelRail
+        <ChatSidebar
           api={api}
           organizationSlug={organizationSlug}
-          conversationId={conversationId}
+          organizationName={organizationName}
+          activeConversationId={conversationId}
         />
       }
       lens={
@@ -421,7 +464,7 @@ export function ProjectChannelScreen({
                     author={nameOf(message.authorUserId)}
                     selected={selectedId === message.id}
                   />
-                  <MessageBody message={message} />
+                  <MessageBody message={message} nameOf={nameOf} />
 
                   <div className="tm-chat-message__actions">
                     <button
@@ -558,85 +601,12 @@ export function ProjectChannelScreen({
               archived={archived}
               label={t('ProjectChannelScreen.messageChannelLabel')}
               placeholder={`${t('ProjectChannelScreen.messagePrefix')} #${conversation.data.name}…`}
+              mentions={{ projectMemberIds, subtitleOf }}
             />
           </div>
         ) : null}
       </div>
     </AppShell>
-  );
-}
-
-/**
- * CH-02's channel column: a find field over the channels this person can open, the current one
- * inked. The list is the same `listConversations` read the channel browser makes, so it can
- * only name channels the API already lets this member see.
- */
-function ChannelRail({
-  api,
-  organizationSlug,
-  conversationId,
-}: {
-  api: ApiClient;
-  organizationSlug: string;
-  conversationId: string;
-}) {
-  const [find, setFind] = useState('');
-  const t = useT();
-  const channels = useQuery({
-    queryKey: ['conversations', organizationSlug, '', false],
-    queryFn: () => listConversations(api, organizationSlug, {}),
-  });
-  const all = Array.isArray(channels.data) ? channels.data : [];
-  const needle = find.trim().replace(/^#/u, '').toLowerCase();
-  const shown = (
-    needle === '' ? all : all.filter((channel) => channel.name.toLowerCase().includes(needle))
-  ).slice(0, 12);
-
-  return (
-    <div className="tm-chat-rail">
-      <label className="tm-chat-rail__find">
-        <span aria-hidden="true">⌕</span>
-        <span className="tm-visually-hidden">{t('ProjectChannelScreen.findChannel')}</span>
-        <input
-          type="search"
-          value={find}
-          onChange={(event) => setFind(event.target.value)}
-          placeholder={t('ProjectChannelScreen.findChannel')}
-        />
-      </label>
-      <div className="tm-chat-rail__group">
-        <h2 className="tm-chat-eyebrow">
-          {t('ProjectChannelScreen.projectChannels')}
-          {channels.data ? ` · ${all.length}` : ''}
-        </h2>
-        <ul className="tm-chat-rail__list" aria-label={t('ProjectChannelScreen.projectChannels')}>
-          {shown.map((channel) => {
-            const current = channel.id === conversationId;
-            return (
-              <li key={channel.id}>
-                <Link
-                  className="tm-chat-rail__item"
-                  href={`/${organizationSlug}/chat/${channel.id}`}
-                  {...(current ? { 'aria-current': 'page' as const } : {})}
-                >
-                  #{channel.name}
-                  {current ? (
-                    <span className="tm-chat-rail__item-orb" aria-hidden="true">
-                      ◎
-                    </span>
-                  ) : null}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-        {all.length > shown.length ? (
-          <Link className="tm-chat-rail__more" href={`/${organizationSlug}/chat`}>
-            + {all.length - shown.length} {t('ProjectChannelScreen.more')}
-          </Link>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -718,7 +688,13 @@ function formatWhen(value: string): string {
   );
 }
 
-function MessageBody({ message }: { message: MessageSummary }) {
+function MessageBody({
+  message,
+  nameOf,
+}: {
+  message: MessageSummary;
+  nameOf?: (userId: string) => string;
+}) {
   const t = useT();
   if (message.deletedAt !== null) {
     return (
@@ -738,7 +714,15 @@ function MessageBody({ message }: { message: MessageSummary }) {
   }
   // A plain body renders as text with its line breaks honoured — the one formatting a plain
   // message can carry.
-  return <p className="tm-chat-message__body tm-break">{message.body}</p>;
+  // A mention is stored as the API's `@<userId>` token and read back as the person's name.
+  const body =
+    nameOf === undefined || message.body === null
+      ? message.body
+      : decodeMentions(message.body, (id) => {
+          const name = nameOf(id);
+          return name === shortAuthor(id) ? undefined : name;
+        });
+  return <p className="tm-chat-message__body tm-break">{body}</p>;
 }
 
 /**
@@ -848,6 +832,7 @@ function Composer({
   label,
   placeholder,
   parentMessageId,
+  mentions,
 }: {
   api: ApiClient;
   organizationSlug: string;
@@ -856,6 +841,11 @@ function Composer({
   label: string;
   placeholder?: string;
   parentMessageId?: string;
+  /** A4 (m-mention): the channel composer's @ picker. Absent on a thread reply. */
+  mentions?: {
+    projectMemberIds: ReadonlySet<string>;
+    subtitleOf: (userId: string, group: MentionGroup) => string | undefined;
+  };
 }) {
   const queries = useQueryClient();
   const t = useT();
@@ -867,6 +857,19 @@ function Composer({
   const [attemptId, setAttemptId] = useState<string | undefined>(undefined);
   const [inadmissible, setInadmissible] = useState<string | undefined>(undefined);
   const controlRef = useRef<HTMLTextAreaElement | null>(null);
+  const tOr = useTOr();
+  const mention = useMentionComposer({
+    api,
+    organizationSlug,
+    conversationId,
+    draft,
+    setDraft,
+    controlRef,
+    ...(mentions === undefined
+      ? {}
+      : { projectMemberIds: mentions.projectMemberIds, subtitleOf: mentions.subtitleOf }),
+  });
+  const mentionsOn = mentions !== undefined;
 
   // x251. Only the channel composer persists an unsent draft; a thread reply is transient and
   // has no per-thread draft on the server (the draft is keyed to the conversation). The notation
@@ -912,9 +915,11 @@ function Composer({
     return () => clearTimeout(handle);
   }, [draft, api, organizationSlug, conversationId, persistDraft]);
 
+  // Picked names go out as the API's mention tokens (`@<userId>`).
+  const encodeMentions = mention.encode;
   const composed = useMemo(
-    () => (draft.trim() === '' ? undefined : composeMessage(draft)),
-    [draft],
+    () => (draft.trim() === '' ? undefined : composeMessage(encodeMentions(draft))),
+    [draft, encodeMentions],
   );
 
   const send = useMutation({
@@ -944,6 +949,7 @@ function Composer({
    * any other input method is unaffected. Any modifier (Ctrl/Cmd/Alt) is left to the browser.
    */
   function onComposerKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionsOn && mention.onKeyDown(event)) return;
     if (
       event.key === 'Enter' &&
       !event.shiftKey &&
@@ -1012,9 +1018,28 @@ function Composer({
         maxLength={16000}
         value={draft}
         placeholder={placeholder ?? label}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          if (mentionsOn) {
+            mention.sync(
+              event.target.value,
+              event.target.selectionStart ?? event.target.value.length,
+            );
+          }
+        }}
         onKeyDown={onComposerKeyDown}
+        {...(mentionsOn ? mention.controlProps : {})}
       />
+
+      {mentionsOn && mention.open ? (
+        <MentionPicker
+          id={mention.listboxId}
+          options={mention.options}
+          activeIndex={mention.activeIndex}
+          onPick={mention.pick}
+          onHover={mention.setActiveIndex}
+        />
+      ) : null}
 
       {composed?.kind === 'rich' ? (
         <section className="tm-chat-preview" aria-label={t('ProjectChannelScreen.previewAria')}>
@@ -1056,6 +1081,12 @@ function Composer({
           ))}
         </div>
         <MicButton dictation={dictation} compact />
+        {mentionsOn ? (
+          <MentionButton
+            label={tOr('MentionPicker.button', 'Mention someone')}
+            onClick={mention.openAtCaret}
+          />
+        ) : null}
         <button
           type="submit"
           className="tm-chat-send"
@@ -1158,7 +1189,7 @@ function ThreadPane({
             <time dateTime={root.createdAt}>{formatStamp(root.createdAt)}</time>
           </span>
         </div>
-        <MessageBody message={root} />
+        <MessageBody message={root} nameOf={nameOf} />
       </div>
 
       {replies.isPending ? (
@@ -1189,7 +1220,7 @@ function ThreadPane({
               <AuthorOrb name={nameOf(reply.authorUserId)} />
               <div className="tm-chat-message__main">
                 <MessageHeader message={reply} author={nameOf(reply.authorUserId)} />
-                <MessageBody message={reply} />
+                <MessageBody message={reply} nameOf={nameOf} />
               </div>
             </li>
           ))}
