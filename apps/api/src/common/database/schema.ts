@@ -8485,6 +8485,93 @@ export const insightMetricFavorites = mysqlTable(
 export type InsightMetricFavoriteRow = typeof insightMetricFavorites.$inferSelect;
 export type NewInsightMetricFavoriteRow = typeof insightMetricFavorites.$inferInsert;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Google Drive as company storage (0210)
+// ─────────────────────────────────────────────────────────────────────────────
+// All three tables are tenant-owned (TENANT_TABLES). The refresh token is stored only as an
+// AES-256-GCM envelope (`refresh_token_enc`), never plaintext; a disconnect wipes it.
+
+/** Which storage an organization uses, and its Google Drive connection when there is one. */
+export const storageConnections = mysqlTable(
+  'storage_connections',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    /** `google_drive`. */
+    provider: varchar('provider', { length: 32 }).notNull(),
+    /** `tmanage` or `google_drive`. */
+    storageMode: varchar('storage_mode', { length: 32 }).notNull().default('tmanage'),
+    /** `connected`, `error` or `disconnected`. */
+    status: varchar('status', { length: 32 }).notNull(),
+    accountEmail: varchar('account_email', { length: 320 }),
+    /** The encrypted refresh token envelope; NULL once disconnected. */
+    refreshTokenEnc: text('refresh_token_enc'),
+    rootFolderId: varchar('root_folder_id', { length: 128 }),
+    sharedDriveId: varchar('shared_drive_id', { length: 128 }),
+    sharedDriveName: varchar('shared_drive_name', { length: 190 }),
+    lastErrorCode: varchar('last_error_code', { length: 64 }),
+    connectedByUserId: char('connected_by_user_id', { length: 36 }),
+    connectedAt: datetime('connected_at', { mode: 'date', fsp: 3 }),
+    disconnectedAt: datetime('disconnected_at', { mode: 'date', fsp: 3 }),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_storage_connections_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_storage_connections_provider').on(table.organizationId, table.provider),
+  ],
+);
+
+/** A Drive folder TManage created for a project or a work item under one `TManage/` root. */
+export const googleDriveFolders = mysqlTable(
+  'google_drive_folders',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    rootFolderId: varchar('root_folder_id', { length: 128 }).notNull(),
+    /** `project` or `work_item`. */
+    subjectKind: varchar('subject_kind', { length: 16 }).notNull(),
+    subjectId: char('subject_id', { length: 36 }).notNull(),
+    driveFolderId: varchar('drive_folder_id', { length: 128 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_google_drive_folders_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_google_drive_folders_subject').on(
+      table.organizationId,
+      table.rootFolderId,
+      table.subjectKind,
+      table.subjectId,
+    ),
+  ],
+);
+
+/** A Google Drive file attached to a work item. Detach is soft (`removed_at`). */
+export const googleDriveAttachments = mysqlTable(
+  'google_drive_attachments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    driveFileId: varchar('drive_file_id', { length: 128 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    mimeType: varchar('mime_type', { length: 190 }).notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    webViewLink: varchar('web_view_link', { length: 512 }),
+    attachedByUserId: char('attached_by_user_id', { length: 36 }).notNull(),
+    removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_google_drive_attachments_org_id').on(table.organizationId, table.id),
+    index('ix_google_drive_attachments_item').on(table.organizationId, table.workItemId, table.id),
+  ],
+);
+
+export type StorageConnectionRow = typeof storageConnections.$inferSelect;
+export type GoogleDriveFolderRow = typeof googleDriveFolders.$inferSelect;
+export type GoogleDriveAttachmentRow = typeof googleDriveAttachments.$inferSelect;
+
 export const TABLES = {
   focus_blocks: focusBlocks,
   inbox_flags: inboxFlags,
@@ -8713,6 +8800,9 @@ export const TABLES = {
   user_display_preferences: userDisplayPreferences,
   portal_branding: portalBranding,
   org_branding: orgBranding,
+  storage_connections: storageConnections,
+  google_drive_folders: googleDriveFolders,
+  google_drive_attachments: googleDriveAttachments,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;
@@ -8937,90 +9027,3 @@ export type InsightCustomReportRow = typeof insightCustomReports.$inferSelect;
 export type PortalBrandingRow = typeof portalBranding.$inferSelect;
 export type NewPortalBrandingRow = typeof portalBranding.$inferInsert;
 export type OrgBrandingRow = typeof orgBranding.$inferSelect;
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Google Drive as company storage (0210)
-// ─────────────────────────────────────────────────────────────────────────────
-// All three tables are tenant-owned (TENANT_TABLES). The refresh token is stored only as an
-// AES-256-GCM envelope (`refresh_token_enc`), never plaintext; a disconnect wipes it.
-
-/** Which storage an organization uses, and its Google Drive connection when there is one. */
-export const storageConnections = mysqlTable(
-  'storage_connections',
-  {
-    id: char('id', { length: 36 }).primaryKey(),
-    organizationId: char('organization_id', { length: 36 }).notNull(),
-    /** `google_drive`. */
-    provider: varchar('provider', { length: 32 }).notNull(),
-    /** `tmanage` or `google_drive`. */
-    storageMode: varchar('storage_mode', { length: 32 }).notNull().default('tmanage'),
-    /** `connected`, `error` or `disconnected`. */
-    status: varchar('status', { length: 32 }).notNull(),
-    accountEmail: varchar('account_email', { length: 320 }),
-    /** The encrypted refresh token envelope; NULL once disconnected. */
-    refreshTokenEnc: text('refresh_token_enc'),
-    rootFolderId: varchar('root_folder_id', { length: 128 }),
-    sharedDriveId: varchar('shared_drive_id', { length: 128 }),
-    sharedDriveName: varchar('shared_drive_name', { length: 190 }),
-    lastErrorCode: varchar('last_error_code', { length: 64 }),
-    connectedByUserId: char('connected_by_user_id', { length: 36 }),
-    connectedAt: datetime('connected_at', { mode: 'date', fsp: 3 }),
-    disconnectedAt: datetime('disconnected_at', { mode: 'date', fsp: 3 }),
-    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
-    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
-  },
-  (table) => [
-    uniqueIndex('uq_storage_connections_org_id').on(table.organizationId, table.id),
-    uniqueIndex('uq_storage_connections_provider').on(table.organizationId, table.provider),
-  ],
-);
-
-/** A Drive folder TManage created for a project or a work item under one `TManage/` root. */
-export const googleDriveFolders = mysqlTable(
-  'google_drive_folders',
-  {
-    id: char('id', { length: 36 }).primaryKey(),
-    organizationId: char('organization_id', { length: 36 }).notNull(),
-    rootFolderId: varchar('root_folder_id', { length: 128 }).notNull(),
-    /** `project` or `work_item`. */
-    subjectKind: varchar('subject_kind', { length: 16 }).notNull(),
-    subjectId: char('subject_id', { length: 36 }).notNull(),
-    driveFolderId: varchar('drive_folder_id', { length: 128 }).notNull(),
-    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
-  },
-  (table) => [
-    uniqueIndex('uq_google_drive_folders_org_id').on(table.organizationId, table.id),
-    uniqueIndex('uq_google_drive_folders_subject').on(
-      table.organizationId,
-      table.rootFolderId,
-      table.subjectKind,
-      table.subjectId,
-    ),
-  ],
-);
-
-/** A Google Drive file attached to a work item. Detach is soft (`removed_at`). */
-export const googleDriveAttachments = mysqlTable(
-  'google_drive_attachments',
-  {
-    id: char('id', { length: 36 }).primaryKey(),
-    organizationId: char('organization_id', { length: 36 }).notNull(),
-    workItemId: char('work_item_id', { length: 36 }).notNull(),
-    driveFileId: varchar('drive_file_id', { length: 128 }).notNull(),
-    name: varchar('name', { length: 255 }).notNull(),
-    mimeType: varchar('mime_type', { length: 190 }).notNull(),
-    sizeBytes: bigint('size_bytes', { mode: 'number' }),
-    webViewLink: varchar('web_view_link', { length: 512 }),
-    attachedByUserId: char('attached_by_user_id', { length: 36 }).notNull(),
-    removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
-    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
-  },
-  (table) => [
-    uniqueIndex('uq_google_drive_attachments_org_id').on(table.organizationId, table.id),
-    index('ix_google_drive_attachments_item').on(table.organizationId, table.workItemId, table.id),
-  ],
-);
-
-export type StorageConnectionRow = typeof storageConnections.$inferSelect;
-export type GoogleDriveFolderRow = typeof googleDriveFolders.$inferSelect;
-export type GoogleDriveAttachmentRow = typeof googleDriveAttachments.$inferSelect;
