@@ -198,12 +198,25 @@ test.describe('the upload journey', () => {
     expect(filesUnder(join(root, 'uploads'))).toHaveLength(0);
     const quarantinePath = fresh[0]?.path as string;
 
-    // Not yet downloadable: the file is `uploaded`, and the gate answers one 404.
+    // Not yet downloadable: the file is `uploaded`. The caller is authorized for it (it sees the
+    // status in its list), so the gate answers a typed 409 `pending_scan` (CQ-09, BK4) — and the
+    // body still carries no bytes, no object path, no tenant id and no audit cause.
     const fileAssetId = session.fileAssetId;
     const early = await studio.request.get(
       `${API_URL}/v1/organizations/northstar-studio/files/${fileAssetId}/content`,
     );
-    expect(early.status()).toBe(404);
+    expect(early.status()).toBe(409);
+    const earlyText = await early.text();
+    const earlyBody = JSON.parse(earlyText) as {
+      error: { code: string; details?: { field: string; message: string }[] };
+    };
+    expect(earlyBody.error.code).toBe('conflict');
+    expect(earlyBody.error.details).toEqual([{ field: 'status', message: 'pending_scan' }]);
+    expect(earlyText).not.toContain(world().northstar.organizationId);
+    expect(earlyText).not.toContain('quarantine');
+    expect(earlyText).not.toContain('not_servable');
+    expect(earlyText).not.toContain('%PDF');
+    expect(early.headers()['content-disposition']).toBeUndefined();
 
     // The deployment's tick: verify (hash, signature) then scan (stub) and promote.
     const passes = await verifyUploads(databaseUrl, root);
