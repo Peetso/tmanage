@@ -121,7 +121,7 @@ describe('PlanChangeRequestsController', () => {
     const { controller, store } = controllerWith();
     await expect(
       controller.create(context, principal('owner'), {
-        targetPlanCode: 'enterprise',
+        targetPlanCode: 'enterprise-unlimited',
         effectiveOn: FUTURE,
       }),
     ).rejects.toMatchObject({ status: 400 });

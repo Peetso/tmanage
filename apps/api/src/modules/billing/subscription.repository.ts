@@ -1,7 +1,7 @@
-import { eq, sql } from 'drizzle-orm';
-import { uuidv7 } from '@tmanage/domain';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import { INTERNAL_ROLES, uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { subscriptions } from '../../common/database/schema.js';
+import { memberships, subscriptions } from '../../common/database/schema.js';
 import type { SubscriptionRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { SubscriptionStatus } from './plan-catalog.js';
@@ -47,6 +47,24 @@ export class SubscriptionRepository {
       .where(eq(subscriptions.organizationId, context.organizationId))
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /**
+   * How many internal people the organization has: active memberships holding an internal role.
+   * Clients are never counted — they are always free and never count as people on a flat plan.
+   */
+  async countInternalPeople(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ people: sql<number>`count(*)` })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.status, 'active'),
+          inArray(memberships.role, [...INTERNAL_ROLES]),
+        ),
+      );
+    return Number(rows[0]?.people ?? 0);
   }
 
   /**

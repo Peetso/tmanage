@@ -1,17 +1,21 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, InlineAlert, LoadingRegion, Select, Skeleton, StateCapsule } from '@tmanage/ui';
+import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { useT } from '../../lib/i18n/use-t';
-import type { MessageKey } from '../../lib/i18n/t';
+import { useTOr } from '../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSubscription, requestPlanChange } from '../../lib/api/subscription';
 import type { SubscriptionView } from '../../lib/api/subscription';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
-import '../../styles/screens/billing.css';
+import { formatUsd, planPrice } from '../website/pages/pricing/pricing-data';
+import type { BillingPeriod } from '../website/pages/pricing/pricing-data';
+import './subscription-plans.css';
 
 export interface SubscriptionScreenProps {
   organizationSlug: string;
@@ -21,22 +25,103 @@ export interface SubscriptionScreenProps {
 }
 
 /**
- * **Subscription** — the billing screen `38-…` §Billing asks for: view the current plan and request
- * a plan change. x177 ships the read (`GET …/billing/subscription`) and the change request
- * (`POST …/billing/subscription/change`), both behind `org.manage`.
+ * **Choose a plan** — the in-app plan picker (approved Figma 376:17695 task 12, frames 379:4075 EN /
+ * 379:4380 AR). Five flat plans for the whole team, never per member: Free, Starter, Studio,
+ * Business, Enterprise. The current plan carries the "Current plan" pill and the ink border; a
+ * cheaper plan offers "Switch to …", a dearer one "Upgrade", Enterprise "Contact sales". The info
+ * row under the cards reads the API's people count and next bill date.
  *
- * Three decisions worth stating:
- *
- * 1. **No rail item.** Like the storage-usage screen, billing is not one of `22-SCREEN-BY-SCREEN`
- *    §1's eight rail destinations, so none is invented; the screen has its own route.
- * 2. **Authorization is the API's.** Both routes sit behind `org.manage`; a member without it gets
- *    the ordinary 403, which `describe()` turns into the forbidden line, never a blank page.
- * 3. **No charge here.** A change is *requested*, not paid. The screen says so, and the returned
- *    status is `pending_change` until a later payment slice (an external provider) activates it.
+ * Both routes sit behind `org.manage`. A switch records an intent (`pending_change`) — no payment is
+ * executed here.
  */
 
-/** The plan ids a change may target. Kept in step with the API plan catalog (x157 pricing, later). */
-const PLAN_IDS: readonly string[] = ['free', 'starter', 'pro', 'business'];
+type PlanId = 'free' | 'starter' | 'studio' | 'business' | 'enterprise';
+
+interface PlanCard {
+  readonly id: PlanId;
+  readonly name: readonly [key: string, english: string];
+  /** Flat monthly price for the whole team in US cents; `null` is Enterprise (custom). */
+  readonly monthlyCents: number | null;
+  readonly features: readonly (readonly [key: string, english: string])[];
+}
+
+const K = 'SubscriptionScreen.plans.';
+
+const PLANS: readonly PlanCard[] = [
+  {
+    id: 'free',
+    name: [`${K}freeName`, 'Free'],
+    monthlyCents: 0,
+    features: [
+      [`${K}freeFeature1`, 'Up to 3 internal people'],
+      [`${K}freeFeature2`, '3 active projects'],
+      [`${K}freeFeature3`, 'Unlimited clients, always free'],
+      [`${K}freeFeature4`, 'Work, chat and calendar'],
+    ],
+  },
+  {
+    id: 'starter',
+    name: [`${K}starterName`, 'Starter'],
+    monthlyCents: 1900,
+    features: [
+      [`${K}starterFeature1`, 'Up to 10 internal people'],
+      [`${K}starterFeature2`, 'Unlimited projects'],
+      [`${K}starterFeature3`, 'Requests and approvals'],
+      [`${K}starterFeature4`, 'Branded client portal'],
+    ],
+  },
+  {
+    id: 'studio',
+    name: [`${K}studioName`, 'Studio'],
+    monthlyCents: 4900,
+    features: [
+      [`${K}studioFeature1`, 'Unlimited internal people'],
+      [`${K}studioFeature2`, 'Docs and decisions'],
+      [`${K}studioFeature3`, 'Workload insights'],
+      [`${K}studioFeature4`, 'Automations'],
+    ],
+  },
+  {
+    id: 'business',
+    name: [`${K}businessName`, 'Business'],
+    monthlyCents: 8900,
+    features: [
+      [`${K}businessFeature1`, 'Unlimited internal people'],
+      [`${K}businessFeature2`, 'SSO and security controls'],
+      [`${K}businessFeature3`, 'Admin console and roles'],
+      [`${K}businessFeature4`, 'Audit log and priority support'],
+    ],
+  },
+  {
+    id: 'enterprise',
+    name: [`${K}enterpriseName`, 'Enterprise'],
+    monthlyCents: null,
+    features: [
+      [`${K}enterpriseFeature1`, 'Everything in Business'],
+      [`${K}enterpriseFeature2`, 'SCIM and data residency'],
+      [`${K}enterpriseFeature3`, 'Contracts and invoicing'],
+      [`${K}enterpriseFeature4`, 'Named success lead'],
+    ],
+  },
+];
+
+const RANK: Readonly<Record<PlanId, number>> = {
+  free: 0,
+  starter: 1,
+  studio: 2,
+  business: 3,
+  enterprise: 4,
+};
+
+/** A stored plan id read as a catalog plan: the API already maps `pro` to `studio`. */
+function asPlanId(planId: string): PlanId {
+  if (planId === 'pro') return 'studio';
+  return planId in RANK ? (planId as PlanId) : 'free';
+}
+
+function fill(template: string, values: Readonly<Record<string, string>>): string {
+  return template.replace(/\{(\w+)\}/g, (whole, name: string) => values[name] ?? whole);
+}
 
 export function SubscriptionScreen({
   organizationSlug,
@@ -44,9 +129,11 @@ export function SubscriptionScreen({
   client,
 }: SubscriptionScreenProps) {
   const t = useT();
+  const tOr = useTOr();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const subscriptionKey = ['organization-subscription', organizationSlug];
+  const [period, setPeriod] = useState<BillingPeriod>('monthly');
 
   const subscription = useQuery({
     queryKey: subscriptionKey,
@@ -54,29 +141,48 @@ export function SubscriptionScreen({
   });
 
   const change = useMutation({
-    mutationFn: (planId: string) => requestPlanChange(api, organizationSlug, planId),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: subscriptionKey });
+    mutationFn: (planId: PlanId) => requestPlanChange(api, organizationSlug, planId),
+    onSuccess: (view) => {
+      queryClient.setQueryData(subscriptionKey, view);
     },
   });
+
+  const tabs = (
+    <div className="tm-plans-tabs" role="group" aria-label={tOr(`${K}periodLabel`, 'Billing')}>
+      {(['monthly', 'yearly'] as const).map((value) => (
+        <button
+          key={value}
+          type="button"
+          className="tm-plans-tabs__tab"
+          aria-pressed={period === value}
+          onClick={() => setPeriod(value)}
+        >
+          {value === 'monthly'
+            ? tOr(`${K}monthly`, 'Monthly')
+            : tOr(`${K}yearly`, 'Yearly · save 20%')}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <AppShell
       organizationSlug={organizationSlug}
       organizationName={organizationName}
       activeNavigationId="admin"
-      eyebrow={t('SubscriptionScreen.eyebrow')}
-      title={t('SubscriptionScreen.title')}
-      description={t('SubscriptionScreen.description')}
+      title={tOr(`${K}title`, 'Choose a plan')}
+      description={tOr(
+        `${K}subtitle`,
+        'Flat prices for your whole team, not per member. Clients are always free and never count as people.',
+      )}
+      actions={tabs}
     >
-      <div className="tm-bil">
+      <div className="tm-plans">
         {subscription.isPending ? (
-          <LoadingRegion
-            label={t('SubscriptionScreen.loading')}
-            className="tm-stack tm-stack--tight"
-          >
-            <Skeleton height="var(--row)" />
-            <Skeleton height="var(--row)" />
+          <LoadingRegion label={t('SubscriptionScreen.loading')} className="tm-plans__grid">
+            {PLANS.map((plan) => (
+              <Skeleton key={plan.id} height="var(--s24)" />
+            ))}
           </LoadingRegion>
         ) : null}
 
@@ -87,12 +193,14 @@ export function SubscriptionScreen({
         ) : null}
 
         {subscription.isSuccess ? (
-          <SubscriptionPanel
+          <PlanPicker
+            organizationSlug={organizationSlug}
             subscription={subscription.data}
-            onChange={(planId) => change.mutate(planId)}
-            isChanging={change.isPending}
+            period={period}
+            onSwitch={(planId) => change.mutate(planId)}
+            pendingPlan={change.isPending ? (change.variables ?? null) : null}
             changeError={change.isError ? describe(change.error) : null}
-            changed={change.isSuccess ? change.data : null}
+            changed={change.isSuccess ? asPlanId(change.data.planId) : null}
           />
         ) : null}
       </div>
@@ -100,130 +208,215 @@ export function SubscriptionScreen({
   );
 }
 
-function SubscriptionPanel({
+function PlanPicker({
+  organizationSlug,
   subscription,
-  onChange,
-  isChanging,
+  period,
+  onSwitch,
+  pendingPlan,
   changeError,
   changed,
 }: {
+  organizationSlug: string;
   subscription: SubscriptionView;
-  onChange: (planId: string) => void;
-  isChanging: boolean;
+  period: BillingPeriod;
+  onSwitch: (planId: PlanId) => void;
+  pendingPlan: PlanId | null;
   changeError: string | null;
-  changed: SubscriptionView | null;
+  changed: PlanId | null;
 }) {
-  const t = useT();
-  const [target, setTarget] = useState<string>(subscription.planId);
+  const tOr = useTOr();
+  const locale = useActiveLocale();
+  const current = asPlanId(subscription.planId);
+  const nameOf = (id: PlanId): string => {
+    const plan = PLANS.find((p) => p.id === id) ?? PLANS[0]!;
+    return tOr(...plan.name);
+  };
 
   return (
     <>
-      <div className="tm-bil-col tm-bil-col--wide tm-bil-main">
-        <div className="tm-bil-figure">
-          <p className="tm-bil-eyebrow">
-            {subscription.status === 'pending_change'
-              ? t('SubscriptionScreen.changePending')
-              : t('SubscriptionScreen.active')}
-            {subscription.currentPeriodEnd === null
-              ? ''
-              : ` · ${t('SubscriptionScreen.renewsWord')} ${formatMoment(subscription.currentPeriodEnd)}`}
-          </p>
-          <p className="tm-bil-figure__value">
-            {planLabel(subscription.planId, t)} {t('SubscriptionScreen.planWord')}
-          </p>
-        </div>
+      <ul className="tm-plans__grid" aria-label={tOr(`${K}title`, 'Choose a plan')}>
+        {PLANS.map((plan) => {
+          const isCurrent = plan.id === current;
+          const name = tOr(...plan.name);
+          return (
+            <li
+              key={plan.id}
+              className="tm-plans-card"
+              data-plan={plan.id}
+              data-current={isCurrent || undefined}
+              aria-current={isCurrent || undefined}
+            >
+              <div className="tm-plans-card__head">
+                <h2 className="tm-plans-card__name">{name}</h2>
+                {isCurrent ? (
+                  <span className="tm-plans-card__pill">
+                    {tOr(`${K}currentPlan`, 'Current plan')}
+                  </span>
+                ) : null}
+              </div>
 
-        <section className="tm-bil-card" aria-labelledby="tm-subscription-heading">
-          <h2 id="tm-subscription-heading" className="tm-bil-card__title">
-            {t('SubscriptionScreen.currentPlanHeading')}
-          </h2>
+              <PriceLine plan={plan} period={period} />
 
-          <dl className="tm-detail-list">
-            <div className="tm-detail-list__pair">
-              <dt>{t('SubscriptionScreen.planLabelDt')}</dt>
-              <dd className="tm-mono">{planLabel(subscription.planId, t)}</dd>
-            </div>
-            <div className="tm-detail-list__pair">
-              <dt>{t('SubscriptionScreen.statusLabel')}</dt>
-              <dd>
-                <StateCapsule
-                  state={subscription.status === 'pending_change' ? 'waiting' : 'current'}
-                >
-                  {subscription.status === 'pending_change'
-                    ? t('SubscriptionScreen.changePending')
-                    : t('SubscriptionScreen.active')}
-                </StateCapsule>
-              </dd>
-            </div>
-            <div className="tm-detail-list__pair">
-              <dt>{t('SubscriptionScreen.renewsLabelDt')}</dt>
-              <dd className="tm-mono">
-                {subscription.currentPeriodEnd === null
-                  ? t('SubscriptionScreen.noRenewalDate')
-                  : formatMoment(subscription.currentPeriodEnd)}
-              </dd>
-            </div>
-          </dl>
-        </section>
-      </div>
+              <ul className="tm-plans-card__features">
+                {plan.features.map(([key, english]) => (
+                  <li key={key} className="tm-plans-card__feature">
+                    <span className="tm-plans-card__check" aria-hidden="true">
+                      ✓
+                    </span>
+                    <span>{tOr(key, english)}</span>
+                  </li>
+                ))}
+              </ul>
 
-      <section className="tm-bil-card" aria-labelledby="tm-subscription-change-heading">
-        <h2 id="tm-subscription-change-heading" className="tm-bil-card__title">
-          {t('SubscriptionScreen.changePlanHeading')}
-        </h2>
-        <form
-          className="tm-stack tm-stack--tight"
-          onSubmit={(event) => {
-            event.preventDefault();
-            onChange(target);
-          }}
-        >
-          <Select
-            label={t('SubscriptionScreen.changePlanLabel')}
-            value={target}
-            onChange={(event) => setTarget(event.target.value)}
-            hint={t('SubscriptionScreen.changeHint')}
-          >
-            {PLAN_IDS.map((planId) => (
-              <option key={planId} value={planId}>
-                {planLabel(planId, t)}
-              </option>
-            ))}
-          </Select>
+              <div className="tm-plans-card__action">
+                {plan.id === 'enterprise' ? (
+                  <Link
+                    href="/contact"
+                    className="tm-button tm-button--outline tm-button--default tm-plans-card__button"
+                  >
+                    {tOr(`${K}contactSales`, 'Contact sales')}
+                  </Link>
+                ) : isCurrent ? (
+                  <Link
+                    href={`/${encodeURIComponent(organizationSlug)}/billing/plan-change/request`}
+                    className="tm-button tm-button--outline tm-button--default tm-plans-card__button"
+                  >
+                    {tOr(`${K}managePlan`, 'Manage plan')}
+                  </Link>
+                ) : RANK[plan.id] > RANK[current] ? (
+                  <Button
+                    tone="ink"
+                    className="tm-plans-card__button"
+                    loading={pendingPlan === plan.id}
+                    loadingLabel={tOr(`${K}switching`, 'Switching plan')}
+                    disabled={pendingPlan !== null && pendingPlan !== plan.id}
+                    onClick={() => onSwitch(plan.id)}
+                  >
+                    {fill(tOr(`${K}upgrade`, 'Upgrade'), { plan: name })}
+                  </Button>
+                ) : (
+                  <Button
+                    tone="outline"
+                    className="tm-plans-card__button"
+                    loading={pendingPlan === plan.id}
+                    loadingLabel={tOr(`${K}switching`, 'Switching plan')}
+                    disabled={pendingPlan !== null && pendingPlan !== plan.id}
+                    onClick={() => onSwitch(plan.id)}
+                  >
+                    {fill(tOr(`${K}switchTo`, 'Switch to {plan}'), { plan: name })}
+                  </Button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
 
-          <div>
-            <Button type="submit" disabled={isChanging}>
-              {isChanging
-                ? t('SubscriptionScreen.requesting')
-                : t('SubscriptionScreen.requestChange')}
-            </Button>
-          </div>
-        </form>
+      {changeError !== null ? (
+        <InlineAlert tone="danger" title={tOr(`${K}changeError`, 'Could not switch the plan')} live>
+          {changeError}
+        </InlineAlert>
+      ) : null}
 
-        {changeError !== null ? (
-          <InlineAlert tone="danger" title={t('SubscriptionScreen.changeErrorTitle')} live>
-            {changeError}
-          </InlineAlert>
-        ) : null}
+      {changed !== null ? (
+        <InlineAlert tone="success" title={tOr(`${K}changedTitle`, 'Plan change recorded')} live>
+          {fill(
+            tOr(`${K}changedBody`, 'We recorded your move to {plan}. Nothing has been charged.'),
+            {
+              plan: nameOf(changed),
+            },
+          )}
+        </InlineAlert>
+      ) : null}
 
-        {changed !== null ? (
-          <InlineAlert tone="success" title={t('SubscriptionScreen.changeRequestedTitle')} live>
-            {`${t('SubscriptionScreen.changedBodyBefore')}${planLabel(changed.planId, t)}${t('SubscriptionScreen.changedBodyAfter')}`}
-          </InlineAlert>
-        ) : null}
-      </section>
+      <p className="tm-plans-info">
+        <span className="tm-plans-info__glyph" aria-hidden="true">
+          i
+        </span>
+        <span>{infoLine(subscription, current, nameOf(current), locale, tOr)}</span>
+      </p>
     </>
   );
 }
 
-function planLabel(planId: string, t: (key: MessageKey) => string): string {
-  const labels: Record<string, string> = {
-    free: t('SubscriptionScreen.planFree'),
-    starter: t('SubscriptionScreen.planStarter'),
-    pro: t('SubscriptionScreen.planPro'),
-    business: t('SubscriptionScreen.planBusiness'),
-  };
-  return labels[planId] ?? planId;
+function PriceLine({ plan, period }: { plan: PlanCard; period: BillingPeriod }) {
+  const tOr = useTOr();
+  if (plan.monthlyCents === null) {
+    return (
+      <div className="tm-plans-card__price tm-plans-card__price--custom">
+        <span className="tm-plans-card__amount">{tOr(`${K}custom`, 'Custom')}</span>
+        <span className="tm-plans-card__per">{tOr(`${K}contactUs`, 'contact us')}</span>
+      </div>
+    );
+  }
+  if (plan.monthlyCents === 0) {
+    return (
+      <div className="tm-plans-card__price">
+        <span className="tm-plans-card__amount">{formatUsd(0)}</span>
+        <span className="tm-plans-card__per">{tOr(`${K}forever`, 'forever')}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="tm-plans-card__price">
+      <span className="tm-plans-card__amount">{planPrice(plan.monthlyCents, period).perMonth}</span>
+      <span className="tm-plans-card__per">
+        {period === 'yearly'
+          ? tOr(`${K}perMonthYearly`, 'a month, billed yearly')
+          : tOr(`${K}perMonthFlat`, 'a month, flat')}
+      </span>
+    </div>
+  );
+}
+
+function infoLine(
+  subscription: SubscriptionView,
+  current: PlanId,
+  planName: string,
+  locale: string,
+  tOr: (key: string, english: string) => string,
+): string {
+  const count = String(subscription.internalPeopleCount);
+  if (current === 'free') {
+    return fill(
+      tOr(
+        `${K}infoFree`,
+        'You have {count} internal people on {plan}: $0, forever. Clients are always free.',
+      ),
+      { count, plan: planName },
+    );
+  }
+  if (current === 'enterprise') {
+    return fill(
+      tOr(`${K}infoCustom`, 'You have {count} internal people on {plan}, priced by your contract.'),
+      { count, plan: planName },
+    );
+  }
+  const cents = PLANS.find((p) => p.id === current)?.monthlyCents ?? 0;
+  return fill(
+    tOr(
+      `${K}infoPaid`,
+      'You have {count} internal people on {plan}: {price} a month, flat. Next bill on {date}. Yearly billing saves 20 %.',
+    ),
+    {
+      count,
+      plan: planName,
+      price: formatUsd(cents),
+      amount: (cents / 100).toFixed(Number.isInteger(cents / 100) ? 0 : 2),
+      date: subscription.nextBillAt === null ? '' : formatBillDate(subscription.nextBillAt, locale),
+    },
+  );
+}
+
+/** "1 November" in English, "1 نوفمبر" in Arabic (Latin digits, as drawn). UTC, like the API. */
+function formatBillDate(iso: string, locale: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  const tag = locale.startsWith('ar') ? 'ar-EG-u-nu-latn' : 'en-GB';
+  return new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
+    at,
+  );
 }
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
@@ -231,14 +424,4 @@ function describe(error: unknown): string {
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
   return 'Something went wrong. Try again.';
-}
-
-/**
- * Format an ISO timestamp for display, following the browser's locale for the reason
- * `SessionsScreen` gives. An unparseable value is shown verbatim rather than as `Invalid Date`.
- */
-function formatMoment(iso: string): string {
-  const at = new Date(iso);
-  if (Number.isNaN(at.getTime())) return iso;
-  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
 }

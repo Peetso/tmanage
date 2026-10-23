@@ -49,6 +49,10 @@ function fakeRepo(
       expect(ctx.organizationId).toBe(ORG);
       return Promise.resolve(row);
     },
+    countInternalPeople: (_r: never, ctx: TenantContext) => {
+      expect(ctx.organizationId).toBe(ORG);
+      return Promise.resolve(8);
+    },
     upsertPlan: (_r: never, ctx: TenantContext, input: UpsertPlanInput) => {
       expect(ctx.organizationId).toBe(ORG);
       sink?.upserts.push(input);
@@ -68,6 +72,24 @@ describe('SubscriptionService.read', () => {
       planId: 'free',
       status: 'active',
       currentPeriodEnd: null,
+      internalPeopleCount: 8,
+      nextBillAt: null,
+      billingPeriod: 'monthly',
+    });
+  });
+
+  it('reads a legacy pro row as studio, with the people count and the next bill date', async () => {
+    const legacy = {
+      planId: 'pro',
+      status: 'active',
+      currentPeriodEnd: null,
+    } as unknown as SubscriptionRow;
+    const now = () => new Date('2026-10-23T12:00:00.000Z');
+    const service = new SubscriptionService(fakeDatabase(), fakeRepo(legacy), now);
+    await expect(service.read(context, ownerPrincipal())).resolves.toMatchObject({
+      planId: 'studio',
+      internalPeopleCount: 8,
+      nextBillAt: '2026-11-01T00:00:00.000Z',
     });
   });
 
@@ -81,14 +103,25 @@ describe('SubscriptionService.read', () => {
 describe('SubscriptionService.requestChange', () => {
   it('records a valid plan as pending_change (no charge path — the only write is the upsert)', async () => {
     const sink = { upserts: [] as UpsertPlanInput[] };
-    const service = new SubscriptionService(fakeDatabase(), fakeRepo(null, sink));
+    const now = () => new Date('2026-10-23T12:00:00.000Z');
+    const service = new SubscriptionService(fakeDatabase(), fakeRepo(null, sink), now);
 
-    await expect(service.requestChange(context, ownerPrincipal(), 'pro')).resolves.toEqual({
-      planId: 'pro',
+    await expect(service.requestChange(context, ownerPrincipal(), 'studio')).resolves.toEqual({
+      planId: 'studio',
       status: 'pending_change',
       currentPeriodEnd: null,
+      internalPeopleCount: 8,
+      nextBillAt: '2026-11-01T00:00:00.000Z',
+      billingPeriod: 'monthly',
     });
-    expect(sink.upserts).toEqual([{ planId: 'pro', status: 'pending_change' }]);
+    expect(sink.upserts).toEqual([{ planId: 'studio', status: 'pending_change' }]);
+  });
+
+  it('accepts the legacy pro id and stores it as studio', async () => {
+    const sink = { upserts: [] as UpsertPlanInput[] };
+    const service = new SubscriptionService(fakeDatabase(), fakeRepo(null, sink));
+    await service.requestChange(context, ownerPrincipal(), 'pro');
+    expect(sink.upserts).toEqual([{ planId: 'studio', status: 'pending_change' }]);
   });
 
   it('rejects an off-catalog plan with a 400 and writes nothing', async () => {
@@ -106,7 +139,7 @@ describe('SubscriptionService.requestChange', () => {
     const notManager: Principal = { ...ownerPrincipal(), role: 'workspace_admin' };
     const service = new SubscriptionService(fakeDatabase(), fakeRepo(null, sink));
 
-    await expect(service.requestChange(context, notManager, 'pro')).rejects.toBeInstanceOf(
+    await expect(service.requestChange(context, notManager, 'studio')).rejects.toBeInstanceOf(
       ApiError,
     );
     expect(sink.upserts).toEqual([]);

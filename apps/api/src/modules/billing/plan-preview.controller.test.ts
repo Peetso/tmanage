@@ -52,20 +52,20 @@ function row(planId: string, currentPeriodEnd: Date | null = null): Subscription
 }
 
 describe('PlanPreviewService.preview', () => {
-  it('estimates an upgrade delta from the tenant subscription (free → pro, 3 seats)', async () => {
+  it('estimates a flat upgrade delta, seats never change it (free to studio, 3 seats)', async () => {
     const service = new PlanPreviewService(fakeDatabase(), fakeRepo(row('free')));
     await expect(
-      service.preview(context, ownerPrincipal(), { target: 'pro', seats: 3 }),
+      service.preview(context, ownerPrincipal(), { target: 'studio', seats: 3 }),
     ).resolves.toEqual({
       currentPlanId: 'free',
-      targetPlanId: 'pro',
+      targetPlanId: 'studio',
       seats: 3,
       currency: 'usd',
       currentMonthlyCents: 0,
-      targetMonthlyCents: 4900 + 1500 * 3,
+      targetMonthlyCents: 4900,
       baseDeltaCents: 4900,
-      seatDeltaCents: 1500 * 3,
-      estimatedDeltaCents: 4900 + 1500 * 3,
+      seatDeltaCents: 0,
+      estimatedDeltaCents: 4900,
       currentPeriodEnd: null,
     });
   });
@@ -74,9 +74,16 @@ describe('PlanPreviewService.preview', () => {
     const end = new Date('2026-10-01T00:00:00.000Z');
     const service = new PlanPreviewService(fakeDatabase(), fakeRepo(row('pro', end)));
     const view = await service.preview(context, ownerPrincipal(), { target: 'starter', seats: 2 });
-    expect(view.estimatedDeltaCents).toBe(1900 - 4900 + (900 - 1500) * 2);
-    expect(view.estimatedDeltaCents).toBeLessThan(0);
+    expect(view.currentPlanId).toBe('studio');
+    expect(view.estimatedDeltaCents).toBe(1900 - 4900);
     expect(view.currentPeriodEnd).toBe(end.toISOString());
+  });
+
+  it('rejects Enterprise, which is priced per contract, with a 400', async () => {
+    const service = new PlanPreviewService(fakeDatabase(), fakeRepo(row('studio')));
+    await expect(
+      service.preview(context, ownerPrincipal(), { target: 'enterprise', seats: 1 }),
+    ).rejects.toMatchObject({ status: 400 });
   });
 
   it('rejects an off-catalog target with a 400', async () => {
@@ -89,7 +96,7 @@ describe('PlanPreviewService.preview', () => {
   it('rejects a seat count outside the bound with a 400', async () => {
     const service = new PlanPreviewService(fakeDatabase(), fakeRepo(row('free')));
     await expect(
-      service.preview(context, ownerPrincipal(), { target: 'pro', seats: 0 }),
+      service.preview(context, ownerPrincipal(), { target: 'studio', seats: 0 }),
     ).rejects.toMatchObject({ status: 400 });
   });
 
@@ -97,7 +104,7 @@ describe('PlanPreviewService.preview', () => {
     const notManager: Principal = { ...ownerPrincipal(), role: 'workspace_admin' };
     const service = new PlanPreviewService(fakeDatabase(), fakeRepo(row('free')));
     await expect(
-      service.preview(context, notManager, { target: 'pro', seats: 1 }),
+      service.preview(context, notManager, { target: 'studio', seats: 1 }),
     ).rejects.toBeInstanceOf(ApiError);
   });
 });

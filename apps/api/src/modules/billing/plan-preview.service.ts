@@ -3,8 +3,8 @@ import type { Capability, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { SubscriptionRepository } from './subscription.repository.js';
-import { DEFAULT_PLAN_ID, isPlanId } from './plan-catalog.js';
-import type { PlanId } from './plan-catalog.js';
+import { PLAN_MONTHLY_CENTS, canonicalPlanId, isPlanId, readPlanId } from './plan-catalog.js';
+import type { CatalogPlanId } from './plan-catalog.js';
 
 /**
  * Plan-change preview — Billing / module 19 (x198), extending x177's subscription. Before an owner
@@ -35,26 +35,16 @@ import type { PlanId } from './plan-catalog.js';
  * subscription: there is no organization-id parameter to name one.
  */
 
-/** A plan's fixed price, in integer US cents. The catalog the estimate is computed against. */
-interface PlanPrice {
-  /** The recurring platform fee for the plan, independent of seat count. */
-  readonly baseCents: number;
-  /** The recurring fee per occupied seat. */
-  readonly perSeatCents: number;
-}
-
 /**
- * The fixed price catalog — self-contained, exactly as {@link PLAN_IDS} is. The pricing page's
- * source of truth (x157) is not on this slice's base, so the numbers live here as a closed table
- * keyed by every catalog plan id; when the real catalog lands this is the one place to reconcile.
- * These are estimate inputs only — no price is stored, and nothing is charged.
+ * A plan's flat monthly price, in integer US cents — the catalog the estimate is computed against.
+ * Every plan is one flat price for the whole team, so `perSeatCents` is always 0 and the seat count
+ * never changes the figure. Enterprise has no list price (custom, contact sales) and cannot be
+ * estimated. Estimate inputs only — no price is stored, and nothing is charged.
  */
-const PLAN_PRICING: Readonly<Record<PlanId, PlanPrice>> = {
-  free: { baseCents: 0, perSeatCents: 0 },
-  starter: { baseCents: 1900, perSeatCents: 900 },
-  pro: { baseCents: 4900, perSeatCents: 1500 },
-  business: { baseCents: 9900, perSeatCents: 2500 },
-};
+function planPrice(planId: CatalogPlanId): { baseCents: number; perSeatCents: number } | null {
+  const monthly = PLAN_MONTHLY_CENTS[planId];
+  return monthly === null ? null : { baseCents: monthly, perSeatCents: 0 };
+}
 
 /** The currency every figure in a preview is expressed in. Estimate only; no charge. */
 const CURRENCY = 'usd';
@@ -152,10 +142,20 @@ export class PlanPreviewService {
       this.subscriptions.find(runner, context),
     );
 
-    const currentPlanId: PlanId = isPlanId(row?.planId) ? row.planId : DEFAULT_PLAN_ID;
-    const targetPlanId: PlanId = input.target;
-    const current = PLAN_PRICING[currentPlanId];
-    const target = PLAN_PRICING[targetPlanId];
+    const currentPlanId: CatalogPlanId = readPlanId(row?.planId);
+    const targetPlanId: CatalogPlanId = canonicalPlanId(input.target);
+    const target = planPrice(targetPlanId);
+    if (target === null) {
+      throw new ApiError(
+        400,
+        'validation_failed',
+        'This plan is priced per contract',
+        [{ field: 'target', message: 'has no list price; contact sales' }],
+        'custom_priced_plan',
+      );
+    }
+    // An Enterprise organization's contract price is not in the catalog; estimate from zero.
+    const current = planPrice(currentPlanId) ?? { baseCents: 0, perSeatCents: 0 };
     const seats = input.seats;
 
     const currentMonthlyCents = current.baseCents + current.perSeatCents * seats;

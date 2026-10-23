@@ -135,27 +135,29 @@ test.describe.serial('the billing subscription -> seat -> invoice journey', () =
     // A new organization has a subscription (the free tier, active), not a missing one.
     const initial = await owner.request.get(base);
     expect(initial.ok()).toBe(true);
-    expect(await initial.json()).toEqual({
+    expect(await initial.json()).toMatchObject({
       planId: 'free',
       status: 'active',
       currentPeriodEnd: null,
+      nextBillAt: null,
+      billingPeriod: 'monthly',
     });
 
     // Request a move to a catalog plan — recorded as an intent, no charge.
     const changed = await owner.request.post(`${base}/change`, {
       headers: await writeHeaders(owner),
-      data: { planId: 'pro' },
+      data: { planId: 'studio' },
     });
     expect(changed.ok()).toBe(true);
-    expect(await changed.json()).toEqual({
-      planId: 'pro',
+    expect(await changed.json()).toMatchObject({
+      planId: 'studio',
       status: 'pending_change',
       currentPeriodEnd: null,
     });
 
     // The intent persists on the next read.
     const reread = await owner.request.get(base);
-    expect(await reread.json()).toMatchObject({ planId: 'pro', status: 'pending_change' });
+    expect(await reread.json()).toMatchObject({ planId: 'studio', status: 'pending_change' });
 
     await owner.close();
   });
@@ -169,7 +171,7 @@ test.describe.serial('the billing subscription -> seat -> invoice journey', () =
 
     const rejected = await owner.request.post(`${base}/change`, {
       headers: await writeHeaders(owner),
-      data: { planId: 'enterprise' },
+      data: { planId: 'enterprise-unlimited' },
     });
     expect(rejected.status()).toBe(400);
     // The stable error envelope nests the response code under `error` (`apiErrorBody`): an
@@ -178,9 +180,9 @@ test.describe.serial('the billing subscription -> seat -> invoice journey', () =
       'validation_failed',
     );
 
-    // The prior intent (pro / pending_change from BILL-01) is untouched — the 400 wrote nothing.
+    // The prior intent (studio / pending_change from BILL-01) is untouched — the 400 wrote nothing.
     const after = await owner.request.get(base);
-    expect(await after.json()).toMatchObject({ planId: 'pro', status: 'pending_change' });
+    expect(await after.json()).toMatchObject({ planId: 'studio', status: 'pending_change' });
 
     await owner.close();
   });

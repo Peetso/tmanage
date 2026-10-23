@@ -22,6 +22,11 @@ export interface SubscriptionView {
   readonly status: SubscriptionStatus;
   /** Null on the free/base tier and until a provider sets the billing period. */
   readonly currentPeriodEnd: string | null;
+  /** Active internal people (clients never count) — the flat plan covers all of them. */
+  readonly internalPeopleCount: number;
+  /** The next bill date; null on a plan with no list price (Free, Enterprise). */
+  readonly nextBillAt: string | null;
+  readonly billingPeriod: 'monthly' | 'yearly';
 }
 
 export async function fetchSubscription(

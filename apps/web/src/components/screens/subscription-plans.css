@@ -1,0 +1,202 @@
+/*
+ * "Choose a plan" (approved Figma 376:17695 task 12, frames 379:4075 EN / 379:4380 AR).
+ * Limeframe tokens only (packages/ui/src/styles/tokens.css); logical properties, so Arabic mirrors.
+ */
+
+.tm-plans {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+/* Monthly / Yearly · save 20%: plain labels, the pressed one ink with a lime rule beneath. */
+.tm-plans-tabs {
+  display: flex;
+  gap: var(--s2);
+}
+
+.tm-plans-tabs__tab {
+  position: relative;
+  min-block-size: var(--orb-default);
+  padding-inline: var(--s3);
+  border: 0;
+  background: transparent;
+  color: var(--ink-650);
+  font: inherit;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  cursor: pointer;
+}
+
+.tm-plans-tabs__tab[aria-pressed='true'] {
+  color: var(--ink-950);
+}
+
+.tm-plans-tabs__tab::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: var(--b-expressive);
+  background: transparent;
+}
+
+.tm-plans-tabs__tab[aria-pressed='true']::after {
+  background: var(--lime-500);
+}
+
+.tm-plans-tabs__tab:focus-visible {
+  outline: var(--focus-ring);
+  outline-offset: var(--b-structural);
+}
+
+.tm-plans__grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-plans-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-feature);
+  background: var(--paper-0);
+}
+
+.tm-plans-card[data-current] {
+  border: var(--b-expressive) solid var(--ink-950);
+}
+
+.tm-plans-card__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+/* Arabic draws the pill above the plan name. */
+[dir='rtl'] .tm-plans-card__pill {
+  order: -1;
+}
+
+.tm-plans-card__name {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-plans-card__pill {
+  padding-block: var(--s1);
+  padding-inline: var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  color: var(--ink-950);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+[dir='rtl'] .tm-plans-card__pill {
+  font-family: inherit;
+}
+
+.tm-plans-card__price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  padding-block-end: var(--s4);
+  border-block-end: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-plans-card__price--custom {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.tm-plans-card__amount {
+  font-size: var(--t-display-metric);
+  line-height: var(--t-display-metric-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-plans-card__per {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-plans-card__features {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-plans-card__feature {
+  display: flex;
+  gap: var(--s2);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-plans-card__check {
+  color: var(--ink-950);
+}
+
+.tm-plans-card__action {
+  display: flex;
+}
+
+.tm-plans-card__button {
+  inline-size: 100%;
+  justify-content: center;
+}
+
+/* The info row: a quiet bordered strip with a mono "i". */
+.tm-plans-info {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  margin: 0;
+  padding-block: var(--s3);
+  padding-inline: var(--s4);
+  border: var(--b-structural) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-950);
+}
+
+.tm-plans-info__glyph {
+  font-family: var(--font-mono);
+  color: var(--ink-650);
+}
+
+@media (max-width: 1100px) {
+  .tm-plans__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .tm-plans__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

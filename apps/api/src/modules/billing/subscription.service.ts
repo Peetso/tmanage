@@ -3,8 +3,9 @@ import type { Capability, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { SubscriptionRepository } from './subscription.repository.js';
-import { DEFAULT_PLAN_ID, isPlanId } from './plan-catalog.js';
-import type { SubscriptionStatus } from './plan-catalog.js';
+import { PLAN_MONTHLY_CENTS, canonicalPlanId, isPlanId, readPlanId } from './plan-catalog.js';
+import type { BillingPeriod, CatalogPlanId, SubscriptionStatus } from './plan-catalog.js';
+import type { SubscriptionRow } from '../../common/database/schema.js';
 
 /**
  * The application service for Billing / module 19 (x177) — the subscription read and the plan-change
@@ -42,25 +43,50 @@ import type { SubscriptionStatus } from './plan-catalog.js';
  * An explicit projection, not a serialised row (`25` §7): `organization_id` is never echoed, and a
  * column added to `subscriptions` in a future migration is invisible to every caller until someone
  * decides otherwise. `currentPeriodEnd` is null on the free/base tier and until a provider sets it.
+ *
+ * `planId` is always a catalog plan: a stored legacy `pro` reads as `studio`. `internalPeopleCount`
+ * is the active internal memberships (clients never count). `nextBillAt` is null on a plan with no
+ * list price (Free, Enterprise); otherwise the stored period end, or the first of next month (UTC)
+ * until a provider sets one. `billingPeriod` is `monthly` — no yearly billing is recorded yet.
  */
 export interface SubscriptionView {
   readonly planId: string;
   readonly status: SubscriptionStatus;
   readonly currentPeriodEnd: string | null;
+  readonly internalPeopleCount: number;
+  readonly nextBillAt: string | null;
+  readonly billingPeriod: BillingPeriod;
 }
 
-/** The subscription an organization has before it has a row of its own: the free tier, active. */
-const DEFAULT_SUBSCRIPTION: SubscriptionView = {
-  planId: DEFAULT_PLAN_ID,
-  status: 'active',
-  currentPeriodEnd: null,
-};
+/** The first instant of the month after `at`, in UTC — the default flat-plan billing day. */
+export function firstOfNextMonthUtc(at: Date): Date {
+  return new Date(Date.UTC(at.getUTCFullYear(), at.getUTCMonth() + 1, 1));
+}
 
 export class SubscriptionService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly subscriptions: SubscriptionRepository = new SubscriptionRepository(),
+    private readonly now: () => Date = () => new Date(),
   ) {}
+
+  /** Project a row (or its absence, the free tier) and the people count into the view. */
+  private toView(row: SubscriptionRow | null, internalPeopleCount: number): SubscriptionView {
+    const planId: CatalogPlanId = readPlanId(row?.planId);
+    const status: SubscriptionStatus = row?.status ?? 'active';
+    const currentPeriodEnd = row?.currentPeriodEnd ?? null;
+    const billed = (PLAN_MONTHLY_CENTS[planId] ?? 0) > 0;
+    return {
+      planId,
+      status,
+      currentPeriodEnd: currentPeriodEnd?.toISOString() ?? null,
+      internalPeopleCount,
+      nextBillAt: billed
+        ? (currentPeriodEnd ?? firstOfNextMonthUtc(this.now())).toISOString()
+        : null,
+      billingPeriod: 'monthly',
+    };
+  }
 
   /**
    * Re-check `capability` against the org-level resource with the real evaluator, or throw the
@@ -86,25 +112,26 @@ export class SubscriptionService {
   /**
    * Read the caller's own tenant's subscription. Defaults to the free/base tier when the
    * organization has no row yet — a new organization has a subscription (free), not a missing one.
+   * A legacy `pro` row reads as `studio`.
    */
   async read(context: TenantContext, principal: Principal): Promise<SubscriptionView> {
     this.authorizeOrg(context, principal, 'org.manage');
 
-    const row = await this.database.read(context, (runner) =>
-      this.subscriptions.find(runner, context),
+    const [row, people] = await this.database.read(
+      context,
+      async (runner) =>
+        [
+          await this.subscriptions.find(runner, context),
+          await this.subscriptions.countInternalPeople(runner, context),
+        ] as const,
     );
-    if (!row) return DEFAULT_SUBSCRIPTION;
-
-    return {
-      planId: row.planId,
-      status: row.status,
-      currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
-    };
+    return this.toView(row, people);
   }
 
   /**
    * Request a change to `planId`: validate it against the plan catalog (off-list ⇒ 400 with no
-   * write), authorize, then upsert the one subscription row to `status = 'pending_change'`.
+   * write; `pro` is accepted and stored as `studio`), authorize, then upsert the one subscription
+   * row to `status = 'pending_change'`.
    *
    * Validation runs before authorization is re-checked, but after the route guard — an off-catalog
    * id from a caller who already cleared `org.manage` at the guard is a 400, and the write never
@@ -128,14 +155,17 @@ export class SubscriptionService {
     this.authorizeOrg(context, principal, 'org.manage');
 
     const status: SubscriptionStatus = 'pending_change';
-    const row = await this.database.transaction(context, (tx) =>
-      this.subscriptions.upsertPlan(tx, context, { planId, status }),
+    const [row, people] = await this.database.transaction(
+      context,
+      async (tx) =>
+        [
+          await this.subscriptions.upsertPlan(tx, context, {
+            planId: canonicalPlanId(planId),
+            status,
+          }),
+          await this.subscriptions.countInternalPeople(tx, context),
+        ] as const,
     );
-
-    return {
-      planId: row.planId,
-      status: row.status,
-      currentPeriodEnd: row.currentPeriodEnd?.toISOString() ?? null,
-    };
+    return this.toView(row, people);
   }
 }
