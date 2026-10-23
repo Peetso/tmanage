@@ -36,9 +36,16 @@ const clientOf = (corg: string) =>
     projectIds: ['proj-1'],
   }) as unknown as Principal;
 
+/** A8: uploads on req-1 — one by the client organization, one by the studio. */
+const uploads = [
+  { id: 'file-client', name: 'menu-ar.pdf', requestId: 'req-1', clientOrganizationId: 'corg-1' },
+  { id: 'file-studio', name: 'draft.pdf', requestId: 'req-1', clientOrganizationId: null },
+];
+
 function harness() {
   const rows: RequestMessageRow[] = [];
   const events: unknown[] = [];
+  const links: { messageId: string; fileAssetId: string }[] = [];
   const db = {
     read: (_c: unknown, w: (r: unknown) => unknown) => w({}),
     transaction: (_c: unknown, w: (r: unknown) => unknown) => w({}),
@@ -60,6 +67,34 @@ function harness() {
       rows.push(row);
       return row;
     },
+    findAttachableFiles: async (
+      _r: unknown,
+      _c: unknown,
+      i: { requestId: string; fileIds: string[]; clientOrganizationId: string | null },
+    ) =>
+      uploads.filter(
+        (u) =>
+          i.fileIds.includes(u.id) &&
+          u.requestId === i.requestId &&
+          (i.clientOrganizationId === null || u.clientOrganizationId === i.clientOrganizationId),
+      ),
+    attachFiles: async (
+      _r: unknown,
+      _c: unknown,
+      i: { messageId: string; fileAssetIds: string[] },
+    ) => {
+      for (const fileAssetId of i.fileAssetIds) links.push({ messageId: i.messageId, fileAssetId });
+    },
+    listFilesForRequest: async () =>
+      links.map((l) => ({
+        ...l,
+        name: uploads.find((u) => u.id === l.fileAssetId)?.name ?? '',
+      })),
+    authorNames: async () =>
+      new Map([
+        ['m1', 'Mona Saleh'],
+        ['m2', 'Youssef Adel'],
+      ]),
   };
   const service = new RequestMessagesService(
     db,
@@ -67,7 +102,7 @@ function harness() {
     repo as never,
     { append: async (_t: unknown, _c: unknown, e: unknown) => void events.push(e) } as never,
   );
-  return { service, rows, events };
+  return { service, rows, events, links };
 }
 
 describe('RequestMessagesService', () => {
@@ -91,5 +126,32 @@ describe('RequestMessagesService', () => {
       service.postForClient(context, clientOf('corg-2'), 'req-1', { body: 'x' }),
     ).rejects.toMatchObject({ status: 404 });
     expect(rows).toHaveLength(0);
+  });
+
+  it('A8: a client reply carries its own uploads and the thread lists them with names', async () => {
+    const { service, links } = harness();
+    const reply = await service.postForClient(context, clientOf('corg-1'), 'req-1', {
+      body: 'Menu attached',
+      fileIds: ['file-client'],
+    });
+    expect(reply).toMatchObject({
+      authorName: 'Youssef Adel',
+      files: [{ id: 'file-client', name: 'menu-ar.pdf' }],
+    });
+    expect(links).toEqual([{ messageId: reply.id, fileAssetId: 'file-client' }]);
+    const teamView = await service.listForTeam(context, team, 'req-1');
+    expect(teamView[0]?.files).toEqual([{ id: 'file-client', name: 'menu-ar.pdf' }]);
+  });
+
+  it('A8: a client cannot attach a file that is not their own upload on this request', async () => {
+    const { service, rows, links } = harness();
+    await expect(
+      service.postForClient(context, clientOf('corg-1'), 'req-1', {
+        body: 'x',
+        fileIds: ['file-studio'],
+      }),
+    ).rejects.toMatchObject({ status: 422 });
+    expect(rows).toHaveLength(0);
+    expect(links).toHaveLength(0);
   });
 });

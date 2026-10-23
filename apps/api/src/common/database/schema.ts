@@ -630,6 +630,39 @@ export const requestMessages = mysqlTable(
 );
 
 /**
+ * A8 (0221). Files attached to a request message — the portal reply card's "Attach file". Both
+ * ends are bound by composite foreign keys that include `organization_id`; append-only (INSERT +
+ * SELECT, a `BEFORE UPDATE` trigger). `0221_request_message_files.sql` is the source of truth.
+ */
+export const requestMessageFiles = mysqlTable(
+  'request_message_files',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    messageId: char('message_id', { length: 36 }).notNull(),
+    requestId: char('request_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    attachedByMembershipId: char('attached_by_membership_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_request_message_files_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_request_message_files_edge').on(
+      table.organizationId,
+      table.messageId,
+      table.fileAssetId,
+    ),
+    index('ix_request_message_files_request').on(
+      table.organizationId,
+      table.requestId,
+      table.createdAt,
+      table.id,
+    ),
+    index('ix_request_message_files_file').on(table.organizationId, table.fileAssetId),
+  ],
+);
+
+/**
  * Portal announcements (x304, migration 0172, POR client portal). A pinned banner an internal
  * staffer posts to one client organization's portal, live for an active window.
  *
@@ -8611,6 +8644,7 @@ export const TABLES = {
   work_checklist_templates: workChecklistTemplates,
   request_comments: requestComments,
   request_messages: requestMessages,
+  request_message_files: requestMessageFiles,
   approval_delegations: approvalDelegations,
   inbox_rules: inboxRules,
   insight_dashboard_layouts: insightDashboardLayouts,
@@ -8869,6 +8903,7 @@ export type RequestCommentRow = typeof requestComments.$inferSelect;
 export type NewRequestCommentRow = typeof requestComments.$inferInsert;
 export type RequestMessageRow = typeof requestMessages.$inferSelect;
 export type NewRequestMessageRow = typeof requestMessages.$inferInsert;
+export type RequestMessageFileRow = typeof requestMessageFiles.$inferSelect;
 export type WorkItemLinkRow = typeof workItemLinks.$inferSelect;
 export type NewWorkItemLinkRow = typeof workItemLinks.$inferInsert;
 export type WorkItemFileRow = typeof workItemFiles.$inferSelect;

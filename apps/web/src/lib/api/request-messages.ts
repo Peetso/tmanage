@@ -17,6 +17,10 @@ export interface RequestMessageView {
   readonly body: string;
   readonly clientVisible: boolean;
   readonly createdAt: string;
+  /** A8: the author's display name; null when it no longer resolves. */
+  readonly authorName: string | null;
+  /** A8: files attached to the message. */
+  readonly files: readonly { readonly id: string; readonly name: string }[];
 }
 
 /** The client's view of one message. Internal notes never reach this shape. */
@@ -27,7 +31,14 @@ export interface RequestMessageClientView {
   readonly mine: boolean;
   readonly body: string;
   readonly createdAt: string;
+  /** A8: who wrote it (the studio person or the client person). */
+  readonly authorName: string | null;
+  /** A8: files attached to the message. */
+  readonly files: readonly { readonly id: string; readonly name: string }[];
 }
+
+/** A8: the most files one message carries (`MAX_REQUEST_MESSAGE_FILES`). */
+export const MAX_REQUEST_MESSAGE_FILES = 10;
 
 /** The API's limit on one message body (`MAX_REQUEST_MESSAGE_LENGTH`). */
 export const MAX_REQUEST_MESSAGE_LENGTH = 5000;
@@ -55,12 +66,20 @@ export async function postRequestMessage(
   client: ApiClient,
   organizationSlug: string,
   clientRequestId: string,
-  input: { readonly body: string; readonly clientVisible: boolean },
+  input: {
+    readonly body: string;
+    readonly clientVisible: boolean;
+    readonly fileIds?: readonly string[];
+  },
 ): Promise<RequestMessageView> {
   const { data } = await client.request<RequestMessageView>({
     method: 'POST',
     path: teamPath(organizationSlug, clientRequestId),
-    body: { body: input.body, clientVisible: input.clientVisible },
+    body: {
+      body: input.body,
+      clientVisible: input.clientVisible,
+      ...(input.fileIds && input.fileIds.length > 0 ? { fileIds: input.fileIds } : {}),
+    },
   });
   return data;
 }
@@ -80,12 +99,15 @@ export async function postPortalRequestMessage(
   client: ApiClient,
   organizationSlug: string,
   clientRequestId: string,
-  input: { readonly body: string },
+  input: { readonly body: string; readonly fileIds?: readonly string[] },
 ): Promise<RequestMessageClientView> {
   const { data } = await client.request<RequestMessageClientView>({
     method: 'POST',
     path: portalPath(organizationSlug, clientRequestId),
-    body: { body: input.body },
+    body: {
+      body: input.body,
+      ...(input.fileIds && input.fileIds.length > 0 ? { fileIds: input.fileIds } : {}),
+    },
   });
   return data;
 }

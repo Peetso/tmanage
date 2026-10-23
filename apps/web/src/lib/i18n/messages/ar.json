@@ -11284,5 +11284,13 @@
   "MessageActionsSheet.delete": "حذف الرسالة",
   "MessageReactionsView.check": "تم",
   "MessageReactionsView.smiling": "مبتسم",
-  "MessageReactionsView.star": "نجمة"
+  "MessageReactionsView.star": "نجمة",
+  "RequestMessages.waitingOnYou": "بانتظارك",
+  "RequestMessages.yourReply": "ردك",
+  "RequestMessages.attachFile": "إرفاق ملف",
+  "RequestMessages.sendReply": "إرسال الرد",
+  "RequestMessages.uploading": "جارٍ الرفع…",
+  "RequestMessages.attachFailed": "لم يُرفق الملف",
+  "RequestMessages.attachedFiles": "الملفات المرفقة",
+  "RequestMessages.removeFilePrefix": "إزالة "
 }

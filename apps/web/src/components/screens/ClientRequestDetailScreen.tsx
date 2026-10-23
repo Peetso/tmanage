@@ -59,7 +59,9 @@ export interface ClientRequestDetailScreenProps {
  *
  * The artifact's largest panel is the conversation with the studio. It is `RequestMessageThread`
  * over the portal's `/requests/:id/messages`: the studio's internal notes never reach this side.
- * Attachments are `FILE-001`, still absent.
+ * A8 (`fq9-portal-client-reply`): the card carries the project eyebrow, a "Waiting on you" pill
+ * while the request is `clarifying`, the request title, and "Attach file" — a portal upload on
+ * this request, named on the reply by id.
  */
 export function ClientRequestDetailScreen({
   organizationSlug,
@@ -267,6 +269,10 @@ export function ClientRequestDetailScreen({
                 client={api}
                 studioName={providerName}
                 clientName={clientName}
+                projectName={project?.name}
+                requestTitle={found.title}
+                waitingOnYou={waitingOnClient}
+                projectId={found.projectId}
               />
 
               <section className="tm-pt-card tm-pt-card--lg" aria-labelledby="tm-request-dates">

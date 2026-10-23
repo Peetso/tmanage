@@ -361,6 +361,9 @@ GRANT INSERT, DELETE         ON `tmanage`.`request_comments`        TO 'tmanage_
 -- record and is neither edited nor retracted; reading is the database-wide SELECT. The 0212
 -- `BEFORE UPDATE` trigger refuses amendment for every credential besides.
 GRANT INSERT                 ON `tmanage`.`request_messages`        TO 'tmanage_app'@'%';
+-- A8 (0221) `request_message_files` gets **INSERT only**, like the message it hangs off: what was
+-- attached to a message is part of the record. The 0221 `BEFORE UPDATE` trigger refuses amendment.
+GRANT INSERT                 ON `tmanage`.`request_message_files`   TO 'tmanage_app'@'%';
 -- 0214 direct messages (BK3, COL-03). `direct_conversations` gets **INSERT, UPDATE**: a pair row is
 -- created once and its `next_sequence_no` / `last_message_at` move on every post; never deleted.
 -- `direct_messages` gets **INSERT only** — append-only, and the 0214 `BEFORE UPDATE` trigger refuses

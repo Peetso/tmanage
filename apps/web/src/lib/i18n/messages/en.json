@@ -11284,5 +11284,13 @@
   "MessageActionsSheet.delete": "Delete message",
   "MessageReactionsView.check": "Done",
   "MessageReactionsView.smiling": "Smiling",
-  "MessageReactionsView.star": "Star"
+  "MessageReactionsView.star": "Star",
+  "RequestMessages.waitingOnYou": "Waiting on you",
+  "RequestMessages.yourReply": "Your reply",
+  "RequestMessages.attachFile": "Attach file",
+  "RequestMessages.sendReply": "Send reply",
+  "RequestMessages.uploading": "Uploading…",
+  "RequestMessages.attachFailed": "The file was not attached",
+  "RequestMessages.attachedFiles": "Attached files",
+  "RequestMessages.removeFilePrefix": "Remove "
 }

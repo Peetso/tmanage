@@ -123,6 +123,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // 0212 (audit gap 4). The client <-> studio thread on a request: tenant-owned, an unscoped read
   // would be every studio's client conversations at once.
   request_messages: 'organization_id',
+  // A8 (0221). Files attached to a request message: tenant-owned, an unscoped read would be every
+  // studio's client attachments at once.
+  request_message_files: 'organization_id',
   // x204 (0085). A typed link joins two work items of one studio; an unscoped read would be every
   // studio's dependency graph at once. Tenant-owned, `organization_id` NOT NULL, `(organization_id,
   // id)` keyed like every sibling — the guard scopes its reads, its inserts and its deletes.

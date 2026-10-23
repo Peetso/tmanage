@@ -1,7 +1,14 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { requestMessages } from '../../common/database/schema.js';
+import {
+  clientMemberships,
+  fileAssets,
+  memberships,
+  requestMessageFiles,
+  requestMessages,
+  users,
+} from '../../common/database/schema.js';
 import type { RequestMessageRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -22,6 +29,22 @@ export interface CreateRequestMessageInput {
   readonly authorKind: 'internal' | 'client';
   readonly body: string;
   readonly clientVisible: boolean;
+}
+
+/** A8. The most files one message may carry. */
+export const MAX_REQUEST_MESSAGE_FILES = 10;
+
+/**
+ * A8. The upload states a file may be attached in: the bytes have arrived and the verifier and
+ * scanner may still be working. A rejected, expired or cancelled upload is never attachable.
+ */
+const ATTACHABLE_UPLOAD_STATES = ['uploaded', 'verifying', 'scanning', 'ready'] as const;
+
+/** One attachment as the thread draws it. */
+export interface RequestMessageFileEntry {
+  readonly messageId: string;
+  readonly fileAssetId: string;
+  readonly name: string;
 }
 
 export class RequestMessagesRepository {
@@ -78,5 +101,126 @@ export class RequestMessagesRepository {
       throw new Error('request message vanished immediately after insert');
     }
     return created;
+  }
+
+  /**
+   * A8. Of `fileIds`, the ones that may be attached to a message on this request: a
+   * `request_attachment` upload whose `objectId` is the request, in an attachable state, and —
+   * when `clientOrganizationId` is given (the client door) — uploaded by that client organization.
+   * The caller compares the count, so one foreign id refuses the whole post.
+   */
+  async findAttachableFiles(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: {
+      readonly requestId: string;
+      readonly fileIds: readonly string[];
+      readonly clientOrganizationId: string | null;
+    },
+  ): Promise<readonly { readonly id: string; readonly name: string }[]> {
+    if (input.fileIds.length === 0) return [];
+    const predicates = [
+      eq(fileAssets.organizationId, context.organizationId),
+      inArray(fileAssets.id, [...input.fileIds]),
+      eq(fileAssets.purpose, 'request_attachment'),
+      eq(fileAssets.objectId, input.requestId),
+      inArray(fileAssets.status, [...ATTACHABLE_UPLOAD_STATES]),
+    ];
+    if (input.clientOrganizationId !== null) {
+      predicates.push(eq(fileAssets.clientOrganizationId, input.clientOrganizationId));
+    }
+    return tenantDrizzle(runner)
+      .select({ id: fileAssets.id, name: fileAssets.name })
+      .from(fileAssets)
+      .where(and(...predicates))
+      .limit(MAX_REQUEST_MESSAGE_FILES);
+  }
+
+  /** A8. Record the files a message carries, in the post's transaction. */
+  async attachFiles(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: {
+      readonly messageId: string;
+      readonly requestId: string;
+      readonly fileAssetIds: readonly string[];
+      readonly attachedByMembershipId: string;
+    },
+  ): Promise<void> {
+    if (input.fileAssetIds.length === 0) return;
+    await tenantDrizzle(runner)
+      .insert(requestMessageFiles)
+      .values(
+        input.fileAssetIds.map((fileAssetId) => ({
+          id: uuidv7(),
+          organizationId: context.organizationId,
+          messageId: input.messageId,
+          requestId: input.requestId,
+          fileAssetId,
+          attachedByMembershipId: input.attachedByMembershipId,
+          createdAt: sql`current_timestamp(3)`,
+        })),
+      );
+  }
+
+  /** A8. Every attachment on the request's messages, with the file's name, oldest first. */
+  async listFilesForRequest(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    requestId: string,
+  ): Promise<readonly RequestMessageFileEntry[]> {
+    return tenantDrizzle(runner)
+      .select({
+        messageId: requestMessageFiles.messageId,
+        fileAssetId: requestMessageFiles.fileAssetId,
+        name: fileAssets.name,
+      })
+      .from(requestMessageFiles)
+      .innerJoin(
+        fileAssets,
+        and(
+          eq(fileAssets.organizationId, requestMessageFiles.organizationId),
+          eq(fileAssets.id, requestMessageFiles.fileAssetId),
+        ),
+      )
+      .where(
+        and(
+          eq(requestMessageFiles.organizationId, context.organizationId),
+          eq(requestMessageFiles.requestId, requestId),
+        ),
+      )
+      .orderBy(asc(requestMessageFiles.createdAt), asc(requestMessageFiles.id));
+  }
+
+  /**
+   * A8. The display name behind each author membership — a studio membership or a client
+   * person's membership (the thread holds both). Names only, never emails.
+   */
+  async authorNames(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    membershipIds: readonly string[],
+  ): Promise<ReadonlyMap<string, string>> {
+    const ids = [...new Set(membershipIds)];
+    if (ids.length === 0) return new Map();
+    const db = tenantDrizzle(runner);
+    const staff = await db
+      .select({ id: memberships.id, name: users.displayName })
+      .from(memberships)
+      .innerJoin(users, eq(users.id, memberships.userId))
+      .where(
+        and(eq(memberships.organizationId, context.organizationId), inArray(memberships.id, ids)),
+      );
+    const people = await db
+      .select({ id: clientMemberships.id, name: users.displayName })
+      .from(clientMemberships)
+      .innerJoin(users, eq(users.id, clientMemberships.userId))
+      .where(
+        and(
+          eq(clientMemberships.organizationId, context.organizationId),
+          inArray(clientMemberships.id, ids),
+        ),
+      );
+    return new Map([...staff, ...people].map((row) => [row.id, row.name]));
   }
 }

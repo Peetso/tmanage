@@ -159,4 +159,87 @@ describe('RequestMessageThread', () => {
     expect(screen.queryByRole('textbox')).toBeNull();
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('A8: the client card shows the project, title and "Waiting on you" pill only while waiting', async () => {
+    const api = clientOver(() => json({ messages: [] }));
+    const card = (waiting: boolean) =>
+      withQuery(
+        <RequestMessageThread
+          side="client"
+          organizationSlug="northstar"
+          clientRequestId="req-1"
+          client={api}
+          studioName="Northstar Studio"
+          clientName="Atlas Hospitality"
+          projectName="Website relaunch"
+          requestTitle="Add an Arabic version of the menu page"
+          waitingOnYou={waiting}
+        />,
+      );
+    const { container, rerender } = render(card(true));
+    expect(await screen.findByRole('heading', { level: 3 })).toHaveTextContent(
+      'Add an Arabic version of the menu page',
+    );
+    expect(screen.getByText('Website relaunch')).toBeInTheDocument();
+    expect(container.querySelector('.tm-rq-card__pill')).not.toBeNull();
+    rerender(card(false));
+    expect(container.querySelector('.tm-rq-card__pill')).toBeNull();
+  });
+
+  it('A8: Attach file uploads the picked file and the reply posts its fileId', async () => {
+    const sent: unknown[] = [];
+    const uploaded: string[] = [];
+    const api = clientOver((_url, init) => {
+      if (init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as { body: string; fileIds?: string[] };
+        sent.push(body);
+        return json(
+          {
+            id: 'm-9',
+            requestId: 'req-1',
+            from: 'client',
+            mine: true,
+            body: body.body,
+            createdAt: AT,
+            authorName: 'Youssef Adel',
+            files: [{ id: 'file-1', name: 'menu-ar.pdf' }],
+          },
+          201,
+        );
+      }
+      return json({ messages: [] });
+    });
+    render(
+      withQuery(
+        <RequestMessageThread
+          side="client"
+          organizationSlug="northstar"
+          clientRequestId="req-1"
+          client={api}
+          studioName="Northstar Studio"
+          clientName="Atlas Hospitality"
+          uploadFile={async (file) => {
+            uploaded.push(file.name);
+            return 'file-1';
+          }}
+        />,
+      ),
+    );
+    const user = userEvent.setup();
+    const input = (await screen.findByTestId('request-reply-file')) as HTMLInputElement;
+    await user.upload(input, new File(['%PDF-1.4'], 'menu-ar.pdf', { type: 'application/pdf' }));
+    expect(uploaded).toEqual(['menu-ar.pdf']);
+    expect(await screen.findByText('menu-ar.pdf')).toBeInTheDocument();
+
+    await user.type(screen.getByRole('textbox'), 'Please translate it.');
+    const buttons = screen
+      .getAllByRole('button')
+      .filter((b) => b.getAttribute('type') === 'submit');
+    await user.click(buttons[0]!);
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ body: 'Please translate it.', fileIds: ['file-1'] });
+    const items = await screen.findAllByRole('listitem');
+    expect(items.some((item) => item.textContent?.includes('Youssef Adel'))).toBe(true);
+  });
 });

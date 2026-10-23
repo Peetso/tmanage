@@ -1,11 +1,20 @@
 'use client';
 
-import { useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton, Switch } from '@tmanage/ui';
+import {
+  Avatar,
+  Button,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+  StateCapsule,
+  Switch,
+} from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import {
+  MAX_REQUEST_MESSAGE_FILES,
   MAX_REQUEST_MESSAGE_LENGTH,
   listPortalRequestMessages,
   listRequestMessages,
@@ -14,14 +23,24 @@ import {
   type RequestMessageClientView,
   type RequestMessageView,
 } from '../../lib/api/request-messages';
+import {
+  ATTACHMENT_ACCEPT,
+  attachmentProblem,
+  uploadPortalRequestFile,
+} from '../../lib/api/uploads';
 import { initialsOf } from '../chat/channel-browser';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useDisplayFormatters } from '../../lib/i18n/use-formatters';
 import '../../styles/screens/chat.css';
+import './request-thread.css';
 
 /** This slice's keys arrive through the i18n fragment; the cast lets them compile before merge. */
 type ThreadKey = `RequestMessages.${string}`;
+
+/** U+200F: an Arabic line that carries a Latin name starts right-to-left. */
+const RLM = '‏';
 
 export interface RequestMessageThreadProps {
   /** `team` reads the internal record and may post internal notes; `client` reads the projection. */
@@ -36,6 +55,21 @@ export interface RequestMessageThreadProps {
   className?: string;
   /** The host screen's eyebrow class, so the heading matches the cards around it. */
   headingClassName?: string;
+  /** Client card (A8): the project eyebrow above the title. */
+  projectName?: string | undefined;
+  /** Client card (A8): the request title the conversation is about. */
+  requestTitle?: string;
+  /** Client card (A8): the studio is waiting on the client (the request is `clarifying`). */
+  waitingOnYou?: boolean;
+  /** Client card (A8): the request's project — needed to upload an attachment. */
+  projectId?: string;
+  /** Upload one picked file and answer its file id. Defaults to the portal upload session. */
+  uploadFile?: (file: File) => Promise<string>;
+}
+
+interface ThreadFile {
+  readonly id: string;
+  readonly name: string;
 }
 
 /** One row as the thread draws it, whichever side it came from. */
@@ -46,6 +80,7 @@ interface ThreadRow {
   readonly internal: boolean;
   readonly body: string;
   readonly createdAt: string;
+  readonly files: readonly ThreadFile[];
 }
 
 export function requestMessageKey(
@@ -63,6 +98,10 @@ export function requestMessageKey(
  * an internal-note toggle sends `clientVisible: false`, and such a message carries a lock tag so
  * nobody mistakes it for something the client read. The client side never receives those rows.
  *
+ * The client side is the A8 reply card (`fq9-portal-client-reply`): project eyebrow, "Waiting on
+ * you" when the studio asked something, the request title, the messages, then "Your reply" with
+ * "Attach file" (a portal upload on this request, named on the message by id) and "Send reply".
+ *
  * Layout is logical (inline-start/end), so the thread mirrors under `dir="rtl"`.
  */
 export function RequestMessageThread({
@@ -74,15 +113,36 @@ export function RequestMessageThread({
   clientName,
   className,
   headingClassName = 'tm-chat-eyebrow',
+  projectName,
+  requestTitle,
+  waitingOnYou = false,
+  projectId,
+  uploadFile,
 }: RequestMessageThreadProps) {
   const t = useT();
   const tm = (key: ThreadKey) => t(key as MessageKey);
+  const locale = useActiveLocale();
   const formats = useDisplayFormatters();
   const queries = useQueryClient();
   const key = requestMessageKey(side, organizationSlug, clientRequestId);
 
   const [draft, setDraft] = useState('');
   const [internal, setInternal] = useState(false);
+  const [attached, setAttached] = useState<readonly ThreadFile[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [attachError, setAttachError] = useState<string | undefined>(undefined);
+  const picker = useRef<HTMLInputElement>(null);
+
+  const upload =
+    uploadFile ??
+    (projectId
+      ? (file: File) =>
+          uploadPortalRequestFile(client, organizationSlug, {
+            projectId,
+            requestId: clientRequestId,
+            file,
+          })
+      : undefined);
 
   const messages = useQuery({
     queryKey: key,
@@ -97,18 +157,21 @@ export function RequestMessageThread({
   });
 
   const send = useMutation({
-    mutationFn: async (body: string): Promise<ThreadRow> =>
+    mutationFn: async (input: {
+      readonly body: string;
+      readonly fileIds: readonly string[];
+    }): Promise<ThreadRow> =>
       side === 'team'
         ? fromTeam(
             await postRequestMessage(client, organizationSlug, clientRequestId, {
-              body,
+              body: input.body,
               clientVisible: !internal,
             }),
             studioName,
             clientName,
           )
         : fromClient(
-            await postPortalRequestMessage(client, organizationSlug, clientRequestId, { body }),
+            await postPortalRequestMessage(client, organizationSlug, clientRequestId, input),
             studioName,
             clientName,
             tm('RequestMessages.you'),
@@ -116,15 +179,20 @@ export function RequestMessageThread({
     onSuccess: (row) => {
       queries.setQueryData<readonly ThreadRow[]>(key, (current) => [...(current ?? []), row]);
       setDraft('');
+      setAttached([]);
     },
   });
 
   const body = draft.trim();
-  const canSend = body !== '' && !send.isPending;
+  const canSend = body !== '' && !send.isPending && !uploading;
+
+  function sendNow() {
+    if (canSend) send.mutate({ body, fileIds: attached.map((file) => file.id) });
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (canSend) send.mutate(body);
+    sendNow();
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
@@ -137,7 +205,32 @@ export function RequestMessageThread({
       !event.nativeEvent.isComposing
     ) {
       event.preventDefault();
-      if (canSend) send.mutate(body);
+      sendNow();
+    }
+  }
+
+  async function onPick(event: ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(event.target.files ?? []);
+    event.target.value = '';
+    if (!upload || picked.length === 0) return;
+    setAttachError(undefined);
+    const room = MAX_REQUEST_MESSAGE_FILES - attached.length;
+    const problem = picked.map(attachmentProblem).find((reason) => reason !== null);
+    if (problem) {
+      setAttachError(problem);
+      return;
+    }
+    setUploading(true);
+    try {
+      const added: ThreadFile[] = [];
+      for (const file of picked.slice(0, room)) {
+        added.push({ id: await upload(file), name: file.name });
+      }
+      setAttached((current) => [...current, ...added]);
+    } catch (error) {
+      setAttachError(describe(error, tm));
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -145,13 +238,11 @@ export function RequestMessageThread({
   const headingId = `tm-request-thread-${side}`;
   const composerId = `tm-request-reply-${side}`;
   const rows = messages.data ?? [];
+  const isClient = side === 'client';
+  const rtlPrefix = locale.startsWith('ar') ? RLM : '';
 
-  return (
-    <section className={className} aria-labelledby={headingId}>
-      <h2 id={headingId} className={headingClassName}>
-        {side === 'team' ? tm('RequestMessages.headingTeam') : tm('RequestMessages.headingClient')}
-      </h2>
-
+  const states = (
+    <>
       {messages.isPending ? (
         <LoadingRegion label={tm('RequestMessages.loading')}>
           <Skeleton height="var(--row)" />
@@ -172,9 +263,169 @@ export function RequestMessageThread({
 
       {messages.isSuccess && rows.length === 0 ? (
         <p className="tm-prose">
-          {side === 'team' ? tm('RequestMessages.emptyTeam') : tm('RequestMessages.emptyClient')}
+          {isClient ? tm('RequestMessages.emptyClient') : tm('RequestMessages.emptyTeam')}
         </p>
       ) : null}
+    </>
+  );
+
+  const sendError = send.isError ? (
+    <InlineAlert tone="danger" title={tm('RequestMessages.notSent')} live>
+      {describe(send.error, tm)}
+    </InlineAlert>
+  ) : null;
+
+  if (isClient) {
+    return (
+      <section
+        className={['tm-rq-card', className].filter(Boolean).join(' ')}
+        aria-labelledby={headingId}
+      >
+        <h2 id={headingId} className="tm-visually-hidden">
+          {tm('RequestMessages.headingClient')}
+        </h2>
+        {projectName || waitingOnYou ? (
+          <div className="tm-rq-card__top">
+            <span className="tm-rq-card__project">{projectName}</span>
+            {waitingOnYou ? (
+              <StateCapsule state="client" className="tm-rq-card__pill">
+                {tm('RequestMessages.waitingOnYou')}
+              </StateCapsule>
+            ) : null}
+          </div>
+        ) : null}
+        {requestTitle ? <h3 className="tm-rq-card__title">{requestTitle}</h3> : null}
+
+        {states}
+
+        {rows.length > 0 ? (
+          <ol
+            className="tm-rq-thread"
+            aria-label={tm('RequestMessages.listLabel')}
+            aria-live="polite"
+            aria-relevant="additions"
+          >
+            {rows.map((row) => (
+              <li key={row.id} className="tm-rq-msg" data-from={row.from}>
+                <Avatar
+                  name={row.author}
+                  audience={row.from === 'client' ? 'client' : 'internal'}
+                  decorative
+                />
+                <div className="tm-rq-msg__main">
+                  <div className="tm-rq-msg__head">
+                    <span className="tm-rq-msg__author">
+                      {rtlPrefix}
+                      {row.author}
+                      {row.from === 'studio' && row.author !== studioName ? ` · ${studioName}` : ''}
+                    </span>
+                    <time className="tm-rq-msg__time" dateTime={row.createdAt}>
+                      {formats.dateTime(row.createdAt, {
+                        weekday: 'short',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hourCycle: 'h23',
+                      })}
+                    </time>
+                  </div>
+                  <p className="tm-rq-msg__body tm-break">{row.body}</p>
+                  <FileList files={row.files} label={tm('RequestMessages.attachedFiles')} />
+                </div>
+              </li>
+            ))}
+          </ol>
+        ) : null}
+
+        {notFound ? null : (
+          <form className="tm-rq-reply" onSubmit={submit}>
+            <label className="tm-rq-reply__label" htmlFor={composerId}>
+              {tm('RequestMessages.yourReply')}
+            </label>
+            <textarea
+              id={composerId}
+              className="tm-rq-reply__input"
+              rows={1}
+              maxLength={MAX_REQUEST_MESSAGE_LENGTH}
+              value={draft}
+              placeholder={tm('RequestMessages.placeholderClient')}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={onKeyDown}
+            />
+
+            {attached.length > 0 ? (
+              <ul className="tm-rq-files" aria-label={tm('RequestMessages.attachedFiles')}>
+                {attached.map((file) => (
+                  <li key={file.id} className="tm-rq-file">
+                    <span className="tm-break">{file.name}</span>
+                    <button
+                      type="button"
+                      className="tm-rq-file__remove"
+                      aria-label={`${tm('RequestMessages.removeFilePrefix')}${file.name}`}
+                      onClick={() =>
+                        setAttached((current) => current.filter((entry) => entry.id !== file.id))
+                      }
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            {attachError ? (
+              <InlineAlert tone="danger" title={tm('RequestMessages.attachFailed')} live>
+                {attachError}
+              </InlineAlert>
+            ) : null}
+            {sendError}
+
+            <div className="tm-rq-reply__actions">
+              {upload ? (
+                <>
+                  <input
+                    ref={picker}
+                    type="file"
+                    multiple
+                    hidden
+                    accept={ATTACHMENT_ACCEPT}
+                    data-testid="request-reply-file"
+                    onChange={(event) => void onPick(event)}
+                  />
+                  <Button
+                    type="button"
+                    tone="outline"
+                    loading={uploading}
+                    loadingLabel={tm('RequestMessages.uploading')}
+                    disabled={attached.length >= MAX_REQUEST_MESSAGE_FILES}
+                    onClick={() => picker.current?.click()}
+                  >
+                    {tm('RequestMessages.attachFile')}
+                  </Button>
+                </>
+              ) : null}
+              <Button
+                type="submit"
+                tone="ink"
+                disabled={!canSend}
+                loading={send.isPending}
+                loadingLabel={tm('RequestMessages.sending')}
+              >
+                {tm('RequestMessages.sendReply')}
+              </Button>
+            </div>
+          </form>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section className={className} aria-labelledby={headingId}>
+      <h2 id={headingId} className={headingClassName}>
+        {tm('RequestMessages.headingTeam')}
+      </h2>
+
+      {states}
 
       {rows.length > 0 ? (
         <ol
@@ -205,6 +456,7 @@ export function RequestMessageThread({
                   ) : null}
                 </div>
                 <p className="tm-chat-message__body tm-break">{row.body}</p>
+                <FileList files={row.files} label={tm('RequestMessages.attachedFiles')} />
               </div>
             </li>
           ))}
@@ -222,29 +474,19 @@ export function RequestMessageThread({
             rows={2}
             maxLength={MAX_REQUEST_MESSAGE_LENGTH}
             value={draft}
-            placeholder={
-              side === 'team'
-                ? tm('RequestMessages.placeholderTeam')
-                : tm('RequestMessages.placeholderClient')
-            }
+            placeholder={tm('RequestMessages.placeholderTeam')}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={onKeyDown}
           />
 
-          {send.isError ? (
-            <InlineAlert tone="danger" title={tm('RequestMessages.notSent')} live>
-              {describe(send.error, tm)}
-            </InlineAlert>
-          ) : null}
+          {sendError}
 
           <div className="tm-chat-composer__bar">
-            {side === 'team' ? (
-              <Switch
-                label={tm('RequestMessages.internalToggle')}
-                checked={internal}
-                onChange={(event) => setInternal(event.target.checked)}
-              />
-            ) : null}
+            <Switch
+              label={tm('RequestMessages.internalToggle')}
+              checked={internal}
+              onChange={(event) => setInternal(event.target.checked)}
+            />
             <span className="tm-chat-mono">
               {internal ? (
                 <>
@@ -273,6 +515,20 @@ export function RequestMessageThread({
   );
 }
 
+/** The files a message carries, as name chips (both sides). */
+function FileList({ files, label }: { files: readonly ThreadFile[]; label: string }) {
+  if (files.length === 0) return null;
+  return (
+    <ul className="tm-rq-files" aria-label={label}>
+      {files.map((file) => (
+        <li key={file.id} className="tm-rq-file">
+          <span className="tm-break">{file.name}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /** A small padlock, drawn inline so it takes the text colour and needs no icon font. */
 function LockMark() {
   return (
@@ -293,11 +549,12 @@ function fromTeam(message: RequestMessageView, studioName: string, clientName: s
   const from = message.authorKind === 'internal' ? 'studio' : 'client';
   return {
     id: message.id,
-    author: from === 'studio' ? studioName : clientName,
+    author: message.authorName ?? (from === 'studio' ? studioName : clientName),
     from,
     internal: !message.clientVisible,
     body: message.body,
     createdAt: message.createdAt,
+    files: message.files ?? [],
   };
 }
 
@@ -309,16 +566,20 @@ function fromClient(
 ): ThreadRow {
   return {
     id: message.id,
-    author: message.mine ? you : message.from === 'studio' ? studioName : clientName,
+    author:
+      message.authorName ??
+      (message.mine ? you : message.from === 'studio' ? studioName : clientName),
     from: message.from,
     internal: false,
     body: message.body,
     createdAt: message.createdAt,
+    files: message.files ?? [],
   };
 }
 
 function describe(error: unknown, tm: (key: ThreadKey) => string): string {
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return tm('RequestMessages.noAnswer');
+  if (error instanceof Error && error.message !== '') return error.message;
   return tm('RequestMessages.genericError');
 }

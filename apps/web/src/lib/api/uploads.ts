@@ -141,23 +141,61 @@ export async function uploadProjectFile(
   input: { readonly projectId: string; readonly file: Blob & AttachmentFileInput },
   deps: UploadAttachmentOptions = {},
 ): Promise<string> {
-  const mimeType = attachmentMimeType(input.file);
-  if (mimeType === null)
-    throw new Error(`“${input.file.name}” is not a file type TManage accepts.`);
+  // The internal purpose for a project's own files; `internal` audience by default, so an
+  // attachment is never shown to a client by being uploaded.
+  return runUpload(
+    client,
+    `${orgBase(organizationSlug)}/upload-sessions`,
+    { projectId: input.projectId, purpose: 'deliverable' },
+    input.file,
+    deps,
+  );
+}
+
+/**
+ * A8. A client's file for a message on their own request, through the portal upload session:
+ * purpose `request_attachment` with the request as `objectId`, so the API binds the file to that
+ * request and to the client's organization before the message names it.
+ */
+export async function uploadPortalRequestFile(
+  client: ApiClient,
+  organizationSlug: string,
+  input: {
+    readonly projectId: string;
+    readonly requestId: string;
+    readonly file: Blob & AttachmentFileInput;
+  },
+  deps: UploadAttachmentOptions = {},
+): Promise<string> {
+  return runUpload(
+    client,
+    `${orgBase(organizationSlug)}/portal/upload-sessions`,
+    { projectId: input.projectId, purpose: 'request_attachment', objectId: input.requestId },
+    input.file,
+    deps,
+  );
+}
+
+async function runUpload(
+  client: ApiClient,
+  sessionsPath: string,
+  target: Readonly<Record<string, string>>,
+  file: Blob & AttachmentFileInput,
+  deps: UploadAttachmentOptions,
+): Promise<string> {
+  const mimeType = attachmentMimeType(file);
+  if (mimeType === null) throw new Error(`“${file.name}” is not a file type TManage accepts.`);
   const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
 
   const { data: session } = await client.request<UploadSessionReply>({
     method: 'POST',
-    path: `${orgBase(organizationSlug)}/upload-sessions`,
+    path: sessionsPath,
     headers: { 'idempotency-key': (deps.newKey ?? defaultKey)() },
     body: {
-      projectId: input.projectId,
-      fileName: input.file.name,
+      ...target,
+      fileName: file.name,
       mimeType,
-      sizeBytes: input.file.size,
-      // The internal purpose for a project's own files; `internal` audience by default, so an
-      // attachment is never shown to a client by being uploaded.
-      purpose: 'deliverable',
+      sizeBytes: file.size,
     },
   });
 
@@ -165,7 +203,7 @@ export async function uploadProjectFile(
     const parts: { partNumber: number; etag: string }[] = [];
     for (const target of [...session.uploadUrls].sort((a, b) => a.partNumber - b.partNumber)) {
       const start = (target.partNumber - 1) * session.partSizeBytes;
-      const chunk = input.file.slice(start, start + session.partSizeBytes);
+      const chunk = file.slice(start, start + session.partSizeBytes);
       let response: Response;
       try {
         response = await send(target.url, {
@@ -176,18 +214,18 @@ export async function uploadProjectFile(
           credentials: 'omit',
         });
       } catch (cause) {
-        throw new NetworkError(`“${input.file.name}” did not reach TManage.`, cause);
+        throw new NetworkError(`“${file.name}” did not reach TManage.`, cause);
       }
       const etag = response.headers.get('etag');
       if (!response.ok || !etag) {
-        throw new Error(`“${input.file.name}” could not be uploaded (part ${target.partNumber}).`);
+        throw new Error(`“${file.name}” could not be uploaded (part ${target.partNumber}).`);
       }
       parts.push({ partNumber: target.partNumber, etag });
     }
 
     const { data: asset } = await client.request<UploadedAssetReply>({
       method: 'POST',
-      path: `${orgBase(organizationSlug)}/upload-sessions/${encodeURIComponent(session.id)}/complete`,
+      path: `${sessionsPath}/${encodeURIComponent(session.id)}/complete`,
       body: { parts },
     });
     return asset.id;
@@ -195,7 +233,7 @@ export async function uploadProjectFile(
     await client
       .request<unknown>({
         method: 'POST',
-        path: `${orgBase(organizationSlug)}/upload-sessions/${encodeURIComponent(session.id)}/cancel`,
+        path: `${sessionsPath}/${encodeURIComponent(session.id)}/cancel`,
       })
       .catch(() => undefined);
     throw error;

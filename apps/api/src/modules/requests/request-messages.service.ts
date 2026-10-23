@@ -10,7 +10,11 @@ import type { ClientRequestRow, RequestMessageRow } from '../../common/database/
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type { ClientRequestsRepository } from './client-requests.repository.js';
 import { audienceOf } from './client-requests.service.js';
-import { RequestMessagesRepository } from './request-messages.repository.js';
+import {
+  MAX_REQUEST_MESSAGE_FILES,
+  RequestMessagesRepository,
+  type RequestMessageFileEntry,
+} from './request-messages.repository.js';
 
 /**
  * The client <-> studio thread on a client request (0212, audit gap 4) — the application service.
@@ -30,6 +34,20 @@ export const REQUEST_MESSAGES_SERVICE = Symbol('REQUEST_MESSAGES_SERVICE');
 /** `request_messages.body` is TEXT; this bounds one message. */
 export const MAX_REQUEST_MESSAGE_LENGTH = 5000;
 
+export { MAX_REQUEST_MESSAGE_FILES };
+
+/** What a message carries, on either side. */
+export interface PostRequestMessageInput {
+  readonly body: string;
+  /** A8: ids of `request_attachment` uploads on this request (0221). */
+  readonly fileIds?: readonly string[] | undefined;
+}
+
+interface Attachment {
+  readonly id: string;
+  readonly name: string;
+}
+
 /** The team's projection: every message, with its author and visibility. */
 export interface RequestMessageView {
   readonly id: string;
@@ -39,6 +57,10 @@ export interface RequestMessageView {
   readonly body: string;
   readonly clientVisible: boolean;
   readonly createdAt: string;
+  /** A8: the author's display name, or null when the membership no longer resolves. */
+  readonly authorName: string | null;
+  /** A8 (0221): the files attached to this message. */
+  readonly files: readonly { readonly id: string; readonly name: string }[];
 }
 
 /** The client's projection: client-visible messages only, the studio as one voice. */
@@ -49,6 +71,10 @@ export interface RequestMessageClientView {
   readonly mine: boolean;
   readonly body: string;
   readonly createdAt: string;
+  /** A8: who wrote it — the portal card names the studio person and the client person. */
+  readonly authorName: string | null;
+  /** A8 (0221): the files attached to this message. */
+  readonly files: readonly { readonly id: string; readonly name: string }[];
 }
 
 type Door = 'internal' | 'client';
@@ -70,7 +96,8 @@ export class RequestMessagesService {
     return this.database.read(context, async (runner) => {
       await this.resolve(runner, context, principal, requestId, 'internal');
       const rows = await this.messages.listForRequest(runner, context, requestId, false);
-      return rows.map(toTeamView);
+      const extras = await this.extras(runner, context, requestId, rows);
+      return rows.map((row) => toTeamView(row, extras.names, extras.files));
     });
   }
 
@@ -78,10 +105,10 @@ export class RequestMessagesService {
     context: TenantContext,
     principal: Principal,
     requestId: string,
-    input: { readonly body: string; readonly clientVisible: boolean },
+    input: PostRequestMessageInput & { readonly clientVisible: boolean },
   ): Promise<RequestMessageView> {
-    const row = await this.post(context, principal, requestId, 'internal', input);
-    return toTeamView(row);
+    const posted = await this.post(context, principal, requestId, 'internal', input);
+    return toTeamView(posted.row, posted.names, posted.files);
   }
 
   async listForClient(
@@ -92,7 +119,8 @@ export class RequestMessagesService {
     return this.database.read(context, async (runner) => {
       await this.resolve(runner, context, principal, requestId, 'client');
       const rows = await this.messages.listForRequest(runner, context, requestId, true);
-      return rows.map((row) => toClientView(row, principal));
+      const extras = await this.extras(runner, context, requestId, rows);
+      return rows.map((row) => toClientView(row, principal, extras.names, extras.files));
     });
   }
 
@@ -100,14 +128,35 @@ export class RequestMessagesService {
     context: TenantContext,
     principal: Principal,
     requestId: string,
-    input: { readonly body: string },
+    input: PostRequestMessageInput,
   ): Promise<RequestMessageClientView> {
     // A client cannot write a note the client cannot see (also a CHECK in 0212).
-    const row = await this.post(context, principal, requestId, 'client', {
+    const posted = await this.post(context, principal, requestId, 'client', {
       body: input.body,
+      fileIds: input.fileIds,
       clientVisible: true,
     });
-    return toClientView(row, principal);
+    return toClientView(posted.row, principal, posted.names, posted.files);
+  }
+
+  /** A8: author names and attachments for a page of rows, in two reads. */
+  private async extras(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    requestId: string,
+    rows: readonly RequestMessageRow[],
+  ): Promise<{
+    readonly names: ReadonlyMap<string, string>;
+    readonly files: ReadonlyMap<string, readonly Attachment[]>;
+  }> {
+    if (rows.length === 0) return { names: new Map(), files: new Map() };
+    const names = await this.messages.authorNames(
+      runner,
+      context,
+      rows.map((row) => row.authorMembershipId),
+    );
+    const entries = await this.messages.listFilesForRequest(runner, context, requestId);
+    return { names, files: groupFiles(entries) };
   }
 
   private async post(
@@ -115,12 +164,30 @@ export class RequestMessagesService {
     principal: Principal,
     requestId: string,
     door: Door,
-    input: { readonly body: string; readonly clientVisible: boolean },
-  ): Promise<RequestMessageRow> {
+    input: PostRequestMessageInput & { readonly clientVisible: boolean },
+  ): Promise<{
+    readonly row: RequestMessageRow;
+    readonly names: ReadonlyMap<string, string>;
+    readonly files: ReadonlyMap<string, readonly Attachment[]>;
+  }> {
     return this.database.transaction(context, async (tx) => {
       const request = await this.resolve(tx, context, principal, requestId, door);
       if (!principal.membershipId) {
         throw new ApiError(403, 'forbidden', MESSAGES.forbidden);
+      }
+      const fileIds = [...new Set(input.fileIds ?? [])];
+      if (fileIds.length > MAX_REQUEST_MESSAGE_FILES) {
+        throw invalidFiles(`must name ${MAX_REQUEST_MESSAGE_FILES} files or fewer`);
+      }
+      // Every named file must be an upload on THIS request (and, for a client, their own) —
+      // one that is not refuses the whole post, before anything is written.
+      const attachable = await this.messages.findAttachableFiles(tx, context, {
+        requestId: request.id,
+        fileIds,
+        clientOrganizationId: door === 'client' ? principal.clientOrganizationId : null,
+      });
+      if (attachable.length !== fileIds.length) {
+        throw invalidFiles('must name files uploaded to this request');
       }
       const row = await this.messages.create(tx, context, {
         requestId: request.id,
@@ -128,6 +195,12 @@ export class RequestMessagesService {
         authorKind: door,
         body: input.body,
         clientVisible: input.clientVisible,
+      });
+      await this.messages.attachFiles(tx, context, {
+        messageId: row.id,
+        requestId: request.id,
+        fileAssetIds: attachable.map((file) => file.id),
+        attachedByMembershipId: principal.membershipId,
       });
       await this.outbox?.append(tx, context, {
         type: 'client_request.message_posted.v1',
@@ -142,7 +215,8 @@ export class RequestMessagesService {
           clientVisible: row.clientVisible,
         },
       });
-      return row;
+      const names = await this.messages.authorNames(tx, context, [row.authorMembershipId]);
+      return { row, names, files: new Map([[row.id, attachable]]) };
     });
   }
 
@@ -180,7 +254,29 @@ export class RequestMessagesService {
   }
 }
 
-function toTeamView(row: RequestMessageRow): RequestMessageView {
+function invalidFiles(message: string): ApiError {
+  return new ApiError(422, 'validation_failed', 'The request body is invalid', [
+    { field: 'fileIds', message },
+  ]);
+}
+
+function groupFiles(
+  entries: readonly RequestMessageFileEntry[],
+): ReadonlyMap<string, readonly Attachment[]> {
+  const grouped = new Map<string, Attachment[]>();
+  for (const entry of entries) {
+    const list = grouped.get(entry.messageId) ?? [];
+    list.push({ id: entry.fileAssetId, name: entry.name });
+    grouped.set(entry.messageId, list);
+  }
+  return grouped;
+}
+
+function toTeamView(
+  row: RequestMessageRow,
+  names: ReadonlyMap<string, string>,
+  files: ReadonlyMap<string, readonly Attachment[]>,
+): RequestMessageView {
   return {
     id: row.id,
     requestId: row.requestId,
@@ -189,10 +285,17 @@ function toTeamView(row: RequestMessageRow): RequestMessageView {
     body: row.body,
     clientVisible: row.clientVisible,
     createdAt: row.createdAt.toISOString(),
+    authorName: names.get(row.authorMembershipId) ?? null,
+    files: files.get(row.id) ?? [],
   };
 }
 
-function toClientView(row: RequestMessageRow, principal: Principal): RequestMessageClientView {
+function toClientView(
+  row: RequestMessageRow,
+  principal: Principal,
+  names: ReadonlyMap<string, string>,
+  files: ReadonlyMap<string, readonly Attachment[]>,
+): RequestMessageClientView {
   return {
     id: row.id,
     requestId: row.requestId,
@@ -200,5 +303,7 @@ function toClientView(row: RequestMessageRow, principal: Principal): RequestMess
     mine: row.authorMembershipId === principal.membershipId,
     body: row.body,
     createdAt: row.createdAt.toISOString(),
+    authorName: names.get(row.authorMembershipId) ?? null,
+    files: files.get(row.id) ?? [],
   };
 }

@@ -4,6 +4,7 @@ import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/deco
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
 import {
+  MAX_REQUEST_MESSAGE_FILES,
   MAX_REQUEST_MESSAGE_LENGTH,
   REQUEST_MESSAGES_SERVICE,
   type RequestMessageClientView,
@@ -28,6 +29,7 @@ import {
 interface PostMessageBody {
   readonly body?: unknown;
   readonly clientVisible?: unknown;
+  readonly fileIds?: unknown;
 }
 
 @Controller('v1/organizations/:orgSlug/client-requests/:clientRequestId/messages')
@@ -58,6 +60,7 @@ export class RequestMessagesController {
     return this.messages.postForTeam(context, principal, clientRequestId, {
       body: requiredBody(body?.body),
       clientVisible: optionalVisibility(body?.clientVisible),
+      fileIds: optionalFileIds(body?.fileIds),
     });
   }
 }
@@ -89,6 +92,7 @@ export class PortalRequestMessagesController {
   ): Promise<RequestMessageClientView> {
     return this.messages.postForClient(context, principal, clientRequestId, {
       body: requiredBody(body?.body),
+      fileIds: optionalFileIds(body?.fileIds),
     });
   }
 }
@@ -114,4 +118,17 @@ function optionalVisibility(raw: unknown): boolean {
   if (raw === undefined || raw === null) return true;
   if (typeof raw !== 'boolean') throw invalid('clientVisible', 'must be a boolean');
   return raw;
+}
+
+/** A8: up to ten file ids, each a non-empty id string; absent means none. */
+export function optionalFileIds(raw: unknown): readonly string[] {
+  if (raw === undefined || raw === null) return [];
+  if (
+    !Array.isArray(raw) ||
+    raw.length > MAX_REQUEST_MESSAGE_FILES ||
+    raw.some((id) => typeof id !== 'string' || id === '' || id.length > 64)
+  ) {
+    throw invalid('fileIds', `must be a list of up to ${MAX_REQUEST_MESSAGE_FILES} file ids`);
+  }
+  return raw as string[];
 }

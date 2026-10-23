@@ -123,6 +123,8 @@ export const requestsDetails: readonly AiActionDetail[] = [
     input: bodyArgs(['clientRequestId'], {
       body: f.text(5_000),
       clientVisible: f.bool().optional(),
+      // A8 (0221): request_attachment uploads on this request.
+      fileIds: f.id().array().max(10).optional(),
     }),
     redact: 'client_safe',
     notifies: true,
