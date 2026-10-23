@@ -71,6 +71,15 @@ function stringField(payload: Record<string, unknown>, key: string, eventId: str
 }
 
 /**
+ * A7: the accepter may untick "Tell <name> it is accepted", and the API then puts
+ * `notifyClient: false` on the transitioned payload. Only an explicit `false` suppresses the
+ * client's mail; an absent field (every producer before A7) still means tell.
+ */
+function clientNotificationSuppressed(payload: Record<string, unknown>): boolean {
+  return payload['notifyClient'] === false;
+}
+
+/**
  * Everything the two consumers share: resolve the submitter, re-check their access, read the
  * facts, and stage the send. Returns without staging anything when any step says no.
  *
@@ -164,6 +173,8 @@ export function createClientRequestTransitionedMail(mailer: ClientRequestMailer)
     if (!mailer.enabled) return;
 
     const raw = payloadOf(event);
+    // A7: "Tell <name> it is accepted" unticked — an explicit `false` means no client mail.
+    if (clientNotificationSuppressed(raw)) return;
     const kind = mailKindForStatus(stringField(raw, 'toStatus', event.id));
     if (kind === null) return;
 
@@ -206,6 +217,7 @@ export function createQuietHoursMailResume(mailer: ClientRequestMailer): OutboxH
     if (originalType === 'client_request.submitted.v1') {
       kind = 'received';
     } else if (originalType === 'client_request.transitioned.v1') {
+      if (clientNotificationSuppressed(originalPayload)) return;
       kind = mailKindForStatus(stringField(originalPayload, 'toStatus', event.id));
     } else {
       return; // No interrupting channel defers any other type today.

@@ -285,6 +285,7 @@ const TYPE_LABEL_KEYS: Record<string, MessageKey> = {
   'work_item.assigned.v1': 'NotificationsFeedScreen.typeWorkItemAssigned',
   'client_request.submitted.v1': 'NotificationsFeedScreen.typeClientRequestSubmitted',
   'client_request.transitioned.v1': 'NotificationsFeedScreen.typeClientRequestTransitioned',
+  'client_request.reopened.v1': 'NotificationsFeedScreen.typeClientRequestReopened',
   'usage.threshold_reached.v1': 'NotificationsFeedScreen.typeUsageThreshold',
   'message.mentioned.v1': 'NotificationsFeedScreen.typeMessageMentioned',
   'document.mentioned.v1': 'NotificationsFeedScreen.typeDocumentMentioned',

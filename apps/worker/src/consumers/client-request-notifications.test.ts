@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { INTERNAL_ROLES } from '@tmanage/domain';
 import { expectedCeilingGrants } from '@tmanage/test-kit';
-import { mayTriageClientRequests } from './client-request-notifications.js';
+import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
+import type { WorkerTransaction } from '../common/database/worker-database.js';
+import {
+  clientRequestTransitionedConsumer,
+  mayTriageClientRequests,
+} from './client-request-notifications.js';
 
 /**
  * The pure half of the submitted-request recipient rule. What the consumers do to real
@@ -88,5 +93,58 @@ describe('mayTriageClientRequests', () => {
         onProject: true,
       }),
     ).toBe(false);
+  });
+});
+
+describe('clientRequestTransitionedConsumer and notifyClient (A7)', () => {
+  function acceptedEvent(extra: Record<string, unknown>): ClaimedOutboxEvent {
+    return {
+      id: 'evt-1',
+      organizationId: 'org-1',
+      type: 'client_request.transitioned.v1',
+      schemaVersion: 1,
+      aggregateType: 'client_request',
+      aggregateId: 'req-1',
+      payload: {
+        requestId: 'req-1',
+        projectId: 'proj-1',
+        clientOrganizationId: 'corg-1',
+        fromStatus: 'triage',
+        toStatus: 'accepted',
+        requestVersion: 3,
+        ...extra,
+      },
+      correlationId: null,
+      occurredAt: new Date(0),
+      attempts: 1,
+    };
+  }
+
+  function recordingTx(): { tx: WorkerTransaction; sql: string[] } {
+    const sql: string[] = [];
+    const tx: WorkerTransaction = {
+      query: <T>(text: string): Promise<T> => {
+        sql.push(text);
+        // No submitter row: the consumer stops after its first read when it does read.
+        return Promise.resolve([] as unknown as T);
+      },
+    };
+    return { tx, sql };
+  }
+
+  it('tells the client nothing, and reads nothing, when notifyClient is false', async () => {
+    const { tx, sql } = recordingTx();
+    await clientRequestTransitionedConsumer(acceptedEvent({ notifyClient: false }), tx, {
+      afterCommit: () => undefined,
+    });
+    expect(sql).toEqual([]);
+  });
+
+  it('still looks the submitter up when notifyClient is absent', async () => {
+    const { tx, sql } = recordingTx();
+    await clientRequestTransitionedConsumer(acceptedEvent({}), tx, {
+      afterCommit: () => undefined,
+    });
+    expect(sql.length).toBeGreaterThan(0);
   });
 });

@@ -21,7 +21,8 @@
     "relay:once": "node dist/main.js --once",
     "relay:status": "node dist/main.js --status",
     "relay:unpark": "node dist/main.js --unpark",
-    "sweep:invitations": "node dist/main.js --sweep-invitations"
+    "sweep:invitations": "node dist/main.js --sweep-invitations",
+    "sweep:deferred-requests": "node dist/main.js --sweep-deferred-requests"
   },
   "dependencies": {
     "@tmanage/config": "workspace:*",

@@ -127,6 +127,9 @@ export const clientRequestTransitionedConsumer: OutboxHandler = async (
 
   // The submitter's own act — see the module doc. Told nothing, deliberately.
   if (payload.toStatus === 'withdrawn') return;
+  // A7: the accepter unticked "Tell <name> it is accepted". Only an explicit `false` silences;
+  // absent means tell. This consumer's only recipient is the client, so it writes nothing.
+  if (raw['notifyClient'] === false) return;
 
   const submitter = await findRequestSubmitter(tx, event.organizationId, payload.requestId);
   if (submitter === null) return; // The row is gone; there is nothing safe to reference.

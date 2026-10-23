@@ -560,6 +560,7 @@ const WHY_KEYS: Record<string, MessageKey> = {
   'work_item.blocked.v1': 'InboxScreen.whyBlocked',
   'client_request.submitted.v1': 'InboxScreen.whyClientSubmitted',
   'client_request.transitioned.v1': 'InboxScreen.whyRequestAnswered',
+  'client_request.reopened.v1': 'InboxScreen.whyRequestReopened',
   'message.mentioned.v1': 'InboxScreen.whyMentioned',
   'document.mentioned.v1': 'InboxScreen.whyMentionedComment',
   'document.comment_created.v1': 'InboxScreen.whyNewComment',

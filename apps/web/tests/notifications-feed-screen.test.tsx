@@ -108,6 +108,37 @@ describe('NotificationsFeedScreen', () => {
     );
   });
 
+  it('names the deferred-request reminder in words, not as a wire type (A7)', async () => {
+    const { client } = clientOver((call) => {
+      if (call.url.includes('/notifications')) {
+        return json({
+          items: [
+            {
+              id: '0199aa00-0000-7000-8000-000000000003',
+              type: 'client_request.reopened.v1',
+              objectType: 'client_request',
+              objectId: 'request-2',
+              read: false,
+              createdAt: '2026-09-03T08:00:00.000Z',
+              readAt: null,
+            },
+          ],
+          nextCursor: null,
+        });
+      }
+      return json({}, 200);
+    });
+
+    render(
+      withQuery(
+        <NotificationsFeedScreen organizationSlug="acme" organizationName="Acme" client={client} />,
+      ),
+    );
+
+    expect(await screen.findByText('A deferred request is back in triage')).toBeTruthy();
+    expect(screen.queryByText('Client request reopened')).toBeNull();
+  });
+
   it('shows an empty state when the feed is empty', async () => {
     const { client } = clientOver((call) => {
       if (call.url.includes('/notifications')) return json({ items: [], nextCursor: null });
