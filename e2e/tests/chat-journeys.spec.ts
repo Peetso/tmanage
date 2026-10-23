@@ -32,12 +32,28 @@ function world(): World {
   return JSON.parse(process.env['TMANAGE_E2E_WORLD'] as string) as World;
 }
 
-/** The dev sign-in route the API registers outside production — a session, not a mock. */
-async function signIn(context: BrowserContext, userId: string): Promise<void> {
+/**
+ * The dev sign-in route the API registers outside production — a session, not a mock.
+ *
+ * Returns the CSRF token the route issues, which a direct `context.request` mutation must echo in
+ * `X-CSRF-Token` exactly as the web client does, or `CsrfGuard` refuses it with 403.
+ */
+async function signIn(context: BrowserContext, userId: string): Promise<string> {
   const response = await context.request.post(`${API_URL}/v1/dev/sessions`, {
     data: { userId },
   });
   expect(response.ok()).toBe(true);
+  const { csrfToken } = (await response.json()) as { csrfToken: string };
+  return csrfToken;
+}
+
+const CONVERSATIONS = `${API_URL}/v1/organizations/northstar-studio/conversations`;
+
+/** The conversation id at the end of a `/northstar-studio/chat/<id>` URL. */
+function conversationIdOf(url: string): string {
+  const id = new URL(url).pathname.split('/').pop();
+  expect(id, `no conversation id in ${url}`).toBeTruthy();
+  return id as string;
 }
 
 const MESSAGE = 'Ship the launch checklist by Friday';
@@ -99,8 +115,34 @@ test.describe.serial('the chat journeys', () => {
   });
 
   test('AUTH-04: a member outside the room is denied, and nothing leaks', async ({ browser }) => {
+    const designerId = world().northstar.designer.id;
+    const conversationId = conversationIdOf(channelUrl);
+
+    // Make the designer a real outsider. She is on the Atlas project, and since CQ-12 (COL-01) a
+    // new project channel enrols the whole project team, so E2E-02's room put her in it. The owner
+    // takes her out through the product's own route; she keeps her org and project access, so
+    // what remains between her and the room is the channel-membership gate alone.
+    const owner = await browser.newContext();
+    const ownerCsrf = await signIn(owner, world().northstar.owner.id);
+    const members = await owner.request.get(`${CONVERSATIONS}/${conversationId}/members`);
+    expect(members.ok()).toBe(true);
+    expect(JSON.stringify(await members.json()), 'CQ-12 enrolled the designer').toContain(
+      designerId,
+    );
+    const removed = await owner.request.delete(
+      `${CONVERSATIONS}/${conversationId}/members/${designerId}`,
+      { headers: { 'X-CSRF-Token': ownerCsrf } },
+    );
+    expect(removed.status()).toBe(204);
+    await owner.close();
+
     const context = await browser.newContext();
-    await signIn(context, world().northstar.designer.id);
+    await signIn(context, designerId);
+
+    // The API refuses her outright — the same 404 an id that does not exist would get.
+    const direct = await context.request.get(`${CONVERSATIONS}/${conversationId}/messages`);
+    expect(direct.status()).toBe(404);
+    expect(await direct.text()).not.toContain(MESSAGE);
     const page = await context.newPage();
 
     await page.goto(channelUrl);
