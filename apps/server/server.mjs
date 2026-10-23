@@ -58,6 +58,7 @@ import {
 } from '@tmanage/api/hostinger';
 
 import { webSecurityHeaders } from './boot-guards.mjs';
+import { webCacheHeaders } from './cache-headers.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
 import { WEB_HEALTHY_MS, webRestartDelayMs } from './web-restart.mjs';
 import {
@@ -243,8 +244,13 @@ function proxyToWeb(req, res, transport) {
   const upstream = httpRequest(
     { ...webTarget(transport), method: req.method, path: req.url, headers: req.headers },
     (up) => {
-      // HSTS on every page response, and a report-only CSP on HTML (security review §3).
-      res.writeHead(up.statusCode ?? 502, { ...up.headers, ...webSecurityHeaders(up.headers) });
+      // HSTS on every page response, and a report-only CSP on HTML (security review §3). Pages
+      // never keep Next's one-year s-maxage at the CDN (cache-headers.mjs, live M1/N1).
+      res.writeHead(up.statusCode ?? 502, {
+        ...up.headers,
+        ...webSecurityHeaders(up.headers),
+        ...webCacheHeaders(req.url, up.headers),
+      });
       up.pipe(res);
     },
   );

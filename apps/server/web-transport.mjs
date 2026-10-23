@@ -20,6 +20,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 import { isApiPath } from './boot-guards.mjs';
+import { applyApiCacheDefault } from './cache-headers.mjs';
 
 /** Seconds a client is told to wait while the application is starting. */
 export const STARTING_RETRY_AFTER_SECONDS = 5;
@@ -187,6 +188,7 @@ export function createPublicHandler(state, proxyToWeb) {
       return;
     }
     if (isApiPath(req.url)) {
+      applyApiCacheDefault(res);
       ready.fastify.routing(req, res);
       return;
     }
