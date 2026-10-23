@@ -1,4 +1,14 @@
-import { Body, Controller, Get, HttpCode, Inject, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
@@ -6,7 +16,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { TENANT_DATABASE, WORKFLOW_TEMPLATES_REPOSITORY } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkflowTemplateConfig, WorkflowTemplateRow } from '../../common/database/schema.js';
-import type { WorkflowTemplatesRepository } from './templates.repository.js';
+import { isRowLockedError, type WorkflowTemplatesRepository } from './templates.repository.js';
 
 /**
  * Automations & integrations (module 17, x162). Two endpoints: define a workflow template and list
@@ -187,6 +197,70 @@ export class WorkflowTemplatesController {
       }),
     );
     return toView(row);
+  }
+
+  /**
+   * A14 — "Delete rule". Soft-deletes one template (0226): it leaves the list, its id answers 404,
+   * and it is turned off so nothing fires it again; its run history stays. `org.manage`. Resolve by
+   * `(organization_id, id)` first (404, nothing leaked across tenants), then authorize (403), then
+   * delete. A run in flight holds the row, so the delete is refused with a 409 rather than racing it.
+   */
+  @Delete(':id')
+  @RequireCapability('org.manage')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('id') id: string,
+  ): Promise<void> {
+    const existing = await this.database.read(context, (runner) =>
+      this.templates.findById(runner, context, id),
+    );
+    if (!existing) {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.notFound,
+        undefined,
+        'workflow_template_not_found',
+      );
+    }
+    if (!this.mayManageOrg(principal, context)) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'workflow_template_delete_denied',
+      );
+    }
+
+    let deleted: boolean;
+    try {
+      deleted = await this.database.transaction(context, (tx) =>
+        this.templates.softDelete(tx, context, id),
+      );
+    } catch (error) {
+      if (isRowLockedError(error)) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'This rule is running right now. Try again in a moment.',
+          undefined,
+          'workflow_template_run_in_flight',
+        );
+      }
+      throw error;
+    }
+    if (!deleted) {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.notFound,
+        undefined,
+        'workflow_template_not_found',
+      );
+    }
   }
 
   /** Org-scoped deny-by-default decision the route guard cannot make (membership status, etc.). */

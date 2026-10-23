@@ -1,0 +1,244 @@
+/*
+ * Automation rule settings (A14, Figma fq11-automation-rule). Every value is a token from
+ * `@tmanage/ui`; logical properties only, so the Arabic page mirrors without overrides.
+ */
+
+.tm-aur {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  max-inline-size: 720px;
+  min-inline-size: 0;
+}
+
+.tm-aur-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  padding: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-feature);
+  background: var(--paper-0);
+}
+
+.tm-aur-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
+  min-block-size: 28px;
+  padding: 0 var(--s3);
+  border: var(--b-structural) solid var(--success-600);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+}
+
+.tm-aur-pill--off {
+  border-color: var(--line-300);
+  color: var(--ink-650);
+}
+
+.tm-aur-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+.tm-aur-field__label,
+.tm-aur-toggle__label {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-aur-input {
+  block-size: var(--s12);
+  padding: 0 var(--s4);
+  border: var(--b-quiet) solid var(--ink-500);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-body-md);
+}
+
+.tm-aur-input:focus-visible,
+.tm-aur-chip:focus-within,
+.tm-aur-delete:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.tm-aur-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: var(--s5) var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-compact);
+  background: var(--paper-150);
+  min-inline-size: 0;
+}
+
+/* A legend inside a flex fieldset floats on the border; float it into the flow instead. */
+.tm-aur-block__title {
+  float: inline-start;
+  inline-size: 100%;
+  margin-block-end: var(--s3);
+  padding: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-aur-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s3);
+}
+
+.tm-aur-chip {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-block: var(--s2);
+  padding-inline: var(--s3) var(--s8);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-control);
+  background: var(--paper-0);
+}
+
+.tm-aur-chip::after {
+  content: '▾';
+  position: absolute;
+  inset-inline-end: var(--s3);
+  inset-block-start: 50%;
+  transform: translateY(-50%);
+  font-size: 8px;
+  color: var(--ink-650);
+  pointer-events: none;
+}
+
+.tm-aur-chip__label {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-aur-chip__select {
+  appearance: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-950);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  cursor: pointer;
+}
+
+.tm-aur-chip__select:focus {
+  outline: none;
+}
+
+.tm-aur-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.tm-aur-toggle__text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+}
+
+.tm-aur-hint {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+/* The design's switch: an ink track with a lime thumb when on. */
+.tm-aur-switch:checked::before {
+  background: var(--lime-500);
+}
+
+.tm-aur-info {
+  display: flex;
+  align-items: center;
+  gap: var(--s4);
+  margin: 0;
+  padding: var(--s3) var(--s4);
+  border: var(--b-structural) solid var(--line-300);
+  border-radius: var(--r-control);
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-800);
+}
+
+.tm-aur-info__mark {
+  font-family: var(--font-mono);
+  color: var(--ink-650);
+}
+
+.tm-aur-confirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  padding: var(--s4);
+  border: var(--b-quiet) solid var(--danger-600);
+  border-radius: var(--r-compact);
+}
+
+.tm-aur-confirm__title,
+.tm-aur-done__title {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-aur-confirm__actions,
+.tm-aur-footer__end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-aur-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+  padding-block-start: var(--s1);
+}
+
+.tm-aur-delete {
+  padding: var(--s2);
+  border: 0;
+  border-radius: var(--r-micro);
+  background: transparent;
+  color: var(--danger-600);
+  font: inherit;
+  font-size: var(--t-ui-md);
+  cursor: pointer;
+}
+
+@media (max-width: 640px) {
+  .tm-aur-card {
+    padding: var(--s5);
+  }
+}

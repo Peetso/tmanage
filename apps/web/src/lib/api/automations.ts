@@ -309,3 +309,18 @@ export async function createWorkflowCondition(
   });
   return data;
 }
+
+/**
+ * Delete one automation rule (A14). The server soft-deletes it: it leaves the list and stops
+ * running, and its run history stays. A rule that is running right now is a 409 — try again.
+ */
+export async function deleteWorkflowTemplate(
+  client: ApiClient,
+  organizationSlug: string,
+  templateId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${base(organizationSlug)}/${encodeURIComponent(templateId)}`,
+  });
+}

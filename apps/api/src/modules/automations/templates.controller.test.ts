@@ -32,7 +32,10 @@ function principal(role: Principal['role']): Principal {
 
 const context = { organizationId: ORG, userId: USER } as unknown as TenantContext;
 
-function controllerWith(seed: readonly WorkflowTemplateRow[] = []) {
+function controllerWith(
+  seed: readonly WorkflowTemplateRow[] = [],
+  options: { readonly locked?: boolean } = {},
+) {
   const store: WorkflowTemplateRow[] = [...seed];
   let seq = store.length;
 
@@ -41,10 +44,25 @@ function controllerWith(seed: readonly WorkflowTemplateRow[] = []) {
     transaction: async (_context: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
 
+  const live = (ctx: TenantContext, id: string) =>
+    store.find(
+      (row) => row.organizationId === ctx.organizationId && row.id === id && !row.deletedAt,
+    ) ?? null;
+
   const repository = {
+    findById: async (_runner: unknown, ctx: TenantContext, id: string) => live(ctx, id),
+    softDelete: async (_runner: unknown, ctx: TenantContext, id: string) => {
+      // A run in flight holds the row: the engine refuses the NOWAIT lock (MySQL errno 3572).
+      if (options.locked) throw Object.assign(new Error('locked'), { errno: 3572 });
+      const found = live(ctx, id);
+      if (!found) return false;
+      found.deletedAt = new Date('2026-10-23T09:00:00.000Z');
+      found.enabled = false;
+      return true;
+    },
     list: async (_runner: unknown, ctx: TenantContext) =>
       store
-        .filter((row) => row.organizationId === ctx.organizationId)
+        .filter((row) => row.organizationId === ctx.organizationId && !row.deletedAt)
         .sort((a, b) => a.name.localeCompare(b.name)),
     create: async (
       _runner: unknown,
@@ -68,6 +86,7 @@ function controllerWith(seed: readonly WorkflowTemplateRow[] = []) {
         enabled: input.enabled,
         createdBy: input.createdBy,
         createdAt: new Date('2026-09-27T10:00:00.000Z'),
+        deletedAt: null,
       };
       store.push(row);
       return row;
@@ -163,6 +182,7 @@ describe('WorkflowTemplatesController', () => {
       enabled: true,
       createdBy: USER,
       createdAt: new Date('2026-09-27T10:00:00.000Z'),
+      deletedAt: null,
     };
     const { controller } = controllerWith([other]);
     const actor = principal('owner');
@@ -181,5 +201,55 @@ describe('WorkflowTemplatesController', () => {
 
     const listed = await controller.list(context, actor);
     expect(listed.templates.map((t) => t.name)).toEqual(['Alpha', 'Beta']);
+  });
+
+  describe('DELETE templates/:id (A14)', () => {
+    async function seeded(options: { readonly locked?: boolean } = {}) {
+      const harness = controllerWith([], options);
+      const created = await harness.controller.create(context, principal('owner'), {
+        name: 'Due-date reminder',
+        triggerKind: 'work_item_created',
+        actionKind: 'notify_owner',
+        config: {},
+      });
+      return { ...harness, id: created.id };
+    }
+
+    it('soft-deletes the rule: it leaves the list, is turned off, and its row stays', async () => {
+      const { controller, store, id } = await seeded();
+      await expect(controller.remove(context, principal('owner'), id)).resolves.toBeUndefined();
+      expect(store[0]?.deletedAt).toBeInstanceOf(Date);
+      expect(store[0]?.enabled).toBe(false);
+      const listed = await controller.list(context, principal('owner'));
+      expect(listed.templates).toHaveLength(0);
+      // Deleting it again is a 404 — the id no longer names a live rule.
+      await expect(controller.remove(context, principal('owner'), id)).rejects.toMatchObject({
+        status: 404,
+      });
+    });
+
+    it('refuses with 409 while a run is in flight, and deletes nothing', async () => {
+      const { controller, store, id } = await seeded({ locked: true });
+      await expect(controller.remove(context, principal('owner'), id)).rejects.toMatchObject({
+        status: 409,
+        auditCode: 'workflow_template_run_in_flight',
+      });
+      expect(store[0]?.deletedAt).toBeNull();
+    });
+
+    it('is a 404 for another tenant and a 403 without org.manage, deleting nothing', async () => {
+      const { controller, store, id } = await seeded();
+      const otherContext = {
+        organizationId: 'organization-0000-0000-0000-000000000002',
+        userId: USER,
+      } as unknown as TenantContext;
+      await expect(controller.remove(otherContext, principal('owner'), id)).rejects.toMatchObject({
+        status: 404,
+      });
+      await expect(
+        controller.remove(context, principal('workspace_admin'), id),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(store[0]?.deletedAt).toBeNull();
+    });
   });
 });

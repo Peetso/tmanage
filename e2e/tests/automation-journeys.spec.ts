@@ -327,4 +327,61 @@ test.describe.serial('the automations create-and-run journey', () => {
 
     await owner.context.close();
   });
+
+  test('AUTO-03: the owner edits a rule, turns it off, and deletes it', async ({ browser }) => {
+    const owner = await openAs(browser, world().northstar.owner.id);
+
+    // A rule of its own, so this leg never disturbs the templates the run legs read.
+    const created = await owner.context.request.post(templatesPath(), {
+      headers: await csrfHeaders(owner.context),
+      data: {
+        name: 'E2E rule to edit and delete',
+        triggerKind: 'work_item_created',
+        actionKind: 'notify_owner',
+        config: {},
+      },
+    });
+    expect(created.status()).toBe(201);
+    const ruleId = ((await created.json()) as TemplateView).id;
+
+    await owner.page.goto(`/${ORG}/automations/templates/${ruleId}`);
+    const name = owner.page.getByRole('textbox', { name: 'Rule name' });
+    await expect(name).toHaveValue('E2E rule to edit and delete');
+    await name.fill('E2E rule, edited');
+    await owner.page.getByRole('switch', { name: 'Skip weekends' }).check();
+    await owner.page.getByRole('switch', { name: 'Rule is on' }).uncheck();
+    await owner.page.getByRole('button', { name: 'Save rule' }).click();
+    await expect(owner.page.getByRole('status').filter({ hasText: 'Rule saved.' })).toBeVisible();
+
+    // What the engine holds now: renamed, off, and the weekend option in its config.
+    const listed = await owner.context.request.get(templatesPath());
+    const saved = (
+      (await listed.json()) as {
+        templates: readonly (TemplateView & {
+          config: Record<string, unknown>;
+        })[];
+      }
+    ).templates.find((template) => template.id === ruleId);
+    expect(saved?.name).toBe('E2E rule, edited');
+    expect(saved?.enabled).toBe(false);
+    expect(saved?.config['skipWeekends']).toBe(true);
+
+    await owner.page.getByRole('button', { name: 'Delete rule' }).click();
+    await owner.page.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(owner.page.getByText('Rule deleted')).toBeVisible();
+
+    // Gone from the list, and its id is a 404 for an edit.
+    const after = await owner.context.request.get(templatesPath());
+    const ids = ((await after.json()) as { templates: readonly TemplateView[] }).templates.map(
+      (template) => template.id,
+    );
+    expect(ids).not.toContain(ruleId);
+    const edit = await owner.context.request.patch(`${templatesPath()}/${ruleId}`, {
+      headers: await csrfHeaders(owner.context),
+      data: { name: 'Back from the dead' },
+    });
+    expect(edit.status()).toBe(404);
+
+    await owner.context.close();
+  });
 });

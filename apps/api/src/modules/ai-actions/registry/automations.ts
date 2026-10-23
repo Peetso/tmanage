@@ -91,6 +91,14 @@ export const automationsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Clone', args: { id: 'tpl_1', name: 'Auto-assign (copy)' } }],
   }),
   det({
+    id: 'automations.templates.delete',
+    title: 'Delete an automation rule',
+    description: 'Remove an automation rule; its run history stays. Confirm-class.',
+    input: pathOnly('id'),
+    redact: 'standard',
+    examples: [{ summary: 'Remove', args: { id: 'tpl_1' } }],
+  }),
+  det({
     id: 'automations.templates.conditions.list',
     title: 'List template conditions',
     description: 'Conditions on an automation template.',

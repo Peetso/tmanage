@@ -48,6 +48,7 @@ function row(overrides: Partial<WorkflowTemplateRow> = {}): WorkflowTemplateRow 
     enabled: true,
     createdBy: USER,
     createdAt: new Date('2026-09-27T10:00:00.000Z'),
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -136,5 +137,29 @@ describe('WorkflowTemplateEditController', () => {
     await expect(
       controller.update(context, principal('owner'), TEMPLATE_ID, {}),
     ).rejects.toMatchObject({ status: 400 });
+  });
+
+  it('saves the rule options skipWeekends and alsoTell (A14)', async () => {
+    const { controller, store } = controllerWith([row()]);
+    const updated = await controller.update(context, principal('owner'), TEMPLATE_ID, {
+      config: { skipWeekends: true, alsoTell: 'project_lead' },
+    });
+    expect(updated.config).toEqual({ skipWeekends: true, alsoTell: 'project_lead' });
+    expect(store[0]?.configJson).toEqual({ skipWeekends: true, alsoTell: 'project_lead' });
+  });
+
+  it('rejects a non-boolean skipWeekends or an off-list alsoTell with 400 (A14)', async () => {
+    const { controller, store } = controllerWith([row()]);
+    await expect(
+      controller.update(context, principal('owner'), TEMPLATE_ID, {
+        config: { skipWeekends: 'yes' },
+      }),
+    ).rejects.toMatchObject({ status: 400, auditCode: 'workflow_template_skip_weekends_invalid' });
+    await expect(
+      controller.update(context, principal('owner'), TEMPLATE_ID, {
+        config: { alsoTell: 'everyone' },
+      }),
+    ).rejects.toMatchObject({ status: 400, auditCode: 'workflow_template_also_tell_off_list' });
+    expect(store[0]?.configJson).toEqual({ channel: 'in_app' });
   });
 });

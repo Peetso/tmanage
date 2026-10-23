@@ -3963,6 +3963,8 @@ export const workflowTemplates = mysqlTable(
     enabled: boolean('enabled').notNull().default(true),
     createdBy: char('created_by', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** A14 (0226): soft-delete stamp; NULL is a live rule, every read filters on it. */
+    deletedAt: datetime('deleted_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_workflow_templates_org_id').on(table.organizationId, table.id),

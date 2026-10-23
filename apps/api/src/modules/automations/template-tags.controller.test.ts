@@ -50,6 +50,7 @@ function template(overrides: Partial<WorkflowTemplateRow> = {}): WorkflowTemplat
     enabled: true,
     createdBy: USER,
     createdAt: new Date('2026-09-27T10:00:00.000Z'),
+    deletedAt: null,
     ...overrides,
   };
 }

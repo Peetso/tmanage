@@ -341,6 +341,28 @@ export interface AutomationRule {
   readonly name: string;
   readonly triggerKind: string;
   readonly actionKind: string;
+  /** A14: the rule's `config.skipWeekends` — hold a reminder that would go out on Friday/Saturday. */
+  readonly skipWeekends: boolean;
+  /** A14: the rule's `config.alsoTell` — `project_lead` also tells the project's managers. */
+  readonly alsoTell: string;
+}
+
+/** A14: read the two rule options out of `config_json` (a string on MariaDB, an object on MySQL). */
+function ruleOptions(raw: unknown): { skipWeekends: boolean; alsoTell: string } {
+  let config: unknown = raw;
+  if (typeof raw === 'string') {
+    try {
+      config = JSON.parse(raw);
+    } catch {
+      config = null;
+    }
+  }
+  const record =
+    config !== null && typeof config === 'object' ? (config as Record<string, unknown>) : {};
+  return {
+    skipWeekends: record['skipWeekends'] === true,
+    alsoTell: typeof record['alsoTell'] === 'string' ? record['alsoTell'] : 'none',
+  };
 }
 
 export async function listEnabledRulesForTrigger(
@@ -353,9 +375,10 @@ export async function listEnabledRulesForTrigger(
     readonly name: string;
     readonly trigger_kind: string;
     readonly action_kind: string;
+    readonly config_json: unknown;
   }
   const rows = await tx.query<readonly Row[]>(
-    `SELECT id, name, trigger_kind, action_kind FROM workflow_templates
+    `SELECT id, name, trigger_kind, action_kind, config_json FROM workflow_templates
       WHERE organization_id = ? AND trigger_kind = ? AND enabled = 1
       ORDER BY id`,
     [organizationId, triggerKind],
@@ -365,6 +388,7 @@ export async function listEnabledRulesForTrigger(
     name: row.name,
     triggerKind: row.trigger_kind,
     actionKind: row.action_kind,
+    ...ruleOptions(row.config_json),
   }));
 }
 

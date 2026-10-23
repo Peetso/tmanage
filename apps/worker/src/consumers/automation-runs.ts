@@ -140,11 +140,23 @@ export function notRunReason(actionKind: string): string | null {
   return 'external_action_not_supported_in_app';
 }
 
+/**
+ * A14 — "Skip weekends". The studio week ends on Friday and Saturday, so a rule with
+ * `skipWeekends` does not send a reminder on those days (UTC): the run is recorded as not run,
+ * held for the weekend, and nobody is notified. Pure, so the suite can enumerate the days.
+ */
+export function isHeldForWeekend(skipWeekends: boolean, at: Date): boolean {
+  if (!skipWeekends) return false;
+  const day = at.getUTCDay();
+  return day === 5 || day === 6;
+}
+
 async function runRule(
   event: ClaimedOutboxEvent,
   tx: WorkerTransaction,
   rule: AutomationRule,
   object: TriggerObject | null,
+  now: Date,
 ): Promise<void> {
   const base = {
     templateId: rule.id,
@@ -161,9 +173,26 @@ async function runRule(
     });
     return;
   }
+  if (isHeldForWeekend(rule.skipWeekends, now)) {
+    await insertWorkflowRun(tx, {
+      organizationId: event.organizationId,
+      templateId: rule.id,
+      status: 'failed',
+      detail: { ...base, outcome: 'not_run', reason: 'held_for_weekend' },
+    });
+    return;
+  }
+
+  // A14 "Also tell: Project lead" — the project's managers and owner of record hear it too.
+  const recipients = [...object.ownerIds];
+  if (rule.alsoTell === 'project_lead') {
+    for (const id of await projectOwners(tx, event.organizationId, object.projectId)) {
+      if (!recipients.includes(id)) recipients.push(id);
+    }
+  }
 
   let told = 0;
-  for (const userId of object.ownerIds) {
+  for (const userId of recipients) {
     const reach = await findInternalReach(tx, event.organizationId, userId, object.projectId);
     if (!mayBeTold(reach, 'work.read')) continue;
     await insertNotification(tx, {
@@ -202,5 +231,6 @@ export const automationRunsConsumer: OutboxHandler = async (event, tx) => {
   const rules = await listEnabledRulesForTrigger(tx, event.organizationId, trigger);
   if (rules.length === 0) return; // The common case: no rule, no reads.
   const object = await triggerObject(event, tx);
-  for (const rule of rules) await runRule(event, tx, rule, object);
+  const now = new Date();
+  for (const rule of rules) await runRule(event, tx, rule, object, now);
 };

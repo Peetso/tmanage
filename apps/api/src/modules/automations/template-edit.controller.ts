@@ -256,7 +256,41 @@ function validateConfig(raw: unknown): WorkflowTemplateConfig {
       'workflow_template_config_too_large',
     );
   }
+  validateRuleOptions(raw as Record<string, unknown>);
   return raw as WorkflowTemplateConfig;
+}
+
+/** A14: who else a reminder tells. `none` (or the key absent) tells the owner only. */
+export const ALSO_TELL_OPTIONS = ['project_lead', 'none'] as const;
+
+/**
+ * A14 — the two rule options the rule page edits live in `config`: `skipWeekends` (a boolean the
+ * worker honours) and `alsoTell` (an allowlisted token). Absent is fine; a present but wrong-typed
+ * or off-list value is a 400 with nothing written.
+ */
+function validateRuleOptions(config: Record<string, unknown>): void {
+  if (config['skipWeekends'] !== undefined && typeof config['skipWeekends'] !== 'boolean') {
+    throw new ApiError(
+      400,
+      'validation_failed',
+      'The request body is invalid',
+      [{ field: 'config.skipWeekends', message: 'must be a boolean' }],
+      'workflow_template_skip_weekends_invalid',
+    );
+  }
+  const alsoTell = config['alsoTell'];
+  if (
+    alsoTell !== undefined &&
+    !(typeof alsoTell === 'string' && (ALSO_TELL_OPTIONS as readonly string[]).includes(alsoTell))
+  ) {
+    throw new ApiError(
+      400,
+      'validation_failed',
+      'The request body is invalid',
+      [{ field: 'config.alsoTell', message: `must be one of ${ALSO_TELL_OPTIONS.join(', ')}` }],
+      'workflow_template_also_tell_off_list',
+    );
+  }
 }
 
 function validateEnabled(raw: unknown): boolean {

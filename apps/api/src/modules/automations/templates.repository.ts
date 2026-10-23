@@ -1,10 +1,14 @@
-import { and, asc, eq, gt } from 'drizzle-orm';
+import { and, asc, eq, gt, isNull } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { workflowTemplates } from '../../common/database/schema.js';
 import type { WorkflowTemplateConfig, WorkflowTemplateRow } from '../../common/database/schema.js';
-import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import type {
+  QueryRows,
+  TenantContext,
+  TenantQueryRunner,
+} from '../../common/database/tenant-context.js';
 
 /**
  * The workflow-templates repository — Automations & integrations (module 17, x162), following the
@@ -81,7 +85,10 @@ export class WorkflowTemplatesRepository {
     const limit = effectivePageSize(options.limit);
     const db = tenantDrizzle(runner);
 
-    const predicates = [eq(workflowTemplates.organizationId, context.organizationId)];
+    const predicates = [
+      eq(workflowTemplates.organizationId, context.organizationId),
+      isNull(workflowTemplates.deletedAt),
+    ];
     if (options.after) predicates.push(gt(workflowTemplates.id, options.after));
 
     return db
@@ -111,6 +118,7 @@ export class WorkflowTemplatesRepository {
         and(
           eq(workflowTemplates.organizationId, context.organizationId),
           eq(workflowTemplates.id, templateId),
+          isNull(workflowTemplates.deletedAt),
         ),
       )
       .limit(1);
@@ -139,6 +147,7 @@ export class WorkflowTemplatesRepository {
         and(
           eq(workflowTemplates.organizationId, context.organizationId),
           eq(workflowTemplates.name, name),
+          isNull(workflowTemplates.deletedAt),
         ),
       )
       .limit(1);
@@ -217,4 +226,50 @@ export class WorkflowTemplatesRepository {
 
     return this.findById(runner, context, templateId);
   }
+
+  /**
+   * Soft-delete one live template, within the acting tenant (A14, 0226). **Must run inside a
+   * transaction.**
+   *
+   * The row is first locked with `FOR UPDATE NOWAIT`. A run in flight holds a lock on this row
+   * until it commits — inserting its `workflow_runs` row takes a shared lock on the parent template
+   * through the composite foreign key — so the lock fails at once instead of queueing behind it,
+   * and the caller turns that into a 409. Then the row is stamped `deleted_at` and turned off, so
+   * the worker (which reads only enabled rules) never fires it again. Returns false when no live
+   * tenant-owned row has that id.
+   */
+  async softDelete(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    templateId: string,
+  ): Promise<boolean> {
+    const locked = await runner.execute<QueryRows>(
+      `select id from workflow_templates
+        where organization_id = ? and id = ? and deleted_at is null
+        for update nowait`,
+      [context.organizationId, templateId],
+    );
+    if (locked.length === 0) return false;
+
+    await tenantDrizzle(runner)
+      .update(workflowTemplates)
+      .set({ deletedAt: sql`current_timestamp(3)`, enabled: false })
+      .where(
+        and(
+          eq(workflowTemplates.organizationId, context.organizationId),
+          eq(workflowTemplates.id, templateId),
+        ),
+      );
+    return true;
+  }
+}
+
+/**
+ * Whether a database error is the engine refusing a `NOWAIT` lock because another transaction holds
+ * the row: MySQL 8 answers `ER_LOCK_NOWAIT` (3572); MariaDB answers `ER_LOCK_WAIT_TIMEOUT` (1205).
+ */
+export function isRowLockedError(error: unknown): boolean {
+  const errno = (error as { errno?: unknown } | null)?.errno;
+  const cause = (error as { cause?: { errno?: unknown } } | null)?.cause?.errno;
+  return [errno, cause].some((value) => value === 3572 || value === 1205);
 }

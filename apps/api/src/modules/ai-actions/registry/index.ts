@@ -405,6 +405,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'write',
   },
   {
+    id: 'automations.templates.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/automations/templates/:id',
+    capability: 'org.manage',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
     id: 'automations.templates.conditions.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/automations/templates/:templateId/conditions/',

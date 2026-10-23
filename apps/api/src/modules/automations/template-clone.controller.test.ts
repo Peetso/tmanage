@@ -49,6 +49,7 @@ function row(overrides: Partial<WorkflowTemplateRow> = {}): WorkflowTemplateRow 
     enabled: true,
     createdBy: 'user-0000-0000-0000-0000-00000000000a',
     createdAt: new Date('2026-09-27T10:00:00.000Z'),
+    deletedAt: null,
     ...overrides,
   };
 }
@@ -78,6 +79,7 @@ function controllerWith(seed: readonly WorkflowTemplateRow[] = []) {
         enabled: input.enabled,
         createdBy: input.createdBy,
         createdAt: new Date('2026-09-27T11:00:00.000Z'),
+        deletedAt: null,
       };
       store.push(created);
       return { ...created };
