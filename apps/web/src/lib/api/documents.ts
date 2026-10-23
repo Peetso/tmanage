@@ -109,6 +109,30 @@ export async function createDocument(
   return data;
 }
 
+/**
+ * B4. Rename a document (`PATCH …/documents/:documentId`, `doc.write`). `expectedUpdatedAt` is the
+ * `updatedAt` of the {@link DocumentView} last read — a document saved or renamed since answers 409
+ * (`version_conflict`), and the caller reloads. Same fields as the API's `RenameDocumentRequest`.
+ */
+export interface RenameDocumentInput {
+  readonly title: string;
+  readonly expectedUpdatedAt: string;
+}
+
+export async function renameDocument(
+  client: ApiClient,
+  organizationSlug: string,
+  documentId: string,
+  input: RenameDocumentInput,
+): Promise<DocumentView> {
+  const { data } = await client.request<DocumentView>({
+    method: 'PATCH',
+    path: base(organizationSlug, documentId),
+    body: { title: input.title, expectedUpdatedAt: input.expectedUpdatedAt },
+  });
+  return data;
+}
+
 /** List a document's versions, newest first. */
 export async function listDocumentVersions(
   client: ApiClient,

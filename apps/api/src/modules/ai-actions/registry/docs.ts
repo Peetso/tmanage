@@ -139,6 +139,27 @@ export const docsDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'By id', args: { documentId: 'doc_9' } }],
   }),
   det({
+    id: 'documents.update',
+    title: 'Rename a document',
+    description:
+      'Change a document title. Pass the updatedAt you last read; a newer save is a conflict.',
+    input: bodyArgs(['documentId'], {
+      title: f.shortText(300),
+      expectedUpdatedAt: f.shortText(40),
+    }),
+    redact: 'standard',
+    examples: [
+      {
+        summary: 'Rename',
+        args: {
+          documentId: 'doc_9',
+          title: 'Kickoff notes (final)',
+          expectedUpdatedAt: '2026-10-23T09:00:00.000Z',
+        },
+      },
+    ],
+  }),
+  det({
     id: 'documents.backlinks.list',
     title: 'List document backlinks',
     description: 'The documents that link to this one.',

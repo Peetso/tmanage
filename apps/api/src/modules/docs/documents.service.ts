@@ -8,6 +8,8 @@ import { DocumentVersionsRepository } from './document-versions.repository.js';
 import { DocumentTemplatesRepository } from './document-templates.repository.js';
 import type { ListDocumentTemplatesOptions } from './document-templates.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
+import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type {
   DocumentRow,
   DocumentTemplateRow,
@@ -35,9 +37,8 @@ import type {
  * directly in `authorize.ts` would be an edit to the security core this slice does not need; a
  * later slice may make it so. Recorded as a decision in the x91 report.
  *
- * No audit event is written yet — like `ProjectsService`'s still-missing outbox event, the audit
- * action for a document is a follow-up (it needs a `doc.*` entry in the `AuditAction` catalog, a
- * domain change out of this slice's scope).
+ * No audit event is written for create/save yet. B4's rename is the first document write that
+ * records one (`document.renamed`) and appends an outbox event (`document.renamed.v1`).
  */
 
 /** What a caller is allowed to see of a document. `organizationId` is deliberately absent. */
@@ -127,6 +128,9 @@ export class DocumentsService {
     private readonly projects: ProjectsRepository = new ProjectsRepository(),
     private readonly versions: DocumentVersionsRepository = new DocumentVersionsRepository(),
     private readonly templates: DocumentTemplatesRepository = new DocumentTemplatesRepository(),
+    /** B4: optional so a suite can construct the service without audit or the outbox. */
+    private readonly audit?: AuditService,
+    private readonly outbox?: OutboxEventsRepository,
   ) {}
 
   /**
@@ -374,6 +378,51 @@ export class DocumentsService {
       }),
     );
     return toVersionView(row);
+  }
+
+  /**
+   * B4. Rename a document. The same permission as editing it — `doc.write` on the route, then the
+   * `work.create` relation check through {@link requireActionable} (unknown, cross-tenant or
+   * not-a-member is 404). Optimistic: `expectedUpdatedAt` is the `updatedAt` the caller last read;
+   * a document saved or renamed since is 409 `version_conflict` and nothing is written. An
+   * unchanged title is a no-op (no write, no audit, no event). The audit row and the
+   * `document.renamed.v1` event carry ids only — never the title.
+   */
+  async rename(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+    input: { readonly title: string; readonly expectedUpdatedAt: string },
+  ): Promise<DocumentView> {
+    const current = await this.requireActionable(context, principal, documentId, 'work.create');
+    const conflict = (): ApiError =>
+      new ApiError(409, 'conflict', MESSAGES.conflict, undefined, 'version_conflict');
+    if (current.updatedAt.toISOString() !== input.expectedUpdatedAt) throw conflict();
+    if (current.title === input.title) return toView(current);
+
+    const row = await this.database.transaction(context, async (tx) => {
+      const renamed = await this.documents.rename(
+        tx,
+        context,
+        documentId,
+        current.updatedAt,
+        input.title,
+      );
+      if (!renamed) throw conflict();
+      await this.audit?.record(tx, context, {
+        action: 'document.renamed',
+        objectId: documentId,
+        result: 'allowed',
+        metadata: { project_id: current.projectId },
+      });
+      await this.outbox?.append(tx, context, {
+        type: 'document.renamed.v1',
+        aggregateId: documentId,
+        payload: { documentId, projectId: current.projectId },
+      });
+      return this.documents.requireById(tx, context, documentId);
+    });
+    return toView(row);
   }
 
   // ── DOC-04/ADM-06 (x119) — document templates ──────────────────────────────

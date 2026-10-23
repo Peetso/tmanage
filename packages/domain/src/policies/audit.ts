@@ -631,6 +631,11 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'membership',
     clause: '§12 — a change to how a person is named to the whole studio is worth a trail',
   },
+  /** B4. A document's title was changed (ids only — never the old or new title). */
+  'document.renamed': {
+    objectType: 'document',
+    clause: '§12 — a document title is how the whole project finds it; renaming it is a trail',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -728,6 +733,7 @@ const AUDIT_ACTION_LABELS = {
   'approval.invalidated': 'Cancelled an approval after a new version',
   'member.password_reset_sent': 'Sent a member a password reset',
   'member.profile_updated': 'Updated their own profile',
+  'document.renamed': 'Renamed a document',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

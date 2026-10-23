@@ -189,6 +189,7 @@ export type {
   ClientRequestMessagePostedV1,
   DocumentCommentCreatedV1,
   DocumentPublishedV1,
+  DocumentRenamedV1,
   FilePurgedV1,
   FileReadyV1,
   FileRejectedV1,

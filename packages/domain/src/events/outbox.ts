@@ -167,6 +167,11 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'document',
     catalog: '§4 document published — automations',
   },
+  /** B4: a document's title changed — search/realtime may refresh; no consumer yet. */
+  'document.renamed.v1': {
+    aggregateType: 'document',
+    catalog: '§4 document updated — search, realtime',
+  },
   /** CQ-12 (AUT-01): a meeting was scheduled — the trigger `meeting_scheduled`. */
   'meeting.scheduled.v1': {
     aggregateType: 'meeting',
@@ -451,6 +456,12 @@ export interface DocumentPublishedV1 {
   readonly projectId: string;
 }
 
+/** B4. Ids only — the new title is read from the document, never carried in the event. */
+export interface DocumentRenamedV1 {
+  readonly documentId: string;
+  readonly projectId: string;
+}
+
 /** CQ-12 (AUT-01). */
 export interface MeetingScheduledV1 {
   readonly meetingId: string;
@@ -548,6 +559,7 @@ export interface OutboxEventPayloads {
   readonly 'work_item.client_action_requested.v1': WorkItemClientActionRequestedV1;
   readonly 'document.comment_created.v1': DocumentCommentCreatedV1;
   readonly 'document.published.v1': DocumentPublishedV1;
+  readonly 'document.renamed.v1': DocumentRenamedV1;
   readonly 'meeting.scheduled.v1': MeetingScheduledV1;
   readonly 'meeting.attendee_invited.v1': MeetingAttendeeInvitedV1;
   readonly 'meeting.changed.v1': MeetingChangedV1;

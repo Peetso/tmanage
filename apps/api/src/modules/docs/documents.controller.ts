@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -26,6 +26,16 @@ interface CreateDocumentBody {
   readonly projectId?: unknown;
   readonly title?: unknown;
   readonly body?: unknown;
+}
+
+/**
+ * B4 rename request — what the web's `renameDocument` sends to `PATCH …/documents/:documentId`.
+ * `expectedUpdatedAt` is the `DocumentView.updatedAt` the caller last read (the optimistic version).
+ * The response is `DocumentView`, already paired in `e2e/contracts/api-web-shapes.ts`.
+ */
+interface RenameDocumentRequest {
+  readonly title: string;
+  readonly expectedUpdatedAt: string;
 }
 
 /** DOC-02 save-a-version request body. */
@@ -262,6 +272,39 @@ export class DocumentsController {
       title,
       body: documentBody,
     });
+  }
+
+  /**
+   * B4. Rename a document (`doc.write`, then the service's `work.create` relation check — the same
+   * permission as saving a version). Optimistic on `expectedUpdatedAt`: a stale value is 409.
+   */
+  @Patch(':documentId')
+  @RequireCapability('doc.write')
+  async rename(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('documentId') documentId: string,
+    @Body() body: { readonly [K in keyof RenameDocumentRequest]?: unknown },
+  ): Promise<DocumentView> {
+    requireDocumentId(documentId);
+    const title = typeof body?.title === 'string' ? body.title.trim() : undefined;
+    const expectedUpdatedAt =
+      typeof body?.expectedUpdatedAt === 'string' ? body.expectedUpdatedAt : undefined;
+
+    const details = [
+      ...(title ? [] : [{ field: 'title', message: 'must be a non-empty string' }]),
+      ...(title && title.length > MAX_TITLE_LENGTH
+        ? [{ field: 'title', message: `must be ${MAX_TITLE_LENGTH} characters or fewer` }]
+        : []),
+      ...(expectedUpdatedAt && !Number.isNaN(Date.parse(expectedUpdatedAt))
+        ? []
+        : [{ field: 'expectedUpdatedAt', message: 'must be an ISO-8601 instant' }]),
+    ];
+    if (details.length > 0 || !title || !expectedUpdatedAt) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+
+    return this.documents.rename(context, principal, documentId, { title, expectedUpdatedAt });
   }
 
   /**

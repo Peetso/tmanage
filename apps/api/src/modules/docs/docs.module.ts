@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import {
+  AUDIT_SERVICE,
   DOCUMENTS_REPOSITORY,
   DOCUMENTS_SERVICE,
   DOCUMENT_COMMENTS_SERVICE,
@@ -10,6 +11,10 @@ import {
 } from '../../common/http/tokens.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
+import { DocumentVersionsRepository } from './document-versions.repository.js';
+import { DocumentTemplatesRepository } from './document-templates.repository.js';
 import { DocumentsRepository } from './documents.repository.js';
 import { DocumentCommentsRepository } from './document-comments.repository.js';
 import { DocumentSharingRepository } from './document-sharing.repository.js';
@@ -59,11 +64,31 @@ export class DocsModule {
       provide: DOCUMENTS_REPOSITORY,
       useFactory: () => new DocumentsRepository(),
     };
+    // B4: rename writes an audit row and a `document.renamed.v1` event, so the service now also
+    // takes the (global) audit service and the outbox.
     const service: Provider = {
       provide: DOCUMENTS_SERVICE,
-      inject: [TENANT_DATABASE, DOCUMENTS_REPOSITORY],
-      useFactory: (database: TenantDatabase, documents: DocumentsRepository) =>
-        new DocumentsService(database, documents),
+      inject: [
+        TENANT_DATABASE,
+        DOCUMENTS_REPOSITORY,
+        { token: AUDIT_SERVICE, optional: true },
+        OUTBOX_EVENTS_REPOSITORY,
+      ],
+      useFactory: (
+        database: TenantDatabase,
+        documents: DocumentsRepository,
+        audit: AuditService | undefined,
+        outbox: OutboxEventsRepository,
+      ) =>
+        new DocumentsService(
+          database,
+          documents,
+          new ProjectsRepository(),
+          new DocumentVersionsRepository(),
+          new DocumentTemplatesRepository(),
+          audit,
+          outbox,
+        ),
     };
     const commentsService: Provider = {
       provide: DOCUMENT_COMMENTS_SERVICE,

@@ -156,4 +156,31 @@ export class DocumentsRepository {
     // returning a hand-assembled object would let the two disagree.
     return this.requireById(runner, context, id);
   }
+
+  /**
+   * B4. Rename a document, optimistically: the `WHERE` names the `updated_at` the caller last
+   * saw, so a second writer who saved in between matches no row and the method returns `false`
+   * rather than overwriting. `updated_at` is set explicitly so the row always moves — the next
+   * writer's expected value is stale even when only the title changed. The 0030 immutability
+   * trigger permits it (only `title`/`body` are editable).
+   */
+  async rename(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    documentId: string,
+    expectedUpdatedAt: Date,
+    title: string,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(documents)
+      .set({ title, updatedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(documents.organizationId, context.organizationId),
+          eq(documents.id, documentId),
+          eq(documents.updatedAt, expectedUpdatedAt),
+        ),
+      );
+    return result[0].affectedRows > 0;
+  }
 }

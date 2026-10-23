@@ -2543,6 +2543,7 @@ type _savedView = Assert<Exact<ApiSavedViewView, WebSavedViewView>>;
  * return `DocumentView`; the `DocsHubScreen` and `DocumentViewScreen` read exactly that shape, so
  * the pair is Exact. `organizationId` is on neither side — the API never echoes the tenant id
  * into a response body. This retired x91's EXEMPT entry for `DocumentView`.
+ * B4: `PATCH .../documents/:documentId` (rename, `renameDocument`) answers this same shape.
  */
 type _document = Assert<Exact<ApiDocumentView, WebDocumentView>>;
 

@@ -1559,6 +1559,15 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'read',
     scope: 'read',
   },
+  // B4: rename a document (title only, optimistic on `expectedUpdatedAt`).
+  {
+    id: 'documents.update',
+    method: 'PATCH',
+    path: '/v1/organizations/:orgSlug/documents/:documentId',
+    capability: 'doc.write',
+    risk: 'write',
+    scope: 'write',
+  },
   {
     id: 'documents.backlinks.list',
     method: 'GET',
