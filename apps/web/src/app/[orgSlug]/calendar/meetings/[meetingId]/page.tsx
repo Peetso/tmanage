@@ -1,20 +1,21 @@
 'use client';
 
 import { use } from 'react';
-import { MeetingNotesScreen } from '../../../../../components/screens/MeetingNotesScreen';
+import { MeetingDetailScreen } from '../../../../../components/screens/MeetingDetailScreen';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../../../lib/fixtures';
 
 /**
- * **CAL-01 / MTG-01 — a meeting's notes and decisions (read).**
+ * **A5 — a meeting's detail (Figma `mt-saved` / `mt-edit`).**
  *
- * The meeting is named by the path, so the URL is a link a colleague can be sent. The screen
- * reads that meeting's notes and decisions behind `meeting.read`; an unknown or cross-tenant id
- * is a 404 from the API, which the screen renders as a not-found state.
+ * The meeting is named by the path, so the URL is a link a colleague can be sent. The screen reads
+ * the meeting (found through its project's list — there is no read by id), its attendees and the
+ * people who may be added, and edits it behind `meeting.write`. The notes and decisions that used
+ * to live here moved to `[meetingId]/notes`, reached from the meeting's sub-navigation.
  *
  * The organization name is still a fixture, for the same reason as its sibling routes: no
  * endpoint returns the current organization's profile by slug.
  */
-export default function MeetingNotesPage({
+export default function MeetingDetailPage({
   params,
 }: {
   params: Promise<{ orgSlug: string; meetingId: string }>;
@@ -22,7 +23,7 @@ export default function MeetingNotesPage({
   const { orgSlug, meetingId } = use(params);
 
   return (
-    <MeetingNotesScreen
+    <MeetingDetailScreen
       organizationSlug={orgSlug}
       organizationName={FIXTURE_ORGANIZATION_NAME}
       meetingId={meetingId}

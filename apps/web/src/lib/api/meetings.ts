@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import { listProjects } from './projects';
 
 /**
  * CAL-01 / MTG-01 (x90 API, x122 web) — the meeting list / create.
@@ -66,6 +67,71 @@ export async function createMeeting(
     body: input,
   });
   return data;
+}
+
+/**
+ * What the meeting edit form sends (`PATCH .../meetings/:meetingId`, behind `meeting.write`).
+ * Absent fields are left alone; `endsAt` and `agendaNote` accept `null` to clear. The API refuses
+ * an end that is not after the start (400). A request body, not a paired projection.
+ */
+export interface UpdateMeetingInput {
+  readonly title?: string;
+  /** An ISO-8601 instant. */
+  readonly startsAt?: string;
+  /** An ISO-8601 instant after `startsAt`, or `null` to clear the end. */
+  readonly endsAt?: string | null;
+  readonly agendaNote?: string | null;
+}
+
+/** Edit a meeting after creation (title, start, end, agenda note). Returns the updated meeting. */
+export async function updateMeeting(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+  input: UpdateMeetingInput,
+): Promise<MeetingView> {
+  const { data } = await client.request<MeetingView>({
+    method: 'PATCH',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings/${encodeURIComponent(meetingId)}`,
+    body: input,
+  });
+  return data;
+}
+
+/** The API's page ceiling for the meetings list. */
+const MEETINGS_PAGE_SIZE = 200;
+
+/**
+ * Find one meeting by id, through the per-project list.
+ *
+ * There is no `GET .../meetings/:meetingId` (a bare id route would clash with `/meetings/agenda`),
+ * so the meeting is found in its project's list: the given project when the caller knows it,
+ * otherwise each project the caller can read, paging with `after` until the id is seen. Resolves
+ * `null` when no readable project holds it — the screen's not-found state.
+ */
+export async function getMeeting(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+  projectIds?: readonly string[],
+): Promise<MeetingView | null> {
+  const candidates = projectIds ?? (await listProjects(client, organizationSlug)).map((p) => p.id);
+  for (const projectId of candidates) {
+    let after: string | undefined;
+    for (;;) {
+      const query = new URLSearchParams({ projectId, limit: String(MEETINGS_PAGE_SIZE) });
+      if (after) query.set('after', after);
+      const { data } = await client.request<{ readonly meetings: readonly MeetingView[] }>({
+        path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings?${query.toString()}`,
+      });
+      const found = data.meetings.find((meeting) => meeting.id === meetingId);
+      if (found) return found;
+      const last = data.meetings[data.meetings.length - 1];
+      if (data.meetings.length < MEETINGS_PAGE_SIZE || !last) break;
+      after = last.id;
+    }
+  }
+  return null;
 }
 
 /**

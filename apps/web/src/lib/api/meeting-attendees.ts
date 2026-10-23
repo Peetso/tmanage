@@ -35,13 +35,47 @@ export interface InviteAttendeeInput {
   readonly userId: string;
 }
 
+/**
+ * BK5: a client person on a meeting. Named by `userId` like a member, plus the name and company the
+ * roster shows (the member directory cannot resolve a client). Paired `Exact` with the API's
+ * `MeetingClientAttendeeView` in the contracts gate.
+ */
+export interface MeetingClientAttendeeView {
+  readonly id: string;
+  readonly meetingId: string;
+  readonly userId: string;
+  readonly displayName: string;
+  readonly clientOrganizationId: string;
+  readonly clientOrganizationName: string;
+  readonly rsvp: AttendeeRsvp;
+  readonly createdAt: string;
+}
+
+/**
+ * BK5: a client person of the meeting's project who may be added ("Clients on <project>"). Paired
+ * `Exact` with the API's `ClientAttendeeCandidateView` in the contracts gate.
+ */
+export interface ClientAttendeeCandidateView {
+  readonly userId: string;
+  readonly displayName: string;
+  readonly clientOrganizationId: string;
+  readonly clientOrganizationName: string;
+}
+
+/** What the attendee list answers: the members, and (on the first page) the client people. */
+export interface MeetingAttendeeList {
+  readonly attendees: readonly MeetingAttendeeView[];
+  /** Absent only from an older API; the screen reads it as empty. */
+  readonly clientAttendees?: readonly MeetingClientAttendeeView[];
+}
+
 /** List a meeting's attendees (behind `meeting.read`). */
 export async function listMeetingAttendees(
   client: ApiClient,
   organizationSlug: string,
   meetingId: string,
-): Promise<{ readonly attendees: readonly MeetingAttendeeView[] }> {
-  const { data } = await client.request<{ readonly attendees: readonly MeetingAttendeeView[] }>({
+): Promise<MeetingAttendeeList> {
+  const { data } = await client.request<MeetingAttendeeList>({
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings/${encodeURIComponent(meetingId)}/attendees`,
   });
   return data;
@@ -76,4 +110,49 @@ export async function setMeetingAttendeeRsvp(
     body: { rsvp },
   });
   return data;
+}
+
+/** BK5: the client people of this meeting's project who may be added (behind `meeting.read`). */
+export async function listClientCandidates(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+): Promise<{ readonly candidates: readonly ClientAttendeeCandidateView[] }> {
+  const { data } = await client.request<{
+    readonly candidates: readonly ClientAttendeeCandidateView[];
+  }>({
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings/${encodeURIComponent(meetingId)}/attendees/client-candidates`,
+  });
+  return data;
+}
+
+/**
+ * BK5: invite a client person of the meeting's project (behind `meeting.write`). Sent as
+ * `clientUserId`, never `userId` — the API refuses a body carrying both. Returns the attendee (201).
+ */
+export async function inviteClientAttendee(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+  clientUserId: string,
+): Promise<MeetingClientAttendeeView> {
+  const { data } = await client.request<MeetingClientAttendeeView>({
+    method: 'POST',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings/${encodeURIComponent(meetingId)}/attendees`,
+    body: { clientUserId },
+  });
+  return data;
+}
+
+/** Remove an attendee, member or client (behind `meeting.write`). 204; 404 when not on the meeting. */
+export async function removeMeetingAttendee(
+  client: ApiClient,
+  organizationSlug: string,
+  meetingId: string,
+  attendeeId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/meetings/${encodeURIComponent(meetingId)}/attendees/${encodeURIComponent(attendeeId)}`,
+  });
 }

@@ -14,6 +14,7 @@ import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/calendar.css';
 
 export interface MeetingsScreenProps {
@@ -515,7 +516,8 @@ export function CalendarSubnav({
 }
 
 /** A meeting's own pages, switched like the calendar views (MTG-01 / MTG-03 / CAL-03). */
-export type MeetingPage = 'notes' | 'attendees' | 'rsvp' | 'time-poll' | 'action-items';
+export type MeetingPage =
+  'overview' | 'notes' | 'attendees' | 'rsvp' | 'time-poll' | 'action-items';
 
 export function MeetingHeaderActions({
   organizationSlug,
@@ -530,9 +532,12 @@ export function MeetingHeaderActions({
   children?: ReactNode;
 }) {
   const t = useT();
+  const tOr = useTOr();
   const base = `/${organizationSlug}/calendar/meetings/${encodeURIComponent(meetingId)}`;
   const views: readonly { id: MeetingPage; label: string; href: string }[] = [
-    { id: 'notes', label: t('MeetingsScreen.mtgNotes'), href: base },
+    // A5: the meeting's detail is its Overview; the notes moved to their own `/notes` page.
+    { id: 'overview', label: tOr('MeetingsScreen.mtgOverview', 'Overview'), href: base },
+    { id: 'notes', label: t('MeetingsScreen.mtgNotes'), href: `${base}/notes` },
     { id: 'attendees', label: t('MeetingsScreen.mtgAttendees'), href: `${base}/attendees` },
     { id: 'rsvp', label: t('MeetingsScreen.mtgRsvp'), href: `${base}/rsvp` },
     { id: 'time-poll', label: t('MeetingsScreen.mtgTimePoll'), href: `${base}/time-poll` },

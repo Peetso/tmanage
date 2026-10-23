@@ -164,6 +164,8 @@ import type { IssuedInvitationView as ApiIssuedInvitationView } from '../../apps
 import type { MeetingNoteView as ApiMeetingNoteView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingView as ApiMeetingView } from '../../apps/api/src/modules/calendar/meetings.service.js';
 import type { MeetingAttendeeView as ApiMeetingAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
+import type { MeetingClientAttendeeView as ApiMeetingClientAttendeeView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
+import type { ClientAttendeeCandidateView as ApiClientAttendeeCandidateView } from '../../apps/api/src/modules/calendar/meeting-attendees.service.js';
 import type { MeetingActionItemView as ApiMeetingActionItemView } from '../../apps/api/src/modules/calendar/meeting-action-items.service.js';
 import type { MeetingRsvpView as ApiMeetingRsvpView } from '../../apps/api/src/modules/calendar/rsvp.service.js';
 import type { MeetingTimePollView as ApiMeetingTimePollView } from '../../apps/api/src/modules/calendar/time-poll.service.js';
@@ -616,6 +618,8 @@ import type {
 import type { MeetingNoteView as WebMeetingNoteView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingView as WebMeetingView } from '../../apps/web/src/lib/api/meetings';
 import type { MeetingAttendeeView as WebMeetingAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
+import type { MeetingClientAttendeeView as WebMeetingClientAttendeeView } from '../../apps/web/src/lib/api/meeting-attendees';
+import type { ClientAttendeeCandidateView as WebClientAttendeeCandidateView } from '../../apps/web/src/lib/api/meeting-attendees';
 import type { MeetingActionItemView as WebMeetingActionItemView } from '../../apps/web/src/lib/api/meeting-action-items';
 import type { MeetingRsvpView as WebMeetingRsvpView } from '../../apps/web/src/lib/api/meeting-rsvp';
 import type { MeetingTimePollView as WebMeetingTimePollView } from '../../apps/web/src/lib/api/meeting-time-poll';
@@ -1398,6 +1402,14 @@ type _meeting = Assert<Exact<ApiMeetingView, WebMeetingView>>;
  * internal `membershipId`; paired Exact, so a rename or retype on either side fails the gate.
  */
 type _meetingAttendee = Assert<Exact<ApiMeetingAttendeeView, WebMeetingAttendeeView>>;
+
+/** A5 (BK5): the client people on a meeting and the project's addable client people, read by `MeetingDetailScreen`. */
+type _meetingClientAttendee = Assert<
+  Exact<ApiMeetingClientAttendeeView, WebMeetingClientAttendeeView>
+>;
+type _clientAttendeeCandidate = Assert<
+  Exact<ApiClientAttendeeCandidateView, WebClientAttendeeCandidateView>
+>;
 
 /**
  * CAL / MTG-03 meeting action items (x266). `GET`/`POST .../meetings/:meetingId/action-items` and
