@@ -39,8 +39,17 @@ function Scene({
   );
 }
 
-/** WK-02 "Delivery risk" saved view, cropped — the shared product-visual block (§07, §08). */
-export function DeliveryRiskScene({ label }: { label?: string }) {
+/**
+ * WK-02 "Delivery risk" saved view, cropped — the shared product-visual block (§07, §08).
+ * `deliverable` overrides the deliverable row, for a page that keeps object titles in Latin.
+ */
+export function DeliveryRiskScene({
+  label,
+  deliverable,
+}: {
+  label?: string;
+  deliverable?: string;
+}) {
   const s = useProductSceneT();
   return (
     <Scene label={label ?? s('riskLabel')} className="tm-web-scene--risk">
@@ -76,7 +85,7 @@ export function DeliveryRiskScene({ label }: { label?: string }) {
             <span className="tm-web-risk__count">{s('riskSixItems')}</span>
           </div>
           <div className="tm-web-risk__row tm-web-risk__row--live">
-            <span className="tm-web-risk__item">{s('riskDeliverable')}</span>
+            <span className="tm-web-risk__item">{deliverable ?? s('riskDeliverable')}</span>
             <StateCapsule state="client">{s('riskClientReview')}</StateCapsule>
           </div>
           <div className="tm-web-risk__row tm-web-risk__row--live">

@@ -10,6 +10,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import '../../styles/screens/identity.css';
 
 export interface MfaChallengeScreenProps {
@@ -69,6 +70,7 @@ export function MfaChallengeScreen({
 }: MfaChallengeScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const tOr = useTOr();
 
   // Reached at its own route, the method radios and the code field are controlled inputs in the
   // server HTML with no query to gate them. They hang on the hydration signal instead — disabled
@@ -132,7 +134,7 @@ export function MfaChallengeScreen({
     return (
       <IdentityShell
         screenId="ID-02"
-        eyebrow="Second factor"
+        eyebrow={tOr('MfaChallengeScreen.eyebrow', 'Second factor')}
         footer={<Link href="/sign-in">{t('RecoveryScreen.backToSignIn')}</Link>}
       >
         <div className="tm-id-bare tm-id-card tm-id-mfa tm-stack">
@@ -149,7 +151,7 @@ export function MfaChallengeScreen({
   const activeCell = Math.min(digitsOnly.length, 5);
 
   return (
-    <IdentityShell screenId="ID-02" eyebrow="Second factor">
+    <IdentityShell screenId="ID-02" eyebrow={tOr('MfaChallengeScreen.eyebrow', 'Second factor')}>
       <form className="tm-id-bare tm-id-card tm-id-mfa" noValidate onSubmit={submit}>
         <fieldset className="tm-fieldset tm-stack" disabled={!hydrated}>
           <div className="tm-id-intro">

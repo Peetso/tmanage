@@ -1,6 +1,10 @@
+'use client';
+
 import type { ReactNode } from 'react';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
+import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface IdentityShellProps {
   /**
@@ -35,10 +39,12 @@ export interface IdentityShellProps {
  * nine times by hand.
  */
 export function IdentityShell({ eyebrow, brand = true, children, footer }: IdentityShellProps) {
+  const t = useT();
+  const tOr = useTOr();
   return (
-    <LiveAnnouncer>
+    <LiveAnnouncer label={tOr('Shell.liveAnnouncements', 'Live announcements')}>
       <div className="tm-identity">
-        <SkipLink targetId="tm-main" />
+        <SkipLink targetId="tm-main">{t('WebsiteChrome.skipLink')}</SkipLink>
 
         <div className="tm-identity__card">
           {brand ? (

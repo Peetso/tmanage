@@ -29,7 +29,8 @@ import {
 } from '../../../components/website';
 
 export const metadata: Metadata = {
-  title: 'Website components',
+  // Production answers this route with a 404 (below), so the tab must not name the dev gallery.
+  title: process.env.NODE_ENV === 'production' ? 'Page not found' : 'Website components',
   robots: { index: false, follow: false },
 };
 

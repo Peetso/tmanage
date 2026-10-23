@@ -56,9 +56,14 @@ export function useAnnounce(): AnnounceFn {
 
 export interface LiveAnnouncerProps {
   children: ReactNode;
+  /**
+   * The accessible name of the announcer's landmark. English by default; an app that renders in
+   * another language passes its own translation so the landmark is named in the page's language.
+   */
+  label?: string;
 }
 
-export function LiveAnnouncer({ children }: LiveAnnouncerProps) {
+export function LiveAnnouncer({ children, label = 'Live announcements' }: LiveAnnouncerProps) {
   const [polite, setPolite] = useState<readonly [string, string]>(['', '']);
   const [assertive, setAssertive] = useState<readonly [string, string]>(['', '']);
   const politeSlot = useRef(0);
@@ -110,7 +115,7 @@ export function LiveAnnouncer({ children }: LiveAnnouncerProps) {
          * treats as region-satisfying on its own, so this is belt-and-braces — but it keeps the
          * guarantee from depending on that internal axe behaviour.)
          */}
-        <div className="tm-visually-hidden" role="region" aria-label="Live announcements">
+        <div className="tm-visually-hidden" role="region" aria-label={label}>
           <div aria-live="polite" aria-atomic="true">
             {polite[0]}
           </div>

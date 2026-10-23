@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Toast, ToastRegion } from '@tmanage/ui';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { deriveUpdateToastState, SKIP_WAITING_MESSAGE } from './update-toast-state';
 
 /**
@@ -20,6 +21,7 @@ import { deriveUpdateToastState, SKIP_WAITING_MESSAGE } from './update-toast-sta
  */
 export function UpdateToast() {
   const t = useT();
+  const tOr = useTOr();
   const [hasWaitingWorker, setHasWaitingWorker] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const waitingWorker = useRef<ServiceWorker | null>(null);
@@ -100,7 +102,7 @@ export function UpdateToast() {
   const state = deriveUpdateToastState({ hasWaitingWorker, dismissed });
 
   return (
-    <ToastRegion>
+    <ToastRegion aria-label={tOr('Shell.notifications', 'Notifications')}>
       {state === 'available' ? (
         <Toast tone="neutral" onDismiss={dismiss} dismissLabel={t('UpdateToast.dismissLabel')}>
           <span className="tm-toast__body">{t('UpdateToast.body')}</span>

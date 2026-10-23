@@ -6,6 +6,7 @@ import { Wordmark } from '../brand/Wordmark';
 import { STATE_COPY, type StateKey } from './state-copy';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 /**
  * The standard platform-state matrix as shared, presentational components.
@@ -214,14 +215,16 @@ export function NotFoundState({
   autoFocusAction = true,
   className,
 }: NavStateProps) {
+  const t = useT();
+  const tOr = useTOr();
   const focusRef = useFocusOnMount(autoFocusAction);
   const copy = STATE_COPY.notFound;
   return (
     <StatePanel
       state="notFound"
       headingLevel={headingLevel}
-      title={title ?? copy.title}
-      description={description ?? copy.description}
+      title={title ?? tOr('StateScreens.notFoundTitle', copy.title)}
+      description={description ?? tOr('StateScreens.notFoundDescription', copy.description)}
       className={className}
       action={
         <a
@@ -229,7 +232,7 @@ export function NotFoundState({
           className="tm-button tm-button--ink tm-button--accessible"
           href={homeHref}
         >
-          {actionLabel ?? copy.action}
+          {actionLabel ?? t('StateScreens.backToHome')}
         </a>
       }
     />
@@ -412,10 +415,11 @@ export function LoadingState({
  */
 export function StateScreen({ children, label }: { children: ReactNode; label?: string }) {
   const t = useT();
+  const tOr = useTOr();
   return (
-    <LiveAnnouncer>
+    <LiveAnnouncer label={tOr('Shell.liveAnnouncements', 'Live announcements')}>
       <div className="tm-state-screen">
-        <SkipLink targetId="tm-main" />
+        <SkipLink targetId="tm-main">{t('WebsiteChrome.skipLink')}</SkipLink>
         {/* SYS-06: a quiet bar with the brand orb and the state's name in mono. */}
         <header className="tm-state-screen__bar">
           <a href="/" className="tm-state-screen__mark">

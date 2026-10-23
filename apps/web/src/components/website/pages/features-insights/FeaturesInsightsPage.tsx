@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';
 import { ButtonLink, Eyebrow, cx } from '../../primitives';
+import { DeliveryRiskScene } from '../../ProductScenes';
 import { CtaBand, ProductVisualFrame, SectionHeader, WebSection } from '../../sections';
 import {
   AssistantScene,
@@ -195,7 +196,12 @@ export function FeaturesInsightsPage() {
       </WebSection>
 
       {/* 8 · CTA band (9 · Footer comes from the layout) */}
-      <CtaBand title={t('FeaturesInsightsPage.ctaApprovalTitle')} />
+      {/* This page keeps object titles in Latin (see `scenes.tsx`), so the CTA crop's deliverable
+          row does too, instead of the catalog's translated title. */}
+      <CtaBand
+        title={t('FeaturesInsightsPage.ctaApprovalTitle')}
+        visual={<DeliveryRiskScene deliverable="DEL · Homepage Concept v2" />}
+      />
     </div>
   );
 }

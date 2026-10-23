@@ -31,7 +31,13 @@ export interface ToastRegionProps extends HTMLAttributes<HTMLDivElement> {
  * application policy (and 2.2.1 requires it be extendable), so the primitive renders for
  * as long as it is rendered.
  */
-export function ToastRegion({ children, className, ...rest }: ToastRegionProps) {
+export function ToastRegion({
+  children,
+  className,
+  // English by default; a page in another language passes its own translated name.
+  'aria-label': ariaLabel = 'Notifications',
+  ...rest
+}: ToastRegionProps) {
   return (
     <div
       {...rest}
@@ -39,7 +45,7 @@ export function ToastRegion({ children, className, ...rest }: ToastRegionProps) 
       // `role="status"` is implicitly `aria-atomic="true"`, which would re-announce every
       // toast already on screen each time a new one arrives. Only the addition is news.
       aria-atomic={false}
-      aria-label="Notifications"
+      aria-label={ariaLabel}
       className={['tm-toast-region', className].filter(Boolean).join(' ')}
     >
       {children}

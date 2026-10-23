@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { ConsultanciesPage } from '../../../../components/website/pages/solutions-consultancies/ConsultanciesPage';
 
 export const metadata: Metadata = {
-  title: 'TManage for consultancies',
+  title: 'Consultancies',
   description:
     'Engagements, findings, decisions and client sign-off in one auditable story. Make every recommendation traceable to a decision.',
 };
