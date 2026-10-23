@@ -447,7 +447,7 @@ export function WorkListScreen({
                   checked={states.includes(state)}
                   onChange={() => toggleState(state)}
                 />
-                {stateLabel(state)}
+                {t(STATE_FILTER_LABEL[state])}
               </label>
             ))}
           </fieldset>
@@ -829,6 +829,17 @@ export function WorkListScreen({
     </AppShell>
   );
 }
+
+/** The state filter's words, in the active language (the chips sit in the screen's own catalog). */
+const STATE_FILTER_LABEL: Record<WorkItemState, MessageKey> = {
+  backlog: 'WorkListScreen.stateBacklog',
+  ready: 'WorkListScreen.stateReady',
+  in_progress: 'WorkListScreen.stateInProgress',
+  blocked: 'WorkListScreen.stateBlocked',
+  internal_review: 'WorkListScreen.stateInternalReview',
+  done: 'WorkListScreen.stateDone',
+  archived: 'WorkListScreen.stateArchived',
+};
 
 /** The rail's views: each is a real server-side state filter, named the way people ask for it. */
 const STATE_VIEWS: readonly {

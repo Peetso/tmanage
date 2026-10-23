@@ -216,8 +216,11 @@
   line-height: 15px;
 }
 
+/* The tone is the marker; the word stays ink (warning-600 text on paper is 3.6:1, under AA). */
 .tm-prj-track > li[data-state='risk'] .tm-prj-track__meta {
-  color: var(--warning-600);
+  border-inline-start: 2px solid var(--warning-600);
+  padding-inline-start: var(--s1);
+  color: var(--tm-on-tone);
   opacity: 1;
 }
 
