@@ -9,6 +9,8 @@ import type { LegalDoc, PublicLegalView } from '../../lib/api/public-legal';
 import { NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { LEGAL_DOCUMENTS_AR, LEGAL_ENGLISH_PREVAILS_AR } from './legal-content-ar';
 
 export interface MarketingLegalScreenProps {
   /** Which legal document to render — `terms` or `privacy`. Set by the thin route wrapper. */
@@ -74,8 +76,26 @@ export function MarketingLegalScreen({ doc, client, document }: MarketingLegalSc
   );
 }
 
-function Content({ legal }: { legal: PublicLegalView }) {
+/**
+ * The document in the reader's language. Arabic readers get the translation from `legal-content-ar`
+ * (section by section, by anchor id, English where a section has no translation) and a note that
+ * the English version prevails; every other locale — and the server HTML — gets the English as is.
+ */
+function localizedLegal(legal: PublicLegalView, arabic: boolean): PublicLegalView {
+  if (!arabic) return legal;
+  const ar = LEGAL_DOCUMENTS_AR[legal.doc];
+  return {
+    ...legal,
+    title: ar.title,
+    intro: ar.intro,
+    sections: legal.sections.map((section) => ({ ...section, ...ar.sections[section.id] })),
+  };
+}
+
+function Content({ legal: source }: { legal: PublicLegalView }) {
   const t = useT();
+  const arabic = useActiveLocale().split('-')[0]?.toLowerCase() === 'ar';
+  const legal = localizedLegal(source, arabic);
   return (
     <div className="tm-pub-columns">
       <div className="tm-pub-aside">
@@ -85,6 +105,7 @@ function Content({ legal }: { legal: PublicLegalView }) {
             <time dateTime={legal.effectiveDate}>{legal.effectiveDate}</time>
           </p>
           <p className="tm-pub-lede tm-pub-lede--md">{legal.intro}</p>
+          {arabic ? <p className="tm-pub-prose">{LEGAL_ENGLISH_PREVAILS_AR}</p> : null}
         </PublicIntro>
 
         <nav
