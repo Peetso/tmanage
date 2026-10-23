@@ -147,21 +147,23 @@ test.describe.serial('the onboarding journeys', () => {
   }) => {
     const member = await openAs(browser, world().northstar.designer.id);
 
-    // A stranger organization's slug.
+    // A stranger organization's slug. The shell's membership gate (CQ-03) decides from the
+    // session's own organization list, so any slug not on it gets the same no-access page.
     await member.page.goto('/brightops-consulting/work');
-    await expect(member.page.getByText('Could not load the work list')).toBeVisible();
     await expect(
-      member.page.getByText('No organization matching that identifier is available to you'),
+      member.page.getByRole('heading', { name: 'You no longer have access' }),
     ).toBeVisible();
+    const strangerMain = await member.page.getByRole('main').innerText();
     await expect(member.page.getByText('BrightOps Consulting')).toHaveCount(0);
     await expect(member.page.getByText('Map approval chain for vendor payments')).toHaveCount(0);
 
-    // The adversarial near-twin — one letter away — gets the byte-identical refusal.
+    // The adversarial near-twin — one letter away, and no such organization — gets the
+    // identical refusal, so the page tells nothing about which slugs exist.
     await member.page.goto('/northstar-studios/work');
-    await expect(member.page.getByText('Could not load the work list')).toBeVisible();
     await expect(
-      member.page.getByText('No organization matching that identifier is available to you'),
+      member.page.getByRole('heading', { name: 'You no longer have access' }),
     ).toBeVisible();
+    expect(await member.page.getByRole('main').innerText()).toBe(strangerMain);
 
     await member.context.close();
   });

@@ -317,11 +317,21 @@ test.describe('the upload journey', () => {
     expect(view).toMatchObject({ status: 'rejected', rejectionCode: 'malware_detected' });
     expect(await replay.text()).not.toMatch(/eicar/i);
 
-    // Never downloadable; nothing promoted; the quarantine object stays.
+    // Never downloadable; nothing promoted; the quarantine object stays. The studio is authorized
+    // for the file, so the gate answers a typed 409 `blocked` (CQ-09) — never a byte.
     const download = await studio.request.get(
       `${API_URL}/v1/organizations/northstar-studio/files/${session.fileAssetId}/content`,
     );
-    expect(download.status()).toBe(404);
+    expect(download.status()).toBe(409);
+    const downloadText = await download.text();
+    const downloadBody = JSON.parse(downloadText) as {
+      error: { code: string; details?: { field: string; message: string }[] };
+    };
+    expect(downloadBody.error.code).toBe('conflict');
+    expect(downloadBody.error.details).toEqual([{ field: 'status', message: 'blocked' }]);
+    expect(downloadText).not.toMatch(/eicar/i);
+    expect(downloadText).not.toContain('quarantine');
+    expect(download.headers()['content-disposition']).toBeUndefined();
     const objectsAfter = filesUnder(join(root, 'objects'));
     const fresh = objectsAfter.filter((f) => !objectsBefore.some((b) => b.path === f.path));
     expect(fresh).toHaveLength(1);
