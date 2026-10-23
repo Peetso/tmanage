@@ -2077,7 +2077,22 @@ body {
   align-items: flex-start;
   justify-content: center;
   padding: 96px var(--s4) var(--s4);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   background: var(--tm-scrim);
+}
+
+/*
+ * Every other dialog that borrows this backdrop (send for approval, share with client, invite
+ * client) is capped to the viewport and scrolls inside itself, so its actions stay reachable on
+ * short screens. The 112px is the backdrop's 96px top inset plus its --s4 bottom inset. The
+ * palette keeps its own 76vh cap and inner list scroll.
+ */
+.tm-command-palette__backdrop > [role='dialog']:not(.tm-command-palette) {
+  max-block-size: calc(100vh - 112px);
+  max-block-size: calc(100dvh - 112px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .tm-command-palette {
