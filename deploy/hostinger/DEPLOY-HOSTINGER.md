@@ -183,9 +183,26 @@ a **Web app (Node.js)** instead, the same type as `peetrix.com`.
 
 ### Rolling back
 
-Upload the **previous** ZIP the same way and Restart. Database changes only move forward, so a
-code rollback is safe when the older version expects the same tables. Before rolling back across
-an update the team said changed the database, ask the team first.
+**Do not just upload the previous ZIP.** On every start the app checks its database against the
+`migrations/` folder inside the ZIP. If the newer version added database changes, the older ZIP
+does not know them and the app **refuses to start** (proved in the 2026-10-23 restore drill).
+
+The full, tested procedure is in
+[`docs/runbooks/backup-restore.md`](../../docs/runbooks/backup-restore.md), section "Rollback".
+In short:
+
+1. Stop the app and take a backup first (`node scripts/ops/backup.mjs`).
+2. Compare the two ZIPs' `migrations/` folders and list the files only the newer one has.
+3. If **every** one of them is additive (new tables, new optional columns; the runbook's table
+   says which are), copy those newer `migrations/*.sql` files, unchanged, into the older ZIP's
+   `migrations/` folder and zip it again as `tmanage-hostinger.zip`. The app then finds nothing
+   to apply and the older code runs on the newer tables.
+4. If any of them is **not** additive (something dropped, renamed or narrowed), copying files is
+   not valid: restore the pre-update backup as the runbook describes, then upload the older ZIP
+   unchanged. Ask the team before doing this; anything written since that backup is lost.
+5. Upload, build with the same settings as always, Restart, and check `/healthz`.
+
+Never delete rows from the `schema_migrations` table to make an older version start.
 
 ### Known limits (please read)
 

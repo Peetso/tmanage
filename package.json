@@ -27,7 +27,6 @@
     "db:status": "pnpm --filter @tmanage/api db:status",
     "db:grants": "pnpm --filter @tmanage/api db:grants",
     "db:reset": "pnpm --filter @tmanage/api db:reset",
-    "db:seed": "pnpm --filter @tmanage/api db:seed",
     "contracts:check": "node scripts/contracts-check.mjs",
     "check:mariadb": "node scripts/check-mariadb-compat.mjs",
     "dev": "pnpm --parallel --filter @tmanage/api --filter @tmanage/web --filter @tmanage/worker dev",
