@@ -63,6 +63,13 @@ const profileRepo = new BillingProfileRepository();
 const contactsRepo = new BillingContactsRepository();
 
 let subscriptions: SubscriptionService;
+
+/**
+ * A pinned clock for the subscription service, so `nextBillAt` (the first of next month, UTC, on a
+ * billed plan with no provider period yet) is an exact value rather than "whenever the suite ran".
+ */
+const FIXED_NOW = new Date('2026-10-23T12:00:00.000Z');
+const NEXT_BILL_AT = '2026-11-01T00:00:00.000Z';
 let seats: BillingSeatsService;
 let contacts: BillingContactsService;
 
@@ -127,7 +134,7 @@ beforeAll(async () => {
     world.twin.owner,
   ));
 
-  subscriptions = new SubscriptionService(tenant, subscriptionRepo);
+  subscriptions = new SubscriptionService(tenant, subscriptionRepo, () => FIXED_NOW);
   seats = new BillingSeatsService(tenant, seatsRepo);
   contacts = new BillingContactsService(tenant, contactsRepo);
 });
@@ -139,24 +146,44 @@ afterAll(async () => {
 describe('the subscription — one row per org, and that row is this tenant alone', () => {
   it('a new org is the free/base tier until it has a row of its own', async () => {
     const view = await subscriptions.read(northstar, northstarOwner);
-    expect(view).toEqual({ planId: 'free', status: 'active', currentPeriodEnd: null });
+    // A12: Free has no list price, so no bill date; the four seeded internal members are counted
+    // (Maya, Omar, Lina, Rania) and the client people, in client_memberships, are not.
+    expect(view).toEqual({
+      planId: 'free',
+      status: 'active',
+      currentPeriodEnd: null,
+      internalPeopleCount: 4,
+      nextBillAt: null,
+      billingPeriod: 'monthly',
+    });
 
     const row = await tenant.read(northstar, (runner) => subscriptionRepo.find(runner, northstar));
     expect(row).toBeNull();
   });
 
   it('a plan-change request upserts the one row to pending_change, and reads back as that', async () => {
+    // A12 renamed `pro` to `studio`: the legacy id is still accepted and is stored as `studio`.
+    const expected = {
+      planId: 'studio',
+      status: 'pending_change',
+      currentPeriodEnd: null,
+      internalPeopleCount: 4,
+      nextBillAt: NEXT_BILL_AT,
+      billingPeriod: 'monthly',
+    };
     const changed = await subscriptions.requestChange(northstar, northstarOwner, 'pro');
-    expect(changed).toEqual({ planId: 'pro', status: 'pending_change', currentPeriodEnd: null });
+    expect(changed).toEqual(expected);
 
     const again = await subscriptions.read(northstar, northstarOwner);
-    expect(again).toEqual({ planId: 'pro', status: 'pending_change', currentPeriodEnd: null });
+    expect(again).toEqual(expected);
 
-    // The engine holds exactly one row for this org — the upsert updated in place.
-    const rows = await observe(`select id from subscriptions where organization_id = ?`, [
+    // The engine holds exactly one row for this org — the upsert updated in place — and it holds
+    // the catalog id, never the legacy alias.
+    const rows = await observe(`select id, plan_id from subscriptions where organization_id = ?`, [
       world.northstar.organizationId,
     ]);
     expect(rows).toHaveLength(1);
+    expect(String(rows[0]?.['plan_id'])).toBe('studio');
   });
 
   it('a second change updates the same row, never appends a second', async () => {
@@ -193,7 +220,15 @@ describe('the subscription — one row per org, and that row is this tenant alon
     const twinRow = await tenant.read(twin, (runner) => subscriptionRepo.find(runner, twin));
     expect(twinRow).toBeNull();
     const twinView = await subscriptions.read(twin, twinOwner);
-    expect(twinView).toEqual({ planId: 'free', status: 'active', currentPeriodEnd: null });
+    // The twin's own one owner is its whole count — none of Northstar's four people leak in.
+    expect(twinView).toEqual({
+      planId: 'free',
+      status: 'active',
+      currentPeriodEnd: null,
+      internalPeopleCount: 1,
+      nextBillAt: null,
+      billingPeriod: 'monthly',
+    });
 
     // And the twin, after taking a plan of its own, still does not collide with Northstar's row.
     await subscriptions.requestChange(twin, twinOwner, 'starter');
