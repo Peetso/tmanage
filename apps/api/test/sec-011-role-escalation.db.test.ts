@@ -27,11 +27,13 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *
  * 1. **A role can never carry a capability its creator cannot exercise org-wide.** The
  *    privilege-escalation guard runs the real `authorize` against an org-wide resource, so a
- *    reviewer-gated capability (`approval.decide` — held in the owner's ceiling but exercisable
- *    only per object) is a 403 on create, clone and edit, and the `custom_roles` table shows **no
- *    new row and no changed `capabilities_json`** afterwards. By construction the stored subset is
- *    always ⊆ what the creator can exercise, so assigning the role can never grant a member a
- *    capability the assigner lacks.
+ *    reviewer-gated capability (`approval.decide` — held in the org_admin ceiling but exercisable
+ *    only per object) is a 403 for an org_admin on create, clone and edit, and the `custom_roles`
+ *    table shows **no new row and no changed `capabilities_json`** afterwards. The one exemption
+ *    is an active internal owner (ADM-08, wave A1 3a6018bc — Peter decided 2026-10-23 that the
+ *    owner may grant approval.decide to any role): the owner's ceiling is every capability, so an
+ *    owner-made role never widens access past its author, and whoever holds it still needs the
+ *    reviewer relation on each approval. That allowance is proven here too, row and all.
  * 2. **A custom role is tenant-local.** A role id created in the §11 twin tenant cannot be read,
  *    cloned or edited from the sibling tenant — each is a 404 (indistinguishable from an unknown
  *    id, never a 403 that would confirm the row exists), and the twin's row is byte-for-byte
@@ -52,6 +54,8 @@ let tenant: TenantDatabase;
 
 let ownerCtx: TenantContext;
 let owner: Principal;
+let adminCtx: TenantContext;
+let admin: Principal;
 let memberCtx: TenantContext;
 let member: Principal;
 let twinOwnerCtx: TenantContext;
@@ -110,7 +114,7 @@ async function expectApiError(promise: Promise<unknown>, status: number): Promis
 function internalPrincipal(
   organizationId: string,
   user: { id: string; membershipId: string },
-  role: 'owner' | 'member',
+  role: 'owner' | 'org_admin' | 'member',
   projectIds: readonly string[],
 ): { ctx: TenantContext; principal: Principal } {
   const ctx = createTenantContext({
@@ -131,31 +135,40 @@ function internalPrincipal(
     membershipStatus: 'active',
     clientOrganizationId: null,
     projectIds: [...projectIds],
-    hasOrgWideScope: role === 'owner',
+    hasOrgWideScope: role === 'owner' || role === 'org_admin',
   };
   return { ctx, principal };
 }
 
 /**
- * Write one pre-existing custom role directly into the twin tenant through the admin pool, so the
- * cross-tenant cases have a real row to address. Dated from a bound `new Date(...)` — the admin
- * pool clock is SYSTEM (Known trap), so `current_timestamp` must not be used here.
+ * Write one pre-existing custom role directly into a tenant through the admin pool, so the clone
+ * and cross-tenant cases have a real row to address. Dated from a bound `new Date(...)` — the
+ * admin pool clock is SYSTEM (Known trap), so `current_timestamp` must not be used here.
  */
-async function seedTwinRole(name: string, capabilities: readonly string[]): Promise<string> {
+async function seedRole(
+  tenantWorld: { readonly organizationId: string; readonly owner: { readonly id: string } },
+  name: string,
+  capabilities: readonly string[],
+): Promise<string> {
   const id = uuidv7();
   await db.admin.execute(
     `insert into custom_roles (id, organization_id, name, capabilities_json, created_by, created_at)
      values (?, ?, ?, ?, ?, ?)`,
     [
       id,
-      world.twin.organizationId,
+      tenantWorld.organizationId,
       name,
       JSON.stringify(capabilities),
-      world.twin.owner.id,
+      tenantWorld.owner.id,
       new Date('2026-09-01T00:00:00.000Z'),
     ],
   );
   return id;
+}
+
+/** {@link seedRole} into the §11 twin tenant. */
+async function seedTwinRole(name: string, capabilities: readonly string[]): Promise<string> {
+  return seedRole(world.twin, name, capabilities);
 }
 
 beforeAll(async () => {
@@ -168,6 +181,15 @@ beforeAll(async () => {
     world.northstar.organizationId,
     world.northstar.owner,
     'owner',
+    [],
+  ));
+  // An org_admin: every capability in its ceiling (ADM-03) and org.manage, but no owner exemption.
+  // The suite drives the controllers directly, so the principal is the one the auth layer would
+  // build for an org_admin membership; the seeded manager's identity carries it.
+  ({ ctx: adminCtx, principal: admin } = internalPrincipal(
+    world.northstar.organizationId,
+    world.northstar.manager,
+    'org_admin',
     [],
   ));
   ({ ctx: memberCtx, principal: member } = internalPrincipal(
@@ -192,14 +214,14 @@ afterAll(async () => {
 });
 
 describe('the privilege-escalation guard — a role can never exceed its creator', () => {
-  it('an owner cannot create a role granting a reviewer-gated capability, and no row is written', async () => {
+  it('an org_admin cannot create a role granting a reviewer-gated capability, and no row is written', async () => {
     const before = await roleCount(world.northstar.organizationId);
 
-    // `approval.decide` is in the owner's ceiling but reviewer-gated: an owner may exercise it only
-    // when assigned reviewer on a specific object, never org-wide. Minting a role that grants it
-    // org-wide would widen access past the author, so the guard refuses it — before any write.
+    // `approval.decide` is in the org_admin ceiling but reviewer-gated: an org_admin may exercise it
+    // only when assigned reviewer on a specific object, never org-wide. Minting a role that grants
+    // it org-wide would widen access past the author, so the guard refuses it — before any write.
     const error = await expectApiError(
-      roles.create(ownerCtx, owner, {
+      roles.create(adminCtx, admin, {
         name: 'Approvers everywhere',
         capabilities: ['work.read', 'approval.decide'],
       }),
@@ -229,9 +251,9 @@ describe('the privilege-escalation guard — a role can never exceed its creator
   });
 
   it('an edit cannot add a capability the editor cannot exercise, and the stored subset is unchanged', async () => {
-    // Start from a role the owner may hold in full.
+    // Start from a role the org_admin may hold in full.
     const createdId = roleIdByName(
-      await roles.create(ownerCtx, owner, {
+      await roles.create(adminCtx, admin, {
         name: 'Editable role',
         capabilities: ['work.read'],
       }),
@@ -241,7 +263,7 @@ describe('the privilege-escalation guard — a role can never exceed its creator
 
     // Try to widen it to a reviewer-gated capability: 403, no change to the row.
     const error = await expectApiError(
-      edit.edit(ownerCtx, owner, createdId, {
+      edit.edit(adminCtx, admin, createdId, {
         name: 'Editable role',
         capabilities: ['work.read', 'approval.decide'],
       }),
@@ -252,19 +274,53 @@ describe('the privilege-escalation guard — a role can never exceed its creator
   });
 
   it('a clone cannot carry a capability the cloner cannot exercise, and no copy is written', async () => {
-    // A pre-existing twin role carrying a reviewer-gated capability, placed directly (as a
-    // more-privileged definer might have). Even the twin owner cannot clone it, because the clone
+    // A pre-existing role carrying a reviewer-gated capability, placed directly (as the owner, the
+    // one principal who may define it, might have). An org_admin cannot clone it, because the clone
     // re-checks every copied capability against the caller org-wide.
-    const twinRoleId = await seedTwinRole('Twin approvers', ['work.read', 'approval.decide']);
-    const before = await roleCount(world.twin.organizationId);
+    const approversId = await seedRole(world.northstar, 'Owner approvers', [
+      'work.read',
+      'approval.decide',
+    ]);
+    const before = await roleCount(world.northstar.organizationId);
 
     const error = await expectApiError(
-      edit.clone(twinOwnerCtx, twinOwner, twinRoleId, { name: 'Cloned approvers' }),
+      edit.clone(adminCtx, admin, approversId, { name: 'Cloned approvers' }),
       403,
     );
     expect(error.auditCode).toMatch(/^custom_roles\.escalation:/);
-    // No copy landed in the twin tenant.
-    expect(await roleCount(world.twin.organizationId)).toBe(before);
+    // No copy landed.
+    expect(await roleCount(world.northstar.organizationId)).toBe(before);
+  });
+
+  it('the owner may grant the reviewer-gated capability on create, edit and clone (ADM-08, A1), stored exactly as granted', async () => {
+    // Peter's 2026-10-23 decision, built in A1 (3a6018bc): approval rights are the company owner's
+    // to hand out. The owner's ceiling is every capability, so this widens nothing past the author.
+    const createdView = await roles.create(ownerCtx, owner, {
+      name: 'Owner approvers everywhere',
+      capabilities: ['work.read', 'approval.decide'],
+    });
+    const createdId = roleIdByName(createdView, 'Owner approvers everywhere');
+    expect((await roleSnapshot(createdId))?.capabilitiesJson).toBe(
+      JSON.stringify(['work.read', 'approval.decide']),
+    );
+
+    const editableId = roleIdByName(
+      await roles.create(ownerCtx, owner, { name: 'Owner editable', capabilities: ['work.read'] }),
+      'Owner editable',
+    );
+    await edit.edit(ownerCtx, owner, editableId, {
+      name: 'Owner editable',
+      capabilities: ['work.read', 'approval.decide'],
+    });
+    expect((await roleSnapshot(editableId))?.capabilitiesJson).toBe(
+      JSON.stringify(['work.read', 'approval.decide']),
+    );
+
+    // The twin owner may clone a role carrying it in their own tenant; the copy lands there.
+    const twinRoleId = await seedTwinRole('Twin approvers', ['work.read', 'approval.decide']);
+    const before = await roleCount(world.twin.organizationId);
+    await edit.clone(twinOwnerCtx, twinOwner, twinRoleId, { name: 'Cloned approvers' });
+    expect(await roleCount(world.twin.organizationId)).toBe(before + 1);
   });
 });
 
