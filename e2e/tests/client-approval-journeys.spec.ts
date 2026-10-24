@@ -323,26 +323,31 @@ test.describe.serial('J4 — the client approval journeys', () => {
       .getAttribute('href');
     expect(requestUrl).toBeTruthy();
 
-    // The team opens it and replies, client-visible.
+    // The team opens it and replies, client-visible. A7 (fq9-triage) made the triage screen's
+    // "Reply to <first name>" box the composer: a fresh request shows no conversation yet, and
+    // the reply then appears in the request's conversation above the box.
     const owner = await openAs(browser, world().northstar.owner.id);
     await owner.page.goto(`/${SLUG}/work/requests`);
     await owner.page.getByRole('link', { name: REQUEST_TITLE }).click();
+    await expect(owner.page.getByRole('heading', { name: REQUEST_TITLE })).toBeVisible();
+    await expect(
+      owner.page.getByRole('region', { name: 'Conversation with the client' }),
+    ).toHaveCount(0);
+    await owner.page.getByRole('textbox', { name: /^Reply to / }).fill(TEAM_REPLY);
+    await owner.page.getByRole('button', { name: 'Send reply' }).click();
+    await expect(owner.page.getByText('Reply sent.')).toBeVisible();
     const teamThread = owner.page.getByRole('region', { name: 'Conversation with the client' });
-    await expect(teamThread.getByText('No messages yet.', { exact: false })).toBeVisible();
-    await expect(teamThread.getByText('Client visible')).toBeVisible();
-    await teamThread.getByLabel('Write a message').fill(TEAM_REPLY);
-    await teamThread.getByRole('button', { name: 'Send', exact: true }).click();
     await expect(
       teamThread.getByRole('list', { name: 'Messages on this request' }).getByText(TEAM_REPLY),
     ).toBeVisible();
 
-    // The client reads the reply on their side and answers.
+    // The client reads the reply on their side and answers (A8's reply card: "Your reply").
     await clientPage.goto(requestUrl as string);
     const clientThread = clientPage.getByRole('region', { name: 'Conversation with the studio' });
     const clientMessages = clientThread.getByRole('list', { name: 'Messages on this request' });
     await expect(clientMessages.getByText(TEAM_REPLY)).toBeVisible();
-    await clientThread.getByLabel('Write a message').fill(CLIENT_REPLY);
-    await clientThread.getByRole('button', { name: 'Send', exact: true }).click();
+    await clientThread.getByLabel('Your reply').fill(CLIENT_REPLY);
+    await clientThread.getByRole('button', { name: 'Send reply', exact: true }).click();
     await expect(clientMessages.getByText(CLIENT_REPLY)).toBeVisible();
 
     // The team sees the client's answer under their own reply.

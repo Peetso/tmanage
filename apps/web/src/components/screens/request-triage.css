@@ -415,3 +415,67 @@
   font-size: var(--t-ui-md);
   text-align: end;
 }
+
+/* The request's conversation above the reply box (read-only; the reply box is its composer). */
+.tm-rq-convo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding-block-start: var(--s4);
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-rq-convo__title {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+.tm-rq-convo__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-rq-convo__msg {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+}
+
+.tm-rq-convo__main {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s1);
+  min-inline-size: 0;
+}
+
+.tm-rq-convo__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+  align-items: baseline;
+}
+
+.tm-rq-convo__head .tm-rq-row__age {
+  padding-block-start: 0;
+}
+
+.tm-rq-convo__tag {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+.tm-rq-convo__body {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}

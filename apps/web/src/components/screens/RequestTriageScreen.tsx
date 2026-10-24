@@ -27,7 +27,8 @@ import {
 } from '../../lib/api/client-requests';
 import type { ClientRequestRecord, ClientRequestState } from '../../lib/api/client-requests';
 import { listProjects } from '../../lib/api/projects';
-import { postRequestMessage } from '../../lib/api/request-messages';
+import { listRequestMessages, postRequestMessage } from '../../lib/api/request-messages';
+import type { RequestMessageView } from '../../lib/api/request-messages';
 import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -126,6 +127,9 @@ function agoOf(createdAt: string, now: Date, locale: string): string {
  * "Reopen now"); the chosen request on the other with Accept (opens the confirm dialog) and
  * Decline, the grey "Defer until" panel (date chip, Defer, "Reopen it on this date and remind
  * me") and "Reply to <first name>", which posts a client-visible message on the request's thread.
+ * Above the reply box the request's conversation is listed (read-only, oldest first) once it has
+ * messages, so the studio reads the client's answers where it replies (PLAN A7: the thread is
+ * embedded, the reply box is the composer).
  */
 export function RequestTriageScreen({
   organizationSlug,
@@ -328,6 +332,7 @@ export function RequestTriageScreen({
               key={current.id}
               api={api}
               organizationSlug={organizationSlug}
+              studioName={organizationName}
               request={current}
               projectName={projectName(current.projectId)}
               clock={clock}
@@ -409,6 +414,7 @@ function RequestRow({ row, selected, projectName, age, rtl, onChoose, onReopen }
 interface RequestDetailProps {
   api: ApiClient;
   organizationSlug: string;
+  studioName: string;
   request: ClientRequestRecord;
   projectName: string;
   clock: Date;
@@ -419,6 +425,7 @@ interface RequestDetailProps {
 function RequestDetail({
   api,
   organizationSlug,
+  studioName,
   request,
   projectName,
   clock,
@@ -690,6 +697,14 @@ function RequestDetail({
         <p className="tm-rq-state">{t(stateKey)}</p>
       ) : null}
 
+      <RequestConversation
+        api={api}
+        organizationSlug={organizationSlug}
+        clientRequestId={request.id}
+        studioName={studioName}
+        clientName={clientName}
+      />
+
       <div className="tm-rq-reply">
         <label className="tm-rq-reply__label" htmlFor="tm-rq-reply-body">
           {t('RequestTriageA7.replyTo', { name: firstName })}
@@ -746,6 +761,78 @@ function RequestDetail({
           onClose={() => setAccepting(false)}
         />
       ) : null}
+    </section>
+  );
+}
+
+interface RequestConversationProps {
+  api: ApiClient;
+  organizationSlug: string;
+  clientRequestId: string;
+  studioName: string;
+  clientName: string;
+}
+
+/**
+ * The request's conversation, read-only: what the studio and the client have written on it,
+ * oldest first. It shares its query key with the reply box (`request-messages` · `team`), so a
+ * sent reply lands here; an internal note carries its tag. Hidden until there is a message, so
+ * a fresh request looks exactly like fq9-triage.
+ */
+function RequestConversation({
+  api,
+  organizationSlug,
+  clientRequestId,
+  studioName,
+  clientName,
+}: RequestConversationProps) {
+  const t = useA6T();
+  const locale = useActiveLocale();
+  const messages = useQuery({
+    queryKey: ['request-messages', 'team', organizationSlug, clientRequestId],
+    queryFn: () => listRequestMessages(api, organizationSlug, clientRequestId),
+  });
+  const rows: readonly RequestMessageView[] = messages.data ?? [];
+  if (rows.length === 0) return null;
+  const rtl = isArabic(locale) ? RLM : '';
+  const time = new Intl.DateTimeFormat(intlLocale(locale), {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+
+  return (
+    <section className="tm-rq-convo" aria-labelledby="tm-rq-convo-title">
+      <h3 id="tm-rq-convo-title" className="tm-rq-convo__title">
+        {t('RequestMessages.headingTeam')}
+      </h3>
+      <ol className="tm-rq-convo__list" aria-label={t('RequestMessages.listLabel')}>
+        {rows.map((message) => {
+          const author =
+            message.authorName ?? (message.authorKind === 'internal' ? studioName : clientName);
+          return (
+            <li key={message.id} className="tm-rq-convo__msg" data-from={message.authorKind}>
+              <span className="tm-rq-orb" aria-hidden="true">
+                {orbOf(author)}
+              </span>
+              <div className="tm-rq-convo__main">
+                <div className="tm-rq-convo__head">
+                  <span className="tm-rq-row__name">
+                    {rtl}
+                    {author}
+                  </span>
+                  <time className="tm-rq-row__age" dateTime={message.createdAt}>
+                    {time.format(new Date(message.createdAt))}
+                  </time>
+                  {message.clientVisible ? null : (
+                    <span className="tm-rq-convo__tag">{t('RequestMessages.internalNote')}</span>
+                  )}
+                </div>
+                <p className="tm-rq-convo__body">{message.body}</p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }

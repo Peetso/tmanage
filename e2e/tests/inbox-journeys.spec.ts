@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { API_URL, drainOutbox } from '../setup/stack.js';
+import { API_URL, WEB_URL, drainOutbox } from '../setup/stack.js';
 
 /**
  * The notification loop, through a real browser against the real stack — **E2E-07,
@@ -178,15 +178,44 @@ test.describe.serial('the notification journeys', () => {
   test('E2E-07b: the studio’s question reaches the client’s inbox, with the client’s words, and their own inline action', async ({
     browser,
   }) => {
-    // The studio asks back.
+    // The studio asks back. A7 (fq9-triage) took the "Ask the client" step off the triage
+    // screen — the studio answers in its reply box now (E2E-01a) — but the API still moves a
+    // request to `needs_clarification`, and what this journey proves is the client's side of
+    // that move. So the studio makes it through the API, as the manager, with the session's
+    // CSRF token: `submitted → triage`, then `triage → needs_clarification` with the question.
     const studio = await openAs(browser, world().northstar.manager.id);
-    await studio.page.goto('/northstar-studio/work/requests');
-    await studio.page.getByRole('link', { name: TITLE }).click();
-    await studio.page.getByRole('button', { name: 'Start triaging' }).click();
-    await studio.page.getByRole('button', { name: 'Ask another question' }).click();
-    await studio.page.getByLabel('What do you need to know?').fill(QUESTION);
-    await studio.page.getByRole('button', { name: 'Ask the client' }).click();
-    await expect(studio.page.getByText('Waiting on the client')).toBeVisible();
+    const csrf = (await studio.context.cookies(API_URL)).find(
+      (cookie) => cookie.name === 'tmanage_session_csrf',
+    );
+    expect(csrf?.value).toBeTruthy();
+    const headers = { 'x-csrf-token': csrf?.value as string, origin: WEB_URL };
+    const requestsBase = `${API_URL}/v1/organizations/northstar-studio/client-requests`;
+    const listed = await studio.context.request.get(`${requestsBase}?state=submitted`);
+    expect(listed.ok()).toBe(true);
+    const { clientRequests } = (await listed.json()) as {
+      clientRequests: { id: string; title: string; version: number }[];
+    };
+    const asked = clientRequests.find((row) => row.title === TITLE);
+    expect(asked).toBeTruthy();
+    const toTriage = await studio.context.request.post(
+      `${requestsBase}/${asked?.id as string}/transitions`,
+      { headers, data: { version: asked?.version, to: 'triage' } },
+    );
+    expect(toTriage.ok()).toBe(true);
+    const inTriage = (await toTriage.json()) as { version: number };
+    const toClient = await studio.context.request.post(
+      `${requestsBase}/${asked?.id as string}/transitions`,
+      {
+        headers,
+        data: {
+          version: inTriage.version,
+          to: 'needs_clarification',
+          clarificationQuestion: QUESTION,
+        },
+      },
+    );
+    expect(toClient.ok()).toBe(true);
+    expect(((await toClient.json()) as { state: string }).state).toBe('needs_clarification');
     await studio.context.close();
 
     await drainOutbox(databaseUrl(), storageRoot());

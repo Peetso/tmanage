@@ -35,15 +35,18 @@ import { expectNoAxeViolations } from './axe';
  * 5. **The inbox counts what a manager opens it for**, and adds no rail item §1 does not list.
  */
 
-function clientOver(handler: (url: string, init?: RequestInit) => Response): ApiClient {
+function clientOver(
+  handler: (url: string, init?: RequestInit) => Response,
+  messages: readonly unknown[] = [],
+): ApiClient {
   return new ApiClient({
     baseUrl: 'https://api.example.test',
     csrfCookieName: 'tm_session_csrf',
     fetch: ((input: RequestInfo | URL, init?: RequestInit) =>
-      // The request conversation (P8) has its own suite; here it is an empty thread.
+      // The request conversation (P8) has its own suite; here it is a fixed thread.
       Promise.resolve(
         String(input).endsWith('/messages') && init?.method !== 'POST'
-          ? json({ messages: [] })
+          ? json({ messages })
           : handler(String(input), init),
       )) as typeof globalThis.fetch,
     readCsrfToken: () => 'csrf-token',
@@ -224,7 +227,7 @@ describe('A7 requests triage (fq9-triage, fq9-confirm-accept)', () => {
     record({ id: 'req-4', title: 'Old logo files', state: 'accepted' }),
   ];
 
-  function renderA7(selected = 'req-1') {
+  function renderA7(selected = 'req-1', messages: readonly unknown[] = []) {
     const sent: { url: string; body: Record<string, unknown> }[] = [];
     const api = clientOver((url, init) => {
       const byId = (id: string) => ROWS.find((row) => row.id === id) ?? ROWS[0];
@@ -261,7 +264,7 @@ describe('A7 requests triage (fq9-triage, fq9-confirm-accept)', () => {
       }
       if (url.includes('/members')) return json({ members: [] });
       return json({});
-    });
+    }, messages);
     render(
       withQuery(
         <RequestTriageScreen {...NAMES} clientRequestId={selected} client={api} now={NOW_A7} />,
@@ -351,6 +354,51 @@ describe('A7 requests triage (fq9-triage, fq9-confirm-accept)', () => {
       body: 'Thanks Youssef, we will confirm by Friday.',
       clientVisible: true,
     });
+  });
+
+  it('shows the conversation above the reply box, so the client’s answer is read here', async () => {
+    const message = (id: string, overrides: Record<string, unknown>) => ({
+      id,
+      requestId: 'req-1',
+      authorMembershipId: `m-${id}`,
+      clientVisible: true,
+      createdAt: '2026-10-27T08:00:00.000Z',
+      files: [],
+      ...overrides,
+    });
+    renderA7('req-1', [
+      message('m1', { authorKind: 'internal', authorName: 'Mona Saleh', body: 'Which menus?' }),
+      message('m2', { authorKind: 'client', authorName: 'Youssef Adel', body: 'Both, please.' }),
+      message('m3', {
+        authorKind: 'internal',
+        authorName: 'Mona Saleh',
+        body: 'Check the PDF first.',
+        clientVisible: false,
+      }),
+    ]);
+    const thread = await screen.findByRole('region', { name: L('RequestMessages.headingTeam') });
+    const list = within(thread).getByRole('list', { name: L('RequestMessages.listLabel') });
+    const items = within(list).getAllByRole('listitem');
+    expect(items.map((item) => item.querySelector('p')?.textContent)).toEqual([
+      'Which menus?',
+      'Both, please.',
+      'Check the PDF first.',
+    ]);
+    expect(within(items[1] as HTMLElement).getByText('Youssef Adel')).toBeInTheDocument();
+    expect(
+      within(items[2] as HTMLElement).getByText(L('RequestMessages.internalNote')),
+    ).toBeInTheDocument();
+    expect(
+      within(items[0] as HTMLElement).queryByText(L('RequestMessages.internalNote')),
+    ).toBeNull();
+  });
+
+  it('draws no conversation on a request nobody has written on yet', async () => {
+    renderA7();
+    await screen.findByRole('heading', { name: 'Add an Arabic version of the menu page' });
+    expect(
+      screen.queryByRole('region', { name: L('RequestMessages.headingTeam') }),
+    ).not.toBeInTheDocument();
   });
 });
 
