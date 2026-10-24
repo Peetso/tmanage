@@ -16,6 +16,7 @@ import type {
 } from '../../common/database/schema.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 import { SIGN_IN_ABUSE_REASONS } from './sign-in-abuse-control.js';
+import { orderedUuidv7 } from './ordered-id.js';
 import { SeedCipherError } from './seed-cipher.js';
 import type { SeedCipher } from './seed-cipher.js';
 
@@ -743,7 +744,9 @@ export class CredentialsRepository {
     await tenantDrizzle(runner)
       .insert(authenticationEvents)
       .values({
-        id: uuidv7(),
+        // Ordered, not plain v7: readers sort by `occurred_at, id`, and rows one change
+        // writes share a millisecond — see `ordered-id.ts`.
+        id: orderedUuidv7(),
         userId: input.userId ?? null,
         action: input.action,
         outcome: input.outcome,
@@ -813,7 +816,7 @@ export class CredentialsRepository {
     await tenantDrizzle(runner)
       .insert(credentialChangeNotices)
       .values({
-        id: uuidv7(),
+        id: orderedUuidv7(),
         userId: input.userId,
         action: input.action,
         correlationId: input.correlationId ?? null,
