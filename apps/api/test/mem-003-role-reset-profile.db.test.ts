@@ -27,10 +27,9 @@ import type { InjectedResponse, Session } from './support/http-harness.js';
  * 1. **BK2** `PATCH …/members/:userId/role` — a member's built-in role. Who may (owner, org admin),
  *    the owner seat kept owner-only, the last owner kept, the `membership.role_changed` row, the
  *    `policy_version` bump that makes an already-issued session act on the new role, and the
- *    tenant boundary. Beside it, SEC-011 (7ab342c2): the owner's exemption from the escalation
- *    guard is gone, so a **custom** role carrying the reviewer-gated `approval.decide` is refused
- *    to the owner on the bulk route — while the built-in route, which is not a grant of a custom
- *    capability subset, still moves a person onto a built-in role.
+ *    tenant boundary. Beside it, ADM-08 as narrowed by A1 (3a6018bc, Peter 2026-10-23): only the
+ *    built-in owner may hand out a **custom** role carrying the reviewer-gated `approval.decide` on
+ *    the bulk route; an org admin keeps the SEC-011 (7ab342c2) refusal, a 403 with no write.
  * 2. **Q4** `POST …/members/:membershipId/password-reset` — an org admin sends the ordinary reset
  *    link: audited before delivery, identifiers only in the audit row, never yourself, never an
  *    inactive or foreign membership.
@@ -294,7 +293,9 @@ describe('BK2: changing a member’s built-in role', () => {
   });
 });
 
-describe('SEC-011 (7ab342c2): no owner exemption on a custom role carrying approval.decide', () => {
+describe('ADM-08 / SEC-011: only the owner bulk-assigns a custom role carrying approval.decide', () => {
+  // A1 (3a6018bc, PLAN.md A1, Peter 2026-10-23): the owner may grant approval.decide again; every
+  // other principal, org_admin included, keeps the SEC-011 (7ab342c2) refusal.
   async function seedRole(name: string, capabilities: readonly string[]): Promise<string> {
     const id = uuidv7();
     await db.admin.execute(
@@ -312,20 +313,41 @@ describe('SEC-011 (7ab342c2): no owner exemption on a custom role carrying appro
     return id;
   }
 
-  it('the owner’s bulk assign of a reviewer-gated custom role is a 403 with no write', async () => {
+  it('an org admin’s bulk assign of a reviewer-gated custom role is a 403 with no write', async () => {
+    const roleId = await seedRole('Org-wide approvers', ['work.read', 'approval.decide']);
+    const owner = await signIn(world.northstar.owner.id);
+    const promoted = await send('PATCH', `/members/${world.northstar.manager.id}/role`, owner, {
+      role: 'org_admin',
+    });
+    expect(promoted.statusCode).toBe(200);
+    const auditBefore = (await auditRows('membership.role_changed')).length;
+
+    const admin = await signIn(world.northstar.manager.id);
+    const response = await send('POST', '/admin/members/bulk-role', admin, {
+      roleId,
+      membershipIds: [world.northstar.designer.membershipId],
+    });
+    expect(response.statusCode).toBe(403);
+    expect((await membershipRow(world.northstar.designer.membershipId))?.['role']).toBe('member');
+    expect(await auditRows('membership.role_changed')).toHaveLength(auditBefore);
+  });
+
+  it('the owner’s bulk assign of the same reviewer-gated custom role lands and is audited', async () => {
     const roleId = await seedRole('Org-wide approvers', ['work.read', 'approval.decide']);
     const session = await signIn(world.northstar.owner.id);
     const response = await send('POST', '/admin/members/bulk-role', session, {
       roleId,
       membershipIds: [world.northstar.designer.membershipId],
     });
-    expect(response.statusCode).toBe(403);
-    expect((await membershipRow(world.northstar.designer.membershipId))?.['role']).toBe('member');
-    expect(await auditRows('membership.role_changed')).toHaveLength(0);
+    expect(response.statusCode).toBe(201);
+    expect(response.json()).toMatchObject({
+      assignments: [{ membershipId: world.northstar.designer.membershipId, outcome: 'assigned' }],
+    });
+    expect((await membershipRow(world.northstar.designer.membershipId))?.['role']).toBe(roleId);
+    expect(await auditRows('membership.role_changed')).toHaveLength(1);
   });
 
-  it('the same owner’s bulk assign of a held capability subset lands and is audited', async () => {
-    // The control: the refusal above is about approval.decide, not about bulk assign as such.
+  it('the owner’s bulk assign of a held capability subset lands and is audited', async () => {
     const roleId = await seedRole('Readers', ['work.read']);
     const session = await signIn(world.northstar.owner.id);
     const response = await send('POST', '/admin/members/bulk-role', session, {
