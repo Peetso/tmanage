@@ -52,6 +52,11 @@ export type {
 } from './common/database/notice-store.js';
 
 export { backoffDelayMs } from './outbox/backoff.js';
+// A7 (0220) — the defer sweep, exported so the db suite drives the same reopen the
+// `--sweep-deferred-requests` job runs.
+export { REQUEST_REOPENED_NOTICE, sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
+export type { RequestDeferSweepResult } from './jobs/request-defer-sweeper.js';
+export { createRequestDeferSweepStore } from './common/database/request-defer-store.js';
 // Is the relay draining? — the audit's CRITICAL-2, exported so the db suite can drive the
 // same readings the `--status` command prints.
 export {

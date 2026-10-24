@@ -342,6 +342,10 @@ export async function truncateAll(admin: Pool): Promise<void> {
       // FK checks are off here, so order is cosmetic — but the row must be cleared between tests
       // so a refused internal write can be proven to have written nothing.
       'project_updates',
+      // A1 (0218) / A8 (0221). Cleared between tests for the same reason: the suites prove a
+      // refused invitation or message wrote no project row and no attachment.
+      'invitation_projects',
+      'request_message_files',
       'invitations',
       'project_clients',
       'project_memberships',
