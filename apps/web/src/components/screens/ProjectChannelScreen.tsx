@@ -485,11 +485,11 @@ export function ProjectChannelScreen({
               </span>
               <span className="tm-chat-phone-head__sub">{phoneCountsLine}</span>
             </span>
-            <span
-              className="tm-chat-phone-head__members"
-              aria-label={`${totalMembers} ${tOr('ProjectChannelScreen.membersCount', 'members')}`}
-            >
+            <span className="tm-chat-phone-head__members">
               <span aria-hidden="true">☺ {totalMembers}</span>
+              <span className="tm-visually-hidden">
+                {`${totalMembers} ${tOr('ProjectChannelScreen.membersCount', 'members')}`}
+              </span>
             </span>
           </div>
         ) : null}
