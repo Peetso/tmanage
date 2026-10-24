@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { ApiClient } from '../src/lib/api/client';
@@ -129,7 +129,9 @@ describe('OrgSettingsScreen — A11 Organization card', () => {
     const toggle = await screen.findByRole('switch', { name: 'Members can create projects' });
     fireEvent.click(toggle);
     expect(toggle).not.toBeChecked();
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    // The A11 card's own Cancel (the B5 card below it has one too).
+    const card = screen.getByRole('region', { name: 'Organization' });
+    fireEvent.click(within(card).getByRole('button', { name: 'Cancel' }));
     expect(toggle).toBeChecked();
     expect(api.calls.filter((call) => call.method !== 'GET')).toEqual([]);
   });

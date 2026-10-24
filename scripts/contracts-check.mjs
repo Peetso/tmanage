@@ -149,6 +149,12 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
+  // B5: the web mirror of B3's DownloadScanPolicyView. Its pairing (swap the literal in
+  // api-web-shapes.ts for this type, drop both exemptions) waits until e2e/ is free to edit.
+  [
+    'DownloadScanPolicyView',
+    'B5 web mirror of the B3 view, field for field the literal the API view is already pinned Exact against in api-web-shapes.ts; the direct pairing lands once e2e/ is not frozen by a running test workflow.',
+  ],
   // A5 (BK5): the attendee list wrapper. The API returns it as an inline type on
   // MeetingAttendeesController.list (no named …View to import); both arms, MeetingAttendeeView and
   // MeetingClientAttendeeView, are paired Exact, so the wrapper adds no unchecked field.

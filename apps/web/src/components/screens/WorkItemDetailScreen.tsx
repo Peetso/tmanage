@@ -10,6 +10,7 @@ import { AppShell } from '../shell/AppShell';
 import { MemberSelect } from '../MemberSelect';
 import './work-core.css';
 import { WorkCommentsPanel } from './WorkCommentsPanel';
+import { NotScannedDownload } from './NotScannedDownload';
 import { WorkChecklistPanel } from './WorkChecklistPanel';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
@@ -1070,7 +1071,13 @@ function FilesCard({
             : [];
           return (
             <li key={file.id} className="tm-wk-file" data-backed={backing !== undefined}>
-              <div className="tm-wk-file__row">
+              <div
+                className={
+                  file.availability === 'scanning'
+                    ? 'tm-wk-file__row tm-scan-row'
+                    : 'tm-wk-file__row'
+                }
+              >
                 <span className="tm-wk-badge">{fileKind(file.fileName)}</span>
                 <span className="tm-wk-file__text">
                   <span className="tm-wk-file__name">{file.fileName}</span>
@@ -1096,11 +1103,11 @@ function FilesCard({
                   >
                     {ta('WorkDetail.download')}
                   </a>
+                ) : file.availability === 'scanning' ? (
+                  <NotScannedDownload href={href(servedAsset)} fileName={file.fileName} />
                 ) : (
                   <span className="tm-wk-file__meta" role="status">
-                    {file.availability === 'scanning'
-                      ? ta('WorkDetail.scanning')
-                      : ta('WorkDetail.unavailable')}
+                    {ta('WorkDetail.unavailable')}
                   </span>
                 )}
               </div>

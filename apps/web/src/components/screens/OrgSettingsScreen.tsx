@@ -26,6 +26,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { DownloadScanPolicyCard } from './DownloadScanPolicyCard';
 import './org-settings.css';
 
 export interface OrgSettingsScreenProps {
@@ -368,6 +369,14 @@ export function OrgSettingsScreen({
           </>
         ) : null}
       </section>
+
+      {mayManage === true ? (
+        <DownloadScanPolicyCard
+          organizationSlug={organizationSlug}
+          client={api}
+          isOwner={role === 'owner'}
+        />
+      ) : null}
     </ControlCenterShell>
   );
 }
