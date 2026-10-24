@@ -17,8 +17,8 @@ import { API_URL, WEB_URL } from '../setup/stack.js';
  * renders as plain text, never a link, so the rail can disclose nothing a link would.
  *
  * Each case uses its own seeded member, because pins and recents are membership-scoped: a fresh
- * member starts empty (the empty-state case depends on it), and keeping them apart means one case
- * never has to undo another. The suite runs single-worker against one shared stack; nothing here
+ * member starts empty (the empty-state case depends on it, so it signs in as a member no other
+ * journey ever opens anything as), and keeping them apart means one case never has to undo another. The suite runs single-worker against one shared stack; nothing here
  * mutates a work item, so order against the other journeys does not matter.
  */
 
@@ -37,6 +37,10 @@ interface World {
   };
   readonly brightops: {
     readonly workItemId: string;
+  };
+  /** §11's adversarial twin tenant. Its owner is signed in as by no other journey. */
+  readonly twin: {
+    readonly owner: SeededMember;
   };
 }
 
@@ -150,22 +154,26 @@ test.describe('Home / My Day — saved, pinned and recent context', () => {
   test('a member who has kept nothing sees the three empty-state invitations', async ({
     browser,
   }) => {
-    // The owner has created no pins, recents or saved context of her own — the sections are
-    // membership/user-scoped, so another member's pins are not hers to see.
-    const owner = await openAs(browser, world().northstar.owner.id);
-    await owner.page.goto(`/${SLUG}/home`);
+    // The member must be one no journey has ever signed in as. Opening a project or a work item
+    // records a "Recently viewed" entry, so any principal another spec drives through the app
+    // (the Northstar owner, for one: the a11y-audit matrix opens her overview and a work item, and
+    // runs before this file) has kept something by the time this case runs. The twin tenant's
+    // owner is signed in as by no other journey, so she has kept nothing, in any suite order.
+    const TWIN_SLUG = 'northstar-studios';
+    const member = await openAs(browser, world().twin.owner.id);
+    await member.page.goto(`/${TWIN_SLUG}/home`);
 
-    await expect(owner.page.getByRole('region', { name: 'Pinned', exact: true })).toContainText(
+    await expect(member.page.getByRole('region', { name: 'Pinned', exact: true })).toContainText(
       'Nothing pinned yet',
     );
     await expect(
-      owner.page.getByRole('region', { name: 'Recently viewed', exact: true }),
+      member.page.getByRole('region', { name: 'Recently viewed', exact: true }),
     ).toContainText('Nothing viewed yet');
-    await expect(owner.page.getByRole('region', { name: 'Saved', exact: true })).toContainText(
+    await expect(member.page.getByRole('region', { name: 'Saved', exact: true })).toContainText(
       'Nothing saved yet',
     );
 
-    await owner.context.close();
+    await member.context.close();
   });
 
   test('unpinning removes the item from Home after a reload', async ({ browser }) => {
