@@ -349,6 +349,8 @@ function assemble() {
     'web-restart.mjs',
     // server.mjs and web-transport.mjs import the CDN cache policy from here; missing it, boot fails.
     'cache-headers.mjs',
+    // server.mjs imports the in-process sweep scheduler from here; missing it, boot fails.
+    'scheduled-sweeps.mjs',
   ]) {
     cpSync(join(REPO, 'apps/server', file), join(STAGE, file));
   }

@@ -50,16 +50,25 @@ import { NestFactory } from '@nestjs/core';
 import {
   composeAppModule,
   corsOptions,
+  createAlertNotifier,
   createFastifyAdapter,
   createFixedWindowLimiter,
   migrateOnStart,
   MigrationError,
+  parseAlertEmails,
   serializeForLog,
 } from '@tmanage/api/hostinger';
 
 import { webSecurityHeaders } from './boot-guards.mjs';
 import { webCacheHeaders } from './cache-headers.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
+import { beat, reportJobOutcome } from './job-alerts.mjs';
+import {
+  createSweepScheduler,
+  sweepIntervalMs,
+  sweepsEnabled,
+  workerSweepJobs,
+} from './scheduled-sweeps.mjs';
 import { WEB_HEALTHY_MS, webRestartDelayMs } from './web-restart.mjs';
 import {
   cleanupWebTransport,
@@ -280,6 +289,7 @@ async function startInProcessWorker(env) {
     ClientRequestMailer,
     UsageThresholdMailer,
     CredentialChangeMailer,
+    writeHeartbeat,
   } = await import('@tmanage/worker');
   const { ConsoleMailer, SmtpMailer } = await import('@tmanage/mail');
 
@@ -318,15 +328,22 @@ async function startInProcessWorker(env) {
     backoffCapMs: env.OUTBOX_BACKOFF_CAP_MS,
   };
 
+  // C10. A failed or parked job mails ALERT_EMAILS (at most once per 15 min per kind); a clean
+  // pass records the heartbeat GET /healthz/deep reads (job-alerts.mjs).
+  const alerts = createAlertNotifier(parseAlertEmails(env.ALERT_EMAILS), transport);
   let running = false;
   const tick = async () => {
     if (running) return;
     running = true;
     try {
-      await runOutboxBatch(database, handlers, options);
-      await runQueueBatch(database, CREDENTIAL_NOTICE_QUEUE, noticeHandlers, options);
+      const outbox = await runOutboxBatch(database, handlers, options);
+      await reportJobOutcome(alerts, 'outbox', { report: outbox });
+      const notices = await runQueueBatch(database, CREDENTIAL_NOTICE_QUEUE, noticeHandlers, options);
+      await reportJobOutcome(alerts, 'notices', { report: notices });
+      await beat(writeHeartbeat, env.OUTBOX_HEARTBEAT_FILE);
     } catch (error) {
       log(`worker batch failed: ${serializeForLog(error)}`);
+      await reportJobOutcome(alerts, 'relay', { error });
     } finally {
       running = false;
     }
@@ -337,6 +354,33 @@ async function startInProcessWorker(env) {
   void tick();
   return async () => {
     clearInterval(timer);
+    await database.end();
+  };
+}
+
+/**
+ * The scheduled sweeps (invitation expiry, deferred-request reopen) — on unless
+ * `SWEEPS_INPROCESS=0`. Replaces the Hostinger cron entries for the worker's `--sweep-*` commands;
+ * the cadence, the switch and why two instances cannot double-run are in scheduled-sweeps.mjs.
+ * Its own one-connection pool on the worker's credential, so it runs with or without the relay.
+ */
+async function startScheduledSweeps(env) {
+  const worker = await import('@tmanage/worker');
+  const database = worker.createWorkerDatabase({
+    url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
+    connectionLimit: 1,
+    statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
+    onConnectionError: (error) => log(`sweep connection rejected: ${serializeForLog(error)}`),
+  });
+  const scheduler = createSweepScheduler({
+    jobs: workerSweepJobs(worker, database),
+    intervalMs: sweepIntervalMs(process.env),
+    log,
+    describeError: serializeForLog,
+  });
+  scheduler.start();
+  return async () => {
+    await scheduler.stop();
     await database.end();
   };
 }
@@ -383,6 +427,7 @@ async function main() {
   // Shutdown works at any point of the boot: whatever has started is stopped.
   let app;
   let stopWorker;
+  let stopSweeps;
   const shutdown = (signal) => {
     log(`${signal} — shutting down`);
     stopWebSupervision();
@@ -395,6 +440,7 @@ async function main() {
     void (async () => {
       try {
         await stopWorker?.();
+        await stopSweeps?.();
         await app?.close();
       } finally {
         process.exit(0);
@@ -421,6 +467,8 @@ async function main() {
   await startWeb(transport, nominalPort);
 
   if (process.env['WORKER_INPROCESS'] === '1') stopWorker = await startInProcessWorker(env);
+  if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env);
+  else log('scheduled sweeps off (SWEEPS_INPROCESS)');
 
   state.ready = { fastify: api.fastify };
   log(`ready on :${port} (web via ${describeWebTransport(transport)}, /v1 API in-process)`);

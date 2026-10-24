@@ -57,6 +57,11 @@ export { backoffDelayMs } from './outbox/backoff.js';
 export { REQUEST_REOPENED_NOTICE, sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
 export type { RequestDeferSweepResult } from './jobs/request-defer-sweeper.js';
 export { createRequestDeferSweepStore } from './common/database/request-defer-store.js';
+// C2 — the invitation-expiry sweep, exported so the single Hostinger app (`apps/server`) runs the
+// same `--sweep-invitations` job on its in-process timer.
+export { sweepOverdueInvitations } from './invitations/invitation-sweep.js';
+export type { InvitationSweepResult } from './invitations/invitation-sweep.js';
+export { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
 // Is the relay draining? — the audit's CRITICAL-2, exported so the db suite can drive the
 // same readings the `--status` command prints.
 export {
