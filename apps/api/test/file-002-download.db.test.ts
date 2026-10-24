@@ -37,9 +37,10 @@ import type { SeedWorld } from './seed-two-tenants.js';
  *    `attachment`, `nosniff`, `private, no-store`, its length — and one `file_asset.downloaded`
  *    row (`allowed`) that names no filename.
  * 2. **Refusals**: an unknown id and another tenant's id answer byte-identical 404 bodies; a
- *    file still `scanning` or `rejected` answers its authorized caller a typed 409
- *    (`pending_scan` / `blocked`, CQ-09); the cause is on the denied row's `audit_code`; the
- *    quarantine object is never served.
+ *    `rejected` file answers its authorized caller a typed 409 (`blocked`, CQ-09); the cause is
+ *    on the denied row's `audit_code`; a rejected file's quarantine object is never served. A
+ *    verified file still `scanning` is the owner's call (B3): under the default
+ *    `allow_labeled` it is served labelled `x-scan-status: not_scanned`, one `allowed` row.
  * 3. **The latest version rules**: a `ready` asset whose newest version is still in
  *    quarantine is not served.
  * 4. **The client's door**: a client downloads their own request's attachment; a sibling
@@ -384,7 +385,10 @@ describe('a ready file', () => {
 });
 
 describe('every refusal is one 404', () => {
-  it('for a scanning file, a rejected file, an unknown id and another tenant, with the cause on the denied row alone', async () => {
+  // B3 (approved, e410e87f): "downloads before a virus scan" defaults to `allow_labeled`, so a
+  // verified file still being scanned is no longer a refusal — it is served, labelled. The
+  // `block` choice and its 409 are covered by download-scan-policy.gate.test.ts.
+  it('for a rejected file, an unknown id and another tenant, with the cause on the denied row alone; a scanning file is served labelled', async () => {
     const door = await studio();
     const {
       fileAssetId: rejected,
@@ -413,15 +417,19 @@ describe('every refusal is one 404', () => {
     const a = await download(door, scanning);
     const b = await download(door, rejected);
     const c = await download(door, '019203a4-5b6c-7d8e-9f01-23456789abcd');
-    for (const response of [a, b, c]) {
+    // B3 default `allow_labeled`: the scanning file is served, byte for byte, marked not scanned.
+    expect(a.statusCode, a.body).toBe(200);
+    expect(Buffer.compare(a.rawPayload, PDF)).toBe(0);
+    expect(a.headers['x-scan-status']).toBe('not_scanned');
+    expect(a.headers['content-disposition']).toBe(
+      `attachment; filename="brief.pdf"; filename*=UTF-8''brief.pdf`,
+    );
+    for (const response of [b, c]) {
       expect(response.headers['content-disposition']).toBeUndefined();
+      expect(response.headers['x-scan-status']).toBeUndefined();
     }
-    // CQ-09: an authorized caller is told why — pending while scanning, blocked once rejected;
-    // an unknown id stays a plain 404.
-    expect(a.statusCode).toBe(409);
-    expect(a.json<{ error: { details: unknown } }>().error.details).toEqual([
-      { field: 'status', message: 'pending_scan' },
-    ]);
+    // CQ-09: an authorized caller is told why — blocked once rejected; an unknown id stays a
+    // plain 404.
     expect(b.statusCode).toBe(409);
     expect(b.json<{ error: { details: unknown } }>().error.details).toEqual([
       { field: 'status', message: 'blocked' },
@@ -441,13 +449,11 @@ describe('every refusal is one 404', () => {
     expect(d.statusCode).toBe(404);
     expect(shape(d)).toBe(shape(c));
 
-    expect(await deniedCodes()).toEqual([
-      'not_servable',
-      'not_servable',
-      'file_not_found',
-      'file_not_found',
-    ]);
-    expect(await downloads(scanning)).toEqual([]);
+    expect(await deniedCodes()).toEqual(['not_servable', 'file_not_found', 'file_not_found']);
+    const trail = await downloads(scanning);
+    expect(trail).toHaveLength(1);
+    expect(trail[0]).toMatchObject({ result: 'allowed', actor: world.northstar.manager.id });
+    expect(trail[0]?.metadata).toMatchObject({ scan_status: 'not_scanned' });
   });
 
   it('for a ready asset whose latest version is still in quarantine', async () => {
