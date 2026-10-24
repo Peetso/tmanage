@@ -346,8 +346,10 @@ describe('subscription read and change — role and tenant', () => {
     const before = await subscription.read(ownerCtx, owner);
     expect(before.planId).toBe('free');
 
+    // A12 renamed the paid tier: `pro` is still accepted as a legacy alias but is read and
+    // stored as the catalog plan `studio`.
     const changed = await subscription.requestChange(ownerCtx, owner, 'pro');
-    expect(changed.planId).toBe('pro');
+    expect(changed.planId).toBe('studio');
     expect(changed.status).toBe('pending_change');
 
     const row = await observe(
@@ -355,7 +357,7 @@ describe('subscription read and change — role and tenant', () => {
       [world.northstar.organizationId],
     );
     expect(row).toHaveLength(1);
-    expect(String(row[0]?.['plan_id'])).toBe('pro');
+    expect(String(row[0]?.['plan_id'])).toBe('studio');
     expect(String(row[0]?.['status'])).toBe('pending_change');
   });
 
