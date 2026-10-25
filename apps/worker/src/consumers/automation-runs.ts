@@ -1,4 +1,10 @@
+import { conditionsMatch } from '@tmanage/domain';
+import type { ConditionEvent } from '@tmanage/domain';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
+import {
+  findWorkItemState,
+  listRuleConditions,
+} from '../common/database/automation-conditions-store.js';
 import { insertNotification } from '../common/database/notifications-store.js';
 import {
   findDocumentFacts,
@@ -35,6 +41,12 @@ import { mayBeTold } from './collaboration-notices.js';
  *
  * `create_work_item` and `post_message` have no executor yet and record a **not run** with the
  * reason, as do the external kinds — a run never claims an effect it did not have (AUT-02).
+ *
+ * ## Conditions (C1)
+ *
+ * A rule fires only when its saved "Only if" conditions hold for the triggering object
+ * (`conditionsMatch` from `@tmanage/domain`, the same reading the API uses); a rule whose
+ * conditions do not hold is skipped without a run row.
  */
 
 /** The automation trigger each event type answers to. */
@@ -49,7 +61,7 @@ export const TRIGGER_FOR_EVENT: Readonly<Record<string, string>> = {
 export const AUTOMATION_NOTICE_TYPE = 'automation.notified.v1';
 
 /** The object a run is about, and who owns it. */
-interface TriggerObject {
+export interface TriggerObject {
   readonly objectType: string;
   readonly objectId: string;
   readonly projectId: string;
@@ -65,7 +77,7 @@ function field(event: ClaimedOutboxEvent, key: string): string {
   throw new Error(`event ${event.id} has no readable ${key}`);
 }
 
-async function projectOwners(
+export async function projectOwners(
   tx: WorkerTransaction,
   organizationId: string,
   projectId: string,
@@ -151,8 +163,12 @@ export function isHeldForWeekend(skipWeekends: boolean, at: Date): boolean {
   return day === 5 || day === 6;
 }
 
-async function runRule(
-  event: ClaimedOutboxEvent,
+/**
+ * Run one rule for one triggering object and append its run. `event` is what makes the run
+ * replay-proof: its id is the notification dedupe key (an outbox event, or a due-soon claim).
+ */
+export async function runRule(
+  event: Pick<ClaimedOutboxEvent, 'id' | 'organizationId'>,
   tx: WorkerTransaction,
   rule: AutomationRule,
   object: TriggerObject | null,
@@ -224,6 +240,41 @@ async function runRule(
   });
 }
 
+/**
+ * C1 — the fields a rule's "Only if" conditions read: the object's project, and for a work item its
+ * current state as `status` (what the rule page's status chip compares against `done`).
+ */
+export async function conditionEventFor(
+  tx: WorkerTransaction,
+  organizationId: string,
+  object: TriggerObject,
+): Promise<ConditionEvent> {
+  const event: Record<string, unknown> = {
+    object_type: object.objectType,
+    project_id: object.projectId,
+  };
+  if (object.objectType === 'work_item') {
+    const state = await findWorkItemState(tx, organizationId, object.objectId);
+    if (state !== null) event['status'] = state;
+  }
+  return event;
+}
+
+/**
+ * C1 — whether a rule's saved conditions let it fire for this object. A rule with no conditions
+ * always fires; otherwise the newest condition per field must hold (`conditionsMatch`). A rule
+ * that does not match is simply not run — no run row, as if its trigger had not happened.
+ */
+export async function ruleConditionsHold(
+  tx: WorkerTransaction,
+  organizationId: string,
+  rule: AutomationRule,
+  conditionEvent: ConditionEvent,
+): Promise<boolean> {
+  const conditions = await listRuleConditions(tx, organizationId, rule.id);
+  return conditionsMatch(conditions, conditionEvent);
+}
+
 /** The runner for one event: every enabled rule with the event's trigger, in id order. */
 export const automationRunsConsumer: OutboxHandler = async (event, tx) => {
   const trigger = TRIGGER_FOR_EVENT[event.type];
@@ -231,6 +282,16 @@ export const automationRunsConsumer: OutboxHandler = async (event, tx) => {
   const rules = await listEnabledRulesForTrigger(tx, event.organizationId, trigger);
   if (rules.length === 0) return; // The common case: no rule, no reads.
   const object = await triggerObject(event, tx);
+  const conditionEvent =
+    object === null ? null : await conditionEventFor(tx, event.organizationId, object);
   const now = new Date();
-  for (const rule of rules) await runRule(event, tx, rule, object, now);
+  for (const rule of rules) {
+    if (
+      conditionEvent !== null &&
+      !(await ruleConditionsHold(tx, event.organizationId, rule, conditionEvent))
+    ) {
+      continue;
+    }
+    await runRule(event, tx, rule, object, now);
+  }
 };

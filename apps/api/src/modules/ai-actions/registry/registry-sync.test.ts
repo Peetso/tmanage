@@ -76,7 +76,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  B4: +1 op, PATCH .../documents/:documentId (rename, optimistic on updatedAt).
  *  B3: +2 ops, GET/PATCH .../file-download-policy (downloads before a virus scan, owner-only write).
  *  C5: +1 op, GET .../conversations/:conversationId/reactions (batched reaction tallies). */
-const EXPECTED_ROUTE_COUNT = 785; // D4: +2 ops, GET .../billing/plan-usage(/preview).
+const EXPECTED_ROUTE_COUNT = 786; // D4: +2 ops, GET .../billing/plan-usage(/preview).
+// C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 
 interface LiveRoute {
   readonly method: string;

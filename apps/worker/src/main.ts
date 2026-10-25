@@ -38,6 +38,8 @@ import { createInvitationSweepStore } from './common/database/invitations-sweep-
 import { sweepOverdueInvitations } from './invitations/invitation-sweep.js';
 import { createRequestDeferSweepStore } from './common/database/request-defer-store.js';
 import { sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
+import { createDueSoonSweepStore } from './common/database/due-soon-store.js';
+import { sweepDueSoon } from './jobs/due-soon-sweeper.js';
 
 /**
  * The worker process entry point.
@@ -65,6 +67,8 @@ import { sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
  *   move the API's manual `POST /invitations/expirations` route also runs, prints the count and
  *   exits — the scheduled half of invitation expiry, on the same `relay:once` cron shape. It
  *   delivers nothing from the outbox and leaves the manual route in place as a fallback.
+ * - **`--sweep-due-soon`** (C1) runs every enabled "work item due in N days" automation rule
+ *   for its open items due within its window, at most once per item per rule per day.
  * - **No flag** runs the polling loop until SIGINT/SIGTERM, finishing the in-flight batch
  *   before leaving — the standalone-worker shape for a host that supports one.
  *
@@ -305,6 +309,22 @@ async function main(): Promise<void> {
       console.warn(
         `[worker] defer sweep: reopened ${String(result.reopened)} deferred request(s), ` +
           `reminded ${String(result.reminded)}`,
+      );
+    } finally {
+      await database.end();
+    }
+    return;
+  }
+
+  // C1: the "work item due in N days" automation sweep — every enabled due-soon rule runs for
+  // its open items due within its window, at most once per item per day. Same exit contract.
+  if (command.kind === 'sweep-due-soon') {
+    try {
+      const result = await sweepDueSoon(createDueSoonSweepStore(database));
+      process.stdout.write(`${JSON.stringify(result)}\n`);
+      console.warn(
+        `[worker] due-soon sweep: ${String(result.rules)} rule(s), ` +
+          `fired for ${String(result.fired)} work item(s)`,
       );
     } finally {
       await database.end();

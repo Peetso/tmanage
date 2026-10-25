@@ -57,6 +57,11 @@ export { backoffDelayMs } from './outbox/backoff.js';
 export { REQUEST_REOPENED_NOTICE, sweepDeferredRequests } from './jobs/request-defer-sweeper.js';
 export type { RequestDeferSweepResult } from './jobs/request-defer-sweeper.js';
 export { createRequestDeferSweepStore } from './common/database/request-defer-store.js';
+// C1 — the due-soon automation sweep, exported so the in-process worker (`apps/server`) and the db
+// suite run the same `--sweep-due-soon` job.
+export { DUE_SOON_TRIGGER, dueInDaysOf, sweepDueSoon } from './jobs/due-soon-sweeper.js';
+export type { DueSoonSweepResult } from './jobs/due-soon-sweeper.js';
+export { createDueSoonSweepStore } from './common/database/due-soon-store.js';
 // C2 — the invitation-expiry sweep, exported so the single Hostinger app (`apps/server`) runs the
 // same `--sweep-invitations` job on its in-process timer.
 export { sweepOverdueInvitations } from './invitations/invitation-sweep.js';

@@ -1,9 +1,20 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Optional,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import {
+  AUDIT_SERVICE,
   TENANT_DATABASE,
   WORKFLOW_CONDITIONS_REPOSITORY,
   WORKFLOW_TEMPLATES_REPOSITORY,
@@ -16,10 +27,11 @@ import {
 } from '../../common/database/schema.js';
 import type { WorkflowTemplatesRepository } from './templates.repository.js';
 import type { WorkflowConditionsRepository } from './conditions.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
- * Automations & integrations (module 17, x190). Two endpoints under one template: list a template's
- * conditions and add one. A **condition** is a `(field, op, value)` predicate bound to a `target_step`;
+ * Automations & integrations (module 17, x190). Three endpoints under one template: list a template's
+ * conditions, add one, and (C1) remove one. A **condition** is a `(field, op, value)` predicate bound to a `target_step`;
  * the run evaluator (x163) reads a template's conditions to decide whether a step fires. Before this
  * slice, steps ran unconditionally — there was no condition model.
  *
@@ -95,6 +107,7 @@ export class WorkflowConditionsController {
     @Inject(WORKFLOW_TEMPLATES_REPOSITORY) private readonly templates: WorkflowTemplatesRepository,
     @Inject(WORKFLOW_CONDITIONS_REPOSITORY)
     private readonly conditions: WorkflowConditionsRepository,
+    @Optional() @Inject(AUDIT_SERVICE) private readonly audit?: AuditService,
   ) {}
 
   /**
@@ -193,6 +206,74 @@ export class WorkflowConditionsController {
       }),
     );
     return toView(row);
+  }
+
+  /**
+   * C1 — remove one condition from a rule (204). Same permission as editing the rule (`org.manage`)
+   * and the same order: resolve the template within the tenant first (404, nothing leaked across
+   * studios), then authorize (403), then resolve the condition *on that template* (404 for an id
+   * from another template or tenant), then delete it and record `workflow_condition.deleted` in the
+   * same transaction — the condition is gone only if its audit row is written too.
+   */
+  @Delete(':conditionId')
+  @RequireCapability('org.manage')
+  @HttpCode(204)
+  async remove(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('templateId') templateId: string,
+    @Param('conditionId') conditionId: string,
+  ): Promise<void> {
+    const template = await this.database.read(context, (runner) =>
+      this.templates.findById(runner, context, templateId),
+    );
+    if (!template) {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.notFound,
+        undefined,
+        'workflow_condition_template_not_found',
+      );
+    }
+
+    if (!this.mayManageOrg(principal, context)) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'workflow_condition_delete_denied',
+      );
+    }
+
+    const removed = await this.database.transaction(context, async (tx) => {
+      const condition = await this.conditions.findById(tx, context, conditionId);
+      if (!condition || condition.templateId !== template.id) return null;
+      const deleted = await this.conditions.deleteForTemplate(
+        tx,
+        context,
+        template.id,
+        condition.id,
+      );
+      if (!deleted) return null;
+      await this.audit?.record(tx, context, {
+        action: 'workflow_condition.deleted',
+        objectId: condition.id,
+        result: 'allowed',
+        metadata: { template_id: template.id, op: condition.op, target_step: condition.targetStep },
+      });
+      return condition;
+    });
+    if (!removed) {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.notFound,
+        undefined,
+        'workflow_condition_not_found',
+      );
+    }
   }
 
   /** Org-scoped deny-by-default decision the route guard cannot make (membership status, etc.). */

@@ -14,7 +14,8 @@ export type WorkflowTriggerKind =
   | 'work_item_transitioned'
   | 'request_submitted'
   | 'meeting_scheduled'
-  | 'document_published';
+  | 'document_published'
+  | 'work_item_due_soon';
 
 /** The actions an automation may take. Mirrors the API's `WORKFLOW_ACTION_KINDS`. */
 export type WorkflowActionKind =
@@ -308,6 +309,19 @@ export async function createWorkflowCondition(
     body: input,
   });
   return data;
+}
+
+/** Remove one condition from a rule (C1). 204; an id from another rule is a 404. */
+export async function deleteWorkflowCondition(
+  client: ApiClient,
+  organizationSlug: string,
+  templateId: string,
+  conditionId: string,
+): Promise<void> {
+  await client.request<void>({
+    method: 'DELETE',
+    path: `${conditionsBase(organizationSlug, templateId)}/${encodeURIComponent(conditionId)}`,
+  });
 }
 
 /**

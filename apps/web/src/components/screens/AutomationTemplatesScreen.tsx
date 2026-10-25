@@ -30,6 +30,7 @@ const TRIGGER_KINDS = [
   'request_submitted',
   'meeting_scheduled',
   'document_published',
+  'work_item_due_soon',
 ] as const satisfies readonly WorkflowTriggerKind[];
 
 const ACTION_KINDS = [

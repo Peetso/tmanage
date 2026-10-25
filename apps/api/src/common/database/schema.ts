@@ -4249,6 +4249,35 @@ export const automationTemplateTags = mysqlTable(
 );
 
 /**
+ * C1 (0230). One firing of a `work_item_due_soon` rule for one work item on one day — the claim the
+ * worker's due-soon sweep inserts (`INSERT IGNORE`) before it runs the rule, so the unique
+ * `(organization_id, template_id, work_item_id, fire_date)` key makes the trigger idempotent per item
+ * per day. Both references use the composite tenant keys. Worker-written only (INSERT); never updated
+ * or deleted. `0230_workflow_due_soon_fires.sql` is the source of truth; this is its typed mirror.
+ */
+export const workflowDueSoonFires = mysqlTable(
+  'workflow_due_soon_fires',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    templateId: char('template_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    fireDate: date('fire_date', { mode: 'string' }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_workflow_due_soon_fires_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_workflow_due_soon_fires_claim').on(
+      table.organizationId,
+      table.templateId,
+      table.workItemId,
+      table.fireDate,
+    ),
+    index('ix_workflow_due_soon_fires_item').on(table.organizationId, table.workItemId),
+  ],
+);
+
+/**
  * PEOPLE / module 14 (x171). A person's allocation to a project — which membership, which project,
  * what share of their time (`percent`, 1..100), an optional `start_date`/`end_date` window, and when
  * the row was created. Tenant-scoped and project-owned like `project_objectives` (0040), plus a second
@@ -8884,6 +8913,7 @@ export const TABLES = {
   workflow_conditions: workflowConditions,
   automation_variables: automationVariables,
   automation_template_tags: automationTemplateTags,
+  workflow_due_soon_fires: workflowDueSoonFires,
   person_allocations: personAllocations,
   person_capacity: personCapacity,
   member_reporting_lines: memberReportingLines,

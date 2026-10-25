@@ -655,6 +655,11 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'document',
     clause: '§12 — a document title is how the whole project finds it; renaming it is a trail',
   },
+  /** C1. A condition was removed from an automation rule (ids, field and operator — never the value). */
+  'workflow_condition.deleted': {
+    objectType: 'workflow_condition',
+    clause: '§12 policy change — removing a condition widens who and what an automation acts on',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -756,6 +761,7 @@ const AUDIT_ACTION_LABELS = {
   'member.password_reset_sent': 'Sent a member a password reset',
   'member.profile_updated': 'Updated their own profile',
   'document.renamed': 'Renamed a document',
+  'workflow_condition.deleted': 'Removed a condition from an automation rule',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

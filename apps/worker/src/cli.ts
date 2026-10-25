@@ -24,6 +24,8 @@ export type WorkerCommand =
   | { readonly kind: 'sweep-invitations' }
   // A7 (0220): the deferred-request reopen sweep.
   | { readonly kind: 'sweep-deferred-requests' }
+  // C1: the "work item due in N days" automation sweep.
+  | { readonly kind: 'sweep-due-soon' }
   | { readonly kind: 'status' }
   | { readonly kind: 'once' }
   | { readonly kind: 'loop' };
@@ -33,6 +35,7 @@ export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
   const status = argv.includes('--status');
   const sweepInvitations = argv.includes('--sweep-invitations');
   const sweepDeferredRequests = argv.includes('--sweep-deferred-requests');
+  const sweepDueSoon = argv.includes('--sweep-due-soon');
   const unparkIndex = argv.indexOf('--unpark');
   const unparkAll = argv.includes('--all');
   // The first argument after `--unpark` that is not itself a flag. An event id is a UUID, so
@@ -56,6 +59,8 @@ export function selectWorkerCommand(argv: readonly string[]): WorkerCommand {
   if (sweepInvitations) return { kind: 'sweep-invitations' };
   // A7: same rank as the invitation sweep — one invocation does one thing.
   if (sweepDeferredRequests) return { kind: 'sweep-deferred-requests' };
+  // C1: same rank — one invocation does one thing.
+  if (sweepDueSoon) return { kind: 'sweep-due-soon' };
   if (status) return { kind: 'status' };
   if (once) return { kind: 'once' };
   return { kind: 'loop' };

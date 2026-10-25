@@ -125,6 +125,14 @@ export const automationsDetails: readonly AiActionDetail[] = [
     ],
   }),
   det({
+    id: 'automations.templates.conditions.delete',
+    title: 'Remove a template condition',
+    description: 'Remove one condition from an automation rule. Confirm-class.',
+    input: pathOnly('templateId', 'conditionId'),
+    redact: 'standard',
+    examples: [{ summary: 'Remove', args: { templateId: 'tpl_1', conditionId: 'cond_1' } }],
+  }),
+  det({
     id: 'automations.templates.tags.list',
     title: 'List template tags (one template)',
     description: 'Tags on one automation template.',

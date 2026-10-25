@@ -141,7 +141,7 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     }
   });
 
-  it('gives the worker twenty-three table-level reads and no database-wide grant', () => {
+  it('gives the worker twenty-five table-level reads and no database-wide grant', () => {
     // Sixteen since x85: the fifteen (fourteen D07 narrowed to, plus x31's
     // `credential_change_notices`), plus `invitations` — the `--sweep-invitations` command
     // reads `status`/`expires_at` in the UPDATE's WHERE, so it holds SELECT beside the
@@ -149,11 +149,13 @@ describe('parseGrantScript — what the real users.sql says each principal may h
     // `notification_kind_prefs`, `documents`, `meetings`, `workflow_templates` and
     // `workflow_runs` for the collaboration notices and the automation runner. Twenty-three
     // since BK3-left (0dece203): `direct_conversations` for the DM socket subscription check
-    // and the recipient re-check in `direct-message-store.ts`. The count is
+    // and the recipient re-check in `direct-message-store.ts`. Twenty-five since C1:
+    // `workflow_conditions` (a rule fires only when its conditions match) and
+    // `workflow_due_soon_fires` (the due-soon sweep reads its claims where it writes). The count is
     // asserted rather than the list so that a grant added without a reviewer noticing fails here.
     const worker = intents.get("'tmanage_worker'@'%'");
     const reads = [...(worker?.privileges ?? [])].filter((p) => p.endsWith(':SELECT'));
-    expect(reads).toHaveLength(23);
+    expect(reads).toHaveLength(25);
     expect(reads.some((p) => p.startsWith('tmanage.*:'))).toBe(false);
   });
 

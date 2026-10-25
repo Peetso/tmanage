@@ -745,6 +745,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // table, so this entry is what scopes the tag reads and writes; `organization_id` is NOT NULL and
   // carries the `(organization_id, id)` key every tenant table has.
   automation_template_tags: 'organization_id',
+  // C1 (migration 0230). Org-owned: one due-soon firing of one tenant's rule for one of its work
+  // items. Written by the worker only; registered so any API read of it is tenant-scoped.
+  workflow_due_soon_fires: 'organization_id',
   // PEOPLE allocations (x171, migration 0069). Tenant-owned and project-owned: an allocation belongs
   // to the acting tenant, and an unscoped `SELECT ... FROM person_allocations` would be every studio's
   // capacity plan on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`

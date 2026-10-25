@@ -52,6 +52,9 @@ export const WORKFLOW_TRIGGER_KINDS = [
   'request_submitted',
   'meeting_scheduled',
   'document_published',
+  // C1: a work item is due within `config.dueInDays` days (default 2) — fired by the worker's
+  // due-soon sweep (`--sweep-due-soon`), at most once per item per rule per day.
+  'work_item_due_soon',
 ] as const;
 export type WorkflowTriggerKind = (typeof WORKFLOW_TRIGGER_KINDS)[number];
 

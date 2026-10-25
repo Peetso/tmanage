@@ -4,6 +4,7 @@ import { WorkflowConditionsController } from './conditions.controller.js';
 import { evaluateCondition } from './conditions.service.js';
 import type { WorkflowTemplatesRepository } from './templates.repository.js';
 import type { WorkflowConditionsRepository } from './conditions.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkflowConditionRow, WorkflowTemplateRow } from '../../common/database/schema.js';
 
@@ -66,7 +67,24 @@ function controllerWith(templates: readonly WorkflowTemplateRow[]) {
       templates.find((row) => row.organizationId === ctx.organizationId && row.id === id) ?? null,
   } as unknown as WorkflowTemplatesRepository;
 
+  const audits: { action: string; objectId: string | null; metadata: unknown }[] = [];
   const conditionsRepository = {
+    findById: async (_runner: unknown, ctx: TenantContext, id: string) =>
+      store.find((r) => r.organizationId === ctx.organizationId && r.id === id) ?? null,
+    deleteForTemplate: async (
+      _runner: unknown,
+      ctx: TenantContext,
+      templateId: string,
+      id: string,
+    ) => {
+      const index = store.findIndex(
+        (r) =>
+          r.organizationId === ctx.organizationId && r.templateId === templateId && r.id === id,
+      );
+      if (index < 0) return false;
+      store.splice(index, 1);
+      return true;
+    },
     listForTemplate: async (_runner: unknown, ctx: TenantContext, templateId: string) =>
       store.filter((r) => r.organizationId === ctx.organizationId && r.templateId === templateId),
     create: async (
@@ -97,12 +115,24 @@ function controllerWith(templates: readonly WorkflowTemplateRow[]) {
     },
   } as unknown as WorkflowConditionsRepository;
 
+  const audit = {
+    record: async (
+      _runner: unknown,
+      _ctx: unknown,
+      input: { action: string; objectId: string | null; metadata: unknown },
+    ) => {
+      audits.push(input);
+      return {};
+    },
+  } as unknown as AuditService;
+
   const controller = new WorkflowConditionsController(
     database,
     templatesRepository,
     conditionsRepository,
+    audit,
   );
-  return { controller, store };
+  return { controller, store, audits };
 }
 
 const validBody = { field: 'priority', op: 'eq', value: 'high', targetStep: 1 };
@@ -151,6 +181,64 @@ describe('WorkflowConditionsController', () => {
       controller.create(context, principal('workspace_admin'), 'workflow-template-01', validBody),
     ).rejects.toMatchObject({ status: 403 });
     expect(store).toHaveLength(0);
+  });
+});
+
+describe('WorkflowConditionsController.remove (C1)', () => {
+  it('deletes one condition of the template and audits it', async () => {
+    const { controller, store, audits } = controllerWith([template()]);
+    const view = await controller.create(
+      context,
+      principal('owner'),
+      'workflow-template-01',
+      validBody,
+    );
+    await controller.remove(context, principal('owner'), 'workflow-template-01', view.id);
+    expect(store).toHaveLength(0);
+    expect(audits).toEqual([
+      {
+        action: 'workflow_condition.deleted',
+        objectId: view.id,
+        result: 'allowed',
+        metadata: { template_id: 'workflow-template-01', op: 'eq', target_step: 1 },
+      },
+    ]);
+  });
+
+  it('refuses a role without org.manage with 403 and deletes nothing', async () => {
+    const { controller, store, audits } = controllerWith([template()]);
+    const view = await controller.create(
+      context,
+      principal('owner'),
+      'workflow-template-01',
+      validBody,
+    );
+    await expect(
+      controller.remove(context, principal('workspace_admin'), 'workflow-template-01', view.id),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(store).toHaveLength(1);
+    expect(audits).toHaveLength(0);
+  });
+
+  it('answers 404 for a condition of another template, and for a cross-tenant template', async () => {
+    const { controller, store } = controllerWith([
+      template(),
+      template({ id: 'workflow-template-02' }),
+      template({ id: 'workflow-template-other', organizationId: OTHER_ORG }),
+    ]);
+    const view = await controller.create(
+      context,
+      principal('owner'),
+      'workflow-template-01',
+      validBody,
+    );
+    await expect(
+      controller.remove(context, principal('owner'), 'workflow-template-02', view.id),
+    ).rejects.toMatchObject({ status: 404, auditCode: 'workflow_condition_not_found' });
+    await expect(
+      controller.remove(context, principal('owner'), 'workflow-template-other', view.id),
+    ).rejects.toMatchObject({ status: 404, auditCode: 'workflow_condition_template_not_found' });
+    expect(store).toHaveLength(1);
   });
 });
 

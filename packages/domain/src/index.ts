@@ -169,6 +169,18 @@ export type {
   AuditResult,
 } from './policies/audit.js';
 
+// C1 automation rule conditions (API + worker)
+export {
+  conditionsMatch,
+  evaluateCondition,
+  isAutomationConditionOp,
+} from './policies/automation-conditions.js';
+export type {
+  AutomationConditionOp,
+  ConditionEvent,
+  ConditionPredicate,
+} from './policies/automation-conditions.js';
+
 // BK3 direct-message relation rule (API + worker)
 export { mayDirectMessage } from './policies/direct-message-relation.js';
 export type { DirectParty } from './policies/direct-message-relation.js';

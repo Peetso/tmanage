@@ -84,6 +84,30 @@ export class WorkflowConditionsRepository {
   }
 
   /**
+   * C1 — remove one condition of one template, within the acting tenant. All three predicates
+   * (tenant, template, id) are on the statement, so an id from another template or another studio
+   * deletes nothing. Returns whether a row was removed.
+   */
+  async deleteForTemplate(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    templateId: string,
+    conditionId: string,
+  ): Promise<boolean> {
+    const db = tenantDrizzle(runner);
+    const result = await db
+      .delete(workflowConditions)
+      .where(
+        and(
+          eq(workflowConditions.organizationId, context.organizationId),
+          eq(workflowConditions.templateId, templateId),
+          eq(workflowConditions.id, conditionId),
+        ),
+      );
+    return result[0].affectedRows > 0;
+  }
+
+  /**
    * Create a condition.
    *
    * The id is generated here (UUIDv7, `07-DATA-MODEL`). `organization_id` comes from the context,

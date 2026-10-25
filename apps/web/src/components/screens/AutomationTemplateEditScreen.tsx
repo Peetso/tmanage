@@ -61,6 +61,10 @@ const TRIGGERS: Readonly<
     label: 'A document is published',
     clause: 'when a document is published',
   },
+  work_item_due_soon: {
+    label: 'A work item is due in 2 days',
+    clause: 'when a work item is due in 2 days',
+  },
 };
 
 const ACTIONS: Readonly<Record<WorkflowActionKind, string>> = {

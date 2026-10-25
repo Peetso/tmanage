@@ -969,12 +969,14 @@ GRANT INSERT, UPDATE         ON `tmanage`.`a11y_preferences`  TO 'tmanage_app'@'
 -- `uq_user_display_preferences_org_membership`. No DELETE: a member clears settings by saving the
 -- defaults, not by removing the row. SELECT is the database-wide grant.
 GRANT INSERT, UPDATE         ON `tmanage`.`user_display_preferences` TO 'tmanage_app'@'%';
--- Automation workflow conditions (x190, 0081). **INSERT only** — a condition is created (INSERT) and
--- read (the database-wide SELECT). This slice ships no editor and no removal path; the 0081 trigger
--- pins organization_id/template_id/created_by immutable for every credential, and an editor is a later
--- slice that adds UPDATE with the code that writes it. No DELETE. A condition gates a step of a template
--- the run evaluator reads; it writes no other tenant table, so the app needs no further privilege here.
-GRANT INSERT                 ON `tmanage`.`workflow_conditions` TO 'tmanage_app'@'%';
+-- Automation workflow conditions (x190, 0081). **INSERT and DELETE** — a condition is created (INSERT),
+-- read (the database-wide SELECT) and, since C1, removed; the 0081 trigger pins
+-- organization_id/template_id/created_by immutable for every credential, and an editor is a later
+-- slice that adds UPDATE with the code that writes it. A condition gates a template the run evaluator
+-- reads; it writes no other tenant table, so the app needs no further privilege here.
+-- C1: DELETE added — "remove a condition" (DELETE .../conditions/:conditionId), audited in the
+-- same transaction. Still no UPDATE: a condition is never edited, only added or removed.
+GRANT INSERT, DELETE         ON `tmanage`.`workflow_conditions` TO 'tmanage_app'@'%';
 -- Automation variables (x305, 0173). **INSERT, UPDATE and DELETE** — the PUT is an upsert against the
 -- `(organization_id, var_key)` natural key (a first set INSERTs, a later value UPDATEs in place), and
 -- the DELETE removes one variable idempotently. SELECT is the database-wide grant above. The 0173
@@ -1542,6 +1544,10 @@ GRANT SELECT ON `tmanage`.`documents`                TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`meetings`                 TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`workflow_templates`       TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`workflow_runs`            TO 'tmanage_worker'@'%';
+-- C1: a rule fires only when its saved conditions match (`automation-conditions-store.ts`), and
+-- the due-soon sweep reads its own claims where it writes them (`due-soon-store.ts`).
+GRANT SELECT ON `tmanage`.`workflow_conditions`      TO 'tmanage_worker'@'%';
+GRANT SELECT ON `tmanage`.`workflow_due_soon_fires`  TO 'tmanage_worker'@'%';
 
 -- Read where it writes. MariaDB reads to write: an `UPDATE … WHERE` needs SELECT on the
 -- columns it filters by, and the notification insert's `ON DUPLICATE KEY UPDATE id = id`
@@ -1580,6 +1586,8 @@ GRANT INSERT         ON `tmanage`.`notifications`       TO 'tmanage_worker'@'%';
 -- CQ-12 (AUT-01): a rule that fires appends its run. INSERT only, the API's own posture: a run
 -- is history and is never changed or removed.
 GRANT INSERT         ON `tmanage`.`workflow_runs`       TO 'tmanage_worker'@'%';
+-- C1: the due-soon sweep claims one (rule, item, day) before it runs the rule. INSERT only.
+GRANT INSERT         ON `tmanage`.`workflow_due_soon_fires` TO 'tmanage_worker'@'%';
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Migration user
