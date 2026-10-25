@@ -43,6 +43,9 @@ const REFRESH_COOKIE = 'tmanage_session_refresh';
 const CSRF_COOKIE = 'tmanage_session_csrf';
 
 const NORTHSTAR = 'Northstar Studio';
+
+/** Where a signed-in visit to `/sign-in` ends: the picker, or one workspace's home or portal. */
+const SIGNED_IN_DESTINATION = /\/(organizations|[a-z0-9][a-z0-9-]*\/(home|portal))$/;
 const BRIGHTOPS = 'BrightOps Consulting';
 
 /** The dev sign-in route the API registers outside production — a session, not a mock. */
@@ -121,10 +124,11 @@ test.describe('the session journeys', () => {
     await expect(first.getByText(BRIGHTOPS)).toBeVisible({ timeout: 15_000 });
     await expect(first.getByText(NORTHSTAR)).toHaveCount(0);
 
-    // Back does not resurrect A either: the sign-in screen, then B's list again from B's
-    // session — never A's rows.
+    // Back does not resurrect A either. Back lands on sign-in, which — B being signed in —
+    // sends B into B's own app (lane E2), then forward is B's list again — never A's rows.
     await first.goBack();
-    await expect(first).toHaveURL(/\/sign-in$/);
+    await expect(first).toHaveURL(SIGNED_IN_DESTINATION);
+    await expect(first.getByText(NORTHSTAR)).toHaveCount(0);
     await first.goForward();
     await expect(first).toHaveURL(/\/organizations$/);
     await expect(first.getByText(BRIGHTOPS)).toBeVisible({ timeout: 15_000 });
@@ -200,5 +204,34 @@ test.describe('the session journeys', () => {
     await expect(sessions).toHaveURL(/\/sign-in$/);
 
     await context.close();
+  });
+
+  test('E2: a signed-in person who opens /sign-in goes into the app, never to /forbidden or another host', async ({
+    browser,
+  }) => {
+    const context = await browser.newContext();
+    await signIn(context, world().northstar.owner.id);
+    const page = await context.newPage();
+
+    await page.goto('/sign-in');
+    await expect(page).toHaveURL(SIGNED_IN_DESTINATION);
+    await expect(page).not.toHaveURL(/\/forbidden/);
+    const appHost = new URL(page.url()).host;
+
+    // A foreign `?next=` is ignored: the person still lands in this app, on this host.
+    await page.goto('/sign-in?next=https%3A%2F%2Fevil.example%2F');
+    await expect(page).toHaveURL(SIGNED_IN_DESTINATION);
+    expect(new URL(page.url()).host).toBe(appHost);
+
+    await context.close();
+
+    // Signed out, nothing changes: the form stays, on /sign-in.
+    const signedOut = await browser.newContext();
+    const fresh = await signedOut.newPage();
+    await fresh.goto('/sign-in');
+    await expect(fresh.getByRole('button', { name: 'Sign in' })).toBeEnabled();
+    await fresh.waitForTimeout(1_000);
+    await expect(fresh).toHaveURL(/\/sign-in$/);
+    await signedOut.close();
   });
 });

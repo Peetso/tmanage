@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
@@ -12,6 +12,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useHydrated } from '../../lib/use-hydrated';
+import { signedInDestination } from '../../lib/signed-in-destination';
 import { isPublicSignupOffered } from '../../lib/public-signup';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -40,6 +41,11 @@ export interface SignInScreenProps {
   signUpOffered?: boolean;
   /** Injected in tests. Defaults to the application's boundary. */
   boundary?: AuthBoundary;
+  /**
+   * Called with a same-origin path when the person opening this page is already signed in
+   * (their workspace home, the picker, or an allowed `?next=`). When absent, no check is made.
+   */
+  onAlreadySignedIn?: (destination: string) => void;
 }
 
 /**
@@ -81,6 +87,7 @@ export function SignInScreen({
   developmentSignInEnabled = process.env.NODE_ENV !== 'production',
   signUpOffered = isPublicSignupOffered(),
   boundary = authBoundary,
+  onAlreadySignedIn,
 }: SignInScreenProps) {
   const api = client ?? browserApiClient();
 
@@ -121,6 +128,31 @@ export function SignInScreen({
   /** Where a Google sign-in that needed a second factor goes afterwards (e.g. the invitation). */
   const [googleReturnTo, setGoogleReturnTo] = useState<string | undefined>(undefined);
 
+  /**
+   * Set as soon as this page starts a sign-in of its own. The already-signed-in check below
+   * then never navigates: its answer could otherwise arrive after the new session's cookies
+   * and race the sign-in's own navigation.
+   */
+  const attempted = useRef(false);
+
+  // Already signed in (live check f30af1d0): go into the app instead of showing the form. A
+  // signed-out visitor's check answers "no" and nothing changes. Skipped while a Google
+  // sign-in is finishing its second step — that person has no session yet.
+  useEffect(() => {
+    if (!onAlreadySignedIn) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('google') === 'mfa') return;
+    let cancelled = false;
+    void signedInDestination(api, params.get('next')).then((destination) => {
+      if (cancelled || attempted.current || destination === undefined) return;
+      onAlreadySignedIn(destination);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const search = window.location.search;
     setGoogleError(googleErrorKey(search));
@@ -155,6 +187,7 @@ export function SignInScreen({
       return;
     }
 
+    attempted.current = true;
     setSigningIn(true);
     setFailure(undefined);
 
@@ -205,6 +238,7 @@ export function SignInScreen({
       return;
     }
 
+    attempted.current = true;
     setDevelopmentState('working');
     setDevelopmentFailure(undefined);
 
