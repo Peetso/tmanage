@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { Badge } from '@tmanage/ui';
 import { IconOrb, cx } from '../../primitives';
 import { WebIcon } from '../../WebIcon';

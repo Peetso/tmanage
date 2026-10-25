@@ -63,6 +63,19 @@ test('the wrong page body still fails when a title dictionary is present', () =>
   assert.deepEqual(status, ["/status contains 'Privacy Policy'"]);
 });
 
+const AR_PRICING =
+  '<!DOCTYPE html><html lang="ar" dir="rtl" class="x"><head><title>الأسعار · TManage</title></head>';
+
+test('an Arabic page passes only with Arabic language, direction and title', () => {
+  assert.deepEqual(routeContentProblems('/ar/pricing', AR_PRICING), []);
+  const english = routeContentProblems(
+    '/ar/pricing',
+    '<!DOCTYPE html><html lang="en" dir="ltr"><head><title>Pricing · TManage</title></head>',
+  );
+  assert.ok(english.includes(`/ar/pricing is missing '<html lang="ar" dir="rtl"'`));
+  assert.ok(english.includes(`/ar/pricing contains '<title>Pricing · TManage</title>'`));
+});
+
 test('a path without a rule is reported, not passed', () => {
   assert.deepEqual(routeContentProblems('/nowhere', COMMUNICATION), [
     'no content rule for /nowhere',

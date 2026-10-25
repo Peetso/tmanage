@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from './WebLink';
 import type { ReactNode } from 'react';
 import { WebIcon, type WebIconName } from './WebIcon';
 

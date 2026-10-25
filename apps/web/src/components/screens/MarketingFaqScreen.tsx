@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import Link from 'next/link';
+import Link from '../website/WebLink';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { PublicIntro, PublicPage } from './public/PublicSite';
 import { browserApiClient } from '../../lib/api/browser-client';

@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { Badge } from '@tmanage/ui';
 import { ArrowLink, ButtonLink, IconOrb } from '../../primitives';
 import { CtaBand, SectionHeader, WebSection } from '../../sections';

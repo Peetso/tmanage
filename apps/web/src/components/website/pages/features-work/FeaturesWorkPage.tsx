@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState, type ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { Badge, Button, StatusDot, type StatusTone } from '@tmanage/ui';
 import { useT } from '../../../../lib/i18n/use-t';
 import type { MessageKey } from '../../../../lib/i18n/t';

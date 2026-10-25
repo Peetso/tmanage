@@ -38,6 +38,8 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   'admin',
   'api',
   'app',
+  // The web app serves the Arabic public website at /ar (/ar/pricing, …) beside [orgSlug].
+  'ar',
   'assets',
   'auth',
   'billing',

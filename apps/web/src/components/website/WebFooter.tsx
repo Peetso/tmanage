@@ -1,7 +1,9 @@
 'use client';
 
-import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import Link from './WebLink';
 import { activeLocale } from '../../lib/i18n/locale-store';
+import { languageSwitchTarget } from '../../lib/i18n/public-locale-routes';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
 import { WebIcon } from './WebIcon';
@@ -18,11 +20,26 @@ export function isArabicLocale(locale: string): boolean {
  * `LocaleDirectionProvider` turns into `lang`/`dir` on `<html>`, so Arabic mirrors the page.
  * The pressed state reads the very locale `useT()` translates with, by the same language rule
  * as `translate()`, so the switch can never mark Arabic while the chrome renders English.
+ *
+ * On a public page with an Arabic twin it then loads the other language's URL (`/pricing` ↔
+ * `/ar/pricing`, `public-locale-routes.ts`): a full load, so the prerendered page arrives in its
+ * own language and direction. The locale is set (and saved) first, so the next page boots in it.
  */
 export function LanguageSwitch() {
   const t = useT();
   const locale = useActiveLocale();
+  const pathname = usePathname();
   const arabic = isArabicLocale(locale);
+  const choose = (next: 'en-US' | 'ar-EG') => {
+    activeLocale.set(next);
+    const target = languageSwitchTarget(
+      pathname,
+      next === 'ar-EG',
+      window.location.search,
+      window.location.hash,
+    );
+    if (target !== undefined) window.location.assign(target);
+  };
   return (
     <div className="tm-web-lang" role="group" aria-label={t('WebFooter.language')}>
       <button
@@ -30,7 +47,7 @@ export function LanguageSwitch() {
         className="tm-web-lang__option"
         lang="en"
         aria-pressed={!arabic}
-        onClick={() => activeLocale.set('en-US')}
+        onClick={() => choose('en-US')}
       >
         English
       </button>
@@ -41,7 +58,7 @@ export function LanguageSwitch() {
         lang="ar"
         dir="rtl"
         aria-pressed={arabic}
-        onClick={() => activeLocale.set('ar-EG')}
+        onClick={() => choose('ar-EG')}
       >
         العربية
       </button>

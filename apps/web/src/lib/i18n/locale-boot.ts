@@ -7,6 +7,7 @@ import {
   LOCALE_COOKIE_NAME,
   localeFromCookieHeader,
 } from './locale-cookie';
+import { ARABIC_PREFIX, ARABIC_ROUTE_LOCALE, isArabicPublicPath } from './public-locale-routes';
 
 /**
  * i18n (NFR-02, I18N-01) — the locale a tab boots in, decided before the first paint.
@@ -24,7 +25,8 @@ import {
  *  - {@link resolveBootLocale} — the same decision in TypeScript, which `LocaleStore` uses when it
  *    is constructed, so the store's client value equals what the script already painted.
  *
- * The order is: `?lang=` (`en`, `ar`, or an exact allowlisted tag) wins and is persisted, then the
+ * The order is: an Arabic public page's path (`/ar`, `/ar/...` — `public-locale-routes.ts`) names
+ * `ar-EG` and wins, then `?lang=` (`en`, `ar`, or an exact allowlisted tag); either is persisted. Then the
  * saved-locale cookie the language switch writes, then the locale cached under
  * {@link LOCALE_STORAGE_KEY} (copied into the cookie), then nothing (the caller's default). Every
  * value is checked against {@link DISPLAY_LOCALES}, so a crafted query or cookie can never reach
@@ -67,17 +69,19 @@ export type BootLocale = {
 };
 
 /**
- * The boot decision without side effects: the query's locale if it names one, else the cookie's
- * (`cookieHeader` is `document.cookie`), else the stored one if it is still allowlisted, else
- * `undefined`.
+ * The boot decision without side effects: `ar-EG` on an Arabic public page (`pathname`), else the
+ * query's locale if it names one, else the cookie's (`cookieHeader` is `document.cookie`), else the
+ * stored one if it is still allowlisted, else `undefined`. A locale the URL named (path or query)
+ * comes back `fromQuery: true`, so the caller persists it.
  */
 export function resolveBootLocale(
   search: string | null | undefined,
   stored: string | null | undefined,
   cookieHeader?: string | null,
+  pathname?: string | null,
 ): BootLocale | undefined {
   const fromCookie = localeFromCookieHeader(cookieHeader);
-  const fromQuery = localeFromSearch(search);
+  const fromQuery = isArabicPublicPath(pathname) ? ARABIC_ROUTE_LOCALE : localeFromSearch(search);
   if (fromQuery)
     return { locale: fromQuery, fromQuery: true, saveCookie: fromCookie !== fromQuery };
   if (fromCookie) return { locale: fromCookie, fromQuery: false, saveCookie: false };
@@ -143,6 +147,8 @@ export function localeBootScript(): string {
     s: LANG_QUERY_ALIASES,
     r: RTL_PRIMARY_SUBTAGS,
     t: bootTitleTable(),
+    p: ARABIC_PREFIX,
+    pl: ARABIC_ROUTE_LOCALE,
   }).replace(/</g, '\\u003c');
   return (
     '(function(c){try{' +
@@ -152,9 +158,12 @@ export function localeBootScript(): string {
     'if(e>-1&&p[i].slice(0,e).trim()===c.n){' +
     'try{k=decodeURIComponent(p[i].slice(e+1).trim());}catch(x){}break;}}}catch(e){}' +
     'if(!ok(k))k=null;' +
+    // An Arabic public page (`/ar`, `/ar/...`) names its locale in the path, ahead of `?lang=`.
+    'var pn="";try{pn=window.location.pathname;}catch(e){}' +
+    'if(pn===c.p||pn.indexOf(c.p+"/")===0){l=c.pl;}else{' +
     'try{q=new URLSearchParams(window.location.search).get("lang");}catch(e){}' +
     'if(typeof q==="string"){var lq=q.toLowerCase();' +
-    'l=Object.prototype.hasOwnProperty.call(c.s,lq)?c.s[lq]:ok(q)?q:null;}' +
+    'l=Object.prototype.hasOwnProperty.call(c.s,lq)?c.s[lq]:ok(q)?q:null;}}' +
     'if(l){try{window.localStorage.setItem(c.k,l);}catch(e){}w=l!==k;}' +
     'else if(k){l=k;}' +
     'else{try{s=window.localStorage.getItem(c.k);}catch(e){}if(ok(s)){l=s;w=true;}}' +

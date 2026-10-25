@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from './WebLink';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { WebIcon } from './WebIcon';
 import { BrandLockup, ButtonLink, MenuItem, cx } from './primitives';

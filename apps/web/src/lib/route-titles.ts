@@ -345,6 +345,8 @@ export const ROUTE_TITLES: Readonly<Record<string, RouteTitleEntry>> = {
   '/[orgSlug]/work/timeline': { en: 'Timeline', key: 'RouteTitle.workTimeline' },
   '/[orgSlug]/work/workload': { en: 'Workload', key: 'RouteTitle.workWorkload' },
   '/': PAGE_OWNS_TITLE,
+  // The Arabic public pages set their Arabic titles themselves (`public-locale-routes.ts`).
+  '/ar/[[...path]]': PAGE_OWNS_TITLE,
   '/resources/[slug]': PAGE_OWNS_TITLE,
   '/website-kit': PAGE_OWNS_TITLE,
 };

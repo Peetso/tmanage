@@ -273,6 +273,8 @@ export default tseslint.config(
       'packages/ui/vr/serve.mjs',
       'apps/web/vr/serve.mjs',
       'apps/web/vr/run.mjs',
+      // Post-build step of the web build (the Arabic pages' <html lang/dir>).
+      'apps/web/scripts/**/*.mjs',
       // The single-process Hostinger server and its build/smoke/branch tooling are Node CLI
       // scripts of exactly this category (50-BOOTSTRAP §3 deployment fallback).
       'apps/server/**/*.mjs',

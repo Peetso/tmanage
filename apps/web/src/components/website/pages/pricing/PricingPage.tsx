@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { useState } from 'react';
 import { Badge } from '@tmanage/ui';
 import { localeDirection } from '../../../../lib/i18n/direction';

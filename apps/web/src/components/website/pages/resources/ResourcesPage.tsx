@@ -9,7 +9,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from 'react';
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { Badge, Button, Field, SearchField } from '@tmanage/ui';
 import { ArrowLink, ButtonLink, IconOrb, cx } from '../../primitives';
 import { CtaBand, WebSection } from '../../sections';

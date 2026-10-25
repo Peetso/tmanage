@@ -97,6 +97,19 @@ export const ROUTE_CONTENT = [
     has: ['Privacy Policy', 'Effective'],
     hasNot: ['setup token'],
   },
+  // The Arabic public pages (NFR-02, audit gap 5): Arabic language, direction and title in the HTML.
+  {
+    path: '/ar',
+    file: 'ar.html',
+    has: ['<html lang="ar" dir="rtl"', 'hrefLang="en" href="/"'],
+    hasNot: ['<html lang="en"', 'setup token'],
+  },
+  {
+    path: '/ar/pricing',
+    file: 'ar/pricing.html',
+    has: ['<html lang="ar" dir="rtl"', '<title>الأسعار · TManage</title>'],
+    hasNot: ['<html lang="en"', '<title>Pricing · TManage</title>', 'setup token'],
+  },
 ];
 
 /**

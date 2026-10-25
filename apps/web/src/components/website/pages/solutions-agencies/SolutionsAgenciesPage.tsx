@@ -1,7 +1,7 @@
 'use client';
 
 import type { ReactNode } from 'react';
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { Avatar, Badge, StateCapsule, type CapsuleState } from '@tmanage/ui';
 import { ButtonLink, CtaBand, SectionHeader, Stat, WebIcon, WebSection } from '../../index';
 import { cx } from '../../primitives';

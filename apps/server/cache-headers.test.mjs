@@ -112,6 +112,21 @@ test('a page rendered for a saved locale never enters the shared cache', () => {
   );
 });
 
+test('an Arabic public page (locale in the URL) keeps the short shared policy like its English twin', () => {
+  for (const path of ['/ar', '/ar/pricing', '/ar/features/communication']) {
+    const upstream = { 'content-type': HTML, 'cache-control': NEXT_PRERENDERED };
+    assert.deepEqual(webCacheHeaders(path, upstream), {
+      'cache-control': PAGE_CACHE_CONTROL,
+      vary: 'Cookie',
+    });
+    // The cookie guard still applies to /ar exactly as to every other page.
+    assert.equal(
+      webCacheHeaders(path, upstream, { cookie: `${LOCALE_COOKIE}=ar-EG` })['cache-control'],
+      LOCALE_PAGE_CACHE_CONTROL,
+    );
+  }
+});
+
 test('hasLocaleCookie matches the cookie name exactly', () => {
   assert.equal(hasLocaleCookie(`${LOCALE_COOKIE}=ar-EG`), true);
   assert.equal(hasLocaleCookie(` x=1;  ${LOCALE_COOKIE}=en-US`), true);

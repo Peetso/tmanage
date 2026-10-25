@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { Avatar, Badge, StateCapsule } from '@tmanage/ui';
 import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import {

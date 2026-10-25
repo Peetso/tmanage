@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { useState } from 'react';
 import { Avatar, Badge, StateCapsule } from '@tmanage/ui';
 import { useT } from '../../../../lib/i18n/use-t';

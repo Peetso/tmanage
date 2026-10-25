@@ -27,7 +27,9 @@ const STATIC_PREFIX = '/_next/static/';
  * it today (the public pages stay prerendered, release no-go 70645c82; the browser applies the
  * locale), but it is the one request input a page could be rendered from, so as a guard every page
  * varies by `Cookie`, and a page served to a request carrying it is never put in a shared cache.
- * Visitors without the cookie keep the short shared policy.
+ * Visitors without the cookie keep the short shared policy. The Arabic public pages (`/ar/...`,
+ * NFR-02) name their language in the URL, not in the cookie, so they are separate CDN objects
+ * under the same rules as their English twins.
  */
 export const LOCALE_COOKIE = 'tmanage_locale';
 

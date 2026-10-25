@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from '../../WebLink';
 import { Avatar } from '@tmanage/ui';
 import type { ApiClient } from '../../../../lib/api/client';
 import { useT } from '../../../../lib/i18n/use-t';

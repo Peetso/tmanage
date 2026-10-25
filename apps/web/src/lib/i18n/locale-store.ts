@@ -94,10 +94,14 @@ function readCookieHeader(): string | null {
   }
 }
 
-/** The boot locale: `?lang=` (persisted when it wins), else the cookie, else the cached locale. */
+/**
+ * The boot locale: an Arabic public page's path or `?lang=` (persisted when it wins), else the
+ * cookie, else the cached locale.
+ */
 function readBoot(): DisplayLocale | undefined {
   const search = typeof globalThis.location === 'undefined' ? '' : globalThis.location.search;
-  const boot = resolveBootLocale(search, readPersisted(), readCookieHeader());
+  const pathname = typeof globalThis.location === 'undefined' ? '' : globalThis.location.pathname;
+  const boot = resolveBootLocale(search, readPersisted(), readCookieHeader(), pathname);
   if (!boot) return undefined;
   if (boot.fromQuery) persist(boot.locale);
   else if (boot.saveCookie) writeLocaleCookie(boot.locale);

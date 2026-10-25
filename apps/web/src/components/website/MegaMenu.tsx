@@ -1,6 +1,6 @@
 'use client';
 
-import Link from 'next/link';
+import Link from './WebLink';
 import { useT } from '../../lib/i18n/use-t';
 import { IconOrb } from './primitives';
 import type { WebFeatured } from './site-nav';

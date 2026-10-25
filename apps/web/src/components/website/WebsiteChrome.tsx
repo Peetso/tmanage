@@ -8,6 +8,8 @@ import { WebFooter } from './WebFooter';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { WebsiteDocumentTitle } from './WebsiteDocumentTitle';
+import { PublicLocaleAlternates } from './PublicLocaleAlternates';
+import { englishPublicPath } from '../../lib/i18n/public-locale-routes';
 import './website.css';
 
 /**
@@ -34,7 +36,9 @@ const CURRENT_BY_PREFIX: readonly [string, string][] = [
 
 function currentEntry(pathname: string | null): string | undefined {
   if (!pathname) return undefined;
-  return CURRENT_BY_PREFIX.find(([prefix]) => pathname.startsWith(prefix))?.[1];
+  // An Arabic page (`/ar/pricing`) marks the same entry as its English twin.
+  const path = englishPublicPath(pathname);
+  return CURRENT_BY_PREFIX.find(([prefix]) => path.startsWith(prefix))?.[1];
 }
 
 /**
@@ -49,6 +53,7 @@ export function WebsiteChrome({ children }: { children: ReactNode }) {
   return (
     <WebsiteChromeContext.Provider value>
       <WebsiteDocumentTitle />
+      <PublicLocaleAlternates />
       <LiveAnnouncer label={tOr('Shell.liveAnnouncements', 'Live announcements')}>
         <div className="tm-web">
           <SkipLink targetId="tm-web-main">{t('WebsiteChrome.skipLink')}</SkipLink>
