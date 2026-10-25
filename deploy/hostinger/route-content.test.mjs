@@ -32,6 +32,37 @@ test('/status serving the setup screen inside its own chrome fails', () => {
   assert.ok(problems.includes("/status is missing 'tm-pub-eyebrow\">Status<'"));
 });
 
+// The locale boot ships an inline dictionary naming every page title on every page.
+const TITLE_DICTIONARY =
+  '<script id="tm-titles">self.__TM_TITLES={"/legal/privacy":"Privacy Policy","/setup":"setup token"}</script>';
+
+test('a title dictionary inside a script does not trip hasNot', () => {
+  assert.deepEqual(
+    routeContentProblems('/features/communication', `${TITLE_DICTIONARY}${COMMUNICATION}`),
+    [],
+  );
+  assert.deepEqual(
+    routeContentProblems('/status', `${STATUS}<SCRIPT>${'Privacy Policy'}</SCRIPT >`),
+    [],
+  );
+});
+
+test('a title dictionary inside a script does not satisfy has', () => {
+  const problems = routeContentProblems('/legal/privacy', `${TITLE_DICTIONARY}${COMMUNICATION}`);
+  assert.ok(problems.includes("/legal/privacy is missing 'Privacy Policy'"));
+});
+
+test('the wrong page body still fails when a title dictionary is present', () => {
+  const communication = routeContentProblems(
+    '/features/communication',
+    `${TITLE_DICTIONARY}${PRIVACY}`,
+  );
+  assert.ok(communication.includes("/features/communication contains 'Privacy Policy'"));
+  assert.ok(communication.includes("/features/communication is missing 'Chat & calendar'"));
+  const status = routeContentProblems('/status', `${STATUS}${TITLE_DICTIONARY}${PRIVACY}`);
+  assert.deepEqual(status, ["/status contains 'Privacy Policy'"]);
+});
+
 test('a path without a rule is reported, not passed', () => {
   assert.deepEqual(routeContentProblems('/nowhere', COMMUNICATION), [
     'no content rule for /nowhere',

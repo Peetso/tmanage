@@ -74,7 +74,9 @@ export function dirtyBundleInputs(porcelain) {
  * Pages whose prerendered HTML is checked in the bundle and on the running server. Each page
  * must hold its own text and none of the page it was once confused with (live-check 014a9d51:
  * /features/communication was reported as the Privacy Policy and /status as the setup screen).
- * HTML entities are decoded for `&amp;` only, which is all these strings need.
+ * HTML entities are decoded for `&amp;` only, which is all these strings need. <script> contents
+ * are dropped before matching: every page ships an inline title dictionary (the locale boot) that
+ * names every page title, 'Privacy Policy' included, and must neither trip a hasNot nor satisfy a has.
  */
 export const ROUTE_CONTENT = [
   {
@@ -107,7 +109,7 @@ export const ROUTE_CONTENT = [
 export function routeContentProblems(path, html) {
   const rule = ROUTE_CONTENT.find((entry) => entry.path === path);
   if (!rule) return [`no content rule for ${path}`];
-  const text = html.replaceAll('&amp;', '&');
+  const text = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '').replaceAll('&amp;', '&');
   return [
     ...rule.has.filter((s) => !text.includes(s)).map((s) => `${path} is missing '${s}'`),
     ...rule.hasNot.filter((s) => text.includes(s)).map((s) => `${path} contains '${s}'`),
