@@ -39,7 +39,7 @@ export { MAX_REQUEST_MESSAGE_FILES };
 /** What a message carries, on either side. */
 export interface PostRequestMessageInput {
   readonly body: string;
-  /** A8: ids of `request_attachment` uploads on this request (0221). */
+  /** A8: ids of `request_message` uploads on this request (0221, purpose 0232). */
   readonly fileIds?: readonly string[] | undefined;
 }
 

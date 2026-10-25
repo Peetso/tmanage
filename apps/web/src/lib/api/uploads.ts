@@ -154,8 +154,9 @@ export async function uploadProjectFile(
 
 /**
  * A8. A client's file for a message on their own request, through the portal upload session:
- * purpose `request_attachment` with the request as `objectId`, so the API binds the file to that
- * request and to the client's organization before the message names it.
+ * purpose `request_message` (0232) with the request as `objectId`, so the API binds the file to
+ * that request and to the client's organization before the message names it, and the request's
+ * own attachment list does not pick it up.
  */
 export async function uploadPortalRequestFile(
   client: ApiClient,
@@ -170,7 +171,7 @@ export async function uploadPortalRequestFile(
   return runUpload(
     client,
     `${orgBase(organizationSlug)}/portal/upload-sessions`,
-    { projectId: input.projectId, purpose: 'request_attachment', objectId: input.requestId },
+    { projectId: input.projectId, purpose: 'request_message', objectId: input.requestId },
     input.file,
     deps,
   );

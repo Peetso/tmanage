@@ -3522,6 +3522,9 @@ export const UPLOAD_PURPOSES = [
   'document',
   // 0224 (A11): the organization's logo on the Organization settings card.
   'org_logo',
+  // 0232: a file sent with a reply on a client request (A8), bound to the request like
+  // `request_attachment` but listed only through `request_message_files`.
+  'request_message',
 ] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 

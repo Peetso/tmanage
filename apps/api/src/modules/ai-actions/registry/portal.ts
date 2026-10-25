@@ -295,7 +295,7 @@ export const portalDetails: readonly AiActionDetail[] = [
     description: 'Post a client message on a portal request. Confirm-class: client-facing.',
     input: bodyArgs(['clientRequestId'], {
       body: f.text(5_000),
-      // A8 (0221): the client's own request_attachment uploads on this request.
+      // A8 (0221): the client's own request_message uploads on this request (0232).
       fileIds: f.id().array().max(10).optional(),
     }),
     redact: 'client_safe',

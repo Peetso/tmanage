@@ -12,6 +12,7 @@ import type { UploadPurpose } from '../../common/database/schema.js';
  * | purpose              | internal | client                                              |
  * | -------------------- | -------- | --------------------------------------------------- |
  * | `request_attachment` | yes      | yes — CL-06 lists "files" on the request form       |
+ * | `request_message`    | yes      | yes — a file sent with a reply on a request (0232)  |
  * | `message_attachment` | yes      | no — a client posts no messages yet (CHAT-001)      |
  * | `deliverable`        | yes      | no — `12-PERMISSION-MATRIX` gives no client role    |
  * |                      |          | "Publish to client"; a client does not deliver      |
@@ -22,8 +23,14 @@ import type { UploadPurpose } from '../../common/database/schema.js';
  */
 const PERMITTED: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = {
   // `org_logo` (A11, 0224): the organization's logo. The route that sets it is `org.manage`.
-  internal: ['request_attachment', 'message_attachment', 'deliverable', 'org_logo'],
-  client: ['request_attachment'],
+  internal: [
+    'request_attachment',
+    'message_attachment',
+    'deliverable',
+    'org_logo',
+    'request_message',
+  ],
+  client: ['request_attachment', 'request_message'],
   // A service principal never uploads through the API; the worker writes versions directly.
   service: [],
 };
@@ -40,6 +47,7 @@ export function mayUploadFor(kind: PrincipalKind, purpose: UploadPurpose): boole
  * | purpose              | internal | client                                                    |
  * | -------------------- | -------- | --------------------------------------------------------- |
  * | `request_attachment` | yes      | yes — their own request's files, held to the request row  |
+ * | `request_message`    | yes      | yes — reply files on their own request, held the same way |
  * | `message_attachment` | yes      | no — a client reads no messages yet (CHAT-001)            |
  * | `deliverable`        | yes      | no — until DEL-001 supplies the published fact (CL-05)    |
  * | `document`           | no       | no — Docs is deferred                                     |
@@ -47,8 +55,14 @@ export function mayUploadFor(kind: PrincipalKind, purpose: UploadPurpose): boole
  * A service principal downloads nothing through the API: a job opens the store directly.
  */
 const DOWNLOADABLE: Readonly<Record<PrincipalKind, readonly UploadPurpose[]>> = {
-  internal: ['request_attachment', 'message_attachment', 'deliverable', 'org_logo'],
-  client: ['request_attachment'],
+  internal: [
+    'request_attachment',
+    'message_attachment',
+    'deliverable',
+    'org_logo',
+    'request_message',
+  ],
+  client: ['request_attachment', 'request_message'],
   service: [],
 };
 
@@ -56,7 +70,19 @@ export function mayDownloadFor(kind: PrincipalKind, purpose: UploadPurpose): boo
   return DOWNLOADABLE[kind].includes(purpose);
 }
 
-/** The purposes whose `objectId` must name an existing row, and which table it names. */
+/**
+ * The purposes whose `objectId` must name an existing row, and which table it names. A reply file
+ * (`request_message`, 0232) is bound to its request exactly as a request-form file is.
+ */
 export function objectTableFor(purpose: UploadPurpose): 'client_requests' | null {
-  return purpose === 'request_attachment' ? 'client_requests' : null;
+  return purpose === 'request_attachment' || purpose === 'request_message'
+    ? 'client_requests'
+    : null;
 }
+
+/** The purposes a file may carry to be attached to a message on a client request (A8). */
+export const REQUEST_MESSAGE_FILE_PURPOSES: readonly UploadPurpose[] = [
+  'request_message',
+  // Uploads from before 0232 (and ones reserved just before a deploy) still attach and list.
+  'request_attachment',
+];

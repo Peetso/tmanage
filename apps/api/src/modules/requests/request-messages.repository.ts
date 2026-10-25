@@ -11,6 +11,7 @@ import {
 } from '../../common/database/schema.js';
 import type { RequestMessageRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { REQUEST_MESSAGE_FILE_PURPOSES } from '../files/purpose-policy.js';
 
 /**
  * Request messages — the storage half of the client <-> studio thread (0212, audit gap 4).
@@ -105,7 +106,7 @@ export class RequestMessagesRepository {
 
   /**
    * A8. Of `fileIds`, the ones that may be attached to a message on this request: a
-   * `request_attachment` upload whose `objectId` is the request, in an attachable state, and —
+   * `request_message` upload (0232; or a `request_attachment` one from before it) whose `objectId` is the request, in an attachable state, and —
    * when `clientOrganizationId` is given (the client door) — uploaded by that client organization.
    * The caller compares the count, so one foreign id refuses the whole post.
    */
@@ -122,7 +123,7 @@ export class RequestMessagesRepository {
     const predicates = [
       eq(fileAssets.organizationId, context.organizationId),
       inArray(fileAssets.id, [...input.fileIds]),
-      eq(fileAssets.purpose, 'request_attachment'),
+      inArray(fileAssets.purpose, [...REQUEST_MESSAGE_FILE_PURPOSES]),
       eq(fileAssets.objectId, input.requestId),
       inArray(fileAssets.status, [...ATTACHABLE_UPLOAD_STATES]),
     ];

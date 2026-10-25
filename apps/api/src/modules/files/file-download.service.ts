@@ -8,7 +8,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
-import { mayDownloadFor } from './purpose-policy.js';
+import { mayDownloadFor, objectTableFor } from './purpose-policy.js';
 import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
@@ -131,7 +131,7 @@ export class FileDownloadService {
 
     if (principal.kind === 'client') {
       const request =
-        asset.purpose === 'request_attachment' && asset.objectId !== null
+        objectTableFor(asset.purpose) === 'client_requests' && asset.objectId !== null
           ? await this.database.read(context, (runner) =>
               this.requests.findById(runner, context, asset.objectId as string),
             )
