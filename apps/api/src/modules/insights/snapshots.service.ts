@@ -5,7 +5,9 @@ import { INSIGHT_SNAPSHOT_KINDS } from '../../common/database/schema.js';
 import type { InsightSnapshotKind, InsightSnapshotRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { InsightsService } from './insights.service.js';
+import { emptyApprovalCycleMetrics } from './approval-cycle.repository.js';
 import { InsightSnapshotsRepository } from './snapshots.repository.js';
+import type { SnapshotProjectScope } from './snapshots.repository.js';
 
 /**
  * x211's service — Insight snapshots (module 15, Insights & reporting).
@@ -129,6 +131,7 @@ export class InsightSnapshotsService {
    */
   async list(
     context: TenantContext,
+    principal: Principal,
     kind: InsightSnapshotKind,
     options: { limit?: number } = {},
   ): Promise<readonly SnapshotView[]> {
@@ -136,7 +139,14 @@ export class InsightSnapshotsService {
     const rows = await this.database.read(context, (runner) =>
       this.repository.list(runner, context, kind, limit),
     );
-    return rows.map(toView);
+    const payloads = await scopeSnapshotPayloadsForReader(
+      this.database,
+      context,
+      principal,
+      rows.map((row) => ({ kind: row.kind, payload: row.payloadJson })),
+      this.repository,
+    );
+    return rows.map((row, index) => toView(row, payloads[index]));
   }
 
   /**
@@ -144,14 +154,21 @@ export class InsightSnapshotsService {
    * exist or belongs to another tenant is a 404, never a cross-tenant leak: the read filters on both
    * `organization_id` and `id`, the composite isolation key.
    */
-  async getById(context: TenantContext, id: string): Promise<SnapshotView> {
+  async getById(context: TenantContext, principal: Principal, id: string): Promise<SnapshotView> {
     const row = await this.database.read(context, (runner) =>
       this.repository.findById(runner, context, id),
     );
     if (!row) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'snapshot_not_found');
     }
-    return toView(row);
+    const [payload] = await scopeSnapshotPayloadsForReader(
+      this.database,
+      context,
+      principal,
+      [{ kind: row.kind, payload: row.payloadJson }],
+      this.repository,
+    );
+    return toView(row, payload);
   }
 
   /** Compute the live metrics for a kind by reusing the insights reads the live screens run. */
@@ -169,12 +186,156 @@ export class InsightSnapshotsService {
   }
 }
 
-/** Project a stored row to the wire shape. `capturedAt` becomes an ISO string; `payload` stays opaque. */
-function toView(row: InsightSnapshotRow): SnapshotView {
+/**
+ * Project a stored row to the wire shape. `capturedAt` becomes an ISO string; `payload` is the
+ * reader-scoped payload (F21), never the stored one unchanged.
+ */
+function toView(row: InsightSnapshotRow, payload: unknown): SnapshotView {
   return {
     id: row.id,
     kind: row.kind,
     capturedAt: row.capturedAt.toISOString(),
-    payload: row.payloadJson,
+    payload,
   };
+}
+
+/**
+ * F21 — a snapshot stores the view its *capturer* could see (an owner's capture names every project
+ * in the tenant), and no capture scope is kept. So every read filters the stored payload for the
+ * *reader*: each project entry is kept only when `authorize(work.read)` passes for the reader on that
+ * project (resolved tenant-scoped now — a project gone since the capture is dropped), exactly the
+ * rule the live portfolio and workload reads apply, and the counts are recomputed from what is kept.
+ * A portfolio entry's approval figures are blanked unless the reader also passes `approval.read` on
+ * that project, as the live portfolio does. Metric alerts evaluate against the same scoped totals.
+ */
+export async function scopeSnapshotPayloadsForReader(
+  database: TenantDatabase,
+  context: TenantContext,
+  principal: Principal,
+  entries: readonly { readonly kind: InsightSnapshotKind; readonly payload: unknown }[],
+  repository: InsightSnapshotsRepository = new InsightSnapshotsRepository(),
+): Promise<readonly unknown[]> {
+  const ids = new Set<string>();
+  for (const entry of entries) {
+    for (const id of payloadProjectIds(entry.payload)) ids.add(id);
+  }
+  const scopes =
+    ids.size === 0 || principal.kind !== 'internal'
+      ? []
+      : await database.read(context, (runner) =>
+          repository.projectScopes(runner, context, [...ids]),
+        );
+  const byId = new Map(scopes.map((scope) => [scope.id, scope]));
+  return entries.map((entry) => scopeSnapshotPayload(entry.kind, entry.payload, principal, byId));
+}
+
+/**
+ * The pure half of {@link scopeSnapshotPayloadsForReader}: filter one stored payload for one reader
+ * given the scope facts of the projects it names. An unexpected payload shape yields `null` (nothing
+ * is shown rather than an unfiltered blob); a client principal keeps no project.
+ */
+export function scopeSnapshotPayload(
+  kind: InsightSnapshotKind,
+  payload: unknown,
+  principal: Principal,
+  scopes: ReadonlyMap<string, SnapshotProjectScope>,
+): unknown {
+  if (!isRecord(payload) || !Array.isArray(payload.projects)) return null;
+  const entries = payload.projects.filter(isRecord);
+  const kept: { readonly entry: PayloadRecord; readonly scope: SnapshotProjectScope }[] = [];
+  for (const entry of entries) {
+    const scope = typeof entry.projectId === 'string' ? scopes.get(entry.projectId) : undefined;
+    if (scope !== undefined && readerMay(principal, scope, 'work.read'))
+      kept.push({ entry, scope });
+  }
+
+  switch (kind) {
+    case 'portfolio': {
+      const projects = kept.map(({ entry, scope }) => {
+        if (readerMay(principal, scope, 'approval.read')) return entry;
+        const cycle = isRecord(entry.approvalCycle) ? entry.approvalCycle : {};
+        return {
+          ...entry,
+          approvalCycle: {
+            ...cycle,
+            projectId: scope.id,
+            metrics: emptyApprovalCycleMetrics(),
+            approvalCount: 0,
+          },
+        };
+      });
+      return { ...payload, projects, projectCount: projects.length };
+    }
+    case 'workload': {
+      const storedTotals = isRecord(payload.totals) ? payload.totals : {};
+      const projects = kept.map(({ entry }) => entry);
+      const dropped = projects.length !== entries.length;
+      return {
+        ...payload,
+        projects,
+        totals: {
+          projectCount: projects.length,
+          // Distinct assignees across projects cannot be recomputed without stored identities;
+          // when a project was dropped, the largest kept project's count is the honest lower
+          // bound, and it never carries a hidden project's people.
+          assigneeCount: dropped
+            ? Math.max(0, ...projects.map((entry) => numberOrZero(entry.assigneeCount)))
+            : numberOrZero(storedTotals.assigneeCount),
+          openItemCount: sum(projects.map((entry) => numberOrZero(entry.openItemCount))),
+          scheduledItemCount: sum(projects.map((entry) => numberOrZero(entry.scheduledItemCount))),
+        },
+      };
+    }
+  }
+}
+
+/** Whether the reader may use `capability` on one project — the live insights reads' resource shape. */
+function readerMay(
+  principal: Principal,
+  scope: SnapshotProjectScope,
+  capability: 'work.read' | 'approval.read',
+): boolean {
+  if (principal.kind !== 'internal') return false;
+  return authorize({
+    principal,
+    capability,
+    resource: {
+      organizationId: scope.organizationId,
+      projectId: scope.id,
+      audience: capability === 'work.read' ? 'internal' : 'client_visible',
+      lifecycle: capability === 'work.read' && scope.archivedAt !== null ? 'archived' : 'active',
+    },
+  }).allowed;
+}
+
+function payloadProjectIds(payload: unknown): string[] {
+  if (!isRecord(payload) || !Array.isArray(payload.projects)) return [];
+  return payload.projects
+    .filter(isRecord)
+    .map((entry) => entry.projectId)
+    .filter((id): id is string => typeof id === 'string');
+}
+
+/** The loose shape a stored payload (or one of its project entries) is read through. */
+interface PayloadRecord {
+  readonly projects?: unknown;
+  readonly totals?: unknown;
+  readonly projectId?: unknown;
+  readonly approvalCycle?: unknown;
+  readonly assigneeCount?: unknown;
+  readonly openItemCount?: unknown;
+  readonly scheduledItemCount?: unknown;
+  readonly [key: string]: unknown;
+}
+
+function isRecord(value: unknown): value is PayloadRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function sum(values: readonly number[]): number {
+  return values.reduce((total, value) => total + value, 0);
 }

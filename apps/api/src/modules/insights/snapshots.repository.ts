@@ -1,6 +1,6 @@
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { insightSnapshots } from '../../common/database/schema.js';
+import { insightSnapshots, projects } from '../../common/database/schema.js';
 import type { InsightSnapshotKind, InsightSnapshotRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -86,4 +86,39 @@ export class InsightSnapshotsRepository {
       .limit(1);
     return rows[0];
   }
+
+  /**
+   * F21: the scope facts a reader's per-project `authorize` needs for the projects a stored payload
+   * names — id, owning organization and archive state. Tenant-scoped on `organization_id`, so a
+   * project id from another tenant (or one deleted since the capture) resolves to nothing and the
+   * service drops it.
+   */
+  async projectScopes(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectIds: readonly string[],
+  ): Promise<readonly SnapshotProjectScope[]> {
+    if (projectIds.length === 0) return [];
+    const db = tenantDrizzle(runner);
+    return db
+      .select({
+        id: projects.id,
+        organizationId: projects.organizationId,
+        archivedAt: projects.archivedAt,
+      })
+      .from(projects)
+      .where(
+        and(
+          eq(projects.organizationId, context.organizationId),
+          inArray(projects.id, [...projectIds]),
+        ),
+      );
+  }
+}
+
+/** F21: one project's scope facts, read so a snapshot payload can be filtered per reader. */
+export interface SnapshotProjectScope {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly archivedAt: Date | null;
 }

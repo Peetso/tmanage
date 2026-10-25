@@ -9,6 +9,8 @@ import type {
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { InsightMetricAlertsRepository } from './metric-alerts.repository.js';
+import { InsightSnapshotsRepository } from './snapshots.repository.js';
+import { scopeSnapshotPayloadsForReader } from './snapshots.service.js';
 
 /**
  * x319's service — Insight metric alerts (module 15, Insights & reporting).
@@ -102,6 +104,7 @@ export class InsightMetricAlertsService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly repository: InsightMetricAlertsRepository = new InsightMetricAlertsRepository(),
+    private readonly snapshots: InsightSnapshotsRepository = new InsightSnapshotsRepository(),
   ) {}
 
   /**
@@ -161,7 +164,19 @@ export class InsightMetricAlertsService {
         this.repository.latestWorkloadPayload(runner, context),
       ),
     ]);
-    const totals = extractTotals(payload);
+    // F21: evaluate against the latest workload snapshot as *this reader* may see it — projects
+    // they cannot read are dropped and the totals recomputed, never the capturer's totals.
+    const [scoped] =
+      payload === undefined
+        ? [undefined]
+        : await scopeSnapshotPayloadsForReader(
+            this.database,
+            context,
+            principal,
+            [{ kind: 'workload', payload }],
+            this.snapshots,
+          );
+    const totals = extractTotals(scoped);
     return rows.map((row) => evaluate(row, totals));
   }
 

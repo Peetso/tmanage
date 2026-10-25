@@ -5,6 +5,7 @@ import { InsightMetricAlertsController } from './metric-alerts.controller.js';
 import { InsightMetricAlertsService } from './metric-alerts.service.js';
 import type { MetricAlertStatusView, MetricAlertView } from './metric-alerts.service.js';
 import type { InsightMetricAlertsRepository } from './metric-alerts.repository.js';
+import type { InsightSnapshotsRepository } from './snapshots.repository.js';
 import type { InsightMetricAlertRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 
@@ -185,13 +186,25 @@ describe('InsightMetricAlertsController', () => {
       const database = {
         read: async (_ctx: TenantContext, run: (r: unknown) => unknown) => run(undefined),
       } as unknown as TenantDatabase;
-      return new InsightMetricAlertsService(database, repository);
+      // The reader's project scopes (F21): the evaluation filters the snapshot for the reader.
+      const snapshots = {
+        projectScopes: async (_r: unknown, _c: unknown, ids: readonly string[]) =>
+          ids.map((id) => ({ id, organizationId: ORG, archivedAt: null })),
+      } as unknown as InsightSnapshotsRepository;
+      return new InsightMetricAlertsService(database, repository, snapshots);
     };
 
+    // A realistic workload payload over three projects the reader is on (8 open, 2 scheduled).
+    const onAll = { ...member(), projectIds: ['p1', 'p2', 'p3'] };
     const withSnapshot = makeService({
+      projects: [
+        { projectId: 'p1', openItemCount: 4, scheduledItemCount: 1, assigneeCount: 2 },
+        { projectId: 'p2', openItemCount: 3, scheduledItemCount: 1, assigneeCount: 2 },
+        { projectId: 'p3', openItemCount: 1, scheduledItemCount: 0, assigneeCount: 1 },
+      ],
       totals: { openItemCount: 8, scheduledItemCount: 2, projectCount: 3, assigneeCount: 4 },
     });
-    expect(await withSnapshot.list(context, member())).toEqual([
+    expect(await withSnapshot.list(context, onAll)).toEqual([
       { metricKey: 'open_items', comparator: 'gte', threshold: 5, currentValue: 8, breached: true },
       {
         metricKey: 'scheduled_items',

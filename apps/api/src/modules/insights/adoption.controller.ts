@@ -292,6 +292,10 @@ export class InsightsAdoptionController {
    * tenant check inside `authorize`.
    */
   private mayReadOrgAdoption(principal: Principal, context: TenantContext): boolean {
+    // F08: an org-level aggregate is tenant-wide and not decomposable per project, and
+    // `authorize` skips the project-relation rule for `projectId: null`. So only a principal whose
+    // scope is the whole organization may read it; a guest or project-scoped member is refused.
+    if (principal.kind !== 'internal' || !principal.hasOrgWideScope) return false;
     return authorize({
       principal,
       capability: 'work.read',

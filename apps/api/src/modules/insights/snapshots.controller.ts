@@ -89,7 +89,7 @@ export class InsightSnapshotsController {
         { field: 'limit', message: 'must be an integer' },
       ]);
     }
-    return this.snapshots.list(context, parsedKind, {
+    return this.snapshots.list(context, principal, parsedKind, {
       ...(parsedLimit === undefined ? {} : { limit: parsedLimit }),
     });
   }
@@ -106,7 +106,7 @@ export class InsightSnapshotsController {
     @Param('snapshotId') snapshotId: string,
   ): Promise<SnapshotView> {
     this.requireOrgInsights(principal, context);
-    return this.snapshots.getById(context, snapshotId);
+    return this.snapshots.getById(context, principal, snapshotId);
   }
 
   /**

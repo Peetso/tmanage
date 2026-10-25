@@ -457,6 +457,8 @@ export class InsightsService {
    * controller already gated on the role.
    */
   private mayReadApproval(principal: Principal, row: ApprovalRow): boolean {
+    // F39: the approval cycle counts staff-only reviews too, so it is internal analytics only.
+    if (principal.kind !== 'internal') return false;
     return authorize({
       principal,
       capability: 'approval.read',

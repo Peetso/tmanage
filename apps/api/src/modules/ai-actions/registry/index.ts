@@ -2479,7 +2479,7 @@ export const OPS: readonly AiActionOp[] = [
     id: 'insights.projects.approval_cycle.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/insights/projects/:projectId/approval-cycle',
-    capability: 'approval.read',
+    capability: 'work.read',
     risk: 'read',
     scope: 'read',
   },

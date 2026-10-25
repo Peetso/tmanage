@@ -104,12 +104,13 @@ export class InsightsController {
 
   /**
    * A project's approval cycle — approval counts by terminal outcome and, for the decided ones,
-   * the requested→decided durations. Behind `approval.read`, x92's approvals capability: a caller
-   * without it is refused by the same `CapabilityGuard` that refuses the sibling `approvals`
-   * reads. Tenant-scoped by `orgSlug`, authorized per approval by the service.
+   * the requested→decided durations. F39: this is internal analytics (it counts staff-only reviews
+   * of versions never published to the client), so the route sits behind `work.read` like its
+   * siblings — internal-only, so every client principal is refused by the `CapabilityGuard`. The
+   * service still re-checks `approval.read` per approval. Tenant-scoped by `orgSlug`.
    */
   @Get('projects/:projectId/approval-cycle')
-  @RequireCapability('approval.read')
+  @RequireCapability('work.read')
   async approvalCycle(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

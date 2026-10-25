@@ -103,7 +103,7 @@ describe('InsightSnapshotsController', () => {
         captured.push(kind);
         return { ...sampleView, kind };
       },
-      list: async (_ctx, kind) => [{ ...sampleView, kind }],
+      list: async (_ctx, _principal, kind) => [{ ...sampleView, kind }],
     });
     const controller = new InsightSnapshotsController(service);
 
