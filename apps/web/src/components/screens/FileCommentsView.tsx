@@ -5,10 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { addFileComment, listFileComments, removeFileComment } from '../../lib/api/file-comments';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface FileCommentsViewProps {
   organizationSlug: string;
@@ -46,6 +47,7 @@ export function FileCommentsView({
   viewerMembershipId,
   client,
 }: FileCommentsViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -184,10 +186,4 @@ export function FileCommentsView({
       </form>
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

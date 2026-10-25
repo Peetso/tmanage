@@ -10,20 +10,14 @@ import {
   deleteChecklistTemplate,
   listChecklistTemplates,
 } from '../../lib/api/work-checklist-templates';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ChecklistTemplatesViewProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /** Split a textarea into an ordered, trimmed, non-empty list of labels — one per line. */
@@ -49,6 +43,7 @@ export function ChecklistTemplatesView({
   organizationName,
   client,
 }: ChecklistTemplatesViewProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queries = useQueryClient();

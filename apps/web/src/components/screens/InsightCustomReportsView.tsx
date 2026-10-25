@@ -18,10 +18,10 @@ import type {
   InsightCustomReportLayout,
   InsightCustomReportMetric,
 } from '../../lib/api/insight-custom-reports';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface InsightCustomReportsViewProps {
   organizationSlug: string;
@@ -66,6 +66,7 @@ export function InsightCustomReportsView({
   organizationName,
   client,
 }: InsightCustomReportsViewProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -321,10 +322,4 @@ export function InsightCustomReportsView({
       </div>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

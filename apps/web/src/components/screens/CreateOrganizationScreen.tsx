@@ -5,7 +5,7 @@ import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { OnboardingShell } from '../shell/OnboardingShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { checkAddressAvailability, createOrganization } from '../../lib/api/organizations';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import {
   MAX_ORGANIZATION_NAME_LENGTH,
@@ -18,6 +18,7 @@ import {
 import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 /**
  * The timezone list.
@@ -160,6 +161,7 @@ export function CreateOrganizationScreen({
   client,
   onCreated,
 }: CreateOrganizationScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -533,18 +535,6 @@ export function CreateOrganizationScreen({
       </form>
     </OnboardingShell>
   );
-}
-
-/**
- * Turn a non-API failure into a sentence.
- *
- * An `ApiRequestError` never reaches here: the caller renders its message verbatim, or
- * attaches its field error to the field, because the API has already decided how specific
- * it is willing to be.
- */
-function describe(error: unknown): string {
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /** The browser's timezone where it is known, `UTC` where it is not. */

@@ -4,11 +4,11 @@ import { useId, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { addWorkComment, listWorkComments, type WorkComment } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDictation } from '../voice/useDictation';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkCommentsPanelProps {
   organizationSlug: string;
@@ -17,12 +17,6 @@ export interface WorkCommentsPanelProps {
 }
 
 const MAX_BODY_LENGTH = 5000;
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
 
 function formatWhen(iso: string): string {
   const at = new Date(iso);
@@ -43,6 +37,7 @@ function formatWhen(iso: string): string {
  * the server rather than an optimistic guess. Comments are internal-only.
  */
 export function WorkCommentsPanel({ organizationSlug, workItemId, api }: WorkCommentsPanelProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-comments', organizationSlug, workItemId] as const;

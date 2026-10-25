@@ -6,11 +6,11 @@ import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { completeMfaChallenge, completeWithRecoveryCode } from '../../lib/api/auth';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/identity.css';
 
 export interface MfaChallengeScreenProps {
@@ -68,6 +68,7 @@ export function MfaChallengeScreen({
   rateLimited = false,
   onCompleted,
 }: MfaChallengeScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const tOr = useTOr();
@@ -330,17 +331,4 @@ export function MfaChallengeScreen({
       ) : null}
     </IdentityShell>
   );
-}
-
-/**
- * Render the API's own message.
- *
- * Safe verbatim because the API is careful: a wrong code, a replayed code, an expired
- * challenge and a spent recovery code all carry the same message. Rewriting it per status
- * would reintroduce exactly the distinction the API removed.
- */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

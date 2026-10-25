@@ -9,10 +9,10 @@ import {
   getOnboardingTour,
   type OnboardingTourStep,
 } from '../../lib/api/onboarding-tour';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface OnboardingTourScreenProps {
   organizationSlug: string;
@@ -40,6 +40,7 @@ export function OnboardingTourScreen({
   organizationName,
   client,
 }: OnboardingTourScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -242,8 +243,3 @@ const TOUR_CSS = `
   .tm-tour__card { padding: 18px; }
 }
 `;
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}

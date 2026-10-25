@@ -17,10 +17,10 @@ import {
   supersedeDecision,
 } from '../../lib/api/decisions';
 import type { DecisionStatus, DecisionSummary } from '../../lib/api/decisions';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DecisionRegisterScreenProps {
   organizationSlug: string;
@@ -63,6 +63,7 @@ export function DecisionRegisterScreen({
   initialProjectId,
   client,
 }: DecisionRegisterScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -594,12 +595,6 @@ function statusTone(status: DecisionStatus): string {
   if (status === 'accepted') return 'tm-dx-pill--active';
   if (status === 'superseded') return 'tm-dx-pill--muted';
   return 'tm-dx-pill--proposed';
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**

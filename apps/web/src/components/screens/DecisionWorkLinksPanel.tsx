@@ -9,9 +9,9 @@ import {
   listDecisionWorkLinks,
   unlinkWorkItemFromDecision,
 } from '../../lib/api/decision-work-links';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DecisionWorkLinksPanelProps {
   organizationSlug: string;
@@ -40,6 +40,7 @@ export function DecisionWorkLinksPanel({
   decisionTitle,
   client,
 }: DecisionWorkLinksPanelProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -196,10 +197,4 @@ export function DecisionWorkLinksPanel({
       ) : null}
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

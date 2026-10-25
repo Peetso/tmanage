@@ -7,10 +7,10 @@ import { InlineAlert, LoadingRegion, SearchField, Skeleton } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations, type OrganizationSummary } from '../../lib/api/organizations';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { describeInternalRole } from '../../lib/roles';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/identity.css';
 
 export interface OrganizationSelectorScreenProps {
@@ -65,6 +65,7 @@ export function OrganizationSelectorScreen({
   client,
   navigate = (href) => window.location.assign(href),
 }: OrganizationSelectorScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const [query, setQuery] = useState('');
@@ -284,10 +285,4 @@ function roleLabel(role: string): string {
   if (label !== role) return label;
   const spaced = role.replace(/_/g, ' ');
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

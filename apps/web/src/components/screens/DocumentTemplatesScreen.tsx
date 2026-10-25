@@ -13,10 +13,10 @@ import {
   listDocumentTemplates,
 } from '../../lib/api/document-templates';
 import { listProjects } from '../../lib/api/projects';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocumentTemplatesScreenProps {
   organizationSlug: string;
@@ -49,6 +49,7 @@ export function DocumentTemplatesScreen({
   organizationName,
   client,
 }: DocumentTemplatesScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -349,10 +350,4 @@ export function DocumentTemplatesScreen({
       </div>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

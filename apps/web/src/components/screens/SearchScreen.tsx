@@ -11,8 +11,8 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { search } from '../../lib/api/search';
 import type { SearchAudience, SearchResultKind, SearchTimeWindow } from '../../lib/api/search';
 import { getResolvedFeatureFlags } from '../../lib/api/admin-feature-flags';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/search-ai.css';
 
 export interface SearchScreenProps {
@@ -74,6 +74,7 @@ export function SearchScreen({
   initialQuery,
   client,
 }: SearchScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
 
@@ -414,10 +415,4 @@ export function shortDate(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '';
   return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

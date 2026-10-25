@@ -6,12 +6,12 @@ import { Announce, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getPublicChangelog } from '../../lib/api/public-changelog';
 import type { PublicChangelogMonthRow } from '../../lib/api/public-changelog';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { PublicIntro, PublicPage } from './public/PublicSite';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ChangelogScreenProps {
   client?: ApiClient;
@@ -40,6 +40,7 @@ export interface ChangelogScreenProps {
  * refinement, and showing the source safely is strictly better than an injection risk.
  */
 export function ChangelogScreen({ client }: ChangelogScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -155,10 +156,4 @@ function formatMonth(month: string): string {
 /** The category, as a short human label. */
 function categoryLabel(category: 'feature' | 'fix' | 'security'): string {
   return category === 'fix' ? 'Fix' : category === 'security' ? 'Security' : 'Feature';
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

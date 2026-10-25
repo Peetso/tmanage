@@ -8,12 +8,12 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getCalendarGrid } from '../../lib/api/calendar-grid';
 import type { CalendarGridDayRow, CalendarGridRange } from '../../lib/api/calendar-grid';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatDay } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { CalendarHeaderActions, CalendarSubnav } from './MeetingsScreen';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/calendar.css';
 
 export interface CalendarGridScreenProps {
@@ -63,6 +63,7 @@ export function CalendarGridScreen({
   initialRange = 'month',
   client,
 }: CalendarGridScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const [range] = useState<CalendarGridRange>(initialRange);
@@ -332,10 +333,4 @@ function intoWeeks(days: readonly CalendarGridDayRow[]): (CalendarGridDayRow | n
     weeks.push(cells.slice(index, index + 7));
   }
   return weeks;
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

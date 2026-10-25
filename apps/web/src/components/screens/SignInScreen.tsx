@@ -9,7 +9,6 @@ import { browserApiClient, csrfCookieName } from '../../lib/api/browser-client';
 import { readCookie } from '../../lib/api/client';
 import { signInWithPassword, type MfaRequiredResponse } from '../../lib/api/auth';
 import { developmentSignIn } from '../../lib/api/session';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import { useHydrated } from '../../lib/use-hydrated';
@@ -19,6 +18,7 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { takeGooglePendingMfa } from '../../lib/api/google-auth';
 import { GoogleSignInButton, googleErrorKey, useGoogleAvailability } from './GoogleSignInButton';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/identity.css';
 
 export interface SignInScreenProps {
@@ -105,6 +105,7 @@ export function SignInScreen({
   onAlreadySignedIn,
   mayHaveSession = browserMayHaveSession,
 }: SignInScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
 
   /**
@@ -431,18 +432,4 @@ export function SignInScreen({
       ) : null}
     </IdentityShell>
   );
-}
-
-/**
- * Turn a thrown value into a sentence.
- *
- * `ApiRequestError.message` is rendered verbatim, and that is safe precisely because the API
- * is careful: every credential refusal carries the same message, so there is nothing here to
- * leak. A screen that rewrote the message per status would be reintroducing the distinction
- * the API removed.
- */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

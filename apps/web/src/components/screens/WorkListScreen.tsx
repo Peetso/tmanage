@@ -13,7 +13,6 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { listWorkItems, MAX_WORK_ITEM_PAGE, updateWorkItem } from '../../lib/api/work-items';
 import type { WorkItemAudience, WorkItemSummary } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
 import {
   audienceLabel,
@@ -30,6 +29,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { OPEN_COMMAND_PALETTE_EVENT } from './CommandPalette';
 import { WorkBoardView } from './WorkBoardView';
 import { useA6T } from '../work/DueDatePicker';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkListScreenProps {
   organizationSlug: string;
@@ -101,6 +101,7 @@ export function WorkListScreen({
   now = new Date(),
   initialView = 'list',
 }: WorkListScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const ta = useA6T();
   const [view, setView] = useState<'list' | 'board'>(initialView);
@@ -1035,10 +1036,4 @@ function compareBy(
   if (left.dueAt === null) return 1;
   if (right.dueAt === null) return -1;
   return left.dueAt.localeCompare(right.dueAt);
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

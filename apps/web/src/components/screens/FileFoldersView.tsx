@@ -11,9 +11,9 @@ import {
   listFileFolders,
   type FileFolder,
 } from '../../lib/api/file-folders';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface FileFoldersViewProps {
   organizationSlug: string;
@@ -21,12 +21,6 @@ export interface FileFoldersViewProps {
   projectId: string;
   projectName: string;
   client?: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -47,6 +41,7 @@ export function FileFoldersView({
   projectName,
   client,
 }: FileFoldersViewProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();

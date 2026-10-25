@@ -5,9 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchWorkRelationsGraph } from '../../lib/api/work-relations-graph';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkRelationsGraphViewProps {
   organizationSlug: string;
@@ -39,6 +39,7 @@ export function WorkRelationsGraphView({
   workItemTitle,
   client,
 }: WorkRelationsGraphViewProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const [depth, setDepth] = useState<number>(1);
@@ -141,10 +142,4 @@ export function WorkRelationsGraphView({
       ) : null}
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

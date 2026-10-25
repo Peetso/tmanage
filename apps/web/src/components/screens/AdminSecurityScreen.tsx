@@ -9,9 +9,9 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { readSecuritySettings, setSecuritySettings } from '../../lib/api/admin-security';
 import { listOrgSessions } from '../../lib/api/admin-sessions';
 import { shortDevice, sinceLabel } from '../admin/format';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface AdminSecurityScreenProps {
   organizationSlug: string;
@@ -33,6 +33,7 @@ export function AdminSecurityScreen({
   organizationName,
   client,
 }: AdminSecurityScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -276,10 +277,4 @@ function formatMoment(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(at);
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

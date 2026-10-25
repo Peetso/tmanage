@@ -9,20 +9,14 @@ import {
   setWorkItemReminder,
   type DueReminder,
 } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkItemReminderViewProps {
   organizationSlug: string;
   workItemId: string;
   api: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 function formatWhen(iso: string): string {
@@ -49,6 +43,7 @@ export function WorkItemReminderView({
   workItemId,
   api,
 }: WorkItemReminderViewProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-reminders-due', organizationSlug] as const;

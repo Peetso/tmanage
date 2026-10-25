@@ -9,9 +9,9 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import { readCustomRoles } from '../../lib/api/admin-roles';
 import { cloneCustomRole, editCustomRole } from '../../lib/api/admin-role-edit';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface RoleEditScreenProps {
   organizationSlug: string;
@@ -39,6 +39,7 @@ export function RoleEditScreen({
   organizationName,
   client,
 }: RoleEditScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -361,10 +362,4 @@ function describeEffect(gains: number, losses: number, renamed: boolean): string
   if (losses > 0) parts.push(`loses ${losses} ${losses === 1 ? 'capability' : 'capabilities'}`);
   if (renamed) parts.push('sees the role under a new name');
   return parts.join(' and ');
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

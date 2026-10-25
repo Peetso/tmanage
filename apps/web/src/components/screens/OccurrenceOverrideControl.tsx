@@ -12,10 +12,11 @@ import {
   upsertOccurrenceOverride,
 } from '../../lib/api/meeting-occurrence-override';
 import type { MeetingOccurrenceOverrideStatus } from '../../lib/api/meeting-occurrence-override';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/calendar.css';
 
 export interface OccurrenceOverrideControlProps {
@@ -55,6 +56,7 @@ export function OccurrenceOverrideControl({
   occurrenceDate,
   client,
 }: OccurrenceOverrideControlProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queries = useQueryClient();
@@ -242,10 +244,4 @@ export function OccurrenceOverrideControl({
       </form>
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

@@ -11,9 +11,9 @@ import {
   type BoardColumn,
   type WorkItemStateKey,
 } from '../../lib/api/board-columns';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkBoardColumnsViewProps {
   organizationSlug: string;
@@ -30,12 +30,6 @@ const STATE_LABELS: Record<WorkItemStateKey, string> = {
   archived: 'Archived',
 };
 
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
-
 /**
  * **x308 — an organization's custom work-board columns.** (Work module 7; 38-MODULE-MAP §Work
  * management board views, 22-SCREEN §Work board.)
@@ -47,6 +41,7 @@ function describe(error: unknown): string {
  * here changes the state machine. Every write invalidates the list so it reflects the server.
  */
 export function WorkBoardColumnsView({ organizationSlug, api }: WorkBoardColumnsViewProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-board-columns', organizationSlug] as const;

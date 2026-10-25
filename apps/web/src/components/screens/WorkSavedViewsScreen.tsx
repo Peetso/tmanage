@@ -9,9 +9,9 @@ import { listProjects } from '../../lib/api/projects';
 import { createSavedView, listSavedViews, updateSavedView } from '../../lib/api/work-views';
 import type { SavedViewInput, SavedViewView } from '../../lib/api/work-views';
 import { savedViewKeys } from '../../lib/query-keys';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/work-planning.css';
 
 export interface WorkSavedViewsScreenProps {
@@ -45,6 +45,7 @@ export function WorkSavedViewsScreen({
   organizationName,
   client,
 }: WorkSavedViewsScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -323,10 +324,4 @@ export function WorkSavedViewsScreen({
       <Announce message={save.isSuccess ? t('WorkSavedViewsScreen.storedAnnounce') : ''} />
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

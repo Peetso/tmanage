@@ -15,11 +15,11 @@ import {
   type WorkFormSummary,
 } from '../../lib/api/work-forms';
 import { listProjects } from '../../lib/api/projects';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/work-planning.css';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkFormsScreenProps {
   organizationSlug: string;
@@ -58,6 +58,7 @@ export function WorkFormsScreen({
   organizationName: passedOrganizationName,
   client,
 }: WorkFormsScreenProps) {
+  const describeError = useDescribeApiError();
   const organizationName = useOrganizationName(organizationSlug, passedOrganizationName);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
@@ -427,9 +428,3 @@ const FIELD_TYPE_LABELS: Record<WorkFormFieldType, string> = {
   date: 'Date',
   checkbox: 'Yes or no',
 };
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}

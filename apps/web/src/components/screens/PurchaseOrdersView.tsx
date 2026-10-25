@@ -12,8 +12,8 @@ import {
   deletePurchaseOrder,
   listPurchaseOrders,
 } from '../../lib/api/purchase-orders';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/billing.css';
 
 export interface PurchaseOrdersViewProps {
@@ -48,6 +48,7 @@ export function PurchaseOrdersView({
   organizationName,
   client,
 }: PurchaseOrdersViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -278,10 +279,4 @@ export function PurchaseOrdersView({
       </div>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

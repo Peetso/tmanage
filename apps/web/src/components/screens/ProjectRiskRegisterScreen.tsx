@@ -19,8 +19,8 @@ import type {
   ProjectInternalRiskStatus,
   ProjectInternalRiskSummary,
 } from '../../lib/api/project-risk-register';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ProjectRiskRegisterScreenProps {
   organizationSlug: string;
@@ -71,6 +71,7 @@ export function ProjectRiskRegisterScreen({
   projectId,
   client,
 }: ProjectRiskRegisterScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -386,10 +387,4 @@ function RiskRow({
       </td>
     </tr>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

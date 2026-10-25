@@ -7,11 +7,11 @@ import { Button, Field, InlineAlert, Select } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { simulatePolicy, type PolicySimulationView } from '../../lib/api/policy-simulate';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useHydrated } from '../../lib/use-hydrated';
 import type { ApiClient } from '../../lib/api/client';
 import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface PolicySimulationScreenProps {
   organizationSlug: string;
@@ -40,6 +40,7 @@ export function PolicySimulationScreen({
   organizationName,
   client,
 }: PolicySimulationScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   // The standing barrier `useHydrated` documents: these are controlled inputs with no query to
@@ -196,10 +197,4 @@ export function PolicySimulationScreen({
       </div>
     </ControlCenterShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

@@ -9,20 +9,14 @@ import {
   unsubscribeFromWorkItem,
   type ItemWatcher,
 } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkWatchersPanelProps {
   organizationSlug: string;
   workItemId: string;
   api: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 function formatWhen(iso: string): string {
@@ -45,6 +39,7 @@ function formatWhen(iso: string): string {
  * roster reflects the server. The toggle drives idempotent PUT/DELETE — a repeat is harmless.
  */
 export function WorkWatchersPanel({ organizationSlug, workItemId, api }: WorkWatchersPanelProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-watchers', organizationSlug, workItemId] as const;

@@ -14,11 +14,11 @@ import type {
   ProjectStatusBand,
   ProjectStatusUpdateSummary,
 } from '../../lib/api/project-status-updates';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { listManagedUpdates } from '../../lib/api/managed-updates';
 import { useA10T } from '../projects/UnpublishUpdateDialog';
 import { UpdateLifecycleControls } from './UpdateLifecycleControls';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ProjectStatusUpdatesScreenProps {
   organizationSlug: string;
@@ -54,6 +54,7 @@ export function ProjectStatusUpdatesScreen({
   projectId,
   client,
 }: ProjectStatusUpdatesScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -249,10 +250,4 @@ function StatusUpdateItem({ update }: { update: ProjectStatusUpdateSummary }) {
       <p className="tm-prose">{update.body}</p>
     </li>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

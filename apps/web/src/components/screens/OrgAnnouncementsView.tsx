@@ -11,9 +11,9 @@ import {
   listActiveAnnouncements,
 } from '../../lib/api/admin-announcements';
 import type { AnnouncementSummary } from '../../lib/api/admin-announcements';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface OrgAnnouncementsViewProps {
   organizationSlug: string;
@@ -48,6 +48,7 @@ export function OrgAnnouncementsView({
   organizationName,
   client,
 }: OrgAnnouncementsViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -306,10 +307,4 @@ function writeDismissed(organizationSlug: string, ids: ReadonlySet<string>): voi
   } catch {
     // A device that refuses storage still dismisses for this session; nothing else to do.
   }
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

@@ -8,19 +8,13 @@ import { ProjectTabs } from '../projects/ProjectTabs';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import { defineProjectTag, listProjectTags } from '../../lib/api/project-tags';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ProjectTagsScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -38,6 +32,7 @@ export function ProjectTagsScreen({
   organizationName,
   client,
 }: ProjectTagsScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();

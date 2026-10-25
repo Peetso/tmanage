@@ -9,8 +9,8 @@ import type { MessageKey } from '../../lib/i18n/t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getTeamCapacityHeatmap } from '../../lib/api/team-capacity-heatmap';
 import type { CapacityHeatmapView } from '../../lib/api/team-capacity-heatmap';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/people.css';
 
 export interface TeamCapacityHeatmapScreenProps {
@@ -73,6 +73,7 @@ export function TeamCapacityHeatmapScreen({
   client,
   defaultFrom,
 }: TeamCapacityHeatmapScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const initialFrom = defaultFrom ?? currentMonday(new Date());
@@ -268,10 +269,4 @@ function HeatmapGrid({ view }: { view: CapacityHeatmapView }) {
       </div>
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

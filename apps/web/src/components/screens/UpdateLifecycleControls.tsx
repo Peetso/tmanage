@@ -5,21 +5,15 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, StateCapsule } from '@tmanage/ui';
 import { editProjectUpdate, unpublishProjectUpdate } from '../../lib/api/portal';
 import type { ManagedUpdate } from '../../lib/api/managed-updates';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { UnpublishUpdateDialog, formatUpdateDay, useA10T } from '../projects/UnpublishUpdateDialog';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../projects/update-card.css';
 
 /** `project_updates.title` is VARCHAR(300). */
 const MAX_UPDATE_TITLE_LENGTH = 300;
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
 
 export interface UpdateLifecycleControlsProps {
   readonly api: ApiClient;
@@ -44,6 +38,7 @@ export function UpdateLifecycleControls({
   organizationSlug,
   update,
 }: UpdateLifecycleControlsProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const a10 = useA10T();
   const locale = useActiveLocale();

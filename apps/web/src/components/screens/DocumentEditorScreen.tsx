@@ -27,10 +27,10 @@ import {
   setDocumentAudience,
 } from '../../lib/api/documents';
 import { listProjects } from '../../lib/api/projects';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocumentEditorScreenProps {
   organizationSlug: string;
@@ -86,6 +86,7 @@ export function DocumentEditorScreen({
   client,
   autosaveDelayMs = 1200,
 }: DocumentEditorScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const tOr = useTOr();
@@ -459,10 +460,4 @@ function formatClock(iso: string, locale: string): string {
     minute: '2-digit',
     hour12: false,
   }).format(at);
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

@@ -12,10 +12,10 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { listRecentDocuments } from '../../lib/api/documents';
 import type { DocumentListScope } from '../../lib/api/documents';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocsHubScreenProps {
   organizationSlug: string;
@@ -49,6 +49,7 @@ export function DocsHubScreen({
   initialProjectId,
   client,
 }: DocsHubScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const [tab, setTab] = useState<HubTab>(initialProjectId ? 'project' : 'recent');
@@ -280,10 +281,4 @@ function formatAge(iso: string): string {
   const weeks = Math.round(days / 7);
   if (weeks < 9) return `${weeks}w`;
   return formatInstant(iso);
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

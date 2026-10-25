@@ -10,10 +10,10 @@ import {
   type BulkTransitionOutcome,
   type BulkTransitionView,
 } from '../../lib/api/work-bulk-transition';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 /** The minimum a row needs to be selected and transitioned in bulk. */
 export interface BulkSelectableWorkItem {
@@ -29,12 +29,6 @@ export interface WorkBulkActionBarProps {
   api: ApiClient;
   /** Called after a batch runs so the list can refetch and reflect the moved rows. */
   onApplied?: (result: BulkTransitionView) => void;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /** Per-outcome wording — plain, so a mixed batch reads as a plain list of what happened. */
@@ -63,6 +57,7 @@ export function WorkBulkActionBar({
   api,
   onApplied,
 }: WorkBulkActionBarProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [target, setTarget] = useState<WorkItemState>('done');

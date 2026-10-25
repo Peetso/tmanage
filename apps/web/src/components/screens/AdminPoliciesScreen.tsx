@@ -7,9 +7,9 @@ import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { readOrgPolicy, updateOrgPolicy, type OrgPolicyUpdateInput } from '../../lib/api/policies';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface AdminPoliciesScreenProps {
   organizationSlug: string;
@@ -39,6 +39,7 @@ export function AdminPoliciesScreen({
   organizationName,
   client,
 }: AdminPoliciesScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -272,10 +273,4 @@ export function AdminPoliciesScreen({
       </div>
     </ControlCenterShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

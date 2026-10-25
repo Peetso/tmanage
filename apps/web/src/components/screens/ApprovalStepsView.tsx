@@ -7,20 +7,14 @@ import {
   listApprovalSteps,
   type ApprovalStep,
 } from '../../lib/api/approval-steps';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ApprovalStepsViewProps {
   organizationSlug: string;
   approvalId: string;
   api: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -35,6 +29,7 @@ function describe(error: unknown): string {
  * mount beside the single-decision panel.
  */
 export function ApprovalStepsView({ organizationSlug, approvalId, api }: ApprovalStepsViewProps) {
+  const describe = useDescribeApiError();
   const queries = useQueryClient();
   const t = useT();
   const queryKey = ['approval-steps', organizationSlug, approvalId] as const;

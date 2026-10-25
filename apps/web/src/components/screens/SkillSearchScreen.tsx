@@ -9,8 +9,8 @@ import {
   type SkillLevel,
   type SkillSearchResult,
 } from '../../lib/api/people-skill-search';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface SkillSearchScreenProps {
   organizationSlug: string;
@@ -19,12 +19,6 @@ export interface SkillSearchScreenProps {
 
 /** The minimum-level options offered, in order. */
 const LEVEL_VALUES: readonly ('' | SkillLevel)[] = ['', 'basic', 'proficient', 'expert'];
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
 
 /**
  * **x194 — find members by skill.** (People module 14; the audit's "People — no skill-based search".)
@@ -36,6 +30,7 @@ function describe(error: unknown): string {
  * skills; this screen reads across members.
  */
 export function SkillSearchScreen({ organizationSlug, api }: SkillSearchScreenProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const [tags, setTags] = useState<readonly string[]>([]);
   const [draft, setDraft] = useState('');

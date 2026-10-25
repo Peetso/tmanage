@@ -9,7 +9,6 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { askCopilot } from '../../lib/api/copilot';
 import type { CopilotAnswerView as CopilotAnswer } from '../../lib/api/copilot';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -21,6 +20,7 @@ import {
   ReadAloudSwitch,
   useReadAloudPreference,
 } from '../voice/VoiceControls';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/search-ai.css';
 
 export interface CopilotAnswerViewProps {
@@ -65,6 +65,7 @@ export function CopilotAnswerView({
   initialQuestion,
   client,
 }: CopilotAnswerViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const [draft, setDraft] = useState<string>(initialQuestion ?? '');
@@ -264,10 +265,4 @@ function AnswerCard({
       </div>
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

@@ -11,12 +11,12 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { DEFAULT_INBOX_PAGE, listInbox, markBundleRead } from '../../lib/api/inbox';
 import type { InboxBundle, InboxItem, InboxMode, InboxUsageNotice } from '../../lib/api/inbox';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { formatInstant, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import { triageStateCapsule, triageStateLabel } from '../../lib/triage-presentation';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/inbox.css';
 
 export interface InboxScreenProps {
@@ -57,6 +57,7 @@ export interface InboxScreenProps {
  * and then asks the list again rather than pretending it knows the outcome.
  */
 export function InboxScreen({ organizationSlug, organizationName, client }: InboxScreenProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
@@ -846,10 +847,4 @@ function reasonOf(bundle: InboxBundle, t: Translate): string {
   }
   if (reasons.length === 0) reasons.push(t('InboxScreen.reasonDefault'));
   return reasons.join(' ');
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

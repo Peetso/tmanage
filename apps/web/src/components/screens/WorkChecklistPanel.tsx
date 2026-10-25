@@ -9,20 +9,14 @@ import {
   updateChecklistItem,
   type WorkChecklistItem,
 } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkChecklistPanelProps {
   organizationSlug: string;
   workItemId: string;
   api: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -38,6 +32,7 @@ function describe(error: unknown): string {
  * the list reflects the server rather than an optimistic guess.
  */
 export function WorkChecklistPanel({ organizationSlug, workItemId, api }: WorkChecklistPanelProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-checklist', organizationSlug, workItemId] as const;

@@ -10,20 +10,14 @@ import {
   updateSubtask,
   type WorkSubtask,
 } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkSubtasksViewProps {
   organizationSlug: string;
   workItemId: string;
   api: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -39,6 +33,7 @@ function describe(error: unknown): string {
  * the list reflects the server rather than an optimistic guess.
  */
 export function WorkSubtasksView({ organizationSlug, workItemId, api }: WorkSubtasksViewProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-subtasks', organizationSlug, workItemId] as const;

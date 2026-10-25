@@ -7,10 +7,10 @@ import { Button, Checkbox, Field, InlineAlert, LoadingRegion, Skeleton } from '@
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createCustomRole, readCustomRoles } from '../../lib/api/admin-roles';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { CAPABILITIES_BY_AREA, capabilityLabel } from '../../lib/capability-labels';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface AdminRolesScreenProps {
   organizationSlug: string;
@@ -39,6 +39,7 @@ export function AdminRolesScreen({
   organizationName,
   client,
 }: AdminRolesScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -248,11 +249,4 @@ function formatDay(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   return at.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

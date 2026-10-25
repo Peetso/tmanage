@@ -6,9 +6,9 @@ import { AppShell } from '../shell/AppShell';
 import { MentionView } from './MentionView';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listMyMentions } from '../../lib/api/my-mentions';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/chat.css';
 
 export interface MyMentionsScreenProps {
@@ -37,6 +37,7 @@ export function MyMentionsScreen({
   organizationName,
   client,
 }: MyMentionsScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -101,10 +102,4 @@ export function MyMentionsScreen({
       </section>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

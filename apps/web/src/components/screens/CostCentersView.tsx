@@ -13,9 +13,9 @@ import {
   unassignCostCenterProject,
   type CostCenterSummary,
 } from '../../lib/api/billing-cost-centers';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/billing.css';
 
 export interface CostCentersViewProps {
@@ -44,6 +44,7 @@ export function CostCentersView({
   organizationName,
   client,
 }: CostCentersViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -185,6 +186,7 @@ interface CostCenterCardProps {
 
 /** One cost center: its code and name, its assigned projects, and the controls to change them. */
 function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenterCardProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const [projectId, setProjectId] = useState('');
   const inputId = `tm-cost-center-project-${center.id}`;
@@ -304,10 +306,4 @@ function CostCenterCard({ center, api, organizationSlug, onChanged }: CostCenter
       </form>
     </article>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

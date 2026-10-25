@@ -26,11 +26,11 @@ import {
 } from '../../lib/api/decisions';
 import { listDecisionWorkLinks } from '../../lib/api/decision-work-links';
 import { listProjects } from '../../lib/api/projects';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { RecordedDecisionToast, takeRecordedFlag } from '../decisions/RecordDecisionDialog';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DecisionDetailScreenProps {
   organizationSlug: string;
@@ -73,6 +73,7 @@ export function DecisionDetailScreen({
   decisionId,
   client,
 }: DecisionDetailScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const tOr = useTOr();
   const locale = useActiveLocale();
@@ -372,6 +373,7 @@ function DecisionEditForm({
     readonly audience: DecisionAudience;
   }) => Promise<void>;
 }) {
+  const describeError = useDescribeApiError();
   const tOr = useTOr();
   const [rationale, setRationale] = useState(decision.rationale ?? '');
   const [audience, setAudience] = useState<DecisionAudience>(decision.audience);
@@ -427,10 +429,4 @@ function DecisionEditForm({
       </div>
     </form>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

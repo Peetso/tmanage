@@ -12,11 +12,12 @@ import { DocumentPublishBar } from '../docs/DocumentAudience';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDocument, getDocumentSharing } from '../../lib/api/documents';
 import { listProjects } from '../../lib/api/projects';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import { useRecordRecentItem } from '../../lib/use-record-recent-item';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocumentViewScreenProps {
   organizationSlug: string;
@@ -48,6 +49,7 @@ export function DocumentViewScreen({
   documentId,
   client,
 }: DocumentViewScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -250,10 +252,4 @@ function formatRelative(iso: string): string {
 function toParagraphs(body: string): readonly string[] {
   const lines = body.split(/\r?\n/).filter((line) => line.trim() !== '');
   return lines.length > 0 ? lines : [body];
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

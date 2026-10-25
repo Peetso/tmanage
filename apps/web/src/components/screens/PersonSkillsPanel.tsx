@@ -10,9 +10,9 @@ import {
   type PersonSkillLevel,
   type PersonSkillSummary,
 } from '../../lib/api/people-skills';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface PersonSkillsPanelProps {
   organizationSlug: string;
@@ -26,12 +26,6 @@ const LEVELS: readonly { value: PersonSkillLevel; label: string }[] = [
   { value: 'expert', label: 'Expert' },
 ];
 
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
-
 /**
  * **x172 — a member's declared skills / tags.** (People module 14; the audit's "People Missing →
  * skills".)
@@ -43,6 +37,7 @@ function describe(error: unknown): string {
  * reflects the server rather than an optimistic guess.
  */
 export function PersonSkillsPanel({ organizationSlug, membershipId, api }: PersonSkillsPanelProps) {
+  const describe = useDescribeApiError();
   const queries = useQueryClient();
   const t = useT();
   const queryKey = ['person-skills', organizationSlug, membershipId] as const;

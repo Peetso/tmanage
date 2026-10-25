@@ -15,8 +15,8 @@ import {
   listInsightSavedViews,
 } from '../../lib/api/insight-saved-views';
 import type { InsightReportKind, InsightSavedViewView } from '../../lib/api/insight-saved-views';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface SavedInsightViewsScreenProps {
   organizationSlug: string;
@@ -56,6 +56,7 @@ export function SavedInsightViewsScreen({
   organizationName,
   client,
 }: SavedInsightViewsScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
@@ -264,10 +265,4 @@ export function SavedInsightViewsScreen({
       </div>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

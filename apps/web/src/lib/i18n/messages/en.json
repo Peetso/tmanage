@@ -12074,5 +12074,7 @@
   "AutomationConditionsScreen.errorRemoveTitle": "Could not remove the condition",
   "AutomationConditionsScreen.keep": "Keep it",
   "AutomationConditionsScreen.removing": "Removing…",
-  "AutomationConditionsScreen.removeConfirm": "Remove"
+  "AutomationConditionsScreen.removeConfirm": "Remove",
+  "ApiError.networkDown": "The API did not answer. Is it running?",
+  "ApiError.generic": "Something went wrong. Try again."
 }

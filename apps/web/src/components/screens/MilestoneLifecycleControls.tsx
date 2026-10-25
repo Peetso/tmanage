@@ -9,18 +9,12 @@ import {
   type MilestoneEdit,
   type MilestoneStatus,
 } from '../../lib/api/portal';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 /** `project_milestones.title` is VARCHAR(300). */
 const MAX_MILESTONE_TITLE_LENGTH = 300;
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
 
 function milestoneCapsuleState(status: MilestoneStatus): 'done' | 'blocked' | 'future' {
   if (status === 'met') return 'done';
@@ -62,6 +56,7 @@ export function MilestoneLifecycleControls({
   status,
   onChange,
 }: MilestoneLifecycleControlsProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const [draftTitle, setDraftTitle] = useState(title);

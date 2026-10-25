@@ -5,11 +5,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { addDocumentComment, listDocumentComments } from '../../lib/api/document-comments';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { initialsOf } from '../docs/DocumentAudience';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocumentCommentsPanelProps {
   organizationSlug: string;
@@ -45,6 +46,7 @@ export function DocumentCommentsPanel({
   documentId,
   client,
 }: DocumentCommentsPanelProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -189,10 +191,4 @@ function formatClock(iso: string): string {
       ? { hour: '2-digit', minute: '2-digit', hour12: false }
       : { day: 'numeric', month: 'short' },
   ).format(at);
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

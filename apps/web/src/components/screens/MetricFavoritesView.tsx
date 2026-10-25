@@ -12,10 +12,10 @@ import {
   removeMetricFavorite,
 } from '../../lib/api/metric-favorites';
 import type { InsightMetricKey } from '../../lib/api/metric-favorites';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface MetricFavoritesViewProps {
   organizationSlug: string;
@@ -55,6 +55,7 @@ export function MetricFavoritesView({
   organizationName,
   client,
 }: MetricFavoritesViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -165,10 +166,4 @@ export function MetricFavoritesView({
       </div>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

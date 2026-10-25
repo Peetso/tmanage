@@ -11,8 +11,8 @@ import {
   listSearchScopes,
   type SearchScope,
 } from '../../lib/api/saved-scopes';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 /** The current search filter set the view can save as a new scope. */
 export interface CurrentScopeFilters {
@@ -49,6 +49,7 @@ export function SearchSavedScopesView({
   onApply,
   client,
 }: SearchSavedScopesViewProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -166,10 +167,4 @@ export function SearchSavedScopesView({
       ) : null}
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

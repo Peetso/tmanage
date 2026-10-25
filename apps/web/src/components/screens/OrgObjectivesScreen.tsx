@@ -16,10 +16,10 @@ import type {
   OrgObjectiveStatus,
   OrgObjectiveSummary,
 } from '../../lib/api/org-objectives';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/portfolio.css';
 
 export interface OrgObjectivesScreenProps {
@@ -55,6 +55,7 @@ export function OrgObjectivesScreen({
   organizationName,
   client,
 }: OrgObjectivesScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -390,10 +391,4 @@ function StatusPill({ status }: { status: OrgObjectiveStatus }) {
       {t(STATUS_LABEL_KEYS[status])}
     </span>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

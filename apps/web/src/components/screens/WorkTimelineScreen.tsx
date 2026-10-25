@@ -9,7 +9,6 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { getWorkTimeline } from '../../lib/api/work-views';
 import type { WorkTimelineRow } from '../../lib/api/work-views';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import {
   formatInstant,
   isOverdue,
@@ -18,6 +17,7 @@ import {
 } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/work-planning.css';
 
 export interface WorkTimelineScreenProps {
@@ -54,6 +54,7 @@ export function WorkTimelineScreen({
   client,
   now: nowProp,
 }: WorkTimelineScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
@@ -413,10 +414,4 @@ function buildChart(rows: readonly WorkTimelineRow[], now: Date): Chart {
 function dependsOnLabel(row: WorkTimelineRow, titlesById: ReadonlyMap<string, string>): string {
   if (row.predecessorIds.length === 0) return '—';
   return row.predecessorIds.map((id) => titlesById.get(id) ?? id).join(', ');
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

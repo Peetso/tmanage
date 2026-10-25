@@ -10,20 +10,14 @@ import {
   listApprovalDelegations,
   revokeApprovalDelegation,
 } from '../../lib/api/approval-delegations';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ApprovalDelegationViewProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /** A `datetime-local` value ("2026-10-01T09:00") to an ISO-8601 instant, or null if unset/invalid. */
@@ -48,6 +42,7 @@ export function ApprovalDelegationView({
   organizationName,
   client,
 }: ApprovalDelegationViewProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();

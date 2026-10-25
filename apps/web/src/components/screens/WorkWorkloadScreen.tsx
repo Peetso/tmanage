@@ -9,11 +9,11 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { getWorkWorkload } from '../../lib/api/work-views';
 import type { WorkloadRow } from '../../lib/api/work-views';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/work-planning.css';
 
 export interface WorkWorkloadScreenProps {
@@ -45,6 +45,7 @@ export function WorkWorkloadScreen({
   initialProjectId,
   client,
 }: WorkWorkloadScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const [projectId, setProjectId] = useState<string>(initialProjectId ?? '');
@@ -237,10 +238,4 @@ function initialsOf(name: string): string {
     .map((word) => word[0] ?? '')
     .join('')
     .toUpperCase();
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

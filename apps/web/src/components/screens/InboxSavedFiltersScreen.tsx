@@ -11,8 +11,8 @@ import {
   deleteInboxSavedFilter,
   listInboxSavedFilters,
 } from '../../lib/api/inbox-saved-filters';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/inbox.css';
 
 export interface InboxSavedFiltersScreenProps {
@@ -37,6 +37,7 @@ export function InboxSavedFiltersScreen({
   currentFilter,
   client,
 }: InboxSavedFiltersScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
@@ -181,10 +182,4 @@ export function InboxSavedFiltersScreen({
       </section>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

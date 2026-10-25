@@ -11,20 +11,14 @@ import {
   listWorkLabels,
   type WorkLabelColor,
 } from '../../lib/api/work-labels';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkLabelsScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -42,6 +36,7 @@ export function WorkLabelsScreen({
   organizationName,
   client,
 }: WorkLabelsScreenProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();

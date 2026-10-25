@@ -10,9 +10,9 @@ import {
   type WorkItemLink,
   type WorkItemLinkType,
 } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkItemDependenciesScreenProps {
   organizationSlug: string;
@@ -28,12 +28,6 @@ const LINK_TYPES: readonly { readonly value: WorkItemLinkType; readonly label: s
 
 function labelForType(type: WorkItemLinkType): string {
   return LINK_TYPES.find((option) => option.value === type)?.label ?? type;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -53,6 +47,7 @@ export function WorkItemDependenciesScreen({
   workItemId,
   api,
 }: WorkItemDependenciesScreenProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const queryKey = ['work-item-links', organizationSlug, workItemId] as const;

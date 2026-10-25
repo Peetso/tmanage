@@ -7,23 +7,17 @@ import { AppShell } from '../shell/AppShell';
 import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listWorkActivity, type WorkActivityEntry } from '../../lib/api/work-activity';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { memberDisplayName } from '../../lib/members-presentation';
 import { useMembers } from '../../lib/use-members';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WorkItemActivityFeedProps {
   organizationSlug: string;
   organizationName: string;
   workItemId: string;
   client?: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 function formatWhen(iso: string): string {
@@ -53,6 +47,7 @@ export function WorkItemActivityFeed({
   workItemId,
   client,
 }: WorkItemActivityFeedProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 

@@ -9,9 +9,9 @@ import {
   listMilestoneDependencies,
   unlinkMilestoneDependency,
 } from '../../lib/api/milestone-links';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface MilestoneDependenciesPanelProps {
   organizationSlug: string;
@@ -41,6 +41,7 @@ export function MilestoneDependenciesPanel({
   milestoneTitle,
   client,
 }: MilestoneDependenciesPanelProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -197,10 +198,4 @@ export function MilestoneDependenciesPanel({
       ) : null}
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

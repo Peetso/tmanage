@@ -9,20 +9,14 @@ import {
   removePersonCertification,
   type PersonCertificationSummary,
 } from '../../lib/api/people-certifications';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface PersonCertificationsViewProps {
   organizationSlug: string;
   userId: string;
   api: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -40,6 +34,7 @@ export function PersonCertificationsView({
   userId,
   api,
 }: PersonCertificationsViewProps) {
+  const describe = useDescribeApiError();
   const queries = useQueryClient();
   const t = useT();
   const queryKey = ['person-certifications', organizationSlug, userId] as const;

@@ -11,9 +11,9 @@ import {
   listDocRevisions,
   restoreDocRevision,
 } from '../../lib/api/doc-revisions';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocRevisionsScreenProps {
   organizationSlug: string;
@@ -43,6 +43,7 @@ export function DocRevisionsScreen({
   documentId,
   client,
 }: DocRevisionsScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -229,10 +230,4 @@ export function DocRevisionsScreen({
       </section>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

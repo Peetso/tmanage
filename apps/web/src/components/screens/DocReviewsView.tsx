@@ -11,11 +11,12 @@ import {
   type DocReviewState,
   type DocReviewView,
 } from '../../lib/api/doc-reviews';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocReviewsViewProps {
   organizationSlug: string;
@@ -50,6 +51,7 @@ const STATE_LABEL_KEY: Record<DocReviewState, MessageKey> = {
  * are shown by id — the honesty `DocumentCommentsPanel`/`DocumentEditorScreen` apply to the same gap.
  */
 export function DocReviewsView({ organizationSlug, documentId, client }: DocReviewsViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -200,6 +202,7 @@ interface ReviewRowProps {
 
 /** One review row: the state chip, who/when, and — while pending — a decision panel. */
 function ReviewRow({ review, api, organizationSlug, documentId, onDecided }: ReviewRowProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const [state, setState] = useState<'approved' | 'changes_requested'>('approved');
   const [note, setNote] = useState('');
@@ -287,10 +290,4 @@ function ReviewRow({ review, api, organizationSlug, documentId, onDecided }: Rev
       )}
     </li>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

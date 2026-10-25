@@ -8,9 +8,9 @@ import {
   postProjectUpdateComment,
   type UpdateComment,
 } from '../../lib/api/portal';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface UpdateCommentsPanelProps {
   organizationSlug: string;
@@ -20,12 +20,6 @@ export interface UpdateCommentsPanelProps {
 }
 
 const MAX_BODY_LENGTH = 5000;
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
 
 function formatWhen(iso: string): string {
   const at = new Date(iso);
@@ -51,6 +45,7 @@ export function UpdateCommentsPanel({
   updateId,
   api,
 }: UpdateCommentsPanelProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const queries = useQueryClient();
   const queryKey = ['project-update-comments', organizationSlug, projectId, updateId] as const;

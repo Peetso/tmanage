@@ -7,11 +7,11 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getNotificationsFeed, markNotificationRead } from '../../lib/api/notifications-feed';
 import type { NotificationView } from '../../lib/api/notifications-feed';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/home.css';
 
 export interface NotificationsFeedScreenProps {
@@ -50,6 +50,7 @@ export function NotificationsFeedScreen({
   organizationName,
   client,
 }: NotificationsFeedScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -309,10 +310,4 @@ function describeType(type: string, t: (key: MessageKey) => string): string {
 function describeObject(item: NotificationView): string {
   const kind = item.objectType.replace(/[._]/g, ' ');
   return kind.length > 0 ? kind.charAt(0).toUpperCase() + kind.slice(1) : 'Update';
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

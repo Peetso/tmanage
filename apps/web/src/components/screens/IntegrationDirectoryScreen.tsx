@@ -12,7 +12,6 @@ import {
   listIntegrationApps,
   type IntegrationAppView,
 } from '../../lib/api/integration-directory';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import {
@@ -22,6 +21,7 @@ import {
   directoryTitle,
   relativeAgo,
 } from './integration-directory-view';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface IntegrationDirectoryScreenProps {
   organizationSlug: string;
@@ -50,6 +50,7 @@ export function IntegrationDirectoryScreen({
   organizationName,
   client,
 }: IntegrationDirectoryScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -424,10 +425,4 @@ function glyphFor(category: string): string {
   if (key.includes('account') || key.includes('financ') || key.includes('billing')) return '◈';
   if (key.includes('dev') || key.includes('code')) return '‹›';
   return '◇';
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

@@ -5,9 +5,9 @@ import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listDocBookmarks } from '../../lib/api/doc-bookmarks';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface MyBookmarksScreenProps {
   organizationSlug: string;
@@ -34,6 +34,7 @@ export function MyBookmarksScreen({
   organizationName,
   client,
 }: MyBookmarksScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -113,10 +114,4 @@ export function MyBookmarksScreen({
       </section>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

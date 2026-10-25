@@ -10,8 +10,8 @@ import { shortRef } from './SearchScreen';
 import '../../styles/screens/search-ai.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listSearchPins, pinEntity, unpinEntity } from '../../lib/api/search-pins';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface SearchPinsViewProps {
   organizationSlug: string;
@@ -45,6 +45,7 @@ export function SearchPinsView({
   organizationName,
   client,
 }: SearchPinsViewProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -226,10 +227,4 @@ export function SearchPinsView({
 
 function typeLabel(objectType: string): string {
   return PIN_OBJECT_TYPES.find((option) => option.value === objectType)?.label ?? objectType;
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

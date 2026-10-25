@@ -12,9 +12,9 @@ import {
   listGlossaryTerms,
   updateGlossaryTerm,
 } from '../../lib/api/glossary';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import type { GlossaryTermSummary } from '../../lib/api/glossary';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface GlossaryScreenProps {
   organizationSlug: string;
@@ -43,6 +43,7 @@ export function GlossaryScreen({
   organizationName,
   client,
 }: GlossaryScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
@@ -242,10 +243,4 @@ export function GlossaryScreen({
       </section>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

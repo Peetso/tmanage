@@ -9,9 +9,9 @@ import {
   listDecisionComments,
   type DecisionComment,
 } from '../../lib/api/decision-comments';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DecisionCommentsViewProps {
   organizationSlug: string;
@@ -22,12 +22,6 @@ export interface DecisionCommentsViewProps {
 }
 
 const MAX_BODY_LENGTH = 5000;
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
 
 function formatWhen(iso: string): string {
   const at = new Date(iso);
@@ -51,6 +45,7 @@ export function DecisionCommentsView({
   membershipId,
   api,
 }: DecisionCommentsViewProps) {
+  const describe = useDescribeApiError();
   const queries = useQueryClient();
   const t = useT();
   const queryKey = ['decision-comments', organizationSlug, decisionId] as const;

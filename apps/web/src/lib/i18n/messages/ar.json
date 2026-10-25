@@ -12074,5 +12074,7 @@
   "AutomationConditionsScreen.errorRemoveTitle": "تعذّرت إزالة الشرط",
   "AutomationConditionsScreen.keep": "الإبقاء عليه",
   "AutomationConditionsScreen.removing": "جارٍ الإزالة…",
-  "AutomationConditionsScreen.removeConfirm": "إزالة"
+  "AutomationConditionsScreen.removeConfirm": "إزالة",
+  "ApiError.networkDown": "لم تستجب الواجهة البرمجية. هل هي قيد التشغيل؟",
+  "ApiError.generic": "حدث خطأ ما. حاول مرة أخرى."
 }

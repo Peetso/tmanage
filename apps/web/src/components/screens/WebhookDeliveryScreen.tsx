@@ -9,9 +9,9 @@ import { AppShell } from '../shell/AppShell';
 import '../../styles/screens/automations.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listWebhookDeliveries, type WebhookDeliveryView } from '../../lib/api/webhook-deliveries';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface WebhookDeliveryScreenProps {
   organizationSlug: string;
@@ -39,6 +39,7 @@ export function WebhookDeliveryScreen({
   endpointId,
   client,
 }: WebhookDeliveryScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -211,10 +212,4 @@ function formatAttempt(iso: string): string {
     .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
     .toUpperCase();
   return `${day} ${date.toISOString().slice(11, 16)} UTC`;
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

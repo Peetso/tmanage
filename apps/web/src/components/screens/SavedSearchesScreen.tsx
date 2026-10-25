@@ -17,9 +17,9 @@ import {
 import type { SavedSearch } from '../../lib/api/saved-searches';
 import { search } from '../../lib/api/search';
 import type { SearchResultKind } from '../../lib/api/search';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { shortRef } from './SearchScreen';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/search-ai.css';
 
 export interface SavedSearchesScreenProps {
@@ -57,6 +57,7 @@ export function SavedSearchesScreen({
   initialQuery,
   client,
 }: SavedSearchesScreenProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -407,10 +408,4 @@ export function SavedSearchesScreen({
       </div>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

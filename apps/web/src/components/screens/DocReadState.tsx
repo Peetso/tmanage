@@ -6,9 +6,9 @@ import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDocReadState, markDocRead, markDocUnread } from '../../lib/api/doc-read-state';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 /** One document the screen shows a read/unread state for. The caller supplies the list it can read. */
 export interface DocReadStateRowInput {
@@ -45,6 +45,7 @@ export function DocReadStateScreen({
   documents,
   client,
 }: DocReadStateScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -202,10 +203,4 @@ export function DocReadStateScreen({
       </section>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

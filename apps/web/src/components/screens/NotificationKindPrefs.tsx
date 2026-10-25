@@ -12,10 +12,10 @@ import {
 } from '../../lib/api/notification-kind-prefs';
 import { getQuietHours } from '../../lib/api/quiet-hours';
 import { getDigestPreference, type DigestPrefView } from '../../lib/api/digest';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/preferences.css';
 
 export interface NotificationKindPrefsProps {
@@ -69,6 +69,7 @@ export function NotificationKindPrefs({
   organizationName,
   client,
 }: NotificationKindPrefsProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const queryClient = useQueryClient();
@@ -237,10 +238,4 @@ function describeDigest(digest: DigestPrefView | undefined, pending: boolean): s
     return `One email every ${WEEKDAYS[digest.dayOfWeek] ?? 'week'} at ${hour}`;
   }
   return `One email a day at ${hour}`;
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

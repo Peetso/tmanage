@@ -7,9 +7,10 @@ import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { appendThreadReply, listThreadReplies } from '../../lib/api/thread-replies';
 import type { ThreadReplyView as ThreadReply } from '../../lib/api/thread-replies';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
 import { formatInstant } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface ThreadViewProps {
   organizationSlug: string;
@@ -48,6 +49,7 @@ export function ThreadView({
   rootMessageBody,
   client,
 }: ThreadViewProps) {
+  const describeError = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
@@ -198,10 +200,4 @@ export function ThreadReplyView({ reply }: ThreadReplyViewProps) {
       </p>
     </li>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

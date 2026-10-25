@@ -6,20 +6,14 @@ import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { defineDocTag, listDocTags } from '../../lib/api/doc-tags';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 
 export interface DocTagsScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
 
 /**
@@ -34,6 +28,7 @@ function describe(error: unknown): string {
  * document detail screen's job, via the paired `assignDocumentTag` helper.
  */
 export function DocTagsScreen({ organizationSlug, organizationName, client }: DocTagsScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();

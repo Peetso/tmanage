@@ -10,7 +10,6 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listProjects } from '../../lib/api/projects';
 import { getWorkCalendar } from '../../lib/api/work-views';
 import type { WorkCalendarDayRow } from '../../lib/api/work-views';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { isOverdue, stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import {
@@ -24,6 +23,7 @@ import {
 } from '../../lib/work-calendar-range';
 import type { CalendarRange } from '../../lib/work-calendar-range';
 import { useT } from '../../lib/i18n/use-t';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/work-planning.css';
 import '../../styles/screens/work-calendar.css';
 
@@ -70,6 +70,7 @@ export function WorkCalendarScreen({
   onRangeChange,
   now: nowProp,
 }: WorkCalendarScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
@@ -355,10 +356,4 @@ function itemClass(
   }
   if (item.state === 'backlog' || item.state === 'archived') return 'wp-cal__item--quiet';
   return '';
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }
