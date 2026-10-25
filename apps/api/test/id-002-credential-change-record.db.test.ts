@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
 import { parseSeedKeys } from '@tmanage/config';
@@ -196,6 +197,8 @@ beforeEach(async () => {
       'user_mfa_factors',
       'user_passwords',
       'authentication_events',
+      'session_refresh_tokens',
+      'sessions',
     ]) {
       await db.admin.query(`TRUNCATE TABLE \`${table}\``);
     }
@@ -203,6 +206,13 @@ beforeEach(async () => {
     await db.admin.query('SET FOREIGN_KEY_CHECKS = 1');
   }
   clockMs = Date.UTC(2026, 8, 12, 12, 0, 0);
+  // F01 (wave 9): a first password is set only from a session signed in within ten minutes, so
+  // every case acts from a live owner session created just now (by the database clock).
+  await db.admin.execute(
+    `insert into sessions (id, user_id, refresh_token_hash, user_agent, expires_at, created_at)
+     values (?, ?, ?, 'vitest', date_add(now(3), interval 1 day), now(3))`,
+    [SESSION, owner().id, randomBytes(32).toString('hex')],
+  );
 });
 
 afterAll(async () => {

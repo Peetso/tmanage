@@ -109,9 +109,10 @@ async function expectPhoneScreen(page: Page, lang: Lang, phone: Dock): Promise<v
   // Hydration paints the English server snapshot first; read the dock once it says its own word.
   await expect(phone.destination('nav.home')).toBeVisible();
   await expect(phone.fab).toBeVisible();
-  // One navigation at a time: the desktop rail is hidden at the dock's breakpoint.
+  // One navigation at a time: the desktop rail is hidden at the dock's breakpoint. Exact, because
+  // the dock's own label ("Primary mobile") contains the rail's ("Primary").
   await expect(
-    page.getByRole('navigation', { name: word(lang, 'shell.rail.primary') }),
+    page.getByRole('navigation', { name: word(lang, 'shell.rail.primary'), exact: true }),
   ).toBeHidden();
 }
 

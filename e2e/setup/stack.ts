@@ -338,6 +338,7 @@ export async function seedApprovalFixture(
     readonly publisherUserId: string;
     readonly publisherMembershipId: string;
     readonly approvedContactEmail: string;
+    readonly approvedContactUserId: string;
   },
 ): Promise<ApprovalFixture> {
   const { stdout } = await run(
@@ -353,6 +354,7 @@ export async function seedApprovalFixture(
       config.publisherUserId,
       config.publisherMembershipId,
       config.approvedContactEmail,
+      config.approvedContactUserId,
     ],
     { cwd: REPO_ROOT, env: { ...process.env, TMANAGE_SEED_DATABASE_URL: databaseUrl } },
   );
@@ -371,7 +373,7 @@ interface SeedWorldForApproval {
     readonly projectId: string;
     readonly manager: { readonly id: string; readonly membershipId: string };
   };
-  readonly atlas: { readonly admin: { readonly email: string } };
+  readonly atlas: { readonly admin: { readonly id: string; readonly email: string } };
 }
 
 export async function bootStack(): Promise<StackState & { stop: () => Promise<void> }> {
@@ -434,6 +436,7 @@ export async function bootStack(): Promise<StackState & { stop: () => Promise<vo
       publisherUserId: seedWorld.northstar.manager.id,
       publisherMembershipId: seedWorld.northstar.manager.membershipId,
       approvedContactEmail: seedWorld.atlas.admin.email,
+      approvedContactUserId: seedWorld.atlas.admin.id,
     });
     (world['atlas'] as Record<string, unknown>)['approval'] = approval;
 

@@ -10,6 +10,7 @@ import { DatabaseModule } from '../src/common/database/database.module.js';
 import { apiConfigFrom } from '../src/common/http/api-config.js';
 import type { ApiConfig, ApiConfigSource } from '../src/common/http/api-config.js';
 import { CSRF_HEADER } from '../src/common/http/csrf.js';
+import { REFUSAL_WINDOW_MS } from '../src/common/http/guards/session-auth.guard.js';
 import { REAUTH_HEADER } from '../src/modules/identity/authentication.controller.js';
 import { base32Decode, hotpCode, totpCounterAt } from '../src/modules/identity/totp.js';
 import { startTestDatabase, truncateAll } from './support/test-database.js';
@@ -336,14 +337,13 @@ describe('POST /v1/auth/password', () => {
     expect(response.json<{ error: { code: string } }>().error.code).toBe('validation_failed');
   });
 
-  it('locks out a further wrong password once the window is full, yet still admits the right one', async () => {
+  it('locks out a further password once the window is full, the right one too (F20)', async () => {
     await setPasswordFor(owner().id);
     for (let attempt = 0; attempt < CONFIG.maxFailuresInWindow; attempt += 1) {
       await post('/v1/auth/password', { email: owner().email, password: 'wrong' });
     }
 
-    // C-1 (verify first, then charge): only the failing path consults the durable window, so a
-    // *wrong* password once the window is full is what the lockout refuses — 429 rate_limited.
+    // A wrong password once the window is full is refused 429 rate_limited.
     const lockedOut = await post('/v1/auth/password', {
       email: owner().email,
       password: 'wrong',
@@ -351,15 +351,15 @@ describe('POST /v1/auth/password', () => {
     expect(lockedOut.statusCode).toBe(429);
     expect(lockedOut.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
 
-    // The DoS-resistance property C-1 exists for: the account holder's *correct* password is
-    // admitted whatever the window says — it is never charged and can never trip a lockout, so
-    // a wrong password from a hostile source can no longer deny the right one.
-    const admitted = await post('/v1/auth/password', {
+    // F20 (wave 9): so is the correct one. Admitting it would make the full window an oracle
+    // that tells a guesser which guess was right; the holder's way out is password reset by email.
+    const refused = await post('/v1/auth/password', {
       email: owner().email,
       password: PASSWORD,
     });
-    expect(admitted.statusCode).toBe(200);
-    expect(admitted.json<{ status: string }>().status).toBe('authenticated');
+    expect(refused.statusCode).toBe(429);
+    expect(refused.json<{ error: { code: string } }>().error.code).toBe('rate_limited');
+    expect(refused.headers['set-cookie']).toBeUndefined();
   });
 
   /**
@@ -1385,11 +1385,15 @@ describe('guard refusals land in the authentication log as user-less failed rows
 
   it('records a missing session and a failed CSRF check, each once, attributed to no user', async () => {
     // Missing session: a read behind the session guard with no cookie is refused 401, and the
-    // guard appends exactly one `missing_session` row.
+    // guard appends exactly one `missing_session` row. Since wave 9 (NV02) the guard writes at most
+    // one such row per source address per minute, and earlier cases in this file were refused from
+    // the default address in the same minute, so this one starts a fresh window from its own address.
+    vi.setSystemTime(Date.now() + REFUSAL_WINDOW_MS);
     const noSession = (await app.inject({
       method: 'GET',
       url: '/v1/auth/factors',
       headers: {},
+      remoteAddress: '198.51.100.23',
     })) as unknown as InjectedResponse;
     expect(noSession.statusCode).toBe(401);
 

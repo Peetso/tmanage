@@ -27,7 +27,7 @@ import { ClientProjectionsRepository } from '../src/modules/approvals/client-pro
  * re-check against the deliverable's *latest* governed version resolves to this exact version.
  *
  * Usage: `tsx test/approval-fixture-cli.ts <organizationId> <projectId> <publisherUserId>
- * <publisherMembershipId> <approvedContactEmail>` with `TMANAGE_SEED_DATABASE_URL` set. Positional
+ * <publisherMembershipId> <approvedContactEmail> <approvedContactUserId>` with `TMANAGE_SEED_DATABASE_URL` set. Positional
  * args (not a JSON blob) because `e2e/setup/stack.ts` spawns through a shell on Windows, and these
  * tokens — UUIDs and an email — carry nothing a shell would re-interpret. stdout is the contract:
  * exactly one JSON line `{ deliverableVersionId, secondDeliverableVersionId }`. Test tooling only.
@@ -39,11 +39,18 @@ interface FixtureConfig {
   readonly publisherUserId: string;
   readonly publisherMembershipId: string;
   readonly approvedContactEmail: string;
+  readonly approvedContactUserId: string;
 }
 
 const url = process.env['TMANAGE_SEED_DATABASE_URL'];
-const [organizationId, projectId, publisherUserId, publisherMembershipId, approvedContactEmail] =
-  process.argv.slice(2);
+const [
+  organizationId,
+  projectId,
+  publisherUserId,
+  publisherMembershipId,
+  approvedContactEmail,
+  approvedContactUserId,
+] = process.argv.slice(2);
 if (!url) {
   console.error('TMANAGE_SEED_DATABASE_URL is not set');
   process.exit(1);
@@ -53,11 +60,12 @@ if (
   !projectId ||
   !publisherUserId ||
   !publisherMembershipId ||
-  !approvedContactEmail
+  !approvedContactEmail ||
+  !approvedContactUserId
 ) {
   console.error(
     'usage: approval-fixture-cli <organizationId> <projectId> <publisherUserId> ' +
-      '<publisherMembershipId> <approvedContactEmail>',
+      '<publisherMembershipId> <approvedContactEmail> <approvedContactUserId>',
   );
   process.exit(1);
 }
@@ -68,6 +76,7 @@ const config: FixtureConfig = {
   publisherUserId,
   publisherMembershipId,
   approvedContactEmail,
+  approvedContactUserId,
 };
 
 const versions = new DeliverableVersionsRepository();
@@ -111,9 +120,10 @@ async function seedOne(
     deliverableId: version.deliverableId,
     deliverableVersionId: version.id,
     contentHash: version.contentHash,
-    // The internal reviewer relation; a client's authority to decide is the project relation
-    // instead (approvals.service `clientDecide`), so this list is never a client.
-    reviewerIds: [config.publisherUserId],
+    // The client contact picked to decide, as the service's own `send` names them. Since wave 9
+    // (F14) `clientDecide` admits only a client named here, and the publisher may not review
+    // their own request.
+    reviewerIds: [config.approvedContactUserId],
   });
   await projections.publish(tx, context, {
     projectId: version.projectId,

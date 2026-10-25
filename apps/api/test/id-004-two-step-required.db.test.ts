@@ -25,6 +25,9 @@ import type { InjectedResponse, Session } from './support/http-harness.js';
  * 3. **What stays open.** The person's own profile and preferences, and turning the switch off.
  * 4. **Tenant-scoped.** Northstar's switch does not reach the adversarial twin.
  * 5. **Audited.** Renaming the organization records `organization.renamed`.
+ *
+ * Since wave 9 (F09/F12b) the switch is set only through the owner-only `PUT …/admin/security`
+ * (`enforce2fa`); the generic `PUT …/settings/require_two_step` is refused for everyone.
  */
 
 let db: TestDatabase;
@@ -88,7 +91,7 @@ async function storedSwitch(organizationId: string): Promise<string | null> {
 async function requireTwoStep(): Promise<void> {
   await factor(owner().id);
   const session = await signIn(owner().id);
-  const response = await send('PUT', '/settings/require_two_step', session, { value: 'true' });
+  const response = await send('PUT', '/admin/security', session, { enforce2fa: true });
   expect(response.statusCode, response.body).toBe(200);
   expect(await storedSwitch(world.northstar.organizationId)).toBe('true');
 }
@@ -115,7 +118,7 @@ afterAll(async () => {
 describe('turning the switch on', () => {
   it('refuses an owner who has not enrolled, with nothing stored', async () => {
     const session = await signIn(owner().id);
-    const response = await send('PUT', '/settings/require_two_step', session, { value: 'true' });
+    const response = await send('PUT', '/admin/security', session, { enforce2fa: true });
     expect(response.statusCode).toBe(409);
     expect(await storedSwitch(world.northstar.organizationId)).toBeNull();
   });
@@ -125,6 +128,16 @@ describe('turning the switch on', () => {
     const session = await signIn(owner().id);
     const response = await send('GET', '/logo', session);
     expect(response.statusCode, response.body).toBe(200);
+  });
+});
+
+describe('who may set the switch (F12b)', () => {
+  it('refuses the generic settings route even to the owner, with nothing stored', async () => {
+    await factor(owner().id);
+    const session = await signIn(owner().id);
+    const response = await send('PUT', '/settings/require_two_step', session, { value: 'true' });
+    expect(response.statusCode, response.body).toBe(403);
+    expect(await storedSwitch(world.northstar.organizationId)).toBeNull();
   });
 });
 
@@ -167,7 +180,7 @@ describe('enforcement', () => {
   it('lets the switch be turned off again, after which nobody is held', async () => {
     await requireTwoStep();
     const session = await signIn(owner().id);
-    const off = await send('PUT', '/settings/require_two_step', session, { value: 'false' });
+    const off = await send('PUT', '/admin/security', session, { enforce2fa: false });
     expect(off.statusCode, off.body).toBe(200);
     expect(await storedSwitch(world.northstar.organizationId)).toBe('false');
     const member = await signIn(designer().id);

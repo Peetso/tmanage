@@ -511,13 +511,23 @@ describe('client decision, once, with team notification and audit (Q3)', () => {
     expect(decided.state).toBe('approved');
 
     const again = await rejection(
-      approvals.clientDecide(adminCtx, atlasAdmin(), versionId, {
+      approvals.clientDecide(reviewerCtx, atlasReviewer(), versionId, {
         decision: 'request_changes',
         feedback: 'Too late to change my mind.',
       }),
     );
     expect(again.status).toBe(409);
     expect(again.auditCode).toBe('approval_terminal');
+
+    // Wave 9 (F14/F15): a client admin who is not an assigned reviewer cannot decide at all - not
+    // even learn that the approval is already resolved. It is the same 404 as a missing one.
+    const outsider = await rejection(
+      approvals.clientDecide(adminCtx, atlasAdmin(), versionId, {
+        decision: 'request_changes',
+        feedback: 'Too late to change my mind.',
+      }),
+    );
+    expect(outsider.status).toBe(404);
 
     const row = await observe('select state, decided_by_user_id from approvals where id = ?', [
       approvalId,

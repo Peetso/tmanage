@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uuidv7 } from '@tmanage/domain';
 import {
@@ -10,6 +11,7 @@ import { IdentityScopeViolation, TenantDatabase } from '../src/common/database/t
 import {
   AuthenticationRejectedError,
   AuthenticationService,
+  FreshSignInRequiredError,
   PasswordRejectedError,
   ReauthenticationRequiredError,
 } from '../src/modules/identity/authentication.service.js';
@@ -140,6 +142,19 @@ function proofFor(userId: string, sessionId = SESSION): string {
   return signReauthToken({ userId, sessionId, expiresAt: new Date(clockMs + 60_000) }, SECRET);
 }
 
+/**
+ * A live `sessions` row for this user, created `ageSeconds` ago by the database clock. F01 (wave 9):
+ * a **first** password is set only from a session signed in no more than ten minutes ago.
+ */
+async function liveSession(userId: string, sessionId = SESSION, ageSeconds = 0): Promise<void> {
+  await db.admin.execute(
+    `insert into sessions (id, user_id, refresh_token_hash, user_agent, expires_at, created_at)
+     values (?, ?, ?, 'vitest', date_add(now(3), interval 1 day),
+             date_sub(now(3), interval ? second))`,
+    [sessionId, userId, randomBytes(32).toString('hex'), ageSeconds],
+  );
+}
+
 /** Set a password directly, so a sign-in case does not depend on the enrolment path. */
 async function giveOwnerAPassword(password = PASSWORD): Promise<void> {
   const hash = await hashPassword(password);
@@ -222,6 +237,11 @@ afterAll(async () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('setting a password', () => {
+  // F01 (wave 9): a first password needs a fresh sign-in on this very session.
+  beforeEach(async () => {
+    await liveSession(owner().id);
+  });
+
   it('stores an Argon2id hash and never the password', async () => {
     await service.setPassword({
       userId: owner().id,
@@ -464,29 +484,30 @@ describe('the lockout window', () => {
     expect((error as AuthenticationRejectedError).reason).toBe('locked_out');
   });
 
-  it('admits the account holder’s correct password even when the window is full (C-1)', async () => {
+  it('locks out even the correct password once the window is full (F20)', async () => {
     await giveOwnerAPassword();
 
-    // A hostile source spends the whole window against a known account.
+    // A guesser spends the whole window against a known account.
     for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
       await service
         .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
         .catch(() => undefined);
     }
 
-    // The holder's own correct password verifies first, so it is admitted rather than locked
-    // out: a single source can no longer drive a known account into a lockout it cannot clear.
-    const outcome = await service.signInWithPassword({
-      email: owner().email,
-      password: PASSWORD,
-      context: context(),
-    });
-    expect(outcome).toEqual({ status: 'authenticated', userId: owner().id });
+    // F20 (wave 9): a full window refuses right and wrong alike, so a correct guess is no longer
+    // the oracle that tells the guesser it was right. The holder's way out is password reset by
+    // email, which never consults this window.
+    const error = await service
+      .signInWithPassword({ email: owner().email, password: PASSWORD, context: context() })
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(AuthenticationRejectedError);
+    expect((error as AuthenticationRejectedError).rejection).toBe('rate_limited');
+    expect((error as AuthenticationRejectedError).reason).toBe('locked_out');
 
-    // And the success did not charge the window: the count is still the five wrong guesses.
+    // The refusal is not a new wrong guess: the count is still the five wrong guesses.
     const failures = await observe(
       `select count(*) as n from authentication_events
-        where user_id = ? and outcome = 'failed'`,
+        where user_id = ? and outcome = 'failed' and reason <> 'locked_out'`,
       [owner().id],
     );
     expect(Number(failures[0]!['n'])).toBe(OPTIONS.maxFailuresInWindow);
@@ -1355,26 +1376,15 @@ describe('the second factor', () => {
     expect((error as AuthenticationRejectedError).reason).toBe('mfa_bad_code');
   });
 
-  // C-1, MFA path. The password oracles admit a correct password through a full window
-  // (`the lockout window` above); `completeMfaChallenge` shared the same window but read it
-  // *before* `spendTotpCode`, so a hostile source that filled it locked an MFA holder out with
-  // a correct code and no way to clear it. Verify-first closes that here too: the code is spent
-  // before the window is consulted, so it is admitted and does not charge the window.
-  it('admits a correct TOTP even when the window is full, without charging it (C-1)', async () => {
+  // F20 (wave 9), MFA path. `completeMfaChallenge` reads the durable window **before** the code
+  // is spent, so a full window refuses a correct code too: a right guess is not admitted while
+  // the account is locked. The holder's way out is password reset by email.
+  it('refuses a correct TOTP once the window is full, without spending it (F20)', async () => {
     await giveOwnerAPassword();
     const secret = await enrolOwnerTotp();
     clockMs += 30_000;
 
-    // A hostile source spends the whole window against the account with wrong passwords.
-    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
-      await service
-        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
-        .catch(() => undefined);
-    }
-
-    // The holder's correct password still admits (C-1 at the password oracle) and returns the
-    // challenge; the correct code is then spent before the window is consulted, so it too is
-    // admitted rather than refused with `locked_out`.
+    // The challenge is obtained while the window is still open ...
     const challenge = await service.signInWithPassword({
       email: owner().email,
       password: PASSWORD,
@@ -1382,17 +1392,28 @@ describe('the second factor', () => {
     });
     if (challenge.status !== 'mfa_required') throw new Error('expected a challenge');
 
-    const completed = await service.completeMfaChallenge({
-      challengeToken: challenge.challengeToken,
-      code: codeFor(secret, clockMs),
-      context: context(),
-    });
-    expect(completed).toEqual({ status: 'authenticated', userId: owner().id });
+    // ... then a guesser spends the whole window against the account with wrong passwords.
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      await service
+        .signInWithPassword({ email: owner().email, password: 'wrong', context: context() })
+        .catch(() => undefined);
+    }
 
-    // The correct code did not charge the window: still exactly the five wrong guesses.
+    const error = await service
+      .completeMfaChallenge({
+        challengeToken: challenge.challengeToken,
+        code: codeFor(secret, clockMs),
+        context: context(),
+      })
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(AuthenticationRejectedError);
+    expect((error as AuthenticationRejectedError).rejection).toBe('rate_limited');
+    expect((error as AuthenticationRejectedError).reason).toBe('locked_out');
+
+    // The password failures are still exactly the five wrong guesses.
     const failures = await observe(
       `select count(*) as n from authentication_events
-        where user_id = ? and outcome = 'failed'`,
+        where user_id = ? and outcome = 'failed' and reason <> 'locked_out'`,
       [owner().id],
     );
     expect(Number(failures[0]!['n'])).toBe(OPTIONS.maxFailuresInWindow);
@@ -1690,7 +1711,8 @@ describe('D05 — re-authentication before a credential changes', () => {
     return error as ReauthenticationRequiredError;
   }
 
-  it('lets a first password be set with no proof, because there is nothing to re-present', async () => {
+  it('lets a first password be set from a fresh sign-in, with no reauth token (F01)', async () => {
+    await liveSession(owner().id);
     await service.setPassword({
       userId: owner().id,
       sessionId: SESSION,
@@ -1700,6 +1722,41 @@ describe('D05 — re-authentication before a credential changes', () => {
     expect(
       await observe('select * from user_passwords where user_id = ?', [owner().id]),
     ).toHaveLength(1);
+  });
+
+  it('refuses a first password from a sign-in older than ten minutes, storing nothing (F01)', async () => {
+    await liveSession(owner().id, SESSION, 11 * 60);
+    const error = await service
+      .setPassword({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        context: context(),
+      })
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(FreshSignInRequiredError);
+    expect(
+      await observe('select * from user_passwords where user_id = ?', [owner().id]),
+    ).toHaveLength(0);
+    const rows = await events(owner().id);
+    expect(rows.map((row) => [row['action'], row['outcome'], row['reason']])).toEqual([
+      ['password_set', 'failed', 'reauth_required'],
+    ]);
+  });
+
+  it('refuses a first password with no session row at all (a bearer token), storing nothing (F01)', async () => {
+    const error = await service
+      .setPassword({
+        userId: owner().id,
+        sessionId: SESSION,
+        password: PASSWORD,
+        context: context(),
+      })
+      .catch((thrown: unknown) => thrown);
+    expect(error).toBeInstanceOf(FreshSignInRequiredError);
+    expect(
+      await observe('select * from user_passwords where user_id = ?', [owner().id]),
+    ).toHaveLength(0);
   });
 
   it('refuses to replace an existing password without proof, and changes nothing', async () => {

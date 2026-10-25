@@ -125,9 +125,34 @@ function reviewer(): Principal {
   );
 }
 
+/**
+ * Northstar's owner asks for the approval. Since wave 9 (S5) a person may not review
+ * their own request, so the requester and the assigned reviewer are two different people.
+ */
+function requester(): Principal {
+  return principal(
+    world.northstar.organizationId,
+    world.northstar.owner.id,
+    world.northstar.owner.membershipId,
+    'owner',
+    [],
+    true,
+  );
+}
+
+function requesterContext(): TenantContext {
+  return contextFor(
+    world.northstar.organizationId,
+    world.northstar.owner.id,
+    world.northstar.owner.membershipId,
+  );
+}
+
 describe('FR-05 open→decide over a content-hashed version (0027)', () => {
   beforeEach(async () => {
-    // The two new tables only; leave the seed world intact.
+    // The approval tables only; leave the seed world intact. The per-reviewer decisions (0235)
+    // reference their approval, so they go first.
+    await db.admin.query('DELETE FROM approval_reviewer_decisions');
     await db.admin.query('DELETE FROM approvals');
     await db.admin.query('DELETE FROM deliverable_versions');
   });
@@ -136,7 +161,7 @@ describe('FR-05 open→decide over a content-hashed version (0027)', () => {
     const deliverableId = uuidv7();
     const versionId = await createVersion(deliverableId, HASH_A);
 
-    const opened = await service.open(northstar, reviewer(), {
+    const opened = await service.open(requesterContext(), requester(), {
       deliverableVersionId: versionId,
       reviewerIds: [world.northstar.manager.id],
     });
@@ -165,7 +190,7 @@ describe('FR-05 open→decide over a content-hashed version (0027)', () => {
     const deliverableId = uuidv7();
     const versionId = await createVersion(deliverableId, HASH_A);
 
-    const opened = await service.open(northstar, reviewer(), {
+    const opened = await service.open(requesterContext(), requester(), {
       deliverableVersionId: versionId,
       reviewerIds: [world.northstar.manager.id],
     });
@@ -185,7 +210,7 @@ describe('FR-05 open→decide over a content-hashed version (0027)', () => {
   it('never resolves a cross-tenant approval', async () => {
     const deliverableId = uuidv7();
     const versionId = await createVersion(deliverableId, HASH_A);
-    const opened = await service.open(northstar, reviewer(), {
+    const opened = await service.open(requesterContext(), requester(), {
       deliverableVersionId: versionId,
       reviewerIds: [world.northstar.manager.id],
     });
