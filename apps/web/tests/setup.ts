@@ -17,4 +17,10 @@ configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => {
   cleanup();
+  // The language switch saves the locale in a cookie as well as localStorage (locale-cookie.ts).
+  // jsdom keeps one cookie jar per file, so clear it like the tests clear localStorage, or one
+  // test's Arabic choice would decide the next test's boot locale.
+  if (typeof document !== 'undefined') {
+    document.cookie = 'tmanage_locale=; Path=/; Max-Age=0';
+  }
 });

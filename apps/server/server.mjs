@@ -254,11 +254,12 @@ function proxyToWeb(req, res, transport) {
     { ...webTarget(transport), method: req.method, path: req.url, headers: req.headers },
     (up) => {
       // HSTS on every page response, and a report-only CSP on HTML (security review §3). Pages
-      // never keep Next's one-year s-maxage at the CDN (cache-headers.mjs, live M1/N1).
+      // never keep Next's one-year s-maxage at the CDN, and vary by the saved-locale cookie
+      // (cache-headers.mjs, live M1/N1, wave 6 E3).
       res.writeHead(up.statusCode ?? 502, {
         ...up.headers,
         ...webSecurityHeaders(up.headers),
-        ...webCacheHeaders(req.url, up.headers),
+        ...webCacheHeaders(req.url, up.headers, req.headers),
       });
       up.pipe(res);
     },

@@ -79,6 +79,8 @@ describe('the inline boot script', () => {
     ] as const) {
       window.history.replaceState(null, '', `/p${search}`);
       window.localStorage.clear();
+      // The boot script saves its choice in the locale cookie too (wave 6 E3); start each case clean.
+      document.cookie = 'tmanage_locale=; Path=/; Max-Age=0';
       if (stored) window.localStorage.setItem(LOCALE_STORAGE_KEY, stored);
       resetDocument();
       const expected = resolveBootLocale(search, stored)?.locale;

@@ -2,9 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer, request } from 'node:http';
 
+import { readFileSync } from 'node:fs';
+
 import {
   API_DEFAULT_CACHE_CONTROL,
+  hasLocaleCookie,
   IMMUTABLE_CACHE_CONTROL,
+  LOCALE_COOKIE,
+  LOCALE_PAGE_CACHE_CONTROL,
   PAGE_CACHE_CONTROL,
   webCacheControl,
   webCacheHeaders,
@@ -47,8 +52,72 @@ test('an authenticated (private / no-store) page keeps its own policy', () => {
   ]) {
     const headers = { 'content-type': HTML, 'cache-control': policy };
     assert.equal(webCacheControl('/acme/home', headers), undefined, policy);
-    assert.deepEqual(webCacheHeaders('/acme/home', headers), {}, policy);
+    // The policy is untouched; only `Vary: Cookie` is added, as on every page (wave 6 E3).
+    assert.deepEqual(webCacheHeaders('/acme/home', headers), { vary: 'Cookie' }, policy);
   }
+});
+
+test('the locale cookie name matches the one the web app writes', () => {
+  const source = readFileSync(
+    new URL('../web/src/lib/i18n/locale-cookie.ts', import.meta.url),
+    'utf8',
+  );
+  assert.match(source, new RegExp(`LOCALE_COOKIE_NAME = '${LOCALE_COOKIE}'`));
+});
+
+test('every page varies by Cookie, keeping what Next already listed', () => {
+  const html = { 'content-type': HTML, 'cache-control': NEXT_PRERENDERED };
+  assert.equal(webCacheHeaders('/pricing', html).vary, 'Cookie');
+  const rsc = {
+    'content-type': 'text/x-component',
+    vary: 'RSC, Next-Router-State-Tree, Next-Router-Prefetch',
+  };
+  assert.equal(
+    webCacheHeaders('/pricing?_rsc=1', rsc).vary,
+    'RSC, Next-Router-State-Tree, Next-Router-Prefetch, Cookie',
+  );
+  assert.equal(webCacheHeaders('/p', { ...html, vary: 'Accept, cookie' }).vary, 'Accept, cookie');
+  // Assets and non-pages are left alone.
+  assert.equal(webCacheHeaders('/_next/static/a.js', { 'content-type': HTML }).vary, undefined);
+  assert.equal(webCacheHeaders('/logo.svg', { 'content-type': 'image/svg+xml' }).vary, undefined);
+});
+
+test('a page rendered for a saved locale never enters the shared cache', () => {
+  const html = { 'content-type': HTML, 'cache-control': NEXT_PRERENDERED };
+  const arabic = { cookie: `a=1; ${LOCALE_COOKIE}=ar-EG; b=2` };
+  assert.equal(
+    webCacheHeaders('/pricing', html, arabic)['cache-control'],
+    LOCALE_PAGE_CACHE_CONTROL,
+  );
+  assert.equal(
+    webCacheHeaders('/pricing', { 'content-type': HTML }, { cookie: `${LOCALE_COOKIE}=en-US` })[
+      'cache-control'
+    ],
+    LOCALE_PAGE_CACHE_CONTROL,
+  );
+  // Without the cookie the short shared policy stands (the response still varies by Cookie).
+  assert.equal(
+    webCacheHeaders('/pricing', html, { cookie: 'other=1' })['cache-control'],
+    PAGE_CACHE_CONTROL,
+  );
+  assert.equal(webCacheHeaders('/pricing', html)['cache-control'], PAGE_CACHE_CONTROL);
+  // A private page keeps its own policy; an asset is never touched by the cookie.
+  const dynamic = { 'content-type': HTML, 'cache-control': 'private, no-cache, no-store' };
+  assert.equal(webCacheHeaders('/pricing', dynamic, arabic)['cache-control'], undefined);
+  assert.equal(
+    webCacheHeaders('/_next/static/a.js', { 'content-type': 'application/javascript' }, arabic)[
+      'cache-control'
+    ],
+    IMMUTABLE_CACHE_CONTROL,
+  );
+});
+
+test('hasLocaleCookie matches the cookie name exactly', () => {
+  assert.equal(hasLocaleCookie(`${LOCALE_COOKIE}=ar-EG`), true);
+  assert.equal(hasLocaleCookie(` x=1;  ${LOCALE_COOKIE}=en-US`), true);
+  assert.equal(hasLocaleCookie(`x${LOCALE_COOKIE}=ar-EG; ${LOCALE_COOKIE}x=1`), false);
+  assert.equal(hasLocaleCookie(undefined), false);
+  assert.equal(hasLocaleCookie(''), false);
 });
 
 test('hashed /_next/static assets keep the immutable year', () => {

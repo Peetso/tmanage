@@ -1,5 +1,6 @@
 import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences';
 import { LOCALE_STORAGE_KEY, resolveBootLocale } from './locale-boot';
+import { writeLocaleCookie } from './locale-cookie';
 
 /**
  * i18n (NFR-02, I18N-01) — the one place the tab's *active* locale lives.
@@ -12,10 +13,11 @@ import { LOCALE_STORAGE_KEY, resolveBootLocale } from './locale-boot';
  * formatters, `t()` — subscribe here. No screen reaches into the DOM or re-reads the preference.
  *
  * The initial value is decided once, by the same rules as the inline `<head>` boot script
- * (`locale-boot.ts`): an allowlisted `?lang=` first (and persisted), then the locale cached in
- * `localStorage`, then the shipped default. So a reload, or a link carrying `?lang=ar`, paints the
- * right direction before the preference query resolves, and the store agrees with what the boot
- * script already set on `<html>`. `localStorage` is a per-browser convenience here, never the
+ * (`locale-boot.ts`): an allowlisted `?lang=` first (and persisted), then the saved-locale cookie
+ * the server rendered with (`locale-cookie.ts`), then the locale cached in `localStorage`, then
+ * the shipped default. Every change is saved in both, so the next load is rendered right. So a
+ * reload, or a link carrying `?lang=ar`, paints the right direction before the preference query
+ * resolves, and the store agrees with what the boot script already set on `<html>`. `localStorage` is a per-browser convenience here, never the
  * source of truth — the server preference is — so a read that throws (private mode, blocked
  * storage) simply yields the default. Nothing is stored that identifies the member.
  */
@@ -83,16 +85,27 @@ function readPersisted(): string | null {
   }
 }
 
-/** The boot locale: `?lang=` (persisted when it wins), else the cached locale. */
+function readCookieHeader(): string | null {
+  if (typeof globalThis.document === 'undefined') return null;
+  try {
+    return globalThis.document.cookie;
+  } catch {
+    return null;
+  }
+}
+
+/** The boot locale: `?lang=` (persisted when it wins), else the cookie, else the cached locale. */
 function readBoot(): DisplayLocale | undefined {
   const search = typeof globalThis.location === 'undefined' ? '' : globalThis.location.search;
-  const boot = resolveBootLocale(search, readPersisted());
+  const boot = resolveBootLocale(search, readPersisted(), readCookieHeader());
   if (!boot) return undefined;
   if (boot.fromQuery) persist(boot.locale);
+  else if (boot.saveCookie) writeLocaleCookie(boot.locale);
   return boot.locale;
 }
 
 function persist(locale: DisplayLocale): void {
+  writeLocaleCookie(locale);
   if (typeof globalThis.localStorage === 'undefined') return;
   try {
     globalThis.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
