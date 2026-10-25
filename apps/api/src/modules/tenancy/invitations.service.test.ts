@@ -9,7 +9,11 @@ import type { InviteeAccountsRepository } from './invitee-accounts.repository.js
 import type { InvitationsRepository } from './invitations.repository.js';
 import type { MembershipsRepository } from './memberships.repository.js';
 import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
+import { customRoleKey } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
+import type { PoliciesRepository } from '../admin/policies.repository.js';
+import { withoutTokenForBoundCaller } from './invitations.controller.js';
+import { requireMayGrantRole } from './role-grant-ceiling.js';
 import {
   ACCOUNT_EXISTS_MESSAGE,
   ALREADY_MEMBER_MESSAGE,
@@ -86,6 +90,15 @@ function harness(
     readonly liveProjectIds?: readonly string[];
     /** F1: the organization's custom roles, by id. */
     readonly customRoles?: readonly { id: string; capabilitiesJson: string }[];
+    /** F06: the inviter's membership at acceptance (default: an active owner). */
+    readonly inviter?: { role: string; status: string } | null;
+    /** F52b: the stored access-policy document, if any. */
+    readonly policy?: unknown;
+    /** F36b: invitations this organization created in the last hour. */
+    readonly issuedLastHour?: number;
+    /** NV04. */
+    readonly platformAdminEmails?: readonly string[];
+    readonly existingAccount?: boolean;
   } = {},
 ): Harness {
   const pending = 'pending' in options ? options.pending : INVITATION;
@@ -117,14 +130,22 @@ function harness(
     liveProjectIds: vi.fn(() => Promise.resolve(options.liveProjectIds ?? [])),
     issue,
     attachProjects,
+    countIssuedInLastHour: vi.fn(() => Promise.resolve(options.issuedLastHour ?? 0)),
+    requireById: vi.fn(() => Promise.resolve(INVITATION)),
+    revoke: vi.fn(() => Promise.resolve({ ...INVITATION, status: 'revoked' })),
+    mailFactsById: vi.fn(() => Promise.resolve(undefined)),
   } as unknown as InvitationsRepository;
 
   const invite = vi.fn(
     options.invite ?? (() => Promise.resolve({ id: 'm-1', version: 1, role: 'member' })),
   );
+  const inviter = 'inviter' in options ? options.inviter : { role: 'owner', status: 'active' };
   const memberships = {
     invite,
     transitionStatus: vi.fn(() => Promise.resolve({ id: 'm-1', role: 'member' })),
+    findByUserId: vi.fn(() =>
+      Promise.resolve(inviter ? { id: 'm-inviter', userId: OWNER, ...inviter } : null),
+    ),
   } as unknown as MembershipsRepository;
 
   const insertUser = vi.fn(options.insertUser ?? (() => Promise.resolve()));
@@ -137,13 +158,21 @@ function harness(
     {} as ClientMembershipsRepository,
     undefined,
     undefined,
-    {},
+    { platformAdminEmails: options.platformAdminEmails ?? [] },
     { insertUser } as unknown as InviteeAccountsRepository,
-    { setPassword } as unknown as CredentialsRepository,
+    {
+      setPassword,
+      findUserIdByEmail: () =>
+        Promise.resolve(options.existingAccount ? { id: USER, displayName: 'Ops' } : null),
+    } as unknown as CredentialsRepository,
     {
       findRoleById: (_r: unknown, _c: unknown, id: string) =>
         Promise.resolve(options.customRoles?.find((role) => role.id === id)),
     } as unknown as MemberBulkRoleRepository,
+    {
+      find: () =>
+        Promise.resolve(options.policy === undefined ? undefined : { policyJson: options.policy }),
+    } as unknown as PoliciesRepository,
   );
   return {
     service,
@@ -426,5 +455,182 @@ describe('F1: an invitation with a custom role', () => {
     );
     expect(error.status).toBe(403);
     expect(issue).not.toHaveBeenCalled();
+  });
+});
+
+describe('Wave 9 S3: who may issue what', () => {
+  const DELEGATE = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5e';
+  const as = (role: Principal['role'], kind: Principal['kind'] = 'internal'): Principal => ({
+    userId: OWNER,
+    organizationId: ORG,
+    kind,
+    role,
+    membershipId: 'm-caller',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: true,
+  });
+  const delegate = as(customRoleKey(DELEGATE, ['org.manage']));
+  const context = {
+    organizationId: ORG,
+    userId: OWNER,
+    correlationId: CORR,
+  } as unknown as TenantContext;
+  const boundContext = { ...context, actorChannel: 'ai_assistant' } as unknown as TenantContext;
+
+  it('F05: a custom org.manage holder cannot invite org_admin, workspace_admin or manager (403, no row)', async () => {
+    for (const role of ['org_admin', 'workspace_admin', 'manager']) {
+      const { service, issue } = harness();
+      const error = await refusal(
+        service.issue(context, delegate, { email: 'alias@example.test', role }),
+      );
+      expect(error.status).toBe(403);
+      expect(error.auditCode).toBe('invitation.issue:role_escalation');
+      expect(issue).not.toHaveBeenCalled();
+    }
+  });
+
+  it('F05: an org admin still invites an org admin (issued)', async () => {
+    const { service, issue } = harness();
+    const issued = await service.issue(context, as('org_admin'), {
+      email: 'alias@example.test',
+      role: 'org_admin',
+    });
+    expect(issue).toHaveBeenCalledTimes(1);
+    expect(issued.token.length).toBeGreaterThan(20);
+  });
+
+  it('F05: a re-issue cannot switch the role to org_admin for a custom-role holder (403, no write)', async () => {
+    const { service, issue } = harness();
+    const error = await refusal(service.reissue(context, delegate, 'inv-1', { role: 'org_admin' }));
+    expect(error.status).toBe(403);
+    expect(issue).not.toHaveBeenCalled();
+  });
+
+  it('F05: the shared ceiling — owner only for owner; a client admin within its own ceiling', () => {
+    expect(() => requireMayGrantRole(as('org_admin'), 'owner', ORG, 'x')).toThrow(ApiError);
+    expect(() => requireMayGrantRole(as('owner'), 'owner', ORG, 'x')).not.toThrow();
+    expect(() => requireMayGrantRole(as('org_admin'), 'workspace_admin', ORG, 'x')).not.toThrow();
+    expect(() =>
+      requireMayGrantRole(as('client_admin', 'client'), 'client_viewer', ORG, 'x'),
+    ).not.toThrow();
+    expect(() => requireMayGrantRole(delegate, 'member', ORG, 'x')).toThrow(ApiError);
+  });
+
+  it('F06: acceptance is refused (404) once the inviter is offboarded', async () => {
+    const { service, markAccepted } = harness({
+      pending: { ...INVITATION, role: 'org_admin' } as InvitationRow,
+      inviter: { role: 'org_admin', status: 'offboarded' },
+    });
+    const error = await refusal(service.accept(TOKEN, USER, CORR));
+    expect(error.status).toBe(404);
+    expect(error.auditCode).toBe('invitation_inviter_revoked');
+    expect(markAccepted).not.toHaveBeenCalled();
+  });
+
+  it('F06: acceptance is refused (404) once the inviter is demoted below the role', async () => {
+    const { service, markAccepted } = harness({
+      pending: { ...INVITATION, role: 'org_admin' } as InvitationRow,
+      inviter: { role: 'member', status: 'active' },
+    });
+    expect((await refusal(service.accept(TOKEN, USER, CORR))).status).toBe(404);
+    expect(markAccepted).not.toHaveBeenCalled();
+  });
+
+  it('F06: the normal path still accepts', async () => {
+    const { service, markAccepted } = harness({ inviter: { role: 'org_admin', status: 'active' } });
+    await service.accept(TOKEN, USER, CORR);
+    expect(markAccepted).toHaveBeenCalledTimes(1);
+  });
+
+  it('F36b: the 51st invitation in an hour is refused with 429 and no row', async () => {
+    const { service, issue } = harness({ issuedLastHour: 50 });
+    const error = await refusal(
+      service.issue(context, as('owner'), { email: 'n51@example.test', role: 'member' }),
+    );
+    expect(error.status).toBe(429);
+    expect(issue).not.toHaveBeenCalled();
+    const under = harness({ issuedLastHour: 49 });
+    await under.service.issue(context, as('owner'), { email: 'n50@example.test', role: 'member' });
+    expect(under.issue).toHaveBeenCalledTimes(1);
+  });
+
+  it('F52b: an address outside a non-empty invite domain allowlist is refused (422)', async () => {
+    const { service, issue } = harness({ policy: { invite_domain_allowlist: ['studio.example'] } });
+    const error = await refusal(
+      service.issue(context, as('owner'), { email: 'x@elsewhere.example', role: 'member' }),
+    );
+    expect(error.status).toBe(422);
+    expect(error.details).toEqual([{ field: 'email', message: 'invite_domain_not_allowed' }]);
+    expect(issue).not.toHaveBeenCalled();
+    await service.issue(context, as('owner'), { email: 'x@studio.example', role: 'member' });
+    expect(issue).toHaveBeenCalledTimes(1);
+  });
+
+  it('F52b: an empty allowlist allows every domain', async () => {
+    const { service, issue } = harness({ policy: { invite_domain_allowlist: [] } });
+    await service.issue(context, as('owner'), { email: 'x@anywhere.example', role: 'member' });
+    expect(issue).toHaveBeenCalledTimes(1);
+  });
+
+  it('F52b: a guest is refused while guest access is off, and issued once it is on', async () => {
+    const off = harness();
+    const error = await refusal(
+      off.service.issue(context, as('owner'), { email: 'g@example.test', role: 'guest' }),
+    );
+    expect(error.status).toBe(422);
+    expect(error.details).toEqual([{ field: 'role', message: 'guest_access_disabled' }]);
+    expect(off.issue).not.toHaveBeenCalled();
+    const on = harness({ policy: { guest_access_enabled: true } });
+    await on.service.issue(context, as('owner'), { email: 'g@example.test', role: 'guest' });
+    expect(on.issue).toHaveBeenCalledTimes(1);
+  });
+
+  it('NV04: an operator address with no account cannot be invited or registered (422)', async () => {
+    const { service, issue, insertUser } = harness({
+      platformAdminEmails: ['ops@dummy.test'],
+      pending: { ...INVITATION, email: 'ops@dummy.test' } as InvitationRow,
+    });
+    const error = await refusal(
+      service.issue(context, as('owner'), { email: 'ops@dummy.test', role: 'member' }),
+    );
+    expect(error.status).toBe(422);
+    expect(issue).not.toHaveBeenCalled();
+    const registration = await refusal(
+      service.register(TOKEN, { displayName: 'Ops', password: 'violet-harbour-lantern-41' }, CORR),
+    );
+    expect(registration.status).toBe(422);
+    expect(insertUser).not.toHaveBeenCalled();
+    // An operator who already has an account is an ordinary invitee.
+    const existing = harness({ platformAdminEmails: ['ops@dummy.test'], existingAccount: true });
+    await existing.service.issue(context, as('owner'), { email: 'ops@dummy.test', role: 'member' });
+    expect(existing.issue).toHaveBeenCalledTimes(1);
+  });
+
+  it('NV13: a bound token cannot invite an org admin (403) and never sees the raw token', async () => {
+    const admin = harness();
+    const error = await refusal(
+      admin.service.issue(boundContext, as('owner'), {
+        email: 'a@example.test',
+        role: 'org_admin',
+      }),
+    );
+    expect(error.status).toBe(403);
+    expect(error.details).toEqual([
+      { field: 'role', message: 'session_required_for_privileged_invite' },
+    ]);
+    expect(admin.issue).not.toHaveBeenCalled();
+
+    const plain = harness();
+    const issued = await plain.service.issue(boundContext, as('owner'), {
+      email: 'm@example.test',
+      role: 'member',
+    });
+    const body = withoutTokenForBoundCaller(boundContext, issued);
+    expect('token' in body).toBe(false);
+    expect(JSON.stringify(body)).not.toContain(issued.token);
+    // A cookie session is unchanged.
+    expect(withoutTokenForBoundCaller(context, issued)).toHaveProperty('token', issued.token);
   });
 });

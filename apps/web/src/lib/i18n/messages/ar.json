@@ -12112,5 +12112,11 @@
   "FirstOwnerSetup.tooManyAttempts": "محاولات كثيرة جدًا. انتظر بضع دقائق ثم حاول مرة أخرى.",
   "MessageBookmark.save": "حفظ",
   "MessageBookmark.saved": "محفوظة",
-  "MessageBookmark.refused": "تعذّر حفظ هذه الرسالة."
+  "MessageBookmark.refused": "تعذّر حفظ هذه الرسالة.",
+  "Invitations.error.invite_domain_not_allowed": "تسمح مؤسستك بالدعوات إلى نطاقاتها فقط.",
+  "Invitations.error.guest_access_disabled": "أوقفت مؤسستك وصول الضيوف.",
+  "Invitations.error.rate_limited": "دعوات كثيرة خلال الساعة الماضية. حاول مرة أخرى لاحقًا.",
+  "Invitations.error.address_not_invitable": "لا يمكن دعوة هذا العنوان.",
+  "Invitations.error.session_required_for_privileged_invite": "‏سجّل الدخول إلى TManage من المتصفح لدعوة شخص بهذا الدور.",
+  "Invitations.error.role_escalation": "يمكنك منح دور تملك صلاحياته فقط."
 }

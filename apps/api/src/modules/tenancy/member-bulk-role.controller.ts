@@ -14,6 +14,8 @@ import type { AuditService } from '../audit/audit.service.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import { BuiltInRolesController, MemberRoleController } from './member-role.controller.js';
 import { MembershipsRepository } from './memberships.repository.js';
+import { InvitationsRepository } from './invitations.repository.js';
+import { isOwnerPrincipal, isRoleAssigner, requireRoleAssigner } from './role-grant-ceiling.js';
 
 /**
  * Admin bulk role assignment (Administration module 18, x222) — the deeper flow the audit named after
@@ -94,6 +96,10 @@ export class MemberBulkRoleController {
     @Optional()
     @Inject(MembershipsRepository)
     private readonly memberships: MembershipsRepository = new MembershipsRepository(),
+    /** F06: a member who loses `org.manage` here loses the invitations they issued. */
+    @Optional()
+    @Inject(InvitationsRepository)
+    private readonly invitations: InvitationsRepository = new InvitationsRepository(),
   ) {}
 
   /**
@@ -122,6 +128,10 @@ export class MemberBulkRoleController {
 
       // 2. The real org-wide `org.manage` decision (the decorator is the coarse HTTP gate).
       this.requireOrgManage(principal, context);
+      // F30: the single-member route's assigner rule — only an owner or organization admin
+      // assigns roles (`12-PERMISSION-MATRIX` §2), so a delegated `org.manage` custom role cannot
+      // re-role anyone in bulk. Refused before any membership is read or written.
+      requireRoleAssigner(principal, 'member_bulk_role');
 
       // 3. Re-run the escalation guard on the role's capability subset: a bulk assign may never grant a
       //    capability the caller cannot itself exercise org-wide (403, no write).
@@ -132,8 +142,25 @@ export class MemberBulkRoleController {
       //    reported not-found. Per-id, not all-or-nothing. Only an owner may change an owner's seat:
       //    since the organization admin also holds `org.manage` (ADM-03), an admin could otherwise
       //    demote every owner and keep the organization. Each landed change is audited (ADM-11).
-      const keepOwners = !(principal.kind === 'internal' && principal.role === 'owner');
+      const keepOwners = !isOwnerPrincipal(principal);
       if (!keepOwners) await this.requireAnOwnerRemains(tx, context, membershipIds);
+      // Every target is validated before the first write: an organization admin seat is changed
+      // only by an owner or organization admin (defence in depth behind the assigner rule).
+      const targets = new Map<string, Awaited<ReturnType<MembershipsRepository['findById']>>>();
+      for (const membershipId of membershipIds) {
+        const target = await this.memberships.findById(tx, context, membershipId);
+        if (target?.role === 'org_admin' && !isRoleAssigner(principal)) {
+          throw new ApiError(
+            403,
+            'forbidden',
+            MESSAGES.forbidden,
+            undefined,
+            'member_bulk_role.admin_seat',
+          );
+        }
+        targets.set(membershipId, target);
+      }
+      const removesOrgManage = !capabilities.includes('org.manage');
       const outcomes: MemberBulkRoleView['assignments'][number][] = [];
       for (const membershipId of membershipIds) {
         const applied = await this.repository.assignRole(tx, context, membershipId, roleId, {
@@ -141,11 +168,22 @@ export class MemberBulkRoleController {
         });
         outcomes.push({ membershipId, outcome: applied ? 'assigned' : 'not_found' });
         if (applied) {
+          // F06: the new role lacks `org.manage`, so this member's pending invitations go too.
+          const target = targets.get(membershipId);
+          const invitationsRevoked =
+            removesOrgManage && target
+              ? await this.invitations.revokePendingIssuedBy(tx, context, target.userId)
+              : 0;
           await this.audit?.record(tx, context, {
             action: 'membership.role_changed',
             objectId: membershipId,
             result: 'allowed',
-            metadata: { custom_role_id: roleId },
+            metadata: {
+              custom_role_id: roleId,
+              ...(invitationsRevoked > 0
+                ? { invitations_revoked: String(invitationsRevoked) }
+                : {}),
+            },
           });
         }
       }

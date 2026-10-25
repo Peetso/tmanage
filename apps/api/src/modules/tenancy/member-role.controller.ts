@@ -3,6 +3,7 @@ import {
   CAPABILITIES,
   capabilitiesFor,
   CLIENT_ROLES,
+  hasCapability,
   INTERNAL_ROLES,
   isInternalRole,
   mayGrantCapability,
@@ -16,6 +17,12 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { AuditService } from '../audit/audit.service.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import { MembershipsRepository, MembershipVersionConflictError } from './memberships.repository.js';
+import { InvitationsRepository } from './invitations.repository.js';
+import {
+  isOwnerPrincipal as isOwner,
+  isRoleAssigner,
+  requireRoleAssigner as requireAssigner,
+} from './role-grant-ceiling.js';
 
 /**
  * ADM-01 — a member's built-in role, chosen on invite and changed later (audit gap 5).
@@ -91,22 +98,14 @@ export function customRoleCapabilities(json: string): readonly Capability[] {
   }
 }
 
-/** The roles that may assign roles at all (`12-PERMISSION-MATRIX` §2 "Assign roles"). */
-const ROLE_ASSIGNERS: readonly string[] = ['owner', 'org_admin'];
-
-function isOwner(principal: Principal): boolean {
-  return principal.kind === 'internal' && principal.role === 'owner';
-}
-
+/** `12-PERMISSION-MATRIX` §2 "Assign roles": owner and org_admin, shared with every grant path. */
 function requireRoleAssigner(principal: Principal): void {
-  if (principal.kind !== 'internal' || !ROLE_ASSIGNERS.includes(principal.role)) {
-    throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'member_role.assigner');
-  }
+  requireAssigner(principal, 'member_role');
 }
 
 /** Every built-in role with its capability ceiling, internal roles first (most-privileged first). */
 export function builtInRoles(principal: Principal): readonly BuiltInRoleView[] {
-  const assigner = principal.kind === 'internal' && ROLE_ASSIGNERS.includes(principal.role);
+  const assigner = isRoleAssigner(principal);
   const internal = INTERNAL_ROLES.map((role) => ({
     role,
     kind: 'internal' as const,
@@ -144,6 +143,10 @@ export class MemberRoleController {
     @Optional()
     @Inject(MemberBulkRoleRepository)
     private readonly customRoles: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
+    /** F06: the pending invitations a member issued are withdrawn when they lose `org.manage`. */
+    @Optional()
+    @Inject(InvitationsRepository)
+    private readonly invitations: InvitationsRepository = new InvitationsRepository(),
   ) {}
 
   /**
@@ -183,11 +186,13 @@ export class MemberRoleController {
     requireRoleAssigner(principal);
 
     return this.database.transaction(context, async (tx) => {
+      let grantsOrgManage = customRoleId === undefined && hasCapability(role as Role, 'org.manage');
       if (customRoleId !== undefined) {
         // F1: resolve the custom role tenant-scoped before anything else (a foreign id is a 404
         // like an unknown one), then the escalation guard on its capability subset (403).
         const custom = await this.customRoles.findRoleById(tx, context, customRoleId);
         if (!custom) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+        grantsOrgManage = customRoleCapabilities(custom.capabilitiesJson).includes('org.manage');
         for (const capability of customRoleCapabilities(custom.capabilitiesJson)) {
           const verdict = mayGrantCapability(principal, capability, context.organizationId);
           if (!verdict.allowed) {
@@ -265,6 +270,12 @@ export class MemberRoleController {
         throw error;
       }
 
+      // F06: a demotion that removes `org.manage` withdraws the invitations this member issued,
+      // in the same transaction, so authority they handed out does not outlive their own.
+      const invitationsRevoked = grantsOrgManage
+        ? 0
+        : await this.invitations.revokePendingIssuedBy(tx, context, updated.userId);
+
       await this.audit?.record(tx, context, {
         action: 'membership.role_changed',
         objectId: updated.id,
@@ -274,6 +285,7 @@ export class MemberRoleController {
           previous_role: previousRole,
           new_role: role,
           ...(customRoleId === undefined ? {} : { custom_role_id: customRoleId }),
+          ...(invitationsRevoked > 0 ? { invitations_revoked: String(invitationsRevoked) } : {}),
         },
       });
       return view(updated, true);

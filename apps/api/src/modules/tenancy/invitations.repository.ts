@@ -383,6 +383,47 @@ export class InvitationsRepository {
     return result[0].affectedRows;
   }
 
+  /**
+   * F06: withdraw every pending invitation one person issued in this tenant — run inside the
+   * offboard transaction and on a role change that takes `org.manage` away, so authority the
+   * person delegated does not outlive their own. Returns how many moved, for the audit row.
+   */
+  async revokePendingIssuedBy(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .update(invitations)
+      .set({
+        status: 'revoked',
+        revokedAt: sql`current_timestamp(3)`,
+        updatedAt: sql`current_timestamp(3)`,
+      })
+      .where(
+        and(
+          eq(invitations.organizationId, context.organizationId),
+          eq(invitations.invitedByUserId, userId),
+          eq(invitations.status, 'pending'),
+        ),
+      );
+    return result[0].affectedRows;
+  }
+
+  /** F36b: how many invitations this tenant created in the last hour (re-issues included). */
+  async countIssuedInLastHour(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
+    const rows = await tenantDrizzle(runner)
+      .select({ count: sql<number>`count(*)` })
+      .from(invitations)
+      .where(
+        and(
+          eq(invitations.organizationId, context.organizationId),
+          sql`${invitations.createdAt} > current_timestamp(3) - interval 1 hour`,
+        ),
+      );
+    return Number(rows[0]?.count ?? 0);
+  }
+
   /** The pending invitations for one address, newest first. Used to refuse a duplicate. */
   async findPendingForEmail(
     runner: TenantQueryRunner,

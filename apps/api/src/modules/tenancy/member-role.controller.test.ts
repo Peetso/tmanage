@@ -1,9 +1,11 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
+import { customRoleKey } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { builtInRoles, MemberRoleController } from './member-role.controller.js';
 import type { MembershipsRepository } from './memberships.repository.js';
 import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
+import type { InvitationsRepository } from './invitations.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -75,10 +77,18 @@ function setup(rows: Row[]) {
     findRoleById: (_r: unknown, _c: unknown, id: string) =>
       Promise.resolve(CUSTOM_ROLES.find((role) => role.id === id)),
   } as unknown as MemberBulkRoleRepository;
+  const revokedFor: string[] = [];
+  const invitations = {
+    revokePendingIssuedBy: (_r: unknown, _c: unknown, userId: string) => {
+      revokedFor.push(userId);
+      return Promise.resolve(1);
+    },
+  } as unknown as InvitationsRepository;
   return {
-    controller: new MemberRoleController(database, memberships, audit, customRoles),
+    controller: new MemberRoleController(database, memberships, audit, customRoles, invitations),
     audits,
     scopes,
+    revokedFor,
   };
 }
 
@@ -161,6 +171,39 @@ describe('MemberRoleController (ADM-01)', () => {
     expect(admin.find((r) => r.role === 'manager')?.capabilities).toContain('project.manage');
     expect(admin.find((r) => r.role === 'owner')?.assignable).toBe(false);
     expect(builtInRoles(principal('owner')).find((r) => r.role === 'owner')?.assignable).toBe(true);
+  });
+
+  describe('F06: a demotion that removes org.manage withdraws the member’s invitations', () => {
+    it('revokes them in the same transaction and records the count', async () => {
+      const { controller, audits, revokedFor } = setup([member({ role: 'org_admin' })]);
+      await controller.change(context, principal('owner'), 'u1', { role: 'member' });
+      expect(revokedFor).toEqual(['u1']);
+      expect(audits).toEqual([
+        expect.objectContaining({
+          metadata: expect.objectContaining({ invitations_revoked: '1' }),
+        }),
+      ]);
+    });
+
+    it('leaves them when the new role still holds org.manage', async () => {
+      const { controller, revokedFor } = setup([
+        member({ role: 'owner' }),
+        member({ id: 'm2', userId: 'u2', role: 'owner' }),
+      ]);
+      await controller.change(context, principal('owner'), 'u1', { role: 'org_admin' });
+      expect(revokedFor).toEqual([]);
+    });
+  });
+
+  describe('F30: the single route keeps the shared assigner rule', () => {
+    it('403s a custom org.manage holder changing any role, with no write', async () => {
+      const { controller, audits } = setup([member()]);
+      const delegated = principal(customRoleKey(PROJECT_LEAD, ['org.manage', 'work.read']));
+      expect(await status(controller.change(context, delegated, 'u1', { role: 'guest' }))).toBe(
+        403,
+      );
+      expect(audits).toEqual([]);
+    });
   });
 
   describe('custom roles (F1)', () => {

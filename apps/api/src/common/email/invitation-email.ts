@@ -81,6 +81,43 @@ function oneLine(value: string): string {
   return value.replaceAll(/\s+/gu, ' ').trim();
 }
 
+/** F36b: an interpolated name is at most this many characters in a subject or a body. */
+export const MAX_MAIL_NAME_LENGTH = 60;
+
+/** A run that a mail client would turn into a link: a scheme, `www.`, or `label.tld/…`. */
+const URL_LIKE =
+  /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S*|[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.[a-z]{2,}(?:[/:?#]\S*)?/giu;
+
+/** A run that reads as a phone number: seven or more digits joined by spaces, dots or dashes. */
+const PHONE_LIKE = /\+?\d(?:[\s().-]*\d){6,}/gu;
+
+/** An email address, which a name must never smuggle into the copy either. */
+const EMAIL_LIKE = /\S+@\S+/gu;
+
+/**
+ * F36b — names somebody else typed (the organization, the inviter, the client company) are
+ * flattened to one line, stripped of anything a reader or a mail client would act on (a link,
+ * an address, a phone number), and capped. A platform-branded invitation must not carry an
+ * attacker's "call +1 555 0100" or "pay at evil.example" in its own voice.
+ */
+export function mailSafeName(value: string): string {
+  const neutralised = oneLine(value)
+    .replaceAll(EMAIL_LIKE, '…')
+    .replaceAll(URL_LIKE, '…')
+    .replaceAll(PHONE_LIKE, '…')
+    .replaceAll(/(?:…\s*)+/gu, '… ')
+    .trim();
+  const chars = [...neutralised];
+  const capped =
+    chars.length > MAX_MAIL_NAME_LENGTH
+      ? `${chars
+          .slice(0, MAX_MAIL_NAME_LENGTH - 1)
+          .join('')
+          .trimEnd()}…`
+      : neutralised;
+  return capped === '' || capped === '…' ? '—' : capped;
+}
+
 /** A date a person reads — "13 September 2026" — fixed to UTC, which the copy then names. */
 function expiryDate(expiresAt: Date, arabic: boolean): string {
   return new Intl.DateTimeFormat(arabic ? 'ar-EG-u-nu-latn' : 'en-GB', {
@@ -123,12 +160,12 @@ interface Copy {
 
 function copyFor(facts: InvitationEmailFacts): { readonly copy: Copy; readonly arabic: boolean } {
   const arabic = (facts.locale ?? 'en').toLowerCase().startsWith('ar');
-  const organization = oneLine(facts.organizationName);
-  const inviter = oneLine(facts.inviterName);
+  const organization = mailSafeName(facts.organizationName);
+  const inviter = mailSafeName(facts.inviterName);
   const role = roleLabel(oneLine(facts.role), arabic);
   const expiry = `${expiryDate(facts.expiresAt, arabic)} (UTC)`;
   const client =
-    facts.clientOrganizationName === null ? null : oneLine(facts.clientOrganizationName);
+    facts.clientOrganizationName === null ? null : mailSafeName(facts.clientOrganizationName);
 
   if (arabic) {
     return {
@@ -226,11 +263,11 @@ function renderInvitationHtml(copy: Copy, sender: Sender, link: string, arabic: 
 
 export function composeInvitationEmail(facts: InvitationEmailFacts): MailMessage {
   const { copy, arabic } = copyFor(facts);
-  const inviter = oneLine(facts.inviterName);
+  const inviter = mailSafeName(facts.inviterName);
   const sender: Sender = {
     initials: initialsOf(inviter),
     name: inviter,
-    organization: oneLine(facts.organizationName),
+    organization: mailSafeName(facts.organizationName),
   };
   const action = `${copy.button}: ${facts.link}`;
   const text = [copy.heading, copy.intro, action, copy.expiry, copy.footer].join('\n\n');

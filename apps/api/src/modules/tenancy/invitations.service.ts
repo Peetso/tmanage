@@ -1,12 +1,15 @@
 import {
   authorize,
+  CLIENT_ROLES,
+  hasCapability,
   isClientRole,
   isInternalRole,
   mayGrantCapability,
+  parseCustomRoleCapabilities,
   PROJECT_ROLES,
   uuidv7,
 } from '@tmanage/domain';
-import type { Principal } from '@tmanage/domain';
+import type { Capability, ClientRole, Principal } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import { serializeForLog } from '../../common/observability/logger.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -38,6 +41,15 @@ import {
   InviteeAccountsRepository,
   isDuplicateKey,
 } from './invitee-accounts.repository.js';
+import { PoliciesRepository } from '../admin/policies.repository.js';
+import { normalizePolicy } from '../admin/policies.allowlist.js';
+import { parsePlatformAdminEmails } from '../platform-admin/platform-admin.access.js';
+import {
+  capabilitiesOfStoredRole,
+  exceedsCaller,
+  requireMayGrantRole,
+  ROLE_ASSIGNERS,
+} from './role-grant-ceiling.js';
 
 /**
  * TEN-003 — issuing, accepting, revoking and expiring an invitation.
@@ -156,6 +168,9 @@ export interface IssuedInvitationView {
    *
    * Returned **whatever `delivery` says**: the printed link is the bootstrap fallback, and
    * an email that was sent does not make the issuer's own copy of the link less theirs.
+   *
+   * `InvitationsController` drops it for a bound-token caller (NV13) — see `withoutToken`
+   * there — so a personal access token or AI grant never sees the raw link.
    */
   readonly token: string;
   /**
@@ -233,7 +248,36 @@ export interface RegisterInvitationInput {
 
 export interface InvitationsServiceOptions {
   readonly ttlDays?: number;
+  /**
+   * NV04: `PLATFORM_ADMIN_EMAILS`, parsed. Defaults to the environment variable the API config
+   * reads, so every construction site refuses the same addresses without extra wiring.
+   */
+  readonly platformAdminEmails?: readonly string[];
+  /** F36b: invitations one organization may issue (or re-issue) per rolling hour. */
+  readonly issueLimitPerHour?: number;
 }
+
+/** F36b: the default per-organization issuance ceiling — far above any real onboarding day. */
+export const INVITATION_ISSUE_LIMIT_PER_HOUR = 50;
+
+/**
+ * NV13: the roles a bound token (a personal access token or an AI grant) may invite with. A token
+ * must not mint a credential that outlives its own revocation with more authority than a plain
+ * team seat (`0202`'s invariant), so anything stronger needs a signed-in browser session.
+ */
+const BOUND_TOKEN_INVITE_ROLES: ReadonlySet<string> = new Set<string>([
+  'member',
+  'guest',
+  ...CLIENT_ROLES,
+]);
+
+export const PRIVILEGED_INVITE_MESSAGE =
+  'Sign in to TManage in your browser to invite someone with this role.';
+export const INVITE_DOMAIN_MESSAGE =
+  'Your organization only allows invitations to its own domains.';
+export const GUEST_ACCESS_OFF_MESSAGE = 'Your organization has turned off guest access.';
+export const INVITE_RATE_MESSAGE = 'Too many invitations in the last hour. Try again later.';
+export const INVITE_ADDRESS_REFUSED_MESSAGE = 'That address cannot be invited.';
 
 export class InvitationsService {
   constructor(
@@ -250,6 +294,8 @@ export class InvitationsService {
     private readonly credentials: CredentialsRepository = new CredentialsRepository(NO_SEED_CIPHER),
     /** F1: resolves a custom role from Control > Roles when an invitation carries one. */
     private readonly customRoles: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
+    /** F52b: the organization's access policy (invite domain allowlist, guest access). */
+    private readonly policies: PoliciesRepository = new PoliciesRepository(),
   ) {}
 
   async list(
@@ -295,7 +341,13 @@ export class InvitationsService {
     const email = input.email.trim().toLowerCase();
     const customRole = isCustomRoleCandidate(input.role, clientOrganizationId);
     if (!customRole) this.requireRoleMatchesDestination(input.role, clientOrganizationId);
+    requireSessionForPrivilegedInvite(context, input.role, 'invitation.issue');
     requireOwnerToGrantOwner(principal, input.role, 'invitation.issue');
+    // F05: a built-in role only within the inviter's own authority.
+    if (!customRole) {
+      requireMayGrantRole(principal, input.role, context.organizationId, 'invitation.issue');
+    }
+    await this.requireNotUnclaimedPlatformAdmin(context, email);
 
     const projectIds = [...new Set(input.projectIds ?? [])];
     if (projectIds.length > 0 && clientOrganizationId !== null) {
@@ -321,6 +373,8 @@ export class InvitationsService {
 
     const { row, mailFacts } = await this.database.transaction(context, async (tx) => {
       if (customRole) await this.requireGrantableCustomRole(tx, context, principal, input.role);
+      await this.requireInvitePolicy(tx, context, email, input.role, clientOrganizationId);
+      await this.requireUnderIssueLimit(tx, context);
       const existing = await this.invitations.findPendingForEmail(
         tx,
         context,
@@ -400,12 +454,24 @@ export class InvitationsService {
       this.database.transaction(context, async (tx) => {
         const previous = await this.invitations.requireById(tx, context, invitationId);
         const role = input.role ?? previous.role;
+        requireSessionForPrivilegedInvite(context, role, 'invitation.reissue');
         if (isCustomRoleCandidate(role, previous.clientOrganizationId)) {
           await this.requireGrantableCustomRole(tx, context, principal, role);
         } else {
           this.requireRoleMatchesDestination(role, previous.clientOrganizationId);
+          // F05: the same ceiling as issue — a re-issue cannot raise the role past the caller.
+          requireMayGrantRole(principal, role, context.organizationId, 'invitation.reissue');
         }
         requireOwnerToGrantOwner(principal, role, 'invitation.reissue');
+        // F52b and F36b: the policy and the hourly ceiling hold for a re-issue as for an issue.
+        await this.requireInvitePolicy(
+          tx,
+          context,
+          previous.email,
+          role,
+          previous.clientOrganizationId,
+        );
+        await this.requireUnderIssueLimit(tx, context);
 
         const revoked = await this.invitations.revoke(tx, context, invitationId);
         await this.audit?.record(tx, context, {
@@ -511,9 +577,10 @@ export class InvitationsService {
     const context = acceptanceContext(invitation, userId, correlationId);
 
     try {
-      return await this.database.transaction(context, (tx) =>
-        this.grantWithin(tx, context, invitation.id, userId),
-      );
+      return await this.database.transaction(context, async (tx) => {
+        await this.requireInviterStillMayGrant(tx, context, invitation);
+        return this.grantWithin(tx, context, invitation.id, userId);
+      });
     } catch (error) {
       throw alreadyMemberOr(error);
     }
@@ -555,6 +622,17 @@ export class InvitationsService {
     if (!invitation) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'invitation_not_pending');
     }
+    // NV04: registration creates the account for the invitation's address, so an operator
+    // address (which by definition has no account yet here) is never minted from an invitation.
+    if (this.platformAdminEmails().includes(invitation.email.trim().toLowerCase())) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        'That account cannot be created.',
+        [{ field: 'email', message: 'address_not_invitable' }],
+        'invitation_registration_platform_admin',
+      );
+    }
 
     const details: { field: string; message: string }[] = [];
     const displayName = typeof input.displayName === 'string' ? input.displayName.trim() : '';
@@ -595,7 +673,9 @@ export class InvitationsService {
             timezone: 'UTC',
           });
           await this.credentials.setPassword(scope.identity, userId, passwordHash);
-          return this.grantWithin(scope.tenant(context), context, invitation.id, userId);
+          const tenant = scope.tenant(context);
+          await this.requireInviterStillMayGrant(tenant, context, invitation);
+          return this.grantWithin(tenant, context, invitation.id, userId);
         },
       );
       return { ...granted, userId };
@@ -875,6 +955,161 @@ export class InvitationsService {
     return delivery;
   }
 
+  /** NV04: the operator addresses, from the options or the same environment variable. */
+  private platformAdminEmails(): readonly string[] {
+    return (
+      this.options.platformAdminEmails ??
+      parsePlatformAdminEmails(process.env['PLATFORM_ADMIN_EMAILS'])
+    );
+  }
+
+  /**
+   * NV04: an invitation must never become the way an unclaimed platform-operator address gets
+   * its first account. An operator address that already has an account is an ordinary invitee
+   * (they sign in to accept); one with no account is refused with a neutral 422, before any write.
+   */
+  private async requireNotUnclaimedPlatformAdmin(
+    context: TenantContext,
+    email: string,
+  ): Promise<void> {
+    if (!this.platformAdminEmails().includes(email)) return;
+    const account = await this.database.identityRead(
+      { correlationId: context.correlationId, tables: ['users'] },
+      (runner) => this.credentials.findUserIdByEmail(runner, email),
+    );
+    if (account !== null) return;
+    throw new ApiError(
+      422,
+      'validation_failed',
+      INVITE_ADDRESS_REFUSED_MESSAGE,
+      [{ field: 'email', message: 'address_not_invitable' }],
+      'invitation.platform_admin_unclaimed',
+    );
+  }
+
+  /**
+   * F52b: the organization's access policy, enforced where an invitation is made. A non-empty
+   * `invite_domain_allowlist` limits internal invitations to those domains, and
+   * `guest_access_enabled: false` (the default) refuses the `guest` role. Client invitations
+   * reach a client company's people, whose domains the agency does not choose, so the domain
+   * list does not apply to them. 422 with a machine key the screen translates; no write.
+   */
+  private async requireInvitePolicy(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    email: string,
+    role: string,
+    clientOrganizationId: string | null,
+  ): Promise<void> {
+    if (clientOrganizationId !== null) return;
+    const stored = await this.policies.find(tx, context);
+    const policy = normalizePolicy(stored?.policyJson);
+    const allowlist = policy.invite_domain_allowlist.map((domain) => domain.toLowerCase());
+    const domain = email.slice(email.lastIndexOf('@') + 1).toLowerCase();
+    if (allowlist.length > 0 && !allowlist.includes(domain)) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        INVITE_DOMAIN_MESSAGE,
+        [{ field: 'email', message: 'invite_domain_not_allowed' }],
+        'invitation.policy:invite_domain_not_allowed',
+      );
+    }
+    if (role === 'guest' && !policy.guest_access_enabled) {
+      throw new ApiError(
+        422,
+        'validation_failed',
+        GUEST_ACCESS_OFF_MESSAGE,
+        [{ field: 'role', message: 'guest_access_disabled' }],
+        'invitation.policy:guest_access_disabled',
+      );
+    }
+  }
+
+  /**
+   * F36b: an organization issues at most `issueLimitPerHour` invitations (re-issues included)
+   * per rolling hour. Counted from the table, so the ceiling holds across processes and
+   * restarts; 429 with no write.
+   */
+  private async requireUnderIssueLimit(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+  ): Promise<void> {
+    const limit = this.options.issueLimitPerHour ?? INVITATION_ISSUE_LIMIT_PER_HOUR;
+    const recent = await this.invitations.countIssuedInLastHour(tx, context);
+    if (recent >= limit) {
+      throw new ApiError(
+        429,
+        'rate_limited',
+        INVITE_RATE_MESSAGE,
+        undefined,
+        'invitation.issue_rate_limited',
+      );
+    }
+  }
+
+  /**
+   * F06 defence in depth: at acceptance the inviter must **still** be allowed to grant what the
+   * invitation grants — an active member holding `org.manage` whose authority covers the role
+   * (owner for owner; owner/org_admin for anything; otherwise the capability subset), or, for
+   * a client invitation, an active client admin of that client organization. Anything else is
+   * the one 404 every unusable invitation gets.
+   */
+  private async requireInviterStillMayGrant(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    invitation: InvitationRow,
+  ): Promise<void> {
+    const refusal = new ApiError(
+      404,
+      'not_found',
+      MESSAGES.notFound,
+      undefined,
+      'invitation_inviter_revoked',
+    );
+    const inviter = await this.memberships.findByUserId(tx, context, invitation.invitedByUserId);
+    if (inviter?.status === 'active') {
+      const held = await capabilitiesOfStoredRole(tx, context, inviter.role, this.customRoles);
+      if (held.has('org.manage')) {
+        if (invitation.role === 'owner') {
+          if (inviter.role === 'owner') return;
+          throw refusal;
+        }
+        if (ROLE_ASSIGNERS.includes(inviter.role)) return;
+        const granted = await this.capabilitiesOfInvitedRole(tx, context, invitation);
+        if (!exceedsCaller(granted, held)) return;
+        throw refusal;
+      }
+    }
+    if (invitation.clientOrganizationId !== null) {
+      const client = await this.clientMemberships.findByUser(
+        tx,
+        context,
+        invitation.clientOrganizationId,
+        invitation.invitedByUserId,
+      );
+      const live =
+        client?.status === 'active' &&
+        (client.expiresAt === null || client.expiresAt.getTime() > Date.now());
+      if (client && live && hasCapability(client.role as ClientRole, 'client_member.manage'))
+        return;
+    }
+    throw refusal;
+  }
+
+  /** What an invitation's role grants: a built-in ceiling or the custom role's row. */
+  private async capabilitiesOfInvitedRole(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    invitation: InvitationRow,
+  ): Promise<ReadonlySet<Capability>> {
+    if (isCustomRoleCandidate(invitation.role, invitation.clientOrganizationId)) {
+      const row = await this.customRoles.findRoleById(tx, context, invitation.role);
+      return new Set(row ? parseCustomRoleCapabilities(row.capabilitiesJson) : []);
+    }
+    return capabilitiesOfStoredRole(tx, context, invitation.role, this.customRoles);
+  }
+
   private expiryFrom(now: Date): Date {
     const expiry = new Date(now.getTime());
     expiry.setUTCDate(expiry.getUTCDate() + (this.options.ttlDays ?? DEFAULT_TTL_DAYS));
@@ -1075,6 +1310,26 @@ function acceptanceContext(
     policyVersion: 'invitation-acceptance',
     correlationId,
   });
+}
+
+/**
+ * NV13: a bound token (personal access token or AI grant) invites only plain team, guest and
+ * client seats. Owner, admin, manager, moderator and every custom role need a browser session.
+ */
+function requireSessionForPrivilegedInvite(
+  context: TenantContext,
+  role: string,
+  action: string,
+): void {
+  if (context.actorChannel !== 'ai_assistant') return;
+  if (BOUND_TOKEN_INVITE_ROLES.has(role)) return;
+  throw new ApiError(
+    403,
+    'forbidden',
+    PRIVILEGED_INVITE_MESSAGE,
+    [{ field: 'role', message: 'session_required_for_privileged_invite' }],
+    `${action}:session_required_for_privileged_invite`,
+  );
 }
 
 /**

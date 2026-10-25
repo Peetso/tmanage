@@ -1,6 +1,8 @@
 import 'reflect-metadata';
 import { describe, expect, it } from 'vitest';
+import { customRoleKey } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
+import type { InvitationsRepository } from './invitations.repository.js';
 import { MemberBulkRoleController } from './member-bulk-role.controller.js';
 import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import type { MembershipsRepository } from './memberships.repository.js';
@@ -273,6 +275,62 @@ describe('MemberBulkRoleController (ADM bulk role assignment, x222)', () => {
       409,
     );
     expect(repo.applied).toHaveLength(0);
+  });
+
+  it('F30: 403s a custom org.manage holder demoting an org admin, with no write', async () => {
+    const DELEGATE = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
+    const repo = new FakeBulkRoleRepository(
+      [role('r2', 'Reader', ['work.read'])],
+      new Set(['admin-seat']),
+    );
+    const delegated = {
+      ...owner(),
+      role: customRoleKey(DELEGATE, ['org.manage', 'work.read']),
+      hasOrgWideScope: false,
+    } as Principal;
+
+    await expectStatus(
+      controllerWith(repo).assign(context, delegated, 'org', {
+        roleId: 'r2',
+        membershipIds: ['admin-seat'],
+      }),
+      403,
+    );
+    // Nothing written: no membership row changed, so no `policy_version` bump either.
+    expect(repo.applied).toHaveLength(0);
+    expect(repo.keepOwners).toHaveLength(0);
+  });
+
+  it('F06: withdraws the pending invitations of each member the new role strips of org.manage', async () => {
+    const repo = new FakeBulkRoleRepository(
+      [role('r1', 'Coordinator', ['work.read'])],
+      new Set(['m1']),
+    );
+    const revokedFor: string[] = [];
+    const database = {
+      transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
+    } as unknown as TenantDatabase;
+    const memberships = {
+      findById: (_r: unknown, _c: unknown, id: string) =>
+        Promise.resolve({ id, userId: 'u-admin', role: 'org_admin', status: 'active' }),
+      countActiveHoldersOfRoles: () => Promise.resolve(2),
+    } as unknown as MembershipsRepository;
+    const invitations = {
+      revokePendingIssuedBy: (_r: unknown, _c: unknown, userId: string) => {
+        revokedFor.push(userId);
+        return Promise.resolve(3);
+      },
+    } as unknown as InvitationsRepository;
+    const controller = new MemberBulkRoleController(
+      database,
+      repo as unknown as MemberBulkRoleRepository,
+      undefined,
+      memberships,
+      invitations,
+    );
+
+    await controller.assign(context, owner(), 'org', { roleId: 'r1', membershipIds: ['m1'] });
+    expect(revokedFor).toEqual(['u-admin']);
   });
 
   it('guards the route with org.manage, so CapabilityGuard refuses a caller without it', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composeInvitationEmail } from './invitation-email.js';
+import { composeInvitationEmail, mailSafeName, MAX_MAIL_NAME_LENGTH } from './invitation-email.js';
 import type { InvitationEmailFacts } from './invitation-email.js';
 
 /**
@@ -115,6 +115,34 @@ describe('composeInvitationEmail', () => {
       '';
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
+  it('F36b: neutralises links, phone numbers and addresses in names, and caps their length', () => {
+    const message = composeInvitationEmail(
+      facts({
+        organizationName: 'Pay at evil.example/x +1 555 0100',
+        inviterName: `Billing https://evil.example/pay call 0044 20 7946 0958 ${'x'.repeat(80)}`,
+        clientOrganizationName: 'Write to refunds@evil.example',
+      }),
+    );
+    const everything = `${message.subject}
+${message.text}
+${message.html ?? ''}`;
+    for (const fragment of [
+      'Pay at evil.example/x +1 555 0100',
+      'evil.example',
+      '555 0100',
+      '7946',
+      'refunds@',
+      'https://evil',
+    ]) {
+      expect(everything).not.toContain(fragment);
+    }
+    expect(message.subject).toContain('Pay at');
+    // The one real link is still there, exactly once in the text.
+    expect(message.text).toContain('https://app.tmanage.example/invitations/tok123');
+    expect(mailSafeName('y'.repeat(200))).toHaveLength(MAX_MAIL_NAME_LENGTH);
+    expect(mailSafeName('Northstar Studio')).toBe('Northstar Studio');
   });
 
   it('writes Arabic, right to left, for an Arabic recipient', () => {

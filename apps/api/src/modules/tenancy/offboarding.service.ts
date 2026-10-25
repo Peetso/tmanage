@@ -1,4 +1,4 @@
-import { authorize, hasCapability, INTERNAL_ROLES } from '@tmanage/domain';
+import { authorize, capabilitySetFor, hasCapability, INTERNAL_ROLES } from '@tmanage/domain';
 import type { InternalRole, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -7,6 +7,9 @@ import type { MembershipsRepository } from './memberships.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { InvitationsRepository } from './invitations.repository.js';
+import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
+import { capabilitiesOfStoredRole, exceedsCaller, isRoleAssigner } from './role-grant-ceiling.js';
 
 /**
  * Member offboarding — ADM-12 (access-impact preview) and ADM-13 (execution). SEC:Administration.
@@ -112,7 +115,34 @@ export class OffboardingService {
      */
     private readonly projectMemberships: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
     private readonly workItems: WorkItemsRepository = new WorkItemsRepository(),
+    /** F06: the pending invitations the member issued are withdrawn with their access. */
+    private readonly invitations: InvitationsRepository = new InvitationsRepository(),
+    /** F23: resolves a custom role the target holds, for the authority ceiling. */
+    private readonly customRoles: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
   ) {}
+
+  /**
+   * F23 — nobody removes someone holding more authority than they do. An organization admin
+   * is offboarded only by an owner or organization admin, and any other target must hold no
+   * capability the caller lacks (the subset rule, custom roles included). Owners keep their own
+   * guard (Guard 1b). 403 with no write.
+   */
+  private async assertTargetWithinCeiling(
+    context: TenantContext,
+    principal: Principal,
+    membership: MembershipRow,
+  ): Promise<void> {
+    if (membership.role === 'owner') return;
+    if (membership.role === 'org_admin' && !isRoleAssigner(principal)) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'offboard_admin');
+    }
+    const target = await this.database.read(context, (db) =>
+      capabilitiesOfStoredRole(db, context, membership.role, this.customRoles),
+    );
+    if (exceedsCaller(target, capabilitySetFor(principal.role))) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'offboard_ceiling');
+    }
+  }
 
   /**
    * The categorical capability decision, run before any object lookup.
@@ -163,6 +193,7 @@ export class OffboardingService {
   ): Promise<MemberOffboardingImpactView> {
     this.assertMayOffboard(context, principal);
     const membership = await this.resolve(context, userId);
+    await this.assertTargetWithinCeiling(context, principal, membership);
 
     const counts = await this.database.read(context, async (db) => ({
       projectMembershipCount: await this.projectMemberships.countByUser(
@@ -205,6 +236,7 @@ export class OffboardingService {
     ) {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'offboard_owner');
     }
+    await this.assertTargetWithinCeiling(context, principal, membership);
 
     // Guard 2 — re-offboarding a terminal member. `offboarded` has no outbound transition, so this
     // is refused before the write rather than left to the repository's transition error: no second
@@ -249,6 +281,13 @@ export class OffboardingService {
         row.userId,
       );
       const ownedWorkItemsCleared = await this.workItems.clearOwnerForUser(tx, context, row.userId);
+      // F06: invitations this member issued would otherwise let them, or whoever holds a link
+      // they kept, rejoin with the authority being removed now.
+      const invitationsRevoked = await this.invitations.revokePendingIssuedBy(
+        tx,
+        context,
+        row.userId,
+      );
 
       await this.audit.record(tx, context, {
         action: 'membership.offboarded',
@@ -260,6 +299,7 @@ export class OffboardingService {
           previous_status: membership.status,
           project_memberships_removed: projectMembershipsRemoved,
           owned_work_items_cleared: ownedWorkItemsCleared,
+          invitations_revoked: invitationsRevoked,
         },
       });
       return row;

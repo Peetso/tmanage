@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS } from '@tmanage/domain';
+import { customRoleKey, OFFBOARDING_NEVER_AUTO_RESTORES_ACCESS } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { OffboardingService } from './offboarding.service.js';
 import type { MembershipsRepository } from './memberships.repository.js';
@@ -8,6 +8,8 @@ import type { WorkItemsRepository } from '../work/work-items.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MembershipRow } from '../../common/database/schema.js';
+import type { InvitationsRepository } from './invitations.repository.js';
+import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 
 /**
  * ADM-12/13 (x121) offboarding proofs, database-free over the module's fakes with the **real**
@@ -24,6 +26,8 @@ const CALLER_MEMBERSHIP = 'cccccccc-0000-7000-8000-000000000001';
 const TARGET_MEMBERSHIP = 'dddddddd-0000-7000-8000-000000000001';
 const TARGET_USER = 'eeeeeeee-0000-7000-8000-000000000001';
 const UNKNOWN_USER = 'ffffffff-0000-7000-8000-0000000000ff';
+/** A custom role `{member.offboard, work.read}` (a delegated offboarder). */
+const CUSTOM_ROLE = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
 
 const context = {
   organizationId: ORG,
@@ -92,6 +96,7 @@ function serviceWith(
   audits: AuditCall[];
   projectRemovals: string[];
   workClears: string[];
+  invitationRevocations: string[];
 } {
   // Keyed by user id: the routes resolve a member by `(organization_id, user_id)`, so the fake
   // `findByUserId` is the tenant-scoped lookup, and an unknown user id stands in for one that is
@@ -104,6 +109,7 @@ function serviceWith(
   // removed no project membership and cleared no owned work.
   const projectRemovals: string[] = [];
   const workClears: string[] = [];
+  const invitationRevocations: string[] = [];
 
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -167,12 +173,32 @@ function serviceWith(
     },
   } as unknown as AuditService;
 
+  const invitations = {
+    revokePendingIssuedBy: async (_runner: unknown, _ctx: unknown, userId: string) => {
+      invitationRevocations.push(userId);
+      return 2;
+    },
+  } as unknown as InvitationsRepository;
+  const customRoles = {
+    findRoleById: async (_runner: unknown, _ctx: unknown, id: string) =>
+      id === CUSTOM_ROLE ? { id, capabilitiesJson: '["member.offboard","work.read"]' } : undefined,
+  } as unknown as MemberBulkRoleRepository;
+
   return {
-    service: new OffboardingService(database, memberships, audit, projectMemberships, workItems),
+    service: new OffboardingService(
+      database,
+      memberships,
+      audit,
+      projectMemberships,
+      workItems,
+      invitations,
+      customRoles,
+    ),
     transitions,
     audits,
     projectRemovals,
     workClears,
+    invitationRevocations,
   };
 }
 
@@ -317,6 +343,69 @@ describe('OffboardingService', () => {
     });
     expect(transitions).toHaveLength(0);
     expect(audits).toHaveLength(0);
+  });
+
+  it('F06: withdraws the pending invitations the member issued, in the offboard transaction', async () => {
+    const { service, invitationRevocations, audits } = serviceWith(
+      membershipRow({ role: 'org_admin' }),
+    );
+
+    await service.offboard(context, owner(), TARGET_USER);
+
+    expect(invitationRevocations).toEqual([TARGET_USER]);
+    expect(audits[0]?.metadata).toMatchObject({ invitations_revoked: 2 });
+  });
+
+  it('F23: a workspace admin cannot offboard or preview an organization admin (403, no write)', async () => {
+    const { service, transitions, audits, invitationRevocations } = serviceWith(
+      membershipRow({ role: 'org_admin' }),
+    );
+    const workspaceAdmin = { ...owner(), role: 'workspace_admin' } as Principal;
+
+    await expect(service.offboard(context, workspaceAdmin, TARGET_USER)).rejects.toMatchObject({
+      status: 403,
+      auditCode: 'offboard_admin',
+    });
+    await expect(service.impact(context, workspaceAdmin, TARGET_USER)).rejects.toMatchObject({
+      status: 403,
+    });
+    expect(transitions).toHaveLength(0);
+    expect(audits).toHaveLength(0);
+    expect(invitationRevocations).toHaveLength(0);
+  });
+
+  it('F23: a custom member.offboard role cannot offboard a workspace admin (403, no write)', async () => {
+    const { service, transitions } = serviceWith(membershipRow({ role: 'workspace_admin' }));
+    const delegated = {
+      ...owner(),
+      role: customRoleKey(CUSTOM_ROLE, ['member.offboard', 'work.read']),
+      hasOrgWideScope: false,
+    } as Principal;
+
+    await expect(service.offboard(context, delegated, TARGET_USER)).rejects.toMatchObject({
+      status: 403,
+      auditCode: 'offboard_ceiling',
+    });
+    expect(transitions).toHaveLength(0);
+  });
+
+  it('F23: a custom member.offboard role may offboard a holder of a narrower custom role', async () => {
+    const { service } = serviceWith(membershipRow({ role: CUSTOM_ROLE }));
+    const delegated = {
+      ...owner(),
+      role: customRoleKey(CUSTOM_ROLE, ['member.offboard', 'work.read']),
+      hasOrgWideScope: false,
+    } as Principal;
+
+    const result = await service.offboard(context, delegated, TARGET_USER);
+    expect(result.status).toBe('offboarded');
+  });
+
+  it('F23: an organization admin still offboards a member (200)', async () => {
+    const { service } = serviceWith(membershipRow({ role: 'member' }));
+
+    const result = await service.offboard(context, { ...owner(), role: 'org_admin' }, TARGET_USER);
+    expect(result.status).toBe('offboarded');
   });
 
   it('never auto-restores access — offboarding is a one-way door', () => {

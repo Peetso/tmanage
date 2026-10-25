@@ -160,7 +160,7 @@ export class InvitationsController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Body() body: IssueBody,
-  ): Promise<IssuedInvitationView> {
+  ): Promise<IssuedInvitationResponse> {
     const details: { field: string; message: string }[] = [];
     const email = requiredEmail(body?.email, details);
 
@@ -202,13 +202,16 @@ export class InvitationsController {
       await requireOrgPermission(this.database, context, principal, 'members_can_invite_clients');
     }
 
-    return this.invitations.issue(context, principal, {
-      email,
-      role,
-      clientOrganizationId,
-      projectIds,
-      note,
-    });
+    return withoutTokenForBoundCaller(
+      context,
+      await this.invitations.issue(context, principal, {
+        email,
+        role,
+        clientOrganizationId,
+        projectIds,
+        note,
+      }),
+    );
   }
 
   /**
@@ -227,7 +230,7 @@ export class InvitationsController {
     @CurrentPrincipal() principal: Principal,
     @Param('invitationId') invitationId: string,
     @Body() body: ReissueBody,
-  ): Promise<IssuedInvitationView> {
+  ): Promise<IssuedInvitationResponse> {
     const role = typeof body?.role === 'string' && body.role !== '' ? body.role : undefined;
     if (body?.role !== undefined && role === undefined) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -235,9 +238,12 @@ export class InvitationsController {
       ]);
     }
 
-    return this.invitations.reissue(context, principal, invitationId, {
-      ...(role === undefined ? {} : { role }),
-    });
+    return withoutTokenForBoundCaller(
+      context,
+      await this.invitations.reissue(context, principal, invitationId, {
+        ...(role === undefined ? {} : { role }),
+      }),
+    );
   }
 
   @Delete(':invitationId')
@@ -403,6 +409,22 @@ export class InvitationAcceptanceController {
       role: registered.role,
     };
   }
+}
+
+/**
+ * The issue/re-issue body. `token` is absent for a bound-token caller (NV13): a personal access
+ * token or AI grant must not hold a credential that outlives its own revocation, so the only
+ * copy of the link goes to the invited mailbox.
+ */
+export type IssuedInvitationResponse = IssuedInvitationView | Omit<IssuedInvitationView, 'token'>;
+
+export function withoutTokenForBoundCaller(
+  context: TenantContext,
+  issued: IssuedInvitationView,
+): IssuedInvitationResponse {
+  if (context.actorChannel !== 'ai_assistant') return issued;
+  const { token: _token, ...rest } = issued;
+  return rest;
 }
 
 function isStatus(value: string): value is InvitationStatus {

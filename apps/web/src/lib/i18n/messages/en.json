@@ -12112,5 +12112,11 @@
   "FirstOwnerSetup.tooManyAttempts": "Too many attempts. Wait a few minutes and try again.",
   "MessageBookmark.save": "Save",
   "MessageBookmark.saved": "Saved",
-  "MessageBookmark.refused": "This message could not be saved."
+  "MessageBookmark.refused": "This message could not be saved.",
+  "Invitations.error.invite_domain_not_allowed": "Your organization only allows invitations to its own domains.",
+  "Invitations.error.guest_access_disabled": "Your organization has turned off guest access.",
+  "Invitations.error.rate_limited": "Too many invitations in the last hour. Try again later.",
+  "Invitations.error.address_not_invitable": "That address cannot be invited.",
+  "Invitations.error.session_required_for_privileged_invite": "Sign in to TManage in your browser to invite someone with this role.",
+  "Invitations.error.role_escalation": "You can only give a role whose rights you hold yourself."
 }
