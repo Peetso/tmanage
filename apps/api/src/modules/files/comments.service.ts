@@ -10,6 +10,7 @@ import type { FileAssetRow, FileCommentRow } from '../../common/database/schema.
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import { FileCommentsRepository } from './comments.repository.js';
+import { FileClientRelation } from './file-client-relation.js';
 
 /**
  * x333's application service — file comments (Files module).
@@ -63,6 +64,8 @@ export class FileCommentsService {
     private readonly assets: FileAssetsRepository,
     private readonly projects: ProjectsRepository,
     private readonly comments: FileCommentsRepository = new FileCommentsRepository(),
+    /** F35. A client principal is held to the request row's relation, as the download gate is. */
+    private readonly relation: FileClientRelation = new FileClientRelation(),
   ) {}
 
   /** The comment body length the service validates against before inserting. */
@@ -136,7 +139,11 @@ export class FileCommentsService {
     fileId: string,
   ): Promise<FileAssetRow> {
     const row = await this.assets.findById(runner, context, fileId);
-    if (!row || !(await this.mayRead(runner, context, principal, row))) {
+    if (
+      !row ||
+      !(await this.relation.mayClientReach(runner, context, principal, row)) ||
+      !(await this.mayRead(runner, context, principal, row))
+    ) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     return row;

@@ -690,6 +690,9 @@ export class FileAssetsRepository {
           eq(fileAssets.organizationId, context.organizationId),
           eq(fileAssets.projectId, projectId),
           eq(fileAssets.purpose, 'request_attachment'),
+          // F48. Only client audiences are candidates: a staff attachment marked `internal` on a
+          // client's request is never a client's file, whatever the service does next.
+          inArray(fileAssets.audience, ['client_visible', 'client_action_required']),
         ),
       )
       .orderBy(desc(fileAssets.createdAt), desc(fileAssets.id));

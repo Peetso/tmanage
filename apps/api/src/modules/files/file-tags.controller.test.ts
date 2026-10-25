@@ -6,6 +6,8 @@ import type { FileTagsRepository } from './file-tags.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import { ApiError } from '../../common/http/errors.js';
+import { FileClientRelation } from './file-client-relation.js';
+import type { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { FileAssetRow, FileTagRow, ProjectRow } from '../../common/database/schema.js';
 
@@ -99,7 +101,7 @@ class FakeTagsRepository {
   }
 }
 
-function harness(file: FileAssetRow | null) {
+function harness(file: FileAssetRow | null, relation?: FileClientRelation) {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -114,6 +116,7 @@ function harness(file: FileAssetRow | null) {
     assets,
     projects,
     tags as unknown as FileTagsRepository,
+    relation,
   );
   return { controller: new FileTagsController(service), tags };
 }
@@ -175,5 +178,71 @@ describe('FileTagsController', () => {
     );
     expect(status).toBe(404);
     expect(h.tags.assigns).toHaveLength(0);
+  });
+});
+
+// ── F35 (security audit): a client principal is held to the request row, not the asset row ──
+
+const CLIENT_ORG_X = '01890000-0000-7000-8000-0000000000c1';
+const CLIENT_ORG_Y = '01890000-0000-7000-8000-0000000000c2';
+const REQUEST_X = '01890000-0000-7000-8000-000000000401';
+
+function clientOf(clientOrganizationId: string): Principal {
+  return {
+    userId: '01890000-0000-7000-8000-000000000002',
+    organizationId: ORG,
+    kind: 'client',
+    role: 'client_member',
+    membershipId: '01890000-0000-7000-8000-000000000011',
+    membershipStatus: 'active',
+    clientOrganizationId,
+    projectIds: [PROJECT],
+    hasOrgWideScope: false,
+  };
+}
+
+/** A staff upload on client org X's request: client_visible, no client organization on the asset. */
+function staffRequestFile(purpose = 'request_attachment'): FileAssetRow {
+  return {
+    id: FILE_ID,
+    organizationId: ORG,
+    projectId: PROJECT,
+    clientOrganizationId: null,
+    audience: 'client_visible',
+    purpose,
+    objectId: REQUEST_X,
+  } as unknown as FileAssetRow;
+}
+
+function relationFor(): FileClientRelation {
+  const requests = {
+    findById: async (_r: unknown, _c: unknown, id: string) =>
+      id === REQUEST_X ? { id, projectId: PROJECT, clientOrganizationId: CLIENT_ORG_X } : null,
+  } as unknown as ClientRequestsRepository;
+  return new FileClientRelation(requests);
+}
+
+describe('FileTagsController — F35 client relation', () => {
+  it('answers a sibling client org 404 on list, assign and remove, and writes nothing', async () => {
+    const { controller, tags } = harness(staffRequestFile(), relationFor());
+    const defined = await controller.define(context, { name: 'Final' });
+    const sibling = clientOf(CLIENT_ORG_Y);
+    expect(await statusOf(() => controller.listForFile(context, sibling, FILE_ID))).toBe(404);
+    expect(await statusOf(() => controller.assign(context, sibling, FILE_ID, defined.id))).toBe(
+      404,
+    );
+    expect(await statusOf(() => controller.remove(context, sibling, FILE_ID, defined.id))).toBe(
+      404,
+    );
+    expect(tags.assigns).toHaveLength(0);
+  });
+
+  it('keeps the owning client org working on its own request file', async () => {
+    const { controller } = harness(staffRequestFile(), relationFor());
+    const defined = await controller.define(context, { name: 'Final' });
+    const owner = clientOf(CLIENT_ORG_X);
+    await controller.assign(context, owner, FILE_ID, defined.id);
+    const listed = await controller.listForFile(context, owner, FILE_ID);
+    expect(listed.tags.map((t) => t.tagId)).toEqual([defined.id]);
   });
 });

@@ -36,6 +36,27 @@ function ctx(organizationId = ORG_A, userId = 'user-1'): TenantContext {
   return { organizationId, userId, correlationId: 'c-1' } as unknown as TenantContext;
 }
 
+const PROJECT_ON = '01890000-0000-7000-8000-000000000101';
+const PROJECT_OFF = '01890000-0000-7000-8000-000000000102';
+
+function internalPrincipal(role: string, hasOrgWideScope: boolean): Principal {
+  return {
+    userId: 'user-1',
+    organizationId: ORG_A,
+    kind: 'internal',
+    role,
+    membershipId: 'm-1',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [PROJECT_ON],
+    hasOrgWideScope,
+  } as unknown as Principal;
+}
+
+function orgAdmin(): Principal {
+  return internalPrincipal('admin', true);
+}
+
 const database = {
   read: (_c: TenantContext, work: (runner: unknown) => Promise<unknown>) => work({}),
   transaction: (_c: TenantContext, work: (runner: unknown) => Promise<unknown>) => work({}),
@@ -220,7 +241,9 @@ describe('a refused grant and the status view', () => {
         throw new DriveGrantRevokedError('revoked');
       }),
     });
-    await expect(service(repository, google).pickerSession(ctx())).rejects.toMatchObject({
+    await expect(
+      service(repository, google).pickerSession(ctx(), orgAdmin()),
+    ).rejects.toMatchObject({
       status: 409,
     });
     const configured = new GoogleDriveService({
@@ -234,7 +257,9 @@ describe('a refused grant and the status view', () => {
       uploadMaxBytes: 1,
       repository: repository as unknown as GoogleDriveRepository,
     });
-    await expect(configured.pickerSession(ctx())).rejects.toMatchObject({ status: 409 });
+    await expect(configured.pickerSession(ctx(), orgAdmin())).rejects.toMatchObject({
+      status: 409,
+    });
     expect(current()).toMatchObject({ status: 'error', lastErrorCode: 'revoked' });
     expect((await configured.status(ctx(), true)).googleDrive.status).toBe('error');
   });
@@ -299,5 +324,75 @@ describe('pure helpers', () => {
     expect(() => parseSettings({ storageMode: 's3' })).toThrow();
     expect(() => parseSettings({ location: { kind: 'folder', folderId: "x' or 1=1" } })).toThrow();
     expect(() => parseSettings({})).toThrow();
+  });
+});
+
+describe('NV10: the picker token needs the target project relation', () => {
+  function pickerService() {
+    const { repository } = fakeRepository({
+      refreshTokenEnc: CIPHER.encrypt('rt', tokenBinding(ORG_A)),
+    });
+    const google = transport();
+    const drive = new GoogleDriveService({
+      database,
+      audit: { record: vi.fn() } as unknown as AuditService,
+      transport: google,
+      cipher: CIPHER,
+      config: { ...CONFIG, pickerApiKey: 'k' },
+      apiPublicUrl: 'https://x',
+      webPublicUrl: 'https://x',
+      uploadMaxBytes: 1,
+      repository: repository as unknown as GoogleDriveRepository,
+      projects: {
+        findById: vi.fn(async (_r: unknown, _c: unknown, id: string) =>
+          id === PROJECT_ON || id === PROJECT_OFF
+            ? ({ id, organizationId: ORG_A, archivedAt: null } as never)
+            : null,
+        ),
+      },
+    });
+    return { drive, google };
+  }
+
+  it('refuses a guest, even on its own project, before any token is minted', async () => {
+    const { drive, google } = pickerService();
+    await expect(
+      drive.pickerSession(ctx(), internalPrincipal('guest', false), PROJECT_ON),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(google.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('refuses a member off the target project, and a member with no target', async () => {
+    const { drive, google } = pickerService();
+    const member = internalPrincipal('member', false);
+    await expect(drive.pickerSession(ctx(), member, PROJECT_OFF)).rejects.toMatchObject({
+      status: 403,
+    });
+    await expect(drive.pickerSession(ctx(), member)).rejects.toMatchObject({ status: 403 });
+    expect(google.refreshAccessToken).not.toHaveBeenCalled();
+  });
+
+  it('refuses a client principal', async () => {
+    const { drive } = pickerService();
+    const client = {
+      ...internalPrincipal('client_member', false),
+      kind: 'client',
+      clientOrganizationId: 'c-1',
+    } as unknown as Principal;
+    await expect(drive.pickerSession(ctx(), client, PROJECT_ON)).rejects.toMatchObject({
+      status: 403,
+    });
+  });
+
+  it('answers a member on the target project, and an org admin without one', async () => {
+    const { drive } = pickerService();
+    const onProject = await drive.pickerSession(
+      ctx(),
+      internalPrincipal('member', false),
+      PROJECT_ON,
+    );
+    expect(onProject).toMatchObject({ accessToken: 'fresh-access', rootFolderId: 'root_folder_1' });
+    const admin = await drive.pickerSession(ctx(), orgAdmin());
+    expect(admin.accessToken).toBe('fresh-access');
   });
 });

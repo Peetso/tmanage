@@ -14,6 +14,7 @@ import type {
 import type { AuditService } from '../audit/audit.service.js';
 import type { SeedCipher } from '../identity/seed-cipher.js';
 import { WorkItemsRepository } from '../work/work-items.repository.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
   DRIVE_CALLBACK_PATH,
   DRIVE_ROOT_FOLDER_NAME,
@@ -101,6 +102,8 @@ export interface GoogleDriveServiceDeps {
   readonly uploadMaxBytes: number;
   readonly repository?: GoogleDriveRepository;
   readonly workItems?: Pick<WorkItemsRepository, 'findById'>;
+  /** NV10. The picker's target project, for its relation check. */
+  readonly projects?: Pick<ProjectsRepository, 'findById'>;
 }
 
 /** The additional data binding a stored refresh token to its organization. */
@@ -126,10 +129,12 @@ function invalid(field: string, message: string): ApiError {
 export class GoogleDriveService {
   private readonly repository: GoogleDriveRepository;
   private readonly workItems: Pick<WorkItemsRepository, 'findById'>;
+  private readonly projects: Pick<ProjectsRepository, 'findById'>;
 
   constructor(private readonly deps: GoogleDriveServiceDeps) {
     this.repository = deps.repository ?? new GoogleDriveRepository();
     this.workItems = deps.workItems ?? new WorkItemsRepository();
+    this.projects = deps.projects ?? new ProjectsRepository();
   }
 
   get redirectUri(): string {
@@ -325,8 +330,21 @@ export class GoogleDriveService {
 
   // ── Picker, upload and attachments ────────────────────────────────────────
 
-  /** A short-lived access token for the browser file picker (scope `drive.file`). */
-  async pickerSession(context: TenantContext): Promise<PickerSessionView> {
+  /**
+   * A short-lived access token for the browser file picker (scope `drive.file`).
+   *
+   * NV10. The token is the company connection's, and once it leaves the server Drive no longer
+   * knows about projects, so the relation is decided here, before Google is asked: never a client
+   * or a guest; with a target project, `file.upload` on that project (authorize rule 12 — member
+   * of it, or org-wide scope); with no target (the company's own Storage settings), org-wide
+   * scope only.
+   */
+  async pickerSession(
+    context: TenantContext,
+    principal: Principal,
+    projectId?: string,
+  ): Promise<PickerSessionView> {
+    await this.requirePickerRelation(context, principal, projectId);
     const config = this.requireConfig();
     if (!config.pickerApiKey) throw conflict('not_configured');
     const live = this.requireLive(await this.readConnection(context));
@@ -577,6 +595,44 @@ export class GoogleDriveService {
       // same Drive folder by name, so the id it returned is still the right one.
     }
     return created;
+  }
+
+  /** NV10. Refuses with 403 (or 404 for an unknown project) before any token is minted. */
+  private async requirePickerRelation(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string | undefined,
+  ): Promise<void> {
+    if (principal.kind !== 'internal' || principal.role === 'guest') {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'picker_not_for_guests');
+    }
+    if (projectId === undefined) {
+      if (principal.hasOrgWideScope) return;
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'picker_target_project_required',
+      );
+    }
+    const project = await this.deps.database.read(context, (runner) =>
+      this.projects.findById(runner, context, projectId),
+    );
+    if (!project) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const verdict = authorize({
+      principal,
+      capability: 'file.upload',
+      resource: {
+        organizationId: project.organizationId,
+        projectId: project.id,
+        audience: 'internal',
+        lifecycle: project.archivedAt === null ? 'active' : 'archived',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
+    }
   }
 
   private async readableItem(

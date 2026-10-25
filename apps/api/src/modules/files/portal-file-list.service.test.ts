@@ -7,6 +7,7 @@ import type { FileAssetRow, FileVersionRow } from '../../common/database/schema.
 import { ApiError } from '../../common/http/errors.js';
 import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
+import type { ProjectsRepository } from '../projects/projects.repository.js';
 
 /**
  * FILE-003 · WEB-006 — the client file list's three gates, `authorize()` exercised for real.
@@ -75,6 +76,7 @@ function candidate(options: {
   readonly scanVerdict?: string | null;
   readonly trustZone?: string;
   readonly withVersion?: boolean;
+  readonly audience?: string;
 }): Candidate {
   const projectId = options.projectId ?? READABLE_PROJECT;
   const asset = {
@@ -84,6 +86,8 @@ function candidate(options: {
     name: `File ${options.id}`,
     purpose: 'request_attachment',
     objectId: `req-${options.id}`,
+    audience: options.audience ?? 'client_visible',
+    clientOrganizationId: null,
     status: options.status ?? 'ready',
     createdAt: new Date('2026-09-19T00:00:00.000Z'),
   } as unknown as FileAssetRow;
@@ -110,7 +114,11 @@ function candidate(options: {
 
 function serviceWith(
   rows: readonly Candidate[],
-  policy: { readonly scanner?: ScannerPresence; readonly stored?: string } = {},
+  policy: {
+    readonly scanner?: ScannerPresence;
+    readonly stored?: string;
+    readonly archivedAt?: Date;
+  } = {},
 ): PortalFileListService {
   const assets = {
     listRequestAttachmentsForProject: () => Promise.resolve(rows),
@@ -119,7 +127,11 @@ function serviceWith(
     findByKey: () =>
       Promise.resolve(policy.stored === undefined ? undefined : { settingValue: policy.stored }),
   } as unknown as OrgSettingsRepository;
-  return new PortalFileListService(fakeDatabase(), assets, policy.scanner, settings);
+  const projects = {
+    findById: () =>
+      Promise.resolve({ id: READABLE_PROJECT, archivedAt: policy.archivedAt ?? null }),
+  } as unknown as ProjectsRepository;
+  return new PortalFileListService(fakeDatabase(), assets, policy.scanner, settings, projects);
 }
 
 /** C4. A verified file the scan has not judged yet, still in quarantine. */
@@ -265,5 +277,40 @@ describe('PortalFileListService.listForClient', () => {
     await expect(
       service.listForClient(context, internalPrincipal(), READABLE_PROJECT),
     ).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it('F48: never lists an internal-audience staff attachment on the client own request', async () => {
+    const service = serviceWith([
+      candidate({
+        id: 'internal-notes',
+        requestClientOrganizationId: CLIENT_ORG,
+        audience: 'internal',
+      }),
+      candidate({ id: 'shared', requestClientOrganizationId: CLIENT_ORG }),
+      candidate({
+        id: 'action',
+        requestClientOrganizationId: CLIENT_ORG,
+        audience: 'client_action_required',
+      }),
+    ]);
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+    expect(files.map((file) => file.id)).toEqual(['shared', 'action']);
+  });
+
+  it('F48: lists nothing in an archived project, as the download door serves nothing there', async () => {
+    const service = serviceWith(
+      [candidate({ id: 'shared', requestClientOrganizationId: CLIENT_ORG })],
+      { archivedAt: new Date('2026-10-01T00:00:00.000Z') },
+    );
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+    expect(files).toEqual([]);
   });
 });

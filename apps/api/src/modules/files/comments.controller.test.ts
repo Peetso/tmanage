@@ -6,6 +6,8 @@ import type { FileCommentsRepository } from './comments.repository.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import { ApiError } from '../../common/http/errors.js';
+import { FileClientRelation } from './file-client-relation.js';
+import type { ClientRequestsRepository } from '../requests/client-requests.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { FileAssetRow, FileCommentRow, ProjectRow } from '../../common/database/schema.js';
 
@@ -96,7 +98,7 @@ class FakeCommentsRepository {
   }
 }
 
-function harness(file: FileAssetRow | null) {
+function harness(file: FileAssetRow | null, relation?: FileClientRelation) {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
@@ -111,6 +113,7 @@ function harness(file: FileAssetRow | null) {
     assets,
     projects,
     comments as unknown as FileCommentsRepository,
+    relation,
   );
   return { controller: new FileCommentsController(service), comments };
 }
@@ -187,5 +190,74 @@ describe('FileCommentsController', () => {
     );
     expect(status).toBe(403);
     expect(h.comments.rows).toHaveLength(1);
+  });
+});
+
+// ── F35 (security audit): a client principal is held to the request row, not the asset row ──
+
+const CLIENT_ORG_X = '01890000-0000-7000-8000-0000000000c1';
+const CLIENT_ORG_Y = '01890000-0000-7000-8000-0000000000c2';
+const REQUEST_X = '01890000-0000-7000-8000-000000000401';
+
+function clientOf(clientOrganizationId: string): Principal {
+  return {
+    userId: '01890000-0000-7000-8000-000000000002',
+    organizationId: ORG,
+    kind: 'client',
+    role: 'client_member',
+    membershipId: '01890000-0000-7000-8000-000000000011',
+    membershipStatus: 'active',
+    clientOrganizationId,
+    projectIds: [PROJECT],
+    hasOrgWideScope: false,
+  };
+}
+
+/** A staff upload on client org X's request: client_visible, no client organization on the asset. */
+function staffRequestFile(purpose = 'request_attachment'): FileAssetRow {
+  return {
+    id: FILE_ID,
+    organizationId: ORG,
+    projectId: PROJECT,
+    clientOrganizationId: null,
+    audience: 'client_visible',
+    purpose,
+    objectId: REQUEST_X,
+  } as unknown as FileAssetRow;
+}
+
+function relationFor(): FileClientRelation {
+  const requests = {
+    findById: async (_r: unknown, _c: unknown, id: string) =>
+      id === REQUEST_X ? { id, projectId: PROJECT, clientOrganizationId: CLIENT_ORG_X } : null,
+  } as unknown as ClientRequestsRepository;
+  return new FileClientRelation(requests);
+}
+
+describe('FileCommentsController — F35 client relation', () => {
+  it('answers a sibling client org 404 on list and add, and writes nothing', async () => {
+    const { controller, comments } = harness(staffRequestFile(), relationFor());
+    const sibling = clientOf(CLIENT_ORG_Y);
+    expect(await statusOf(() => controller.list(context, sibling, FILE_ID))).toBe(404);
+    expect(await statusOf(() => controller.add(context, sibling, FILE_ID, { body: 'Peek' }))).toBe(
+      404,
+    );
+    expect(await statusOf(() => controller.remove(context, sibling, FILE_ID, 'c-1'))).toBe(404);
+    expect(comments.rows).toHaveLength(0);
+  });
+
+  it('keeps the owning client org working on its own request file', async () => {
+    const { controller } = harness(staffRequestFile(), relationFor());
+    const owner = clientOf(CLIENT_ORG_X);
+    const added = await controller.add(context, owner, FILE_ID, { body: 'Looks good' });
+    const listed = await controller.list(context, owner, FILE_ID);
+    expect(listed.comments.map((c) => c.id)).toEqual([added.id]);
+  });
+
+  it('answers 404 to a client for a purpose the client may not download', async () => {
+    const { controller } = harness(staffRequestFile('deliverable'), relationFor());
+    expect(await statusOf(() => controller.list(context, clientOf(CLIENT_ORG_X), FILE_ID))).toBe(
+      404,
+    );
   });
 });

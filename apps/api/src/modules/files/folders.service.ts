@@ -152,6 +152,17 @@ export class FileFoldersService {
     fileId: string,
     folderId: string | null,
   ): Promise<FileFolderPlacementView> {
+    // F41. A folder is the studio's internal overlay: a client principal never files (or un-files)
+    // anything, whatever the file's audience — the same 404 an absent id gives, before any read.
+    if (principal.kind !== 'internal') {
+      throw new ApiError(
+        404,
+        'not_found',
+        MESSAGES.notFound,
+        undefined,
+        'not_an_internal_principal',
+      );
+    }
     return this.database.transaction(context, async (tx) => {
       // Resolve the file, tenant-scoped, and authorize the write against it — before any write.
       const file = await this.readableFile(tx, context, principal, fileId);

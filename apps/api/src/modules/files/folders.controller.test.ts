@@ -227,3 +227,49 @@ describe('FileFoldersController', () => {
     expect(h.folders.memberships).toHaveLength(0);
   });
 });
+
+describe('FileFoldersController — F41 move is internal-only', () => {
+  function clientMember(): Principal {
+    return {
+      ...member(),
+      kind: 'client',
+      role: 'client_member',
+      clientOrganizationId: '01890000-0000-7000-8000-0000000000c1',
+    };
+  }
+
+  /** A client-visible file of the client's own organization — authorize() alone would admit it. */
+  function clientVisibleFile(): FileAssetRow {
+    return {
+      ...fileAsset(),
+      audience: 'client_visible',
+      clientOrganizationId: '01890000-0000-7000-8000-0000000000c1',
+    } as unknown as FileAssetRow;
+  }
+
+  it('answers a client_member 404 on move and leaves the studio placement unchanged', async () => {
+    const h = harness(clientVisibleFile());
+    const folder = await h.controller.create(context, member(), PROJECT, { name: 'Studio' });
+    await h.controller.move(context, member(), FILE_ID, { folderId: folder.id });
+    const before = h.folders.memberships.map((row) => ({ ...row }));
+
+    expect(
+      await statusOf(() => h.controller.move(context, clientMember(), FILE_ID, { folderId: null })),
+    ).toBe(404);
+    expect(
+      await statusOf(() =>
+        h.controller.move(context, clientMember(), FILE_ID, { folderId: folder.id }),
+      ),
+    ).toBe(404);
+    expect(h.folders.memberships).toEqual(before);
+  });
+
+  it('still lets an internal member move the same file', async () => {
+    const h = harness(clientVisibleFile());
+    const folder = await h.controller.create(context, member(), PROJECT, { name: 'Studio' });
+    expect(await h.controller.move(context, member(), FILE_ID, { folderId: folder.id })).toEqual({
+      fileId: FILE_ID,
+      folderId: folder.id,
+    });
+  });
+});

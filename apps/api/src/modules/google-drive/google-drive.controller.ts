@@ -15,7 +15,7 @@ import {
   Res,
 } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
-import { hasCapability } from '@tmanage/domain';
+import { hasCapability, isUuid } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import {
   Ctx,
@@ -181,8 +181,17 @@ export class GoogleDriveStorageController {
 
   @Get('picker-session')
   @RequireCapability('work.update')
-  async picker(@Ctx() context: TenantContext): Promise<PickerSessionView> {
-    return this.drive.pickerSession(context);
+  async picker(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Query('projectId') projectId?: string,
+  ): Promise<PickerSessionView> {
+    // NV10. The target project the picked or uploaded files are for; the service checks the
+    // caller's relation to it before a token is minted.
+    if (projectId !== undefined && (typeof projectId !== 'string' || !isUuid(projectId))) {
+      throw invalid('projectId', 'must be a project id');
+    }
+    return this.drive.pickerSession(context, principal, projectId);
   }
 }
 

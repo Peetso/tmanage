@@ -10,6 +10,7 @@ import type { FileAssetRow, FileTagRow } from '../../common/database/schema.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import { FileTagsRepository } from './file-tags.repository.js';
+import { FileClientRelation } from './file-client-relation.js';
 
 /**
  * x270's application service — file tags (Files module).
@@ -59,6 +60,8 @@ export class FileTagsService {
     private readonly assets: FileAssetsRepository,
     private readonly projects: ProjectsRepository,
     private readonly tags: FileTagsRepository = new FileTagsRepository(),
+    /** F35. A client principal is held to the request row's relation, as the download gate is. */
+    private readonly relation: FileClientRelation = new FileClientRelation(),
   ) {}
 
   /** The tenant's tag definitions, name-ascending. Behind `file.download`. */
@@ -152,7 +155,11 @@ export class FileTagsService {
     fileId: string,
   ): Promise<FileAssetRow> {
     const row = await this.assets.findById(runner, context, fileId);
-    if (!row || !(await this.mayRead(runner, context, principal, row))) {
+    if (
+      !row ||
+      !(await this.relation.mayClientReach(runner, context, principal, row)) ||
+      !(await this.mayRead(runner, context, principal, row))
+    ) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     return row;

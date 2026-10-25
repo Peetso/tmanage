@@ -5,10 +5,11 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { FileAssetRow, FileVersionRow } from '../../common/database/schema.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import { mayDownloadFor } from './purpose-policy.js';
-import { awaitingScan } from './file-download.service.js';
+import { awaitingScan, DOWNLOAD_CAPABILITY } from './file-download.service.js';
 import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
 import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
+import { ProjectsRepository } from '../projects/projects.repository.js';
 
 /**
  * FILE-003 · WEB-006 — the client portal's file list, over the FILE-002 download surface.
@@ -73,6 +74,8 @@ export class PortalFileListService {
     /** C4. The configured scanner, as the download door gets it; absent means `allow_labeled`. */
     private readonly scanner?: ScannerPresence,
     private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
+    /** F48. The project's lifecycle, for the download door's own `authorize()` per row. */
+    private readonly projects: ProjectsRepository = new ProjectsRepository(),
   ) {}
 
   /**
@@ -98,9 +101,10 @@ export class PortalFileListService {
     }
 
     const clientOrganizationId = principal.clientOrganizationId;
-    const rows = await this.database.read(context, (runner) =>
-      this.assets.listRequestAttachmentsForProject(runner, context, projectId),
-    );
+    const { rows, archived } = await this.database.read(context, async (runner) => ({
+      rows: await this.assets.listRequestAttachmentsForProject(runner, context, projectId),
+      archived: (await this.projects.findById(runner, context, projectId))?.archivedAt != null,
+    }));
 
     const files: PortalFileView[] = [];
     // C4. The policy is read once, and only when some file is still waiting for its scan.
@@ -112,6 +116,9 @@ export class PortalFileListService {
       if (row.request.clientOrganizationId !== clientOrganizationId) continue;
       if (row.request.projectId !== row.asset.projectId) continue;
       if (!mayDownloadFor('client', row.asset.purpose)) continue;
+      // F48. The download door's own decision on the asset — audience, client organization,
+      // project relation and lifecycle — so an `internal` staff attachment is never listed.
+      if (!this.mayDownload(principal, row.asset, archived)) continue;
       if (row.version === null) continue;
       // "Published" for a file is servable: ready asset, clean verdict, private zone.
       if (
@@ -142,6 +149,21 @@ export class PortalFileListService {
       this.settings,
     );
     return policy.effective === 'block' ? 'being_checked' : 'not_scanned';
+  }
+
+  /** F48. `authorize(file.download)` exactly as {@link FileDownloadService} asks it. */
+  private mayDownload(principal: Principal, asset: FileAssetRow, archived: boolean): boolean {
+    return authorize({
+      principal,
+      capability: DOWNLOAD_CAPABILITY,
+      resource: {
+        organizationId: asset.organizationId,
+        projectId: asset.projectId,
+        audience: asset.audience,
+        clientOrganizationId: asset.clientOrganizationId,
+        lifecycle: archived ? 'archived' : 'active',
+      },
+    }).allowed;
   }
 
   /**
