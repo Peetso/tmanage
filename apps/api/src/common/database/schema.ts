@@ -4347,6 +4347,8 @@ export const privacyDeletionRequests = mysqlTable(
     cancelledAt: datetime('cancelled_at', { mode: 'date', fsp: 3 }),
     cancelledByUserId: char('cancelled_by_user_id', { length: 36 }),
     executedAt: datetime('executed_at', { mode: 'date', fsp: 3 }),
+    /** 0233 (H3). When the job finished erasing a closed company's rows and files; NULL = to do. */
+    purgedAt: datetime('purged_at', { mode: 'date', fsp: 3 }),
     version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),

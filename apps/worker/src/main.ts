@@ -32,6 +32,7 @@ import { ClientRequestMailer } from './notifications/client-request-mailer.js';
 import { CredentialChangeMailer } from './notifications/credential-change-mailer.js';
 import { UsageThresholdMailer } from './notifications/usage-threshold-mailer.js';
 import { CollaborationMailer } from './notifications/collaboration-mailer.js';
+import { PrivacyMailer } from './notifications/privacy-mailer.js';
 import { createRealtimeServer } from './realtime/server.js';
 import { createDirectMessageFanOut, createMessageFanOut } from './realtime/fan-out.js';
 import { createInvitationSweepStore } from './common/database/invitations-sweep-store.js';
@@ -346,6 +347,8 @@ async function main(): Promise<void> {
     usageThresholdMailer: new UsageThresholdMailer(transport),
     // CQ-12 — mentions, comments, meeting invites, project adds and client-action emails.
     collaborationMailer: new CollaborationMailer(transport, env.WEB_PUBLIC_URL),
+    // H3 — data export ready, deletion scheduled / cancelled / carried out.
+    privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
   });
   // x31: the notice queue's own registry. Empty when no transport is wired, which drains and
   // stamps rather than growing a tail — see `createWorkerNoticeHandlers`.

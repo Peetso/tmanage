@@ -297,6 +297,7 @@ async function startInProcessWorker(env) {
     ClientRequestMailer,
     UsageThresholdMailer,
     CredentialChangeMailer,
+    PrivacyMailer,
     writeHeartbeat,
   } = await import('@tmanage/worker');
   const { ConsoleMailer, SmtpMailer } = await import('@tmanage/mail');
@@ -325,6 +326,8 @@ async function startInProcessWorker(env) {
   const handlers = createWorkerOutboxHandlers({
     clientRequestMailer: new ClientRequestMailer(transport, env.WEB_PUBLIC_URL),
     usageThresholdMailer: new UsageThresholdMailer(transport),
+    // H3 — data export ready, deletion scheduled / cancelled / carried out.
+    privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
   });
   const noticeHandlers = createWorkerNoticeHandlers({
     credentialChangeMailer: new CredentialChangeMailer(transport),

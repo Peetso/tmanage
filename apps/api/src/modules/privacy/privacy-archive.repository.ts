@@ -4,6 +4,7 @@ import type {
   TenantContext,
   TenantDatabase,
 } from '../../common/database/tenant-context.js';
+import type { ArchiveFileContents } from './privacy-archive-files.repository.js';
 
 /**
  * D5 (Figma F5) — what goes into a data export, and how it is packed.
@@ -16,8 +17,11 @@ import type {
  * global tables it names.
  *
  * What is deliberately left out: credentials of any kind (password hashes, MFA seeds, tokens,
- * session secrets) and file **bytes** — a file appears as its metadata row; its contents stay behind
- * the download route and its scan policy.
+ * session secrets).
+ *
+ * File **bytes** (H3) are in the `file_contents` section, base64, read by {@link ArchiveFileContents}
+ * under the download route's scan policy: a file that would not be served is listed with the reason
+ * it was left out instead of its bytes, and the whole archive is scanned again before it is stored.
  */
 
 /** A company section: one tenant table, read whole (in pages) by its organization. */
@@ -112,7 +116,11 @@ function identifier(name: string): string {
 
 /** Reads the sections. `onProgress` is told the share done (0..1) after each section. */
 export class PrivacyArchiveBuilder {
-  constructor(private readonly database: TenantDatabase) {}
+  /** @param files absent: the archive carries file metadata only (a suite that reads no store). */
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly files?: Pick<ArchiveFileContents, 'read'>,
+  ) {}
 
   async build(
     context: TenantContext,
@@ -146,6 +154,13 @@ export class PrivacyArchiveBuilder {
         if (cut) truncated.push(section.name);
         await onProgress((index + 1) / MEMBER_SECTIONS.length);
       }
+    }
+
+    if (this.files !== undefined) {
+      const owner = header.kind === 'company' ? null : header.subjectUserId;
+      sections['file_contents'] = (await this.files.read(context, owner)).map((row) => ({
+        ...row,
+      }));
     }
 
     return { ...header, sections, truncatedSections: truncated };

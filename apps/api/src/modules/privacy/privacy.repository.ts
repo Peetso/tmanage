@@ -582,6 +582,86 @@ export class PrivacyRepository {
     return affected(result) >= 1;
   }
 
+  // ── The erasure after a company deletion (H3, 0233) ───────────────────────────────────────────
+
+  /** Organizations holding an executed company deletion, closed before `before`, not yet erased. */
+  async organizationsWithErasureDue(
+    runner: BootstrapQueryRunner,
+    before: Date,
+  ): Promise<readonly string[]> {
+    const rows = await tenantDrizzle(runner)
+      .selectDistinct({ organizationId: privacyDeletionRequests.organizationId })
+      .from(privacyDeletionRequests)
+      .where(
+        and(
+          eq(privacyDeletionRequests.kind, 'company'),
+          eq(privacyDeletionRequests.status, 'executed'),
+          isNull(privacyDeletionRequests.purgedAt),
+          lte(privacyDeletionRequests.executedAt, before),
+        ),
+      )
+      .orderBy(asc(privacyDeletionRequests.organizationId));
+    return rows.map((row) => row.organizationId);
+  }
+
+  /** This organization's executed company deletions whose erasure is still to do. */
+  async listErasureDue(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    before: Date,
+  ): Promise<readonly PrivacyDeletionRequestRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(privacyDeletionRequests)
+      .where(
+        and(
+          eq(privacyDeletionRequests.organizationId, context.organizationId),
+          eq(privacyDeletionRequests.kind, 'company'),
+          eq(privacyDeletionRequests.status, 'executed'),
+          isNull(privacyDeletionRequests.purgedAt),
+          lte(privacyDeletionRequests.executedAt, before),
+        ),
+      )
+      .orderBy(asc(privacyDeletionRequests.executedAt), asc(privacyDeletionRequests.id))
+      .limit(10);
+  }
+
+  /**
+   * Record that the erasure is complete (`purged_at`), conditional on it not being recorded yet, and
+   * clear the closed organization's logo pointer (the file it named is gone). True when this call
+   * recorded it.
+   */
+  async markErased(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    requestId: string,
+    now: Date,
+  ): Promise<boolean> {
+    const result = await tenantDrizzle(runner)
+      .update(privacyDeletionRequests)
+      .set({
+        purgedAt: now,
+        version: sql`${privacyDeletionRequests.version} + 1`,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(privacyDeletionRequests.organizationId, context.organizationId),
+          eq(privacyDeletionRequests.id, requestId),
+          eq(privacyDeletionRequests.status, 'executed'),
+          isNull(privacyDeletionRequests.purgedAt),
+        ),
+      );
+    if (affected(result) !== 1) return false;
+    await tenantDrizzle(runner)
+      .update(organizations)
+      .set({ logoFileId: null, updatedAt: now })
+      .where(
+        and(eq(organizations.id, context.organizationId), isNotNull(organizations.archivedAt)),
+      );
+    return true;
+  }
+
   /**
    * A company deletion's effect: the organization is archived and suspended, which the membership
    * resolver refuses for every member and client. Idempotent (`archived_at IS NULL`).

@@ -35,6 +35,8 @@ import type { CollaborationMailer } from '../notifications/collaboration-mailer.
 import type { ClientRequestMailer } from '../notifications/client-request-mailer.js';
 import type { CredentialChangeMailer } from '../notifications/credential-change-mailer.js';
 import type { UsageThresholdMailer } from '../notifications/usage-threshold-mailer.js';
+import type { PrivacyMailer } from '../notifications/privacy-mailer.js';
+import { createPrivacyDeletionChangedMail, createPrivacyExportReadyMail } from './privacy-mail.js';
 import {
   CREDENTIAL_CHANGE_NOTICE_TYPE,
   type ClaimedCredentialNotice,
@@ -93,6 +95,8 @@ export interface WorkerConsumerDependencies {
    * the email half (and the email-only client-action notice) is skipped.
    */
   readonly collaborationMailer?: CollaborationMailer | undefined;
+  /** H3. Absent or disabled, the two data-rights events have no consumer (published, no mail). */
+  readonly privacyMailer?: PrivacyMailer | undefined;
 }
 
 export function createWorkerOutboxHandlers(
@@ -198,6 +202,16 @@ export function createWorkerOutboxHandlers(
     // the resume path(s), never by the notification consumer. Registered only when at least one
     // interrupting producer that defers is wired, since only they produce a resume row.
     ...(resumeHandler === null ? {} : { [QUIET_HOURS_MAIL_RESUME_TYPE]: resumeHandler }),
+    // H3 — the data-rights receipts: "your export is ready", "deletion scheduled / cancelled /
+    // carried out". Mail only; registered when a transport is wired.
+    ...(dependencies.privacyMailer === undefined || !dependencies.privacyMailer.enabled
+      ? {}
+      : {
+          'privacy_export.ready.v1': createPrivacyExportReadyMail(dependencies.privacyMailer),
+          'privacy_deletion.changed.v1': createPrivacyDeletionChangedMail(
+            dependencies.privacyMailer,
+          ),
+        }),
   };
 }
 

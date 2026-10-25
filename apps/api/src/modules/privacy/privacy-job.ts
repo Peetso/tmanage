@@ -10,6 +10,9 @@ import { ScannerUnavailableError } from '../../common/scan/malware-scanner.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { PrivacyArchiveBuilder, packArchive } from './privacy-archive.repository.js';
+import { ArchiveFileContents } from './privacy-archive-files.repository.js';
+import { CompanyErasure } from './privacy-erasure.repository.js';
+import type { ErasureOutcome } from './privacy-erasure.repository.js';
 import type { ArchiveDocument, ArchiveHeader } from './privacy-archive.repository.js';
 import { EXPORT_LINK_DAYS, addDays, privacyExportObjectKey } from './privacy-policy.js';
 import { PrivacyRepository } from './privacy.repository.js';
@@ -35,6 +38,10 @@ import type { PrivacyJobRequester } from './privacy.service.js';
  *    member); a company deletion closes the organization (archived + suspended, which every member's
  *    and client's sign-in refuses) and removes its export archives. Each is audited and announced on
  *    the outbox. A last owner's account is not removed — that request waits, and says so on stderr.
+ * 4. **Erase closed companies** (H3). {@link ERASURE_DELAY_MS} after a company was closed — long
+ *    enough for the "your company was deleted" emails to go out — its stored files and every row of
+ *    every tenant table are erased in batches (`privacy-erasure.repository.ts`), tenant-scoped, resumable across
+ *    passes, and audited once complete (`purged_at` on the request, 0233).
  *
  * Runs in-process (the single Hostinger app has no cron), off unless `WORKER_INPROCESS=1` or
  * `PRIVACY_JOBS_INPROCESS=1`, exactly like the file scan job, so a suite never races a pass.
@@ -43,11 +50,16 @@ export const PRIVACY_JOB = Symbol.for('tmanage.PrivacyJob');
 
 export const STALE_CLAIM_MS = 30 * 60_000;
 const EXPORT_BATCH = 5;
+/** How long after a company is closed its erasure starts: the closing emails go out first. */
+export const ERASURE_DELAY_MS = 24 * 60 * 60_000;
 const POLICY_VERSION = 'privacy-job';
 
 const FIND_EXPORTS_REASON =
   'finding which organizations hold data-export requests waiting to be built or expired, so each ' +
   'is handled under its own service context (D5, 33-LEGAL §8)';
+const FIND_ERASURES_REASON =
+  'finding which closed organizations still hold rows or files to erase after an executed company ' +
+  'deletion, so each is erased under its own service context (H3, 33-LEGAL §8)';
 const FIND_DELETIONS_REASON =
   'finding which organizations hold deletion requests whose grace period has ended, so each is ' +
   'carried out under its own service context (D5, 33-LEGAL §8)';
@@ -76,6 +88,7 @@ export interface PrivacyPassReport {
   readonly purged: number;
   readonly deletionsExecuted: number;
   readonly deletionsWaiting: number;
+  readonly companiesErased: number;
 }
 
 /** The scanner fact and call the job needs. */
@@ -91,9 +104,11 @@ export class PrivacyPass {
     private readonly repository: PrivacyRepository = new PrivacyRepository(),
     private readonly builder: Pick<PrivacyArchiveBuilder, 'build'> = new PrivacyArchiveBuilder(
       database,
+      new ArchiveFileContents(database, store, scanner),
     ),
     private readonly now: () => Date = () => new Date(),
     private readonly log: (line: string) => void = (line) => console.warn(line),
+    private readonly erasure: Pick<CompanyErasure, 'run'> = new CompanyErasure(database, store),
   ) {}
 
   async run(): Promise<PrivacyPassReport> {
@@ -147,7 +162,63 @@ export class PrivacyPass {
       }
     }
 
-    return { built, failed, purged, deletionsExecuted, deletionsWaiting };
+    let companiesErased = 0;
+    const closedBefore = new Date(now.getTime() - ERASURE_DELAY_MS);
+    const closed = await this.database.bootstrapRead(
+      { correlationId, reason: FIND_ERASURES_REASON, tables: ['privacy_deletion_requests'] },
+      (db) => this.repository.organizationsWithErasureDue(db, closedBefore),
+    );
+    for (const organizationId of closed) {
+      const context = serviceContext(organizationId, correlationId);
+      const rows = await this.database.read(context, (runner) =>
+        this.repository.listErasureDue(runner, context, closedBefore),
+      );
+      for (const row of rows) {
+        if (await this.eraseCompany(serviceContext(organizationId, uuidv7()), row)) {
+          companiesErased += 1;
+        }
+      }
+    }
+
+    return { built, failed, purged, deletionsExecuted, deletionsWaiting, companiesErased };
+  }
+
+  /**
+   * Erase one closed company (H3): its files' bytes, then its rows, batch by batch. True once
+   * nothing is left — then, and only then, the request is marked erased and the erasure audited. An
+   * erasure cut short by its per-pass budget carries on in the next pass; one refused by the database
+   * (a credential without DELETE, a row still referenced) waits and says why on stderr.
+   */
+  async eraseCompany(context: TenantContext, row: PrivacyDeletionRequestRow): Promise<boolean> {
+    if (row.kind !== 'company' || row.status !== 'executed') return false;
+    await this.purge(context, true);
+    const outcome: ErasureOutcome = await this.erasure.run(context);
+    if (!outcome.complete) {
+      const blocked = Object.entries(outcome.blocked);
+      if (blocked.length > 0) {
+        const tables = blocked.map(([table, why]) => `${table} (${why})`).join(', ');
+        this.log(`[privacy] company erasure ${row.id} waits: ${tables}`);
+      }
+      return false;
+    }
+    const now = this.now();
+    return this.database.transaction(context, async (tx) => {
+      const moved = await this.repository.markErased(tx, context, row.id, now);
+      if (!moved) return false;
+      await this.audit?.record(tx, context, {
+        action: 'privacy_deletion.executed',
+        objectId: row.id,
+        result: 'allowed',
+        actorUserId: null,
+        metadata: {
+          kind: 'company',
+          step: 'erased',
+          rows_erased: outcome.rowsErased,
+          files_removed: outcome.objectsRemoved,
+        },
+      });
+      return true;
+    });
   }
 
   /** Claim, build, scan, store, record. */
@@ -422,10 +493,17 @@ export class PrivacyJob implements PrivacyJobRequester, OnApplicationBootstrap, 
   private async runOnce(): Promise<void> {
     try {
       const report = await this.pass.run();
-      if (report.built + report.failed + report.purged + report.deletionsExecuted > 0) {
+      const work =
+        report.built +
+        report.failed +
+        report.purged +
+        report.deletionsExecuted +
+        report.companiesErased;
+      if (work > 0) {
         this.options.log(
           `[privacy] built ${String(report.built)}, failed ${String(report.failed)}, purged ` +
-            `${String(report.purged)}, deletions ${String(report.deletionsExecuted)}`,
+            `${String(report.purged)}, deletions ${String(report.deletionsExecuted)}, companies ` +
+            `erased ${String(report.companiesErased)}`,
         );
       }
     } catch (error) {

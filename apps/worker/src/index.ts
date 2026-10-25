@@ -148,6 +148,7 @@ export { ClientRequestMailer, mailKindForStatus } from './notifications/client-r
 // The storage-threshold mailer (USAGE-001), exported beside its siblings so a host that runs the
 // relay in-process (the single-process Hostinger server) wires the same three mailers main.ts does.
 export { UsageThresholdMailer } from './notifications/usage-threshold-mailer.js';
+export { PrivacyMailer } from './notifications/privacy-mailer.js';
 export type {
   ClientRequestMailDelivery,
   ClientRequestMailKind,
