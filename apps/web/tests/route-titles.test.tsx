@@ -54,10 +54,10 @@ function declaredTitle(file: string): { literal?: string; routeTitleOf?: string 
   const sources = [file, join(file, '..', 'layout.tsx')].filter((path) => existsSync(path));
   for (const source of sources) {
     const text = readFileSync(source, 'utf8');
-    const viaTable = /title:\s*routeTitle\('([^']+)'\)/.exec(text);
-    if (viaTable) return { routeTitleOf: viaTable[1] };
-    const literal = /export const metadata[^=]*=\s*\{\s*title:\s*'([^']+)'/.exec(text);
-    if (literal) return { literal: literal[1] };
+    const viaTable = /title:\s*routeTitle\('([^']+)'\)/.exec(text)?.[1];
+    if (viaTable !== undefined) return { routeTitleOf: viaTable };
+    const literal = /export const metadata[^=]*=\s*\{\s*title:\s*'([^']+)'/.exec(text)?.[1];
+    if (literal !== undefined) return { literal };
   }
   return {};
 }
