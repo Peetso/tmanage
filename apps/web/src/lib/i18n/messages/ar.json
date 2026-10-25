@@ -12118,5 +12118,17 @@
   "Invitations.error.rate_limited": "دعوات كثيرة خلال الساعة الماضية. حاول مرة أخرى لاحقًا.",
   "Invitations.error.address_not_invitable": "لا يمكن دعوة هذا العنوان.",
   "Invitations.error.session_required_for_privileged_invite": "‏سجّل الدخول إلى TManage من المتصفح لدعوة شخص بهذا الدور.",
-  "Invitations.error.role_escalation": "يمكنك منح دور تملك صلاحياته فقط."
+  "Invitations.error.role_escalation": "يمكنك منح دور تملك صلاحياته فقط.",
+  "PrivacyStepUp.title": "أكّد هويتك",
+  "PrivacyStepUp.lede": "أدخل كلمة المرور للمتابعة. إذا كان التحقق بخطوتين مفعّلًا، فأضف الرمز من تطبيقك.",
+  "PrivacyStepUp.cancel": "إلغاء",
+  "PrivacyStepUp.confirm": "تأكيد",
+  "PrivacyStepUp.confirming": "جارٍ التحقق",
+  "PrivacyStepUp.password": "كلمة المرور",
+  "PrivacyStepUp.code": "رمز التحقق بخطوتين، إن كنت تستخدمه",
+  "PrivacyStepUp.noPassword": "ليست لديك كلمة مرور لأنك تسجّل الدخول عبر Google؟ أنشئ واحدة من التفضيلات › تسجيل الدخول، ثم عُد إلى هنا.",
+  "PrivacyStepUp.errorWrong": "كلمة المرور أو الرمز غير صحيح.",
+  "PrivacyStepUp.errorTooMany": "محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.",
+  "PrivacyStepUp.errorGeneric": "لم يكتمل الطلب. حاول مرة أخرى.",
+  "PrivacyStepUp.needed": "أكّد هويتك للمتابعة."
 }

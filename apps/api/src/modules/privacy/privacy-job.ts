@@ -9,7 +9,7 @@ import type { MalwareScanner } from '../../common/scan/malware-scanner.js';
 import { ScannerUnavailableError } from '../../common/scan/malware-scanner.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
-import { PrivacyArchiveBuilder, packArchive } from './privacy-archive.repository.js';
+import { PrivacyArchiveBuilder, archiveDoorOf, packArchive } from './privacy-archive.repository.js';
 import { ArchiveFileContents } from './privacy-archive-files.repository.js';
 import { CompanyErasure } from './privacy-erasure.repository.js';
 import type { ErasureOutcome } from './privacy-erasure.repository.js';
@@ -245,11 +245,16 @@ export class PrivacyPass {
         subjectUserId: row.subjectUserId,
         generatedAt: this.now().toISOString(),
       };
-      document = await this.builder.build(context, header, async (share) => {
-        await this.database.transaction(context, (tx) =>
-          this.repository.setProgress(tx, context, row.id, 5 + share * 85, this.now()),
-        );
-      });
+      document = await this.builder.build(
+        context,
+        header,
+        async (share) => {
+          await this.database.transaction(context, (tx) =>
+            this.repository.setProgress(tx, context, row.id, 5 + share * 85, this.now()),
+          );
+        },
+        archiveDoorOf(row),
+      );
     } catch (error) {
       this.log(`[privacy] export ${row.id} could not be read: ${describe(error)}`);
       return this.fail(context, row, 'read_failed');

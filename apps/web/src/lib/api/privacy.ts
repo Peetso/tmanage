@@ -68,6 +68,17 @@ export interface MyPrivacyView {
   readonly deletion: PrivacyDeletionView | null;
 }
 
+/**
+ * S13 / F28 — the export and deletion requests need fresh proof: the token `POST /v1/auth/reauth`
+ * returns, sent as `x-reauth-token`. Without it the API answers 403 `reauthentication_required`
+ * and the screen asks for the password, then retries with the token.
+ */
+export const PRIVACY_REAUTH_HEADER = 'x-reauth-token';
+
+function stepUpHeaders(reauthToken: string | undefined): Readonly<Record<string, string>> {
+  return reauthToken ? { [PRIVACY_REAUTH_HEADER]: reauthToken } : {};
+}
+
 function org(organizationSlug: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}`;
 }
@@ -95,11 +106,13 @@ export async function requestPrivacyExport(
   client: ApiClient,
   organizationSlug: string,
   input: { readonly kind: 'company' } | { readonly kind: 'member'; readonly membershipId: string },
+  reauthToken?: string,
 ): Promise<PrivacyOverviewView> {
   const { data } = await client.request<PrivacyOverviewView>({
     method: 'POST',
     path: `${adminBase(organizationSlug)}/exports`,
     body: input,
+    headers: stepUpHeaders(reauthToken),
   });
   return data;
 }
@@ -109,11 +122,13 @@ export async function requestCompanyDeletion(
   client: ApiClient,
   organizationSlug: string,
   confirmName: string,
+  reauthToken?: string,
 ): Promise<PrivacyOverviewView> {
   const { data } = await client.request<PrivacyOverviewView>({
     method: 'POST',
     path: `${adminBase(organizationSlug)}/deletion`,
     body: { confirmName },
+    headers: stepUpHeaders(reauthToken),
   });
   return data;
 }
@@ -151,10 +166,12 @@ export async function readMyPrivacy(
 export async function requestMyExport(
   client: ApiClient,
   organizationSlug: string,
+  reauthToken?: string,
 ): Promise<MyPrivacyView> {
   const { data } = await client.request<MyPrivacyView>({
     method: 'POST',
     path: `${myBase(organizationSlug)}/exports`,
+    headers: stepUpHeaders(reauthToken),
   });
   return data;
 }
@@ -162,10 +179,12 @@ export async function requestMyExport(
 export async function requestMyDeletion(
   client: ApiClient,
   organizationSlug: string,
+  reauthToken?: string,
 ): Promise<MyPrivacyView> {
   const { data } = await client.request<MyPrivacyView>({
     method: 'POST',
     path: `${myBase(organizationSlug)}/deletion`,
+    headers: stepUpHeaders(reauthToken),
   });
   return data;
 }

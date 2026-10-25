@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
 import type { ObjectStore } from '@tmanage/storage';
+import type { ApiConfig } from '../../common/http/api-config.js';
 import {
+  API_CONFIG,
   AUDIT_SERVICE,
   MALWARE_SCANNER,
   OBJECT_STORE,
@@ -19,6 +21,7 @@ import {
 } from './privacy.controller.js';
 import { PRIVACY_JOB, PrivacyJob, PrivacyPass, privacyJobEnabled } from './privacy-job.js';
 import { PrivacyService } from './privacy.service.js';
+import { PRIVACY_STEP_UP, PrivacyStepUp } from './privacy-step-up.js';
 
 /** The DI token of the pass the job runs (exported for a suite that drives one directly). */
 export const PRIVACY_PASS = Symbol.for('tmanage.PrivacyPass');
@@ -72,9 +75,14 @@ export class PrivacyModule {
         privacyJob: PrivacyJob,
       ) => new PrivacyService(database, store, audit, outbox, scanner, privacyJob),
     };
+    const stepUp: Provider = {
+      provide: PRIVACY_STEP_UP,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig) => new PrivacyStepUp(config.sessionSecret),
+    };
     return {
       module: PrivacyModule,
-      providers: [pass, job, service],
+      providers: [pass, job, service, stepUp],
       exports: [service],
       controllers: [AdminPrivacyController, MyPrivacyController],
     };

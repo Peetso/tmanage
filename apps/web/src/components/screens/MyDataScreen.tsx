@@ -8,6 +8,7 @@ import { PreferencesNav } from './PreferencesScreen';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
+import { PrivacyStepUpDialog, isStepUpRefusal, usePrivacyStepUp } from '../privacy/PrivacyStepUp';
 import {
   cancelMyDeletion,
   myExportDownloadUrl,
@@ -42,6 +43,9 @@ export interface MyDataScreenProps {
 type Tr = (key: string, english: string) => string;
 
 function writeErrorText(tr: Tr, error: unknown): string {
+  if (isStepUpRefusal(error)) {
+    return tr('PrivacyStepUp.needed', 'Confirm it’s you to go on.');
+  }
   if (error instanceof ApiRequestError) {
     const reason = error.details[0]?.message;
     if (error.status === 409 && reason === 'last_owner') {
@@ -86,13 +90,23 @@ export function MyDataScreen({
   });
 
   const settle = (data: MyPrivacyView) => queryClient.setQueryData(queryKey, data);
+  // The export and deletion requests need fresh proof (F28): see PrivacyStepUp.
+  const stepUp = usePrivacyStepUp();
   const exportMine = useMutation({
-    mutationFn: () => requestMyExport(api, organizationSlug),
+    mutationFn: () => requestMyExport(api, organizationSlug, stepUp.token()),
     onSuccess: settle,
+    onError: (error) =>
+      stepUp.ask(error, () => {
+        exportMine.mutate();
+      }),
   });
   const deleteMine = useMutation({
-    mutationFn: () => requestMyDeletion(api, organizationSlug),
+    mutationFn: () => requestMyDeletion(api, organizationSlug, stepUp.token()),
     onSuccess: settle,
+    onError: (error) =>
+      stepUp.ask(error, () => {
+        deleteMine.mutate();
+      }),
   });
   const cancelMine = useMutation({
     mutationFn: () => cancelMyDeletion(api, organizationSlug),
@@ -262,6 +276,14 @@ export function MyDataScreen({
           </section>
         </div>
       )}
+      {stepUp.open ? (
+        <PrivacyStepUpDialog
+          api={api}
+          tr={tr}
+          onConfirmed={stepUp.confirmed}
+          onClose={stepUp.cancel}
+        />
+      ) : null}
     </AppShell>
   );
 }

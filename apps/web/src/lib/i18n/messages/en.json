@@ -12118,5 +12118,17 @@
   "Invitations.error.rate_limited": "Too many invitations in the last hour. Try again later.",
   "Invitations.error.address_not_invitable": "That address cannot be invited.",
   "Invitations.error.session_required_for_privileged_invite": "Sign in to TManage in your browser to invite someone with this role.",
-  "Invitations.error.role_escalation": "You can only give a role whose rights you hold yourself."
+  "Invitations.error.role_escalation": "You can only give a role whose rights you hold yourself.",
+  "PrivacyStepUp.title": "Confirm it’s you",
+  "PrivacyStepUp.lede": "Enter your password to go on. If two-step sign-in is on, add the code from your app.",
+  "PrivacyStepUp.cancel": "Cancel",
+  "PrivacyStepUp.confirm": "Confirm",
+  "PrivacyStepUp.confirming": "Checking",
+  "PrivacyStepUp.password": "Password",
+  "PrivacyStepUp.code": "Two-step code, if you use one",
+  "PrivacyStepUp.noPassword": "No password yet because you sign in with Google? Set one in Preferences › Sign-in, then come back.",
+  "PrivacyStepUp.errorWrong": "That password or code is not right.",
+  "PrivacyStepUp.errorTooMany": "Too many tries. Wait a few minutes and try again.",
+  "PrivacyStepUp.errorGeneric": "That did not go through. Try again.",
+  "PrivacyStepUp.needed": "Confirm it’s you to go on."
 }

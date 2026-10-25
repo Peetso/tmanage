@@ -10,7 +10,10 @@ import { CSRF_HEADER } from '../src/common/http/csrf.js';
 import { parseGrantScript } from '../src/common/database/grants.js';
 import { TABLES } from '../src/common/database/schema.js';
 import { TENANT_TABLES } from '../src/common/database/tenant-guard.js';
+import { signReauthToken } from '../src/modules/identity/reauth-token.js';
+import { mintPersonalAccessToken } from '../src/modules/personal-access-tokens/personal-access-token.js';
 import { PRIVACY_PASS } from '../src/modules/privacy/privacy.module.js';
+import { PRIVACY_REAUTH_HEADER } from '../src/modules/privacy/privacy-step-up.js';
 import type { PrivacyPass } from '../src/modules/privacy/privacy-job.js';
 import type { TestDatabase } from './support/test-database.js';
 import type { SeedWorld } from './seed-two-tenants.js';
@@ -19,6 +22,7 @@ import {
   reseed,
   signIn as harnessSignIn,
   stopHarness,
+  testApiConfig,
 } from './support/http-harness.js';
 import type { InjectedResponse, Session } from './support/http-harness.js';
 
@@ -45,6 +49,7 @@ const intents = parseGrantScript(
   readFileSync(resolve(HERE, '../../../scripts/db/users.sql'), 'utf8'),
 );
 
+const SECRET_TAG = 'the_priv_001_suite';
 const NORTHSTAR = 'northstar-studio';
 const TWIN = 'northstar-studios';
 
@@ -53,18 +58,41 @@ async function observe(sql: string, params: readonly unknown[] = []): Promise<Ro
   return rows;
 }
 
-function signIn(userId: string): Promise<Session> {
-  return harnessSignIn(app, userId);
+/**
+ * A cookie session plus the fresh proof `POST /v1/auth/reauth` would mint for it (S13 / F28): the
+ * export and deletion requests need it, bound to this very session. Minted directly, because the
+ * seeded people have no password to re-present.
+ */
+type PrivacySession = Session & { readonly reauthToken: string };
+
+async function signIn(userId: string): Promise<PrivacySession> {
+  const session = await harnessSignIn(app, userId);
+  const [row] = await observe(
+    'select id from sessions where user_id = ? order by id desc limit 1',
+    [userId],
+  );
+  const reauthToken = signReauthToken(
+    { userId, sessionId: String(row!['id']), expiresAt: new Date(Date.now() + 300_000) },
+    testApiConfig(SECRET_TAG).sessionSecret,
+  );
+  return { ...session, reauthToken };
+}
+
+/** The step-up routes: the export and deletion requests (not the cancel, not the download). */
+function needsStepUp(path: string): boolean {
+  return /\/privacy\/(exports|deletion)$/u.test(path);
 }
 
 async function send(
   method: 'GET' | 'POST',
   path: string,
-  session: Session,
+  session: PrivacySession,
   payload?: unknown,
   slug = NORTHSTAR,
+  opts: { readonly withoutStepUp?: boolean } = {},
 ): Promise<InjectedResponse> {
   const body = payload ?? (method === 'POST' ? {} : undefined);
+  const stepUp = method === 'POST' && needsStepUp(path) && opts.withoutStepUp !== true;
   return (await app.inject({
     method,
     url: `/v1/organizations/${slug}${path}`,
@@ -72,6 +100,7 @@ async function send(
       ...(body === undefined ? {} : { 'content-type': 'application/json' }),
       cookie: session.cookie,
       ...(method === 'GET' ? {} : { [CSRF_HEADER]: session.csrfToken }),
+      ...(stepUp ? { [PRIVACY_REAUTH_HEADER]: session.reauthToken } : {}),
     },
     ...(body === undefined ? {} : { payload: body as Record<string, unknown> }),
   })) as unknown as InjectedResponse;
@@ -114,7 +143,7 @@ const owner = () => world.northstar.owner;
 const designer = () => world.northstar.designer;
 
 beforeAll(async () => {
-  ({ app, db } = await bootHttpHarness({ secretTag: 'the_priv_001_suite', guardMode: 'enforce' }));
+  ({ app, db } = await bootHttpHarness({ secretTag: SECRET_TAG, guardMode: 'enforce' }));
 }, 300_000);
 
 beforeEach(async () => {
@@ -359,5 +388,93 @@ describe('0231 — tenant isolation', () => {
         [uuidv7(), world.northstar.organizationId, uuidv7(), owner().id],
       ),
     ).rejects.toThrow(/foreign key/i);
+  });
+});
+
+describe('S13 / F28 — the data-rights acts need a person, with fresh proof', () => {
+  async function ownerToken(): Promise<string> {
+    const minted = mintPersonalAccessToken();
+    await db.admin.execute(
+      `insert into personal_access_tokens
+         (id, organization_id, membership_id, user_id, name, token_hash, token_prefix, created_at)
+       values (?, ?, ?, ?, 'leaked', ?, ?, now(3))`,
+      [
+        uuidv7(),
+        world.northstar.organizationId,
+        owner().membershipId,
+        owner().id,
+        minted.tokenHash,
+        minted.displayPrefix,
+      ],
+    );
+    return minted.token;
+  }
+
+  async function withToken(method: 'GET' | 'POST', path: string, token: string, payload?: unknown) {
+    return (await app.inject({
+      method,
+      url: `/v1/organizations/${NORTHSTAR}${path}`,
+      headers: {
+        authorization: `Bearer ${token}`,
+        ...(payload === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(payload === undefined ? {} : { payload: payload as Record<string, unknown> }),
+    })) as unknown as InjectedResponse;
+  }
+
+  it('refuses an owner PAT on every export, download and deletion route, writing nothing', async () => {
+    const token = await ownerToken();
+    const name = await organizationName(world.northstar.organizationId);
+    const attempts: readonly (readonly ['GET' | 'POST', string, unknown?])[] = [
+      ['POST', '/admin/privacy/exports', { kind: 'company' }],
+      ['GET', `/admin/privacy/exports/${uuidv7()}/download`],
+      ['POST', '/admin/privacy/deletion', { confirmName: name }],
+      ['POST', '/admin/privacy/deletion/cancel', {}],
+      ['POST', '/me/privacy/exports', {}],
+      ['GET', `/me/privacy/exports/${uuidv7()}/download`],
+      ['POST', '/me/privacy/deletion', {}],
+      ['POST', '/me/privacy/deletion/cancel', {}],
+    ];
+    for (const [method, path, payload] of attempts) {
+      const response = await withToken(method, path, token, payload);
+      expect(response.statusCode, `${method} ${path}: ${response.body}`).toBe(403);
+    }
+    expect(await observe('select id from privacy_exports')).toHaveLength(0);
+    expect(await observe('select id from privacy_deletion_requests')).toHaveLength(0);
+  });
+
+  it('refuses a cookie session without step-up on the export and deletion requests', async () => {
+    const session = await signIn(owner().id);
+    const name = await organizationName(world.northstar.organizationId);
+    for (const [path, payload] of [
+      ['/admin/privacy/exports', { kind: 'company' }],
+      ['/admin/privacy/deletion', { confirmName: name }],
+      ['/me/privacy/exports', {}],
+    ] as const) {
+      const response = await send('POST', path, session, payload, NORTHSTAR, {
+        withoutStepUp: true,
+      });
+      expect(response.statusCode, response.body).toBe(403);
+      expect(response.json<{ error: { code: string } }>().error.code).toBe(
+        'reauthentication_required',
+      );
+    }
+    expect(await observe('select id from privacy_exports')).toHaveLength(0);
+    expect(await observe('select id from privacy_deletion_requests')).toHaveLength(0);
+  });
+
+  it('refuses a step-up token minted for another session', async () => {
+    const first = await signIn(owner().id);
+    const second = await signIn(owner().id);
+    const response = await send(
+      'POST',
+      '/admin/privacy/exports',
+      { ...second, reauthToken: first.reauthToken },
+      {
+        kind: 'company',
+      },
+    );
+    expect(response.statusCode, response.body).toBe(403);
+    expect(await observe('select id from privacy_exports')).toHaveLength(0);
   });
 });

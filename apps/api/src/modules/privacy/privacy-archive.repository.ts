@@ -1,5 +1,6 @@
 import { gzipSync } from 'node:zlib';
 import type {
+  QueryRows,
   SqlParameter,
   TenantContext,
   TenantDatabase,
@@ -15,6 +16,12 @@ import type { ArchiveFileContents } from './privacy-archive-files.repository.js'
  * member export narrows each section to the one person as well. The identity half of a member export
  * (their account and their sign-in history) is read on the identity path, which may reach only the
  * global tables it names.
+ *
+ * S13 / F46 — **which door asked decides the sign-in history.** The person's own export (they asked,
+ * about themselves) carries their whole platform sign-in history. An export an owner asked for about
+ * someone else carries only the attempts made while that person belonged to *this* organization
+ * (from the membership's `created_at`, to its offboarding when it has ended), and without `ip` or
+ * `user_agent`: what they did elsewhere, and where and on what device, is not this company's.
  *
  * What is deliberately left out: credentials of any kind (password hashes, MFA seeds, tokens,
  * session secrets).
@@ -66,6 +73,22 @@ const PAGE_SIZE = 1000;
 export const MAX_ROWS_PER_SECTION = 200_000;
 
 export type ArchiveRow = Record<string, unknown>;
+
+/**
+ * Who the member archive is for: `'self'` when the subject asked about themselves, `'owner'` when an
+ * owner asked about someone else. The narrow `'owner'` reading is the default.
+ */
+export type ArchiveDoor = 'self' | 'owner';
+
+/** The door an export row came through: only a person asking about themselves is `'self'`. */
+export function archiveDoorOf(row: {
+  readonly requestedByUserId: string;
+  readonly subjectUserId: string | null;
+}): ArchiveDoor {
+  return row.subjectUserId !== null && row.requestedByUserId === row.subjectUserId
+    ? 'self'
+    : 'owner';
+}
 
 export interface ArchiveHeader {
   readonly format: 'tmanage-data-export';
@@ -126,6 +149,7 @@ export class PrivacyArchiveBuilder {
     context: TenantContext,
     header: ArchiveHeader,
     onProgress: (share: number) => Promise<void>,
+    door: ArchiveDoor = 'owner',
   ): Promise<ArchiveDocument> {
     const sections: Record<string, readonly ArchiveRow[]> = {};
     const truncated: string[] = [];
@@ -140,7 +164,7 @@ export class PrivacyArchiveBuilder {
     } else {
       const subject = header.subjectUserId;
       if (subject === null) throw new Error('a member export names its subject');
-      const identity = await this.readIdentity(context, subject);
+      const identity = await this.readIdentity(context, subject, door);
       sections['account'] = identity.account;
       sections['sign_in_history'] = identity.signIns;
       for (const [index, section] of MEMBER_SECTIONS.entries()) {
@@ -194,11 +218,17 @@ export class PrivacyArchiveBuilder {
     return { rows, cut: true };
   }
 
-  /** The person's account (no credential columns) and their sign-in attempts, newest first. */
+  /**
+   * The person's account (no credential columns) and their sign-in attempts, newest first: all of
+   * them through the person's own door, only this membership's lifetime and no address or device
+   * through the owner's (F46).
+   */
   private async readIdentity(
     context: TenantContext,
     userId: string,
+    door: ArchiveDoor,
   ): Promise<{ readonly account: readonly ArchiveRow[]; readonly signIns: readonly ArchiveRow[] }> {
+    const window = door === 'self' ? null : await this.membershipWindow(context, userId);
     return this.database.identityRead(
       { correlationId: context.correlationId, tables: ['users', 'authentication_events'] },
       async (runner) => {
@@ -207,12 +237,29 @@ export class PrivacyArchiveBuilder {
              from users where id = ?`,
           [userId],
         );
-        const signIns = await runner.query(
-          `select action, outcome, ip, user_agent, occurred_at
-             from authentication_events where user_id = ?
-             order by occurred_at desc limit 1000`,
-          [userId],
-        );
+        let signIns: QueryRows;
+        if (door === 'self') {
+          signIns = await runner.query<QueryRows>(
+            `select action, outcome, ip, user_agent, occurred_at
+               from authentication_events where user_id = ?
+               order by occurred_at desc limit 1000`,
+            [userId],
+          );
+        } else if (window === null) {
+          // No membership here (it cannot be read): nothing of theirs is this company's to see.
+          signIns = [];
+        } else {
+          const params: SqlParameter[] = [userId, window.from];
+          if (window.to !== null) params.push(window.to);
+          signIns = await runner.query<QueryRows>(
+            `select action, outcome, occurred_at
+               from authentication_events where user_id = ? and occurred_at >= ?${
+                 window.to === null ? '' : ' and occurred_at <= ?'
+               }
+               order by occurred_at desc limit 1000`,
+            params,
+          );
+        }
         return {
           account: account.map((row) => toJsonRow(row as Record<string, unknown>)),
           signIns: signIns.map((row) => toJsonRow(row as Record<string, unknown>)),
@@ -220,4 +267,31 @@ export class PrivacyArchiveBuilder {
       },
     );
   }
+
+  /** When the person joined this organization, and when they left it (null while they belong). */
+  private async membershipWindow(
+    context: TenantContext,
+    userId: string,
+  ): Promise<{ readonly from: Date; readonly to: Date | null } | null> {
+    const rows = await this.database.read(context, (runner) =>
+      runner.query(
+        `select created_at, status, updated_at from memberships
+           where organization_id = ? and user_id = ? limit 1`,
+        [context.organizationId, userId],
+      ),
+    );
+    const row = rows[0] as Record<string, unknown> | undefined;
+    const from = asDate(row?.['created_at']);
+    if (!row || from === null) return null;
+    return { from, to: row['status'] === 'offboarded' ? asDate(row['updated_at']) : null };
+  }
+}
+
+function asDate(value: unknown): Date | null {
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+  if (typeof value === 'string' || typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  return null;
 }

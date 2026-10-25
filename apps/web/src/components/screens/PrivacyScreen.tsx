@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge, Button, InlineAlert, LoadingRegion, Skeleton, StatusDot } from '@tmanage/ui';
 import { ControlCenterShell, ccKey } from '../admin/ControlCenterShell';
 import { PrivacyDialog, PrivacyPoints } from '../privacy/PrivacyDialog';
+import { PrivacyStepUpDialog, isStepUpRefusal, usePrivacyStepUp } from '../privacy/PrivacyStepUp';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
@@ -59,6 +60,9 @@ type Tr = (key: string, english: string) => string;
 
 /** The refusal a dialog shows when its write did not go through. */
 function writeErrorText(tr: Tr, error: unknown): string {
+  if (isStepUpRefusal(error)) {
+    return tr('PrivacyStepUp.needed', 'Confirm it’s you to go on.');
+  }
   if (error instanceof ApiRequestError) {
     const reason = error.details[0]?.message;
     if (error.status === 409 && reason === 'preparing') {
@@ -120,18 +124,35 @@ export function PrivacyScreen({
     setDialog(null);
   };
 
+  // The export and deletion requests need fresh proof (F28): a step-up refusal opens "Confirm it's
+  // you" and the same request runs again with the token it returns.
+  const stepUp = usePrivacyStepUp();
   const exportCompany = useMutation({
-    mutationFn: () => requestPrivacyExport(api, organizationSlug, { kind: 'company' }),
+    mutationFn: () =>
+      requestPrivacyExport(api, organizationSlug, { kind: 'company' }, stepUp.token()),
     onSuccess: settle,
+    onError: (error) =>
+      stepUp.ask(error, () => {
+        exportCompany.mutate();
+      }),
   });
   const exportMember = useMutation({
     mutationFn: (membershipId: string) =>
-      requestPrivacyExport(api, organizationSlug, { kind: 'member', membershipId }),
+      requestPrivacyExport(api, organizationSlug, { kind: 'member', membershipId }, stepUp.token()),
     onSuccess: settle,
+    onError: (error, membershipId) =>
+      stepUp.ask(error, () => {
+        exportMember.mutate(membershipId);
+      }),
   });
   const deleteCompany = useMutation({
-    mutationFn: (confirmName: string) => requestCompanyDeletion(api, organizationSlug, confirmName),
+    mutationFn: (confirmName: string) =>
+      requestCompanyDeletion(api, organizationSlug, confirmName, stepUp.token()),
     onSuccess: settle,
+    onError: (error, confirmName) =>
+      stepUp.ask(error, () => {
+        deleteCompany.mutate(confirmName);
+      }),
   });
   const cancelDeletion = useMutation({
     mutationFn: () => cancelCompanyDeletion(api, organizationSlug),
@@ -268,6 +289,14 @@ export function PrivacyScreen({
           error={cancelDeletion.error}
           onClose={close}
           onConfirm={() => cancelDeletion.mutate()}
+        />
+      ) : null}
+      {stepUp.open ? (
+        <PrivacyStepUpDialog
+          api={api}
+          tr={tr}
+          onConfirmed={stepUp.confirmed}
+          onClose={stepUp.cancel}
         />
       ) : null}
     </ControlCenterShell>

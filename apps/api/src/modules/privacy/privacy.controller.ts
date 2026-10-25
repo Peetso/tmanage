@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Inject, Param, Post, Res, StreamableFile } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  Post,
+  Req,
+  Res,
+  StreamableFile,
+} from '@nestjs/common';
 import type { Readable } from 'node:stream';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
@@ -11,6 +21,8 @@ import type {
   PrivacyOverviewView,
   PrivacyService,
 } from './privacy.service.js';
+import { PRIVACY_STEP_UP } from './privacy-step-up.js';
+import type { PrivacyRequestLike, PrivacyStepUp } from './privacy-step-up.js';
 
 /** The DI token of the privacy service (esbuild emits no constructor types; every inject is named). */
 export const PRIVACY_SERVICE = Symbol.for('tmanage.PrivacyService');
@@ -31,11 +43,16 @@ export function respondWithArchive(download: PrivacyDownload, reply: HeaderWrite
 
 /**
  * D5 (Figma F5) — Control › Privacy, the company owner's page. `org.manage` is the coarse gate the
- * `CapabilityGuard` reads; the service refuses everyone but an owner (`requireOwner`).
+ * `CapabilityGuard` reads; the service refuses everyone but an owner (`requireOwner`). S13 / F28: every
+ * write and the download refuse a bound token, and the export and deletion requests need step-up
+ * (`privacy-step-up.ts`).
  */
 @Controller('v1/organizations/:orgSlug/admin/privacy')
 export class AdminPrivacyController {
-  constructor(@Inject(PRIVACY_SERVICE) private readonly privacy: PrivacyService) {}
+  constructor(
+    @Inject(PRIVACY_SERVICE) private readonly privacy: PrivacyService,
+    @Inject(PRIVACY_STEP_UP) private readonly guard: PrivacyStepUp,
+  ) {}
 
   @Get()
   @RequireCapability('org.manage')
@@ -53,7 +70,9 @@ export class AdminPrivacyController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Body() body: { readonly kind?: unknown; readonly membershipId?: unknown } | undefined,
+    @Req() request: PrivacyRequestLike,
   ): Promise<PrivacyOverviewView> {
+    this.guard.stepUp(request);
     return this.privacy.requestOwnerExport(context, principal, body);
   }
 
@@ -64,7 +83,9 @@ export class AdminPrivacyController {
     @CurrentPrincipal() principal: Principal,
     @Param('exportId') exportId: string,
     @Res({ passthrough: true }) reply: HeaderWriter,
+    @Req() request: PrivacyRequestLike,
   ): Promise<StreamableFile> {
+    this.guard.person(request);
     const download = await this.privacy.download(context, principal, exportId, 'owner');
     return respondWithArchive(download, reply);
   }
@@ -76,7 +97,9 @@ export class AdminPrivacyController {
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
     @Body() body: { readonly confirmName?: unknown } | undefined,
+    @Req() request: PrivacyRequestLike,
   ): Promise<PrivacyOverviewView> {
+    this.guard.stepUp(request);
     return this.privacy.requestCompanyDeletion(context, principal, body);
   }
 
@@ -85,7 +108,9 @@ export class AdminPrivacyController {
   cancelDeletion(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
+    @Req() request: PrivacyRequestLike,
   ): Promise<PrivacyOverviewView> {
+    this.guard.person(request);
     return this.privacy.cancelCompanyDeletion(context, principal);
   }
 }
@@ -93,7 +118,10 @@ export class AdminPrivacyController {
 /** D5 (Figma F5 phone) — "My data": every internal member's own export and account deletion. */
 @Controller('v1/organizations/:orgSlug/me/privacy')
 export class MyPrivacyController {
-  constructor(@Inject(PRIVACY_SERVICE) private readonly privacy: PrivacyService) {}
+  constructor(
+    @Inject(PRIVACY_SERVICE) private readonly privacy: PrivacyService,
+    @Inject(PRIVACY_STEP_UP) private readonly guard: PrivacyStepUp,
+  ) {}
 
   @Get()
   @RequireCapability('work.read')
@@ -109,7 +137,9 @@ export class MyPrivacyController {
   requestExport(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
+    @Req() request: PrivacyRequestLike,
   ): Promise<MyPrivacyView> {
+    this.guard.stepUp(request);
     return this.privacy.requestMyExport(context, principal);
   }
 
@@ -120,7 +150,9 @@ export class MyPrivacyController {
     @CurrentPrincipal() principal: Principal,
     @Param('exportId') exportId: string,
     @Res({ passthrough: true }) reply: HeaderWriter,
+    @Req() request: PrivacyRequestLike,
   ): Promise<StreamableFile> {
+    this.guard.person(request);
     const download = await this.privacy.download(context, principal, exportId, 'self');
     return respondWithArchive(download, reply);
   }
@@ -130,7 +162,9 @@ export class MyPrivacyController {
   requestDeletion(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
+    @Req() request: PrivacyRequestLike,
   ): Promise<MyPrivacyView> {
+    this.guard.stepUp(request);
     return this.privacy.requestMyDeletion(context, principal);
   }
 
@@ -139,7 +173,9 @@ export class MyPrivacyController {
   cancelDeletion(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
+    @Req() request: PrivacyRequestLike,
   ): Promise<MyPrivacyView> {
+    this.guard.person(request);
     return this.privacy.cancelMyDeletion(context, principal);
   }
 }
