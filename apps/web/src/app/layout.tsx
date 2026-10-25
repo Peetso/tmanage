@@ -6,14 +6,12 @@ import './globals.css';
 import '../styles/phone-tables.css';
 import { AuthBoundaryProvider } from '../components/providers/AuthBoundaryProvider';
 import { LocaleDirectionProvider } from '../components/providers/LocaleDirectionProvider';
-import { ServerLocaleProvider } from '../components/providers/ServerLocaleProvider';
 import { QueryProvider } from '../components/providers/QueryProvider';
 import { RouteDocumentTitle } from '../components/providers/RouteDocumentTitle';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 import { UpdateToast } from '../components/pwa/UpdateToast';
 import { localeBootScript } from '../lib/i18n/locale-boot';
-import { htmlLocaleAttributes, siteDescription } from '../lib/i18n/locale-html';
-import { serverLocale } from '../lib/i18n/server-locale';
+import { SITE_DESCRIPTION_EN } from '../lib/i18n/locale-html';
 
 /**
  * Manrope, self-hosted.
@@ -62,22 +60,22 @@ const manrope = localFont({
 });
 
 /**
- * The site-wide metadata, in the request's locale (saved-locale cookie or `?lang=`). Each route's
- * own `title` fills the template; the brand name reads the same in both languages.
+ * The site-wide metadata. It is static on purpose: reading the request here (`cookies()`,
+ * `headers()`) would make every route dynamic and stop the public pages being prerendered
+ * (`deploy/hostinger/build.mjs` checks their `.html`, and the CDN caches them for 60 s). Each
+ * route's own `title` fills the template; the brand name reads the same in both languages, and the
+ * tab title follows the active locale in the browser (`RouteDocumentTitle`).
  */
-export async function generateMetadata(): Promise<Metadata> {
-  const locale = await serverLocale();
-  return {
-    title: {
-      default: 'TManage',
-      template: '%s · TManage',
-    },
-    description: siteDescription(locale),
-    // The screens behind sign-in are tenant data. None of them should ever be indexed, and
-    // the public marketing pages (PUB-01 to PUB-07) are a separate ticket that can opt back in.
-    robots: { index: false, follow: false },
-  };
-}
+export const metadata: Metadata = {
+  title: {
+    default: 'TManage',
+    template: '%s · TManage',
+  },
+  description: SITE_DESCRIPTION_EN,
+  // The screens behind sign-in are tenant data. None of them should ever be indexed, and
+  // the public marketing pages (PUB-01 to PUB-07) are a separate ticket that can opt back in.
+  robots: { index: false, follow: false },
+};
 
 export const viewport: Viewport = {
   // 40-DESIGN-SYSTEM §10 requires 200% zoom to reflow rather than clip, so nothing here
@@ -102,29 +100,24 @@ const LOCALE_BOOT_SCRIPT = localeBootScript();
  * *nested* case — a client-portal preview rendered inside the internal app — and is
  * deliberately not used here.
  *
- * `lang`/`dir` are rendered on the server from the request's locale (`server-locale.ts`: an
- * allowlisted `?lang=` handed over by `proxy.ts`, else the saved-locale cookie the language switch
- * writes, else `en-US`), so the first paint, the text and crawlers already see Arabic right-to-left
- * when it was chosen. Reading the cookie makes every page dynamic: Next marks the HTML
- * `private, no-store`, and `apps/server/cache-headers.mjs` adds `Vary: Cookie`, so the CDN never
- * hands one visitor's language to another. The inline `<head>` script from `locale-boot.ts` still
- * runs before the first paint for a browser that saved its choice only in `localStorage` (and
- * writes the cookie for its next load), and `LocaleDirectionProvider` (mounted just inside
- * `<body>`) keeps them in step whenever a member changes locale. `ServerLocaleProvider` gives the
- * client components' first render the same locale. `suppressHydrationWarning` covers only
- * `<html>`'s own attributes, which that script may change by design. There is no script-src CSP
- * yet (`next.config.ts`), so the inline script needs no nonce; when one lands it must allow this
- * script's hash or nonce. The CSS throughout uses logical properties, so that switch is a value
- * change rather than a rewrite. The Arabic face the tokens name
- * (Alexandria) is still not packaged — recorded as open in `docs/implementation-status.md`.
+ * `lang="en" dir="ltr"` is the server-rendered baseline: correct with no JavaScript and for
+ * every Latin-script member. The pages stay static (no `cookies()`/`headers()` here — shared
+ * hosting, prerendered public pages, release no-go 70645c82), so the tab's own locale is applied in
+ * the browser: the inline `<head>` script from `locale-boot.ts` reads an allowlisted `?lang=`, the
+ * saved-locale cookie the language switch writes, or the cached locale, and sets `lang`/`dir`
+ * before the first paint; `LocaleDirectionProvider` (mounted just inside `<body>`) keeps them in
+ * step whenever a member changes locale, so `ar-EG` reads right-to-left on reload and without one.
+ * `suppressHydrationWarning` covers only `<html>`'s own attributes, which that script changes by
+ * design. There is no script-src CSP yet (`next.config.ts`), so the inline script needs no nonce;
+ * when one lands it must allow this script's hash or nonce. The CSS throughout uses logical
+ * properties, so that switch is a value change rather than a rewrite. The Arabic face the tokens
+ * name (Alexandria) is still not packaged — recorded as open in `docs/implementation-status.md`.
  */
-export default async function RootLayout({ children }: { children: ReactNode }) {
-  const locale = await serverLocale();
-  const { lang, dir } = htmlLocaleAttributes(locale);
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
-      lang={lang}
-      dir={dir}
+      lang="en"
+      dir="ltr"
       className={manrope.variable}
       data-theme="light"
       data-density="balanced"
@@ -134,13 +127,11 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         <script dangerouslySetInnerHTML={{ __html: LOCALE_BOOT_SCRIPT }} />
       </head>
       <body>
-        <ServerLocaleProvider locale={locale}>
-          <QueryProvider>
-            <LocaleDirectionProvider>
-              <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
-            </LocaleDirectionProvider>
-          </QueryProvider>
-        </ServerLocaleProvider>
+        <QueryProvider>
+          <LocaleDirectionProvider>
+            <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
+          </LocaleDirectionProvider>
+        </QueryProvider>
         {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}
         <RouteDocumentTitle />
         <ServiceWorkerRegister />

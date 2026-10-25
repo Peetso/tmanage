@@ -1,52 +1,44 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isValidElement, type ReactElement } from 'react';
-import { renderToString } from 'react-dom/server';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NextRequest } from 'next/server';
-import { ServerLocaleProvider } from '../src/components/providers/ServerLocaleProvider';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   LOCALE_STORAGE_KEY,
   localeBootScript,
   resolveBootLocale,
 } from '../src/lib/i18n/locale-boot';
 import {
-  LANG_REQUEST_HEADER,
   LOCALE_COOKIE_NAME,
   localeCookieString,
   localeFromCookieHeader,
   readLocaleCookie,
-  resolveServerLocale,
   writeLocaleCookie,
 } from '../src/lib/i18n/locale-cookie';
-import {
-  htmlLocaleAttributes,
-  SITE_DESCRIPTION_EN,
-  siteDescription,
-} from '../src/lib/i18n/locale-html';
+import { SITE_DESCRIPTION_EN, siteDescription } from '../src/lib/i18n/locale-html';
 import { LocaleStore } from '../src/lib/i18n/locale-store';
-import { useActiveLocale } from '../src/lib/i18n/use-active-locale';
-import { proxy } from '../src/proxy';
 
 /**
- * Wave 6 E3 — server-rendered Arabic from the saved language.
+ * Wave 6 E3 — the saved language as a cookie, after the release no-go on 70645c82.
  *
- * Guards: the language switch writes a first-party cookie; the server reads it (and `?lang=`) for
- * `<html lang dir>` and the first render; the boot script and the store follow the same order, so
- * nothing flips direction after load.
+ * Guards: the language switch writes a first-party cookie; the boot script and the store read it
+ * first, so nothing flips direction after load. The root layout reads no request (`cookies()` /
+ * `headers()` made every route dynamic, so the public pages were no longer prerendered and
+ * `deploy/hostinger/build.mjs` refused the bundle); it renders the static English baseline and the
+ * browser applies the saved locale before the first paint.
  */
 
-const request = vi.hoisted(() => ({
-  cookie: undefined as string | undefined,
-  lang: null as string | null,
-}));
-
+// Reading the request in the layout would call these; the static layout must never reach them.
+const requestReads = vi.hoisted(() => ({ count: 0 }));
 vi.mock('next/headers', () => ({
-  cookies: async () => ({
-    get: (name: string) =>
-      name === 'tmanage_locale' && request.cookie !== undefined
-        ? { name, value: request.cookie }
-        : undefined,
-  }),
-  headers: async () => new Headers(request.lang === null ? {} : { 'x-tmanage-lang': request.lang }),
+  cookies: async () => {
+    requestReads.count += 1;
+    return { get: () => undefined };
+  },
+  headers: async () => {
+    requestReads.count += 1;
+    return new Headers();
+  },
 }));
 
 vi.mock('next/font/local', () => ({ default: () => ({ variable: 'font-manrope' }) }));
@@ -54,11 +46,6 @@ vi.mock('next/font/local', () => ({ default: () => ({ variable: 'font-manrope' }
 function clearCookie(): void {
   document.cookie = `${LOCALE_COOKIE_NAME}=; Path=/; Max-Age=0`;
 }
-
-beforeEach(() => {
-  request.cookie = undefined;
-  request.lang = null;
-});
 
 afterEach(() => {
   clearCookie();
@@ -102,79 +89,42 @@ describe('the saved-locale cookie', () => {
   });
 });
 
-describe('the server locale', () => {
-  it('takes ?lang= first, then the cookie, then English', () => {
-    expect(resolveServerLocale({ lang: 'ar-EG', cookie: 'en-US' })).toBe('ar-EG');
-    expect(resolveServerLocale({ lang: null, cookie: 'ar-EG' })).toBe('ar-EG');
-    expect(resolveServerLocale({ lang: 'xx', cookie: 'xx-YY' })).toBe('en-US');
-    expect(resolveServerLocale({})).toBe('en-US');
-  });
-
-  it('gives <html> lang and dir for the locale', () => {
-    expect(htmlLocaleAttributes('ar-EG')).toEqual({ lang: 'ar-EG', dir: 'rtl' });
-    expect(htmlLocaleAttributes('en-US')).toEqual({ lang: 'en-US', dir: 'ltr' });
-  });
-
+describe('the site description', () => {
   it('never shows a catalog key as the site description', () => {
     expect(siteDescription('en-US')).toBe(SITE_DESCRIPTION_EN);
     expect(siteDescription('ar-EG')).not.toMatch(/^PublicSite\./);
   });
 });
 
-async function renderLayout(): Promise<ReactElement<{ lang: string; dir: string }>> {
-  const { default: RootLayout } = await import('../src/app/layout');
-  const element = await RootLayout({ children: null });
-  if (!isValidElement(element)) throw new Error('RootLayout did not return an element');
-  return element as ReactElement<{ lang: string; dir: string }>;
-}
+const SRC = join(dirname(fileURLToPath(import.meta.url)), '../src');
+const LAYOUT_SOURCE = join(SRC, 'app/layout.tsx');
 
-describe('the root layout', () => {
-  it('renders Arabic right-to-left from the cookie', async () => {
-    request.cookie = 'ar-EG';
-    const html = await renderLayout();
-    expect(html.props.lang).toBe('ar-EG');
-    expect(html.props.dir).toBe('rtl');
+describe('the root layout stays static (public pages prerendered)', () => {
+  it('reads neither cookies nor headers, and is not async', () => {
+    const source = readFileSync(LAYOUT_SOURCE, 'utf8');
+    expect(source).not.toMatch(/from 'next\/headers'/);
+    expect(source).not.toMatch(/server-locale/);
+    expect(source).not.toMatch(/export (default )?async function/);
+    expect(source).not.toMatch(/generateMetadata/);
   });
 
-  it('renders Arabic from ?lang=ar (the proxy header) over an English cookie', async () => {
-    request.cookie = 'en-US';
-    request.lang = 'ar-EG';
-    const html = await renderLayout();
-    expect(html.props.dir).toBe('rtl');
-  });
-
-  it('renders English left-to-right with no saved choice or a crafted cookie', async () => {
-    request.cookie = '"><script>';
-    const html = await renderLayout();
-    expect(html.props.lang).toBe('en-US');
+  it('renders the English left-to-right baseline the boot script corrects', async () => {
+    document.cookie = `${LOCALE_COOKIE_NAME}=ar-EG; Path=/`;
+    const { default: RootLayout, metadata } = await import('../src/app/layout');
+    const element: unknown = RootLayout({ children: null });
+    expect(element).not.toBeInstanceOf(Promise);
+    if (!isValidElement(element)) throw new Error('RootLayout did not return an element');
+    const html = element as ReactElement<{ lang: string; dir: string }>;
+    expect(html.props.lang).toBe('en');
     expect(html.props.dir).toBe('ltr');
+    expect(metadata.description).toBe(SITE_DESCRIPTION_EN);
+    expect(requestReads.count).toBe(0);
   });
 
-  it('gives the client components the same locale for their first render', () => {
-    function Probe() {
-      return <span>{useActiveLocale(new LocaleStore('en-US'))}</span>;
-    }
-    const markup = renderToString(
-      <ServerLocaleProvider locale="ar-EG">
-        <Probe />
-      </ServerLocaleProvider>,
-    );
-    expect(markup).toContain('ar-EG');
-  });
-});
-
-describe('the proxy', () => {
-  it('forwards an allowlisted ?lang= and drops a header the client sent itself', () => {
-    const arabic = proxy(new NextRequest('http://localhost/pricing?lang=ar'));
-    expect(arabic.headers.get(`x-middleware-request-${LANG_REQUEST_HEADER}`)).toBe('ar-EG');
-
-    const spoofed = proxy(
-      new NextRequest('http://localhost/pricing?lang=xx', {
-        headers: { [LANG_REQUEST_HEADER]: 'ar-EG' },
-      }),
-    );
-    expect(spoofed.headers.get(`x-middleware-request-${LANG_REQUEST_HEADER}`)).toBeNull();
-    expect(spoofed.headers.get('set-cookie')).toBeNull();
+  it('has no request proxy left over from the server render', () => {
+    expect(existsSync(LAYOUT_SOURCE)).toBe(true);
+    expect(existsSync(join(SRC, 'proxy.ts'))).toBe(false);
+    expect(existsSync(join(SRC, 'middleware.ts'))).toBe(false);
   });
 });
 

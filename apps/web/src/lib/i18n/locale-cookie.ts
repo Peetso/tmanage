@@ -1,12 +1,14 @@
 import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences';
 
 /**
- * i18n (NFR-02, live check f30af1d0) — the saved locale as a first-party cookie, so the server can
- * render `<html lang dir>`, the tab title and the first paint in the visitor's language.
+ * i18n (NFR-02, live check f30af1d0) — the saved locale as a first-party cookie, next to
+ * `localStorage` (`locale-boot.ts`).
  *
- * `localStorage` (`locale-boot.ts`) only reaches the browser, so the HTML used to arrive English
- * and left-to-right for everyone. The language switch now writes this cookie as well; the root
- * layout reads it (and `?lang=`, which `proxy.ts` hands over as {@link LANG_REQUEST_HEADER}).
+ * The language switch writes this cookie as well as `localStorage`, and the inline boot script
+ * and the store read it first. The root layout deliberately does not read it: `cookies()` there
+ * would make every route dynamic and stop the public pages being prerendered and CDN-cached
+ * (release no-go 70645c82), so `<html lang dir>` is still set in the browser before the first
+ * paint. The cookie keeps a server-side reader possible later (a segment that is dynamic anyway).
  *
  * The cookie is a display preference, not a credential: readable by the page (not HttpOnly, so the
  * boot script and the store can agree with it), `SameSite=Lax`, one year, `Secure` on https. Its
@@ -20,12 +22,6 @@ export const LOCALE_COOKIE_NAME = 'tmanage_locale';
 
 /** One year, in seconds. */
 export const LOCALE_COOKIE_MAX_AGE = 31_536_000;
-
-/** The request header `proxy.ts` puts an allowlisted `?lang=` in, for the server render. */
-export const LANG_REQUEST_HEADER = 'x-tmanage-lang';
-
-/** The locale the server renders when nothing names one. */
-export const SERVER_DEFAULT_LOCALE: DisplayLocale = 'en-US';
 
 const ALLOWED: ReadonlySet<string> = new Set(DISPLAY_LOCALES);
 
@@ -86,16 +82,4 @@ export function readLocaleCookie(): DisplayLocale | undefined {
   } catch {
     return undefined;
   }
-}
-
-/**
- * The locale the server renders: the allowlisted `?lang=` (already resolved by `proxy.ts`), else
- * the cookie, else {@link SERVER_DEFAULT_LOCALE}. The same order the boot script and the store use.
- */
-export function resolveServerLocale(input: {
-  readonly lang?: string | null | undefined;
-  readonly cookie?: string | null | undefined;
-}): DisplayLocale {
-  if (isDisplayLocale(input.lang)) return input.lang;
-  return localeFromCookieValue(input.cookie) ?? SERVER_DEFAULT_LOCALE;
 }

@@ -23,9 +23,11 @@ export const MAX_SHARED_SECONDS = 60;
 const STATIC_PREFIX = '/_next/static/';
 
 /**
- * The saved-locale cookie (apps/web/src/lib/i18n/locale-cookie.ts). The root layout renders
- * `<html lang dir>` and the text from it, so a page response depends on it: every page varies by
- * `Cookie`, and a page rendered for a request carrying it is never put in a shared cache.
+ * The saved-locale cookie (apps/web/src/lib/i18n/locale-cookie.ts). The root layout does not read
+ * it today (the public pages stay prerendered, release no-go 70645c82; the browser applies the
+ * locale), but it is the one request input a page could be rendered from, so as a guard every page
+ * varies by `Cookie`, and a page served to a request carrying it is never put in a shared cache.
+ * Visitors without the cookie keep the short shared policy.
  */
 export const LOCALE_COOKIE = 'tmanage_locale';
 
@@ -100,11 +102,11 @@ function varyWithCookie(upstreamVary) {
 /**
  * Headers to merge over a proxied web response (an empty object when nothing changes).
  *
- * A page (HTML or RSC) is rendered in the visitor's saved locale, so on top of
- * {@link webCacheControl} it always carries `Vary: Cookie`, and when the request carried the
- * locale cookie it is `private, no-store` unless the web child already made it private (Next
- * does for every dynamic page). One visitor's Arabic page can therefore never be served from the
- * CDN to another visitor, even by a cache that ignores `Vary`.
+ * On top of {@link webCacheControl} a page (HTML or RSC) always carries `Vary: Cookie`, and when
+ * the request carried the locale cookie it is `private, no-store` unless the web child already
+ * made it private (Next does for every dynamic page). Should a page ever be rendered from the
+ * saved locale, one visitor's Arabic page still cannot be served from the CDN to another visitor,
+ * even by a cache that ignores `Vary`.
  */
 export function webCacheHeaders(url, upstreamHeaders, requestHeaders = {}) {
   const value = webCacheControl(url, upstreamHeaders);
