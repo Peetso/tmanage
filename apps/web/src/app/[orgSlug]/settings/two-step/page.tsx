@@ -9,9 +9,21 @@ import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
  * save the recovery codes once, or turn the factor off. The organization name is still a fixture,
  * the reason every sibling settings screen gives.
  */
-export default function TwoStepPage({ params }: { params: Promise<{ orgSlug: string }> }) {
+export default function TwoStepPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ orgSlug: string }>;
+  searchParams: Promise<{ required?: string | string[] }>;
+}) {
   const { orgSlug } = use(params);
+  // A11: `?required=1` — the person was sent here because the company requires two-step sign-in.
+  const { required } = use(searchParams);
   return (
-    <TwoStepSignInScreen organizationSlug={orgSlug} organizationName={FIXTURE_ORGANIZATION_NAME} />
+    <TwoStepSignInScreen
+      organizationSlug={orgSlug}
+      organizationName={FIXTURE_ORGANIZATION_NAME}
+      required={required === '1'}
+    />
   );
 }

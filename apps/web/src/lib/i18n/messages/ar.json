@@ -9359,6 +9359,8 @@
   "TwoStep.reauthCodeLabel": "الرمز من تطبيق المصادقة",
   "TwoStep.reauthSubmit": "تأكيد",
   "TwoStep.reauthError": "تعذّر تأكيد هويتك",
+  "TwoStep.requiredTitle": "تشترط شركتك التحقق بخطوتين",
+  "TwoStep.requiredBody": "فعّله أدناه لمواصلة استخدام TManage.",
   "Clients.title": "العملاء",
   "Clients.subtitle": "المؤسسات التي تعمل معها والأشخاص الذين دعوتهم منها.",
   "Clients.searchLabel": "ابحث في العملاء",

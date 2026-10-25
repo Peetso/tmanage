@@ -7,6 +7,7 @@ import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { Dialog, errorMessage } from './SecurityScreen';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   beginTotpEnrolment,
@@ -23,6 +24,8 @@ export interface TwoStepSignInScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
+  /** A11: the person was sent here because their company requires two-step sign-in. */
+  required?: boolean;
 }
 
 type Enrolment = { factorId: string; secret: string; uri: string };
@@ -45,8 +48,10 @@ export function TwoStepSignInScreen({
   organizationSlug,
   organizationName,
   client,
+  required = false,
 }: TwoStepSignInScreenProps) {
   const t = useT();
+  const tOr = useTOr();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const factorsKey = ['auth-factors'] as const;
@@ -205,7 +210,17 @@ export function TwoStepSignInScreen({
       eyebrow={t('TwoStep.eyebrow')}
       title={t('TwoStep.pageTitle')}
     >
-      <div className="tm-sec">{body}</div>
+      <div className="tm-sec">
+        {required && !twoStepOnNow(factors.data) ? (
+          <InlineAlert
+            tone="warning"
+            title={tOr('TwoStep.requiredTitle', 'Your company requires two-step sign-in')}
+          >
+            {tOr('TwoStep.requiredBody', 'Turn it on below to keep using TManage.')}
+          </InlineAlert>
+        ) : null}
+        {body}
+      </div>
       {confirmDisable ? (
         <Dialog title={t('TwoStep.confirmDisableTitle')} onClose={() => setConfirmDisable(null)}>
           <p className="tm-sec-card__body">{t('TwoStep.confirmDisableBody')}</p>
@@ -487,4 +502,11 @@ function StepUpCard({
       </div>
     </form>
   );
+}
+
+/** Whether a confirmed factor is already on — the required notice is hidden once it is. */
+function twoStepOnNow(
+  data: { readonly factors?: readonly { confirmedAt: string | null }[] } | undefined,
+): boolean {
+  return Array.isArray(data?.factors) && data.factors.some((factor) => factor.confirmedAt !== null);
 }

@@ -110,6 +110,12 @@ export interface ApiClientOptions {
    * nowhere to send a signed-out person (none exists today) can decline to recover.
    */
   readonly recovery?: SessionRecoveryOptions;
+  /**
+   * A11. Called when a request is refused with 403 `two_step_required` — the company requires
+   * two-step sign-in and this person has not turned it on. The refusal is still thrown; the
+   * application decides where the person goes (the enrolment screen).
+   */
+  readonly onTwoStepRequired?: (requestPath: string) => void;
 }
 
 export interface ApiRequest {
@@ -206,6 +212,10 @@ export class ApiClient {
     try {
       return await this.send<T>(request);
     } catch (error) {
+      if (error instanceof ApiRequestError && error.code === 'two_step_required') {
+        this.options.onTwoStepRequired?.(request.path);
+        throw error;
+      }
       const recoverable =
         this.options.recovery !== undefined &&
         (request.authentication ?? 'session') === 'session' &&

@@ -81,8 +81,31 @@ export function browserApiClient(): ApiClient {
       // clears its caches and this one goes to sign-in (`AuthBoundaryProvider`).
       onSessionEnded: () => authBoundary.announce('session-ended'),
     },
+    onTwoStepRequired: (requestPath) => {
+      if (typeof window === 'undefined') return;
+      const target = twoStepEnrolmentPath(requestPath, window.location.pathname);
+      if (target) window.location.assign(target);
+    },
   });
   return cached;
+}
+
+/**
+ * A11. Where a person whose company requires two-step sign-in is sent: that company's enrolment
+ * screen. `undefined` when the refused request names no company or the person is already there,
+ * so a refusal on the enrolment page itself never reloads it in a loop.
+ */
+export function twoStepEnrolmentPath(
+  requestPath: string,
+  currentPathname: string,
+): string | undefined {
+  // Slug characters only, so the target can never become `//host` or `/\host` (an open redirect).
+  const match = /^\/v1\/organizations\/([A-Za-z0-9-]+)\//.exec(requestPath);
+  const slug = match?.[1];
+  if (!slug) return undefined;
+  const target = `/${slug}/settings/two-step`;
+  if (currentPathname === target || currentPathname.startsWith(`${target}/`)) return undefined;
+  return `${target}?required=1`;
 }
 
 /**

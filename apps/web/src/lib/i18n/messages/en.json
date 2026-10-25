@@ -9359,6 +9359,8 @@
   "TwoStep.reauthCodeLabel": "Code from your authenticator app",
   "TwoStep.reauthSubmit": "Confirm",
   "TwoStep.reauthError": "We could not confirm it is you",
+  "TwoStep.requiredTitle": "Your company requires two-step sign-in",
+  "TwoStep.requiredBody": "Turn it on below to keep using TManage.",
   "Clients.title": "Clients",
   "Clients.subtitle": "Organizations you work with, and the people you invited from them.",
   "Clients.searchLabel": "Search clients",

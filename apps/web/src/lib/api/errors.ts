@@ -19,6 +19,7 @@ export type ApiErrorCode =
   | 'forbidden'
   | 'csrf_failed'
   | 'reauthentication_required'
+  | 'two_step_required'
   | 'not_found'
   | 'conflict'
   | 'validation_failed'
@@ -44,6 +45,7 @@ const API_ERROR_CODES: readonly ApiErrorCode[] = [
   'forbidden',
   'csrf_failed',
   'reauthentication_required',
+  'two_step_required',
   'not_found',
   'conflict',
   'validation_failed',

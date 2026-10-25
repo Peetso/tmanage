@@ -33,6 +33,8 @@ export type ApiErrorCode =
   | 'forbidden'
   | 'csrf_failed'
   | 'reauthentication_required'
+  // A11: the company requires two-step sign-in and this person has not enrolled.
+  | 'two_step_required'
   | 'not_found'
   | 'conflict'
   | 'validation_failed'

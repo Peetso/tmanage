@@ -571,6 +571,16 @@ export const AUDIT_ACTION_CATALOG = {
     clause:
       '§12 organization settings — whether unscanned files may be downloaded is a policy change',
   },
+  /** A11. The company was renamed from the Organization card. No names in metadata. */
+  'organization.renamed': {
+    objectType: 'organization',
+    clause: '§12 organization settings — the company name shown to members and clients',
+  },
+  /** A11. The company logo was set or removed. Metadata is `change`: `set` or `removed`. */
+  'organization.logo_changed': {
+    objectType: 'organization',
+    clause: '§12 organization settings — the company logo shown to members and clients',
+  },
   'security.capability_denied': {
     objectType: 'capability',
     // Recorded as `denied`, never as `allowed`; `AuditEventsRepository.append` refuses the
@@ -680,6 +690,8 @@ export function auditObjectTypeFor(action: AuditAction): string {
 const AUDIT_ACTION_LABELS = {
   'organization.provisioned': 'Set up the organization',
   'organization.download_scan_policy_changed': 'Changed downloads before a virus scan',
+  'organization.renamed': 'Renamed the organization',
+  'organization.logo_changed': 'Changed the organization logo',
   'project.created': 'Created a project',
   'work_item.created': 'Created a work item',
   'work_item.transitioned': 'Moved a work item to a new stage',

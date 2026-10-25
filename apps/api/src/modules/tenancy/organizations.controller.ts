@@ -24,10 +24,12 @@ import {
 } from '../../common/http/decorators.js';
 import { isBoundTokenScheme, requireRequestState } from '../../common/http/request-state.js';
 import {
+  AUDIT_SERVICE,
   ORGANIZATION_DIRECTORY_REPOSITORY,
   PROVISIONING_SERVICE,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
+import type { AuditService } from '../audit/audit.service.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { AddressAvailabilityRepository } from './address-availability.repository.js';
 import { OrganizationProfileRepository } from './organization-profile.repository.js';
@@ -97,11 +99,16 @@ export class OrganizationsController {
     @Inject(TENANT_DATABASE) database: TenantDatabase,
     @Optional() @Inject(AddressAvailabilityRepository) availability?: AddressAvailabilityRepository,
     @Optional() @Inject(OrganizationProfileRepository) profile?: OrganizationProfileRepository,
+    // A11: the name and logo changes are audited (`organization.renamed` / `.logo_changed`).
+    @Optional() @Inject(AUDIT_SERVICE) audit?: AuditService,
   ) {
     this.availability = availability ?? new AddressAvailabilityRepository(database);
     this.database = database;
     this.profile = profile ?? new OrganizationProfileRepository();
+    this.audit = audit;
   }
+
+  private readonly audit: AuditService | undefined;
 
   private readonly availability: AddressAvailabilityRepository;
   private readonly database: TenantDatabase;
@@ -272,6 +279,13 @@ export class OrganizationsController {
         throw new ApiError(404, 'not_found', MESSAGES.notFound);
       }
       await this.profile.rename(tx, context, name);
+      await this.audit?.record(tx, context, {
+        action: 'organization.renamed',
+        objectId: context.organizationId,
+        result: 'allowed',
+        actorUserId: principal.userId,
+        metadata: {},
+      });
     });
     return this.readProfileView(context);
   }
@@ -303,6 +317,13 @@ export class OrganizationsController {
         ]);
       }
       await this.profile.setLogo(tx, context, asset.id);
+      await this.audit?.record(tx, context, {
+        action: 'organization.logo_changed',
+        objectId: context.organizationId,
+        result: 'allowed',
+        actorUserId: principal.userId,
+        metadata: { change: 'set' },
+      });
     });
     return this.readProfileView(context);
   }
@@ -315,7 +336,16 @@ export class OrganizationsController {
     @CurrentPrincipal() principal: Principal,
   ): Promise<OrganizationProfileView> {
     requireOrgManage(principal, context);
-    await this.database.transaction(context, (tx) => this.profile.setLogo(tx, context, null));
+    await this.database.transaction(context, async (tx) => {
+      await this.profile.setLogo(tx, context, null);
+      await this.audit?.record(tx, context, {
+        action: 'organization.logo_changed',
+        objectId: context.organizationId,
+        result: 'allowed',
+        actorUserId: principal.userId,
+        metadata: { change: 'removed' },
+      });
+    });
     return this.readProfileView(context);
   }
 

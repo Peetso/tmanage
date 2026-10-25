@@ -14,6 +14,7 @@ import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { SessionAuthGuard } from './common/http/guards/session-auth.guard.js';
 import { CsrfGuard } from './common/http/guards/csrf.guard.js';
 import { TenantContextGuard } from './common/http/guards/tenant-context.guard.js';
+import { TwoStepRequirementGuard } from './common/http/guards/two-step-requirement.guard.js';
 import { CapabilityGuard } from './common/http/guards/capability.guard.js';
 import { IdentityModule } from './modules/identity/identity.module.js';
 import { TenancyModule } from './modules/tenancy/tenancy.module.js';
@@ -1075,6 +1076,8 @@ export class AppModule {
         { provide: APP_GUARD, useClass: SessionAuthGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },
         { provide: APP_GUARD, useClass: TenantContextGuard },
+        // A11: "Everyone must use two-step sign-in" — after the tenant is proved, before capability.
+        { provide: APP_GUARD, useClass: TwoStepRequirementGuard },
         { provide: APP_GUARD, useClass: CapabilityGuard },
       ],
     };
