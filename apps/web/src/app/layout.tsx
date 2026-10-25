@@ -3,6 +3,7 @@ import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 import '@tmanage/ui/styles.css';
 import './globals.css';
+import '../styles/phone-tables.css';
 import { AuthBoundaryProvider } from '../components/providers/AuthBoundaryProvider';
 import { LocaleDirectionProvider } from '../components/providers/LocaleDirectionProvider';
 import { QueryProvider } from '../components/providers/QueryProvider';

@@ -1,0 +1,164 @@
+/*
+ * Phone tables (ACT-11, NFR-02). responsive-and-desktop.md: below tablet, "tables become card rows
+ * with the same DNA order". The work list and the docs tables are lists people scan, so they
+ * collapse to card rows the way the billing tables already do (billing.css); every other table
+ * card scrolls sideways inside its own frame instead of being clipped at the card edge.
+ *
+ * Selectors carry one more class than the screen stylesheets so they win whatever order the
+ * route's CSS chunks load in.
+ */
+
+@media (max-width: 767px) {
+  /* ── Work list (WK-02): title on its own line, state and due date beneath it. ───────────── */
+
+  .tm-wk-table-frame .tm-wk-table,
+  .tm-wk-table-frame .tm-wk-table tbody,
+  .tm-wk-table-frame .tm-wk-table thead {
+    display: block;
+    inline-size: 100%;
+  }
+
+  .tm-wk-table-frame .tm-wk-table tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    padding: 12px 14px;
+    border-block-end: var(--b-quiet) solid var(--paper-150);
+  }
+
+  .tm-wk-table-frame .tm-wk-table thead tr {
+    padding-block: 8px;
+    background: var(--paper-50);
+    border-block-end-color: var(--line-300);
+  }
+
+  .tm-wk-table-frame .tm-wk-table tbody tr:last-child {
+    border-block-end: 0;
+  }
+
+  .tm-wk-table-frame .tm-wk-table th,
+  .tm-wk-table-frame .tm-wk-table td {
+    display: block;
+    block-size: auto;
+    inline-size: auto;
+    padding: 0;
+    border: 0;
+    white-space: normal;
+    overflow: visible;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  /* The select box is a visually hidden input; its cell takes no room in a card row. */
+  .tm-wk-table-frame .tm-wk-table tr:not(.tm-wk-table__group) > :first-child {
+    flex: 0 0 0;
+    inline-size: 0;
+    min-inline-size: 0;
+    padding: 0;
+  }
+
+  .tm-wk-table-frame .tm-wk-table .tm-table__title {
+    flex: 1 0 100%;
+    max-inline-size: none;
+    padding: 0;
+    font-weight: 500;
+  }
+
+  .tm-wk-table-frame .tm-wk-table .tm-wk-cell--type,
+  .tm-wk-table-frame .tm-wk-table .tm-wk-cell--owner,
+  .tm-wk-table-frame .tm-wk-table .tm-wk-cell--audience,
+  .tm-wk-table-frame .tm-wk-table .tm-wk-cell--fresh {
+    display: none;
+  }
+
+  .tm-wk-table-frame .tm-wk-table .tm-wk-table__group {
+    display: block;
+    padding: 8px 14px;
+    background: var(--paper-50);
+  }
+
+  .tm-wk-table-frame .tm-wk-table .tm-wk-table__group td {
+    block-size: auto;
+  }
+
+  .tm-wk-table-frame .tm-wk-table tbody tr:hover,
+  .tm-wk-table-frame .tm-wk-table tbody tr[data-selected='true'] {
+    background: var(--paper-50);
+  }
+
+  .tm-wk-table-frame .tm-wk-table tbody tr[data-selected='true'] {
+    box-shadow: inset 3px 0 0 var(--ink-950);
+  }
+
+  [dir='rtl'] .tm-wk-table-frame .tm-wk-table tbody tr[data-selected='true'] {
+    box-shadow: inset -3px 0 0 var(--ink-950);
+  }
+
+  /* ── Docs tables (DOC-01, DEC-01): the title first, the other columns as one wrapped line. ── */
+
+  .tm-dx-table-card .tm-dx-table,
+  .tm-dx-table-card .tm-dx-table tbody {
+    display: block;
+    inline-size: 100%;
+  }
+
+  /* The column names only label the columns a card row no longer has; screen readers keep them. */
+  .tm-dx-table-card .tm-dx-table thead {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .tm-dx-table-card .tm-dx-table tbody tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 12px var(--s4);
+    border-block-end: var(--b-quiet) solid var(--paper-150);
+  }
+
+  .tm-dx-table-card .tm-dx-table tbody tr:last-child {
+    border-block-end: 0;
+  }
+
+  .tm-dx-table-card .tm-dx-table tbody th,
+  .tm-dx-table-card .tm-dx-table tbody td {
+    display: block;
+    block-size: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    text-align: start;
+  }
+
+  .tm-dx-table-card .tm-dx-table tbody tr > :first-child {
+    flex: 1 0 100%;
+  }
+
+  .tm-dx-table-card .tm-dx-table tbody tr:hover,
+  .tm-dx-table-card .tm-dx-table tbody tr[data-current='true'] {
+    background: var(--paper-50);
+  }
+
+  .tm-dx-table-card .tm-dx-table tbody tr[data-current='true'] {
+    box-shadow: inset 3px 0 0 var(--ink-950);
+  }
+
+  [dir='rtl'] .tm-dx-table-card .tm-dx-table tbody tr[data-current='true'] {
+    box-shadow: inset -3px 0 0 var(--ink-950);
+  }
+
+  /* ── Every other table card: scroll inside the card rather than clip at its edge. ────────── */
+
+  .tm-cc-card.tm-cc-card--flush:has(table),
+  .tm-ins-card.tm-ins-card--table:has(table),
+  .tm-card:has(> table),
+  .tm-panel:has(> table) {
+    overflow-x: auto;
+  }
+}

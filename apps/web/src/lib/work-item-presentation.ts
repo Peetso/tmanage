@@ -3,6 +3,7 @@ import type { CapsuleState } from '@tmanage/ui';
 import type { WorkItemAudience } from './api/work-items';
 import { formatDateTime, formatDay as formatLocalizedDay } from './i18n/format';
 import { activeLocale } from './i18n/locale-store';
+import { translate, type MessageKey } from './i18n/t';
 
 /**
  * How a work item's state and audience are *said*, in one place.
@@ -28,22 +29,28 @@ const STATE_CAPSULE: Record<WorkItemState, CapsuleState> = {
   archived: 'archived',
 };
 
-const STATE_LABEL: Record<WorkItemState, string> = {
-  backlog: 'Backlog',
-  ready: 'Ready',
-  in_progress: 'In progress',
-  blocked: 'Blocked',
-  internal_review: 'Internal review',
-  done: 'Done',
-  archived: 'Archived',
+/*
+ * The words come from the catalog, in the active language: an Arabic reader saw "Blocked" and
+ * "Done" in the state capsules of every work screen (ACT-11, NFR-02). The work list's filter keys
+ * are the one wording already shipped in both catalogs, so the capsule and the chip agree.
+ */
+const STATE_LABEL_KEY: Record<WorkItemState, MessageKey> = {
+  backlog: 'WorkListScreen.stateBacklog',
+  ready: 'WorkListScreen.stateReady',
+  in_progress: 'WorkListScreen.stateInProgress',
+  blocked: 'WorkListScreen.stateBlocked',
+  internal_review: 'WorkListScreen.stateInternalReview',
+  done: 'WorkListScreen.stateDone',
+  archived: 'WorkListScreen.stateArchived',
 };
 
 export function stateCapsule(state: WorkItemState): CapsuleState {
   return STATE_CAPSULE[state] ?? 'neutral';
 }
 
-export function stateLabel(state: WorkItemState): string {
-  return STATE_LABEL[state] ?? state;
+export function stateLabel(state: WorkItemState, locale: string = activeLocale.get()): string {
+  const key = STATE_LABEL_KEY[state];
+  return key === undefined ? state : translate(locale, key);
 }
 
 /**
