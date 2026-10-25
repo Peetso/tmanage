@@ -1,7 +1,8 @@
 import { lookup as dnsLookupAll } from 'node:dns/promises';
 import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { isKnownCimdClient } from './known-clients.js';
 import { sanitiseClientName } from './dcr-metadata.js';
 import { validateRegistrationRedirectUris } from './redirect-uri.js';
@@ -19,16 +20,35 @@ import { isBlockedAddress } from './ssrf.js';
  *     refused). Pinning the resolved IP closes the DNS-rebinding window — the socket connects to
  *     the exact address that was vetted, not a second resolution.
  *   - **redirects are not followed** — a 3xx is a refusal (a redirect is the classic SSRF pivot).
- *   - **5 KB body cap and 3 s timeout.**
+ *   - **5 KB body cap, 8 KB header cap, 3 s idle timeout and a 5 s total deadline** covering DNS,
+ *     connect, headers and body (audit NV07: an idle timeout alone let a peer that drips one byte
+ *     every few seconds hold a fetch for hours).
  *   - the document's **`client_id` must equal the document URL**, so a URL cannot speak for
  *     another, and its `redirect_uris` go through the same validation as a DCR body.
  *
- * Results are cached by the caller (24 h, as the `oauth_clients` row's age — `oauth.service.ts`),
- * so this network path runs at most once per client per day.
+ * **An anonymous caller cannot turn this into an amplifier (audit NV07).** `/oauth/authorize` is
+ * public, so every outcome is cached in-process for {@link CIMD_CACHE_MS} under the normalised
+ * URL — refusals too — and concurrent requests for one URL share a single fetch. New fetches are
+ * capped per host and in total, both in flight and per minute; over a cap the caller gets `429`
+ * ({@link cimdBusyError}) and nothing leaves the process. The caller also keeps a good result for
+ * 24 h as the `oauth_clients` row's age (`oauth.service.ts`).
  */
 
 const MAX_BODY_BYTES = 5 * 1024;
+const MAX_HEADER_BYTES = 8 * 1024;
 const TIMEOUT_MS = 3_000;
+/** Wall-clock budget for one fetch, DNS included. */
+export const CIMD_DEADLINE_MS = 5_000;
+/** How long one outcome (document or refusal) is reused for the same URL. */
+export const CIMD_CACHE_MS = 10 * 60 * 1000;
+const CACHE_MAX_ENTRIES = 1_000;
+/** Outbound fetches allowed at once, in total and per host. */
+export const CIMD_MAX_CONCURRENT = 4;
+export const CIMD_MAX_CONCURRENT_PER_HOST = 1;
+/** New outbound fetches allowed per minute, in total and per host. */
+export const CIMD_MAX_PER_MINUTE = 30;
+export const CIMD_MAX_PER_MINUTE_PER_HOST = 5;
+const RATE_WINDOW_MS = 60_000;
 
 /** A validated CIMD client, ready to upsert as an `oauth_clients` row (kind `cimd`). */
 export interface CimdClient {
@@ -46,6 +66,11 @@ export class CimdError extends Error {
     super(reason);
     this.name = 'CimdError';
   }
+}
+
+/** The refusal when a fetch cap is reached: `429`, nothing fetched. Deliberately not a `CimdError`. */
+export function cimdBusyError(): ApiError {
+  return new ApiError(429, 'rate_limited', MESSAGES.rateLimited, undefined, 'cimd_fetch_capped');
 }
 
 /**
@@ -71,20 +96,130 @@ export function assertCimdUrl(clientIdUrl: string): URL {
   return url;
 }
 
+type Resolved = { address: string; family: number };
+
+/** Test seams. Production uses the defaults: real DNS, the hardened GET, the wall clock. */
+export interface CimdFetcherOptions {
+  readonly resolve?: (hostname: string) => Promise<Resolved[]>;
+  readonly get?: (url: URL, pinned: Resolved, signal: AbortSignal) => Promise<string>;
+  readonly now?: () => number;
+  readonly deadlineMs?: number;
+}
+
+export const CIMD_FETCHER_OPTIONS = Symbol.for('tmanage.CimdFetcherOptions');
+
+type Outcome = { readonly client: CimdClient } | { readonly error: CimdError };
+
 @Injectable()
 export class CimdFetcher {
+  private readonly cache = new Map<string, { readonly at: number; readonly outcome: Outcome }>();
+  private readonly inFlight = new Map<string, Promise<Outcome>>();
+  private readonly activeByHost = new Map<string, number>();
+  private active = 0;
+  private starts: { readonly at: number; readonly host: string }[] = [];
+  private readonly resolve: (hostname: string) => Promise<Resolved[]>;
+  private readonly getBody: (url: URL, pinned: Resolved, signal: AbortSignal) => Promise<string>;
+  private readonly now: () => number;
+  private readonly deadlineMs: number;
+
+  constructor(@Optional() @Inject(CIMD_FETCHER_OPTIONS) options: CimdFetcherOptions = {}) {
+    this.resolve =
+      options.resolve ?? ((hostname) => dnsLookupAll(hostname, { all: true, verbatim: true }));
+    this.getBody = options.get ?? ((url, pinned, signal) => this.get(url, pinned, signal));
+    this.now = options.now ?? Date.now;
+    this.deadlineMs = options.deadlineMs ?? CIMD_DEADLINE_MS;
+  }
+
   /**
    * Fetch and validate the CIMD document for `clientIdUrl`. Returns the client to persist, or
-   * throws `CimdError`. No part of the client-supplied URL or document is trusted until it has
-   * passed every check above.
+   * throws `CimdError` (or {@link cimdBusyError} when a cap is reached). No part of the
+   * client-supplied URL or document is trusted until it has passed every check above.
    */
   async fetchMetadata(clientIdUrl: string): Promise<CimdClient> {
     const url = assertCimdUrl(clientIdUrl);
+    const key = url.toString();
+    const now = this.now();
+    const cached = this.cache.get(key);
+    if (cached !== undefined && now - cached.at < CIMD_CACHE_MS) return unwrap(cached.outcome);
 
-    // Resolve once, vet every answer, and pin a single address for the socket.
-    let resolved: { address: string; family: number }[];
+    let pending = this.inFlight.get(key);
+    if (pending === undefined) {
+      this.admit(url.hostname, now); // throws 429 before anything leaves the process
+      pending = this.fetchOnce(url, clientIdUrl).finally(() => {
+        this.release(url.hostname);
+        this.inFlight.delete(key);
+      });
+      this.inFlight.set(key, pending);
+    }
+    return unwrap(await pending);
+  }
+
+  /** Reserve one fetch slot for `host`, or throw `429`. */
+  private admit(host: string, now: number): void {
+    this.starts = this.starts.filter((s) => now - s.at < RATE_WINDOW_MS);
+    const hostStarts = this.starts.filter((s) => s.host === host).length;
+    const hostActive = this.activeByHost.get(host) ?? 0;
+    if (
+      this.active >= CIMD_MAX_CONCURRENT ||
+      hostActive >= CIMD_MAX_CONCURRENT_PER_HOST ||
+      this.starts.length >= CIMD_MAX_PER_MINUTE ||
+      hostStarts >= CIMD_MAX_PER_MINUTE_PER_HOST
+    ) {
+      throw cimdBusyError();
+    }
+    this.active += 1;
+    this.activeByHost.set(host, hostActive + 1);
+    this.starts.push({ at: now, host });
+  }
+
+  private release(host: string): void {
+    this.active = Math.max(0, this.active - 1);
+    const left = (this.activeByHost.get(host) ?? 1) - 1;
+    if (left <= 0) this.activeByHost.delete(host);
+    else this.activeByHost.set(host, left);
+  }
+
+  /** One fetch under the total deadline; its outcome, good or bad, is cached. */
+  private async fetchOnce(url: URL, clientIdUrl: string): Promise<Outcome> {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const deadline = new Promise<never>((_resolve, reject) => {
+      timer = setTimeout(() => {
+        controller.abort();
+        reject(new CimdError('CIMD fetch exceeded its deadline.'));
+      }, this.deadlineMs);
+    });
+    let outcome: Outcome;
     try {
-      resolved = await dnsLookupAll(url.hostname, { all: true, verbatim: true });
+      const client = await Promise.race([this.load(url, clientIdUrl, controller.signal), deadline]);
+      outcome = { client };
+    } catch (error) {
+      outcome = {
+        error: error instanceof CimdError ? error : new CimdError('CIMD fetch failed.'),
+      };
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+      controller.abort();
+    }
+    this.remember(url.toString(), outcome);
+    return outcome;
+  }
+
+  private remember(key: string, outcome: Outcome): void {
+    this.cache.delete(key);
+    this.cache.set(key, { at: this.now(), outcome });
+    while (this.cache.size > CACHE_MAX_ENTRIES) {
+      const oldest = this.cache.keys().next().value;
+      if (oldest === undefined) break;
+      this.cache.delete(oldest);
+    }
+  }
+
+  private async load(url: URL, clientIdUrl: string, signal: AbortSignal): Promise<CimdClient> {
+    // Resolve once, vet every answer, and pin a single address for the socket.
+    let resolved: Resolved[];
+    try {
+      resolved = await this.resolve(url.hostname);
     } catch {
       throw new CimdError('CIMD host did not resolve.');
     }
@@ -96,7 +231,8 @@ export class CimdFetcher {
     }
     const pinned = resolved[0]!;
 
-    const body = await this.get(url, pinned);
+    if (signal.aborted) throw new CimdError('CIMD fetch exceeded its deadline.');
+    const body = await this.getBody(url, pinned, signal);
     let document: unknown;
     try {
       document = JSON.parse(body);
@@ -128,8 +264,8 @@ export class CimdFetcher {
     };
   }
 
-  /** One hardened GET to the pinned address, capping body and time and refusing any redirect. */
-  private get(url: URL, pinned: { address: string; family: number }): Promise<string> {
+  /** One hardened GET to the pinned address, capping body, headers and time, refusing redirects. */
+  private get(url: URL, pinned: Resolved, signal: AbortSignal): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       const req = httpsRequest(
         {
@@ -139,8 +275,18 @@ export class CimdFetcher {
           method: 'GET',
           servername: url.hostname, // TLS SNI + certificate check still bind to the real host.
           headers: { accept: 'application/json', 'user-agent': 'TManage-CIMD/1.0' },
-          // Pin the vetted address so the socket cannot re-resolve to a blocked one.
-          lookup: (_hostname, _options, cb) => {
+          maxHeaderSize: MAX_HEADER_BYTES,
+          // The total deadline destroys the socket, whatever stage the exchange is in.
+          signal,
+          family: pinned.family,
+          // Pin the vetted address so the socket cannot re-resolve to a blocked one. Node 22's
+          // happy-eyeballs path asks for every address (`all: true`) and expects an array, so
+          // both callback shapes are answered with the one pinned address.
+          lookup: (_hostname, options, cb) => {
+            if ((options as { all?: boolean } | undefined)?.all === true) {
+              (cb as unknown as (err: Error | null, addresses: Resolved[]) => void)(null, [pinned]);
+              return;
+            }
             (cb as (err: Error | null, address: string, family: number) => void)(
               null,
               pinned.address,
@@ -183,4 +329,9 @@ export class CimdFetcher {
       req.end();
     });
   }
+}
+
+function unwrap(outcome: Outcome): CimdClient {
+  if ('error' in outcome) throw outcome.error;
+  return outcome.client;
 }

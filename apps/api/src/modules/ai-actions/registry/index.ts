@@ -97,8 +97,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/admin/feature-flags/:key',
     capability: 'org.manage',
-    risk: 'write',
-    scope: 'write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   {
     id: 'admin.invitations.list',
@@ -121,8 +121,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'POST',
     path: '/v1/organizations/:orgSlug/admin/maintenance',
     capability: 'org.manage',
-    risk: 'write',
-    scope: 'write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   {
     id: 'admin.members.notes.list',
@@ -138,7 +138,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/admin/members/:membershipId/notes/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'admin.members.notes.delete',
@@ -153,8 +153,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'POST',
     path: '/v1/organizations/:orgSlug/admin/members/bulk-role',
     capability: 'org.manage',
-    risk: 'write',
-    scope: 'write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   // BK2 / ADM-01: the built-in role catalogue (read) for the invite and People screens.
   {
@@ -186,8 +186,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'POST',
     path: '/v1/organizations/:orgSlug/admin/sessions/:sessionId/revoke',
     capability: 'org.manage',
-    risk: 'write',
-    scope: 'write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   {
     id: 'announcements.list',
@@ -404,7 +404,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/automations/templates/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'automations.templates.update',
@@ -412,7 +412,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/automations/templates/:id',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'automations.templates.clone',
@@ -420,7 +420,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/automations/templates/:id/clone',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'automations.templates.delete',
@@ -444,7 +444,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/automations/templates/:templateId/conditions/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'automations.templates.conditions.delete',
@@ -484,7 +484,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/automations/templates/:templateId/tags',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'automations.templates.tags.delete',
@@ -852,7 +852,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/client-organizations',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'client_organizations.delete',
@@ -876,7 +876,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/client-organizations/:clientOrganizationId',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'client_organizations.invitations.list',
@@ -2601,7 +2601,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/insights/targets/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'insights.targets.status',
@@ -3312,7 +3312,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/people/:membershipId/manager',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'people.profile.list',
@@ -3328,7 +3328,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/people/:membershipId/profile/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'people.skills.list',
@@ -3368,7 +3368,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/people/:userId/certifications/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'people.certifications.delete',
@@ -3392,7 +3392,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/people/:userId/time-off/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'people.time_off.delete',
@@ -3464,7 +3464,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/people/teams/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'people.teams.get',
@@ -3488,7 +3488,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/people/teams/:id/members/:membershipId',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'phases.delete',
@@ -3952,8 +3952,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'POST',
     path: '/v1/organizations/:orgSlug/projects/:projectId/clients',
     capability: 'project.manage',
-    risk: 'write',
-    scope: 'write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   {
     id: 'projects.clients.delete',
@@ -4217,8 +4217,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/projects/:projectId/portal-settings',
     capability: 'project.manage',
-    risk: 'write',
-    scope: 'write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   {
     id: 'projects.retro_notes.list',
@@ -4387,7 +4387,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/projects/custom-fields/',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'projects.custom_fields.delete',
@@ -4682,8 +4682,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'PUT',
     path: '/v1/organizations/:orgSlug/settings/:key',
     capability: 'org.manage',
-    risk: 'write',
-    scope: 'write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   // A11: the Organization settings card — name and logo.
   {
@@ -4699,8 +4699,8 @@ export const OPS: readonly AiActionOp[] = [
     method: 'PATCH',
     path: '/v1/organizations/:orgSlug',
     capability: 'org.manage',
-    risk: 'write',
-    scope: 'write',
+    risk: 'confirm',
+    scope: 'manage',
   },
   {
     id: 'settings.logo.set',
@@ -4708,7 +4708,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/logo',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'settings.logo.delete',
@@ -4758,7 +4758,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/logo/image',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'settings.logo_image.delete',
@@ -4996,7 +4996,7 @@ export const OPS: readonly AiActionOp[] = [
     id: 'work_items.files.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/work-items/:workItemId/files/',
-    capability: 'file.download',
+    capability: 'work.read',
     risk: 'confirm',
     scope: 'manage',
   },
@@ -5302,7 +5302,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/work/board-columns',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'work.board_columns.delete',
@@ -5318,7 +5318,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/work/board-columns/:columnId',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'work.checklist_templates.list',
@@ -5358,7 +5358,7 @@ export const OPS: readonly AiActionOp[] = [
     path: '/v1/organizations/:orgSlug/work/custom-fields',
     capability: 'org.manage',
     risk: 'write',
-    scope: 'write',
+    scope: 'manage',
   },
   {
     id: 'work.custom_fields.delete',

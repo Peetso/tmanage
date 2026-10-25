@@ -14,14 +14,24 @@ import type { McpServerConfig } from '../config.js';
  * scalable remote server and avoids any cross-request session state.
  *
  * Each request authenticates with its own token. A client that sends `Authorization: Bearer
- * <token>` acts as that token's member, so one server serves many members, each as themselves;
- * a request without the header falls back to the env `TMANAGE_TOKEN`, if one is set. A request
- * with neither is refused 401 before any TManage call is made.
+ * <token>` acts as that token's member, so one server serves many members, each as themselves.
+ * There is no anonymous fallback: a request without the header is refused 401 before any TManage
+ * call is made, even when `TMANAGE_TOKEN` is set (that token is for stdio only). A request whose
+ * `Host` header is not one of `config.allowedHosts` is refused 403 (DNS-rebinding protection),
+ * and the SDK transport enforces the same list.
  */
 const MCP_PATH = '/mcp';
 
 export function createHttpHandler(config: McpServerConfig) {
+  const allowedHosts = new Set(config.allowedHosts.map((h) => h.toLowerCase()));
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    const host = typeof req.headers.host === 'string' ? req.headers.host.toLowerCase() : '';
+    if (!allowedHosts.has(host)) {
+      res.writeHead(403, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Host not allowed.' }));
+      return;
+    }
+
     const url = new URL(req.url ?? '/', 'http://localhost');
     if (url.pathname !== MCP_PATH) {
       res.writeHead(404, { 'content-type': 'application/json' });
@@ -29,14 +39,15 @@ export function createHttpHandler(config: McpServerConfig) {
       return;
     }
 
-    const token = bearerToken(req) ?? config.token;
+    const token = bearerToken(req);
     if (!token) {
-      res.writeHead(401, { 'content-type': 'application/json' });
+      res.writeHead(401, {
+        'content-type': 'application/json',
+        'www-authenticate': 'Bearer',
+      });
       res.end(
         JSON.stringify({
-          error:
-            'Missing token. Send Authorization: Bearer <personal access token>, or set ' +
-            'TMANAGE_TOKEN on the server.',
+          error: 'Missing token. Send Authorization: Bearer <personal access token>.',
         }),
       );
       return;
@@ -51,7 +62,9 @@ export function createHttpHandler(config: McpServerConfig) {
       return;
     }
 
-    await serveMcpRequest(buildServerForToken(config, token), req, res, body);
+    await serveMcpRequest(buildServerForToken(config, token), req, res, body, {
+      allowedHosts: config.allowedHosts,
+    });
   };
 }
 
@@ -62,13 +75,18 @@ export function createHttpHandler(config: McpServerConfig) {
  *
  * `enableJsonResponse` answers a POST with one JSON body instead of an SSE stream — every tool
  * here returns a single result, and a plain JSON response passes through proxies unchanged.
+ * `allowedHosts`, when given, turns on the SDK's DNS-rebinding protection for that host list
+ * (this package's standalone listener passes it; the hosted API endpoint has its own edge).
  */
 export async function serveMcpRequest(
   server: McpServer,
   req: IncomingMessage,
   res: ServerResponse,
   body: unknown,
-  options: { readonly enableJsonResponse?: boolean } = {},
+  options: {
+    readonly enableJsonResponse?: boolean;
+    readonly allowedHosts?: readonly string[];
+  } = {},
 ): Promise<void> {
   // `sessionIdGenerator: undefined` is the SDK's documented stateless mode. The two casts
   // below bridge this workspace's `exactOptionalPropertyTypes: true` and the SDK's option and
@@ -77,6 +95,9 @@ export async function serveMcpRequest(
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
     enableJsonResponse: options.enableJsonResponse ?? false,
+    ...(options.allowedHosts !== undefined
+      ? { enableDnsRebindingProtection: true, allowedHosts: [...options.allowedHosts] }
+      : {}),
   } as unknown as ConstructorParameters<typeof StreamableHTTPServerTransport>[0]);
   res.on('close', () => {
     void transport.close();

@@ -10,6 +10,7 @@ import { DeepHealthModule } from './common/observability/deep-health.js';
 import { MAILER } from './common/http/tokens.js';
 import type { Mailer } from '@tmanage/mail';
 import { ClientProjectionInterceptor } from './common/http/client-projection.interceptor.js';
+import { BoundTokenConfirmInterceptor } from './modules/ai-actions/bound-token-confirm.interceptor.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { SessionAuthGuard } from './common/http/guards/session-auth.guard.js';
 import { CsrfGuard } from './common/http/guards/csrf.guard.js';
@@ -1072,6 +1073,7 @@ export class AppModule {
         // id a log line is findable by. It only inspects responses on the client's side of the
         // boundary — see `ClientProjectionInterceptor`.
         { provide: APP_INTERCEPTOR, useClass: ClientProjectionInterceptor },
+        { provide: APP_INTERCEPTOR, useClass: BoundTokenConfirmInterceptor }, // wave9 S7 NV01
         // C10. Operator alerts: a 5xx mails `ALERT_EMAILS` through the app's mailer, at most once
         // per 15 minutes per kind. Off (no mail) when ALERT_EMAILS is unset.
         {

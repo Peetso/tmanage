@@ -73,6 +73,9 @@ Optional:
 - `TMANAGE_ORG_SLUG` — pin one workspace (otherwise the token's first workspace is used)
 - `TMANAGE_MCP_TRANSPORT` — `stdio` (default) or `http`
 - `TMANAGE_MCP_HTTP_PORT` / `TMANAGE_MCP_HTTP_HOST` — for the `http` transport (default `127.0.0.1:8787`)
+- `TMANAGE_MCP_ALLOWED_HOSTS` — for the `http` transport: extra `Host` header values to accept
+  (comma list, e.g. `mcp.yourdomain.com` behind your HTTPS front door). Any other `Host` is
+  refused `403`, which blocks DNS-rebinding attacks.
 
 Build it once (from the repo root): `pnpm --filter @tmanage/mcp-server build`. That produces
 `apps/mcp-server/dist/main.js`.
@@ -136,6 +139,7 @@ TMANAGE_API_URL=https://app.yourdomain.com/api \
 TMANAGE_MCP_TRANSPORT=http \
 TMANAGE_MCP_HTTP_HOST=0.0.0.0 \
 TMANAGE_MCP_HTTP_PORT=8787 \
+TMANAGE_MCP_ALLOWED_HOSTS=mcp.yourdomain.com \
 node /absolute/path/to/tmanage/apps/mcp-server/dist/main.js
 ```
 
@@ -145,9 +149,10 @@ connector, and point it at that URL (via your HTTPS front door, e.g.
 
 Each ChatGPT user authenticates with **their own** TManage token by sending
 `Authorization: Bearer <token>`, so one remote server serves many members, each as themselves.
-If you set `TMANAGE_TOKEN` on the server it is used as a fallback for requests that carry no
-bearer header — fine for a single-user deployment, but for a shared server prefer per-request
-tokens and leave `TMANAGE_TOKEN` unset.
+**Every** HTTP request must carry that header: a request without it is refused `401`. The `http`
+transport never uses `TMANAGE_TOKEN` (that is for stdio only), and the server refuses to start
+when `TMANAGE_TOKEN` is set together with a non-loopback `TMANAGE_MCP_HTTP_HOST`, so your own
+token is never handed to whoever can reach the port. Leave `TMANAGE_TOKEN` unset here.
 
 > Expose the `http` transport only over HTTPS and treat the endpoint as sensitive: a request's
 > bearer token is a live TManage credential.

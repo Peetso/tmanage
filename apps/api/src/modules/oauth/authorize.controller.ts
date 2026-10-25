@@ -2,6 +2,7 @@ import { Controller, Get, Inject, Query, Req, Res, UseGuards } from '@nestjs/com
 import { AiPlatformSwitchGuard } from './ai-access.js';
 import { NoTenant, Public } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
+import { ApiError } from '../../common/http/errors.js';
 import { OAuthError, type OAuthService } from './oauth.service.js';
 import { OAUTH_OPTIONS, OAUTH_SERVICE } from './oauth.tokens.js';
 import type { OAuthOptions } from './oauth.module.js';
@@ -104,6 +105,21 @@ export class OAuthAuthorizeController {
   }
 
   private renderError(reply: ReplyLike, error: unknown): void {
+    // NV07: the client metadata fetch is capped; over the cap nothing was fetched — say so.
+    if (error instanceof ApiError && error.status === 429) {
+      reply
+        .status(429)
+        .header('retry-after', '60')
+        .header('cache-control', 'no-store')
+        .header('x-frame-options', 'DENY')
+        .type('text/html; charset=utf-8')
+        .send(
+          `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Try again soon</title>` +
+            `<meta http-equiv="Content-Security-Policy" content="frame-ancestors 'none'"></head>` +
+            `<body><h1>Too many requests</h1><p>${escapeHtml(error.message)}</p></body></html>`,
+        );
+      return;
+    }
     const status = error instanceof OAuthError ? error.httpStatus : 400;
     const description =
       error instanceof OAuthError ? error.description : 'The authorization request is invalid.';

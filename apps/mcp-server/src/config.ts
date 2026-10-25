@@ -11,21 +11,30 @@
  *   - `TMANAGE_MCP_HTTP_HOST`   the interface it binds (default 127.0.0.1 — loopback only)
  *   - `TMANAGE_ORG_SLUG`        pins the workspace; omitted, the server uses the token's first org
  *
- * `TMANAGE_TOKEN` is optional for the HTTP transport, where each client may instead present its
- * own token in the request's `Authorization: Bearer` header — so one remote server can serve
- * many members, each acting as themselves. It is required for stdio, which has one operator.
+ * `TMANAGE_TOKEN` is required for stdio, which has one operator. The HTTP transport never uses
+ * it: every HTTP request must present its own token in `Authorization: Bearer`, so a peer that
+ * can reach the port gains nothing without a credential of its own. Setting `TMANAGE_TOKEN`
+ * together with a non-loopback `TMANAGE_MCP_HTTP_HOST` is refused, so the operator's token is
+ * never held by a network listener.
+ *
+ *   - `TMANAGE_MCP_ALLOWED_HOSTS` optional comma list of extra `Host` header values the HTTP
+ *     transport accepts (e.g. `mcp.example.com` behind an HTTPS front door). The bind
+ *     `host:port` (and, on loopback, `localhost`/`127.0.0.1`/`[::1]` with the port) are always
+ *     accepted; anything else is refused 403 (DNS-rebinding protection).
  */
 
 export type McpTransport = 'stdio' | 'http';
 
 export interface McpServerConfig {
   readonly apiUrl: string;
-  /** The fallback token. Used by stdio, and by HTTP requests that carry no Bearer header. */
+  /** The operator token. Used by stdio only; the HTTP transport requires a per-request Bearer. */
   readonly token: string | undefined;
   readonly transport: McpTransport;
   readonly httpPort: number;
   readonly httpHost: string;
   readonly orgSlug: string | undefined;
+  /** `Host` header values the HTTP transport accepts (DNS-rebinding protection). */
+  readonly allowedHosts: readonly string[];
 }
 
 export class ConfigError extends Error {
@@ -75,6 +84,31 @@ function readPort(env: Env): number {
   return port;
 }
 
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '::1', '[::1]']);
+
+/** True when the bind host only accepts connections from this machine. */
+export function isLoopbackHost(host: string): boolean {
+  const h = host.trim().toLowerCase();
+  return LOOPBACK_HOSTS.has(h) || /^127(\.\d{1,3}){3}$/.test(h);
+}
+
+function hostWithPort(host: string, port: number): string {
+  const bare = host.replace(/^\[|\]$/g, '');
+  return bare.includes(':') ? `[${bare}]:${port}` : `${bare}:${port}`;
+}
+
+function readAllowedHosts(env: Env, host: string, port: number): readonly string[] {
+  const hosts = new Set<string>([hostWithPort(host, port).toLowerCase()]);
+  if (isLoopbackHost(host)) {
+    for (const alias of ['127.0.0.1', 'localhost', '[::1]']) hosts.add(`${alias}:${port}`);
+  }
+  for (const extra of (env['TMANAGE_MCP_ALLOWED_HOSTS'] ?? '').split(',')) {
+    const value = extra.trim().toLowerCase();
+    if (value) hosts.add(value);
+  }
+  return [...hosts];
+}
+
 /** Build the config from an environment map, defaulting to `process.env`. */
 export function loadConfig(env: Env = process.env): McpServerConfig {
   const transport = readTransport(env);
@@ -85,12 +119,22 @@ export function loadConfig(env: Env = process.env): McpServerConfig {
         'Preferences → Security, then set TMANAGE_TOKEN.',
     );
   }
+  const httpHost = env['TMANAGE_MCP_HTTP_HOST']?.trim() || '127.0.0.1';
+  const httpPort = readPort(env);
+  if (transport === 'http' && token && !isLoopbackHost(httpHost)) {
+    throw new ConfigError(
+      `TMANAGE_TOKEN must not be set when the http transport binds a non-loopback host ` +
+        `("${httpHost}"). Unset TMANAGE_TOKEN — each client sends its own ` +
+        'Authorization: Bearer <token>.',
+    );
+  }
   return {
     apiUrl: requireUrl(env),
     token,
     transport,
-    httpPort: readPort(env),
-    httpHost: env['TMANAGE_MCP_HTTP_HOST']?.trim() || '127.0.0.1',
+    httpPort,
+    httpHost,
     orgSlug: env['TMANAGE_ORG_SLUG']?.trim() || undefined,
+    allowedHosts: readAllowedHosts(env, httpHost, httpPort),
   };
 }

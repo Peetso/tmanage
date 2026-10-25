@@ -365,7 +365,9 @@ export function buildAiOpenApiDocument(options: OpenApiOptions = {}): OpenApiDoc
         ApprovalRequired: {
           description:
             'A confirm-class action was requested but has not run. Open `approval_url` in ' +
-            'TManage, signed in as yourself, to approve and run it.',
+            'TManage, signed in as yourself, to approve and run it. Enforced on the server for ' +
+            'every personal-access-token call; a request that cannot be held for approval is ' +
+            'refused with 403 and does not run either.',
           content: {
             'application/json': {
               schema: {
