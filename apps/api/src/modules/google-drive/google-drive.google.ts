@@ -195,6 +195,11 @@ export interface DriveFile {
   readonly size: number | null;
   readonly webViewLink: string | null;
   readonly driveId: string | null;
+  /**
+   * V2. The folders the file sits in, as Google reports them to this connection (empty when the
+   * parent is not visible to it, such as a file shared with the person from someone else's Drive).
+   */
+  readonly parents: readonly string[];
 }
 
 /** Google refused the grant (expired or revoked): the connection moves to the error state. */
@@ -262,10 +267,13 @@ function toDriveFile(body: Record<string, unknown>): DriveFile {
     size: size !== null && Number.isFinite(size) ? size : null,
     webViewLink: typeof body['webViewLink'] === 'string' ? body['webViewLink'] : null,
     driveId: typeof body['driveId'] === 'string' ? body['driveId'] : null,
+    parents: Array.isArray(body['parents'])
+      ? body['parents'].filter((id): id is string => typeof id === 'string').slice(0, 20)
+      : [],
   };
 }
 
-const FILE_FIELDS = 'id,name,mimeType,size,webViewLink,driveId';
+const FILE_FIELDS = 'id,name,mimeType,size,webViewLink,driveId,parents';
 
 export function createDriveTransport(fetchImpl: typeof fetch = fetch): DriveTransport {
   async function call(url: string, init: RequestInit): Promise<Response> {

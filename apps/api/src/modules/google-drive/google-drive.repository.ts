@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
@@ -6,10 +6,12 @@ import {
   googleDriveFolders,
   projects,
   storageConnections,
+  workItems,
 } from '../../common/database/schema.js';
 import type {
   GoogleDriveAttachmentRow,
   StorageConnectionRow,
+  WorkItemRow,
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -39,6 +41,20 @@ export interface InsertAttachmentInput {
   readonly webViewLink: string | null;
   readonly attachedByUserId: string;
 }
+
+/** V2. A TManage-made Drive folder and the project it belongs to now. */
+export interface KnownDriveFolder {
+  readonly driveFolderId: string;
+  readonly rootFolderId: string;
+  /** The project folder's project, or the work-item folder's item's project (null: item gone). */
+  readonly projectId: string | null;
+}
+
+/** V2. The fields of a work item the read check needs. */
+export type AttachedItem = Pick<
+  WorkItemRow,
+  'organizationId' | 'projectId' | 'audience' | 'state' | 'deletedAt'
+>;
 
 export class GoogleDriveRepository {
   async findConnection(
@@ -175,6 +191,109 @@ export class GoogleDriveRepository {
         driveFolderId,
         createdAt: sql`current_timestamp(3)`,
       });
+  }
+
+  /**
+   * V2. Which of `driveFolderIds` are TManage's own project or work-item folders (under any root
+   * this organization has used), each with the project it belongs to.
+   */
+  async findKnownFolders(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    driveFolderIds: readonly string[],
+  ): Promise<readonly KnownDriveFolder[]> {
+    if (driveFolderIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({
+        driveFolderId: googleDriveFolders.driveFolderId,
+        rootFolderId: googleDriveFolders.rootFolderId,
+        subjectKind: googleDriveFolders.subjectKind,
+        subjectId: googleDriveFolders.subjectId,
+        itemProjectId: workItems.projectId,
+      })
+      .from(googleDriveFolders)
+      .leftJoin(
+        workItems,
+        and(
+          eq(workItems.organizationId, googleDriveFolders.organizationId),
+          eq(workItems.id, googleDriveFolders.subjectId),
+          eq(googleDriveFolders.subjectKind, 'work_item'),
+        ),
+      )
+      .where(
+        and(
+          eq(googleDriveFolders.organizationId, context.organizationId),
+          inArray(googleDriveFolders.driveFolderId, [...driveFolderIds]),
+        ),
+      );
+    return rows.map((row) => ({
+      driveFolderId: row.driveFolderId,
+      rootFolderId: row.rootFolderId,
+      projectId: row.subjectKind === 'project' ? row.subjectId : (row.itemProjectId ?? null),
+    }));
+  }
+
+  /** V2. Which of `driveFolderIds` are a TManage root folder this organization has used. */
+  async knownRootsAmong(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    driveFolderIds: readonly string[],
+  ): Promise<readonly string[]> {
+    if (driveFolderIds.length === 0) return [];
+    const fromFolders = await tenantDrizzle(runner)
+      .selectDistinct({ id: googleDriveFolders.rootFolderId })
+      .from(googleDriveFolders)
+      .where(
+        and(
+          eq(googleDriveFolders.organizationId, context.organizationId),
+          inArray(googleDriveFolders.rootFolderId, [...driveFolderIds]),
+        ),
+      );
+    const fromConnection = await tenantDrizzle(runner)
+      .select({ id: storageConnections.rootFolderId })
+      .from(storageConnections)
+      .where(
+        and(
+          eq(storageConnections.organizationId, context.organizationId),
+          inArray(storageConnections.rootFolderId, [...driveFolderIds]),
+        ),
+      );
+    return [...fromFolders, ...fromConnection]
+      .map((row) => row.id)
+      .filter((id): id is string => typeof id === 'string');
+  }
+
+  /**
+   * V2. Every work item (in this organization) the Drive file is or was attached to, detached
+   * links included: the attach check refuses a file already linked where the caller cannot read.
+   */
+  async attachedItemsForFile(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    driveFileId: string,
+  ): Promise<readonly AttachedItem[]> {
+    return tenantDrizzle(runner)
+      .select({
+        organizationId: workItems.organizationId,
+        projectId: workItems.projectId,
+        audience: workItems.audience,
+        state: workItems.state,
+        deletedAt: workItems.deletedAt,
+      })
+      .from(googleDriveAttachments)
+      .innerJoin(
+        workItems,
+        and(
+          eq(workItems.organizationId, googleDriveAttachments.organizationId),
+          eq(workItems.id, googleDriveAttachments.workItemId),
+        ),
+      )
+      .where(
+        and(
+          eq(googleDriveAttachments.organizationId, context.organizationId),
+          eq(googleDriveAttachments.driveFileId, driveFileId),
+        ),
+      );
   }
 
   async listAttachments(

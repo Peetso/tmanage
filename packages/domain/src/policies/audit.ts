@@ -563,6 +563,15 @@ export const AUDIT_ACTION_CATALOG = {
     clause: '§12 — the same link removed (the Drive file itself is never deleted)',
   },
   /**
+   * NV10 (wave 10 R9). A short-lived company Drive token handed to a person's browser for the file
+   * picker. Google has no per-project Drive token, so each issuance is recorded: the connection,
+   * the provider and the target project id — never the token.
+   */
+  'drive_picker.session_issued': {
+    objectType: 'storage_connection',
+    clause: '§12 API credentials — a company Drive access token issued to a browser',
+  },
+  /**
    * B3. The company owner's choice of what a download does before a virus scan (`allow_labeled`
    * or `block`). Metadata is the previous and the new value — closed tokens, never prose.
    */
@@ -819,6 +828,7 @@ const AUDIT_ACTION_LABELS = {
   'storage_connection.disconnected': 'Disconnected Google Drive',
   'drive_attachment.attached': 'Attached a Google Drive file',
   'drive_attachment.removed': 'Removed a Google Drive file',
+  'drive_picker.session_issued': 'Opened the Google Drive file picker',
   'security.capability_denied': 'Blocked for a missing permission',
   'plan_change_request.submitted': 'Requested a plan change',
   'plan_change_request.cancelled': 'Cancelled a plan-change request',

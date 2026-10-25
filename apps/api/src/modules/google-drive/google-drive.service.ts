@@ -26,10 +26,15 @@ import {
   driveStateMatches,
   newDriveFlow,
   type DriveConfig,
+  type DriveFile,
   type DriveFlow,
   type DriveTransport,
 } from './google-drive.google.js';
-import { GoogleDriveRepository, type StorageMode } from './google-drive.repository.js';
+import {
+  GoogleDriveRepository,
+  type AttachedItem,
+  type StorageMode,
+} from './google-drive.repository.js';
 
 /**
  * Google Drive as company storage — the application service.
@@ -338,6 +343,10 @@ export class GoogleDriveService {
    * or a guest; with a target project, `file.upload` on that project (authorize rule 12 — member
    * of it, or org-wide scope); with no target (the company's own Storage settings), org-wide
    * scope only.
+   *
+   * The token itself stays company-wide — Google offers no Drive token narrowed to one folder —
+   * so each issuance is audited (`drive_picker.session_issued`, the project id, never the token)
+   * and {@link attach} checks where a picked file lives before it links it (V2).
    */
   async pickerSession(
     context: TenantContext,
@@ -348,8 +357,20 @@ export class GoogleDriveService {
     const config = this.requireConfig();
     if (!config.pickerApiKey) throw conflict('not_configured');
     const live = this.requireLive(await this.readConnection(context));
+    const accessToken = await this.accessToken(context, live);
+    await this.deps.database.transaction(context, (tx) =>
+      this.deps.audit.record(tx, context, {
+        action: 'drive_picker.session_issued',
+        result: 'allowed',
+        objectId: live.id,
+        metadata: {
+          provider: 'google_drive',
+          ...(projectId === undefined ? {} : { project_id: projectId }),
+        },
+      }),
+    );
     return {
-      accessToken: await this.accessToken(context, live),
+      accessToken,
       apiKey: config.pickerApiKey,
       appId: config.projectNumber,
       rootFolderId: live.rootFolderId,
@@ -417,7 +438,8 @@ export class GoogleDriveService {
     if (file.mimeType === FOLDER_MIME_TYPE) throw invalid('driveFileId', 'must be a file');
 
     return this.deps.database.transaction(context, async (tx) => {
-      await this.writableItem(tx, context, principal, workItemId);
+      const item = await this.writableItem(tx, context, principal, workItemId);
+      await this.requireAttachableOrigin(tx, context, principal, live, item, file);
       const existing = (await this.repository.listAttachments(tx, context, workItemId)).find(
         (row) => row.driveFileId === file.id,
       );
@@ -461,6 +483,50 @@ export class GoogleDriveService {
   }
 
   // ── Internals ─────────────────────────────────────────────────────────────
+
+  /**
+   * V2. The company connection can read every file TManage made or anyone picked, in every
+   * project, so Google answering is not enough to link a file into this item. A file may be
+   * attached when
+   *  (a) it sits in one of the destination project's TManage folders (the project folder or a
+   *      work-item folder of an item now in that project), or
+   *  (b) it sits outside every TManage folder (a person's own picked file) and is not already
+   *      linked to an item the caller cannot read.
+   * Anything else — a file in another project's folder, in the bare root, or one linked only
+   * where the caller cannot see — is the same 404 an unknown id gives, before any insert.
+   */
+  private async requireAttachableOrigin(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    live: StorageConnectionRow & { rootFolderId: string },
+    item: WorkItemRow,
+    file: DriveFile,
+  ): Promise<void> {
+    const notFound = () => new ApiError(404, 'not_found', MESSAGES.notFound);
+    const parents = file.parents;
+    if (parents.length > 0) {
+      const folders = await this.repository.findKnownFolders(runner, context, parents);
+      const roots = new Set([
+        live.rootFolderId,
+        ...(await this.repository.knownRootsAmong(runner, context, parents)),
+      ]);
+      const insideTManage = folders.length > 0 || parents.some((id) => roots.has(id));
+      if (insideTManage) {
+        const known = new Map(folders.map((folder) => [folder.driveFolderId, folder]));
+        const here = (id: string) => known.get(id)?.projectId === item.projectId;
+        const elsewhere = (id: string) => !here(id) && (known.has(id) || roots.has(id));
+        if (parents.some(here) && !parents.some(elsewhere)) return;
+        throw notFound();
+      }
+    }
+    const linked = await this.repository.attachedItemsForFile(runner, context, file.id);
+    for (const row of linked) {
+      if (!authorize({ principal, capability: 'work.read', resource: resourceOf(row) }).allowed) {
+        throw notFound();
+      }
+    }
+  }
 
   private requireConfig(): DriveConfig {
     if (!this.deps.config) throw conflict('not_configured');
@@ -667,7 +733,7 @@ export class GoogleDriveService {
   }
 }
 
-function resourceOf(row: WorkItemRow) {
+function resourceOf(row: AttachedItem) {
   return {
     organizationId: row.organizationId,
     projectId: row.projectId,
