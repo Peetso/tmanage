@@ -299,6 +299,9 @@ So **19 in practice**.
 - `RATE_LIMIT_AUTH_MAX_PER_SOURCE` — env.ts:346, default 30 (~15 complete MFA sign-ins per
   address per 5 minutes). Behind office NAT that is per-office; raise it deliberately, not after a
   complaint.
+- `ALERT_EMAILS` (env.ts:490) — the owner's address(es), comma-separated, for error and job
+  alert mails; set `OUTBOX_HEARTBEAT_FILE` too. Steps, the uptime monitor on `/healthz/deep` and
+  the service targets are in `docs/runbooks/slo-and-alerts.md`.
 - `TENANT_GUARD_MODE=enforce`, `DEPLOYMENT_PROFILE=bootstrap` — env.ts:185, 131; both already the
   defaults, do not touch.
 
