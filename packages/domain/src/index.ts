@@ -36,12 +36,17 @@ export {
   PENDING_APPROVAL_STATES,
   aggregateApprovalOutcome,
   activeReviewers,
+  evaluateReviewerDecision,
+  reviewerOutcomes,
 } from './state-machines/approval.js';
 export type {
   AggregateOutcome,
   ApprovalPolicy,
   ApprovalState,
+  RecordedReviewerDecision,
   ReviewerDecision,
+  ReviewerDecisionRefusal,
+  ReviewerDecisionVerdict,
   ReviewerOutcome,
 } from './state-machines/approval.js';
 

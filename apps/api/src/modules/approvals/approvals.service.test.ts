@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { approvalStateMachine, assertSafeAuditMetadata } from '@tmanage/domain';
-import type { ApprovalState } from '@tmanage/domain';
+import type { ApprovalState, RecordedReviewerDecision } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ApprovalRow, DeliverableVersionRow } from '../../common/database/schema.js';
@@ -106,9 +106,40 @@ function fakeDatabase(): TenantDatabase {
 
 /** An in-memory approvals repository that validates transitions with the real state machine. */
 class FakeApprovals {
+  /** The per-reviewer decisions (0235, F15), as the real repository stores them. */
+  readonly decisions: RecordedReviewerDecision[] = [];
+
   constructor(private row: ApprovalRow) {}
 
   current(): ApprovalRow {
+    return { ...this.row };
+  }
+
+  async reviewerDecisions(): Promise<readonly RecordedReviewerDecision[]> {
+    return [...this.decisions];
+  }
+
+  async recordReviewerDecision(
+    _tx: never,
+    _c: TenantContext,
+    input: {
+      approvalId: string;
+      reviewerUserId: string;
+      decision: RecordedReviewerDecision['decision'];
+    },
+  ): Promise<void> {
+    if (this.decisions.some((d) => d.reviewerUserId === input.reviewerUserId)) {
+      throw new Error('duplicate reviewer decision');
+    }
+    this.decisions.push({ reviewerUserId: input.reviewerUserId, decision: input.decision });
+  }
+
+  async touch(_tx: never, _c: TenantContext, id: string, expectedVersion: number) {
+    if (id !== this.row.id) throw new ApprovalNotFoundError(id);
+    if (this.row.version !== expectedVersion) {
+      throw new ApprovalVersionConflictError(id, this.row.version);
+    }
+    this.row = { ...this.row, version: this.row.version + 1 };
     return { ...this.row };
   }
 
@@ -407,7 +438,7 @@ function clientService(
 
 describe('ApprovalsService.clientDecide', () => {
   it('persists an approval when an approved client contact on the relation decides', async () => {
-    const approvals = new FakeApprovals(approvalRow());
+    const approvals = new FakeApprovals(approvalRow({ reviewerIds: [CLIENT_CONTACT] }));
     const svc = clientService(
       approvals,
       new FakeVersions(versionRow(HASH_A)),
@@ -427,7 +458,7 @@ describe('ApprovalsService.clientDecide', () => {
   });
 
   it('records the note when a client requests changes', async () => {
-    const approvals = new FakeApprovals(approvalRow());
+    const approvals = new FakeApprovals(approvalRow({ reviewerIds: [CLIENT_CONTACT] }));
     const svc = clientService(
       approvals,
       new FakeVersions(versionRow(HASH_A)),
@@ -445,7 +476,7 @@ describe('ApprovalsService.clientDecide', () => {
   });
 
   it('refuses a client who is not on the project relation, writing nothing (object layer)', async () => {
-    const approvals = new FakeApprovals(approvalRow());
+    const approvals = new FakeApprovals(approvalRow({ reviewerIds: [CLIENT_CONTACT] }));
     const svc = clientService(
       approvals,
       new FakeVersions(versionRow(HASH_A)),
@@ -465,7 +496,7 @@ describe('ApprovalsService.clientDecide', () => {
   });
 
   it('refuses a client viewer whose role has no approval.decide ceiling', async () => {
-    const approvals = new FakeApprovals(approvalRow());
+    const approvals = new FakeApprovals(approvalRow({ reviewerIds: [CLIENT_CONTACT] }));
     const svc = clientService(
       approvals,
       new FakeVersions(versionRow(HASH_A)),
@@ -484,7 +515,7 @@ describe('ApprovalsService.clientDecide', () => {
   });
 
   it('maps a cross-tenant client with an unknown version to 404, never a 500, and writes nothing (Known trap)', async () => {
-    const approvals = new FakeApprovals(approvalRow());
+    const approvals = new FakeApprovals(approvalRow({ reviewerIds: [CLIENT_CONTACT] }));
     const svc = clientService(
       approvals,
       new FakeVersions(versionRow(HASH_A)),
@@ -509,7 +540,9 @@ describe('ApprovalsService.clientDecide', () => {
   });
 
   it('refuses a second decision on an already-decided version (append-only)', async () => {
-    const approvals = new FakeApprovals(approvalRow({ state: 'approved', version: 3 }));
+    const approvals = new FakeApprovals(
+      approvalRow({ state: 'approved', version: 3, reviewerIds: [CLIENT_CONTACT] }),
+    );
     const svc = clientService(
       approvals,
       new FakeVersions(versionRow(HASH_A)),
@@ -583,7 +616,7 @@ function wiredService(approvals: FakeApprovals, versions: FakeVersions) {
 describe('ApprovalsService decisions (Q3)', () => {
   it('a client approval appends approval.decided.v1 for the sender and an approval.approved row', async () => {
     const { svc, outbox, audit } = wiredService(
-      new FakeApprovals(approvalRow()),
+      new FakeApprovals(approvalRow({ reviewerIds: [CLIENT_CONTACT] })),
       new FakeVersions(versionRow(HASH_A)),
     );
     await svc.clientDecide(context, clientReviewer(CLIENT_CONTACT), VERSION, {

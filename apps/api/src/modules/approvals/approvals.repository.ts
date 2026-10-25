@@ -1,8 +1,19 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import { approvalStateMachine, uuidv7 } from '@tmanage/domain';
-import type { ApprovalPolicy, ApprovalState } from '@tmanage/domain';
+import type {
+  ApprovalPolicy,
+  ApprovalState,
+  RecordedReviewerDecision,
+  ReviewerDecision,
+} from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { approvals } from '../../common/database/schema.js';
+import {
+  approvalReviewerDecisions,
+  approvals,
+  memberships,
+  projectMemberships,
+  projects,
+} from '../../common/database/schema.js';
 import type { ApprovalRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -32,6 +43,37 @@ export class ApprovalVersionConflictError extends Error {
     super(`Approval ${approvalId} was modified concurrently (expected version ${expectedVersion})`);
     this.name = 'ApprovalVersionConflictError';
   }
+}
+
+/** A reviewer already has a recorded decision on this approval (the 0235 UNIQUE key). */
+export class ApprovalReviewerAlreadyDecidedError extends Error {
+  constructor(
+    readonly approvalId: string,
+    readonly reviewerUserId: string,
+  ) {
+    super(`Reviewer ${reviewerUserId} already decided approval ${approvalId}`);
+    this.name = 'ApprovalReviewerAlreadyDecidedError';
+  }
+}
+
+/** An internal person who could review on a project: an active membership with a relation to it. */
+export interface InternalReviewerCandidate {
+  readonly userId: string;
+  readonly role: string;
+}
+
+/** MySQL's duplicate-key error number — the 0235 one-decision-per-reviewer guard. */
+const ER_DUP_ENTRY = 1062;
+
+/** A duplicate-key violation, seen directly or one level down on Drizzle's `.cause`. */
+function isDuplicateKeyError(error: unknown): boolean {
+  const marks = (candidate: unknown): boolean =>
+    typeof candidate === 'object' &&
+    candidate !== null &&
+    ((candidate as { errno?: number }).errno === ER_DUP_ENTRY ||
+      (candidate as { code?: string }).code === 'ER_DUP_ENTRY');
+  if (marks(error)) return true;
+  return typeof error === 'object' && error !== null && marks((error as { cause?: unknown }).cause);
 }
 
 export class ApprovalTransitionError extends Error {
@@ -152,7 +194,9 @@ export class ApprovalsRepository {
    * client projection was published for, not an approval id the client never sees. An approval is
    * opened over exactly one immutable version, so this resolves that version's approval; the newest
    * by creation is taken defensively, and the read is tenant-scoped so another tenant's row is
-   * absent rather than visible — the same not-found the service maps to 404.
+   * absent rather than visible — the same not-found the service maps to 404. Since wave 9 (F16/F17)
+   * no approval can be opened on a version that already has a live or decided one
+   * (`assertVersionOpenable`), so the newest row is the one `send` created.
    */
   async findByVersion(
     runner: TenantQueryRunner,
@@ -171,6 +215,24 @@ export class ApprovalsRepository {
       .orderBy(desc(approvals.createdAt), desc(approvals.id))
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /** Every approval ever opened on one governed version, newest first (the F16/F17 precondition). */
+  async listByVersion(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    deliverableVersionId: string,
+  ): Promise<readonly ApprovalRow[]> {
+    return tenantDrizzle(runner)
+      .select()
+      .from(approvals)
+      .where(
+        and(
+          eq(approvals.organizationId, context.organizationId),
+          eq(approvals.deliverableVersionId, deliverableVersionId),
+        ),
+      )
+      .orderBy(desc(approvals.createdAt), desc(approvals.id));
   }
 
   async requireByVersion(
@@ -248,5 +310,148 @@ export class ApprovalsRepository {
     }
 
     return this.requireById(runner, context, approvalId);
+  }
+
+  /**
+   * The decisions reviewers have recorded on one approval (0235, F15), oldest first. The approval's
+   * own state is the aggregate of these by its policy.
+   */
+  async reviewerDecisions(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    approvalId: string,
+  ): Promise<readonly RecordedReviewerDecision[]> {
+    return tenantDrizzle(runner)
+      .select({
+        reviewerUserId: approvalReviewerDecisions.reviewerUserId,
+        decision: approvalReviewerDecisions.outcome,
+      })
+      .from(approvalReviewerDecisions)
+      .where(
+        and(
+          eq(approvalReviewerDecisions.organizationId, context.organizationId),
+          eq(approvalReviewerDecisions.approvalId, approvalId),
+        ),
+      )
+      .orderBy(asc(approvalReviewerDecisions.decidedAt), asc(approvalReviewerDecisions.id));
+  }
+
+  /**
+   * Record one reviewer's decision. INSERT-only: a second decision by the same reviewer hits the
+   * 0235 UNIQUE key and is refused as {@link ApprovalReviewerAlreadyDecidedError}.
+   */
+  async recordReviewerDecision(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    input: {
+      readonly approvalId: string;
+      readonly reviewerUserId: string;
+      readonly decision: ReviewerDecision;
+      readonly decidedAt: Date;
+    },
+  ): Promise<void> {
+    try {
+      await tenantDrizzle(runner).insert(approvalReviewerDecisions).values({
+        id: uuidv7(),
+        organizationId: context.organizationId,
+        approvalId: input.approvalId,
+        reviewerUserId: input.reviewerUserId,
+        outcome: input.decision,
+        decidedAt: input.decidedAt,
+        createdAt: new Date(),
+      });
+    } catch (error) {
+      if (isDuplicateKeyError(error)) {
+        throw new ApprovalReviewerAlreadyDecidedError(input.approvalId, input.reviewerUserId);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Bump an approval's version without changing its state — a reviewer decided but the policy's
+   * aggregate is not final yet. Version-guarded like {@link transition}, so two reviewers racing on
+   * the same approval serialise: the loser gets a version conflict and its transaction rolls back.
+   */
+  async touch(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    approvalId: string,
+    expectedVersion: number,
+  ): Promise<ApprovalRow> {
+    const result = await tenantDrizzle(runner)
+      .update(approvals)
+      .set({ version: sql`version + 1`, updatedAt: new Date() })
+      .where(
+        and(
+          eq(approvals.organizationId, context.organizationId),
+          eq(approvals.id, approvalId),
+          eq(approvals.version, expectedVersion),
+        ),
+      );
+    if (result[0].affectedRows === 0) {
+      const live = await this.findById(runner, context, approvalId);
+      if (!live) throw new ApprovalNotFoundError(approvalId);
+      throw new ApprovalVersionConflictError(approvalId, live.version);
+    }
+    return this.requireById(runner, context, approvalId);
+  }
+
+  /**
+   * Of `userIds`, the internal people who could review work on `projectId` (F16/F17, F37): an
+   * active membership in this tenant with a relation to the project — organisation-wide scope, the
+   * project's workspace as their workspace scope, or a project membership row. The caller filters
+   * on the role's `approval.decide`.
+   */
+  async internalReviewerCandidates(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    userIds: readonly string[],
+  ): Promise<readonly InternalReviewerCandidate[]> {
+    if (userIds.length === 0) return [];
+    const db = tenantDrizzle(runner);
+    const projectRows = await db
+      .select({ workspaceId: projects.workspaceId })
+      .from(projects)
+      .where(and(eq(projects.organizationId, context.organizationId), eq(projects.id, projectId)))
+      .limit(1);
+    const workspaceId = projectRows[0]?.workspaceId ?? null;
+
+    const memberRows = await db
+      .select({ userId: projectMemberships.userId })
+      .from(projectMemberships)
+      .where(
+        and(
+          eq(projectMemberships.organizationId, context.organizationId),
+          eq(projectMemberships.projectId, projectId),
+          inArray(projectMemberships.userId, [...userIds]),
+        ),
+      );
+    const onProject = new Set(memberRows.map((row) => row.userId));
+
+    const rows = await db
+      .select({
+        userId: memberships.userId,
+        role: memberships.role,
+        hasOrgWideScope: memberships.hasOrgWideScope,
+        workspaceScopeId: memberships.workspaceScopeId,
+      })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.status, 'active'),
+          inArray(memberships.userId, [...userIds]),
+        ),
+      );
+    return rows
+      .filter(
+        (row) =>
+          row.hasOrgWideScope ||
+          onProject.has(row.userId) ||
+          (workspaceId !== null && row.workspaceScopeId === workspaceId),
+      )
+      .map((row) => ({ userId: row.userId, role: row.role }));
   }
 }

@@ -65,6 +65,7 @@ function build() {
     },
     approvals: {
       findByVersion: vi.fn(async () => null),
+      listByVersion: vi.fn(async (): Promise<readonly object[]> => []),
       open: vi.fn(async (_t: unknown, _c: unknown, _i: object) => ({
         id: 'a-2',
         state: 'requested',

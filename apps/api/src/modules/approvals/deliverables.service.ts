@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { approvalStateMachine, authorize, hasCapability, isClientRole } from '@tmanage/domain';
+import { authorize, hasCapability, isClientRole } from '@tmanage/domain';
 import type { ApprovalState, Capability, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
@@ -15,6 +15,7 @@ import type {
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { assertVersionOpenable } from './approval-open-preconditions.js';
 import { ApprovalVersionConflictError } from './approvals.repository.js';
 import type { ApprovalsRepository } from './approvals.repository.js';
 import type { DeliverableVersionsRepository } from './deliverable-versions.repository.js';
@@ -394,26 +395,19 @@ export class DeliverablesService {
           ]);
         }
 
-        const existing = await this.approvals.findByVersion(tx, context, latest.id);
-        if (existing && !approvalStateMachine.isTerminal(existing.state as ApprovalState)) {
-          throw new ApiError(
-            409,
-            'conflict',
-            'This version is already waiting for approval',
-            undefined,
-            'approval_pending',
-          );
-        }
-        if (existing?.state === 'approved' || existing?.state === 'changes_requested') {
-          // A decided version is final: changes requested means "upload the next version".
-          throw new ApiError(
-            409,
-            'conflict',
-            'This version has already been decided',
-            undefined,
-            'approval_terminal',
-          );
-        }
+        // F16/F17: the one precondition check `ApprovalsService.open` runs too — nothing pending or
+        // decided on this version (a decided version is final), and the sender is not an approver.
+        await assertVersionOpenable(
+          tx,
+          context,
+          { approvals: this.approvals, versions: this.versions },
+          {
+            deliverableId: deliverable.id,
+            deliverableVersionId: latest.id,
+            requesterUserId: principal.userId,
+            reviewerIds: approverIds,
+          },
+        );
 
         // The projection is append-only per version (0031): publish it the first time only.
         if (!(await this.projections.findByVersion(tx, context, latest.id))) {

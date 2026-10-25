@@ -4283,6 +4283,8 @@
   "ClientApprovalScreen.decision": "القرار",
   "ClientApprovalScreen.approvedTitle": "لقد وافقت على هذه النسخة",
   "ClientApprovalScreen.approvedBody": "تم تسجيل موافقتك. لا حاجة لأي شيء آخر.",
+  "ClientApprovalScreen.approvalRecordedTitle": "تم تسجيل موافقتك",
+  "ClientApprovalScreen.waitingForOthersBody": "لا يزال على المعتمدين الآخرين اتخاذ قرارهم. سنُبلغ الفريق عندما يقرّر الجميع.",
   "ClientApprovalScreen.changesRequestedTitle": "لقد طلبت تغييرات",
   "ClientApprovalScreen.requestSent": "تم إرسال طلبك",
   "ClientApprovalScreen.versionChangedTitle": "تغيّرت هذه النسخة قبل قرارك",

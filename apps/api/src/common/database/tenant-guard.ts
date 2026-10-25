@@ -191,6 +191,8 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // the step reads and writes; `organization_id` is NOT NULL and carries the `(organization_id, id)`
   // key every tenant table has.
   approval_steps: 'organization_id',
+  // 0235 (wave 9 S5, F15). Org-owned: one reviewer's decision on one tenant's approval.
+  approval_reviewer_decisions: 'organization_id',
   // FR-05 (0031, x97). Tenant-owned: a client projection is one studio's immutable client-facing
   // view of a governed version, and an unscoped read would leak another studio's — or another
   // client's — published content. The application already scopes its queries, but the guard is the

@@ -1,5 +1,10 @@
-import { approvalStateMachine, authorize, contentHashEquals } from '@tmanage/domain';
-import type { ApprovalPolicy, ApprovalState, Principal } from '@tmanage/domain';
+import {
+  approvalStateMachine,
+  authorize,
+  contentHashEquals,
+  evaluateReviewerDecision,
+} from '@tmanage/domain';
+import type { ApprovalPolicy, ApprovalState, Principal, ReviewerDecision } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
   TenantContext,
@@ -13,6 +18,7 @@ import type {
 } from '../../common/database/schema.js';
 import {
   ApprovalNotFoundError,
+  ApprovalReviewerAlreadyDecidedError,
   ApprovalTransitionError,
   ApprovalVersionConflictError,
 } from './approvals.repository.js';
@@ -26,6 +32,7 @@ import {
 import type { ClientProjectionsRepository } from './client-projections.repository.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { assertVersionOpenable, mayDecideApprovals } from './approval-open-preconditions.js';
 
 /**
  * FR-05's application service — the immutable-decision heart, authorized at the object layer.
@@ -196,8 +203,10 @@ export class ApprovalsService {
   /**
    * Open a review request bound to one immutable version — `draft -> requested`.
    *
-   * Authorized with `deliverable.review`, which is internal-only, so a client principal is
-   * refused here (a client reviews, it does not request review). The version is read
+   * Authorized with `deliverable.review` and `deliverable.publish`, both internal-only, so a client
+   * principal is refused here (a client reviews, it does not request review). Wave 9 (F16/F17): the
+   * version must pass {@link assertVersionOpenable} — the rules `send` applies — and every reviewer
+   * must be an internal project member who can approve, never the requester. The version is read
    * tenant-scoped first, so a caller naming another tenant's version gets 404, and the hash the
    * approval captures is the version's own, not a value from the request body.
    */
@@ -206,7 +215,8 @@ export class ApprovalsService {
     principal: Principal,
     input: OpenApprovalInput,
   ): Promise<ApprovalDecisionView> {
-    if (input.reviewerIds.length === 0) {
+    const reviewerIds = [...new Set(input.reviewerIds)];
+    if (reviewerIds.length === 0) {
       throw new ApiError(400, 'validation_failed', 'A review request needs at least one reviewer', [
         { field: 'reviewerIds', message: 'must not be empty' },
       ]);
@@ -220,18 +230,57 @@ export class ApprovalsService {
           input.deliverableVersionId,
         );
 
-        const verdict = authorize({
-          principal,
-          capability: 'deliverable.review',
-          resource: {
-            organizationId: context.organizationId,
-            projectId: version.projectId,
-            audience: 'client_visible',
-            lifecycle: 'active',
+        // F17: opening an approval that governs the deliverable's state is the same act as sending
+        // it, so it needs `deliverable.publish` as well as `deliverable.review` (both internal-only).
+        for (const capability of ['deliverable.review', 'deliverable.publish'] as const) {
+          const verdict = authorize({
+            principal,
+            capability,
+            resource: {
+              organizationId: context.organizationId,
+              projectId: version.projectId,
+              audience: 'client_visible',
+              lifecycle: 'active',
+            },
+          });
+          if (!verdict.allowed) {
+            throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+          }
+        }
+
+        // F16/F17: the same lifecycle rules `send` applies — newest version only, nothing pending
+        // or decided on it, and the requester is not their own reviewer.
+        await assertVersionOpenable(
+          tx,
+          context,
+          { approvals: this.approvals, versions: this.deliverableVersions },
+          {
+            deliverableId: version.deliverableId,
+            deliverableVersionId: version.id,
+            requesterUserId: principal.userId,
+            reviewerIds,
           },
-        });
-        if (!verdict.allowed) {
-          throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+        );
+
+        // A staff review request names internal people who can approve on this project. Client
+        // approvers are asked through `send`, which also publishes what they are shown.
+        const candidates = await this.approvals.internalReviewerCandidates(
+          tx,
+          context,
+          version.projectId,
+          reviewerIds,
+        );
+        const eligible = new Set(
+          candidates.filter((c) => mayDecideApprovals(c.role)).map((c) => c.userId),
+        );
+        if (reviewerIds.some((id) => !eligible.has(id))) {
+          throw new ApiError(
+            422,
+            'validation_failed',
+            'A reviewer cannot approve this project',
+            [{ field: 'reviewerIds', message: 'must be project members who can approve' }],
+            'approval_reviewer_ineligible',
+          );
         }
 
         return this.approvals.open(tx, context, {
@@ -239,7 +288,7 @@ export class ApprovalsService {
           deliverableId: version.deliverableId,
           deliverableVersionId: version.id,
           contentHash: version.contentHash,
-          reviewerIds: input.reviewerIds,
+          reviewerIds,
           ...(input.policy ? { policy: input.policy } : {}),
         });
       }),
@@ -288,88 +337,166 @@ export class ApprovalsService {
           throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
         }
 
-        // Append-only: a decided (or otherwise terminal) approval cannot be re-decided.
-        if (approvalStateMachine.isTerminal(approval.state as ApprovalState)) {
-          throw new ApiError(
-            409,
-            'conflict',
-            'This approval has already been resolved and cannot be decided again',
-            undefined,
-            'approval_terminal',
-          );
-        }
-
-        if (approval.version !== input.expectedVersion) {
+        // A stale form is a conflict; a terminal row answers `approval_terminal` (below) instead.
+        if (
+          approval.version !== input.expectedVersion &&
+          !approvalStateMachine.isTerminal(approval.state as ApprovalState)
+        ) {
           throw new ApprovalVersionConflictError(approval.id, approval.version);
         }
 
-        // The reviewer has necessarily seen the version they are deciding on: advance
-        // `requested -> viewed` in the same transaction before the decision (`viewed -> …`).
-        let current = approval;
-        if (current.state === 'requested') {
-          current = await this.approvals.transition(
+        const outcome = await this.applyReviewerDecision(tx, context, approval, principal, input);
+        if (outcome.final) {
+          // The sender is the projection's publisher; a version never published (a staff-only
+          // review) falls back to whoever uploaded it.
+          const projection =
+            this.outbox || this.audit
+              ? await this.clientProjections.findByVersion(
+                  tx,
+                  context,
+                  outcome.row.deliverableVersionId,
+                )
+              : null;
+          await this.recordDecision(
             tx,
             context,
-            approvalId,
-            current.version,
-            'viewed',
+            outcome.row,
+            projection?.publishedByUserId ?? outcome.uploadedByUserId,
           );
         }
-
-        // The hash re-check (INT-16/INT-17). Compare the captured hash against the deliverable's
-        // *current* governed version; a mismatch (or a vanished version) invalidates.
-        const governed = await this.deliverableVersions.latestForDeliverable(
-          tx,
-          context,
-          current.deliverableId,
-        );
-        const hashMatches =
-          governed !== null && contentHashEquals(governed.contentHash, current.contentHash);
-
-        if (!hashMatches) {
-          return this.approvals.transition(
-            tx,
-            context,
-            approvalId,
-            current.version,
-            'invalidated',
-            {
-              invalidationReason: 'governed content changed before the decision',
-            },
-          );
-        }
-
-        const to: ApprovalState = input.decision === 'approve' ? 'approved' : 'changes_requested';
-        const decided = await this.approvals.transition(
-          tx,
-          context,
-          approvalId,
-          current.version,
-          to,
-          {
-            decidedByUserId: principal.userId,
-            decidedAt: new Date(),
-            contentHash: current.contentHash,
-            ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
-          },
-        );
-        // The sender is the projection's publisher; a version never published (a staff-only
-        // review) falls back to whoever uploaded it.
-        const projection =
-          this.outbox || this.audit
-            ? await this.clientProjections.findByVersion(tx, context, decided.deliverableVersionId)
-            : null;
-        await this.recordDecision(
-          tx,
-          context,
-          decided,
-          projection?.publishedByUserId ?? governed.createdByUserId,
-        );
-        return decided;
+        return outcome.row;
       }),
     );
 
     return toView(row);
+  }
+
+  /**
+   * One reviewer's decision, counted by the approval's policy (F15) — shared by the staff route and
+   * the client deep link.
+   *
+   * The approval must not be terminal (append-only). The reviewer must be a named reviewer who has
+   * not decided yet, and under `ordered_sequence` the earliest undecided one (409 otherwise). The
+   * first decision advances `requested -> viewed`; a changed governed hash invalidates instead of
+   * recording anything (INT-16/INT-17). Otherwise the reviewer's own decision is recorded in
+   * `approval_reviewer_decisions` and the approval moves to `approved` / `changes_requested` only
+   * when the aggregate is final — until then it stays `viewed` with its version bumped.
+   */
+  private async applyReviewerDecision(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    approval: ApprovalRow,
+    principal: Principal,
+    input: { readonly decision: 'approve' | 'request_changes'; readonly feedback?: string },
+  ): Promise<{
+    readonly row: ApprovalRow;
+    readonly final: boolean;
+    readonly uploadedByUserId: string;
+  }> {
+    // Append-only: a decided (or otherwise terminal) approval cannot be re-decided.
+    if (approvalStateMachine.isTerminal(approval.state as ApprovalState)) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'This approval has already been resolved and cannot be decided again',
+        undefined,
+        'approval_terminal',
+      );
+    }
+
+    const decision: ReviewerDecision =
+      input.decision === 'approve' ? 'approved' : 'changes_requested';
+    const recorded = await this.approvals.reviewerDecisions(tx, context, approval.id);
+    const verdict = evaluateReviewerDecision(
+      approval.policy,
+      approval.reviewerIds,
+      recorded,
+      principal.userId,
+      decision,
+    );
+    if (!verdict.ok) {
+      if (verdict.reason === 'not_a_reviewer') {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'not_assigned_reviewer');
+      }
+      if (verdict.reason === 'already_decided') {
+        throw new ApiError(
+          409,
+          'conflict',
+          'You have already decided on this version',
+          undefined,
+          'reviewer_already_decided',
+        );
+      }
+      throw new ApiError(
+        409,
+        'conflict',
+        'Another reviewer decides before you',
+        undefined,
+        'reviewer_out_of_turn',
+      );
+    }
+
+    // The reviewer has necessarily seen the version they are deciding on: advance
+    // `requested -> viewed` in the same transaction before the decision (`viewed -> …`).
+    let current = approval;
+    if (current.state === 'requested') {
+      current = await this.approvals.transition(
+        tx,
+        context,
+        approval.id,
+        current.version,
+        'viewed',
+      );
+    }
+
+    // The hash re-check (INT-16/INT-17). Compare the captured hash against the deliverable's
+    // *current* governed version; a mismatch (or a vanished version) invalidates.
+    const governed = await this.deliverableVersions.latestForDeliverable(
+      tx,
+      context,
+      current.deliverableId,
+    );
+    if (governed === null || !contentHashEquals(governed.contentHash, current.contentHash)) {
+      const invalidated = await this.approvals.transition(
+        tx,
+        context,
+        approval.id,
+        current.version,
+        'invalidated',
+        { invalidationReason: 'governed content changed before the decision' },
+      );
+      return { row: invalidated, final: false, uploadedByUserId: '' };
+    }
+
+    const decidedAt = new Date();
+    await this.approvals.recordReviewerDecision(tx, context, {
+      approvalId: approval.id,
+      reviewerUserId: principal.userId,
+      decision,
+      decidedAt,
+    });
+
+    if (verdict.aggregate === 'pending') {
+      // Others still have to decide: the approval stays `viewed`; the version bump serialises two
+      // reviewers racing on it (the loser's transaction conflicts and rolls back).
+      const touched = await this.approvals.touch(tx, context, approval.id, current.version);
+      return { row: touched, final: false, uploadedByUserId: governed.createdByUserId };
+    }
+
+    const decided = await this.approvals.transition(
+      tx,
+      context,
+      approval.id,
+      current.version,
+      verdict.aggregate,
+      {
+        decidedByUserId: principal.userId,
+        decidedAt,
+        contentHash: current.contentHash,
+        ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
+      },
+    );
+    return { row: decided, final: true, uploadedByUserId: governed.createdByUserId };
   }
 
   /**
@@ -381,19 +508,18 @@ export class ApprovalsService {
    * a missing or cross-tenant id must be a 404 from `requireByVersion`, never a 500), and only
    * then is the decision authorized.
    *
-   * ## The client relation is the gate
+   * ## The client relation and the named approvers are the gate
    *
-   * `approval.decide` is reviewer-gated (`authorize()` `REVIEWER_GATED`), but the reviewer relation
-   * it checks — `reviewer_ids` — is the *internal* reviewers' list, and a client is never on it
-   * (12-PERMISSION-MATRIX §1: `reviewer_ids` are staff). A client's authority to decide is instead
-   * the **project relation**: the version's project is one shared with the client organization
-   * (`projectIds`), which `authorize()` enforces for a client before the reviewer sub-check. So a
-   * client on the relation whose role holds `approval.decide` (client admin / reviewer / member —
-   * a client viewer does not) is a valid decider, and the reviewer sub-check is satisfied on their
-   * behalf: `isAssignedReviewer: true` says "the relation is this client's reviewer authority",
-   * not "a staff member assigned them". A client not on the relation is denied `not_project_member`;
-   * a role without `approval.decide` is denied at the ceiling. Every refusal is 404, not 403 — a
-   * refusal must not confirm the row exists.
+   * Only a **client** principal may use this route (internal reviewers decide through `decide`),
+   * and only one of the approvers `DeliverablesService.send` named: `send` stores the chosen client
+   * approvers as the approval's `reviewer_ids`, so `isAssignedReviewer` is
+   * `reviewer_ids.includes(caller)` exactly as on the staff route (wave 9, F14 — before, any client
+   * decider on the project, or any staff member, could decide here). `authorize()` additionally
+   * requires the project relation (`projectIds`) and a role holding `approval.decide` (a client
+   * viewer does not). Every refusal is 404, not 403 — a refusal must not confirm the row exists.
+   *
+   * With several approvers the decision is counted by the approval's policy (F15,
+   * {@link applyReviewerDecision}); the response `state` stays `viewed` until the outcome is final.
    *
    * The published projection is required first: a client may only decide on a version that was
    * actually published to them, so its absence (or a cross-tenant id) is the same 404.
@@ -426,6 +552,18 @@ export class ApprovalsService {
         );
         const approval = await this.approvals.requireByVersion(tx, context, deliverableVersionId);
 
+        // F14: this is the client's route — internal reviewers decide through `decide` — and the
+        // client must be one of the approvers `send` named (`reviewer_ids`), not any client decider
+        // on the project.
+        if (principal.kind !== 'client') {
+          throw new ApiError(
+            404,
+            'not_found',
+            MESSAGES.notFound,
+            undefined,
+            'not_a_client_principal',
+          );
+        }
         const verdict = authorize({
           principal,
           capability: 'approval.decide',
@@ -434,9 +572,7 @@ export class ApprovalsService {
             projectId: projection.projectId,
             audience: 'client_visible',
             isPublished: true,
-            // For a client the project relation IS the reviewer authority (see the doc comment):
-            // `reviewer_ids` is the internal staff list, which a client is never on.
-            isAssignedReviewer: true,
+            isAssignedReviewer: approval.reviewerIds.includes(principal.userId),
             lifecycle: 'active',
           },
         });
@@ -444,67 +580,11 @@ export class ApprovalsService {
           throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
         }
 
-        // Append-only: a decided (or otherwise terminal) approval cannot be re-decided.
-        if (approvalStateMachine.isTerminal(approval.state as ApprovalState)) {
-          throw new ApiError(
-            409,
-            'conflict',
-            'This approval has already been resolved and cannot be decided again',
-            undefined,
-            'approval_terminal',
-          );
+        const outcome = await this.applyReviewerDecision(tx, context, approval, principal, input);
+        if (outcome.final) {
+          await this.recordDecision(tx, context, outcome.row, projection.publishedByUserId);
         }
-
-        // The client has necessarily seen the version: advance `requested -> viewed` first.
-        let current = approval;
-        if (current.state === 'requested') {
-          current = await this.approvals.transition(
-            tx,
-            context,
-            approval.id,
-            current.version,
-            'viewed',
-          );
-        }
-
-        // The hash re-check (INT-16/INT-17): a governed change under the client invalidates.
-        const governed = await this.deliverableVersions.latestForDeliverable(
-          tx,
-          context,
-          current.deliverableId,
-        );
-        const hashMatches =
-          governed !== null && contentHashEquals(governed.contentHash, current.contentHash);
-
-        if (!hashMatches) {
-          return this.approvals.transition(
-            tx,
-            context,
-            approval.id,
-            current.version,
-            'invalidated',
-            {
-              invalidationReason: 'governed content changed before the decision',
-            },
-          );
-        }
-
-        const to: ApprovalState = input.decision === 'approve' ? 'approved' : 'changes_requested';
-        const decided = await this.approvals.transition(
-          tx,
-          context,
-          approval.id,
-          current.version,
-          to,
-          {
-            decidedByUserId: principal.userId,
-            decidedAt: new Date(),
-            contentHash: current.contentHash,
-            ...(input.decision === 'request_changes' ? { feedback: input.feedback } : {}),
-          },
-        );
-        await this.recordDecision(tx, context, decided, projection.publishedByUserId);
-        return decided;
+        return outcome.row;
       }),
     );
 
@@ -702,6 +782,16 @@ export class ApprovalsService {
       }
       if (error instanceof ApprovalVersionConflictError) {
         throw new ApiError(409, 'conflict', MESSAGES.conflict, undefined, 'version_conflict');
+      }
+      if (error instanceof ApprovalReviewerAlreadyDecidedError) {
+        // A concurrent second decision by the same reviewer, refused by the 0235 UNIQUE key.
+        throw new ApiError(
+          409,
+          'conflict',
+          'You have already decided on this version',
+          undefined,
+          'reviewer_already_decided',
+        );
       }
       if (error instanceof ApprovalTransitionError) {
         // A missing requirement is the reviewer's to fix (422); an illegal move is a conflict.

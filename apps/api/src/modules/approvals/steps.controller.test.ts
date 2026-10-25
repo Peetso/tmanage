@@ -199,7 +199,9 @@ describe('ApprovalStepsController', () => {
     const defined = await controller.define(context, owner(), APPROVAL, twoSteps);
     const first = defined.steps[0]!;
 
-    const after = await controller.decide(context, owner(), APPROVAL, first.id, {
+    // Step 0 names the `manager` role (F37: only its designated approver decides it).
+    const manager = principal('manager', { projectIds: [PROJECT] });
+    const after = await controller.decide(context, manager, APPROVAL, first.id, {
       decision: 'approve',
     });
     expect(after.steps[0]!.state).toBe('approved');

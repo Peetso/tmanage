@@ -4,6 +4,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ApprovalStepRow, ApprovalStepState } from '../../common/database/schema.js';
 import type { ApprovalsRepository } from './approvals.repository.js';
+import { mayDecideApprovals } from './approval-open-preconditions.js';
 import type { ApprovalStepsRepository, DefineApprovalStepInput } from './steps.repository.js';
 
 /** The token the module provides this service under. Kept here so `tokens.ts` needs no edit. */
@@ -61,6 +62,19 @@ function activeStep(rows: readonly ApprovalStepRow[]): ApprovalStepRow | null {
   );
 }
 
+/**
+ * Is this principal the approver a step names (F37)? The named user when there is one; otherwise a
+ * holder of the named role — a built-in role by name, a custom role by its id (the resolved role
+ * key is `custom:<id>:<mask>`).
+ */
+export function isDesignatedApprover(step: ApprovalStepRow, principal: Principal): boolean {
+  if (step.approverUserId !== null) return step.approverUserId === principal.userId;
+  return (
+    principal.role === step.approverRole ||
+    principal.role.startsWith(`custom:${step.approverRole}:`)
+  );
+}
+
 function toChainView(rows: readonly ApprovalStepRow[]): ApprovalChainView {
   const ordered = [...rows].sort((a, b) => a.position - b.position);
   return { steps: ordered.map(toView), activeStepId: activeStep(ordered)?.id ?? null };
@@ -82,12 +96,12 @@ function toChainView(rows: readonly ApprovalStepRow[]): ApprovalChainView {
  *
  * ## The capability gate
  *
- * Defining and deciding steps is gated on `approval.decide`; reading on `approval.read`. The route
- * guard asks the coarse ceiling question; this service adds the authoritative `authorize()` a
- * suspended membership or a non-member of the approval's project fails (403). Managing the chain is
- * distinct from the single-decision reviewer relation (which gates `approvals.service.decide`), so
- * the chain gate is the capability plus tenant/project scope — `isAssignedReviewer` is not the
- * relation asked here.
+ * Defining the chain needs `project.manage` on the approval's project, and a named approver must be
+ * a project member who can approve; reading needs `approval.read`. Deciding a step needs
+ * `approval.decide` **and** being that step's designated approver — the named user, or a holder of
+ * the named role when no user is named (wave 9, F37: before, any project member could decide any
+ * step). The route guard asks the coarse ceiling question; this service adds the authoritative
+ * `authorize()` a suspended membership or a non-member of the approval's project fails (403).
  */
 export class ApprovalStepsService {
   constructor(
@@ -118,7 +132,39 @@ export class ApprovalStepsService {
         );
       }
 
-      this.assertMayManageChain(principal, context, approval.projectId, 'approval.decide');
+      // F37: defining who approves is managing the project's workflow, not deciding — it needs
+      // `project.manage` on the approval's project.
+      this.assertMayManageChain(principal, context, approval.projectId, 'project.manage');
+
+      // A named approver must be an internal person who can approve on this project.
+      const named = [
+        ...new Set(steps.flatMap((step) => (step.approverUserId ? [step.approverUserId] : []))),
+      ];
+      if (named.length > 0) {
+        const candidates = await this.approvals.internalReviewerCandidates(
+          tx,
+          context,
+          approval.projectId,
+          named,
+        );
+        const eligible = new Set(
+          candidates.filter((c) => mayDecideApprovals(c.role)).map((c) => c.userId),
+        );
+        if (named.some((id) => !eligible.has(id))) {
+          throw new ApiError(
+            422,
+            'validation_failed',
+            'The request body is invalid',
+            [
+              {
+                field: 'steps',
+                message: 'approverUserId must be a project member who can approve',
+              },
+            ],
+            'approval_step_approver_ineligible',
+          );
+        }
+      }
 
       const inputs: DefineApprovalStepInput[] = steps.map((step) => ({
         position: step.position,
@@ -182,7 +228,8 @@ export class ApprovalStepsService {
         );
       }
 
-      this.assertMayManageChain(principal, context, approval.projectId, 'approval.decide');
+      // The project relation first (403), so a caller off the project learns nothing about steps.
+      this.assertMayManageChain(principal, context, approval.projectId, 'approval.read');
 
       const all = await this.steps.listForApproval(tx, context, approval.id);
       const step = all.find((row) => row.id === stepId && row.approvalId === approval.id) ?? null;
@@ -195,6 +242,17 @@ export class ApprovalStepsService {
           'approval_step_not_found',
         );
       }
+
+      // F37: only the step's designated approver decides it — the named user when the step names
+      // one, otherwise a holder of the named role. The relation is passed to `authorize()` as the
+      // real reviewer relation, never a placeholder.
+      this.assertMayManageChain(
+        principal,
+        context,
+        approval.projectId,
+        'approval.decide',
+        isDesignatedApprover(step, principal),
+      );
 
       // Append-only advance: a step that has already been decided cannot be decided again.
       if (step.state !== 'pending') {
@@ -221,7 +279,7 @@ export class ApprovalStepsService {
       }
 
       const state: ApprovalStepState = decision === 'approve' ? 'approved' : 'rejected';
-      await this.steps.decide(tx, context, step.id, { state, decidedBy: context.userId });
+      await this.steps.decide(tx, context, step.id, { state, decidedBy: principal.userId });
       return this.steps.listForApproval(tx, context, approval.id);
     });
     return toChainView(rows);
@@ -237,6 +295,7 @@ export class ApprovalStepsService {
     context: TenantContext,
     projectId: string,
     capability: Capability,
+    isDesignated = false,
   ): void {
     const verdict = authorize({
       principal,
@@ -246,10 +305,9 @@ export class ApprovalStepsService {
         projectId,
         audience: 'internal',
         lifecycle: 'active',
-        // Chain management is gated by the capability and tenant/project scope, not by the
-        // single-approval reviewer relation (which `approvals.service.decide` enforces). Satisfy the
-        // reviewer sub-check so it does not double as a second, unintended gate here.
-        isAssignedReviewer: true,
+        // Only `approval.decide` is reviewer-gated; for a step the reviewer relation is "this
+        // caller is the step's designated approver" (F37).
+        isAssignedReviewer: isDesignated,
       },
     });
     if (!verdict.allowed) {

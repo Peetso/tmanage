@@ -4283,6 +4283,8 @@
   "ClientApprovalScreen.decision": "Decision",
   "ClientApprovalScreen.approvedTitle": "You approved this version",
   "ClientApprovalScreen.approvedBody": "Your approval has been recorded. Nothing further is needed.",
+  "ClientApprovalScreen.approvalRecordedTitle": "Your approval is recorded",
+  "ClientApprovalScreen.waitingForOthersBody": "The other approvers still need to decide. We will let the team know once everyone has.",
   "ClientApprovalScreen.changesRequestedTitle": "You requested changes",
   "ClientApprovalScreen.requestSent": "Your request has been sent",
   "ClientApprovalScreen.versionChangedTitle": "This version changed before your decision",

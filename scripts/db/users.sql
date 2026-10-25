@@ -238,6 +238,9 @@ GRANT INSERT, UPDATE         ON `tmanage`.`approvals`             TO 'tmanage_ap
 -- decisions are the record of how an approval advanced, so a runtime credential must not erase them.
 -- SELECT is the database-wide read grant above; the 0183 trigger holds the identity columns immutable.
 GRANT INSERT, UPDATE         ON `tmanage`.`approval_steps`        TO 'tmanage_app'@'%';
+-- 0235 (wave 9 S5, F15) per-reviewer decisions. **INSERT only**: a reviewer's decision is evidence,
+-- never edited or removed. The approval row carries the aggregate; SELECT is the read grant above.
+GRANT INSERT                 ON `tmanage`.`approval_reviewer_decisions` TO 'tmanage_app'@'%';
 -- FR-05 (x97) client projections. **INSERT only** — a projection is immutable: publishing freezes
 -- one client-safe view of a governed version and there is no edit (25 §7), the trigger in 0031
 -- refuses every UPDATE, and a re-publish is a new version's new projection. No DELETE: the exact

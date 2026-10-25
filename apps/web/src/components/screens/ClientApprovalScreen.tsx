@@ -299,6 +299,15 @@ function ProjectionBody({ view }: { view: ClientApprovalView }) {
 
 function Confirmation({ result }: { result: ClientDecideResult }) {
   const t = useT();
+  if (result.state === 'requested' || result.state === 'viewed') {
+    // Several approvers: this approval is recorded and the others still have to decide (a change
+    // request is always final, so only an approval can leave the version waiting).
+    return (
+      <InlineAlert tone="success" title={t('ClientApprovalScreen.approvalRecordedTitle')} live>
+        <p className="tm-prose">{t('ClientApprovalScreen.waitingForOthersBody')}</p>
+      </InlineAlert>
+    );
+  }
   if (result.state === 'approved') {
     return (
       <InlineAlert tone="success" title={t('ClientApprovalScreen.approvedTitle')} live>

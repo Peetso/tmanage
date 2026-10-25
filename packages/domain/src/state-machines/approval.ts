@@ -132,3 +132,71 @@ export function activeReviewers(
   const next = [...undecided].sort((a, b) => a.sequence - b.sequence)[0];
   return next ? [next] : [];
 }
+
+/** One reviewer's recorded decision, as the per-reviewer store holds it. */
+export interface RecordedReviewerDecision {
+  readonly reviewerUserId: string;
+  readonly decision: ReviewerDecision;
+}
+
+/**
+ * The reviewers of an approval with their recorded decisions. `sequence` is the reviewer's
+ * position in `reviewerIds` (the order the requester named them), which `ordered_sequence` follows.
+ * A duplicate id in `reviewerIds` counts once, at its first position.
+ */
+export function reviewerOutcomes(
+  reviewerIds: readonly string[],
+  recorded: readonly RecordedReviewerDecision[],
+): readonly ReviewerOutcome[] {
+  const byReviewer = new Map(recorded.map((r) => [r.reviewerUserId, r.decision] as const));
+  const seen = new Set<string>();
+  const out: ReviewerOutcome[] = [];
+  for (const reviewerUserId of reviewerIds) {
+    if (seen.has(reviewerUserId)) continue;
+    seen.add(reviewerUserId);
+    out.push({
+      reviewerUserId,
+      sequence: out.length,
+      decision: byReviewer.get(reviewerUserId) ?? null,
+    });
+  }
+  return out;
+}
+
+export type ReviewerDecisionRefusal = 'not_a_reviewer' | 'already_decided' | 'not_your_turn';
+
+export type ReviewerDecisionVerdict =
+  | {
+      readonly ok: true;
+      /** The approval-level outcome once this decision is counted. `pending` = not final yet. */
+      readonly aggregate: AggregateOutcome;
+    }
+  | { readonly ok: false; readonly reason: ReviewerDecisionRefusal };
+
+/**
+ * May `reviewerUserId` record `decision` on an approval now, and what does the approval become?
+ *
+ * Refuses a principal who is not one of the named reviewers, a reviewer who already decided, and,
+ * under `ordered_sequence`, a reviewer whose turn has not come (only the earliest undecided reviewer
+ * may act). Otherwise counts the decision and returns {@link aggregateApprovalOutcome}: `any_one`
+ * is final on the first decision, `all_required` on the first change request or the last approval,
+ * `ordered_sequence` likewise but in order. The approval moves to a terminal state only when the
+ * aggregate is not `pending` (`23-ERD §8`).
+ */
+export function evaluateReviewerDecision(
+  policy: ApprovalPolicy,
+  reviewerIds: readonly string[],
+  recorded: readonly RecordedReviewerDecision[],
+  reviewerUserId: string,
+  decision: ReviewerDecision,
+): ReviewerDecisionVerdict {
+  const outcomes = reviewerOutcomes(reviewerIds, recorded);
+  const self = outcomes.find((r) => r.reviewerUserId === reviewerUserId);
+  if (!self) return { ok: false, reason: 'not_a_reviewer' };
+  if (self.decision !== null) return { ok: false, reason: 'already_decided' };
+  if (!activeReviewers(policy, outcomes).some((r) => r.reviewerUserId === reviewerUserId)) {
+    return { ok: false, reason: 'not_your_turn' };
+  }
+  const after = outcomes.map((r) => (r.reviewerUserId === reviewerUserId ? { ...r, decision } : r));
+  return { ok: true, aggregate: aggregateApprovalOutcome(policy, after) };
+}

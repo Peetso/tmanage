@@ -3406,6 +3406,34 @@ export const approvalSteps = mysqlTable(
 );
 
 /**
+ * One reviewer's decision on a multi-reviewer approval (0235, wave 9 S5 / F15). The approval moves
+ * to a terminal state only when these rows, aggregated by the approval's policy, are final. One row
+ * per `(organization_id, approval_id, reviewer_user_id)`; INSERT-only for the API credential.
+ * `0235_approval_reviewer_decisions.sql` is the source of truth; this is its typed mirror.
+ */
+export const APPROVAL_REVIEWER_OUTCOMES = ['approved', 'changes_requested'] as const;
+export const approvalReviewerDecisions = mysqlTable(
+  'approval_reviewer_decisions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    approvalId: char('approval_id', { length: 36 }).notNull(),
+    reviewerUserId: char('reviewer_user_id', { length: 36 }).notNull(),
+    outcome: mysqlEnum('outcome', APPROVAL_REVIEWER_OUTCOMES).notNull(),
+    decidedAt: datetime('decided_at', { mode: 'date', fsp: 3 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_approval_reviewer_decisions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_approval_reviewer_decisions_reviewer').on(
+      table.organizationId,
+      table.approvalId,
+      table.reviewerUserId,
+    ),
+  ],
+);
+
+/**
  * The client-safe payload of a published projection — 12-PERMISSION-MATRIX §1's allowlist and no
  * more. Held as JSON (`0031`), built from an allowlist at the service so a forbidden internal field
  * (cost, estimates, staff review, private threads, risk rationale, security metadata, other-client
@@ -8940,6 +8968,7 @@ export const TABLES = {
   deliverable_versions: deliverableVersions,
   approvals,
   approval_steps: approvalSteps,
+  approval_reviewer_decisions: approvalReviewerDecisions,
   client_projections: clientProjections,
   portal_feedback: portalFeedback,
   conversations,
@@ -9155,6 +9184,7 @@ export type NewDeliverableVersionRow = typeof deliverableVersions.$inferInsert;
 export type ApprovalRow = typeof approvals.$inferSelect;
 export type NewApprovalRow = typeof approvals.$inferInsert;
 export type ApprovalStepRow = typeof approvalSteps.$inferSelect;
+export type ApprovalReviewerDecisionRow = typeof approvalReviewerDecisions.$inferSelect;
 export type ClientProjectionRow = typeof clientProjections.$inferSelect;
 export type NewClientProjectionRow = typeof clientProjections.$inferInsert;
 export type PortalFeedbackRow = typeof portalFeedback.$inferSelect;
