@@ -1387,6 +1387,10 @@ button.ppl-member {
 }
 
 .ppl-members-card {
+  /* Positioned, so the visually hidden "Actions" head (position: absolute) is clipped with the
+     scroll area. Unpositioned, it hung off the page from the last column and the page scrolled
+     sideways at 375px (612px in Arabic, where that column sits past the left edge). */
+  position: relative;
   border: var(--b-quiet) solid var(--line-300);
   border-radius: var(--r-card);
   background: var(--paper-0);
