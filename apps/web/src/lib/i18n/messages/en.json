@@ -2720,6 +2720,7 @@
   "PeopleDirectoryScreen.noMembers": "No members yet.",
   "PeopleDirectoryScreen.moreMembers": "There are more members than this list shows.",
   "PeopleDirectoryScreen.roleChanged": "{name} is now {role}.",
+  "PeopleDirectoryScreen.role.custom": "Custom role",
   "PeopleDirectoryScreen.inviteSent": "Invitation sent to {email}.",
   "PeopleDirectoryScreen.role.owner": "Owner",
   "PeopleDirectoryScreen.role.org_admin": "Admin",

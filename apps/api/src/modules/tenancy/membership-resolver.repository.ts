@@ -1,8 +1,21 @@
 import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
-import { capabilitiesFor, isClientRole, isInternalRole, isRole } from '@tmanage/domain';
-import type { Role } from '@tmanage/domain';
+import {
+  capabilitiesFor,
+  customRoleKey,
+  isClientRole,
+  isCustomRoleId,
+  isInternalRole,
+  isRole,
+  parseCustomRoleCapabilities,
+} from '@tmanage/domain';
+import type { PrincipalRole, Role } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { clientMemberships, memberships, organizations } from '../../common/database/schema.js';
+import {
+  clientMemberships,
+  customRoles,
+  memberships,
+  organizations,
+} from '../../common/database/schema.js';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import type {
   BootstrapQueryRunner,
@@ -61,8 +74,12 @@ export interface ResolveMembershipRequest {
 
 export interface ResolvedMembership {
   readonly context: TenantContext;
-  /** Validated against the capability table; never the raw `VARCHAR(64)` from the row. */
-  readonly role: Role;
+  /**
+   * Validated against the capability table; never the raw `VARCHAR(64)` from the row. For an
+   * internal member holding a custom role (Control > Roles) it is the custom role key built from
+   * the tenant's own `custom_roles` row, carrying exactly that row's allowlisted capabilities.
+   */
+  readonly role: PrincipalRole;
   /** The client organization an external principal belongs to. Null for internal principals. */
   readonly clientOrganizationId: string | null;
   /** Whether scope comes from the organization rather than from an explicit project list. */
@@ -204,10 +221,8 @@ export class MembershipResolver {
     }
 
     const kind = internal ? 'internal' : 'client';
-    const role = this.validateRole(candidate.role, kind);
-
-    return {
-      context: createTenantContext({
+    const contextFor = (role: PrincipalRole) =>
+      createTenantContext({
         organizationId: candidate.organizationId,
         userId: request.userId,
         principalKind: kind,
@@ -218,7 +233,15 @@ export class MembershipResolver {
           candidate.membershipPolicyVersion,
         ),
         correlationId: request.correlationId,
-      }),
+      });
+
+    const role =
+      kind === 'internal' && !isRole(candidate.role)
+        ? await this.customRole(candidate.role, contextFor)
+        : this.validateRole(candidate.role, kind);
+
+    return {
+      context: contextFor(role),
       role,
       clientOrganizationId: candidate.clientOrganizationId,
       hasOrgWideScope: candidate.hasOrgWideScope,
@@ -241,6 +264,38 @@ export class MembershipResolver {
     const valid = kind === 'internal' ? isInternalRole(value) : isClientRole(value);
     if (!valid) throw new MembershipNotResolvedError('role_not_valid_for_principal_kind');
     return value;
+  }
+
+  /**
+   * An internal membership whose stored role is not a built-in name: a custom role id (F1).
+   *
+   * The lookup runs on the ordinary **scoped** path, bound to the organization the membership
+   * row just proved, so `custom_roles` never joins the unscoped bootstrap read and a role id from
+   * another tenant simply does not match — it denies as `role_not_recognised`, exactly like an id
+   * nobody defined. The principal gets only the allowlisted capabilities the row stores; the
+   * provisional context used for the read holds no capability at all. Client memberships never
+   * reach here: a client with a non-built-in role is refused by {@link validateRole}.
+   */
+  private async customRole(
+    stored: string,
+    contextFor: (role: PrincipalRole) => TenantContext,
+  ): Promise<PrincipalRole> {
+    // Ids are lowercase UUIDs; a row written from an upper-case request body still names the role.
+    const id = stored.toLowerCase();
+    if (!isCustomRoleId(id)) throw new MembershipNotResolvedError('role_not_recognised');
+    const provisional = contextFor(customRoleKey(id, []));
+    const rows = await this.database.read(provisional, (runner) =>
+      tenantDrizzle(runner)
+        .select({ id: customRoles.id, capabilitiesJson: customRoles.capabilitiesJson })
+        .from(customRoles)
+        .where(
+          and(eq(customRoles.organizationId, provisional.organizationId), eq(customRoles.id, id)),
+        )
+        .limit(1),
+    );
+    const row = rows[0];
+    if (!row || row.id !== id) throw new MembershipNotResolvedError('role_not_recognised');
+    return customRoleKey(row.id, parseCustomRoleCapabilities(row.capabilitiesJson));
   }
 
   /**

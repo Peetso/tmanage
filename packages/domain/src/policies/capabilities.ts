@@ -399,16 +399,135 @@ const CEILING_SETS: Readonly<Record<Role, ReadonlySet<Capability>>> = Object.fre
 );
 
 /**
- * Does this role's ceiling permit the capability at all?
+ * A custom role (Control > Roles, ADM-08) as a principal carries it: a value that names the
+ * role AND the capability set the server loaded for it on this request.
+ *
+ * `memberships.role` stores a custom role's id. The id alone says nothing about what the role
+ * may do, and every `hasCapability(principal.role, ...)` call site only has the role value in
+ * hand, so the membership resolver builds this key from the tenant-scoped `custom_roles` row
+ * and puts it on the principal. The key is `custom:<role id>:<hex mask over CAPABILITIES>`:
+ * pure, built per request (so an edited role is honoured on the next request, with no cache to
+ * go stale) and short enough for any column a role name is compared against.
+ *
+ * It is a branded string, so it can only be produced by {@link customRoleKey} without a cast,
+ * and a raw stored value can never pass for one. Only allowlisted capabilities are encoded —
+ * an unknown string in the stored JSON is dropped, never granted. A custom role is an
+ * internal role: {@link isClientRole} is false for it, and the internal-only guard in
+ * `authorize()` still refuses an internal-only capability to any client principal.
+ */
+declare const customRoleKeyBrand: unique symbol;
+export type CustomRoleKey = string & { readonly [customRoleKeyBrand]: true };
+
+/** What a principal's role can be: a built-in role, or a custom role with its loaded set. */
+export type PrincipalRole = Role | CustomRoleKey;
+
+const CUSTOM_ROLE_PREFIX = 'custom:';
+const CUSTOM_ROLE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const MASK_LENGTH = Math.ceil(CAPABILITIES.length / 4);
+const CUSTOM_ROLE_KEY = new RegExp(`^custom:([0-9a-f-]{36}):([0-9a-f]{${MASK_LENGTH}})$`);
+
+/** Is this a well-formed custom role id (a lowercase UUID, as `custom_roles.id` stores it)? */
+export function isCustomRoleId(value: string): boolean {
+  return CUSTOM_ROLE_ID.test(value);
+}
+
+/** Build the principal role for a custom role from its id and its stored capability list. */
+export function customRoleKey(customRoleId: string, capabilities: Iterable<string>): CustomRoleKey {
+  if (!isCustomRoleId(customRoleId)) throw new Error('custom role id is not a lowercase UUID');
+  const held = new Set<string>(capabilities);
+  let mask = '';
+  for (let start = 0; start < CAPABILITIES.length; start += 4) {
+    let nibble = 0;
+    for (let bit = 0; bit < 4; bit += 1) {
+      const capability = CAPABILITIES[start + bit];
+      if (capability !== undefined && held.has(capability)) nibble |= 1 << bit;
+    }
+    mask += nibble.toString(16);
+  }
+  return `${CUSTOM_ROLE_PREFIX}${customRoleId}:${mask}` as CustomRoleKey;
+}
+
+interface DecodedCustomRole {
+  readonly id: string;
+  readonly set: ReadonlySet<Capability>;
+  readonly list: readonly Capability[];
+}
+
+/** Decoding is pure; the memo only saves re-parsing the same key, so it can never go stale. */
+const DECODED = new Map<string, DecodedCustomRole>();
+const DECODED_LIMIT = 1024;
+
+function decodeCustomRole(role: string): DecodedCustomRole | null {
+  const cached = DECODED.get(role);
+  if (cached) return cached;
+  const match = CUSTOM_ROLE_KEY.exec(role);
+  if (!match) return null;
+  const [, id, mask] = match;
+  if (id === undefined || mask === undefined || !isCustomRoleId(id)) return null;
+  const list = CAPABILITIES.filter((_capability, index) => {
+    const nibble = Number.parseInt(mask.charAt(Math.floor(index / 4)), 16);
+    return (nibble & (1 << (index % 4))) !== 0;
+  });
+  const decoded: DecodedCustomRole = Object.freeze({
+    id,
+    set: new Set<Capability>(list),
+    list: Object.freeze(list),
+  });
+  if (DECODED.size >= DECODED_LIMIT) DECODED.clear();
+  DECODED.set(role, decoded);
+  return decoded;
+}
+
+/** Is this value a custom role key built by {@link customRoleKey}? */
+export function isCustomRoleKey(role: string): role is CustomRoleKey {
+  return decodeCustomRole(role) !== null;
+}
+
+/** The custom role id inside a principal role, or null for a built-in role. */
+export function customRoleIdOf(role: string): string | null {
+  return decodeCustomRole(role)?.id ?? null;
+}
+
+const EMPTY_SET: ReadonlySet<Capability> = new Set<Capability>();
+
+/**
+ * The capability set a principal role holds: a built-in role's ceiling, or exactly the custom
+ * role's loaded set. Any other string holds nothing — deny by default, never a crash.
+ */
+export function capabilitySetFor(role: string): ReadonlySet<Capability> {
+  if (isRole(role)) return CEILING_SETS[role];
+  return decodeCustomRole(role)?.set ?? EMPTY_SET;
+}
+
+/**
+ * Does this role's ceiling permit the capability at all? For a custom role, is the capability
+ * in the set its row grants?
  *
  * Not an authorization decision. See the file header.
  */
-export function hasCapability(role: Role, capability: Capability): boolean {
-  return CEILING_SETS[role].has(capability);
+export function hasCapability(role: PrincipalRole, capability: Capability): boolean {
+  return capabilitySetFor(role).has(capability);
 }
 
-export function capabilitiesFor(role: Role): readonly Capability[] {
-  return CAPABILITY_CEILING[role];
+export function capabilitiesFor(role: PrincipalRole): readonly Capability[] {
+  if (isRole(role)) return CAPABILITY_CEILING[role];
+  return decodeCustomRole(role)?.list ?? [];
+}
+
+/**
+ * Parse a custom role's stored `capabilities_json` defensively, keeping only allowlisted
+ * capability names. Malformed JSON, a non-array, or an unknown string grants nothing.
+ */
+export function parseCustomRoleCapabilities(json: string): readonly Capability[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed)) return [];
+  const stored = new Set<unknown>(parsed);
+  return CAPABILITIES.filter((capability) => stored.has(capability));
 }
 
 /**

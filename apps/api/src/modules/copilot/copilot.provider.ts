@@ -1,4 +1,4 @@
-import type { PrincipalKind, Role } from '@tmanage/domain';
+import type { PrincipalKind, PrincipalRole } from '@tmanage/domain';
 
 /**
  * The provider seam of the AI copilot (Module 16 — Search, command & AI).
@@ -24,7 +24,7 @@ import type { PrincipalKind, Role } from '@tmanage/domain';
 /** The caller's resolved scope, handed to the provider so a canned answer can be scope-aware. */
 export interface CopilotContext {
   readonly principalKind: PrincipalKind;
-  readonly role: Role;
+  readonly role: PrincipalRole;
   /** Whether the caller's scope is the whole organization rather than an explicit project list. */
   readonly hasOrgWideScope: boolean;
   /** How many projects the caller can reach — never the ids, so no object leaks into an answer. */

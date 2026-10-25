@@ -1,10 +1,11 @@
 import {
+  customRoleIdOf,
   hasCapability,
   isClientRole,
   isInternalOnlyCapability,
   type Capability,
   type PrincipalKind,
-  type Role,
+  type PrincipalRole,
 } from './capabilities.js';
 import { isClientReadableAudience, type Audience } from './audience.js';
 
@@ -49,7 +50,12 @@ export interface Principal {
    */
   readonly organizationId: string;
   readonly kind: PrincipalKind;
-  readonly role: Role;
+  /**
+   * A built-in role, or a custom role key built by the membership resolver from the tenant's
+   * own `custom_roles` row (`customRoleKey`). The ceiling check below honours either: a custom
+   * role holds exactly the allowlisted capabilities its row grants, and nothing else.
+   */
+  readonly role: PrincipalRole;
   readonly membershipId: string;
   /** Active membership is required for every action. Suspension denies immediately. */
   readonly membershipStatus: 'active' | 'suspended' | 'expired';
@@ -185,12 +191,10 @@ export function authorize(request: AuthorizationRequest): AuthorizationDecision 
     return deny('tenant_mismatch', 'resource belongs to a different organization');
   }
 
-  // 3. Role ceiling.
+  // 3. Role ceiling — a built-in role's ceiling, or a custom role's exact capability set.
   if (!hasCapability(principal.role, capability)) {
-    return deny(
-      'capability_not_in_role_ceiling',
-      `role ${principal.role} does not include ${capability}`,
-    );
+    const label = customRoleIdOf(principal.role) === null ? principal.role : 'custom role';
+    return deny('capability_not_in_role_ceiling', `role ${label} does not include ${capability}`);
   }
 
   // 4. Organization policy may narrow, never widen.

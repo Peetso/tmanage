@@ -73,7 +73,8 @@ export type CustomRoleOption = CustomRoleView['roles'][number];
 
 /**
  * F1 — the organization's custom roles (Control > Roles, `GET admin/roles`), for the role cards
- * and for naming a member whose stored role is a custom role id. Only an owner or admin reads it.
+ * and for naming a member whose stored role is a custom role id. Every roster viewer asks; the API
+ * answers whoever holds `org.manage`, and anyone else sees the plain "Custom role" chip instead.
  */
 export function useCustomRoles(api: ApiClient, organizationSlug: string, enabled = true) {
   return useQuery({
@@ -98,7 +99,10 @@ export function useRoleChipLabel(
   return (role: string) => {
     const custom = customRoles?.find((entry) => entry.id === role);
     if (custom) return custom.name;
-    return tr(`PeopleDirectoryScreen.role.${role}`, CHIP[role] ?? role);
+    const builtIn = CHIP[role];
+    // A stored role that is no built-in name is a custom role id; never show the raw id.
+    if (builtIn === undefined) return tr('PeopleDirectoryScreen.role.custom', 'Custom role');
+    return tr(`PeopleDirectoryScreen.role.${role}`, builtIn);
   };
 }
 

@@ -108,13 +108,19 @@ export function PeopleDirectoryScreen({
   const queryClient = useQueryClient();
   const workspace = useOrganizationName(organizationSlug, organizationName) || organizationName;
   const { role: myRole } = useOrganizationRole(organizationSlug);
+  // Assigning roles stays with owner and org admin: a custom role id is never in this set, so a
+  // custom-role viewer is never offered the role change the API would refuse.
   const canAssign = myRole !== undefined && ROLE_ASSIGNERS.has(myRole);
   const iAmOwner = myRole === 'owner';
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [announcement, setAnnouncement] = useState('');
-  // F1: a member holding a custom role shows that role's name, not its id.
-  const customRoles = useCustomRoles(api, organizationSlug, canAssign);
+  // F1: a member holding a custom role shows that role's name, not its id — for every viewer.
+  const customRoles = useCustomRoles(api, organizationSlug, myRole !== undefined);
   const chip = useRoleChipLabel(customRoles.data);
+  // A viewer whose own custom role grants `org.manage` may invite and manage members (the API's
+  // gate for those routes), but still not change roles.
+  const myCustomRole = customRoles.data?.find((entry) => entry.id === myRole);
+  const canManage = canAssign || (myCustomRole?.capabilities.includes('org.manage') ?? false);
 
   const people = useQuery({
     queryKey: ['people-directory', organizationSlug, ''],
@@ -124,7 +130,7 @@ export function PeopleDirectoryScreen({
   const invitations = useQuery({
     queryKey: ['admin-invitations', organizationSlug],
     queryFn: () => fetchPendingInvitations(api, organizationSlug),
-    enabled: canAssign,
+    enabled: canManage,
     retry: false,
   });
 
@@ -167,7 +173,7 @@ export function PeopleDirectoryScreen({
             <h1 className="ppl-members-header__title">{title}</h1>
             {summary ? <p className="ppl-members-header__summary">{summary}</p> : null}
           </div>
-          {canAssign ? (
+          {canManage ? (
             <button
               type="button"
               className="tm-button tm-button--ink ppl-members-header__cta"
@@ -241,7 +247,7 @@ export function PeopleDirectoryScreen({
                         organizationSlug={organizationSlug}
                         organizationName={workspace}
                         mayChangeRole={mayChange}
-                        mayManage={canAssign}
+                        mayManage={canManage}
                         chipLabel={chip(person.role)}
                         projectsLabel={plural('projects', person.projectCount)}
                         onChangeRole={() =>

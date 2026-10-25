@@ -2720,6 +2720,7 @@
   "PeopleDirectoryScreen.noMembers": "لا يوجد أعضاء بعد.",
   "PeopleDirectoryScreen.moreMembers": "يوجد أعضاء أكثر مما تعرضه هذه القائمة.",
   "PeopleDirectoryScreen.roleChanged": "‏أصبح دور {name}: {role}.",
+  "PeopleDirectoryScreen.role.custom": "دور مخصص",
   "PeopleDirectoryScreen.inviteSent": "‏أُرسلت الدعوة إلى {email}.",
   "PeopleDirectoryScreen.role.owner": "مالك",
   "PeopleDirectoryScreen.role.org_admin": "مسؤول",
