@@ -465,8 +465,8 @@ function RuleForm({
         id={`${ids}-weekends`}
         label={tOr('AutomationRule.skipWeekends', 'Skip weekends')}
         hint={tOr(
-          'AutomationRule.skipWeekendsHint',
-          'Reminders due on Friday or Saturday go out on Thursday.',
+          'AutomationRule.skipWeekendsHintNoSend',
+          'No reminders are sent on Friday or Saturday.',
         )}
         checked={skipWeekends}
         onChange={setSkipWeekends}

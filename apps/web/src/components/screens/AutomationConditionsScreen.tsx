@@ -6,12 +6,14 @@ import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   createWorkflowCondition,
+  deleteWorkflowCondition,
   listWorkflowConditions,
   type WorkflowConditionOp,
 } from '../../lib/api/automations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AutomationConditionsScreenProps {
   organizationSlug: string;
@@ -33,13 +35,14 @@ const CONDITION_OPS = [
  * `38-COMPLETE-PRODUCT-SCOPE-AND-MODULE-MAP` §Automations & integrations ("conditions / branching").
  * A **condition** gates a template step: a `(field, op, value)` predicate bound to a target step that
  * the run evaluator (x163) reads to decide whether the step fires. This section belongs on the template
- * edit surface — it lists a template's conditions and adds one. Both routes are gated on the server by
+ * edit surface — it lists a template's conditions, adds one and removes one. Both routes are gated on the server by
  * `org.manage`, so a member without the capability sees the API's refusal rather than a blank page.
  *
  * ## What it does, and what it cannot
  *
- * - **A condition is added, never edited here.** The API grants create and read only this slice, so
- *   there is no edit or delete control — a condition is authored and then listed in step order.
+ * - **A condition is added or removed, never edited here.** Each row has a Remove action that asks
+ *   first and then calls `DELETE …/conditions/:id`; on success the list is read again. There is no
+ *   edit control — to change a condition, remove it and add the new one.
  * - **The operator set is closed.** The `op` options are the server allowlist; an off-list operator is
  *   the API's 400, not something this form can send.
  */
@@ -51,6 +54,7 @@ export function AutomationConditionsScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tOr = useTOr();
   const queryKey = ['workflow-conditions', organizationSlug, templateId];
 
   /** Human labels for the operator options. */
@@ -96,6 +100,18 @@ export function AutomationConditionsScreen({
       setOp(CONDITION_OPS[0]);
       setValue('');
       setTargetStep('0');
+      await queryClient.invalidateQueries({ queryKey });
+    },
+  });
+
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const confirming = rows.find((row) => row.id === confirmingId) ?? null;
+
+  const remove = useMutation({
+    mutationFn: (conditionId: string) =>
+      deleteWorkflowCondition(api, organizationSlug, templateId, conditionId),
+    onSuccess: async () => {
+      setConfirmingId(null);
       await queryClient.invalidateQueries({ queryKey });
     },
   });
@@ -223,6 +239,11 @@ export function AutomationConditionsScreen({
                 <th scope="col">{t('AutomationConditionsScreen.colField')}</th>
                 <th scope="col">{t('AutomationConditionsScreen.colOperator')}</th>
                 <th scope="col">{t('AutomationConditionsScreen.colValue')}</th>
+                <th scope="col">
+                  <span className="tm-visually-hidden">
+                    {tOr('AutomationConditionsScreen.colActions', 'Actions')}
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -234,10 +255,81 @@ export function AutomationConditionsScreen({
                   <td>{condition.field}</td>
                   <td>{opLabel(condition.op)}</td>
                   <td>{condition.value}</td>
+                  <td>
+                    <Button
+                      type="button"
+                      tone="outline"
+                      size="accessible"
+                      aria-label={`${tOr('AutomationConditionsScreen.removeButton', 'Remove')} ${condition.field} ${opLabel(condition.op)} ${condition.value}`.trim()}
+                      disabled={remove.isPending}
+                      onClick={() => {
+                        remove.reset();
+                        setConfirmingId(condition.id);
+                      }}
+                    >
+                      {tOr('AutomationConditionsScreen.removeButton', 'Remove')}
+                    </Button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      ) : null}
+
+      {confirming !== null ? (
+        <div
+          className="tm-panel tm-stack"
+          role="group"
+          aria-labelledby="tm-automation-condition-remove-title"
+        >
+          <p id="tm-automation-condition-remove-title" className="tm-eyebrow">
+            {tOr('AutomationConditionsScreen.removeConfirmTitle', 'Remove this condition?')}
+          </p>
+          <p className="tm-muted">
+            {confirming.field} {opLabel(confirming.op)} {confirming.value}
+          </p>
+          <p className="tm-muted">
+            {tOr(
+              'AutomationConditionsScreen.removeConfirmBody',
+              'The rule stops checking it from its next run.',
+            )}
+          </p>
+          {remove.isError ? (
+            <InlineAlert
+              tone="danger"
+              title={tOr(
+                'AutomationConditionsScreen.errorRemoveTitle',
+                'Could not remove the condition',
+              )}
+              live
+            >
+              {describeError(t, remove.error)}
+            </InlineAlert>
+          ) : null}
+          <div className="tm-row">
+            <Button
+              type="button"
+              tone="outline"
+              size="accessible"
+              onClick={() => {
+                remove.reset();
+                setConfirmingId(null);
+              }}
+            >
+              {tOr('AutomationConditionsScreen.keep', 'Keep it')}
+            </Button>
+            <Button
+              type="button"
+              tone="destructive"
+              size="accessible"
+              loading={remove.isPending}
+              loadingLabel={tOr('AutomationConditionsScreen.removing', 'Removing…')}
+              onClick={() => remove.mutate(confirming.id)}
+            >
+              {tOr('AutomationConditionsScreen.removeConfirm', 'Remove')}
+            </Button>
+          </div>
         </div>
       ) : null}
     </section>

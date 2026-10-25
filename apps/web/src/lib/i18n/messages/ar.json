@@ -11357,7 +11357,6 @@
   "AutomationRule.projectLead": "قائد المشروع",
   "AutomationRule.noOneElse": "لا أحد غيره",
   "AutomationRule.skipWeekends": "تجاوز عطلات نهاية الأسبوع",
-  "AutomationRule.skipWeekendsHint": "تُرسل التذكيرات المستحقة يومي الجمعة والسبت يوم الخميس.",
   "AutomationRule.ruleIsOn": "القاعدة مفعّلة",
   "AutomationRule.lastRanToday": "آخر تشغيل اليوم الساعة {time}",
   "AutomationRule.lastRanOn": "آخر تشغيل يوم {date} الساعة {time}",
@@ -12066,5 +12065,14 @@
   "RouteTitle.workRequestsAging": "تقادم الطلبات",
   "RouteTitle.workSavedViews": "طرق العرض المحفوظة",
   "RouteTitle.workTimeline": "الجدول الزمني",
-  "RouteTitle.workWorkload": "عبء العمل"
+  "RouteTitle.workWorkload": "عبء العمل",
+  "AutomationRule.skipWeekendsHintNoSend": "لا تُرسل أي تذكيرات يومي الجمعة والسبت.",
+  "AutomationConditionsScreen.colActions": "الإجراءات",
+  "AutomationConditionsScreen.removeButton": "إزالة",
+  "AutomationConditionsScreen.removeConfirmTitle": "هل تريد إزالة هذا الشرط؟",
+  "AutomationConditionsScreen.removeConfirmBody": "تتوقف القاعدة عن التحقق منه بدءًا من تشغيلها التالي.",
+  "AutomationConditionsScreen.errorRemoveTitle": "تعذّرت إزالة الشرط",
+  "AutomationConditionsScreen.keep": "الإبقاء عليه",
+  "AutomationConditionsScreen.removing": "جارٍ الإزالة…",
+  "AutomationConditionsScreen.removeConfirm": "إزالة"
 }

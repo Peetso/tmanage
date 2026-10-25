@@ -11357,7 +11357,6 @@
   "AutomationRule.projectLead": "Project lead",
   "AutomationRule.noOneElse": "No one else",
   "AutomationRule.skipWeekends": "Skip weekends",
-  "AutomationRule.skipWeekendsHint": "Reminders due on Friday or Saturday go out on Thursday.",
   "AutomationRule.ruleIsOn": "Rule is on",
   "AutomationRule.lastRanToday": "Last ran today at {time}",
   "AutomationRule.lastRanOn": "Last ran on {date} at {time}",
@@ -12066,5 +12065,14 @@
   "RouteTitle.workRequestsAging": "Request aging",
   "RouteTitle.workSavedViews": "Saved views",
   "RouteTitle.workTimeline": "Timeline",
-  "RouteTitle.workWorkload": "Workload"
+  "RouteTitle.workWorkload": "Workload",
+  "AutomationRule.skipWeekendsHintNoSend": "No reminders are sent on Friday or Saturday.",
+  "AutomationConditionsScreen.colActions": "Actions",
+  "AutomationConditionsScreen.removeButton": "Remove",
+  "AutomationConditionsScreen.removeConfirmTitle": "Remove this condition?",
+  "AutomationConditionsScreen.removeConfirmBody": "The rule stops checking it from its next run.",
+  "AutomationConditionsScreen.errorRemoveTitle": "Could not remove the condition",
+  "AutomationConditionsScreen.keep": "Keep it",
+  "AutomationConditionsScreen.removing": "Removing…",
+  "AutomationConditionsScreen.removeConfirm": "Remove"
 }
