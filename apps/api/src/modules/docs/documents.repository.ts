@@ -173,7 +173,12 @@ export class DocumentsRepository {
   ): Promise<boolean> {
     const result = await tenantDrizzle(runner)
       .update(documents)
-      .set({ title, updatedAt: sql`current_timestamp(3)` })
+      .set({
+        title,
+        updatedAt: sql`current_timestamp(3)`,
+        // F2 (0227): the editor names who renamed it when another writer's rename conflicts.
+        titleUpdatedByUserId: context.userId,
+      })
       .where(
         and(
           eq(documents.organizationId, context.organizationId),

@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { DocsSidebar } from '../docs/DocsSidebar';
+import { DocTitleEditor, type RenameStatus } from '../docs/DocTitleEditor';
 import '../docs/docs-shell.css';
 import {
   DOC_TOOL_EDITS,
@@ -114,6 +115,8 @@ export function DocumentEditorScreen({
   const [now, setNow] = useState(() => Date.now());
   const [copied, setCopied] = useState(false);
   const [selectedVersion, setSelectedVersion] = useState<number | null>(null);
+  // F2: the title rename's own save state, shown in the same place as the body's.
+  const [renameStatus, setRenameStatus] = useState<RenameStatus>('idle');
   // Keep the newest `now` when the document (re)loads, so a fresh document reads "just now".
   const loadedAt = document.dataUpdatedAt;
   useEffect(() => {
@@ -220,16 +223,20 @@ export function DocumentEditorScreen({
   }
 
   const savedInstant = savedAt ?? (data ? Date.parse(data.updatedAt) : Number.NaN);
-  const savedLabel = save.isPending
-    ? tOr('DocumentEditorScreen.saving', 'Saving…')
-    : Number.isNaN(savedInstant)
-      ? ''
-      : now - savedInstant < 60_000
-        ? tOr('DocumentEditorScreen.savedJustNow', 'Saved · just now')
-        : `${tOr('DocumentEditorScreen.savedAt', 'Saved ·')} ${formatClock(
-            new Date(savedInstant).toISOString(),
-            locale,
-          )}`;
+  const renaming = renameStatus === 'saving';
+  const savedLabel =
+    save.isPending || renaming
+      ? tOr('DocumentEditorScreen.saving', 'Saving…')
+      : renameStatus === 'conflict'
+        ? tOr('DocumentEditorScreen.notSaved', 'Not saved')
+        : Number.isNaN(savedInstant)
+          ? ''
+          : now - savedInstant < 60_000
+            ? tOr('DocumentEditorScreen.savedJustNow', 'Saved · just now')
+            : `${tOr('DocumentEditorScreen.savedAt', 'Saved ·')} ${formatClock(
+                new Date(savedInstant).toISOString(),
+                locale,
+              )}`;
 
   return (
     <AppShell
@@ -264,7 +271,8 @@ export function DocumentEditorScreen({
             </ol>
           </nav>
           <div className="tm-docpage__bar-end">
-            <span className="tm-docpage__saved" role="status">
+            <span className="tm-docpage__saved tm-doctitle__saving" role="status">
+              {renaming ? <span className="tm-doctitle__spinner" aria-hidden="true" /> : null}
               {savedLabel}
             </span>
             <button type="button" className="tm-docpage__btn" onClick={() => void share()}>
@@ -323,9 +331,18 @@ export function DocumentEditorScreen({
 
         {data ? (
           <section className="tm-docpage__sheet" aria-labelledby="tm-doc-title">
-            <h2 id="tm-doc-title" className="tm-docpage__title">
-              {data.title}
-            </h2>
+            <DocTitleEditor
+              api={api}
+              organizationSlug={organizationSlug}
+              document={data}
+              onStatus={(status) => {
+                setRenameStatus(status);
+                if (status === 'saved') {
+                  setSavedAt(Date.now());
+                  setNow(Date.now());
+                }
+              }}
+            />
             <p className="tm-docpage__meta">
               <span className="tm-docpage__pill">
                 {published

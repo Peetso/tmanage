@@ -496,6 +496,8 @@ export const documents = mysqlTable(
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    /** 0227 (F2): who last renamed the document; NULL until its first rename. */
+    titleUpdatedByUserId: char('title_updated_by_user_id', { length: 36 }),
   },
   (table) => [
     uniqueIndex('uq_documents_org_id').on(table.organizationId, table.id),

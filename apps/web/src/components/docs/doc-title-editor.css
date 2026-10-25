@@ -1,0 +1,150 @@
+/* F2 — rename a doc in the editor (Figma section 390:20145). The sheet's title, the field it turns
+   into, the conflict choice, the "Saving…" spinner in the bar and the rename toast. Every colour is
+   a TManage variable; nothing is drawn here that the cloned A15 frames do not already use. */
+
+/* 1 · hover: "Click to rename" above a sunken title. */
+.tm-doctitle__view {
+  position: relative;
+}
+
+.tm-doctitle__heading {
+  margin-inline: -10px;
+}
+
+.tm-doctitle__trigger {
+  display: block;
+  inline-size: 100%;
+  padding: 1px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-align: start;
+  cursor: text;
+}
+
+.tm-doctitle__trigger:hover,
+.tm-doctitle__trigger:focus-visible {
+  background: var(--paper-150);
+  color: var(--ink-650);
+}
+
+.tm-doctitle__trigger:focus-visible {
+  outline: 3px solid var(--lime-500);
+  outline-offset: 2px;
+}
+
+.tm-doctitle__tip {
+  position: absolute;
+  inset-block-end: calc(100% + 12px);
+  inset-inline-start: 0;
+  display: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: var(--ink-950);
+  color: var(--paper-0);
+  font-size: 13px;
+  line-height: 20px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.tm-doctitle__view:has(.tm-doctitle__trigger:hover) .tm-doctitle__tip,
+.tm-doctitle__view:has(.tm-doctitle__trigger:focus-visible) .tm-doctitle__tip {
+  display: block;
+}
+
+/* 2 · editing: the title field with the focus border, and the hint under it. */
+.tm-doctitle {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-doctitle__input {
+  inline-size: 100%;
+  block-size: 54px;
+  padding-inline: 12px;
+  border: var(--b-strong, 1.5px) solid var(--ink-950);
+  border-radius: 8px;
+  background: var(--paper-0);
+  color: var(--ink-950);
+  font: inherit;
+  font-size: 40px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  line-height: 48px;
+}
+
+.tm-doctitle__input:focus {
+  outline: none;
+}
+
+.tm-doctitle__hint {
+  margin: 16px 0 0;
+  color: var(--ink-650);
+  font-size: 12px;
+}
+
+/* 5 · someone else renamed it: the warning, then "Keep my name" / "Use …". */
+.tm-doctitle__alert {
+  margin-block-start: 16px;
+}
+
+.tm-doctitle__alert .tm-inline-alert {
+  border-radius: 12px;
+}
+
+.tm-doctitle__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-block-start: 16px;
+}
+
+/* 3 · saving: the spinner beside "Saving…" in the bar. */
+.tm-doctitle__saving {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tm-doctitle__spinner {
+  inline-size: 14px;
+  block-size: 14px;
+  border: 2px solid var(--ink-950);
+  border-block-start-color: transparent;
+  border-radius: 50%;
+  animation: tm-doctitle-turn 0.8s linear infinite;
+}
+
+@keyframes tm-doctitle-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-doctitle__spinner {
+    animation: none;
+  }
+}
+
+/* 4 · saved: "Doc renamed to “…”" with Undo in the success toast. */
+.tm-doctitle__toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 16px;
+}
+
+@media (max-width: 767px) {
+  .tm-doctitle__input {
+    font-size: 28px;
+    line-height: 34px;
+  }
+
+  .tm-doctitle__choices .tm-docpage__btn {
+    flex: 0 1 auto;
+  }
+}

@@ -50,6 +50,11 @@ export interface DocumentView {
   readonly createdByUserId: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /**
+   * F2 (0227). Who last renamed the document — present only once it has been renamed. The editor
+   * names this person when another writer's rename makes the caller's rename a 409.
+   */
+  readonly titleUpdatedByUserId?: string;
 }
 
 /**
@@ -66,6 +71,7 @@ function toView(row: DocumentRow): DocumentView {
     createdByUserId: row.createdByUserId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
+    ...(row.titleUpdatedByUserId ? { titleUpdatedByUserId: row.titleUpdatedByUserId } : {}),
   };
 }
 

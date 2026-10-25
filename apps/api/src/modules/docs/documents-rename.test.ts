@@ -64,11 +64,12 @@ function harness() {
     findById: async (_r: unknown, _c: unknown, id: string) =>
       id === row.current.id ? row.current : null,
     requireById: async () => row.current,
-    rename: async (_r: unknown, _c: unknown, _id: string, expected: Date, title: string) => {
+    rename: async (_r: unknown, c: TenantContext, _id: string, expected: Date, title: string) => {
       if (expected.getTime() !== row.current.updatedAt.getTime()) return false;
       row.current = {
         ...row.current,
         title,
+        titleUpdatedByUserId: c.userId,
         updatedAt: new Date(row.current.updatedAt.getTime() + 1000),
       };
       return true;
@@ -147,5 +148,17 @@ describe('DocumentsService.rename (B4)', () => {
     expect(row.current.title).toBe('Kickoff notes');
     expect(audits).toHaveLength(1);
     expect(events).toHaveLength(1);
+  });
+
+  it('F2: the view names who last renamed it, and a never-renamed document carries no renamer', async () => {
+    const { service } = harness();
+    const before = await service.get(context, member([PROJECT]), DOC);
+    expect(before).not.toHaveProperty('titleUpdatedByUserId');
+
+    const renamed = await service.rename(context, member([PROJECT]), DOC, {
+      title: 'Atlas brief',
+      expectedUpdatedAt: SEEN.toISOString(),
+    });
+    expect(renamed.titleUpdatedByUserId).toBe(USER);
   });
 });

@@ -35,6 +35,8 @@ export interface DocumentView {
   readonly createdAt: string;
   /** ISO-8601 instant. */
   readonly updatedAt: string;
+  /** F2 (0227). Who last renamed it — present only once it has been renamed. */
+  readonly titleUpdatedByUserId?: string;
 }
 
 /**
