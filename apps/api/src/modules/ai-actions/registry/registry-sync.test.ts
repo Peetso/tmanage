@@ -76,7 +76,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  B4: +1 op, PATCH .../documents/:documentId (rename, optimistic on updatedAt).
  *  B3: +2 ops, GET/PATCH .../file-download-policy (downloads before a virus scan, owner-only write).
  *  C5: +1 op, GET .../conversations/:conversationId/reactions (batched reaction tallies). */
-const EXPECTED_ROUTE_COUNT = 788; // D4: +2 ops, GET .../billing/plan-usage(/preview).
+// C6: +4 ops, GET .../logo, GET/PUT/DELETE .../logo/image (company logo, organization-scoped).
+const EXPECTED_ROUTE_COUNT = 792; // D4: +2 ops, GET .../billing/plan-usage(/preview).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
 

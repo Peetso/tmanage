@@ -126,6 +126,43 @@ export const tenancyDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'Block', args: { downloadsBeforeScan: 'block' } }],
   }),
+  // C6 (0229): the company logo, organization-scoped.
+  det({
+    id: 'settings.logo_image.info',
+    title: 'Read whether a company logo is set',
+    description: 'The logo type, size and version, or null when the initials are shown.',
+    input: noArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'Logo', args: {} }],
+  }),
+  det({
+    id: 'settings.logo_image.get',
+    title: 'Fetch the company logo image',
+    description: 'The logo image bytes (PNG, JPEG, WebP or sanitised SVG).',
+    input: noArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'Image', args: {} }],
+  }),
+  det({
+    id: 'settings.logo_image.upload',
+    title: 'Upload the company logo',
+    description:
+      'A PNG, JPEG, WebP or SVG of at most 512 KB, as base64. An SVG is stored only after the server removes scripts, event handlers and external references.',
+    input: bodyArgs([], {
+      mimeType: f.shortText(150),
+      dataBase64: z.string().min(4).max(700_000),
+    }),
+    redact: 'standard',
+    examples: [{ summary: 'PNG', args: { mimeType: 'image/png', dataBase64: 'iVBORw0KGgo=' } }],
+  }),
+  det({
+    id: 'settings.logo_image.delete',
+    title: 'Remove the company logo',
+    description: 'Go back to the initials. Confirm-class.',
+    input: noArgs(),
+    redact: 'standard',
+    examples: [{ summary: 'Remove', args: {} }],
+  }),
   det({
     id: 'members.password_reset.create',
     title: 'Send a member a password reset link',

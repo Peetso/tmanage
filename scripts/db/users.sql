@@ -1465,6 +1465,11 @@ GRANT INSERT, UPDATE ON `tmanage`.`portal_branding` TO 'tmanage_app'@'%';
 -- not by removing the row. Reading is the database-wide SELECT (line 60), which every authenticated
 -- member exercises via `work.read`.
 GRANT INSERT, UPDATE ON `tmanage`.`org_branding` TO 'tmanage_app'@'%';
+-- `organization_logos` (C6, migration 0229) gets INSERT, UPDATE and DELETE. Uploading a logo is one
+-- `INSERT ... ON DUPLICATE KEY UPDATE` against `(organization_id)`; Remove deletes the row, since an
+-- absent row is "no logo" and there is nothing to keep. The 0229 trigger pins `id`,
+-- `organization_id` and `created_at`. Reading is the database-wide SELECT (line 60).
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`organization_logos` TO 'tmanage_app'@'%';
 
 -- `schema_migrations` is named nowhere above, so the runtime user can read the migration
 -- ledger and cannot write it — not even to append. Only the migrator records what it

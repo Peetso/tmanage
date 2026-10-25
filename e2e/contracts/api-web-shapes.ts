@@ -382,6 +382,7 @@ import type { SearchScopeView as ApiSearchScopeView } from '../../apps/api/src/m
 import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modules/tenancy/workspaces.controller.js';
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { OrganizationProfileView as ApiOrganizationProfileView } from '../../apps/api/src/modules/tenancy/organizations.controller.js';
+import type { OrganizationLogoView as ApiOrganizationLogoView } from '../../apps/api/src/modules/tenancy/organization-logo.controller.js';
 import type { DownloadScanPolicyView as ApiDownloadScanPolicyView } from '../../apps/api/src/modules/tenancy/download-scan-policy.controller.js';
 import type { DownloadScanPolicyView as WebDownloadScanPolicyView } from '../../apps/web/src/lib/api/download-scan-policy';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
@@ -482,6 +483,7 @@ import type { HomeWidgetPrefsView as WebHomeWidgetPrefsView } from '../../apps/w
 import type { NotificationKindPrefView as WebNotificationKindPrefView } from '../../apps/web/src/lib/api/notification-kind-prefs';
 import type { OrgSettingsView as WebOrgSettingsView } from '../../apps/web/src/lib/api/org-settings';
 import type { OrganizationProfileView as WebOrganizationProfileView } from '../../apps/web/src/lib/api/organizations';
+import type { OrganizationLogoView as WebOrganizationLogoView } from '../../apps/web/src/lib/api/organization-logo';
 import type { CustomRoleView as WebCustomRoleView } from '../../apps/web/src/lib/api/admin-roles';
 import type { DataExportRequestView as WebDataExportRequestView } from '../../apps/web/src/lib/api/admin-export-requests';
 import type { AdminInvitationsView as WebAdminInvitationsView } from '../../apps/web/src/lib/api/admin-invitations';
@@ -2417,6 +2419,9 @@ type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
 
 /** A11. `OrganizationProfileView` (`GET …/profile`, `PATCH`, `PUT/DELETE …/logo`) — name + logo id. */
 type _organizationProfile = Assert<Exact<ApiOrganizationProfileView, WebOrganizationProfileView>>;
+
+/** C6. `OrganizationLogoView` (`GET …/logo`, `PUT/DELETE …/logo/image`) — the org-scoped logo. */
+type _organizationLogo = Assert<Exact<ApiOrganizationLogoView, WebOrganizationLogoView>>;
 
 /**
  * B3 / B5. `DownloadScanPolicyView` (`GET/PATCH …/file-download-policy`). `DownloadScanPolicyCard`

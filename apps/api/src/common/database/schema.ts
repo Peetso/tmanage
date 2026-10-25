@@ -7174,6 +7174,33 @@ export const orgBranding = mysqlTable(
 );
 
 /**
+ * C6 (0229). The company logo, held by the organization itself — no project. One row per
+ * organization (`uq_organization_logos_org` is the upsert key). `content_base64` is a MEDIUMTEXT
+ * holding the checked image: a raster logo as sent, an SVG only as the sanitiser rebuilt it.
+ * Read only by `OrganizationLogoRepository`, which never selects the content column except to
+ * serve the image.
+ */
+export const organizationLogos = mysqlTable(
+  'organization_logos',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    mimeType: varchar('mime_type', { length: 32 }).notNull(),
+    sizeBytes: int('size_bytes', { unsigned: true }).notNull(),
+    sha256: char('sha256', { length: 64 }).notNull(),
+    contentBase64: text('content_base64').notNull(),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    updatedBy: char('updated_by', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_organization_logos_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_organization_logos_org').on(table.organizationId),
+  ],
+);
+
+/**
  * Conversation read-state (x250, migration 0122, module CHAT / conversations).
  *
  * One row per `(organization_id, conversation_id, membership_id)`: the last message the acting member
@@ -8981,6 +9008,8 @@ export const TABLES = {
   user_display_preferences: userDisplayPreferences,
   portal_branding: portalBranding,
   org_branding: orgBranding,
+  // C6 (0229): the company logo, organization-scoped.
+  organization_logos: organizationLogos,
   storage_connections: storageConnections,
   google_drive_folders: googleDriveFolders,
   google_drive_attachments: googleDriveAttachments,
@@ -9216,3 +9245,4 @@ export type InsightCustomReportRow = typeof insightCustomReports.$inferSelect;
 export type PortalBrandingRow = typeof portalBranding.$inferSelect;
 export type NewPortalBrandingRow = typeof portalBranding.$inferInsert;
 export type OrgBrandingRow = typeof orgBranding.$inferSelect;
+export type OrganizationLogoRow = typeof organizationLogos.$inferSelect;

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import { hasCapability, isRole } from '@tmanage/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import {
@@ -13,14 +13,24 @@ import {
   setOrgSetting,
   type MemberSwitchKey,
 } from '../../lib/api/org-settings';
+import { readOrganizationProfile, renameOrganization } from '../../lib/api/organizations';
 import {
-  LOGO_ACCEPT,
-  readOrganizationProfile,
-  removeOrganizationLogo,
-  renameOrganization,
-  setOrganizationLogo,
-  uploadOrganizationLogo,
-} from '../../lib/api/organizations';
+  LOGO_IMAGE_ACCEPT,
+  logoImageUrl,
+  readOrganizationLogo,
+  removeOrganizationLogoImage,
+  uploadOrganizationLogoImage,
+  type OrganizationLogoView,
+} from '../../lib/api/organization-logo';
+import {
+  DEFAULT_SETTING_KEYS,
+  OPERATING_TEMPLATE_OPTIONS,
+  WORKING_WEEK_OPTIONS,
+  defaultSettings,
+  isValidReauthMinutes,
+  timezoneOptions,
+  type DefaultSettingKey,
+} from '../../lib/api/org-defaults';
 import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
@@ -33,8 +43,8 @@ export interface OrgSettingsScreenProps {
   organizationSlug: string;
   organizationName: string;
   client?: ApiClient;
-  /** Injected by tests: the logo upload (defaults to the real upload pipeline). */
-  uploadLogo?: (file: File) => Promise<string>;
+  /** Injected by tests: the logo upload (defaults to the organization logo route). */
+  uploadLogo?: (file: File) => Promise<OrganizationLogoView>;
 }
 
 /** The switch rows, in the frame's order, with their English defaults until the catalog merges. */
@@ -63,7 +73,9 @@ function initialsOf(name: string): string {
  * **Organization settings (A11, Figma `fq12-organization-settings`).**
  *
  * One card: the organization's logo (initials until one is uploaded) and name, then "What members
- * can do" — four switches stored as allowlisted org settings. Upload logo / Remove apply at once;
+ * can do" — four switches stored as allowlisted org settings — then "Time and defaults" (C6): the
+ * pre-A11 settings (timezone, working week, operating template, re-authentication window, new
+ * projects client-visible) as plain fields. Upload logo / Remove apply at once;
  * the name and the switches are drafts until Save changes, which writes the name (when it changed)
  * and each switch that changed. Cancel puts every draft back.
  *
@@ -100,11 +112,20 @@ export function OrgSettingsScreen({
     queryFn: () => readOrganizationProfile(api, organizationSlug),
     enabled: mayManage === true,
   });
+  const logoInfo = useQuery({
+    queryKey: ['org-logo', organizationSlug],
+    queryFn: () => readOrganizationLogo(api, organizationSlug),
+    enabled: mayManage === true,
+  });
 
   const loadedSwitches = memberSwitches(settings.data);
   const loadedName = profile.data?.name ?? '';
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [switchDrafts, setSwitchDrafts] = useState<Partial<Record<MemberSwitchKey, boolean>>>({});
+  const loadedDefaults = defaultSettings(settings.data);
+  const [defaultDrafts, setDefaultDrafts] = useState<Partial<Record<DefaultSettingKey, string>>>(
+    {},
+  );
   const [saved, setSaved] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
 
@@ -113,13 +134,23 @@ export function OrgSettingsScreen({
   const changedSwitches = MEMBER_SWITCH_KEYS.filter(
     (key) => switchDrafts[key] !== undefined && switchDrafts[key] !== loadedSwitches[key],
   );
+  const defaultValue = (key: DefaultSettingKey) => defaultDrafts[key] ?? loadedDefaults[key];
+  const changedDefaults = DEFAULT_SETTING_KEYS.filter(
+    (key) => defaultDrafts[key] !== undefined && defaultDrafts[key] !== loadedDefaults[key],
+  );
+  const reauthValid = isValidReauthMinutes(defaultValue('require_reauth_minutes'));
   const nameChanged = nameDraft !== null && nameDraft.trim() !== loadedName;
-  const dirty = nameChanged || changedSwitches.length > 0;
+  const dirty = nameChanged || changedSwitches.length > 0 || changedDefaults.length > 0;
+  const setDefault = (key: DefaultSettingKey, value: string) => {
+    setSaved(false);
+    setDefaultDrafts((current) => ({ ...current, [key]: value }));
+  };
 
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ['org-settings', organizationSlug] }),
       queryClient.invalidateQueries({ queryKey: ['org-profile', organizationSlug] }),
+      queryClient.invalidateQueries({ queryKey: ['org-logo', organizationSlug] }),
       queryClient.invalidateQueries({ queryKey: ['shell', 'organizations'] }),
     ]);
   };
@@ -130,10 +161,14 @@ export function OrgSettingsScreen({
       for (const key of changedSwitches) {
         await setOrgSetting(api, organizationSlug, key, String(switchDrafts[key]));
       }
+      for (const key of changedDefaults) {
+        await setOrgSetting(api, organizationSlug, key, (defaultDrafts[key] ?? '').trim());
+      }
     },
     onSuccess: async () => {
       setNameDraft(null);
       setSwitchDrafts({});
+      setDefaultDrafts({});
       setSaved(true);
       await refresh();
     },
@@ -141,14 +176,13 @@ export function OrgSettingsScreen({
 
   const logo = useMutation({
     mutationFn: async (action: { kind: 'upload'; file: File } | { kind: 'remove' }) => {
-      if (action.kind === 'remove') return removeOrganizationLogo(api, organizationSlug);
-      const fileId = await (
-        uploadLogo ?? ((file: File) => uploadOrganizationLogo(api, organizationSlug, file))
+      if (action.kind === 'remove') return removeOrganizationLogoImage(api, organizationSlug);
+      return (
+        uploadLogo ?? ((file: File) => uploadOrganizationLogoImage(api, organizationSlug, file))
       )(action.file);
-      return setOrganizationLogo(api, organizationSlug, fileId);
     },
     onSuccess: async (view) => {
-      queryClient.setQueryData(['org-profile', organizationSlug], view);
+      queryClient.setQueryData(['org-logo', organizationSlug], view);
       await refresh();
     },
   });
@@ -162,15 +196,22 @@ export function OrgSettingsScreen({
   const cancel = () => {
     setNameDraft(null);
     setSwitchDrafts({});
+    setDefaultDrafts({});
     setSaved(false);
     save.reset();
   };
 
   if (mayManage === false) return null;
 
-  const loading = settings.isPending || profile.isPending;
-  const loadError = settings.isError || profile.isError;
+  const loading = settings.isPending || profile.isPending || logoInfo.isPending;
+  const loadError = settings.isError || profile.isError || logoInfo.isError;
   const logoFileId = profile.data?.logoFileId ?? null;
+  const logoImage = logoInfo.data?.logo ?? null;
+  const logoSrc = logoImage
+    ? logoImageUrl(apiBaseUrl(), organizationSlug, logoImage.version)
+    : logoFileId
+      ? `${apiBaseUrl()}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(logoFileId)}/content`
+      : null;
 
   return (
     <ControlCenterShell
@@ -206,11 +247,8 @@ export function OrgSettingsScreen({
           <>
             <div className="tm-orgset-logo">
               <span className="tm-orgset-logo__orb" aria-hidden="true">
-                {logoFileId ? (
-                  <img
-                    src={`${apiBaseUrl()}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(logoFileId)}/content`}
-                    alt=""
-                  />
+                {logoSrc ? (
+                  <img src={logoSrc} alt="" />
                 ) : (
                   initialsOf(loadedName || organizationName)
                 )}
@@ -221,13 +259,13 @@ export function OrgSettingsScreen({
                 </p>
                 <p className="tm-orgset-logo__hint">
                   {tr(
-                    'OrgSettingsScreen.a11.logoHint',
-                    'PNG or SVG, at least 256 px. Shown in the app, in emails and in the client portal.',
+                    'OrgSettingsScreen.a11.logoHintTypes',
+                    'PNG, JPEG, WebP or SVG, at least 256 px and up to 512 KB. Shown in the app, in emails and in the client portal.',
                   )}
                 </p>
               </div>
               <div className="tm-orgset-logo__actions">
-                {logoFileId ? (
+                {logoSrc ? (
                   <Button
                     type="button"
                     tone="text"
@@ -251,7 +289,7 @@ export function OrgSettingsScreen({
                   ref={fileInput}
                   className="tm-orgset-file"
                   type="file"
-                  accept={LOGO_ACCEPT}
+                  accept={LOGO_IMAGE_ACCEPT}
                   aria-labelledby="tm-orgset-logo-label"
                   tabIndex={-1}
                   onChange={onFile}
@@ -323,6 +361,115 @@ export function OrgSettingsScreen({
 
             <hr className="tm-orgset-rule" />
 
+            <h3 className="tm-orgset__section">
+              {tr('OrgSettingsScreen.a11.defaultsTitle', 'Time and defaults')}
+            </h3>
+            <div className="tm-orgset-fields">
+              <Select
+                label={tr('OrgSettingsScreen.a11.default_timezone', 'Default timezone')}
+                hint={tr(
+                  'OrgSettingsScreen.a11.default_timezoneHint',
+                  'New projects and deadlines use this timezone.',
+                )}
+                name="default_timezone"
+                value={defaultValue('default_timezone')}
+                onChange={(event) => setDefault('default_timezone', event.target.value)}
+              >
+                {timezoneOptions(defaultValue('default_timezone')).map((zone) => (
+                  <option key={zone} value={zone}>
+                    {zone}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label={tr('OrgSettingsScreen.a11.working_week', 'Working week')}
+                name="working_week"
+                value={defaultValue('working_week')}
+                onChange={(event) => setDefault('working_week', event.target.value)}
+              >
+                {WORKING_WEEK_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                label={tr('OrgSettingsScreen.a11.operating_template', 'How work moves')}
+                hint={tr(
+                  'OrgSettingsScreen.a11.operating_templateHint',
+                  'The workflow new projects start with.',
+                )}
+                name="operating_template"
+                value={defaultValue('operating_template')}
+                onChange={(event) => setDefault('operating_template', event.target.value)}
+              >
+                {OPERATING_TEMPLATE_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {t(option.labelKey)}
+                  </option>
+                ))}
+              </Select>
+              <Field
+                label={tr(
+                  'OrgSettingsScreen.a11.require_reauth_minutes',
+                  'Ask for the password again after (minutes)',
+                )}
+                hint={tr(
+                  'OrgSettingsScreen.a11.require_reauth_minutesHint',
+                  'Before a sensitive action. 0 turns it off; at most 1440 (a day).',
+                )}
+                name="require_reauth_minutes"
+                inputMode="numeric"
+                value={defaultValue('require_reauth_minutes')}
+                error={
+                  reauthValid
+                    ? undefined
+                    : tr(
+                        'OrgSettingsScreen.a11.require_reauth_minutesError',
+                        'Enter a whole number from 0 to 1440.',
+                      )
+                }
+                onChange={(event) => setDefault('require_reauth_minutes', event.target.value)}
+              />
+            </div>
+            <ul className="tm-orgset-switches">
+              <li className="tm-orgset-switch">
+                <span className="tm-orgset-switch__text">
+                  <span
+                    className="tm-orgset-switch__label"
+                    id="tm-orgset-client_visible_project_default-label"
+                  >
+                    {tr(
+                      'OrgSettingsScreen.a11.client_visible_project_default',
+                      'New projects are visible to clients',
+                    )}
+                  </span>
+                  <span
+                    className="tm-orgset-switch__hint"
+                    id="tm-orgset-client_visible_project_default-hint"
+                  >
+                    {tr(
+                      'OrgSettingsScreen.a11.client_visible_project_defaultHint',
+                      'When off, nothing in a new project is shared until you choose to.',
+                    )}
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  className="tm-switch"
+                  aria-labelledby="tm-orgset-client_visible_project_default-label"
+                  aria-describedby="tm-orgset-client_visible_project_default-hint"
+                  checked={defaultValue('client_visible_project_default') === 'true'}
+                  onChange={(event) =>
+                    setDefault('client_visible_project_default', String(event.target.checked))
+                  }
+                />
+              </li>
+            </ul>
+
+            <hr className="tm-orgset-rule" />
+
             {save.isError ? (
               <InlineAlert
                 tone="danger"
@@ -360,7 +507,7 @@ export function OrgSettingsScreen({
                 className="tm-orgset-btn"
                 loading={save.isPending}
                 loadingLabel={t('OrgSettingsScreen.saving')}
-                disabled={nameChanged && (nameDraft ?? '').trim() === ''}
+                disabled={(nameChanged && (nameDraft ?? '').trim() === '') || !reauthValid}
                 onClick={() => save.mutate()}
               >
                 {tr('OrgSettingsScreen.a11.save', 'Save changes')}
@@ -385,12 +532,12 @@ export function OrgSettingsScreen({
 function logoProblem(error: unknown, tr: (key: string, english: string) => string): string {
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof Error && error.message === 'logo_type') {
-    return tr('OrgSettingsScreen.a11.logoType', 'Choose a PNG or SVG file.');
+    return tr('OrgSettingsScreen.a11.logoTypes', 'Choose a PNG, JPEG, WebP or SVG file.');
   }
-  if (error instanceof Error && error.message === 'logo_no_project') {
+  if (error instanceof Error && error.message === 'logo_size') {
     return tr(
-      'OrgSettingsScreen.a11.logoNoProject',
-      'Create a project first, then upload the logo.',
+      'OrgSettingsScreen.a11.logoSize',
+      'The logo is larger than 512 KB. Save a smaller file and try again.',
     );
   }
   return tr('OrgSettingsScreen.a11.tryAgainLater', 'Something went wrong. Try again.');

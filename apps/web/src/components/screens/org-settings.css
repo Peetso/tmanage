@@ -140,6 +140,19 @@
   background: var(--lime-500);
 }
 
+/* ── Time and defaults (C6): the pre-A11 settings as plain fields, two per row ─────── */
+
+.tm-orgset-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s5);
+}
+
+.tm-orgset-fields .tm-input,
+.tm-orgset-fields .tm-select__control {
+  border-radius: var(--r-control);
+}
+
 /* ── Footer ─────────────────────────────────────────────────────────────────────────── */
 
 .tm-orgset-footer {
@@ -160,5 +173,9 @@
 
   .tm-orgset-logo {
     flex-wrap: wrap;
+  }
+
+  .tm-orgset-fields {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

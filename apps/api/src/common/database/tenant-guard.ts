@@ -1057,6 +1057,9 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // fails OPEN on an unregistered table, so this entry is what scopes them); tenant-isolation.db.test.ts
   // enforces the entry.
   org_branding: 'organization_id',
+  // C6 (0229). Tenant-owned: one studio's company logo, keyed `(organization_id, id)` with a
+  // `(organization_id)` upsert key. An unscoped read would be every studio's logo.
+  organization_logos: 'organization_id',
 });
 
 /**

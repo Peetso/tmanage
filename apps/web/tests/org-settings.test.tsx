@@ -20,6 +20,8 @@ interface Call {
 function fakeApi() {
   const calls: Call[] = [];
   let profile = { name: 'Northstar Studio', logoFileId: null as string | null };
+  let logo: { mimeType: string; sizeBytes: number; version: number; updatedAt: string } | null =
+    null;
   const settings = new Map<string, string>([
     ['members_can_create_projects', 'true'],
     ['members_can_invite_clients', 'false'],
@@ -47,9 +49,15 @@ function fakeApi() {
         profile = { ...profile, name: (body as { name: string }).name };
         return json(profile);
       }
-      if (url.pathname === `${base}/logo` && method === 'PUT') {
-        profile = { ...profile, logoFileId: (body as { fileId: string }).fileId };
-        return json(profile);
+      if (url.pathname === `${base}/logo` && method === 'GET') return json({ logo });
+      if (url.pathname === `${base}/logo/image` && method === 'PUT') {
+        const { mimeType } = body as { mimeType: string; dataBase64: string };
+        logo = { mimeType, sizeBytes: 1, version: 1, updatedAt: '2026-10-25T10:00:00.000Z' };
+        return json({ logo });
+      }
+      if (url.pathname === `${base}/logo/image` && method === 'DELETE') {
+        logo = null;
+        return json({ logo });
       }
       if (url.pathname.startsWith(`${base}/settings/`) && method === 'PUT') {
         settings.set(url.pathname.split('/').pop()!, (body as { value: string }).value);
@@ -73,14 +81,13 @@ function withQuery(children: ReactNode, role = 'owner') {
   return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
 }
 
-function renderScreen(api = fakeApi(), uploadLogo?: (file: File) => Promise<string>) {
+function renderScreen(api = fakeApi()) {
   const view = render(
     withQuery(
       <OrgSettingsScreen
         organizationSlug="northstar-studio"
         organizationName="Northstar Studio"
         client={api.client}
-        {...(uploadLogo ? { uploadLogo } : {})}
       />,
     ),
   );
@@ -136,27 +143,89 @@ describe('OrgSettingsScreen — A11 Organization card', () => {
     expect(api.calls.filter((call) => call.method !== 'GET')).toEqual([]);
   });
 
-  it('Upload logo uploads the file and sets it as the logo', async () => {
-    const uploaded: string[] = [];
-    const { api, container } = renderScreen(fakeApi(), (file) => {
-      uploaded.push(file.name);
-      return Promise.resolve('file-logo-1');
-    });
+  it('Upload logo sends the file to the organization logo route, with no project', async () => {
+    const { api, container } = renderScreen();
     await screen.findByLabelText('Organization name');
     const input = container.querySelector('input[type="file"]') as HTMLInputElement;
     fireEvent.change(input, {
-      target: { files: [new File(['x'], 'logo.png', { type: 'image/png' })] },
+      target: { files: [new File(['x'], 'logo.webp', { type: 'image/webp' })] },
     });
 
     await waitFor(() =>
       expect(api.calls).toContainEqual({
         method: 'PUT',
-        path: '/v1/organizations/northstar-studio/logo',
-        body: { fileId: 'file-logo-1' },
+        path: '/v1/organizations/northstar-studio/logo/image',
+        body: { mimeType: 'image/webp', dataBase64: 'eA==' },
       }),
     );
-    expect(uploaded).toEqual(['logo.png']);
-    expect(await screen.findByRole('button', { name: 'Remove' })).toBeInTheDocument();
+    expect(api.calls.some((call) => call.path.endsWith('/projects'))).toBe(false);
+    const remove = await screen.findByRole('button', { name: 'Remove' });
+    // Remove stays disabled until the upload has finished refreshing the card.
+    await waitFor(() => expect(remove).toBeEnabled());
+    fireEvent.click(remove);
+    await waitFor(() =>
+      expect(api.calls).toContainEqual({
+        method: 'DELETE',
+        path: '/v1/organizations/northstar-studio/logo/image',
+        body: undefined,
+      }),
+    );
+  });
+
+  it('refuses a file type the logo cannot be, without a request', async () => {
+    const { api, container } = renderScreen();
+    await screen.findByLabelText('Organization name');
+    const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, {
+      target: { files: [new File(['x'], 'logo.gif', { type: 'image/gif' })] },
+    });
+    expect(await screen.findByText('Choose a PNG, JPEG, WebP or SVG file.')).toBeInTheDocument();
+    expect(api.calls.filter((call) => call.method !== 'GET')).toEqual([]);
+  });
+
+  it('shows the older organization settings and saves only the ones that changed', async () => {
+    const { api, container } = renderScreen();
+    const week = await screen.findByLabelText('Working week');
+    expect(screen.getByLabelText('Default timezone')).toHaveValue('UTC');
+    expect(screen.getByLabelText('How work moves')).toHaveValue('delivery-client-review');
+    expect(
+      screen.getByRole('switch', { name: 'New projects are visible to clients' }),
+    ).not.toBeChecked();
+    await expectNoAxeViolations(container);
+
+    fireEvent.change(week, { target: { value: 'sun-thu' } });
+    fireEvent.change(screen.getByLabelText('Ask for the password again after (minutes)'), {
+      target: { value: '30' },
+    });
+    fireEvent.click(screen.getByRole('switch', { name: 'New projects are visible to clients' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    await screen.findByText('Changes saved');
+    expect(api.calls.filter((call) => call.method !== 'GET')).toEqual([
+      {
+        method: 'PUT',
+        path: '/v1/organizations/northstar-studio/settings/working_week',
+        body: { value: 'sun-thu' },
+      },
+      {
+        method: 'PUT',
+        path: '/v1/organizations/northstar-studio/settings/require_reauth_minutes',
+        body: { value: '30' },
+      },
+      {
+        method: 'PUT',
+        path: '/v1/organizations/northstar-studio/settings/client_visible_project_default',
+        body: { value: 'true' },
+      },
+    ]);
+  });
+
+  it('will not save a re-authentication window the API would refuse', async () => {
+    renderScreen();
+    const minutes = await screen.findByLabelText('Ask for the password again after (minutes)');
+    fireEvent.change(minutes, { target: { value: '2000' } });
+    expect(screen.getByText('Enter a whole number from 0 to 1440.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
   });
 
   it('sends a member to Preferences without reading the settings (ACT-13)', async () => {
