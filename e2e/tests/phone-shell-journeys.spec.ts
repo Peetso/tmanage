@@ -207,6 +207,34 @@ for (const lang of ['en', 'ar'] as const) {
         await expect(sheet).toBeHidden();
         await expectPhoneScreen(page, lang, phone);
 
+        // PH-02b — every tile leads to a real page: none of them is the 404 screen. The tiles are
+        // read from the sheet itself, so a tile added later is checked without touching this list.
+        await phone.more.click();
+        await expect(sheet).toBeVisible();
+        const tileHrefs = await sheet
+          .getByRole('link')
+          .evaluateAll((links) => links.map((link) => link.getAttribute('href') ?? ''));
+        await page.keyboard.press('Escape');
+        await expect(sheet).toBeHidden();
+        expect(tileHrefs.length).toBeGreaterThanOrEqual(12);
+        for (const href of tileHrefs) {
+          expect(href, 'a More tile has no destination').not.toBe('');
+          const served = await context.request.get(href, { maxRedirects: 5 });
+          expect(served.status(), `${href} answers 404`).not.toBe(404);
+          if (!href.startsWith(`/${ORG}/`)) continue;
+          await page.goto(`/${ORG}/home`);
+          await expectPhoneScreen(page, lang, phone);
+          await phone.more.click();
+          await expect(sheet).toBeVisible();
+          await sheet.locator(`a[href="${href}"]`).click();
+          await expect(sheet).toBeHidden();
+          await expect(page).toHaveURL(new RegExp(`/${ORG}/`));
+          await expect(page.locator('[data-state="notFound"]')).toHaveCount(0);
+          await expect(page).not.toHaveTitle(/Page not found/);
+        }
+        await page.goto(`/${ORG}/home`);
+        await expectPhoneScreen(page, lang, phone);
+
         // PH-03 — the lime orb opens Quick capture, title field first.
         await phone.fab.tap();
         await expect(page).toHaveURL(new RegExp(`/${ORG}/capture(\\?.*)?$`));

@@ -15,6 +15,11 @@ export interface DriveAttachPickerProps {
   picked: readonly PickedDriveItem[];
   onPick: (items: readonly PickedDriveItem[]) => void;
   onRemove: (id: string) => void;
+  /**
+   * The project the new work goes into. The picker token is minted for it (NV10), so the button
+   * stays disabled until one is chosen.
+   */
+  projectId: string;
   disabled?: boolean;
 }
 
@@ -31,6 +36,7 @@ export function DriveAttachPicker({
   picked,
   onPick,
   onRemove,
+  projectId,
   disabled = false,
 }: DriveAttachPickerProps) {
   const t = useT();
@@ -43,7 +49,7 @@ export function DriveAttachPicker({
 
   const pick = useMutation({
     mutationFn: async () => {
-      const session = await getPickerSession(client, organizationSlug);
+      const session = await getPickerSession(client, organizationSlug, projectId);
       return openDrivePicker({
         ...session,
         mode: 'files',
@@ -67,7 +73,7 @@ export function DriveAttachPicker({
         tone="outline"
         loading={pick.isPending}
         loadingLabel={t('DriveAttach.opening')}
-        disabled={disabled}
+        disabled={disabled || projectId === ''}
         onClick={() => pick.mutate()}
       >
         {t('DriveAttach.button')}

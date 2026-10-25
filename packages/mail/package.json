@@ -18,7 +18,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
-    "nodemailer": "^10.1.2"
+    "nodemailer": "^10.1.4"
   },
   "devDependencies": {
     "typescript": "^5.9.2",

@@ -120,7 +120,7 @@ const more = (id: string, label: string, href: string, glyph: string, absolute =
 
 /** ph-more's WORKSPACE grid, in the frame's order. */
 export const MORE_WORKSPACE_NAVIGATION: readonly MoreSheetItem[] = [
-  more('projects', 'Projects', '/projects', '▦'),
+  more('projects', 'Projects', '/projects/portfolio', '▦'),
   more('clients', 'Clients', '/clients', '◎'),
   more('requests', 'Requests', '/work/requests', '◷'),
   more('calendar', 'Calendar', '/calendar', '▣'),

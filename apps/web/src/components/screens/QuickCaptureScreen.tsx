@@ -447,6 +447,7 @@ export function QuickCaptureScreen({
             picked={driveFiles}
             onPick={(picked) => setDriveFiles((current) => [...current, ...picked])}
             onRemove={(id) => setDriveFiles((current) => current.filter((file) => file.id !== id))}
+            projectId={effectiveProjectId}
             disabled={capture.isPending}
           />
 

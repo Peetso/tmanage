@@ -108,12 +108,19 @@ export async function disconnectDrive(
   return data;
 }
 
+/**
+ * A short-lived picker token. Without `projectId` only an org-wide caller (owner/admin) gets one;
+ * everyone else names the project the picked files are for and the API checks their relation to
+ * it (NV10).
+ */
 export async function getPickerSession(
   client: ApiClient,
   organizationSlug: string,
+  projectId?: string,
 ): Promise<PickerSessionView> {
+  const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
   const { data } = await client.request<PickerSessionView>({
-    path: `${storagePath(organizationSlug)}/picker-session`,
+    path: `${storagePath(organizationSlug)}/picker-session${query}`,
   });
   return data;
 }
