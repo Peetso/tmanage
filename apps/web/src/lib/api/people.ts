@@ -21,9 +21,9 @@ export interface PersonSummary {
   readonly role: string;
   /**
    * H1: a custom role's own name, sent for every viewer; null for a built-in role (named in the
-   * reader's language). Optional only while an older API is still deployed.
+   * reader's language). Web and API ship as one app, so it is always sent.
    */
-  readonly roleName?: string | null;
+  readonly roleName: string | null;
   readonly status: string;
   /** How many of this organization's projects the person is a member of. */
   readonly projectCount: number;

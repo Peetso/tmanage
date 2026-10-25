@@ -145,6 +145,12 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
+  // Wave 8 H6: the per-screen error wording in describe-error.ts. It is web-only display config
+  // (catalog keys + English fallbacks), never a response body, so it has no API pair.
+  [
+    'ApiErrorLines',
+    'web-only error wording (catalog keys) in describe-error.ts, not a response body; no API counterpart exists.',
+  ],
   // C5: the direct-conversation list wrapper. The API returns it as an inline type on
   // DirectConversationsController.list (no named …View to import); its rows are paired Exact as
   // DirectConversationView / DirectConversationSummary, and viewerUserId is the caller's own id.

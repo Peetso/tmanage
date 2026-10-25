@@ -401,6 +401,8 @@ const PERSON_DEFAULTS = {
   // B2 fields at the values the baselines were taken with: no address line, LAST ACTIVE "—".
   email: null,
   lastActiveAt: null,
+  // H1: built-in roles only, so no custom role name.
+  roleName: null,
   version: 1,
 } as const;
 
