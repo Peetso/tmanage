@@ -50,6 +50,7 @@ const message = {
   organizationId: ORG,
   conversationId: CONVERSATION,
   authorUserId: AUTHOR.userId,
+  deletedAt: null,
 } as unknown as MessageRow;
 
 function serviceWith(
@@ -135,5 +136,74 @@ describe('MessageAttachmentsService author gate', () => {
       service.attach(context, AUTHOR, CONVERSATION, MESSAGE, FILE),
     ).rejects.toMatchObject({ status: 403 });
     expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+/** A ready internal file of PROJECT — what an author may attach. */
+const readyFile = {
+  id: FILE,
+  organizationId: ORG,
+  projectId: PROJECT,
+  audience: 'internal',
+  clientOrganizationId: null,
+  status: 'ready',
+} as unknown as FileAssetRow;
+
+describe('F40: a taken-down message keeps nothing attached', () => {
+  const takenDown = { ...message, deletedAt: new Date('2026-10-25T11:00:00.000Z') } as MessageRow;
+  const reachTakenDown: Partial<ConversationsRepository> = {
+    ...reachableConversation,
+    findMessageById: async () => takenDown,
+  };
+
+  it('lists no attachments for it', async () => {
+    const listForMessage = vi.fn(async () => [{ fileAssetId: FILE }] as never);
+    const service = serviceWith({ listForMessage }, reachTakenDown, {});
+    await expect(service.list(context, AUTHOR, CONVERSATION, MESSAGE)).resolves.toEqual([]);
+    expect(listForMessage).not.toHaveBeenCalled();
+  });
+
+  it('refuses a new attachment with 409 and writes nothing', async () => {
+    const insert = vi.fn();
+    const service = serviceWith({ insert }, reachTakenDown, { findById: async () => readyFile });
+    await expect(
+      service.attach(context, AUTHOR, CONVERSATION, MESSAGE, FILE),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(insert).not.toHaveBeenCalled();
+  });
+});
+
+describe('F54: the author must be able to read the file, in the channel’s project', () => {
+  it('answers 404 and never inserts for a file of another project', async () => {
+    const insert = vi.fn();
+    const service = serviceWith({ insert }, reachableConversation, {
+      findById: async () => ({ ...readyFile, projectId: 'project-p2' }) as FileAssetRow,
+    });
+    await expect(
+      service.attach(context, AUTHOR, CONVERSATION, MESSAGE, FILE),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('answers 404 for a member removed from the project who kept a stale channel row', async () => {
+    const insert = vi.fn();
+    const removed: Principal = { ...AUTHOR, projectIds: [] };
+    const service = serviceWith({ insert }, reachableConversation, {
+      findById: async () => readyFile,
+    });
+    await expect(
+      service.attach(context, removed, CONVERSATION, MESSAGE, FILE),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(insert).not.toHaveBeenCalled();
+  });
+
+  it('attaches a readable file of the same project', async () => {
+    const insert = vi.fn(async () => ({ row: { createdAt: new Date() }, created: true }) as never);
+    const service = serviceWith({ insert, listForMessage: async () => [] }, reachableConversation, {
+      findById: async () => readyFile,
+    });
+    const result = await service.attach(context, AUTHOR, CONVERSATION, MESSAGE, FILE);
+    expect(result.created).toBe(true);
+    expect(insert).toHaveBeenCalledOnce();
   });
 });

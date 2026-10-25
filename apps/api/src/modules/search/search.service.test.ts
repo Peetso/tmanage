@@ -259,3 +259,47 @@ describe('SearchController', () => {
     expect(capability).toBe('search.use');
   });
 });
+
+describe('F22: message hits need a channel membership unless org-wide', () => {
+  const CHANNEL = 'conversation-0000-0000-0000-000000000001';
+  const messageHit = hit({
+    targetKind: 'message',
+    targetId: 'm1',
+    title: 'budget cut plan for Q3',
+    conversationId: CHANNEL,
+  });
+
+  function withMemberships(channels: readonly string[]): SearchService {
+    const database = {
+      read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+    } as unknown as TenantDatabase;
+    const repository = {
+      searchRanked: async () => [messageHit],
+      listMemberConversationIds: async (
+        _r: unknown,
+        _c: unknown,
+        _userId: string,
+        ids: readonly string[],
+      ) => new Set(ids.filter((id) => channels.includes(id))),
+    } as unknown as SearchIndexRepository;
+    const projects = { findById: async () => null } as unknown as ProjectsRepository;
+    return new SearchService(database, repository, projects, () => NOW);
+  }
+
+  it('drops the hit for a project member removed from (or never added to) the channel', async () => {
+    const results = await withMemberships([]).search(context, member([PROJECT]), { q: 'budget' });
+    expect(results).toEqual([]);
+  });
+
+  it('keeps the hit for a channel member', async () => {
+    const results = await withMemberships([CHANNEL]).search(context, member([PROJECT]), {
+      q: 'budget',
+    });
+    expect(results.map((r) => r.id)).toEqual(['m1']);
+  });
+
+  it('keeps the hit for an org-wide caller without a channel row', async () => {
+    const results = await withMemberships([]).search(context, member([], true), { q: 'budget' });
+    expect(results.map((r) => r.id)).toEqual(['m1']);
+  });
+});

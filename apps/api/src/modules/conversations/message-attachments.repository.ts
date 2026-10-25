@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
@@ -182,6 +182,9 @@ export class MessageAttachmentsRepository {
   /**
    * L2 — the attachments of several messages in one query, message by message, oldest first. The
    * caller has already narrowed `messageIds` to messages of one conversation it may read.
+   *
+   * F40: joined to the live message — a taken-down message (`deleted_at` set) lists no
+   * attachments, in the batched read as in the single one, so takedown withholds files too.
    */
   async listForMessages(
     runner: TenantQueryRunner,
@@ -200,6 +203,14 @@ export class MessageAttachmentsRepository {
         latestVersion: fileVersions,
       })
       .from(messageAttachments)
+      .innerJoin(
+        messages,
+        and(
+          eq(messages.organizationId, messageAttachments.organizationId),
+          eq(messages.id, messageAttachments.messageId),
+          isNull(messages.deletedAt),
+        ),
+      )
       .innerJoin(
         fileAssets,
         and(

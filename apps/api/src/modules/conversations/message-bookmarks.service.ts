@@ -102,7 +102,23 @@ export class MessageBookmarksService {
         hasOrgWideScope: principal.hasOrgWideScope,
       }),
     );
-    return rows.map((row) => ({
+    // F13: a channel membership row is not authority on its own — a member removed from the
+    // channel's project keeps a stale row. Each saved message must also pass the evaluator's
+    // project relation, exactly as `resolveReadable` (and `ConversationsService.mayReach`) does.
+    const readable = rows.filter(
+      (row) =>
+        authorize({
+          principal,
+          capability: 'conversation.read',
+          resource: {
+            organizationId: context.organizationId,
+            projectId: row.projectId,
+            audience: 'internal',
+            lifecycle: row.archivedAt === null ? 'active' : 'archived',
+          },
+        }).allowed,
+    );
+    return readable.map((row) => ({
       messageId: row.messageId,
       conversationId: row.conversationId,
       authorUserId: row.authorUserId,

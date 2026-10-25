@@ -64,6 +64,12 @@ export interface MessageAttachmentView {
   readonly scanStatus: MessageAttachmentScanStatus;
 }
 
+/** A message resolved through the conversation gate, with the conversation it was resolved in. */
+interface ResolvedMessage {
+  readonly conversation: ConversationRow;
+  readonly message: MessageRow;
+}
+
 /** L2 — one message's attachments in the batched read. */
 export interface MessageAttachmentsOfMessage {
   readonly messageId: string;
@@ -95,8 +101,22 @@ export class MessageAttachmentsService {
     fileId: string,
   ): Promise<{ readonly attachment: MessageAttachmentView; readonly created: boolean }> {
     return this.database.transaction(context, async (tx) => {
-      await this.resolveAuthoredMessage(context, principal, conversationId, messageId, tx);
-      await this.resolveReadableFile(context, fileId, tx);
+      const { conversation, message } = await this.resolveAuthoredMessage(
+        context,
+        principal,
+        conversationId,
+        messageId,
+        tx,
+      );
+      // F40: a taken-down message stays taken down — nothing new is published on it.
+      if (message.deletedAt !== null) {
+        throw new ApiError(
+          409,
+          'conflict',
+          'This message was taken down, so nothing can be attached to it',
+        );
+      }
+      await this.resolveReadableFile(context, principal, conversation, fileId, tx);
       const { row, created } = await this.attachments.insert(tx, context, {
         messageId,
         fileAssetId: fileId,
@@ -148,7 +168,15 @@ export class MessageAttachmentsService {
     messageId: string,
   ): Promise<readonly MessageAttachmentView[]> {
     const rows = await this.database.read(context, async (runner) => {
-      await this.resolveReadableMessage(context, principal, conversationId, messageId, runner);
+      const { message } = await this.resolveReadableMessage(
+        context,
+        principal,
+        conversationId,
+        messageId,
+        runner,
+      );
+      // F40: a taken-down message withholds its attachments exactly as it withholds its body.
+      if (message.deletedAt !== null) return [];
       return this.attachments.listForMessage(runner, context, messageId);
     });
     return this.toViews(context, rows);
@@ -251,7 +279,7 @@ export class MessageAttachmentsService {
     conversationId: string,
     messageId: string,
     runner: TenantQueryRunner,
-  ): Promise<MessageRow> {
+  ): Promise<ResolvedMessage> {
     return this.resolveMessage(
       context,
       principal,
@@ -274,8 +302,8 @@ export class MessageAttachmentsService {
     conversationId: string,
     messageId: string,
     runner: TenantQueryRunner,
-  ): Promise<MessageRow> {
-    const message = await this.resolveMessage(
+  ): Promise<ResolvedMessage> {
+    const resolved = await this.resolveMessage(
       context,
       principal,
       conversationId,
@@ -283,10 +311,10 @@ export class MessageAttachmentsService {
       'conversation.write',
       runner,
     );
-    if (message.authorUserId !== principal.userId) {
+    if (resolved.message.authorUserId !== principal.userId) {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden);
     }
-    return message;
+    return resolved;
   }
 
   /**
@@ -302,7 +330,7 @@ export class MessageAttachmentsService {
     messageId: string,
     capability: 'conversation.read' | 'conversation.write',
     runner: TenantQueryRunner,
-  ): Promise<MessageRow> {
+  ): Promise<ResolvedMessage> {
     const conversation = await this.conversations.findById(runner, context, conversationId);
     if (!conversation) throw new ApiError(404, 'not_found', MESSAGES.notFound);
 
@@ -312,7 +340,7 @@ export class MessageAttachmentsService {
     }
 
     await this.requireReach(context, principal, conversation, capability, runner);
-    return message;
+    return { conversation, message };
   }
 
   /**
@@ -354,9 +382,16 @@ export class MessageAttachmentsService {
    * Resolve the file tenant-scoped and require it to be `ready`. A file not in this tenant, or one
    * still in flight (draft, scanning) or rejected, is a 404 — the refusal path the unit test proves,
    * with no insert. Tenant scoping means a cross-tenant `fileId` resolves to no row at all.
+   *
+   * F54: the author must also be able to read the file — `authorize('file.download')` on the
+   * file's **own** project, audience and client organization, the download door's rule — and the
+   * file must belong to the channel's project, so an attachment never carries one project's file
+   * name and size into another project's room. Every refusal is the same 404 as a missing file.
    */
   private async resolveReadableFile(
     context: TenantContext,
+    principal: Principal,
+    conversation: ConversationRow,
     fileId: string,
     runner: TenantQueryRunner,
   ): Promise<void> {
@@ -364,5 +399,20 @@ export class MessageAttachmentsService {
     if (!file || !SERVABLE_UPLOAD_STATES.includes(file.status as UploadState)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
+    if (file.projectId !== conversation.projectId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    const verdict = authorize({
+      principal,
+      capability: 'file.download',
+      resource: {
+        organizationId: file.organizationId,
+        projectId: file.projectId,
+        audience: file.audience,
+        clientOrganizationId: file.clientOrganizationId,
+        lifecycle: conversation.archivedAt === null ? 'active' : 'archived',
+      },
+    });
+    if (!verdict.allowed) throw new ApiError(404, 'not_found', MESSAGES.notFound);
   }
 }

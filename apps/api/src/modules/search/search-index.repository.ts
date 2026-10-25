@@ -1,6 +1,7 @@
 import { and, asc, desc, eq, gte, inArray, isNull, like, or } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
+  conversationMemberships,
   conversations,
   decisions,
   documents,
@@ -59,6 +60,11 @@ export interface SearchIndexHitRow {
   readonly audience: SearchAudience;
   /** The source row's last change, for the TIME facet and the card's date line. */
   readonly updatedAt: Date;
+  /**
+   * F22: a `message` hit's channel, so the service can apply the channel-membership narrowing
+   * `ConversationsService.mayReach` applies to every direct read. Absent for every other kind.
+   */
+  readonly conversationId?: string;
 }
 
 /** The three audiences a source row can carry (the AUDIENCE facet's values). */
@@ -337,6 +343,7 @@ export class SearchIndexRepository {
             title: row.body.slice(0, MESSAGE_TITLE_LENGTH),
             audience: 'internal',
             updatedAt: row.updatedAt,
+            conversationId: row.conversationId,
           });
         }
       }
@@ -349,5 +356,29 @@ export class SearchIndexRepository {
       return left.targetId < right.targetId ? -1 : left.targetId > right.targetId ? 1 : 0;
     });
     return hits.slice(0, limit);
+  }
+
+  /**
+   * F22: which of `conversationIds` the user holds a `conversation_memberships` row for —
+   * one tenant-scoped IN query per search, so message hits can be narrowed like `mayReach`.
+   */
+  async listMemberConversationIds(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+    conversationIds: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    if (conversationIds.length === 0) return new Set();
+    const rows = await tenantDrizzle(runner)
+      .select({ id: conversationMemberships.conversationId })
+      .from(conversationMemberships)
+      .where(
+        and(
+          eq(conversationMemberships.organizationId, context.organizationId),
+          eq(conversationMemberships.userId, userId),
+          inArray(conversationMemberships.conversationId, [...conversationIds]),
+        ),
+      );
+    return new Set(rows.map((row) => row.id));
   }
 }

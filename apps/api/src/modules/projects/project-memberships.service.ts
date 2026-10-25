@@ -162,6 +162,15 @@ export class ProjectMembershipsService {
         return false;
       }
 
+      // F13: the channel rows `add` inserted are revoked with the project grant, in the same
+      // transaction — membership may only narrow, so a row left behind would be a grant.
+      await this.conversations.removeMemberFromProjectChannels(
+        tx,
+        context,
+        existing.projectId,
+        existing.userId,
+      );
+
       await this.audit.record(tx, context, {
         action: 'project_membership.revoked',
         result: 'allowed',

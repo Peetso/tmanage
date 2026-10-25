@@ -29,6 +29,8 @@ export interface MentionCandidateRow {
   readonly authorUserId: string;
   readonly body: string;
   readonly createdAt: Date;
+  /** The channel's archive instant — the evaluator's lifecycle input for the F13 relation gate. */
+  readonly archivedAt: Date | null;
 }
 
 /**
@@ -86,6 +88,7 @@ export class MyMentionsRepository {
         authorUserId: messages.authorUserId,
         body: messages.body,
         createdAt: messages.createdAt,
+        archivedAt: conversations.archivedAt,
       })
       .from(messages)
       .innerJoin(

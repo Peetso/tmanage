@@ -117,3 +117,30 @@ describe('MessageBookmarksService relation gate', () => {
     expect(insert).not.toHaveBeenCalled();
   });
 });
+
+describe('F13: saved messages follow the project relation, not a stale channel row', () => {
+  const saved = {
+    bookmarkId: 'b1',
+    messageId: MESSAGE,
+    conversationId: CONVERSATION,
+    authorUserId: 'author',
+    sequenceNo: 1,
+    body: 'dummy-edited-text',
+    bodyRich: null,
+    bookmarkedAt: new Date('2026-10-25T00:00:00.000Z'),
+    projectId: PROJECT,
+    archivedAt: null,
+  };
+
+  it('omits a saved message from a project the caller was removed from', async () => {
+    const service = serviceWith({ listMine: async () => [saved] }, {});
+    const removed: Principal = { ...MEMBER, projectIds: [] };
+    await expect(service.listMine(context, removed)).resolves.toEqual([]);
+  });
+
+  it('still lists it for a current project member', async () => {
+    const service = serviceWith({ listMine: async () => [saved] }, {});
+    const rows = await service.listMine(context, MEMBER);
+    expect(rows.map((row) => row.messageId)).toEqual([MESSAGE]);
+  });
+});

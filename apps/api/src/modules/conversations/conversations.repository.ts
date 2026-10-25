@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { RichTextDocument } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
@@ -523,6 +523,41 @@ export class ConversationsRepository {
         ),
       );
     return result[0].affectedRows > 0;
+  }
+
+  /**
+   * F13: take a person out of every channel of one project — open **and** archived — in the
+   * caller's transaction. Project removal calls it so a stale channel row cannot outlive the
+   * project relation it was granted under. Returns how many channel rows were removed.
+   */
+  async removeMemberFromProjectChannels(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    userId: string,
+  ): Promise<number> {
+    const db = tenantDrizzle(runner);
+    const channels = await db
+      .select({ id: conversations.id })
+      .from(conversations)
+      .where(
+        and(
+          eq(conversations.organizationId, context.organizationId),
+          eq(conversations.projectId, projectId),
+        ),
+      );
+    if (channels.length === 0) return 0;
+    const result = await db.delete(conversationMemberships).where(
+      and(
+        eq(conversationMemberships.organizationId, context.organizationId),
+        eq(conversationMemberships.userId, userId),
+        inArray(
+          conversationMemberships.conversationId,
+          channels.map((row) => row.id),
+        ),
+      ),
+    );
+    return result[0].affectedRows;
   }
 
   // ── Messages ───────────────────────────────────────────────────────────────

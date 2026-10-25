@@ -10,8 +10,9 @@ import type { SuggestCandidateRow } from './suggestions.repository.js';
  *
  * Given a query **prefix** it returns ranked suggestion strings (indexed entity titles) so the client
  * can render a typeahead list under the search box, distinct from the recent-history and the
- * command-palette lists. Read-only, no new table: {@link SuggestionsRepository} reads the existing
- * full-text index (`search_index`, 0054).
+ * command-palette lists. Read-only, no new table: {@link SuggestionsRepository} reads the live work
+ * items and documents (NV12 — never the frozen `search_index` snapshot), so every candidate is
+ * authorised against its current project, audience and lifecycle.
  *
  * ## The two authorization layers — identical to global search (x111/x148)
  *
@@ -96,7 +97,7 @@ export class SuggestionsService {
         organizationId: candidate.organizationId,
         projectId: candidate.projectId,
         audience: candidate.audience,
-        lifecycle: 'active',
+        lifecycle: candidate.lifecycle,
       },
     }).allowed;
   }

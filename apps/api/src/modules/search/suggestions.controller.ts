@@ -17,7 +17,7 @@ import { SUGGEST_MAX_LIMIT, SuggestionsService } from './suggestions.service.js'
  * A second controller on the search base path rather than an edit to {@link SearchController}, so
  * the suggestions slice stays file-disjoint from the ranked-search (x111/x148), command-palette
  * (x181) and saved/recent (x214) slices. It shares the base path only. There is no new table, no
- * migration and no write: it reads the existing `search_index` (0054).
+ * migration and no write: it reads the live work items and documents (NV12).
  *
  * ## Distinct from x288 recent history and x181 commands
  *

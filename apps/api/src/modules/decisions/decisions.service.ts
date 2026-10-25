@@ -8,6 +8,7 @@ import { DecisionSupersessionsRepository } from './decision-supersessions.reposi
 import { DecisionLocksRepository, DuplicateDecisionLockError } from './decision-lock.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { MeetingsRepository } from '../calendar/meetings.repository.js';
+import { ConversationsRepository } from '../conversations/conversations.repository.js';
 import type {
   DecisionLockRow,
   DecisionRow,
@@ -215,7 +216,32 @@ export class DecisionsService {
      * the runner it uses is the one the service hands it inside a read or a transaction.
      */
     private readonly locks: DecisionLocksRepository = new DecisionLocksRepository(),
+    /**
+     * F34. Read-only: a channel-message source is the channel's content, so citing or showing it
+     * needs what `ConversationsService.mayReach` needs — org-wide scope or a channel row.
+     */
+    private readonly conversations: Pick<
+      ConversationsRepository,
+      'findMembership'
+    > = new ConversationsRepository(),
   ) {}
+
+  /** F34: may this principal read the channel a source message lives in? Same runner as the read. */
+  private async mayReachChannel(
+    runner: Parameters<ConversationsRepository['findMembership']>[0],
+    context: TenantContext,
+    principal: Principal,
+    conversationId: string,
+  ): Promise<boolean> {
+    if (principal.hasOrgWideScope) return true;
+    const membership = await this.conversations.findMembership(
+      runner,
+      context,
+      conversationId,
+      principal.userId,
+    );
+    return membership !== null;
+  }
 
   /**
    * SEC / Decisions (x150). Refuse a mutating write to a locked decision — the substance of the lock.
@@ -485,19 +511,33 @@ export class DecisionsService {
         const name = await this.decisions.findMemberName(runner, context, decision.decidedBy);
         // F3: a channel message of the decision's project, else a direct message of this tenant
         // (the recorder, a participant, chose to show it on the decision).
-        const message = decision.sourceMessageId
-          ? ((await this.decisions.findSourceMessage(
+        let message: DecisionSourceMessage | null = null;
+        if (decision.sourceMessageId) {
+          const channel = await this.decisions.findSourceMessage(
+            runner,
+            context,
+            decision.projectId,
+            decision.sourceMessageId,
+          );
+          if (channel) {
+            // F34: a viewer outside the channel sees no source card — no quote, channel name or
+            // author — exactly what the channel's own read would refuse them.
+            message = (await this.mayReachChannel(
               runner,
               context,
-              decision.projectId,
-              decision.sourceMessageId,
-            )) ??
-            (await this.decisions.findSourceDirectMessage(
+              principal,
+              channel.conversationId,
+            ))
+              ? channel
+              : null;
+          } else {
+            message = await this.decisions.findSourceDirectMessage(
               runner,
               context,
               decision.sourceMessageId,
-            )))
-          : null;
+            );
+          }
+        }
         return [by, of, name, message] as const;
       },
     );
@@ -619,7 +659,10 @@ export class DecisionsService {
           input.projectId,
           sourceMessageId,
         );
-        if (channel) return true;
+        // F34: citing a channel message needs the channel's own read — org-wide scope or a
+        // channel row — else the same not-found as an unknown id.
+        if (channel)
+          return this.mayReachChannel(runner, context, principal, channel.conversationId);
         const direct = await this.decisions.findSourceDirectMessage(
           runner,
           context,

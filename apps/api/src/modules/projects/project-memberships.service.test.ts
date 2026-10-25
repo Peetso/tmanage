@@ -73,3 +73,52 @@ describe('ProjectMembershipsService.add (CQ-12)', () => {
     expect(events).toHaveLength(0);
   });
 });
+
+describe('ProjectMembershipsService.remove (F13)', () => {
+  it('revokes the person’s channel rows for that project in the same transaction', async () => {
+    const left: string[] = [];
+    let inTransaction = false;
+    const database = {
+      transaction: async <T>(_c: TenantContext, work: (tx: unknown) => Promise<T>) => {
+        inTransaction = true;
+        try {
+          return await work({});
+        } finally {
+          inTransaction = false;
+        }
+      },
+    } as unknown as TenantDatabase;
+    const audit = { record: async () => undefined } as unknown as AuditService;
+    const memberships = Object.assign(new ProjectMembershipsRepository(), {
+      findById: async () =>
+        ({
+          id: 'pm-1',
+          projectId: 'proj-1',
+          userId: 'mona',
+          role: 'member',
+        }) as ProjectMembershipRow,
+      remove: async () => true,
+    });
+    const conversations = Object.assign(new ConversationsRepository(), {
+      removeMemberFromProjectChannels: async (
+        _tx: unknown,
+        _c: TenantContext,
+        projectId: string,
+        userId: string,
+      ) => {
+        expect(inTransaction).toBe(true);
+        left.push(`${projectId}:${userId}`);
+        return 2;
+      },
+    });
+    const service = new ProjectMembershipsService(
+      database,
+      audit,
+      memberships,
+      undefined,
+      conversations,
+    );
+    await expect(service.remove(CONTEXT, 'pm-1')).resolves.toBe(true);
+    expect(left).toEqual(['proj-1:mona']);
+  });
+});

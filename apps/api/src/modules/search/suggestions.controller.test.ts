@@ -58,7 +58,13 @@ function serviceWith(candidates: readonly Candidate[]): SuggestionsService {
 }
 
 function candidate(overrides: Partial<Candidate> & Pick<Candidate, 'title'>): Candidate {
-  return { organizationId: ORG, projectId: PROJECT, audience: 'internal', ...overrides };
+  return {
+    organizationId: ORG,
+    projectId: PROJECT,
+    audience: 'internal',
+    lifecycle: 'active',
+    ...overrides,
+  };
 }
 
 describe('SuggestionsService (x289)', () => {

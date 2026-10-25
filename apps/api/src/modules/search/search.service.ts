@@ -144,11 +144,38 @@ export class SearchService {
         }
       }
 
-      return this.repository.searchRanked(runner, context, rankedOptions);
+      const ranked = await this.repository.searchRanked(runner, context, rankedOptions);
+
+      // F22: channel membership narrows a message hit for every caller without org-wide scope,
+      // exactly as `ConversationsService.mayReach` narrows the channel's own reads — a project
+      // member removed from (or never added to) a channel must not read its text here either.
+      if (principal.hasOrgWideScope) return { ranked, memberOf: null };
+      const channelIds = [
+        ...new Set(
+          ranked.flatMap((hit) =>
+            hit.targetKind === 'message' && hit.conversationId !== undefined
+              ? [hit.conversationId]
+              : [],
+          ),
+        ),
+      ];
+      const memberOf =
+        channelIds.length === 0
+          ? new Set<string>()
+          : await this.repository.listMemberConversationIds(
+              runner,
+              context,
+              principal.userId,
+              channelIds,
+            );
+      return { ranked, memberOf };
     });
 
     const results: SearchResultView[] = [];
-    for (const hit of hits) {
+    for (const hit of hits.ranked) {
+      if (hit.targetKind === 'message' && hits.memberOf !== null) {
+        if (hit.conversationId === undefined || !hits.memberOf.has(hit.conversationId)) continue;
+      }
       if (this.mayRead(principal, hit)) results.push(toView(hit));
     }
     return results.slice(0, limit);

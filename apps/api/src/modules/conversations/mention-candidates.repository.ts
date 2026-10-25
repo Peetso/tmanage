@@ -1,6 +1,12 @@
 import { and, asc, eq, like, or } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { conversationMemberships, memberships, users } from '../../common/database/schema.js';
+import {
+  conversationMemberships,
+  conversations,
+  memberships,
+  projectMemberships,
+  users,
+} from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -8,6 +14,10 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
  * exactly who the worker's `planMentionNotices` will notify — active internal members who are in
  * the channel, plus active internal members with organization-wide scope (an Owner reads every
  * channel without a membership row). Prefix match on the display name or any word in it.
+ *
+ * F13: a channel row alone is not a read relation — a person removed from the channel's project
+ * may still hold one from before the removal — so the in-channel half also requires a current
+ * `project_memberships` row on the channel's project. Org-wide members come from the second half.
  */
 export interface MentionCandidateRow {
   readonly userId: string;
@@ -42,6 +52,21 @@ export class MentionCandidatesRepository {
         and(
           eq(memberships.organizationId, conversationMemberships.organizationId),
           eq(memberships.userId, conversationMemberships.userId),
+        ),
+      )
+      .innerJoin(
+        conversations,
+        and(
+          eq(conversations.organizationId, conversationMemberships.organizationId),
+          eq(conversations.id, conversationMemberships.conversationId),
+        ),
+      )
+      .innerJoin(
+        projectMemberships,
+        and(
+          eq(projectMemberships.organizationId, conversations.organizationId),
+          eq(projectMemberships.projectId, conversations.projectId),
+          eq(projectMemberships.userId, conversationMemberships.userId),
         ),
       )
       .innerJoin(users, eq(users.id, conversationMemberships.userId))

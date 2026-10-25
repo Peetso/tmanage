@@ -74,6 +74,8 @@ function serviceWith(
   seed: readonly DecisionRow[] = [],
   knownProjectIds: readonly string[] = [PROJECT],
   knownMeetings: Readonly<Record<string, string>> = { [MEETING]: PROJECT },
+  /** F34: the channels USER holds a conversation_memberships row for. */
+  memberChannels: readonly string[] = ['conversation-0000-0000-0000-000000000001'],
 ): {
   service: DecisionsService;
   store: DecisionRow[];
@@ -269,7 +271,14 @@ function serviceWith(
     },
   } as unknown as DecisionLocksRepository;
   return {
-    service: new DecisionsService(database, repository, projects, meetings, supersessions, locks),
+    service: new DecisionsService(database, repository, projects, meetings, supersessions, locks, {
+      findMembership: async (
+        _runner: unknown,
+        _ctx: unknown,
+        conversationId: string,
+        userId: string,
+      ) => (userId === USER && memberChannels.includes(conversationId) ? ({} as never) : null),
+    } as never),
     store,
     edges,
     lockStore,
@@ -675,3 +684,51 @@ function decisionRow(id: string, projectId: string, decidedAt: Date): DecisionRo
     createdAt: new Date(),
   } as DecisionRow;
 }
+
+describe('F34: a channel-message source needs the channel’s own read', () => {
+  it('a project member outside the channel who cites its message gets 404 and no decision', async () => {
+    const { service, store } = serviceWith([], [PROJECT], { [MEETING]: PROJECT }, []);
+    const error = await service
+      .create(context, member([PROJECT]), {
+        projectId: PROJECT,
+        title: 'T',
+        statement: 'S',
+        status: 'proposed',
+        decidedAt: DECIDED_AT,
+        sourceMessageId: SOURCE_MESSAGE,
+      })
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).auditCode).toBe('message_not_visible');
+    expect(store).toHaveLength(0);
+  });
+
+  it('an org-wide caller may cite it without a channel row', async () => {
+    const { service } = serviceWith([], [PROJECT], { [MEETING]: PROJECT }, []);
+    const created = await service.create(context, member([], true), {
+      projectId: PROJECT,
+      title: 'T',
+      statement: 'S',
+      status: 'proposed',
+      decidedAt: DECIDED_AT,
+      sourceMessageId: SOURCE_MESSAGE,
+    });
+    expect(created.sourceMessageId).toBe(SOURCE_MESSAGE);
+  });
+
+  it('the detail hides the source card from a project reader outside the channel', async () => {
+    const recorded = serviceWith();
+    const created = await recorded.service.create(context, member([PROJECT]), {
+      projectId: PROJECT,
+      title: 'T',
+      statement: 'S',
+      status: 'proposed',
+      decidedAt: DECIDED_AT,
+      sourceMessageId: SOURCE_MESSAGE,
+    });
+    const outsider = serviceWith(recorded.store, [PROJECT], { [MEETING]: PROJECT }, []);
+    const detail = await outsider.service.detail(context, member([PROJECT]), created.id);
+    expect(detail.source).toBeNull();
+    expect(JSON.stringify(detail)).not.toContain('mobile booking flow before launch');
+  });
+});

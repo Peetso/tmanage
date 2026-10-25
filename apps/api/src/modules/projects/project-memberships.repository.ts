@@ -2,7 +2,11 @@ import { and, asc, eq, gt, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { InternalRole } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { projectMemberships, projects } from '../../common/database/schema.js';
+import {
+  conversationMemberships,
+  projectMemberships,
+  projects,
+} from '../../common/database/schema.js';
 import type { ProjectMembershipRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -389,6 +393,17 @@ export class ProjectMembershipsRepository {
         and(
           eq(projectMemberships.organizationId, context.organizationId),
           eq(projectMemberships.userId, userId),
+        ),
+      );
+
+    // F13: every channel belongs to a project, so leaving every project leaves every channel.
+    // Same runner, so the offboarding transaction revokes both or neither.
+    await tenantDrizzle(runner)
+      .delete(conversationMemberships)
+      .where(
+        and(
+          eq(conversationMemberships.organizationId, context.organizationId),
+          eq(conversationMemberships.userId, userId),
         ),
       );
 

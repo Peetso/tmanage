@@ -1,3 +1,5 @@
+import { authorize } from '@tmanage/domain';
+import type { Principal } from '@tmanage/domain';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MyMentionsRepository } from './my-mentions.repository.js';
@@ -59,6 +61,7 @@ export class MyMentionsService {
    */
   async listMyMentions(
     context: TenantContext,
+    principal: Principal,
     options: ListMentionsOptions = {},
   ): Promise<readonly MentionView[]> {
     const page = options.page ?? 1;
@@ -68,20 +71,35 @@ export class MyMentionsService {
       ]);
     }
 
-    const token = mentionToken(context.userId);
+    const token = mentionToken(principal.userId);
 
     // The relation gate's inputs: the caller's own memberships, and the org-wide candidate scan.
     const memberIds = new Set(
       await this.database.read(context, (runner) =>
-        this.mentions.listMemberConversationIds(runner, context, context.userId),
+        this.mentions.listMemberConversationIds(runner, context, principal.userId),
       ),
     );
     const candidates = await this.database.read(context, (runner) =>
       this.mentions.listMentionCandidates(runner, context, token),
     );
 
-    // The gate itself: a mention survives only if its channel is one the caller belongs to.
-    const visible = candidates.filter((row) => memberIds.has(row.conversationId));
+    // The gate itself, in `ConversationsService.mayReach`'s order (F13): the evaluator's project
+    // relation first — a channel membership row survives a project removal, so it is never
+    // authority on its own — then channel membership, unless the caller is organization-wide.
+    const visible = candidates.filter((row) => {
+      const verdict = authorize({
+        principal,
+        capability: 'conversation.read',
+        resource: {
+          organizationId: context.organizationId,
+          projectId: row.projectId,
+          audience: 'internal',
+          lifecycle: row.archivedAt === null ? 'active' : 'archived',
+        },
+      });
+      if (!verdict.allowed) return false;
+      return principal.hasOrgWideScope || memberIds.has(row.conversationId);
+    });
 
     const start = (page - 1) * PAGE_SIZE;
     return visible.slice(start, start + PAGE_SIZE).map((row) => ({

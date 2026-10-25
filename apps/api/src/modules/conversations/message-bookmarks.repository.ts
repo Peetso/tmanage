@@ -4,6 +4,7 @@ import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
 import {
   conversationMemberships,
+  conversations,
   messageBookmarks,
   messages,
 } from '../../common/database/schema.js';
@@ -39,6 +40,10 @@ export interface SavedMessageRow {
   readonly body: string | null;
   readonly bodyRich: unknown;
   readonly bookmarkedAt: Date;
+  /** The channel's project, for the service's per-row `authorize('conversation.read')` (F13). */
+  readonly projectId: string;
+  /** The channel's archive instant, for the evaluator's lifecycle input. */
+  readonly archivedAt: Date | null;
 }
 
 /**
@@ -154,6 +159,8 @@ export class MessageBookmarksRepository {
       bodyRich: messages.bodyRich,
       deletedAt: messages.deletedAt,
       bookmarkedAt: messageBookmarks.createdAt,
+      projectId: conversations.projectId,
+      archivedAt: conversations.archivedAt,
     };
 
     const base = db
@@ -164,6 +171,13 @@ export class MessageBookmarksRepository {
         and(
           eq(messages.organizationId, messageBookmarks.organizationId),
           eq(messages.id, messageBookmarks.messageId),
+        ),
+      )
+      .innerJoin(
+        conversations,
+        and(
+          eq(conversations.organizationId, messages.organizationId),
+          eq(conversations.id, messages.conversationId),
         ),
       );
 
@@ -196,6 +210,8 @@ export class MessageBookmarksRepository {
       body: row.deletedAt === null ? row.body : null,
       bodyRich: row.deletedAt === null ? row.bodyRich : null,
       bookmarkedAt: row.bookmarkedAt,
+      projectId: row.projectId,
+      archivedAt: row.archivedAt,
     }));
   }
 }

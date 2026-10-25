@@ -1,6 +1,7 @@
 import { Controller, Get, Inject, Module, Query } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
-import { Ctx, RequireCapability } from '../../common/http/decorators.js';
+import type { Principal } from '@tmanage/domain';
+import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -26,6 +27,7 @@ export class MyMentionsController {
   @RequireCapability('conversation.read')
   async list(
     @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
     @Query('page') page?: string,
   ): Promise<{ readonly mentions: readonly MentionView[] }> {
     let parsedPage: number | undefined;
@@ -39,7 +41,7 @@ export class MyMentionsController {
     }
 
     return {
-      mentions: await this.mentions.listMyMentions(context, {
+      mentions: await this.mentions.listMyMentions(context, principal, {
         ...(parsedPage === undefined ? {} : { page: parsedPage }),
       }),
     };

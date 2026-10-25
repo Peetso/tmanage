@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Principal } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MyMentionsService } from './my-mentions.service.js';
 import { MyMentionsRepository } from './my-mentions.repository.js';
@@ -36,6 +37,19 @@ const CONTEXT = {
   correlationId: '0198f254-0000-7000-8000-000000000f01',
 } as unknown as TenantContext;
 
+/** An internal member of PROJECT without org-wide scope — the relation rides on projectIds. */
+const MEMBER: Principal = {
+  userId: USER,
+  organizationId: ORG,
+  kind: 'internal',
+  role: 'member',
+  membershipId: '0198f254-0000-7000-8000-000000000e01',
+  membershipStatus: 'active',
+  clientOrganizationId: null,
+  projectIds: [PROJECT],
+  hasOrgWideScope: false,
+};
+
 function candidate(messageId: string, conversationId: string): MentionCandidateRow {
   return {
     messageId,
@@ -45,6 +59,7 @@ function candidate(messageId: string, conversationId: string): MentionCandidateR
     authorUserId: '0198f254-0000-7000-8000-0000000000a2',
     body: `heads up @${USER}`,
     createdAt: new Date('2026-09-20T00:00:00.000Z'),
+    archivedAt: null,
   };
 }
 
@@ -71,7 +86,7 @@ function build(): MyMentionsService {
 
 describe('my mentions are scoped to the caller’s conversations', () => {
   it('excludes a mention in a conversation the caller is not a member of', async () => {
-    const mentions = await build().listMyMentions(CONTEXT, { page: 1 });
+    const mentions = await build().listMyMentions(CONTEXT, MEMBER, { page: 1 });
 
     // The caller's own channel is present…
     expect(mentions.map((m) => m.messageId)).toContain(MSG_IN);
@@ -81,8 +96,23 @@ describe('my mentions are scoped to the caller’s conversations', () => {
   });
 
   it('rejects a non-positive page rather than returning a silent empty list', async () => {
-    await expect(build().listMyMentions(CONTEXT, { page: 0 })).rejects.toMatchObject({
+    await expect(build().listMyMentions(CONTEXT, MEMBER, { page: 0 })).rejects.toMatchObject({
       status: 400,
     });
+  });
+});
+
+describe('F13: a stale channel row is not authority after a project removal', () => {
+  it('drops a mention in a channel whose project the caller was removed from', async () => {
+    // The caller still holds the (stale) MEMBER_CHANNEL row, but is no longer on PROJECT.
+    const removed: Principal = { ...MEMBER, projectIds: [] };
+    const mentions = await build().listMyMentions(CONTEXT, removed, { page: 1 });
+    expect(mentions).toEqual([]);
+  });
+
+  it('lets an org-wide caller see a mention without a channel row, as mayReach does', async () => {
+    const owner: Principal = { ...MEMBER, role: 'owner', projectIds: [], hasOrgWideScope: true };
+    const mentions = await build().listMyMentions(CONTEXT, owner, { page: 1 });
+    expect(mentions.map((m) => m.messageId)).toEqual([MSG_OUT, MSG_IN]);
   });
 });
