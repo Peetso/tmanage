@@ -1,8 +1,8 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { workItemLinks, workItems } from '../../common/database/schema.js';
-import type { WorkItemLinkRow } from '../../common/database/schema.js';
+import type { WorkItemLinkRow, WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -35,6 +35,11 @@ export interface WorkItemLinkWithTarget {
   readonly link: WorkItemLinkRow;
   readonly toWorkItemTitle: string;
   readonly toWorkItemState: string;
+  /**
+   * F51: the joined target row, so the service can re-authorize the far end (its own project and
+   * audience) before disclosing its title and state.
+   */
+  readonly toWorkItem: WorkItemRow;
 }
 
 /** One directed blocking edge, normalized to blocker → blocked, for the cycle walk. */
@@ -57,13 +62,15 @@ export class WorkItemLinksRepository {
     limit: number = MAX_LINK_PAGE,
   ): Promise<readonly WorkItemLinkWithTarget[]> {
     const rows = await tenantDrizzle(runner)
-      .select({ link: workItemLinks, title: workItems.title, state: workItems.state })
+      .select({ link: workItemLinks, target: workItems })
       .from(workItemLinks)
       .innerJoin(
         workItems,
         and(
           eq(workItems.organizationId, workItemLinks.organizationId),
           eq(workItems.id, workItemLinks.toWorkItemId),
+          // F51: a soft-deleted target is gone; its title and state are not listed.
+          isNull(workItems.deletedAt),
         ),
       )
       .where(
@@ -77,8 +84,9 @@ export class WorkItemLinksRepository {
 
     return rows.map((row) => ({
       link: row.link,
-      toWorkItemTitle: row.title,
-      toWorkItemState: row.state,
+      toWorkItemTitle: row.target.title,
+      toWorkItemState: row.target.state,
+      toWorkItem: row.target,
     }));
   }
 

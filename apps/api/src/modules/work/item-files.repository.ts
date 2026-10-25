@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, ne, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { fileAssets, workItemFiles } from '../../common/database/schema.js';
@@ -10,6 +10,11 @@ export interface WorkItemFileListRow extends WorkItemFileRow {
   readonly fileName: string;
   /** The file asset's upload status (`23-ERD` §10), the service maps to a coarse availability. */
   readonly status: string;
+  /**
+   * F50: the project the file asset belongs to. A link is only listed while this equals the work
+   * item's current project — a file left behind by a move stays in its own project's boundary.
+   */
+  readonly fileProjectId: string;
 }
 
 /**
@@ -68,6 +73,7 @@ export class WorkItemFilesRepository {
     context: TenantContext,
     workItemId: string,
     limit: number = MAX_WORK_ITEM_FILE_PAGE,
+    projectId?: string,
   ): Promise<readonly WorkItemFileListRow[]> {
     const rows = await tenantDrizzle(runner)
       .select({
@@ -79,6 +85,7 @@ export class WorkItemFilesRepository {
         createdAt: workItemFiles.createdAt,
         fileName: fileAssets.name,
         status: fileAssets.status,
+        fileProjectId: fileAssets.projectId,
       })
       .from(workItemFiles)
       .innerJoin(
@@ -92,6 +99,8 @@ export class WorkItemFilesRepository {
         and(
           eq(workItemFiles.organizationId, context.organizationId),
           eq(workItemFiles.workItemId, workItemId),
+          // F50: only files of the work item's current project.
+          ...(projectId === undefined ? [] : [eq(fileAssets.projectId, projectId)]),
         ),
       )
       .orderBy(asc(workItemFiles.createdAt), asc(workItemFiles.id))
@@ -145,6 +154,51 @@ export class WorkItemFilesRepository {
       throw new Error('work item file attachment vanished immediately after insert');
     }
     return created;
+  }
+
+  /**
+   * F50: detach every attachment of a work item whose file asset is NOT in `projectId`. Called
+   * inside the work-item move transaction, so a file that stays in the source project is no longer
+   * reachable through the moved item. Two statements, both tenant-scoped: the ids are selected
+   * first (the join carries `organization_id` on both tables), then deleted by id. Returns how many
+   * links were removed.
+   */
+  async detachOutsideProject(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+    projectId: string,
+  ): Promise<number> {
+    const db = tenantDrizzle(runner);
+    const stale = await db
+      .select({ id: workItemFiles.id })
+      .from(workItemFiles)
+      .innerJoin(
+        fileAssets,
+        and(
+          eq(fileAssets.organizationId, workItemFiles.organizationId),
+          eq(fileAssets.id, workItemFiles.fileAssetId),
+        ),
+      )
+      .where(
+        and(
+          eq(workItemFiles.organizationId, context.organizationId),
+          eq(workItemFiles.workItemId, workItemId),
+          ne(fileAssets.projectId, projectId),
+        ),
+      );
+    if (stale.length === 0) return 0;
+    const result = await db.delete(workItemFiles).where(
+      and(
+        eq(workItemFiles.organizationId, context.organizationId),
+        eq(workItemFiles.workItemId, workItemId),
+        inArray(
+          workItemFiles.id,
+          stale.map((row) => row.id),
+        ),
+      ),
+    );
+    return result[0].affectedRows;
   }
 
   /** Detach a file. Returns whether a row was removed, so the service can answer 404 for none. */

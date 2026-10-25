@@ -109,8 +109,12 @@ export class WorkItemRemindersService {
 
   /**
    * The acting member's reminders due at or before `before`, soonest first. Own reminders only —
-   * there is no route to another member's list. Behind `work.read` (the coarse controller gate);
-   * the rows are the caller's own, so no per-item re-authorize is needed.
+   * there is no route to another member's list. Behind `work.read` (the coarse controller gate).
+   *
+   * F57: owning the reminder row is not current read authority over the item. Each joined item is
+   * re-authorized (`work.read` on its own project and audience) and a soft-deleted one dropped, the
+   * way `readableParent` and `ProjectFavoritesService.list` do — so a member removed from a project,
+   * or whose item moved or was deleted, no longer sees its live title and state here.
    */
   async listDue(
     context: TenantContext,
@@ -120,7 +124,9 @@ export class WorkItemRemindersService {
     return this.database.read(context, async (runner) => {
       const membershipId = this.actingMember(principal);
       const rows = await this.reminders.listDueForMember(runner, context, membershipId, before);
-      return rows.map(toDueView);
+      return rows
+        .filter((row) => row.workItem.deletedAt === null && this.mayRead(principal, row.workItem))
+        .map(toDueView);
     });
   }
 

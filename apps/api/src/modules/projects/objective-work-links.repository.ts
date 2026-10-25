@@ -1,8 +1,8 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { objectiveWorkLinks, workItems } from '../../common/database/schema.js';
-import type { ObjectiveWorkLinkRow } from '../../common/database/schema.js';
+import type { ObjectiveWorkLinkRow, WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -53,6 +53,11 @@ export interface ObjectiveWorkLinkWithItem {
   readonly link: ObjectiveWorkLinkRow;
   readonly workItemTitle: string;
   readonly workItemState: string;
+  /**
+   * F24: the joined work item row, so the service can re-authorize it against its *current*
+   * project and lifecycle before disclosing its title and state.
+   */
+  readonly workItem: WorkItemRow;
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -75,16 +80,21 @@ export class ObjectiveWorkLinksRepository {
     context: TenantContext,
     objectiveId: string,
     limit?: number,
+    projectId?: string,
   ): Promise<readonly ObjectiveWorkLinkWithItem[]> {
     const db = tenantDrizzle(runner);
     const rows = await db
-      .select({ link: objectiveWorkLinks, title: workItems.title, state: workItems.state })
+      .select({ link: objectiveWorkLinks, item: workItems })
       .from(objectiveWorkLinks)
       .innerJoin(
         workItems,
         and(
           eq(workItems.organizationId, objectiveWorkLinks.organizationId),
           eq(workItems.id, objectiveWorkLinks.workItemId),
+          // F24: only items still in the objective's project and not soft-deleted. A link to an
+          // item that moved away (or was deleted) must not disclose its live title and state.
+          ...(projectId === undefined ? [] : [eq(workItems.projectId, projectId)]),
+          isNull(workItems.deletedAt),
         ),
       )
       .where(
@@ -98,8 +108,9 @@ export class ObjectiveWorkLinksRepository {
 
     return rows.map((row) => ({
       link: row.link,
-      workItemTitle: row.title,
-      workItemState: row.state,
+      workItemTitle: row.item.title,
+      workItemState: row.item.state,
+      workItem: row.item,
     }));
   }
 
@@ -168,6 +179,27 @@ export class ObjectiveWorkLinksRepository {
     const created = await this.findById(runner, context, id);
     if (!created) throw new ObjectiveWorkLinkNotFoundError(id);
     return created;
+  }
+
+  /**
+   * F24: remove every objective link of one work item, within the acting tenant. Called inside the
+   * work-item move transaction: an objective edge is project-scoped, so it cannot survive the item
+   * leaving the objective's project. Returns how many edges were removed.
+   */
+  async deleteForWorkItem(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    workItemId: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .delete(objectiveWorkLinks)
+      .where(
+        and(
+          eq(objectiveWorkLinks.organizationId, context.organizationId),
+          eq(objectiveWorkLinks.workItemId, workItemId),
+        ),
+      );
+    return result[0].affectedRows;
   }
 
   /**

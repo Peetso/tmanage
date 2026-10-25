@@ -67,6 +67,8 @@ class FakeRemindersRepository {
   readonly rows: WorkItemReminderRow[] = [];
   upserts = 0;
   deletes = 0;
+  /** The work item the reminders join to, as it is now (tests change it to simulate a revoke). */
+  item: WorkItemRow | null = null;
 
   async findForMember(_r: unknown, _c: TenantContext, workItemId: string, membershipId: string) {
     return (
@@ -113,11 +115,13 @@ class FakeRemindersRepository {
     return this.rows
       .filter((r) => r.membershipId === membershipId && r.remindAt.getTime() <= before.getTime())
       .sort((a, b) => a.remindAt.getTime() - b.remindAt.getTime())
-      .map((reminder) => ({
-        reminder,
-        workItemTitle: 'Assemble the brand book',
-        workItemState: 'in_progress',
-      }));
+      .flatMap((reminder) => {
+        // The joined item as it is *now*. The fake does not drop soft-deleted items, so the
+        // service's own F57 re-check is what the tests below prove.
+        const item = this.item;
+        if (!item || item.id !== reminder.workItemId) return [];
+        return [{ reminder, workItemTitle: item.title, workItemState: item.state, workItem: item }];
+      });
   }
 }
 
@@ -128,6 +132,7 @@ function harness(parent: WorkItemRow | null) {
   } as unknown as TenantDatabase;
   const workItems = { findById: async () => parent } as unknown as WorkItemsRepository;
   const reminders = new FakeRemindersRepository();
+  reminders.item = parent;
   const service = new WorkItemRemindersService(
     database,
     workItems,
@@ -209,5 +214,41 @@ describe('WorkItemRemindersController', () => {
     );
     expect(status).toBe(404);
     expect(reminders.upserts).toBe(0);
+  });
+});
+
+describe('F57: the due list re-authorizes each reminder’s item', () => {
+  const DUE_BEFORE = '2026-12-31T00:00:00.000Z';
+
+  async function withReminder() {
+    const harnessed = harness(workItem());
+    await harnessed.controller.set(context, member([PROJECT]), WORK_ID, {
+      remindAt: '2026-10-01T09:00:00.000Z',
+    });
+    return harnessed;
+  }
+
+  it('drops the reminder once the member is removed from the project', async () => {
+    const { controller, reminders } = await withReminder();
+    reminders.item = workItem({ title: 'RENAMED-AFTER-REVOKE' });
+    const due = await controller.listDue(context, member([]), DUE_BEFORE);
+    expect(due.reminders).toEqual([]);
+    expect(JSON.stringify(due)).not.toContain('RENAMED-AFTER-REVOKE');
+  });
+
+  it('drops the reminder once the item moves to a project the member is not on', async () => {
+    const { controller, reminders } = await withReminder();
+    reminders.item = workItem({ projectId: '01890000-0000-7000-8000-000000000102' });
+    expect((await controller.listDue(context, member([PROJECT]), DUE_BEFORE)).reminders).toEqual(
+      [],
+    );
+  });
+
+  it('drops the reminder once the item is soft-deleted', async () => {
+    const { controller, reminders } = await withReminder();
+    reminders.item = workItem({ deletedAt: new Date() });
+    expect((await controller.listDue(context, member([PROJECT]), DUE_BEFORE)).reminders).toEqual(
+      [],
+    );
   });
 });

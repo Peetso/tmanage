@@ -15,7 +15,7 @@ import type { ItemFileView, WorkItemFilesService } from './item-files.service.js
  * `organizationId` from anywhere: `TenantContextGuard` built the `TenantContext` from a
  * membership row, and there is no field below for a caller to supply one.
  *
- * The capability gate is coarse (`file.download` to list, `work.update` to attach or detach);
+ * The capability gate is coarse (`work.read` to list, `work.update` to attach or detach);
  * the row-level decision — may this principal act on *this* item, and does *this* file belong to
  * the same tenant and project — is the service's, against the resolved ends.
  */
@@ -27,8 +27,10 @@ interface AttachFileBody {
 export class WorkItemFilesController {
   constructor(@Inject(WORK_ITEM_FILES_SERVICE) private readonly files: WorkItemFilesService) {}
 
+  // F25: an internal work surface. `work.read` is internal-only, so CapabilityGuard refuses every
+  // client principal here (403), as on every other work route.
   @Get()
-  @RequireCapability('file.download')
+  @RequireCapability('work.read')
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,

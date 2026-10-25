@@ -33,8 +33,8 @@ import type { WorkItemFileListRow } from './item-files.repository.js';
  *
  * ## `authorize()` is the one place the rule is written
  *
- * The list read is gated on `file.download` (reading a work item's attached files is a download
- * concern); attach and detach are gated on `work.update` (a link is a fact about the work item's
+ * The list read is gated on `work.read` (F25: it is an internal work surface; `file.download` is
+ * held by every client role, so it cannot gate an internal list); attach and detach are gated on `work.update` (a link is a fact about the work item's
  * planning, the posture `work_item_dependencies` carries — the matrix defines no capability of
  * its own). A caller with no relation to the item gets a 404 (its existence is a secret); a
  * caller who may read it but not write it gets a 403 on attach/detach (its existence is not).
@@ -82,16 +82,24 @@ export class WorkItemFilesService {
     private readonly links: WorkItemFilesRepository = new WorkItemFilesRepository(),
   ) {}
 
-  /** The work item's attachments, created-at ascending. Behind `file.download` on the item. */
+  /** The work item's attachments, created-at ascending. Behind `work.read` on the item (F25). */
   async list(
     context: TenantContext,
     principal: Principal,
     workItemId: string,
   ): Promise<readonly ItemFileView[]> {
     return this.database.read(context, async (runner) => {
-      await this.readableParent(runner, context, principal, workItemId);
-      const rows = await this.links.listForWorkItem(runner, context, workItemId);
-      return rows.map(toView);
+      const parent = await this.readableParent(runner, context, principal, workItemId);
+      const rows = await this.links.listForWorkItem(
+        runner,
+        context,
+        workItemId,
+        undefined,
+        parent.projectId,
+      );
+      // F50: a file whose asset is in another project (left behind by a move) is outside this
+      // item's boundary — the same-project rule attach enforces, restated on the read.
+      return rows.filter((row) => row.fileProjectId === parent.projectId).map(toView);
     });
   }
 
@@ -116,7 +124,12 @@ export class WorkItemFilesService {
       // failing on the unique key. The membership author is fixed by the first attach.
       const existing = await this.links.findByPair(tx, context, workItemId, file.id);
       if (existing) {
-        return toView({ ...existing, fileName: file.name, status: file.status });
+        return toView({
+          ...existing,
+          fileName: file.name,
+          status: file.status,
+          fileProjectId: file.projectId,
+        });
       }
 
       const attachedByMembershipId = principal.membershipId;
@@ -131,7 +144,12 @@ export class WorkItemFilesService {
         fileAssetId: file.id,
         attachedByMembershipId,
       });
-      return toView({ ...row, fileName: file.name, status: file.status });
+      return toView({
+        ...row,
+        fileName: file.name,
+        status: file.status,
+        fileProjectId: file.projectId,
+      });
     });
   }
 
@@ -200,8 +218,14 @@ export class WorkItemFilesService {
     }
   }
 
+  /**
+   * F25: reading a work item's attachments is an internal work surface, so the row-level gate is
+   * `work.read` (internal-only) — the same capability the route now requires. `file.download` is
+   * held by every client role, and asking it here let a client list internal and other clients'
+   * file names through a client-visible item.
+   */
   private mayRead(principal: Principal, row: WorkItemRow): boolean {
-    return authorize({ principal, capability: 'file.download', resource: resourceOf(row) }).allowed;
+    return authorize({ principal, capability: 'work.read', resource: resourceOf(row) }).allowed;
   }
 }
 

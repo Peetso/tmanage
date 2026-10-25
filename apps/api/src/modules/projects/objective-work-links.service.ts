@@ -113,12 +113,37 @@ export class ObjectiveWorkLinksService {
     principal: Principal,
     options: { readonly objectiveId: string; readonly limit?: number },
   ): Promise<readonly ObjectiveWorkLinkView[]> {
-    await this.requireVisibleObjective(context, principal, options.objectiveId, 'work.read');
+    const { projectId } = await this.requireVisibleObjective(
+      context,
+      principal,
+      options.objectiveId,
+      'work.read',
+    );
 
     const rows = await this.database.read(context, (runner) =>
-      this.links.listByObjective(runner, context, options.objectiveId, options.limit),
+      this.links.listByObjective(runner, context, options.objectiveId, options.limit, projectId),
     );
-    return rows.map(toView);
+    // F24: the edge is project-scoped, so a linked item that has since left the objective's project,
+    // been soft-deleted, or is otherwise unreadable to this caller is not listed. The repository
+    // already filters on project and deletion; this is the same rule restated against the row, with
+    // the `work.read` decision `get()` makes, so a stale edge can never disclose a live title.
+    return rows
+      .filter(
+        (row) =>
+          row.workItem.projectId === projectId &&
+          row.workItem.deletedAt === null &&
+          authorize({
+            principal,
+            capability: 'work.read',
+            resource: {
+              organizationId: row.workItem.organizationId,
+              projectId: row.workItem.projectId,
+              audience: row.workItem.audience,
+              lifecycle: row.workItem.state === 'archived' ? 'archived' : 'active',
+            },
+          }).allowed,
+      )
+      .map(toView);
   }
 
   /**
@@ -159,7 +184,12 @@ export class ObjectiveWorkLinksService {
           createdBy: context.userId,
         }),
       );
-      return toView({ link: row, workItemTitle: workItem.title, workItemState: workItem.state });
+      return toView({
+        link: row,
+        workItemTitle: workItem.title,
+        workItemState: workItem.state,
+        workItem,
+      });
     } catch (error) {
       if (error instanceof DuplicateObjectiveWorkLinkError) {
         throw new ApiError(

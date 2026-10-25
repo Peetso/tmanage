@@ -1,8 +1,8 @@
-import { and, asc, eq, lte, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, lte, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { workItemReminders, workItems } from '../../common/database/schema.js';
-import type { WorkItemReminderRow } from '../../common/database/schema.js';
+import type { WorkItemReminderRow, WorkItemRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /**
@@ -36,6 +36,11 @@ export interface DueReminderWithItem {
   readonly reminder: WorkItemReminderRow;
   readonly workItemTitle: string;
   readonly workItemState: string;
+  /**
+   * F57: the joined work item row, so the service can re-authorize it — owning the reminder is not
+   * current read authority over the item (project removal, a move, a soft delete).
+   */
+  readonly workItem: WorkItemRow;
 }
 
 export class WorkItemRemindersRepository {
@@ -131,13 +136,15 @@ export class WorkItemRemindersRepository {
     limit: number = MAX_REMINDER_PAGE,
   ): Promise<readonly DueReminderWithItem[]> {
     const rows = await tenantDrizzle(runner)
-      .select({ reminder: workItemReminders, title: workItems.title, state: workItems.state })
+      .select({ reminder: workItemReminders, item: workItems })
       .from(workItemReminders)
       .innerJoin(
         workItems,
         and(
           eq(workItems.organizationId, workItemReminders.organizationId),
           eq(workItems.id, workItemReminders.workItemId),
+          // F57: a soft-deleted item is gone from every list, this one included.
+          isNull(workItems.deletedAt),
         ),
       )
       .where(
@@ -152,8 +159,9 @@ export class WorkItemRemindersRepository {
 
     return rows.map((row) => ({
       reminder: row.reminder,
-      workItemTitle: row.title,
-      workItemState: row.state,
+      workItemTitle: row.item.title,
+      workItemState: row.item.state,
+      workItem: row.item,
     }));
   }
 }

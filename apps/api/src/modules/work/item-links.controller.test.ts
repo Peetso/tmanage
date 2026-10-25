@@ -70,6 +70,12 @@ class FakeLinksRepository {
   creates = 0;
   deletes = 0;
 
+  constructor(private readonly items: ReadonlyMap<string, WorkItemRow> = new Map()) {}
+
+  /**
+   * An inner join to the target row. Like the real query it is tenant-scoped only; it deliberately
+   * does NOT drop soft-deleted targets, so the service's own F51 filter is what the tests prove.
+   */
   async listFromItem(
     _r: unknown,
     _c: TenantContext,
@@ -77,11 +83,18 @@ class FakeLinksRepository {
   ): Promise<readonly WorkItemLinkWithTarget[]> {
     return this.rows
       .filter((r) => r.fromWorkItemId === from)
-      .map((link) => ({
-        link,
-        toWorkItemTitle: `Item ${link.toWorkItemId.slice(-3)}`,
-        toWorkItemState: 'in_progress',
-      }));
+      .flatMap((link) => {
+        const target = this.items.get(link.toWorkItemId);
+        if (!target) return [];
+        return [
+          {
+            link,
+            toWorkItemTitle: target.title,
+            toWorkItemState: target.state,
+            toWorkItem: target,
+          },
+        ];
+      });
   }
 
   async findById(_r: unknown, _c: TenantContext, id: string): Promise<WorkItemLinkRow | null> {
@@ -150,7 +163,7 @@ function harness(items: readonly WorkItemRow[]) {
   const workItems = {
     findById: async (_r: unknown, _c: unknown, id: string) => byId.get(id) ?? null,
   } as unknown as WorkItemsRepository;
-  const links = new FakeLinksRepository();
+  const links = new FakeLinksRepository(byId);
   const service = new WorkItemLinksService(
     database,
     workItems,
@@ -265,5 +278,42 @@ describe('WorkItemLinksController', () => {
     const edges: BlockingEdge[] = [{ blocker: A, blocked: B }];
     expect(wouldCycle(edges, { blocker: B, blocked: A })).toBe(true);
     expect(wouldCycle(edges, { blocker: B, blocked: C })).toBe(false);
+  });
+});
+
+describe('F51: a link never discloses a target the caller may not read', () => {
+  const OTHER_PROJECT = '01890000-0000-7000-8000-000000000102';
+  const onA = member([PROJECT]);
+
+  function seeded(target: WorkItemRow) {
+    const harnessed = harness([workItem(A), target]);
+    harnessed.links.rows.push({
+      id: 'link-1',
+      organizationId: ORG,
+      fromWorkItemId: A,
+      toWorkItemId: target.id,
+      linkType: 'relates',
+      createdByUserId: context.userId,
+      createdAt: new Date(),
+    });
+    return harnessed;
+  }
+
+  it('omits a target in a project the caller is not on', async () => {
+    const { controller } = seeded(workItem(B, { projectId: OTHER_PROJECT, title: 'B-SECRET' }));
+    const listed = await controller.list(context, onA, A);
+    expect(listed.links).toEqual([]);
+    expect(JSON.stringify(listed)).not.toContain('B-SECRET');
+  });
+
+  it('omits a soft-deleted target', async () => {
+    const { controller } = seeded(workItem(B, { deletedAt: new Date(), title: 'GONE' }));
+    const listed = await controller.list(context, onA, A);
+    expect(listed.links).toEqual([]);
+  });
+
+  it('still lists a readable target', async () => {
+    const { controller } = seeded(workItem(B));
+    expect((await controller.list(context, onA, A)).links).toHaveLength(1);
   });
 });

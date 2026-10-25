@@ -73,7 +73,14 @@ export class WorkItemLinksService {
     return this.database.read(context, async (runner) => {
       await this.readableParent(runner, context, principal, workItemId);
       const rows = await this.links.listFromItem(runner, context, workItemId);
-      return rows.map(toView);
+      // F51: the far end is authorized on its own project and audience, as relations-graph does.
+      // A target that is soft-deleted or that this caller may not read is omitted — its title and
+      // state are never disclosed through a link authored on a readable item.
+      return rows
+        .filter(
+          (row) => row.toWorkItem.deletedAt === null && this.mayRead(principal, row.toWorkItem),
+        )
+        .map(toView);
     });
   }
 
@@ -132,6 +139,7 @@ export class WorkItemLinksService {
         link: row,
         toWorkItemTitle: target.title,
         toWorkItemState: target.state,
+        toWorkItem: target,
       });
     });
   }

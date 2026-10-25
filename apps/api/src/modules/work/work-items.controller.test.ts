@@ -7,6 +7,8 @@ import type { WorkGraphRepository } from './work-graph.repository.js';
 import type { ProjectsRepository } from '../projects/projects.repository.js';
 import type { ProjectClientsRepository } from '../clients/project-clients.repository.js';
 import type { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
+import type { ObjectiveWorkLinksRepository } from '../projects/objective-work-links.repository.js';
+import type { WorkItemFilesRepository } from './item-files.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
 
@@ -111,6 +113,26 @@ function harness() {
       onProject.has(`${projectId}:${userId}`) ? { id: 'pm-1' } : null,
   } as unknown as ProjectMembershipsRepository;
 
+  // F24 / F50: what the move transaction asks the edge repositories to remove.
+  const edgeCleanups: string[] = [];
+  const objectiveLinks = {
+    deleteForWorkItem: async (_r: unknown, _c: unknown, workItemId: string) => {
+      edgeCleanups.push(`objective-links:${workItemId}`);
+      return 1;
+    },
+  } as unknown as ObjectiveWorkLinksRepository;
+  const itemFiles = {
+    detachOutsideProject: async (
+      _r: unknown,
+      _c: unknown,
+      workItemId: string,
+      projectId: string,
+    ) => {
+      edgeCleanups.push(`files-outside:${workItemId}:${projectId}`);
+      return 1;
+    },
+  } as unknown as WorkItemFilesRepository;
+
   const service = new WorkItemsService(
     database,
     workItems,
@@ -120,8 +142,10 @@ function harness() {
     graph,
     { list: async () => [] } as unknown as ProjectClientsRepository,
     memberships,
+    objectiveLinks,
+    itemFiles,
   );
-  return { controller: new WorkItemsController(service), updates, onProject };
+  return { controller: new WorkItemsController(service), updates, onProject, edgeCleanups, rows };
 }
 
 describe('A6 work item description and move', () => {
@@ -205,5 +229,106 @@ describe('A6 work item description and move', () => {
       projectId: TARGET,
     });
     expect(moved.ownerUserId).toBe(MONA);
+  });
+});
+
+describe('F24 + F50: a move removes the edges scoped to the source project', () => {
+  it('deletes objective links and detaches out-of-project files in the move', async () => {
+    const { controller, edgeCleanups } = harness();
+    const created = await controller.create(context, principal, {
+      projectId: PROJECT,
+      title: 'Linked to an objective',
+    });
+    await controller.update(context, principal, created.id, {
+      version: created.version,
+      projectId: TARGET,
+    });
+    expect(edgeCleanups).toEqual([
+      `objective-links:${created.id}`,
+      `files-outside:${created.id}:${TARGET}`,
+    ]);
+  });
+
+  it('an edit that is not a move removes nothing', async () => {
+    const { controller, edgeCleanups } = harness();
+    const created = await controller.create(context, principal, {
+      projectId: PROJECT,
+      title: 'Stays put',
+    });
+    await controller.update(context, principal, created.id, {
+      version: created.version,
+      title: 'Still stays put',
+      projectId: PROJECT,
+    });
+    expect(edgeCleanups).toEqual([]);
+  });
+});
+
+describe('F26: widening to a client audience needs deliverable.publish', () => {
+  function onProject(role: Principal['role']): Principal {
+    return {
+      ...principal,
+      userId: MONA,
+      role,
+      membershipId: 'membership-0000-0000-000000000002',
+      projectIds: [PROJECT],
+      hasOrgWideScope: false,
+    };
+  }
+
+  for (const role of ['guest', 'member', 'moderator'] as const) {
+    it(`a ${role} cannot PATCH an internal item to client_visible (403, nothing written)`, async () => {
+      const { controller, updates, rows } = harness();
+      const created = await controller.create(context, principal, {
+        projectId: PROJECT,
+        title: 'INTERNAL-ONLY',
+      });
+      await expect(
+        controller.update(context, onProject(role), created.id, {
+          version: created.version,
+          audience: 'client_visible',
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+      expect(updates).toEqual([]);
+      expect(rows[0]?.audience).toBe('internal');
+    });
+  }
+
+  it('a member cannot create an item straight into client_visible (403, nothing written)', async () => {
+    const { controller, rows } = harness();
+    await expect(
+      controller.create(context, onProject('member'), {
+        projectId: PROJECT,
+        title: 'INTERNAL-ONLY',
+        audience: 'client_visible',
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(rows).toEqual([]);
+  });
+
+  it('a member may still edit fields and narrow nothing without publish', async () => {
+    const { controller } = harness();
+    const created = await controller.create(context, principal, {
+      projectId: PROJECT,
+      title: 'Internal draft',
+    });
+    const edited = await controller.update(context, onProject('member'), created.id, {
+      version: created.version,
+      title: 'Internal draft v2',
+    });
+    expect(edited.audience).toBe('internal');
+  });
+
+  it('a manager on the project may widen to client_visible', async () => {
+    const { controller } = harness();
+    const created = await controller.create(context, principal, {
+      projectId: PROJECT,
+      title: 'Ready for the client',
+    });
+    const widened = await controller.update(context, onProject('manager'), created.id, {
+      version: created.version,
+      audience: 'client_visible',
+    });
+    expect(widened.audience).toBe('client_visible');
   });
 });

@@ -144,13 +144,13 @@ function build(options: {
           (row) => row.objectiveId === objectiveId && row.organizationId === ctx.organizationId,
         )
         .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
-        .map((link) => {
+        .flatMap((link) => {
+          // An inner join: a link whose item is absent is not returned. The fake deliberately does
+          // NOT apply the repository's project/deletion predicates, so the service's own re-check
+          // is what the F24 tests below prove.
           const item = workItemsStore.find((w) => w.id === link.workItemId);
-          return {
-            link,
-            workItemTitle: item?.title ?? '',
-            workItemState: item?.state ?? '',
-          };
+          if (!item) return [];
+          return [{ link, workItemTitle: item.title, workItemState: item.state, workItem: item }];
         }),
     findById: async (_runner: unknown, ctx: TenantContext, linkId: string) =>
       store.find((row) => row.id === linkId && row.organizationId === ctx.organizationId) ?? null,
@@ -305,5 +305,43 @@ describe('the route ceilings the CapabilityGuard enforces', () => {
     expect(cap(ObjectiveWorkLinksController.prototype.link)).toBe('project.manage');
     expect(cap(ObjectiveWorkLinksController.prototype.unlink)).toBe('project.manage');
     expect(cap(ObjectiveWorkLinksController.prototype.list)).toBe('work.read');
+  });
+});
+
+describe('F24: a linked item that left the objective project is not listed', () => {
+  const link = {
+    id: 'link-0000-0000-0000-0000000000b1',
+    organizationId: ORG,
+    objectiveId: OBJECTIVE,
+    workItemId: WORK_ITEM,
+    createdBy: USER,
+    createdAt: new Date(Date.UTC(2026, 0, 2)),
+  } as ObjectiveWorkLinkRow;
+  const memberOnA = principal('member', [PROJECT]);
+
+  it('an item moved to another project is absent for a reader of the objective project', async () => {
+    const moved = { ...workItemRow(WORK_ITEM, ORG, OTHER_PROJECT), title: 'Secret B plan' };
+    const { controller } = build({ workItemsSeed: [moved], linksSeed: [link] });
+    const listed = await controller.list(context, memberOnA, OBJECTIVE);
+    expect(listed.workLinks).toEqual([]);
+    expect(JSON.stringify(listed)).not.toContain('Secret B plan');
+  });
+
+  it('an item moved away is absent even for an org-wide reader (the edge is project-scoped)', async () => {
+    const moved = workItemRow(WORK_ITEM, ORG, OTHER_PROJECT);
+    const { controller } = build({ workItemsSeed: [moved], linksSeed: [link] });
+    expect((await controller.list(context, owner, OBJECTIVE)).workLinks).toEqual([]);
+  });
+
+  it('a soft-deleted linked item is absent', async () => {
+    const deleted = workItemRow(WORK_ITEM, ORG, PROJECT, new Date());
+    const { controller } = build({ workItemsSeed: [deleted], linksSeed: [link] });
+    expect((await controller.list(context, memberOnA, OBJECTIVE)).workLinks).toEqual([]);
+  });
+
+  it('a linked item still in the project is listed', async () => {
+    const { controller } = build({ linksSeed: [link] });
+    const listed = await controller.list(context, memberOnA, OBJECTIVE);
+    expect(listed.workLinks.map((l) => l.workItemId)).toEqual([WORK_ITEM]);
   });
 });

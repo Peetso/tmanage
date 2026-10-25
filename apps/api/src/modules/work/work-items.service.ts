@@ -6,6 +6,8 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import { ProjectClientsRepository } from '../clients/project-clients.repository.js';
 import { ProjectMembershipsRepository } from '../projects/project-memberships.repository.js';
+import { ObjectiveWorkLinksRepository } from '../projects/objective-work-links.repository.js';
+import { WorkItemFilesRepository } from './item-files.repository.js';
 import {
   effectivePageSize,
   MAX_PAGE_SIZE,
@@ -326,6 +328,16 @@ export class WorkItemsService {
      * owner is on that project. Stateless, so a default is safe, and appended last.
      */
     private readonly projectMemberships: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
+    /**
+     * F24: objective edges are project-scoped, so a move removes the item's objective links in the
+     * same transaction. Stateless, so a default is safe, and appended last.
+     */
+    private readonly objectiveLinks: ObjectiveWorkLinksRepository = new ObjectiveWorkLinksRepository(),
+    /**
+     * F50: a move detaches attachments whose file stays in the source project, in the same
+     * transaction. Stateless, so a default is safe, and appended last.
+     */
+    private readonly itemFiles: WorkItemFilesRepository = new WorkItemFilesRepository(),
   ) {}
 
   /**
@@ -459,6 +471,10 @@ export class WorkItemsService {
     }
 
     this.requireProjectRelation(principal, context, input.projectId, 'work.create');
+    // F26: creating an item straight into a client audience publishes it to the portal.
+    if (input.audience !== undefined && input.audience !== 'internal') {
+      this.requirePublish(principal, context, input.projectId);
+    }
     if (input.ownerUserId) await this.requireOwnerIsMember(context, input.ownerUserId);
 
     const row = await this.database.transaction(context, async (tx) => {
@@ -511,6 +527,16 @@ export class WorkItemsService {
     if (requested.ownerUserId) await this.requireOwnerIsMember(context, requested.ownerUserId);
     const input = await this.resolveMove(context, principal, before, requested);
     const targetProjectId = input.projectId ?? before.projectId;
+    const moving = input.projectId !== undefined && input.projectId !== before.projectId;
+
+    // F26: widening to a client audience is a publish-to-client decision, and so is carrying a
+    // client-audience item into another project (whose clients have never seen it). Either needs
+    // `deliverable.publish` on the target project — the capability the sibling publish paths
+    // (document audience, deliverable send) already require. Guests never hold it.
+    const audienceAfter = input.audience ?? before.audience;
+    if (audienceAfter !== 'internal' && (audienceAfter !== before.audience || moving)) {
+      this.requirePublish(principal, context, targetProjectId);
+    }
 
     // CQ-07 (WRK-14): "client action needed" is a request to a client, and the worker emails the
     // client people who can act on it. On a project with no client linked that request reaches
@@ -544,6 +570,14 @@ export class WorkItemsService {
           expectedVersion,
           input,
         );
+
+        if (moving) {
+          // F24 + F50: edges scoped to the source project do not travel with the item. Objective
+          // links are removed, and attachments whose file stays in the source project are detached,
+          // so neither list keeps disclosing the other project's titles or file names.
+          await this.objectiveLinks.deleteForWorkItem(tx, context, workItemId);
+          await this.itemFiles.detachOutsideProject(tx, context, workItemId, targetProjectId);
+        }
 
         if (input.audience !== undefined && input.audience !== before.audience) {
           await this.audit?.record(tx, context, {
@@ -1267,6 +1301,32 @@ export class WorkItemsService {
           ? ('archived' as const)
           : ('active' as const),
     };
+  }
+
+  /**
+   * F26: whether this principal may publish work to the clients of `projectId`. A 403, not a 404:
+   * the caller has already passed the relation check on this project, so it is not a secret.
+   */
+  private requirePublish(principal: Principal, context: TenantContext, projectId: string): void {
+    const verdict = authorize({
+      principal,
+      capability: 'deliverable.publish',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'work_item_publish_denied',
+      );
+    }
   }
 
   /**

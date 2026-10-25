@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import type { Principal } from '@tmanage/domain';
 import { WorkItemFilesController } from './item-files.controller.js';
 import { WorkItemFilesService } from './item-files.service.js';
@@ -90,7 +91,8 @@ function fileAsset(over: Partial<FileAssetRow> = {}): FileAssetRow {
 
 /** An in-memory link store standing in for the repository, counting its writes. */
 class FakeLinksRepository {
-  readonly rows: (WorkItemFileRow & { fileName: string; status: string })[] = [];
+  readonly rows: (WorkItemFileRow & { fileName: string; status: string; fileProjectId: string })[] =
+    [];
   creates = 0;
   deletes = 0;
 
@@ -122,6 +124,7 @@ class FakeLinksRepository {
       createdAt: new Date(Date.now() + this.rows.length),
       fileName: 'brand-book.pdf',
       status: 'ready',
+      fileProjectId: PROJECT,
     };
     this.rows.push(row);
     return row;
@@ -259,5 +262,61 @@ describe('WorkItemFilesController', () => {
     );
     expect(status).toBe(400);
     expect(links.creates).toBe(0);
+  });
+});
+
+describe('F25: the attachments list is an internal work surface', () => {
+  function clientViewer(): Principal {
+    return {
+      userId: '01890000-0000-7000-8000-000000000009',
+      organizationId: ORG,
+      kind: 'client',
+      role: 'client_viewer',
+      membershipId: null,
+      membershipStatus: 'active',
+      clientOrganizationId: '01890000-0000-7000-8000-0000000000c1',
+      projectIds: [PROJECT],
+      hasOrgWideScope: false,
+    } as unknown as Principal;
+  }
+
+  it('the route requires work.read (internal-only), so CapabilityGuard refuses clients', () => {
+    const cap = (method: unknown) => Reflect.getMetadata(REQUIRED_CAPABILITY, method as object);
+    expect(cap(WorkItemFilesController.prototype.list)).toBe('work.read');
+  });
+
+  it('a client viewer on a client-visible item lists nothing (refused, no file names)', async () => {
+    const { controller, links } = harness(workItem({ audience: 'client_visible' }));
+    await controller.attach(context, member([PROJECT]), WORK_ID, { fileAssetId: FILE_ID });
+    expect(links.rows).toHaveLength(1);
+    const status = await statusOf(() => controller.list(context, clientViewer(), WORK_ID));
+    expect(status).toBe(404);
+  });
+
+  it('an internal member still lists the files', async () => {
+    const { controller } = harness(workItem({ audience: 'client_visible' }));
+    await controller.attach(context, member([PROJECT]), WORK_ID, { fileAssetId: FILE_ID });
+    expect((await controller.list(context, member([PROJECT]), WORK_ID)).files).toHaveLength(1);
+  });
+});
+
+describe('F50: a file left in the source project is not listed after a move', () => {
+  it('lists only attachments whose file is in the item’s current project', async () => {
+    // The item now lives in OTHER_PROJECT; its old attachment's file stayed in PROJECT.
+    const { controller, links } = harness(workItem({ projectId: OTHER_PROJECT }));
+    links.rows.push({
+      id: 'link-stale',
+      organizationId: ORG,
+      workItemId: WORK_ID,
+      fileAssetId: FILE_ID,
+      attachedByMembershipId: MEMBERSHIP,
+      createdAt: new Date(),
+      fileName: 'A-salary-review.pdf',
+      status: 'ready',
+      fileProjectId: PROJECT,
+    });
+    const listed = await controller.list(context, member([OTHER_PROJECT]), WORK_ID);
+    expect(listed.files).toEqual([]);
+    expect(JSON.stringify(listed)).not.toContain('A-salary-review.pdf');
   });
 });
