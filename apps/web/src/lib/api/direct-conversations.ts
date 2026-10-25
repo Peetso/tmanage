@@ -15,11 +15,11 @@ export interface DirectConversationSummary {
   readonly otherUserId: string;
   readonly otherDisplayName: string | null;
   /** C5: the other person's job title in this studio, when they set one. */
-  readonly otherJobTitle?: string | null;
+  readonly otherJobTitle: string | null;
   /** C5: the client company of a client participant; null for a team member. */
-  readonly otherClientCompanyName?: string | null;
+  readonly otherClientCompanyName: string | null;
   /** C5: whether the other person posted in this studio in the last five minutes. */
-  readonly otherOnline?: boolean;
+  readonly otherOnline: boolean;
   readonly lastMessageAt: string | null;
   readonly createdAt: string;
   readonly lastSequenceNo: number;

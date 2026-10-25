@@ -256,6 +256,9 @@ import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files
 import type { SubscriptionView as ApiSubscriptionView } from '../../apps/api/src/modules/billing/subscription.service.js';
 import type { PlanChangePreviewView as ApiPlanChangePreviewView } from '../../apps/api/src/modules/billing/plan-preview.service.js';
 import type {
+  PlanUsageChangeView as ApiPlanUsageChangeView,
+  PlanUsageMeterView as ApiPlanUsageMeterView,
+  PlanUsageOverageView as ApiPlanUsageOverageView,
   PlanUsagePreviewView as ApiPlanUsagePreviewView,
   PlanUsageView as ApiPlanUsageView,
 } from '../../apps/api/src/modules/billing/plan-usage.service.js';
@@ -748,6 +751,9 @@ import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/s
 import type { SubscriptionView as WebSubscriptionView } from '../../apps/web/src/lib/api/subscription';
 import type { PlanChangePreviewView as WebPlanChangePreviewView } from '../../apps/web/src/lib/api/plan-preview';
 import type {
+  PlanUsageChangeView as WebPlanUsageChangeView,
+  PlanUsageMeterView as WebPlanUsageMeterView,
+  PlanUsageOverageView as WebPlanUsageOverageView,
   PlanUsagePreviewView as WebPlanUsagePreviewView,
   PlanUsageView as WebPlanUsageView,
 } from '../../apps/web/src/lib/api/plan-usage';
@@ -1572,6 +1578,9 @@ type _planChangePreview = Assert<Exact<ApiPlanChangePreviewView, WebPlanChangePr
  */
 type _planUsage = Assert<Exact<ApiPlanUsageView, WebPlanUsageView>>;
 type _planUsagePreview = Assert<Exact<ApiPlanUsagePreviewView, WebPlanUsagePreviewView>>;
+type _planUsageMeter = Assert<Exact<ApiPlanUsageMeterView, WebPlanUsageMeterView>>;
+type _planUsageChange = Assert<Exact<ApiPlanUsageChangeView, WebPlanUsageChangeView>>;
+type _planUsageOverage = Assert<Exact<ApiPlanUsageOverageView, WebPlanUsageOverageView>>;
 
 /**
  * INS-02 — `GET …/insights/projects/:projectId/approval-cycle`. A project's approvals rolled up by

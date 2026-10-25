@@ -1,9 +1,10 @@
 // The in-process scheduled sweeps — what the Hostinger cron entries for the worker's `--sweep-*`
 // commands used to do, run on a timer inside the one Node app instead.
 //
-// The worker CLI offers two sweeps (`apps/worker/src/cli.ts`): `--sweep-invitations` (overdue
-// `pending` invitations to `expired`) and `--sweep-deferred-requests` (due `deferred` client
-// requests back to `triage`, with the deferrer's reminder). Both run here, one after the other, on
+// The worker CLI offers three sweeps (`apps/worker/src/cli.ts`): `--sweep-invitations` (overdue
+// `pending` invitations to `expired`), `--sweep-deferred-requests` (due `deferred` client
+// requests back to `triage`, with the deferrer's reminder) and `--sweep-due-soon` (the "due in N
+// days" automation rules). All run here, one after the other, on
 // the delivery tick's cadence — every minute, the shared-plan cron granularity the runbook's §4a
 // chain was written for (`docs/runbooks/hostinger-shared-hosting.md`).
 //
@@ -60,6 +61,14 @@ export function workerSweepJobs(worker, database) {
       describe: (result) =>
         `reopened ${String(result.reopened)} deferred request(s), reminded ${String(result.reminded)}`,
       changed: (result) => result.reopened > 0 || result.reminded > 0,
+    },
+    {
+      // C1 `--sweep-due-soon`: idempotent through its `INSERT IGNORE` claim row per item, rule and day.
+      name: 'due-soon',
+      run: () => worker.sweepDueSoon(worker.createDueSoonSweepStore(database)),
+      describe: (result) =>
+        `due-soon: ${String(result.rules)} rule(s), fired for ${String(result.fired)} work item(s)`,
+      changed: (result) => result.fired > 0,
     },
   ];
 }

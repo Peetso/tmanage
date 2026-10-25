@@ -145,6 +145,13 @@ const EXEMPT = new Map([
  * exempted with a truthful, self-expiring reason rather than left to fail the gate.
  */
 const WEB_EXEMPT = new Map([
+  // C5: the direct-conversation list wrapper. The API returns it as an inline type on
+  // DirectConversationsController.list (no named …View to import); its rows are paired Exact as
+  // DirectConversationView / DirectConversationSummary, and viewerUserId is the caller's own id.
+  [
+    'DirectConversationsOverview',
+    'inline API return type of direct-conversations.controller.ts list(); its rows DirectConversationView and DirectConversationSummary are paired Exact.',
+  ],
   // A5 (BK5): the attendee list wrapper. The API returns it as an inline type on
   // MeetingAttendeesController.list (no named …View to import); both arms, MeetingAttendeeView and
   // MeetingClientAttendeeView, are paired Exact, so the wrapper adds no unchecked field.
