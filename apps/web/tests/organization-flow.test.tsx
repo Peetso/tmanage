@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -46,6 +46,15 @@ function clientOver(handler: (call: Call) => Response): { client: ApiClient; cal
   return { client, calls };
 }
 
+/**
+ * The creation request among `calls`. Typing a name also fires the debounced address check,
+ * and on a loaded machine the gap between two keystrokes can outlast that debounce, so a check
+ * (a GET) may come before the POST (AUDIT-2026-10-25b gap 9). Cases about the POST find it.
+ */
+function postsIn(calls: readonly Call[]): Call[] {
+  return calls.filter((call) => call.method === 'POST');
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -53,11 +62,57 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function withQuery(children: ReactNode) {
-  const client = new QueryClient({
+function withQuery(children: ReactNode, client: QueryClient) {
+  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+function newQueryClient(): QueryClient {
+  return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return <QueryClientProvider client={client}>{children}</QueryClientProvider>;
+}
+
+/**
+ * Resolves once every query `client` holds has been answered, and the render that answer
+ * causes has been flushed.
+ *
+ * The real condition, awaited instead of a bigger timeout. Under a loaded full suite the first
+ * case in this file once spent its whole `findBy*` budget (AUDIT-2026-10-25b gap 9) while the
+ * list request was still on its way through react-query; how long that takes is the machine's
+ * business, and only the test's own ceiling should bound it. After this resolves, the
+ * `findBy*` that follows waits only for React, which is milliseconds.
+ */
+function settled(client: QueryClient): Promise<void> {
+  const answered = () => {
+    const queries = client.getQueryCache().getAll();
+    return (
+      queries.length > 0 &&
+      queries.every((query) => query.state.status !== 'pending') &&
+      client.isFetching() === 0
+    );
+  };
+  return new Promise<void>((resolve) => {
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      unsubscribe();
+      // One empty `act` flushes the render the answer scheduled before the case reads the DOM.
+      void act(async () => {}).then(() => resolve());
+    };
+    const unsubscribe = client.getQueryCache().subscribe(() => {
+      if (answered()) done();
+    });
+    if (answered()) done();
+  });
+}
+
+/** Render a screen that loads through react-query, and wait until what it asked for is answered. */
+async function renderSettled(children: ReactNode) {
+  const queryClient = newQueryClient();
+  const result = render(withQuery(children, queryClient));
+  await settled(queryClient);
+  return result;
 }
 
 const NORTHSTAR = {
@@ -81,7 +136,7 @@ const ATLAS = {
 describe('ID-04 organization selector', () => {
   it('fetches the list and renders one row per membership', async () => {
     const { client, calls } = clientOver(() => json({ organizations: [NORTHSTAR, ATLAS] }));
-    render(withQuery(<OrganizationSelectorScreen client={client} />));
+    await renderSettled(<OrganizationSelectorScreen client={client} />);
 
     await screen.findByLabelText('Search organizations');
     expect(calls[0]?.url).toBe('https://api.example.test/v1/organizations');
@@ -94,7 +149,7 @@ describe('ID-04 organization selector', () => {
     // which the next test covers.
     const { client } = clientOver(() => json({ organizations: [NORTHSTAR, ATLAS] }));
     const navigate = vi.fn();
-    render(withQuery(<OrganizationSelectorScreen client={client} navigate={navigate} />));
+    await renderSettled(<OrganizationSelectorScreen client={client} navigate={navigate} />);
 
     expect(await screen.findByText('Atlas Hospitality')).toBeInTheDocument();
     expect(screen.getByText('Client portal')).toBeInTheDocument();
@@ -110,7 +165,7 @@ describe('ID-04 organization selector', () => {
   it('takes a client with one organization straight into their portal', async () => {
     const { client } = clientOver(() => json({ organizations: [ATLAS] }));
     const navigate = vi.fn();
-    render(withQuery(<OrganizationSelectorScreen client={client} navigate={navigate} />));
+    await renderSettled(<OrganizationSelectorScreen client={client} navigate={navigate} />);
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/northstar/portal'));
     expect(screen.queryByLabelText('Search organizations')).toBeNull();
@@ -120,7 +175,7 @@ describe('ID-04 organization selector', () => {
   it('still shows the chooser for an internal member with one organization', async () => {
     const { client } = clientOver(() => json({ organizations: [NORTHSTAR] }));
     const navigate = vi.fn();
-    render(withQuery(<OrganizationSelectorScreen client={client} navigate={navigate} />));
+    await renderSettled(<OrganizationSelectorScreen client={client} navigate={navigate} />);
 
     await screen.findByLabelText('Search organizations');
     expect(navigate).not.toHaveBeenCalled();
@@ -128,7 +183,7 @@ describe('ID-04 organization selector', () => {
 
   it('sends a client row to the portal and an internal row to the app', async () => {
     const { client } = clientOver(() => json({ organizations: [NORTHSTAR, ATLAS] }));
-    render(withQuery(<OrganizationSelectorScreen client={client} />));
+    await renderSettled(<OrganizationSelectorScreen client={client} />);
 
     await screen.findByLabelText('Search organizations');
     const links = within(screen.getByRole('list'))
@@ -145,7 +200,7 @@ describe('ID-04 organization selector', () => {
    */
   it('renders no number that spans organizations', async () => {
     const { client } = clientOver(() => json({ organizations: [NORTHSTAR, ATLAS] }));
-    const { container } = render(withQuery(<OrganizationSelectorScreen client={client} />));
+    const { container } = await renderSettled(<OrganizationSelectorScreen client={client} />);
 
     await screen.findByLabelText('Search organizations');
     // The only count on the screen is the heading's count of organizations themselves, which
@@ -160,7 +215,7 @@ describe('ID-04 organization selector', () => {
   it('filters in the browser, sending nothing', async () => {
     const user = userEvent.setup();
     const { client, calls } = clientOver(() => json({ organizations: [NORTHSTAR, ATLAS] }));
-    render(withQuery(<OrganizationSelectorScreen client={client} />));
+    await renderSettled(<OrganizationSelectorScreen client={client} />);
 
     await screen.findByLabelText('Search organizations');
     const before = calls.length;
@@ -173,7 +228,7 @@ describe('ID-04 organization selector', () => {
   /** Not an error. It is what everyone sees between signing up and founding something. */
   it('offers a way forward when the list is empty', async () => {
     const { client } = clientOver(() => json({ organizations: [] }));
-    render(withQuery(<OrganizationSelectorScreen client={client} />));
+    await renderSettled(<OrganizationSelectorScreen client={client} />);
 
     expect(await screen.findByText('You are not in an organization yet')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Create an organization' })).toHaveAttribute(
@@ -193,7 +248,7 @@ describe('ID-04 organization selector', () => {
     window.history.replaceState({}, '', '/organizations?removed');
     try {
       const { client } = clientOver(() => json({ organizations: [] }));
-      render(withQuery(<OrganizationSelectorScreen client={client} />));
+      await renderSettled(<OrganizationSelectorScreen client={client} />);
 
       expect(await screen.findByText(/removed by an administrator/)).toBeInTheDocument();
       expect(screen.queryByRole('link', { name: 'Create an organization' })).toBeNull();
@@ -215,7 +270,7 @@ describe('ID-04 organization selector', () => {
         401,
       ),
     );
-    render(withQuery(<OrganizationSelectorScreen client={client} />));
+    await renderSettled(<OrganizationSelectorScreen client={client} />);
 
     expect(await screen.findByText('Could not load your organizations')).toBeInTheDocument();
     expect(screen.queryByText('You are not in an organization yet')).toBeNull();
@@ -223,7 +278,7 @@ describe('ID-04 organization selector', () => {
 
   it('has no axe violations once loaded', async () => {
     const { client } = clientOver(() => json({ organizations: [NORTHSTAR, ATLAS] }));
-    const { container } = render(withQuery(<OrganizationSelectorScreen client={client} />));
+    const { container } = await renderSettled(<OrganizationSelectorScreen client={client} />);
     await screen.findByLabelText('Search organizations');
     await expectNoAxeViolations(container);
   });
@@ -258,9 +313,10 @@ describe('ON-01 create organization', () => {
     await fillAndSubmit(user);
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('lumen-works'));
-    expect(calls[0]?.url).toBe('https://api.example.test/v1/organizations');
-    expect(calls[0]?.method).toBe('POST');
-    const body = calls[0]?.body as Record<string, unknown>;
+    const posts = postsIn(calls);
+    expect(posts).toHaveLength(1);
+    expect(posts[0]?.url).toBe('https://api.example.test/v1/organizations');
+    const body = posts[0]?.body as Record<string, unknown>;
     expect(body['name']).toBe('Lumen Works');
     expect(body['slug']).toBe('lumen-works');
     expect(body['defaultLocale']).toBe('en');
@@ -274,7 +330,8 @@ describe('ON-01 create organization', () => {
       baseUrl: 'https://api.example.test',
       csrfCookieName: 'tm_session_csrf',
       fetch: ((_input: RequestInfo | URL, init?: RequestInit) => {
-        seen.push(new Headers(init?.headers).get('x-csrf-token') ?? '');
+        // Only the mutation: the address checks typing may fire are reads (see `postsIn`).
+        if (init?.method === 'POST') seen.push(new Headers(init.headers).get('x-csrf-token') ?? '');
         return Promise.resolve(json(CREATED, 201));
       }) as typeof globalThis.fetch,
       readCsrfToken: () => 'csrf-token',
@@ -378,7 +435,7 @@ describe('ON-01 create organization', () => {
     await user.type(slugField, 'Not Valid');
     await user.click(screen.getByRole('button', { name: 'Create organization' }));
 
-    expect(calls).toHaveLength(0);
+    expect(postsIn(calls)).toHaveLength(0);
     expect(screen.getByText(/Fix the workspace web link first/)).toBeInTheDocument();
   });
 
@@ -407,8 +464,8 @@ describe('ON-01 create organization', () => {
     const shown = (screen.getByLabelText(/Workspace web link/) as HTMLInputElement).value;
     await user.click(screen.getByRole('button', { name: 'Create organization' }));
 
-    await waitFor(() => expect(calls).toHaveLength(1));
-    expect((calls[0]?.body as { slug: string }).slug).toBe(shown);
+    await waitFor(() => expect(postsIn(calls)).toHaveLength(1));
+    expect((postsIn(calls)[0]?.body as { slug: string }).slug).toBe(shown);
   });
 
   it('has no axe violations', async () => {
@@ -461,7 +518,9 @@ describe('the two screens together', () => {
         ],
       }),
     );
-    const { container } = render(withQuery(<OrganizationSelectorScreen client={listing.client} />));
+    const { container } = await renderSettled(
+      <OrganizationSelectorScreen client={listing.client} />,
+    );
     const link = await within(container).findByRole('link', { name: /Lumen Works/ });
     expect(link).toHaveAttribute('href', `/${created[0]}/home`);
   });

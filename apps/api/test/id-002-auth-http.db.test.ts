@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter } from '@nestjs/platform-fastify';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
@@ -179,6 +179,12 @@ async function proofFor(
  * drift window and leaves the current step free, which is exactly what a person whose phone
  * runs slightly slow does by accident.
  *
+ * One step back has no slack *forward*: if the clock crossed into the next step between
+ * computing the code and the server verifying it, the code would be two steps old and refused.
+ * That happened once under load (AUDIT-2026-10-25b gap 9). The top-level `beforeEach` binds
+ * `Date` for every case in this file, so the test and the in-process server read the same
+ * frozen moment and no step boundary can fall inside a case.
+ *
  * At module scope rather than inside "the second factor over HTTP" because `D08`'s two
  * completion-route cases need a real challenge as well, and a second copy of this reasoning
  * is the thing most likely to drift.
@@ -225,8 +231,16 @@ beforeAll(async () => {
 }, 300_000);
 
 beforeEach(async () => {
+  // A bound clock, for the TOTP cases: only `Date` is faked, so timers, the pool and the
+  // database's own `now(3)` keep running for real. Bound to the real moment so the app clock
+  // stays within a case's duration of the database clock every session expiry is read from.
+  vi.useFakeTimers({ toFake: ['Date'], now: Date.now() });
   await truncateAll(db.admin);
   world = await seedTwoTenants(db.admin);
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 afterAll(async () => {
@@ -1355,14 +1369,16 @@ describe('GET /v1/auth/security-activity', () => {
  */
 describe('guard refusals land in the authentication log as user-less failed rows', () => {
   async function waitForGuardRow(action: string, timeoutMs = 5_000): Promise<RowDataPacket[]> {
-    const deadline = Date.now() + timeoutMs;
+    // `performance.now()`, not `Date.now()`: `Date` is bound for the whole file (see the
+    // top-level `beforeEach`), and a deadline read from a frozen clock is never reached.
+    const deadline = performance.now() + timeoutMs;
     for (;;) {
       const [rows] = await db.admin.query<RowDataPacket[]>(
         `select user_id, action, outcome, reason from authentication_events
           where action = ? order by occurred_at, id`,
         [action],
       );
-      if (rows.length > 0 || Date.now() > deadline) return rows;
+      if (rows.length > 0 || performance.now() > deadline) return rows;
       await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }

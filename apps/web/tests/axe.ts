@@ -19,6 +19,11 @@ export async function expectNoAxeViolations(container: Element): Promise<void> {
     rules: {
       'color-contrast': { enabled: false },
     },
+    // Only violations are read below. Every rule still runs on every node and every violation
+    // is still reported in full; this only stops axe serialising each *passing* node, which on
+    // ON-01's ~600 timezone options was most of the run and pushed it past the test ceiling
+    // under a loaded full suite (AUDIT-2026-10-25b gap 9).
+    resultTypes: ['violations'],
   });
 
   const summary = results.violations.map(
