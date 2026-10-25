@@ -182,8 +182,10 @@ describe('0224 — the organization logo', () => {
       nullable: true,
       type: 'char(36)',
     });
+    // 0224 appends org_logo after document; 0232 (G1) later appends request_message after it,
+    // so the fully migrated enum ends with both, in that order.
     const expected =
-      "enum('message_attachment','request_attachment','deliverable','document','org_logo')";
+      "enum('message_attachment','request_attachment','deliverable','document','org_logo','request_message')";
     expect((await column('file_assets', 'purpose'))?.type).toBe(expected);
     expect((await column('upload_sessions', 'purpose'))?.type).toBe(expected);
 
