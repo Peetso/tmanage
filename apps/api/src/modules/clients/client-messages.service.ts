@@ -18,8 +18,9 @@ import { ClientMessagesRepository } from './client-messages.repository.js';
  *   client-org scope is the caller's own `clientOrganizationId` — never a body or query field — so a
  *   client can only ever post to and read their own thread, and a principal with no client-org scope
  *   (an internal member) is off-client: a 404, resolved before the authorize decision.
- * - The **staff** route (`GET portal/messages/admin`) is behind `client_member.manage`, which no
- *   client role holds — the guard refuses a client with 403 before the handler runs. It names a
+ * - The **staff** route (`GET portal/messages/admin`) is behind `client_member.manage`. A client
+ *   admin holds that capability (for its own client people), so the service authorizes it at
+ *   audience `internal`, which refuses every client principal with a 404 (audit F02). It names a
  *   `clientOrganizationId`, resolved tenant-scoped **before** anything else, so a cross-tenant scope
  *   id is a 404 with no read.
  *
@@ -148,17 +149,39 @@ export class ClientMessagesService {
   }
 
   /**
-   * The inbound messages for one client organization — the staff half. `client_member.manage`, which
-   * no client role holds.
+   * The inbound messages for one client organization — the staff half. `client_member.manage`.
    *
-   * The `clientOrganizationId` is resolved tenant-scoped **before** the read: a cross-tenant or
+   * The built-in `client_admin` role holds `client_member.manage` (to invite its own client people),
+   * so the route ceiling alone does not keep a client out. Before anything is read, the capability is
+   * authorized at audience `internal` with the named client organization: `authorize()` refuses every
+   * client principal there (`audience_internal`), so a client admin gets the same 404 for their own
+   * client organization's id as for a sibling's, and learns nothing about which ids are real
+   * (audit F02). Internal staff holding the capability pass.
+   *
+   * The `clientOrganizationId` is then resolved tenant-scoped **before** the read: a cross-tenant or
    * unknown id does not resolve and is a 404, so the read is scoped to the studio tenant and can never
    * surface another studio's messages. Staff see the full record ({@link toAdminView}).
    */
   async listForAdmin(
     context: TenantContext,
+    principal: Principal,
     clientOrganizationId: string,
   ): Promise<readonly AdminClientMessageView[]> {
+    const verdict = authorize({
+      principal,
+      capability: 'client_member.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        audience: 'internal',
+        clientOrganizationId,
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+    }
+
     const scope = await this.database.read(context, (runner) =>
       this.organizations.findById(runner, context, clientOrganizationId),
     );

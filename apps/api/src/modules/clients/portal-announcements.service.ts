@@ -23,7 +23,9 @@ import { PortalAnnouncementsRepository } from './portal-announcements.repository
  * trap: a cross-tenant id is a 404 with no write). Only then is the capability checked against that
  * client organization. A role that does not hold the capability at all is a **403** (the route
  * ceiling); a client principal that holds it but is scoped to a *different* client organization is a
- * **404**, because it must not learn the id exists.
+ * **404**, because it must not learn the id exists. The writes are authorized at audience
+ * `internal`, so no client principal — not even a `client_admin` of that very client organization,
+ * who holds `client_member.manage` — can post or retract a studio banner (a 404, audit F38).
  *
  * ## Created and retracted, never edited
  *
@@ -203,12 +205,17 @@ export class PortalAnnouncementsService {
   }
 
   private authorizeManage(principal: Principal, context: TenantContext, clientId: string): void {
+    // Audience `internal`: the banner is the studio's voice, so only staff may post or retract it.
+    // The built-in `client_admin` role holds `client_member.manage` (for its own client people), and
+    // at `client_visible` it would pass for its own client organization; `internal` refuses every
+    // client principal (`audience_internal`) with a 404 and no write (audit F38).
     this.enforce(
       principal,
       context,
       clientId,
       'client_member.manage',
       'portal_announcement.manage',
+      'internal',
     );
   }
 
@@ -219,6 +226,7 @@ export class PortalAnnouncementsService {
       clientId,
       'client_projection.read',
       'portal_announcement.read',
+      'client_visible',
     );
   }
 
@@ -234,6 +242,7 @@ export class PortalAnnouncementsService {
     clientId: string,
     capability: 'client_member.manage' | 'client_projection.read',
     action: string,
+    audience: 'internal' | 'client_visible',
   ): void {
     const verdict = authorize({
       principal,
@@ -243,7 +252,7 @@ export class PortalAnnouncementsService {
         // Null: a client organization is an org-level resource, not a project. Naming a project here
         // would let a project relation stand in for this client-facing capability.
         projectId: null,
-        audience: 'client_visible',
+        audience,
         clientOrganizationId: clientId,
         lifecycle: 'active',
       },

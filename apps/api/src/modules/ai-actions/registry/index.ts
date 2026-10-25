@@ -3566,7 +3566,7 @@ export const OPS: readonly AiActionOp[] = [
     id: 'portal.deliverables.feedback.create',
     method: 'POST',
     path: '/v1/organizations/:orgSlug/portal/deliverables/:deliverableId/feedback',
-    capability: 'client_projection.read',
+    capability: 'approval.decide',
     risk: 'confirm',
     scope: 'manage',
   },

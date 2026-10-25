@@ -22,10 +22,11 @@ import {
  *   the caller's own client organization, taken from the session, never this request; there is no
  *   body or query field for a caller to name a scope, so a client can only ever reach their own
  *   thread.
- * - `GET admin` behind `client_member.manage` — the staff half. A client role never holds
- *   `client_member.manage`, so `CapabilityGuard` refuses a client with 403 before the handler runs;
- *   the service resolves the named `clientOrganizationId` inside the acting tenant first, so a
- *   cross-tenant id is a 404 with no read.
+ * - `GET admin` behind `client_member.manage` — the staff half. The built-in `client_admin` role
+ *   holds `client_member.manage` (for inviting its own client people), so `CapabilityGuard` lets a
+ *   client admin through; the service then authorizes the capability at audience `internal`, which
+ *   refuses every client principal with a 404 (audit F02). It resolves the named
+ *   `clientOrganizationId` inside the acting tenant first, so a cross-tenant id is a 404 with no read.
  *
  * The organization slug is in the path; the `TenantContext` is built from the authenticated
  * membership, never from the URL or a body field.
@@ -83,13 +84,15 @@ export class PortalClientMessagesController {
   }
 
   /**
-   * The inbound messages for one client organization — staff read. `client_member.manage`, which no
-   * client role holds. The `clientOrganizationId` is resolved tenant-scoped before the read.
+   * The inbound messages for one client organization — staff read. `client_member.manage`, and the
+   * service refuses any client principal (audience `internal`). The `clientOrganizationId` is
+   * resolved tenant-scoped before the read.
    */
   @Get('admin')
   @RequireCapability('client_member.manage')
   async listForAdmin(
     @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
     @Query('clientOrganizationId') clientOrganizationId?: string,
   ): Promise<{ readonly messages: readonly AdminClientMessageView[] }> {
     if (typeof clientOrganizationId !== 'string' || clientOrganizationId.trim() === '') {
@@ -97,6 +100,6 @@ export class PortalClientMessagesController {
         { field: 'clientOrganizationId', message: 'must be a string' },
       ]);
     }
-    return { messages: await this.messages.listForAdmin(context, clientOrganizationId) };
+    return { messages: await this.messages.listForAdmin(context, principal, clientOrganizationId) };
   }
 }

@@ -148,6 +148,11 @@ interface ClientMembership {
 
 const owner = () => world.northstar.owner;
 const designer = () => world.northstar.designer;
+/**
+ * Staff of another tenant only. A user who is staff in northstar can no longer be given a client
+ * membership there (audit F27: the dual membership locks them out), so invites name an outsider.
+ */
+const outsider = () => world.brightops.owner;
 
 beforeAll(async () => {
   db = await startTestDatabase();
@@ -300,7 +305,7 @@ describe('client memberships', () => {
     const before = Date.now();
     const response = await send('POST', '/client-memberships', session, {
       clientOrganizationId: world.atlas.clientOrganizationId,
-      userId: world.northstar.designer.id,
+      userId: outsider().id,
       role: 'client_viewer',
     });
 
@@ -318,7 +323,7 @@ describe('client memberships', () => {
     const session = await signIn(owner().id);
     const response = await send('POST', '/client-memberships', session, {
       clientOrganizationId: world.atlas.clientOrganizationId,
-      userId: world.northstar.designer.id,
+      userId: outsider().id,
       role: 'client_viewer',
       expiresAt: null,
     });
@@ -380,7 +385,7 @@ describe('client memberships', () => {
     const invited = (
       await send('POST', '/client-memberships', session, {
         clientOrganizationId: world.atlas.clientOrganizationId,
-        userId: world.northstar.designer.id,
+        userId: outsider().id,
         role: 'client_viewer',
       })
     ).json<ClientMembership>();
@@ -439,6 +444,30 @@ describe('client memberships', () => {
       'select id from client_memberships where client_organization_id = ? and user_id = ?',
       [world.meridian.clientOrganizationId, world.northstar.designer.id],
     );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('refuses to give a staff member of this tenant a client membership (F27), writing no row', async () => {
+    const asOwner = await signIn(owner().id);
+    const byOwner = await send('POST', '/client-memberships', asOwner, {
+      clientOrganizationId: world.atlas.clientOrganizationId,
+      userId: designer().id,
+      role: 'client_viewer',
+    });
+    expect(byOwner.statusCode).toBe(404);
+
+    // A client admin may not use the raw-userId invite at all (the email-bound flow is theirs).
+    const asClientAdmin = await signIn(world.atlas.admin.id);
+    const byClientAdmin = await send('POST', '/client-memberships', asClientAdmin, {
+      clientOrganizationId: world.atlas.clientOrganizationId,
+      userId: designer().id,
+      role: 'client_viewer',
+    });
+    expect(byClientAdmin.statusCode).toBe(403);
+
+    const rows = await observe('select id from client_memberships where user_id = ?', [
+      designer().id,
+    ]);
     expect(rows).toHaveLength(0);
   });
 });

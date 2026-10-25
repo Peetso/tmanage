@@ -43,6 +43,21 @@ function clientPrincipal(clientOrganizationId: string | null): Principal {
 
 const clientContext = { organizationId: ORG, userId: CLIENT_USER } as unknown as TenantContext;
 
+/** An internal manager — the staff reader of the admin inbound route. */
+function staffPrincipal(): Principal {
+  return {
+    userId: 'staff-user-1',
+    organizationId: ORG,
+    kind: 'internal',
+    role: 'manager',
+    membershipId: 'membership-staff-1',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: false,
+  };
+}
+
 function fakeDatabase(): TenantDatabase {
   const runner = {} as never;
   return {
@@ -157,7 +172,9 @@ describe('ClientMessagesService (x322)', () => {
     // The scope id the staff caller names does not resolve in this tenant.
     const service = serviceFor(store, [CLIENT_ORG]);
 
-    await expect(service.listForAdmin(clientContext, CLIENT_OTHER)).rejects.toMatchObject({
+    await expect(
+      service.listForAdmin(clientContext, staffPrincipal(), CLIENT_OTHER),
+    ).rejects.toMatchObject({
       status: 404,
     });
   });
@@ -166,7 +183,7 @@ describe('ClientMessagesService (x322)', () => {
     const store = fakeMessages([otherClientRow()]);
     const service = serviceFor(store, [CLIENT_OTHER]);
 
-    const inbound = await service.listForAdmin(clientContext, CLIENT_OTHER);
+    const inbound = await service.listForAdmin(clientContext, staffPrincipal(), CLIENT_OTHER);
     expect(inbound).toHaveLength(1);
     // Staff see the author and the scope — the full record.
     expect(inbound[0]).toMatchObject({

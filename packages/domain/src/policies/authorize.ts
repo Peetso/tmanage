@@ -150,6 +150,13 @@ const RELATION_GATED: ReadonlySet<Capability> = new Set<Capability>([
   'conversation.read',
   'conversation.write',
   'conversation.moderate',
+  /**
+   * `12-PERMISSION-MATRIX` §2 "View client projection": Manager/Moderator/Member = Project,
+   * Guest = Explicit, org-wide roles = Scope. Without the relation check an internal guest or
+   * member read every project's portal projection in the tenant (audit F18). Client principals
+   * are unaffected: rule 10 already bounds them to the projects shared with their organization.
+   */
+  'client_projection.read',
   'work.read',
   'work.create',
   'work.update',

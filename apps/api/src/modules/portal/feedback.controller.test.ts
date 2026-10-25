@@ -93,10 +93,11 @@ describe('PortalFeedbackController route capabilities (x321)', () => {
       (PortalFeedbackController.prototype as unknown as Record<string, unknown>)[key] as object,
     );
 
-  it('guards the client write with client_projection.read and the staff read with client_member.manage', () => {
-    // The gate CapabilityGuard reads: a role without client_projection.read is 403 on the write
-    // before the handler runs, and no client role can exercise client_member.manage at internal.
-    expect(capabilityOf('submit')).toBe('client_projection.read');
+  it('guards the client write with approval.decide and the staff read with client_member.manage', () => {
+    // The gate CapabilityGuard reads: a role without approval.decide (a client viewer) is 403 on
+    // the write before the handler runs (audit F45), and no client role can exercise
+    // client_member.manage at internal.
+    expect(capabilityOf('submit')).toBe('approval.decide');
     expect(capabilityOf('list')).toBe('client_member.manage');
   });
 });

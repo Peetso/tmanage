@@ -1,4 +1,4 @@
-import { authorize } from '@tmanage/domain';
+import { authorize, hasCapability } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -57,6 +57,18 @@ export interface SubmitFeedbackInput {
   readonly comment?: unknown;
 }
 
+/**
+ * The write-class client capability that gates leaving feedback (audit F45).
+ *
+ * Feedback is the client acting on a deliverable, so it reuses the deliverable-verdict capability
+ * rather than the read key every client role holds. `12-PERMISSION-MATRIX` §2 gives
+ * `approval.decide` to client admin, reviewer and member (as a ceiling) and **not** to client
+ * viewer ("Approve governed version: No"), which is exactly "a viewer reads and does nothing else".
+ * Only the role ceiling is consulted: feedback needs no reviewer assignment, and the object scope
+ * (same client organization, shared project, published version) is `mayRead`'s.
+ */
+export const FEEDBACK_WRITE_CAPABILITY = 'approval.decide' as const;
+
 /** A comment is bounded so a client cannot write an unbounded blob into a `TEXT` column. */
 const MAX_COMMENT_LENGTH = 4000;
 
@@ -69,7 +81,7 @@ export class PortalFeedbackService {
 
   /**
    * A client contact leaves or revises feedback on a published deliverable — POST
-   * `/portal/deliverables/:id/feedback`, `client_projection.read`.
+   * `/portal/deliverables/:id/feedback`, {@link FEEDBACK_WRITE_CAPABILITY} (client viewers are 403).
    *
    * The order is the Known trap's and the refusals are the ones x321 exists to prove:
    *
@@ -96,6 +108,17 @@ export class PortalFeedbackService {
     if (!clientOrganizationId) {
       // Client-audience write: an internal principal has no single client organization to scope to.
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    if (!hasCapability(principal.role, FEEDBACK_WRITE_CAPABILITY)) {
+      // A read-only client viewer may see the deliverable but never act on it (audit F45). The
+      // route guard already refuses this; restated here so the service never relies on it.
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'feedback_read_only_role',
+      );
     }
 
     const projection = await this.database.read(context, (runner) =>
@@ -171,6 +194,12 @@ export class PortalFeedbackService {
     });
     if (!verdict.allowed) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, verdict.code);
+    }
+    // `client_member.manage` is not relation-gated in `authorize()`, so the project relation is
+    // checked here: staff without org-wide scope read feedback only for projects they are on — the
+    // same existing 404, so an off-project manager cannot read a client's ratings (audit F44).
+    if (!principal.hasOrgWideScope && !principal.projectIds.includes(projection.projectId)) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'not_project_member');
     }
 
     const rows = await this.database.read(context, (runner) =>

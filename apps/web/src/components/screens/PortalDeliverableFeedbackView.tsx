@@ -4,11 +4,15 @@ import { useId, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { Button, InlineAlert } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
-import { submitPortalDeliverableFeedback } from '../../lib/api/portal-deliverable-feedback';
+import {
+  canSubmitDeliverableFeedback,
+  submitPortalDeliverableFeedback,
+} from '../../lib/api/portal-deliverable-feedback';
 import type { PortalDeliverableFeedback } from '../../lib/api/portal-deliverable-feedback';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useOrganizationSummary } from '../projects/NewProjectLink';
 
 export interface PortalDeliverableFeedbackViewProps {
   organizationSlug: string;
@@ -23,8 +27,8 @@ const RATINGS = [1, 2, 3, 4, 5] as const;
  * **CL-03 Deliverable feedback (module 13 Client Portal, x321).**
  *
  * The rating (1–5) and optional comment a client contact leaves on a *published* deliverable, on
- * the client deliverable view. Behind `client_projection.read` — the one key a client role holds —
- * and scoped server-side to the caller's own client organization: the author is the authenticated
+ * the client deliverable view. Behind `approval.decide` as a client role ceiling — a read-only
+ * client viewer is never offered the form (the API refuses them too) — and scoped server-side to the caller's own client organization: the author is the authenticated
  * principal, never a value this view supplies, and only a published, client-visible deliverable
  * accepts feedback (anything else is a 404 the client turns into an error, never a hint the
  * deliverable is real). Feedback is one-per-contact-per-version, so a re-submit revises in place;
@@ -45,6 +49,9 @@ export function PortalDeliverableFeedbackView({
     mutationFn: (input: { rating: number; comment?: string }) =>
       submitPortalDeliverableFeedback(client, organizationSlug, deliverableId, input),
   });
+  const mayGiveFeedback = canSubmitDeliverableFeedback(
+    useOrganizationSummary(organizationSlug, client)?.role,
+  );
 
   function onSubmit() {
     if (rating === null) {
@@ -57,6 +64,9 @@ export function PortalDeliverableFeedbackView({
   }
 
   const saved: PortalDeliverableFeedback | undefined = submit.data;
+
+  // A client viewer reads the deliverable and does nothing else, so there is no form to show.
+  if (!mayGiveFeedback) return null;
 
   return (
     <section

@@ -341,7 +341,13 @@ export class ClientsService {
       input.clientOrganizationId,
       'client_membership.invite',
     );
+    // A raw `userId` invite is staff-only (audit F27). A client admin invites their own people
+    // through the email-bound `POST portal/client-members` flow, where the invitee must accept; with
+    // a raw id here they could attach any user — internal staff included — to their organization.
+    // After the scope check, so a sibling client organization's id stays the same 404 as before.
+    this.refuseClientPrincipal(principal, 'client_membership.invite');
     await this.readOrganization(context, input.clientOrganizationId);
+    await this.refuseInternalMember(context, input.userId);
 
     const expiresAt =
       input.expiresAt === undefined ? this.defaultExpiry(new Date()) : input.expiresAt;
@@ -465,6 +471,16 @@ export class ClientsService {
       clientMembershipId,
       'client_membership.change_status',
     );
+    if (to === 'active') {
+      // An unaccepted invitation is activated only by the invitee accepting it or by staff, never by
+      // a client admin (audit F27); a client admin may still reinstate a suspended colleague.
+      if (before.status === 'invited') {
+        this.refuseClientPrincipal(principal, 'client_membership.change_status');
+      }
+      // Never make a client membership live for someone who is already staff here: the dual
+      // membership would lock them out of the whole tenant.
+      await this.refuseInternalMember(context, before.userId);
+    }
 
     const row = await this.writing(() =>
       this.database.transaction(context, async (tx) => {
@@ -768,6 +784,33 @@ export class ClientsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
     return own;
+  }
+
+  /** A staff-only membership write: any client principal is a 403 (audit F27). */
+  private refuseClientPrincipal(principal: Principal, action: string): void {
+    if (principal.kind === 'client' || isClientRole(principal.role)) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        `${action}:client_principal_staff_only`,
+      );
+    }
+  }
+
+  /**
+   * A user with an active internal membership in this tenant may not hold a live client membership
+   * here as well (audit F27). The refusal is a neutral 404 and nothing is written, so the caller
+   * learns nothing about who is staff.
+   */
+  private async refuseInternalMember(context: TenantContext, userId: string): Promise<void> {
+    const isStaff = await this.database.read(context, (runner) =>
+      this.memberships.userHasActiveInternalMembership(runner, context, userId),
+    );
+    if (isStaff) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'user_is_internal_member');
+    }
   }
 
   private requireOwnClientOrganization(

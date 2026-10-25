@@ -2,7 +2,7 @@ import { Body, Controller, Get, HttpCode, Inject, Param, Post } from '@nestjs/co
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import { PortalFeedbackService } from './feedback.service.js';
+import { FEEDBACK_WRITE_CAPABILITY, PortalFeedbackService } from './feedback.service.js';
 import type { PortalFeedbackClientView, PortalFeedbackStaffView } from './feedback.service.js';
 
 /**
@@ -11,8 +11,8 @@ import type { PortalFeedbackClientView, PortalFeedbackStaffView } from './feedba
  * A controller of its own on the `/portal` path, wired by {@link PortalFeedbackModule}, rather than
  * a method on `PortalController`: it shares no state with the existing portal reads, and keeping it
  * self-contained keeps this slice's files disjoint from the sibling portal slices. The two routes
- * carry different capabilities on purpose — the client *write* is `client_projection.read`, the one
- * capability every client role holds; the staff *read* is `client_member.manage`, which no client
+ * carry different capabilities on purpose — the client *write* is `approval.decide` (as a ceiling),
+ * which client admin, reviewer and member hold and a read-only client viewer does not; the staff *read* is `client_member.manage`, which no client
  * role can exercise at audience `internal`. `CapabilityGuard` refuses a role without the annotated
  * capability before the handler runs; the object-level decision (which deliverable, whose client)
  * is {@link PortalFeedbackService}'s.
@@ -24,12 +24,13 @@ export class PortalFeedbackController {
   /**
    * `CL-03` — a client contact rates a published deliverable (1–5, optional comment).
    *
-   * `client_projection.read`, the client's one read/write key to the portal. The tenant and the
-   * author come from the session, never this body; the body carries only `rating` and `comment`.
-   * A re-submit revises the contact's own feedback in place.
+   * `approval.decide` as a role ceiling — the client acting on a deliverable — so a read-only
+   * client viewer is refused with 403 (audit F45); the service restates the check and scopes the
+   * object. The tenant and the author come from the session, never this body; the body carries only
+   * `rating` and `comment`. A re-submit revises the contact's own feedback in place.
    */
   @Post('deliverables/:deliverableId/feedback')
-  @RequireCapability('client_projection.read')
+  @RequireCapability(FEEDBACK_WRITE_CAPABILITY)
   @HttpCode(200)
   async submit(
     @Ctx() context: TenantContext,
@@ -48,7 +49,8 @@ export class PortalFeedbackController {
    *
    * On the `/portal` path but internal-only in effect: `authorize()` denies any client principal
    * the `internal` audience this read carries, so a client admin who holds `client_member.manage`
-   * for their own org still cannot read every contact's feedback here.
+   * for their own org still cannot read every contact's feedback here. Staff without org-wide
+   * scope must also be on the deliverable's project (audit F44).
    */
   @Get('deliverables/:deliverableId/feedback')
   @RequireCapability('client_member.manage')

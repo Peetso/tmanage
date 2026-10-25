@@ -1,3 +1,4 @@
+import { hasCapability, isClientRole } from '@tmanage/domain';
 import type { ApiClient } from './client';
 
 /**
@@ -5,8 +6,9 @@ import type { ApiClient } from './client';
  * optional comment on a *published* deliverable, and the staff read of the feedback left on one.
  *
  * A module of its own, not folded into `portal.ts`, so this slice's files stay disjoint from the
- * sibling portal reads. The client write is behind `client_projection.read` — the one key a client
- * role holds — and the staff read behind `client_member.manage`, which a client can never exercise.
+ * sibling portal reads. The client write is behind `approval.decide` as a role ceiling — client
+ * admin, reviewer and member hold it, a read-only client viewer does not — and the staff read behind
+ * `client_member.manage`, which a client can never exercise.
  * The tenant is the slug in the path and the *author* is the authenticated principal, never a value
  * this client supplies. A deliverable that is unpublished, in another studio, or another client's is
  * a 404 the shared client turns into an error — never a signal that the deliverable is real.
@@ -39,6 +41,15 @@ export interface SubmitPortalDeliverableFeedbackInput {
   readonly comment?: string;
 }
 
+/**
+ * May this signed-in client role leave feedback? Mirrors the API's write gate (`approval.decide` as
+ * a client role ceiling), so the form is not offered to a read-only client viewer who would only be
+ * refused. Never an authorization — the API decides every request.
+ */
+export function canSubmitDeliverableFeedback(role: string | undefined): boolean {
+  return role !== undefined && isClientRole(role) && hasCapability(role, 'approval.decide');
+}
+
 function path(organizationSlug: string, deliverableId: string): string {
   return `/v1/organizations/${encodeURIComponent(organizationSlug)}/portal/deliverables/${encodeURIComponent(
     deliverableId,
@@ -46,7 +57,7 @@ function path(organizationSlug: string, deliverableId: string): string {
 }
 
 /**
- * A client contact leaves or revises their feedback on a published deliverable. `client_projection.read`.
+ * A client contact leaves or revises their feedback on a published deliverable. `approval.decide`.
  * A second submit revises the contact's own feedback in place, so this is safe to call again.
  */
 export async function submitPortalDeliverableFeedback(

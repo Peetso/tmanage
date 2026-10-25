@@ -2,7 +2,11 @@ import { and, asc, eq, gt, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import type { ClientRole } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { type MEMBERSHIP_STATUS, clientMemberships } from '../../common/database/schema.js';
+import {
+  type MEMBERSHIP_STATUS,
+  clientMemberships,
+  memberships,
+} from '../../common/database/schema.js';
 import type { ClientMembershipRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -173,6 +177,33 @@ export class ClientMembershipsRepository {
       )
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  /**
+   * Does this user hold an active **internal** membership in the acting tenant? (audit F27)
+   *
+   * A person with both an active internal and an active client membership in one tenant cannot be
+   * resolved to a single principal (`principal_kind_ambiguous`), which locks them out of the whole
+   * tenant. So no client membership may be created for, or activated on, such a user. Tenant-scoped
+   * by `organization_id`; answers only yes/no and returns nothing about the membership.
+   */
+  async userHasActiveInternalMembership(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: memberships.id })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.userId, userId),
+          eq(memberships.status, 'active'),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 
   async requireById(

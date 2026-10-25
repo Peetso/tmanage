@@ -276,6 +276,11 @@ export class ClientsController {
     };
   }
 
+  /**
+   * Staff-only: a raw `userId` invite. A client admin is refused here (403) and invites through the
+   * email-bound `POST portal/client-members` instead; a user who is staff in this tenant is a 404
+   * (audit F27).
+   */
   @Post('client-memberships')
   @RequireCapability('client_member.manage')
   @HttpCode(201)
