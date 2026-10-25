@@ -1,8 +1,13 @@
-import { and, asc, count, eq, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { messageReactions } from '../../common/database/schema.js';
+import { messageReactions, messages } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+
+/** One emoji's count on one of several messages (C5 batched read). */
+export interface MessageReactionCount extends ReactionCount {
+  readonly messageId: string;
+}
 
 /** One emoji's count on a message. */
 export interface ReactionCount {
@@ -113,5 +118,77 @@ export class MessageReactionsRepository {
         ),
       );
     return rows.map((row) => row.emoji);
+  }
+  /**
+   * C5 (batched read): which of `messageIds` are messages of `conversationId` in this studio. The
+   * batch tally answers only for these, so an id from another channel is dropped, never tallied.
+   */
+  async messageIdsInConversation(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    conversationId: string,
+    messageIds: readonly string[],
+  ): Promise<readonly string[]> {
+    if (messageIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({ id: messages.id })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.organizationId, context.organizationId),
+          eq(messages.conversationId, conversationId),
+          inArray(messages.id, [...messageIds]),
+        ),
+      );
+    return rows.map((row) => row.id);
+  }
+
+  /** C5: the tallies of several messages in one query, message then emoji order. */
+  async tallyMany(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    messageIds: readonly string[],
+  ): Promise<readonly MessageReactionCount[]> {
+    if (messageIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({
+        messageId: messageReactions.messageId,
+        emoji: messageReactions.emoji,
+        count: count(),
+      })
+      .from(messageReactions)
+      .where(
+        and(
+          eq(messageReactions.organizationId, context.organizationId),
+          inArray(messageReactions.messageId, [...messageIds]),
+        ),
+      )
+      .groupBy(messageReactions.messageId, messageReactions.emoji)
+      .orderBy(asc(messageReactions.messageId), asc(messageReactions.emoji));
+    return rows.map((row) => ({
+      messageId: row.messageId,
+      emoji: row.emoji,
+      count: Number(row.count),
+    }));
+  }
+
+  /** C5: the acting membership's own reactions on several messages, in one query. */
+  async mineMany(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    messageIds: readonly string[],
+    membershipId: string,
+  ): Promise<readonly { readonly messageId: string; readonly emoji: string }[]> {
+    if (messageIds.length === 0) return [];
+    return tenantDrizzle(runner)
+      .select({ messageId: messageReactions.messageId, emoji: messageReactions.emoji })
+      .from(messageReactions)
+      .where(
+        and(
+          eq(messageReactions.organizationId, context.organizationId),
+          inArray(messageReactions.messageId, [...messageIds]),
+          eq(messageReactions.membershipId, membershipId),
+        ),
+      );
   }
 }

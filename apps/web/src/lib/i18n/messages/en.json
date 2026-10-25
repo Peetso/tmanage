@@ -11039,6 +11039,8 @@
   "DirectMessageScreen.notFound": "This conversation does not exist, or you are no longer part of it.",
   "DirectMessageScreen.noAnswer": "The server did not answer. Try again.",
   "DirectMessageScreen.genericError": "Something went wrong. Try again.",
+  "DirectMessageScreen.online": "Online",
+  "DirectMessageScreen.inThisConversation": "In this conversation",
   "MentionPicker.button": "Mention someone",
   "ChangeRoleDialog.title": "Change role",
   "ChangeRoleDialog.lede": "Pick a new role for {name}. The change applies right away.",

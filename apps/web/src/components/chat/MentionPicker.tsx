@@ -12,6 +12,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import type { ApiClient } from '../../lib/api/client';
 import { searchMentionCandidates } from '../../lib/api/mention-candidates';
+import type { MentionCandidate } from '../../lib/api/mention-candidates';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { initialsOf } from './channel-browser';
 import './chat-shell.css';
@@ -124,10 +125,19 @@ export interface MentionPickerProps {
   readonly activeIndex: number;
   readonly onPick: (option: MentionOption) => void;
   readonly onHover: (index: number) => void;
+  /** C5: the heading over the "others" group — a direct message says "In this conversation". */
+  readonly othersHeading?: string;
 }
 
 /** The floating list itself. Focus stays in the composer; the active option is its active descendant. */
-export function MentionPicker({ id, options, activeIndex, onPick, onHover }: MentionPickerProps) {
+export function MentionPicker({
+  id,
+  options,
+  activeIndex,
+  onPick,
+  onHover,
+  othersHeading,
+}: MentionPickerProps) {
   const tOr = useTOr();
   const headingProject = useId();
   const headingOthers = useId();
@@ -181,7 +191,8 @@ export function MentionPicker({ id, options, activeIndex, onPick, onHover }: Men
         {others.length > 0 ? (
           <ul role="group" aria-labelledby={headingOthers} className="tm-mention__items">
             <li role="presentation" id={headingOthers} className="tm-mention__group">
-              {tOr('MentionPicker.othersWhoCanSee', 'Others who can see this channel')}
+              {othersHeading ??
+                tOr('MentionPicker.othersWhoCanSee', 'Others who can see this channel')}
             </li>
             {others.map(renderOption)}
           </ul>
@@ -204,6 +215,22 @@ export interface MentionComposerOptions {
   /** People on the channel's project; everyone else who can read the channel is "others". */
   readonly projectMemberIds?: ReadonlySet<string>;
   readonly subtitleOf?: (userId: string, group: MentionGroup) => string | undefined;
+  /**
+   * C5: a fixed set of people to offer instead of asking the channel's mention-candidates route —
+   * a direct message has no channel, and the one person in it is already known. Filtered here on
+   * the letters typed after the `@`.
+   */
+  readonly localCandidates?: readonly MentionCandidate[];
+}
+
+/** C5: the local candidates whose name contains the letters typed after the `@`. */
+export function filterLocalCandidates(
+  candidates: readonly MentionCandidate[],
+  query: string,
+): readonly MentionCandidate[] {
+  const needle = query.trim().toLocaleLowerCase();
+  if (needle === '') return candidates;
+  return candidates.filter((row) => row.displayName.toLocaleLowerCase().includes(needle));
 }
 
 /**
@@ -219,18 +246,21 @@ export function useMentionComposer(options: MentionComposerOptions) {
   const dismissedAt = useRef<number | null>(null);
   const picked = useRef(new Map<string, string>());
 
+  const { projectMemberIds, subtitleOf, localCandidates } = options;
   const candidates = useQuery({
     queryKey: ['mention-candidates', organizationSlug, conversationId, trigger?.query ?? ''],
     queryFn: () =>
       searchMentionCandidates(api, organizationSlug, conversationId, trigger?.query ?? ''),
-    enabled: trigger !== null,
+    enabled: trigger !== null && localCandidates === undefined,
     staleTime: 30_000,
   });
 
-  const { projectMemberIds, subtitleOf } = options;
   const list = useMemo<readonly MentionOption[]>(() => {
     if (trigger === null) return [];
-    const rows = candidates.data ?? [];
+    const rows =
+      localCandidates === undefined
+        ? (candidates.data ?? [])
+        : filterLocalCandidates(localCandidates, trigger.query);
     const withGroup = rows.map((row) => {
       const group: MentionGroup = projectMemberIds?.has(row.userId) ? 'project' : 'others';
       const subtitle = subtitleOf?.(row.userId, group);
@@ -244,7 +274,7 @@ export function useMentionComposer(options: MentionComposerOptions) {
       ...withGroup.filter((row) => row.group === 'project'),
       ...withGroup.filter((row) => row.group === 'others'),
     ];
-  }, [candidates.data, trigger, projectMemberIds, subtitleOf]);
+  }, [candidates.data, trigger, projectMemberIds, subtitleOf, localCandidates]);
 
   const open = trigger !== null && list.length > 0;
 

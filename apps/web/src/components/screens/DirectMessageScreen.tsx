@@ -2,21 +2,29 @@
 
 import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton, StatusDot } from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ChatSidebar } from '../chat/ChatSidebar';
 import { initialsOf } from '../chat/channel-browser';
-import { memberRoleLabel } from '../chat/MentionPicker';
+import {
+  MentionButton,
+  MentionPicker,
+  decodeMentions,
+  memberRoleLabel,
+  useMentionComposer,
+} from '../chat/MentionPicker';
+import type { MentionCandidate } from '../../lib/api/mention-candidates';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { newCorrelationId } from '../../lib/api/client';
 import type { ApiClient } from '../../lib/api/client';
 import {
   MAX_DIRECT_PAGE,
   directKeys,
-  listDirectConversations,
+  fetchDirectConversations,
   listDirectMessages,
   markDirectConversationRead,
   postDirectMessage,
+  type DirectConversationSummary,
   type DirectMessageSummary,
 } from '../../lib/api/direct-conversations';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -68,8 +76,9 @@ export function DirectMessageScreen({
   const tOr = useTOr();
 
   const list = useQuery({
-    queryKey: directKeys.list(organizationSlug),
-    queryFn: () => listDirectConversations(api, organizationSlug),
+    queryKey: directKeys.overview(organizationSlug),
+    queryFn: () => fetchDirectConversations(api, organizationSlug),
+    select: (overview) => overview.conversations,
   });
   const conversation = (list.data ?? []).find((row) => row.id === directConversationId);
 
@@ -107,6 +116,27 @@ export function DirectMessageScreen({
       ? otherName
       : (memberById.get(userId)?.displayName ?? userId.slice(0, 8));
 
+  /** A stored `@<userId>` token's name, for the people this conversation can name. */
+  const nameOfKnown = (userId: string): string | undefined =>
+    userId === conversation?.otherUserId && otherName !== ''
+      ? otherName
+      : memberById.get(userId)?.displayName;
+
+  // C5: the @ picker inside a direct message offers the one other person in it.
+  const mentionCandidates = useMemo<readonly MentionCandidate[]>(
+    () =>
+      conversation && otherName !== ''
+        ? [
+            {
+              userId: conversation.otherUserId,
+              displayName: otherName,
+              mention: `@${conversation.otherUserId}`,
+            },
+          ]
+        : [],
+    [conversation, otherName],
+  );
+
   const rows = useMemo(() => messages.data ?? [], [messages.data]);
   const latest = rows.length > 0 ? (rows[rows.length - 1] as DirectMessageSummary).sequenceNo : 0;
 
@@ -137,12 +167,11 @@ export function DirectMessageScreen({
     ...(reconnectBaseMs === undefined ? {} : { reconnectBaseMs }),
   });
 
-  const role = conversation
-    ? memberRoleLabel(memberById.get(conversation.otherUserId)?.role, tOr)
-    : undefined;
-  const subtitle = [tOr('DirectMessageScreen.directMessage', 'Direct message'), role]
-    .filter(Boolean)
-    .join(' · ');
+  const subtitle = conversation
+    ? directSubtitle(conversation, memberById.get(conversation.otherUserId)?.role, tOr)
+    : '';
+  const online = conversation?.otherOnline === true;
+  const onlineWord = tOr('DirectMessageScreen.online', 'Online');
 
   // F3. The signed-in person is the DM's other participant: whoever wrote here who is not them.
   const selfUserId = rows.find(
@@ -174,7 +203,7 @@ export function DirectMessageScreen({
       organizationName={organizationName}
       activeNavigationId="chat"
       title={otherName !== '' ? otherName : tOr('DirectMessageScreen.fallback', 'Direct message')}
-      description={conversation ? subtitle : undefined}
+      description={conversation ? (online ? `${subtitle} · ${onlineWord}` : subtitle) : undefined}
       contextRail={
         <ChatSidebar
           api={api}
@@ -196,7 +225,17 @@ export function DirectMessageScreen({
           ) : null}
           <span className="tm-dm__header-text">
             <span className="tm-dm__header-name">{otherName}</span>
-            {conversation ? <span className="tm-dm__header-sub">{subtitle}</span> : null}
+            {conversation ? (
+              <span className="tm-dm__header-sub">
+                {subtitle}
+                {online ? (
+                  <>
+                    {' · '}
+                    <StatusDot tone="live">{onlineWord}</StatusDot>
+                  </>
+                ) : null}
+              </span>
+            ) : null}
           </span>
         </div>
         {messages.isError ? (
@@ -273,7 +312,9 @@ export function DirectMessageScreen({
                           {formatTime(message.createdAt)}
                         </time>
                       </p>
-                      <p className="tm-dm__body tm-break">{message.body}</p>
+                      <p className="tm-dm__body tm-break">
+                        {decodeMentions(message.body, nameOfKnown)}
+                      </p>
                     </div>
                     <div className="tm-dm__actions">
                       <button
@@ -338,6 +379,7 @@ export function DirectMessageScreen({
             api={api}
             organizationSlug={organizationSlug}
             directConversationId={directConversationId}
+            mentionCandidates={mentionCandidates}
             placeholder={
               otherName !== ''
                 ? tOr('DirectMessageScreen.messagePrefix', 'Message {name}').replace(
@@ -371,17 +413,28 @@ function DirectComposer({
   organizationSlug,
   directConversationId,
   placeholder,
+  mentionCandidates,
 }: {
   api: ApiClient;
   organizationSlug: string;
   directConversationId: string;
   placeholder: string;
+  mentionCandidates: readonly MentionCandidate[];
 }) {
   const tOr = useTOr();
   const queries = useQueryClient();
   const [draft, setDraft] = useState('');
   const [attemptId, setAttemptId] = useState<string | undefined>(undefined);
   const controlRef = useRef<HTMLTextAreaElement | null>(null);
+  const mention = useMentionComposer({
+    api,
+    organizationSlug,
+    conversationId: directConversationId,
+    draft,
+    setDraft,
+    controlRef,
+    localCandidates: mentionCandidates,
+  });
 
   const send = useMutation({
     mutationFn: (input: { body: string; clientGeneratedId: string }) =>
@@ -397,7 +450,7 @@ function DirectComposer({
   });
 
   function performSend() {
-    const body = draft.trim();
+    const body = mention.encode(draft).trim();
     if (body === '' || send.isPending) return;
     // Reuse the attempt id on a retry of a failed send; mint one otherwise.
     const clientGeneratedId = attemptId ?? newCorrelationId();
@@ -411,6 +464,7 @@ function DirectComposer({
   }
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mention.onKeyDown(event)) return;
     if (
       event.key === 'Enter' &&
       !event.shiftKey &&
@@ -422,18 +476,6 @@ function DirectComposer({
       event.preventDefault();
       performSend();
     }
-  }
-
-  /** The round "@" button: a direct message has no one else to mention, so it types the sign. */
-  function insertAt() {
-    const control = controlRef.current;
-    const caret = control?.selectionStart ?? draft.length;
-    const next = `${draft.slice(0, caret)}@${draft.slice(caret)}`;
-    setDraft(next);
-    requestAnimationFrame(() => {
-      control?.focus();
-      control?.setSelectionRange(caret + 1, caret + 1);
-    });
   }
 
   return (
@@ -449,25 +491,37 @@ function DirectComposer({
         maxLength={16000}
         value={draft}
         placeholder={placeholder}
-        onChange={(event) => setDraft(event.target.value)}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          mention.sync(
+            event.target.value,
+            event.target.selectionStart ?? event.target.value.length,
+          );
+        }}
         onKeyDown={onKeyDown}
+        onBlur={mention.close}
+        {...mention.controlProps}
       />
+      {mention.open ? (
+        <MentionPicker
+          id={mention.listboxId}
+          options={mention.options}
+          activeIndex={mention.activeIndex}
+          onPick={mention.pick}
+          onHover={mention.setActiveIndex}
+          othersHeading={tOr('DirectMessageScreen.inThisConversation', 'In this conversation')}
+        />
+      ) : null}
       {send.isError ? (
         <InlineAlert tone="danger" title={tOr('DirectMessageScreen.notSent', 'Not sent')} live>
           {describe(send.error, tOr)}
         </InlineAlert>
       ) : null}
       <div className="tm-dm__bar">
-        <button
-          type="button"
-          className="tm-chat-side__round"
-          aria-label={tOr('DirectMessageScreen.at', 'Type @')}
-          title={tOr('DirectMessageScreen.at', 'Type @')}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={insertAt}
-        >
-          <span aria-hidden="true">@</span>
-        </button>
+        <MentionButton
+          onClick={mention.openAtCaret}
+          label={tOr('DirectMessageScreen.at', 'Type @')}
+        />
         <button
           type="submit"
           className="tm-chat-side__send"
@@ -483,6 +537,24 @@ function DirectComposer({
       </div>
     </form>
   );
+}
+
+/**
+ * "Direct message · <job title or role>" for a team member, "Direct message · Client · <company>"
+ * for a client participant (C5). A job title the person set wins over their access role, because
+ * it says what they do; a client is said as a client with their company.
+ */
+export function directSubtitle(
+  conversation: DirectConversationSummary,
+  memberRole: string | undefined,
+  tOr: (key: string, en: string) => string,
+): string {
+  const lead = tOr('DirectMessageScreen.directMessage', 'Direct message');
+  const company = conversation.otherClientCompanyName?.trim();
+  if (company) return [lead, tOr('MentionPicker.client', 'Client'), company].join(' · ');
+  const title = conversation.otherJobTitle?.trim();
+  const second = title ? title : memberRoleLabel(memberRole, tOr);
+  return [lead, second].filter(Boolean).join(' · ');
 }
 
 function describe(error: unknown, tOr: (key: string, en: string) => string): string {

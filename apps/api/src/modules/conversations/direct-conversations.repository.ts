@@ -5,9 +5,12 @@ import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
 import {
   clientMemberships,
+  clientOrganizations,
   directConversations,
   directMessages,
+  memberProfiles,
   memberships,
+  messages,
   projectClients,
   projectMemberships,
   users,
@@ -45,6 +48,26 @@ function isDuplicate(error: unknown, index: string): boolean {
   if (unwrapped.code !== ER_DUP_ENTRY) return false;
   return typeof unwrapped.sqlMessage === 'string' && unwrapped.sqlMessage.includes(index);
 }
+
+/**
+ * C5 — what a DM header and list say about the other person, beyond the name: their job title in
+ * this studio (0215), the client company they belong to (client people only), and whether they
+ * did something here in the last {@link ONLINE_WINDOW_MINUTES} minutes.
+ */
+export interface DirectParticipantDetails {
+  readonly displayName: string | null;
+  readonly jobTitle: string | null;
+  readonly clientCompanyName: string | null;
+  readonly online: boolean;
+}
+
+/**
+ * "Online" means activity in this studio within this many minutes. There is no presence socket
+ * state the API can read, so activity is a message the person posted here (a channel message or
+ * a direct message) — tenant-scoped on purpose: the cross-tenant session rows would say the
+ * person is active in some other studio, which is not this studio's business.
+ */
+export const ONLINE_WINDOW_MINUTES = 5;
 
 export class DirectConversationsRepository {
   /** What kind of active member `userId` is in this tenant, and which projects they reach. */
@@ -127,6 +150,89 @@ export class DirectConversationsRepository {
       .from(users)
       .where(inArray(users.id, [...userIds]));
     return new Map(rows.map((row) => [row.id, row.displayName]));
+  }
+
+  /** C5: name, job title, client company and recent activity for each of `userIds`. */
+  async participantDetails(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userIds: readonly string[],
+  ): Promise<ReadonlyMap<string, DirectParticipantDetails>> {
+    const ids = [...new Set(userIds)];
+    if (ids.length === 0) return new Map();
+    const db = tenantDrizzle(runner);
+    const recent = sql`current_timestamp(3) - interval ${ONLINE_WINDOW_MINUTES} minute`;
+
+    const names = await this.displayNames(runner, ids);
+    const titles = await db
+      .select({ userId: memberProfiles.userId, jobTitle: memberProfiles.jobTitle })
+      .from(memberProfiles)
+      .where(
+        and(
+          eq(memberProfiles.organizationId, context.organizationId),
+          inArray(memberProfiles.userId, ids),
+        ),
+      );
+    const companies = await db
+      .select({ userId: clientMemberships.userId, name: clientOrganizations.name })
+      .from(clientMemberships)
+      .innerJoin(
+        clientOrganizations,
+        and(
+          eq(clientOrganizations.organizationId, clientMemberships.organizationId),
+          eq(clientOrganizations.id, clientMemberships.clientOrganizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(clientMemberships.organizationId, context.organizationId),
+          inArray(clientMemberships.userId, ids),
+          eq(clientMemberships.status, 'active'),
+          or(
+            isNull(clientMemberships.expiresAt),
+            gt(clientMemberships.expiresAt, sql`current_timestamp(3)`),
+          ),
+        ),
+      )
+      .orderBy(asc(clientOrganizations.name));
+    const postedInChannels = await db
+      .selectDistinct({ userId: messages.authorUserId })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.organizationId, context.organizationId),
+          inArray(messages.authorUserId, ids),
+          gt(messages.createdAt, recent),
+        ),
+      );
+    const postedDirectly = await db
+      .selectDistinct({ userId: directMessages.authorUserId })
+      .from(directMessages)
+      .where(
+        and(
+          eq(directMessages.organizationId, context.organizationId),
+          inArray(directMessages.authorUserId, ids),
+          gt(directMessages.createdAt, recent),
+        ),
+      );
+
+    const titleOf = new Map(titles.map((row) => [row.userId, row.jobTitle]));
+    const companyOf = new Map<string, string>();
+    for (const row of companies) {
+      if (!companyOf.has(row.userId)) companyOf.set(row.userId, row.name);
+    }
+    const active = new Set([...postedInChannels, ...postedDirectly].map((row) => row.userId));
+    return new Map(
+      ids.map((id) => [
+        id,
+        {
+          displayName: names.get(id) ?? null,
+          jobTitle: titleOf.get(id) ?? null,
+          clientCompanyName: companyOf.get(id) ?? null,
+          online: active.has(id),
+        },
+      ]),
+    );
   }
 
   async findPair(

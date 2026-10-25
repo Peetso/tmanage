@@ -5,7 +5,10 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { DirectConversationRow, DirectMessageRow } from '../../common/database/schema.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { DuplicateDirectMessageError } from './direct-conversations.repository.js';
-import type { DirectConversationsRepository } from './direct-conversations.repository.js';
+import type {
+  DirectConversationsRepository,
+  DirectParticipantDetails,
+} from './direct-conversations.repository.js';
 
 /** The relation rule now lives in `@tmanage/domain` so the worker applies the same one. */
 export { mayDirectMessage };
@@ -35,6 +38,12 @@ export interface DirectConversationView {
   readonly id: string;
   readonly otherUserId: string;
   readonly otherDisplayName: string | null;
+  /** C5: the other person's job title in this studio (0215), or null when they set none. */
+  readonly otherJobTitle: string | null;
+  /** C5: the client company the other person belongs to — client people only, else null. */
+  readonly otherClientCompanyName: string | null;
+  /** C5: whether the other person posted anything in this studio in the last five minutes. */
+  readonly otherOnline: boolean;
   readonly lastMessageAt: string | null;
   readonly createdAt: string;
   /** The last sequence number handed out in this conversation (0 before the first message). */
@@ -135,11 +144,11 @@ export class DirectConversationsService {
       if (existing) return { row: existing, created: false };
       return this.repository.insertPair(tx, context, low, high);
     });
-    const names = await this.database.read(context, (runner) =>
-      this.repository.displayNames(runner, [otherUserId]),
+    const details = await this.database.read(context, (runner) =>
+      this.repository.participantDetails(runner, context, [otherUserId]),
     );
     return {
-      conversation: this.toView(result.row, context.userId, names),
+      conversation: this.toView(result.row, context.userId, details),
       created: result.created,
     };
   }
@@ -160,11 +169,12 @@ export class DirectConversationsService {
         const party = await this.repository.findParty(runner, context, other);
         if (mayDirectMessage(me, party)) visible.push(row);
       }
-      const names = await this.repository.displayNames(
+      const details = await this.repository.participantDetails(
         runner,
+        context,
         visible.map((row) => otherOf(row, context.userId) as string),
       );
-      return visible.map((row) => this.toView(row, context.userId, names));
+      return visible.map((row) => this.toView(row, context.userId, details));
     });
   }
 
@@ -301,13 +311,17 @@ export class DirectConversationsService {
   private toView(
     row: DirectConversationRow,
     userId: string,
-    names: ReadonlyMap<string, string>,
+    details: ReadonlyMap<string, DirectParticipantDetails>,
   ): DirectConversationView {
     const other = otherOf(row, userId) as string;
+    const about = details.get(other);
     return {
       id: row.id,
       otherUserId: other,
-      otherDisplayName: names.get(other) ?? null,
+      otherDisplayName: about?.displayName ?? null,
+      otherJobTitle: about?.jobTitle ?? null,
+      otherClientCompanyName: about?.clientCompanyName ?? null,
+      otherOnline: about?.online ?? false,
       lastMessageAt: row.lastMessageAt === null ? null : row.lastMessageAt.toISOString(),
       createdAt: row.createdAt.toISOString(),
       ...readPositionOf(row, userId),

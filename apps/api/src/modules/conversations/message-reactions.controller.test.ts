@@ -6,6 +6,10 @@ import type { ConversationRow, MessageRow } from '../../common/database/schema.j
 import { ConversationsRepository } from './conversations.repository.js';
 import { MessageReactionsRepository } from './message-reactions.repository.js';
 import { MessageReactionsService } from './message-reactions.service.js';
+import {
+  MAX_BATCH_MESSAGE_IDS,
+  MessageReactionsController,
+} from './message-reactions.controller.js';
 
 /**
  * x246 refusal: reacting on a message in another tenant's conversation returns 404 — no leak,
@@ -121,5 +125,108 @@ describe('message reactions refuse a cross-tenant target without leaking or writ
     await expect(attempt).rejects.toBeInstanceOf(ApiError);
     await expect(attempt).rejects.toMatchObject({ status: 404 });
     expect(reactions.addCalls).toBe(0);
+  });
+});
+
+describe('C5 — the batched tally reads many messages of one channel in one request', () => {
+  class Reachable extends ConversationsRepository {
+    override async findById(
+      _runner: unknown,
+      _context: TenantContext,
+      conversationId: string,
+    ): Promise<ConversationRow | null> {
+      return conversationRow(conversationId);
+    }
+  }
+
+  class Stored extends MessageReactionsRepository {
+    tallied: (readonly string[])[] = [];
+    override async messageIdsInConversation(
+      _runner: unknown,
+      _context: TenantContext,
+      _conversationId: string,
+      messageIds: readonly string[],
+    ): Promise<readonly string[]> {
+      return messageIds.filter((id) => id !== 'msg-elsewhere');
+    }
+    override async tallyMany(_runner: unknown, _context: TenantContext, ids: readonly string[]) {
+      this.tallied.push(ids);
+      return [
+        { messageId: 'msg-1', emoji: '❤️', count: 3 },
+        { messageId: 'msg-1', emoji: '\u{2713}', count: 1 },
+        { messageId: 'msg-elsewhere', emoji: '❤️', count: 9 },
+      ];
+    }
+    override async mineMany() {
+      return [{ messageId: 'msg-1', emoji: '❤️' }];
+    }
+  }
+
+  function batch(conversations: ConversationsRepository, reactions: MessageReactionsRepository) {
+    const database = {
+      read: <T>(_context: TenantContext, work: (db: unknown) => Promise<T>) => work({}),
+    } as unknown as TenantDatabase;
+    return new MessageReactionsService(database, conversations, reactions);
+  }
+
+  it('answers every asked message of the channel in order, and drops another channel’s', async () => {
+    const reactions = new Stored();
+    const service = batch(new Reachable(), reactions);
+    const tallies = await service.tallyMany(CONTEXT, PRINCIPAL, OTHER_CONVERSATION, [
+      'msg-2',
+      'msg-1',
+      'msg-elsewhere',
+      'msg-1',
+    ]);
+    expect(reactions.tallied).toEqual([['msg-2', 'msg-1']]);
+    expect(tallies).toEqual([
+      { messageId: 'msg-2', reactions: [] },
+      {
+        messageId: 'msg-1',
+        reactions: [
+          { emoji: '❤️', count: 3, reacted: true },
+          { emoji: '\u{2713}', count: 1, reacted: false },
+        ],
+      },
+    ]);
+  });
+
+  it('is a 404 for a conversation outside the tenant, reading no reactions', async () => {
+    class OtherTenant extends ConversationsRepository {
+      override async findById(): Promise<ConversationRow | null> {
+        return null;
+      }
+    }
+    const reactions = new Stored();
+    const attempt = batch(new OtherTenant(), reactions).tallyMany(
+      CONTEXT,
+      PRINCIPAL,
+      OTHER_CONVERSATION,
+      ['msg-1'],
+    );
+    await expect(attempt).rejects.toMatchObject({ status: 404 });
+    expect(reactions.tallied).toEqual([]);
+  });
+
+  it('refuses an empty or oversized id list with 400 before the service runs', async () => {
+    let called = 0;
+    const controller = new MessageReactionsController({
+      tallyMany: async () => {
+        called += 1;
+        return [];
+      },
+    } as unknown as MessageReactionsService);
+    await expect(
+      controller.tallyMany(CONTEXT, PRINCIPAL, OTHER_CONVERSATION, ''),
+    ).rejects.toMatchObject({ status: 400 });
+    const tooMany = Array.from({ length: MAX_BATCH_MESSAGE_IDS + 1 }, (_, i) => `m-${i}`).join(',');
+    await expect(
+      controller.tallyMany(CONTEXT, PRINCIPAL, OTHER_CONVERSATION, tooMany),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(called).toBe(0);
+    await expect(
+      controller.tallyMany(CONTEXT, PRINCIPAL, OTHER_CONVERSATION, 'msg-1, msg-2'),
+    ).resolves.toEqual({ tallies: [] });
+    expect(called).toBe(1);
   });
 });

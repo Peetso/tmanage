@@ -14,6 +14,12 @@ export interface DirectConversationSummary {
   readonly id: string;
   readonly otherUserId: string;
   readonly otherDisplayName: string | null;
+  /** C5: the other person's job title in this studio, when they set one. */
+  readonly otherJobTitle?: string | null;
+  /** C5: the client company of a client participant; null for a team member. */
+  readonly otherClientCompanyName?: string | null;
+  /** C5: whether the other person posted in this studio in the last five minutes. */
+  readonly otherOnline?: boolean;
   readonly lastMessageAt: string | null;
   readonly createdAt: string;
   readonly lastSequenceNo: number;
@@ -48,10 +54,29 @@ export async function listDirectConversations(
   client: ApiClient,
   organizationSlug: string,
 ): Promise<readonly DirectConversationSummary[]> {
-  const { data } = await client.request<{ conversations?: readonly DirectConversationSummary[] }>({
+  return (await fetchDirectConversations(client, organizationSlug)).conversations;
+}
+
+/** C5: the list plus the caller's own user id, which "New message" leaves out of its lists. */
+export interface DirectConversationsOverview {
+  readonly conversations: readonly DirectConversationSummary[];
+  readonly viewerUserId: string | null;
+}
+
+export async function fetchDirectConversations(
+  client: ApiClient,
+  organizationSlug: string,
+): Promise<DirectConversationsOverview> {
+  const { data } = await client.request<{
+    conversations?: readonly DirectConversationSummary[];
+    viewerUserId?: unknown;
+  }>({
     path: base(organizationSlug),
   });
-  return Array.isArray(data?.conversations) ? data.conversations : [];
+  return {
+    conversations: Array.isArray(data?.conversations) ? data.conversations : [],
+    viewerUserId: typeof data?.viewerUserId === 'string' ? data.viewerUserId : null,
+  };
 }
 
 /** Create-or-get the conversation with `userId`. The same row comes back on a second call. */
@@ -121,6 +146,9 @@ export async function markDirectConversationRead(
 
 export const directKeys = {
   list: (organizationSlug: string) => ['direct-conversations', organizationSlug] as const,
+  /** C5: the list with the viewer's id — under `list`, so invalidating the list refreshes it. */
+  overview: (organizationSlug: string) =>
+    ['direct-conversations', organizationSlug, 'overview'] as const,
   messages: (organizationSlug: string, directConversationId: string) =>
     ['direct-messages', organizationSlug, directConversationId] as const,
 };

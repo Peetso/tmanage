@@ -50,7 +50,10 @@ function fixture(current: DirectConversationRow) {
     findParty: async (_r: unknown, _c: unknown, id: string) => internal(id),
     findById: async () => state,
     listForUser: async () => [state],
-    displayNames: async () => new Map([[OTHER, 'Bea']]),
+    participantDetails: async () =>
+      new Map([
+        [OTHER, { displayName: 'Bea', jobTitle: null, clientCompanyName: null, online: false }],
+      ]),
     markRead: async (_r: unknown, _c: unknown, id: string, side: string, upTo: number) => {
       calls.markRead.push([id, side, upTo]);
       state = { ...state, userLowLastReadSequenceNo: Math.min(upTo, state.nextSequenceNo - 1) };

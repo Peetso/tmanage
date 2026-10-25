@@ -1198,21 +1198,37 @@ describe('A16 chat basics — members panel, inline edit, reactions', () => {
   it('draws used reactions as pills with counts and toggles the member own reaction', async () => {
     const { client, calls } = clientOver(
       channelHandler({
-        reactions: (call) =>
-          call.url.includes('/messages/msg-1/')
-            ? json({
-                messageId: 'msg-1',
-                reactions: [
-                  { emoji: '❤️', count: 3, reacted: true },
-                  { emoji: '\u{2713}', count: 2, reacted: false },
-                ],
-              })
-            : json({ messageId: 'other', reactions: [] }),
+        reactions: (call) => {
+          const msg1 = {
+            messageId: 'msg-1',
+            reactions: [
+              { emoji: '❤️', count: 3, reacted: true },
+              { emoji: '\u{2713}', count: 2, reacted: false },
+            ],
+          };
+          // C5: the pills are read in one batched request for the whole channel.
+          if (call.url.includes('/reactions?messageIds=')) {
+            const ids = decodeURIComponent(call.url.split('messageIds=')[1] ?? '').split(',');
+            return json({
+              tallies: ids.map((id) => (id === 'msg-1' ? msg1 : { messageId: id, reactions: [] })),
+            });
+          }
+          return call.url.includes('/messages/msg-1/')
+            ? json(msg1)
+            : json({ messageId: 'other', reactions: [] });
+        },
       }),
     );
     renderChannel(client);
 
     const heart = await screen.findByRole('button', { name: 'Heart, 3' });
+    const reads = calls.filter(
+      (call) =>
+        (call.method === undefined || call.method === 'GET') && call.url.includes('/reactions'),
+    );
+    expect(reads.length).toBe(1);
+    expect(reads[0]?.url).toContain('/conversations/');
+    expect(reads[0]?.url).toContain('/reactions?messageIds=');
     expect(heart).toHaveAttribute('aria-pressed', 'true');
     const check = screen.getByRole('button', { name: 'Done, 2' });
     expect(check).toHaveAttribute('aria-pressed', 'false');

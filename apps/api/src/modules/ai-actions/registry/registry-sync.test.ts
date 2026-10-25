@@ -74,8 +74,9 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  A11 (0224): +4 ops, GET .../profile, PATCH /v1/organizations/:orgSlug, PUT/DELETE .../logo.
  *  A9 (0222): +2 ops, GET .../projects/:projectId/milestone-plan and DELETE .../milestones/:id.
  *  B4: +1 op, PATCH .../documents/:documentId (rename, optimistic on updatedAt).
- *  B3: +2 ops, GET/PATCH .../file-download-policy (downloads before a virus scan, owner-only write). */
-const EXPECTED_ROUTE_COUNT = 782;
+ *  B3: +2 ops, GET/PATCH .../file-download-policy (downloads before a virus scan, owner-only write).
+ *  C5: +1 op, GET .../conversations/:conversationId/reactions (batched reaction tallies). */
+const EXPECTED_ROUTE_COUNT = 783;
 
 interface LiveRoute {
   readonly method: string;

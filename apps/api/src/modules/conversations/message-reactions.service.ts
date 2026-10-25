@@ -122,6 +122,57 @@ export class MessageReactionsService {
     return this.buildTally(context, messageId);
   }
 
+  /**
+   * C5 — the tallies of several messages of one conversation in one round trip, so a channel
+   * reads its reaction pills with one request instead of one per message. The conversation gate
+   * runs once (`conversation.read`); ids that are not messages of this conversation are dropped
+   * rather than answered, so the batch never says anything about another channel's message.
+   * Answers in the order asked, a message without reactions with an empty list.
+   */
+  async tallyMany(
+    context: TenantContext,
+    principal: Principal,
+    conversationId: string,
+    messageIds: readonly string[],
+  ): Promise<readonly MessageReactionTallyView[]> {
+    const conversation = await this.database.read(context, (runner) =>
+      this.conversations.findById(runner, context, conversationId),
+    );
+    if (
+      !conversation ||
+      !(await this.mayReach(context, principal, conversation, 'conversation.read'))
+    ) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    const asked = [...new Set(messageIds)];
+    const { inConversation, counts, mine } = await this.database.read(context, async (runner) => {
+      const ids = await this.reactions.messageIdsInConversation(
+        runner,
+        context,
+        conversationId,
+        asked,
+      );
+      return {
+        inConversation: new Set(ids),
+        counts: await this.reactions.tallyMany(runner, context, ids),
+        mine: await this.reactions.mineMany(runner, context, ids, context.membershipId),
+      };
+    });
+    const reacted = new Set(mine.map((row) => `${row.messageId}|${row.emoji}`));
+    return asked
+      .filter((messageId) => inConversation.has(messageId))
+      .map((messageId) => ({
+        messageId,
+        reactions: counts
+          .filter((row) => row.messageId === messageId)
+          .map((row) => ({
+            emoji: row.emoji,
+            count: row.count,
+            reacted: reacted.has(`${messageId}|${row.emoji}`),
+          })),
+      }));
+  }
+
   // ── Internals ────────────────────────────────────────────────────────────
 
   private requireAllowed(emoji: string): void {

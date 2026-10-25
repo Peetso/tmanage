@@ -11040,6 +11040,8 @@
   "DirectMessageScreen.notFound": "هذه المحادثة غير موجودة، أو لم تعد طرفًا فيها.",
   "DirectMessageScreen.noAnswer": "لم يستجب الخادم. حاول مرة أخرى.",
   "DirectMessageScreen.genericError": "حدث خطأ ما. حاول مرة أخرى.",
+  "DirectMessageScreen.online": "متصل الآن",
+  "DirectMessageScreen.inThisConversation": "في هذه المحادثة",
   "ChangeRoleDialog.title": "تغيير الدور",
   "ChangeRoleDialog.lede": "‏اختر دورًا جديدًا ل{name}. يُطبَّق التغيير فورًا.",
   "ChangeRoleDialog.ledeLastOwner": "‏اختر دورًا جديدًا ل{name}.",

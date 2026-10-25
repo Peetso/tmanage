@@ -6,7 +6,7 @@ import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared
 import { useQuery } from '@tanstack/react-query';
 import type { ApiClient } from '../../lib/api/client';
 import { listChannelDirectory } from '../../lib/api/conversations';
-import { directKeys, listDirectConversations } from '../../lib/api/direct-conversations';
+import { directKeys, fetchDirectConversations } from '../../lib/api/direct-conversations';
 import type { DirectConversationSummary } from '../../lib/api/direct-conversations';
 import { listProjects } from '../../lib/api/projects';
 import { useTOr } from '../../lib/i18n/use-t-or';
@@ -55,8 +55,9 @@ export function ChatSidebar({
     queryFn: () => listProjects(api, organizationSlug),
   });
   const direct = useQuery({
-    queryKey: directKeys.list(organizationSlug),
-    queryFn: () => listDirectConversations(api, organizationSlug),
+    queryKey: directKeys.overview(organizationSlug),
+    queryFn: () => fetchDirectConversations(api, organizationSlug),
+    select: (overview) => overview.conversations,
   });
 
   const projectNames = useMemo(() => {

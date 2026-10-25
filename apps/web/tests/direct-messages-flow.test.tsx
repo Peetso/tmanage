@@ -167,7 +167,9 @@ describe('the DIRECT MESSAGES list', () => {
 });
 
 describe('a direct conversation', () => {
-  function dmHandler(overrides: { post?: Handler; messages?: Handler } = {}): Handler {
+  function dmHandler(
+    overrides: { post?: Handler; messages?: Handler; list?: Handler } = {},
+  ): Handler {
     return (call) => {
       if (call.url.includes('/read-state')) {
         return json({
@@ -193,6 +195,7 @@ describe('a direct conversation', () => {
         )(call);
       }
       if (call.url.includes('/direct-conversations')) {
+        if (overrides.list) return overrides.list(call);
         return json({ conversations: [dm({ unreadCount: 1, lastSequenceNo: 2 })] });
       }
       if (call.url.includes('/members')) {
@@ -331,9 +334,156 @@ describe('a direct conversation', () => {
       ),
     );
   });
+
+  function renderLina(client: ApiClient) {
+    render(
+      wrap(
+        <DirectMessageScreen
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          directConversationId="dm-lina"
+          client={client}
+          socketFactory={() => null}
+        />,
+      ),
+    );
+  }
+
+  it('says the job title and an Online state in the header (C5)', async () => {
+    const { client } = clientOver(
+      dmHandler({
+        list: () =>
+          json({
+            conversations: [dm({ otherJobTitle: 'Art director', otherOnline: true })],
+            viewerUserId: 'user-omar',
+          }),
+      }),
+    );
+    renderLina(client);
+
+    await waitFor(() =>
+      expect(document.querySelector('.tm-dm__header-sub')).toHaveTextContent(
+        'Direct message · Art director · Online',
+      ),
+    );
+    const dot = document.querySelector('.tm-dm__header-sub .tm-status-dot--live');
+    expect(dot).toHaveTextContent('Online');
+  });
+
+  it('says nothing about being online when the person was not active (C5)', async () => {
+    const { client } = clientOver(
+      dmHandler({
+        list: () => json({ conversations: [dm({ otherJobTitle: null, otherOnline: false })] }),
+      }),
+    );
+    renderLina(client);
+
+    await waitFor(() =>
+      expect(document.querySelector('.tm-dm__header-sub')).toHaveTextContent(
+        /^Direct message · Member$/,
+      ),
+    );
+    expect(screen.queryByText('Online')).not.toBeInTheDocument();
+  });
+
+  it('names a client participant’s company in the header (C5)', async () => {
+    const { client } = clientOver(
+      dmHandler({
+        list: () =>
+          json({
+            conversations: [
+              dm({
+                otherUserId: 'user-youssef',
+                otherDisplayName: 'Youssef Kamal',
+                otherClientCompanyName: 'Atlas Foods',
+              }),
+            ],
+          }),
+      }),
+    );
+    renderLina(client);
+
+    await waitFor(() =>
+      expect(document.querySelector('.tm-dm__header-sub')).toHaveTextContent(
+        /^Direct message · Client · Atlas Foods$/,
+      ),
+    );
+  });
+
+  it('offers the other person in the @ picker and sends the mention token (C5)', async () => {
+    const user = userEvent.setup();
+    const { client, calls } = clientOver(dmHandler());
+    renderLina(client);
+
+    const box = await screen.findByLabelText('Message Lina Samir');
+    await user.type(box, 'Thanks @Li');
+    const picker = await screen.findByRole('listbox', { name: 'People to mention' });
+    expect(
+      within(picker.parentElement as HTMLElement).getByText('In this conversation'),
+    ).toBeInTheDocument();
+    await user.click(within(picker).getByRole('option', { name: /Lina Samir/ }));
+    expect(box).toHaveValue('Thanks @Lina Samir ');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+
+    await waitFor(() =>
+      expect(calls.some((c) => c.method === 'POST' && c.url.includes('/messages'))).toBe(true),
+    );
+    const post = calls.find((c) => c.method === 'POST' && c.url.includes('/messages'));
+    expect((post?.body as { body: string }).body).toBe('Thanks @user-lina');
+    // No channel route is asked: the DM's one other person is already known.
+    expect(calls.some((c) => c.url.includes('/mention-candidates'))).toBe(false);
+  });
+
+  it('shows a stored mention token as the person’s name (C5)', async () => {
+    const { client } = clientOver(
+      dmHandler({
+        messages: () => json({ messages: [message(1, 'user-omar', 'Ping @user-lina please')] }),
+      }),
+    );
+    renderLina(client);
+
+    expect(await screen.findByText('Ping @Lina Samir please')).toBeInTheDocument();
+  });
 });
 
 describe('New message', () => {
+  it('leaves the signed-in person out of both lists (C5)', async () => {
+    const user = userEvent.setup();
+    const { client } = clientOver((call) => {
+      if (call.url.includes('/direct-conversations')) {
+        return json({ conversations: [], viewerUserId: 'user-me' });
+      }
+      if (call.url.includes('/members')) {
+        return json({
+          members: [
+            { userId: 'user-me', displayName: 'Yara Me', role: 'owner', status: 'active' },
+            { userId: 'user-yomna', displayName: 'Yomna Adel', role: 'member', status: 'active' },
+          ],
+          nextAfter: null,
+        });
+      }
+      return json({}, 404);
+    });
+    render(
+      wrap(
+        <NewMessageDialog
+          api={client}
+          organizationSlug="northstar"
+          organizationName="Northstar Studio"
+          onClose={() => {}}
+          onOpened={() => {}}
+        />,
+      ),
+    );
+
+    const dialog = screen.getByRole('dialog', { name: 'New message' });
+    await user.type(within(dialog).getByLabelText('To'), 'Y');
+    expect(await within(dialog).findByRole('button', { name: /Yomna Adel/ })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(within(dialog).queryByRole('button', { name: /Yara Me/ })).not.toBeInTheDocument(),
+    );
+  });
+
   it('lists your team and clients, and says the rule when a pair is refused', async () => {
     const user = userEvent.setup();
     const onOpened = vi.fn();

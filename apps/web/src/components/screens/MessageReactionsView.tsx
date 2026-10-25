@@ -7,6 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import {
   addMessageReaction,
   getMessageReactions,
+  getMessageReactionsBatched,
   removeMessageReaction,
   type MessageReactionTally,
 } from '../../lib/api/message-reactions';
@@ -90,7 +91,8 @@ export function useMessageReactionTally(
   const queryKey = ['message-reactions', organizationSlug, conversationId, messageId] as const;
   const tally = useQuery({
     queryKey,
-    queryFn: () => getMessageReactions(api, organizationSlug, conversationId, messageId),
+    // C5: read with the other messages on screen in one batched request, not one GET each.
+    queryFn: () => getMessageReactionsBatched(api, organizationSlug, conversationId, messageId),
     staleTime: 30_000,
   });
   const toggle = useMutation({
@@ -229,7 +231,7 @@ export function MessageReactionsView({
 
   const tally = useQuery({
     queryKey,
-    queryFn: () => getMessageReactions(api, organizationSlug, conversationId, messageId),
+    queryFn: () => getMessageReactionsBatched(api, organizationSlug, conversationId, messageId),
   });
 
   const toggle = useMutation({

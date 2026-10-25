@@ -6,6 +6,7 @@ import type {
   DirectConversationsRepository,
   DirectParty,
 } from './direct-conversations.repository.js';
+import { DirectConversationsController } from './direct-conversations.controller.js';
 import { DirectConversationsService, mayDirectMessage } from './direct-conversations.service.js';
 import { MentionCandidatesService } from './mention-candidates.controller.js';
 import type { MentionCandidatesRepository } from './mention-candidates.repository.js';
@@ -73,7 +74,21 @@ describe('DirectConversationsService', () => {
         inserted.push([low, high]);
         return { row: pair, created: true };
       },
-      displayNames: async () => new Map([['user-b', 'Bea']]),
+      listForUser: async () => [pair],
+      participantDetails: async (_r: unknown, _c: unknown, ids: readonly string[]) =>
+        new Map(
+          ids.map((id) => [
+            id,
+            id === 'user-b'
+              ? {
+                  displayName: 'Bea',
+                  jobTitle: 'Art director',
+                  clientCompanyName: 'Acme Ltd',
+                  online: true,
+                }
+              : { displayName: null, jobTitle: null, clientCompanyName: null, online: false },
+          ]),
+        ),
     } as unknown as DirectConversationsRepository;
     return { svc: new DirectConversationsService(database, repository), inserted };
   }
@@ -90,6 +105,28 @@ describe('DirectConversationsService', () => {
     const reopened = await again.svc.open(context, principal('internal', 'member'), 'user-b');
     expect(reopened.created).toBe(false);
     expect(again.inserted).toEqual([]);
+  });
+
+  it('says the other person’s job title, client company and online state in the list (C5)', async () => {
+    const { svc } = service({ [ME]: internal(ME), 'user-b': internal('user-b') }, pair);
+    const [view] = await svc.list(context, principal('internal', 'member'));
+    expect(view).toMatchObject({
+      otherUserId: 'user-b',
+      otherDisplayName: 'Bea',
+      otherJobTitle: 'Art director',
+      otherClientCompanyName: 'Acme Ltd',
+      otherOnline: true,
+    });
+  });
+
+  it('names the caller in the list answer so New message can leave them out (C5)', async () => {
+    const { svc } = service({ [ME]: internal(ME), 'user-b': internal('user-b') }, pair);
+    const answer = await new DirectConversationsController(svc).list(
+      context,
+      principal('internal', 'member'),
+    );
+    expect(answer.viewerUserId).toBe(ME);
+    expect(answer.conversations.map((row) => row.otherUserId)).toEqual(['user-b']);
   });
 
   it('refuses a client messaging someone outside their projects with 404, writing nothing', async () => {

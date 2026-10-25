@@ -7,6 +7,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { listChannelDirectory } from '../../lib/api/conversations';
 import {
   directKeys,
+  fetchDirectConversations,
   openDirectConversation,
   type DirectConversationSummary,
 } from '../../lib/api/direct-conversations';
@@ -76,12 +77,19 @@ export function NewMessageDialog({
     queryFn: () => listProjects(api, organizationSlug),
   });
 
+  // C5: the caller is never somebody to start a conversation with, so they are left out.
+  const overview = useQuery({
+    queryKey: directKeys.overview(organizationSlug),
+    queryFn: () => fetchDirectConversations(api, organizationSlug),
+  });
+  const viewerUserId = overview.data?.viewerUserId ?? null;
+
   const needle = query.trim().toLocaleLowerCase();
 
   const teamPeople = useMemo<readonly Person[]>(
     () =>
       (team.members ?? [])
-        .filter((member) => !member.role.startsWith('client'))
+        .filter((member) => !member.role.startsWith('client') && member.userId !== viewerUserId)
         .map((member) => {
           const role = memberRoleLabel(member.role, tOr);
           return {
@@ -91,7 +99,7 @@ export function NewMessageDialog({
             isClient: false,
           };
         }),
-    [team.members, organizationName, tOr],
+    [team.members, organizationName, tOr, viewerUserId],
   );
 
   const clientPeople = useMemo<readonly Person[]>(() => {
@@ -103,7 +111,7 @@ export function NewMessageDialog({
     for (const entry of Array.isArray(directory.data) ? directory.data : []) {
       if (entry.archivedAt !== null) continue;
       for (const member of entry.memberPreview ?? []) {
-        if (!member.isClient) continue;
+        if (!member.isClient || member.userId === viewerUserId) continue;
         const row = byId.get(member.userId) ?? {
           displayName: member.displayName,
           projects: new Set<string>(),
@@ -121,7 +129,7 @@ export function NewMessageDialog({
         isClient: true,
       }))
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
-  }, [directory.data, projects.data]);
+  }, [directory.data, projects.data, viewerUserId]);
 
   const matches = (person: Person) =>
     needle === '' || person.displayName.toLocaleLowerCase().includes(needle);

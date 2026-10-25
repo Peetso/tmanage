@@ -55,8 +55,15 @@ export class DirectConversationsController {
   async list(
     @Ctx() context: TenantContext,
     @CurrentPrincipal() principal: Principal,
-  ): Promise<{ readonly conversations: readonly DirectConversationView[] }> {
-    return { conversations: await this.direct.list(context, principal) };
+  ): Promise<{
+    readonly conversations: readonly DirectConversationView[];
+    /** C5: the caller's own user id, so "New message" can leave the caller out of its lists. */
+    readonly viewerUserId: string;
+  }> {
+    return {
+      conversations: await this.direct.list(context, principal),
+      viewerUserId: context.userId,
+    };
   }
 
   /** Create-or-get: 201 when opened here, 200 when it already existed. */

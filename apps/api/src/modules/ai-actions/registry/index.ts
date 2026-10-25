@@ -1190,6 +1190,14 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'manage',
   },
   {
+    id: 'conversations.reactions.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/conversations/:conversationId/reactions',
+    capability: 'conversation.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
     id: 'conversations.messages.revisions.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/conversations/:conversationId/messages/:messageId/revisions',

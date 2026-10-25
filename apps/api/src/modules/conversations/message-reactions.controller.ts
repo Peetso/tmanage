@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Put, Query } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -26,6 +26,9 @@ import type {
  * to read. The service applies the second, narrowing conversation-membership gate and resolves
  * the message before either can leak whether it exists.
  */
+
+/** C5: how many message ids one batched tally read may name (a page of a channel and then some). */
+export const MAX_BATCH_MESSAGE_IDS = 200;
 
 interface PutReactionBody {
   readonly emoji?: unknown;
@@ -78,5 +81,35 @@ export class MessageReactionsController {
     @Param('messageId') messageId: string,
   ): Promise<MessageReactionTallyView> {
     return this.reactions.tally(context, principal, conversationId, messageId);
+  }
+  /**
+   * C5 — `GET …/conversations/:conversationId/reactions?messageIds=a,b,c`: the tallies of many
+   * messages of one channel in one request, so a channel does not ask once per message.
+   */
+  @Get('conversations/:conversationId/reactions')
+  @RequireCapability('conversation.read')
+  async tallyMany(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('conversationId') conversationId: string,
+    @Query('messageIds') messageIds?: string,
+  ): Promise<{ readonly tallies: readonly MessageReactionTallyView[] }> {
+    const ids = (messageIds ?? '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id !== '');
+    if (
+      ids.length === 0 ||
+      ids.length > MAX_BATCH_MESSAGE_IDS ||
+      ids.some((id) => id.length > 36)
+    ) {
+      throw new ApiError(400, 'validation_failed', 'The query is invalid', [
+        {
+          field: 'messageIds',
+          message: `must list 1 to ${MAX_BATCH_MESSAGE_IDS} message ids, comma separated`,
+        },
+      ]);
+    }
+    return { tallies: await this.reactions.tallyMany(context, principal, conversationId, ids) };
   }
 }
