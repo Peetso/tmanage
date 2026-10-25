@@ -463,7 +463,9 @@ export class PrivacyService {
       objectId: id,
       result: 'allowed',
       actorUserId: principal.userId,
-      metadata: { kind, ...(subjectUserId !== null ? { subject_user_id: subjectUserId } : {}) },
+      // `target_user_id`, not `subject_user_id`: the audit guard refuses any key with a
+      // `subject` segment (an email subject is content), and AUD-001 settled on this name.
+      metadata: { kind, ...(subjectUserId !== null ? { target_user_id: subjectUserId } : {}) },
     });
   }
 

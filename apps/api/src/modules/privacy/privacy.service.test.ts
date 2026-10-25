@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import type { Principal } from '@tmanage/domain';
+import { assertSafeAuditMetadata, type Principal } from '@tmanage/domain';
 import type { ObjectStore } from '@tmanage/storage';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -98,7 +98,10 @@ function build(fixture: Fixture = {}) {
     cancelDeletion: () => Promise.resolve(true),
   } as unknown as PrivacyRepository;
   const audit = {
-    record: (_r: unknown, _c: unknown, input: { action: string }) => {
+    // The real domain guard runs here: the DB-backed AuditService refuses unsafe metadata
+    // (e.g. a `subject_*` key), and a fake that skipped it hid exactly that 500.
+    record: (_r: unknown, _c: unknown, input: { action: string; metadata?: unknown }) => {
+      assertSafeAuditMetadata(input.metadata ?? {});
       audits.push(input.action);
       return Promise.resolve({});
     },
@@ -194,6 +197,15 @@ describe('Privacy — deleting the company', () => {
     );
     expect(error.status).toBe(409);
     expect(inserted).toEqual([]);
+  });
+});
+
+describe('Privacy — exporting my data', () => {
+  it('lets a member ask for their own archive, audited with metadata the guard accepts', async () => {
+    const { service, inserted, audits } = build();
+    await service.requestMyExport(context, principal(MEMBER, 'member'));
+    expect(inserted[0]).toMatchObject({ kind: 'member', subjectUserId: MEMBER });
+    expect(audits).toContain('privacy_export.requested');
   });
 });
 
