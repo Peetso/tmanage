@@ -1,4 +1,9 @@
+import type { Metadata } from 'next';
 import { OrganizationSelectorScreen } from '../../components/screens/OrganizationSelectorScreen';
+import { routeTitle } from '../../lib/route-titles';
+
+/** The tab's page name; `RouteDocumentTitle` writes it in the active locale. */
+export const metadata: Metadata = { title: routeTitle('/organizations') };
 
 /**
  * **ID-04 Organization selector.**

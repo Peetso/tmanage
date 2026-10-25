@@ -7,6 +7,7 @@ import '../styles/phone-tables.css';
 import { AuthBoundaryProvider } from '../components/providers/AuthBoundaryProvider';
 import { LocaleDirectionProvider } from '../components/providers/LocaleDirectionProvider';
 import { QueryProvider } from '../components/providers/QueryProvider';
+import { RouteDocumentTitle } from '../components/providers/RouteDocumentTitle';
 import { ServiceWorkerRegister } from '../components/pwa/ServiceWorkerRegister';
 import { UpdateToast } from '../components/pwa/UpdateToast';
 import { localeBootScript } from '../lib/i18n/locale-boot';
@@ -122,6 +123,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <AuthBoundaryProvider>{children}</AuthBoundaryProvider>
           </LocaleDirectionProvider>
         </QueryProvider>
+        {/* Every route's page name in the tab, in the active locale (`lib/route-titles.ts`). */}
+        <RouteDocumentTitle />
         <ServiceWorkerRegister />
         {/* The service worker's "update available" affordance (slice 08): an always-mounted toast
             region that offers a reload when a new build is waiting to take over. */}

@@ -1,4 +1,9 @@
+import type { Metadata } from 'next';
 import { RecoveryScreen } from '../../components/screens/RecoveryScreen';
+import { routeTitle } from '../../lib/route-titles';
+
+/** The tab's page name; `RouteDocumentTitle` writes it in the active locale. */
+export const metadata: Metadata = { title: routeTitle('/recover') };
 
 /**
  * **ID-05 Session and recovery** — the recovery half.

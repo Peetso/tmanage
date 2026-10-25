@@ -1,4 +1,9 @@
+import type { Metadata } from 'next';
 import { MfaChallengeScreen } from '../../../components/screens/MfaChallengeScreen';
+import { routeTitle } from '../../../lib/route-titles';
+
+/** The tab's page name; `RouteDocumentTitle` writes it in the active locale. */
+export const metadata: Metadata = { title: routeTitle('/sign-in/verify') };
 
 /**
  * **ID-02 MFA / passkey challenge.**
