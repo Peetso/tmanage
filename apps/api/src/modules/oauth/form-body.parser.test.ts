@@ -34,7 +34,7 @@ describe('OAuthFormBodyParser', () => {
     const handler = handlers.get('application/x-www-form-urlencoded');
     expect(handler).toBeDefined();
     const done = vi.fn();
-    handler?.({}, 'grant_type=authorization_code&code=a%2Bb', done);
+    handler?.({ url: '/oauth/token' }, 'grant_type=authorization_code&code=a%2Bb', done);
     expect(done).toHaveBeenCalledWith(null, { grant_type: 'authorization_code', code: 'a+b' });
   });
 

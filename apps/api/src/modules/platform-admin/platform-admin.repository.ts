@@ -8,6 +8,7 @@ import type {
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { likeContains } from './platform-admin.access.js';
+import { revokeAllBearerCredentialsForUser } from '../identity/bearer-credentials.js';
 
 /**
  * Platform admin — every statement the operator surface issues, and the limits on them.
@@ -394,9 +395,15 @@ export class PlatformAdminRepository {
     });
   }
 
-  /** End every live session the person holds, with the audit row, atomically. */
+  /**
+   * End every live session the person holds, with the audit row, atomically. F19 (wave 9): and
+   * every personal access token and AI app grant they hold, in every organization - before the
+   * session cutoff (a failure refuses the whole action) and again after it. Those rows are
+   * tenant-owned, so they cannot join the identity transaction; see `bearer-credentials.ts`.
+   */
   async signOutEverywhere(userId: string, audit: PlatformAuditInput): Promise<number> {
-    return this.database.identityTransaction(
+    await revokeAllBearerCredentialsForUser(this.database, userId, audit.correlationId);
+    const ended = await this.database.identityTransaction(
       { correlationId: audit.correlationId, tables: [...SIGN_OUT_TABLES] },
       async (tx) => {
         await insertAudit(tx, audit);
@@ -407,6 +414,8 @@ export class PlatformAdminRepository {
         return num((result as unknown as { affectedRows?: number }).affectedRows);
       },
     );
+    await revokeAllBearerCredentialsForUser(this.database, userId, audit.correlationId);
+    return ended;
   }
 
   async readSetting(key: string, correlationId: string): Promise<string | null> {

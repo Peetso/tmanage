@@ -241,6 +241,7 @@ type ProfileKey =
   | 'Profile.couldNotSave'
   | 'Profile.networkError'
   | 'Profile.genericError'
+  | 'Profile.freshSignInRequired'
   | `Profile.tz.${DisplayTimezone}`;
 
 type ProfileTranslate = (key: ProfileKey) => string;
@@ -672,6 +673,14 @@ function PasswordRow({ api, t }: { api: ApiClient; t: ProfileTranslate }) {
 }
 
 function describeError(error: unknown, t: ProfileTranslate): string {
+  // F01 (wave 9): a first password needs a sign-in from the last few minutes.
+  if (
+    error instanceof ApiRequestError &&
+    error.status === 401 &&
+    error.code === 'reauthentication_required'
+  ) {
+    return t('Profile.freshSignInRequired');
+  }
   if (error instanceof ApiRequestError) return error.message;
   if (error instanceof NetworkError) return t('Profile.networkError');
   return t('Profile.genericError');

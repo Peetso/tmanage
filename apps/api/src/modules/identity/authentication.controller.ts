@@ -17,6 +17,7 @@ import { AUTHENTICATION_SERVICE, SESSION_SERVICE } from '../../common/http/token
 import type { AuthenticatedSession, SessionService } from './session.service.js';
 import {
   AuthenticationRejectedError,
+  FreshSignInRequiredError,
   PasswordRejectedError,
   ReauthenticationRequiredError,
   type AuthenticationService,
@@ -282,8 +283,33 @@ export class AuthenticationController {
 }
 
 /**
- * The enrolment routes. Every one of them requires a session and acts on that session's own
- * user — no route here takes a `userId`, so there is no id to tamper with.
+ * F01 (wave 9). The request state, refusing anything but a cookie session.
+ *
+ * A personal access token or an AI grant is bound to one organization and must never manage the
+ * person's credentials: these routes are `@NoTenant()`, so the token's organization binding is
+ * never applied here, and a token that could set a first password, re-authenticate, enrol a
+ * factor or end sessions would turn itself into control of the whole account. Refused with **403
+ * `forbidden`**, audit code `session_required_for_credentials`. `CsrfGuard` refuses the same
+ * schemes on these routes and on `v1/sessions`; this is the controller's own copy of the rule, so
+ * it holds even if the guard chain is ever composed differently.
+ */
+export function requireCookieSession(request: object): ReturnType<typeof requireRequestState> {
+  const state = requireRequestState(request);
+  if (state.authScheme !== 'cookie') {
+    throw new ApiError(
+      403,
+      'forbidden',
+      MESSAGES.forbidden,
+      undefined,
+      'session_required_for_credentials',
+    );
+  }
+  return state;
+}
+
+/**
+ * The enrolment routes. Every one of them requires a **cookie** session (F01) and acts on that
+ * session's own user — no route here takes a `userId`, so there is no id to tamper with.
  */
 @Controller('v1/auth')
 export class CredentialsController {
@@ -306,7 +332,7 @@ export class CredentialsController {
     @Body() body: ReauthenticateBody,
     @Req() request: RequestLike,
   ): Promise<{ reauthToken: string; expiresAt: string }> {
-    const state = requireRequestState(request);
+    const state = requireCookieSession(request);
     const password = typeof body?.password === 'string' ? body.password : undefined;
     if (!password) {
       throw new ApiError(400, 'validation_failed', 'password is required', [
@@ -354,7 +380,8 @@ export class CredentialsController {
    * and they cannot fix it without being told what is wrong with it.
    *
    * `D05`: changing an existing password needs the `x-reauth-token` header; setting the first
-   * one does not. The service decides which case this is.
+   * one needs a fresh sign-in on this session (F01, wave 9). The service decides which case this
+   * is.
    */
   @Post('password/set')
   @NoTenant()
@@ -364,7 +391,7 @@ export class CredentialsController {
     @Body() body: SetPasswordBody,
     @Req() request: RequestLike,
   ): Promise<void> {
-    const state = requireRequestState(request);
+    const state = requireCookieSession(request);
     const password = typeof body?.password === 'string' ? body.password : undefined;
     if (!password) {
       throw new ApiError(400, 'validation_failed', 'password is required', [
@@ -382,6 +409,18 @@ export class CredentialsController {
       });
     } catch (error) {
       this.translateReauth(error);
+      if (error instanceof FreshSignInRequiredError) {
+        // F01: a first password needs a sign-in from the last few minutes on this session. 401
+        // with this code (not `unauthenticated`), so the web client does not try a refresh; the
+        // Preferences screen asks the person to sign in with Google again and retry.
+        throw new ApiError(
+          401,
+          'reauthentication_required',
+          'Sign in again, then set your password.',
+          undefined,
+          'reauth_required',
+        );
+      }
       if (error instanceof PasswordRejectedError) {
         throw new ApiError(
           422,
@@ -417,7 +456,7 @@ export class CredentialsController {
     @Body() body: BeginEnrolmentBody,
     @Req() request: RequestLike,
   ): Promise<{ factorId: string; secret: string; uri: string }> {
-    const state = requireRequestState(request);
+    const state = requireCookieSession(request);
     try {
       return await this.authentication.beginTotpEnrolment({
         userId: session.userId,
@@ -454,7 +493,7 @@ export class CredentialsController {
     @Body() body: ConfirmEnrolmentBody,
     @Req() request: RequestLike,
   ): Promise<{ recoveryCodes: readonly string[] }> {
-    const state = requireRequestState(request);
+    const state = requireCookieSession(request);
     const factorId = typeof body?.factorId === 'string' ? body.factorId : undefined;
     const code = typeof body?.code === 'string' ? body.code : undefined;
     if (!factorId || !code) {
@@ -500,7 +539,7 @@ export class CredentialsController {
     factors: readonly EnrolledFactorView[];
     recoveryCodesRemaining: number;
   }> {
-    const state = requireRequestState(request);
+    const state = requireCookieSession(request);
     const [factors, recoveryCodesRemaining] = await Promise.all([
       this.authentication.listFactors({
         userId: session.userId,
@@ -541,7 +580,7 @@ export class CredentialsController {
     @CurrentSession() session: AuthenticatedSession,
     @Req() request: RequestLike,
   ): Promise<{ changes: readonly { id: string; action: string; occurredAt: string }[] }> {
-    const state = requireRequestState(request);
+    const state = requireCookieSession(request);
     const changes = await this.authentication.listCredentialChanges({
       userId: session.userId,
       correlationId: state.correlationId,
@@ -565,7 +604,7 @@ export class CredentialsController {
     @Param('factorId') factorId: string,
     @Req() request: RequestLike,
   ): Promise<void> {
-    const state = requireRequestState(request);
+    const state = requireCookieSession(request);
     let removed: boolean;
     try {
       removed = await this.authentication.disableFactor({
@@ -592,7 +631,7 @@ export class CredentialsController {
     @CurrentSession() session: AuthenticatedSession,
     @Req() request: RequestLike,
   ): Promise<{ recoveryCodes: readonly string[] }> {
-    const state = requireRequestState(request);
+    const state = requireCookieSession(request);
     try {
       return await this.authentication.regenerateRecoveryCodes({
         userId: session.userId,

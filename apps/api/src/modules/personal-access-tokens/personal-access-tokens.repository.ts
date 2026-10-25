@@ -200,4 +200,47 @@ export class PersonalAccessTokensRepository {
         ),
       );
   }
+
+  /**
+   * F19 (wave 9). The organizations in which this person still holds a live token — the first
+   * half of the per-user bearer cutoff a recovery action applies. Tenant-free by necessity (the
+   * question is "which tenants"), so it runs on the audited, read-only bootstrap runner, like
+   * {@link findUsableByHash}; it returns organization ids only, never a token row.
+   */
+  async listOrganizationsWithLiveTokens(
+    runner: BootstrapQueryRunner,
+    userId: string,
+  ): Promise<readonly string[]> {
+    const rows = (await runner.query(
+      `SELECT DISTINCT organization_id
+         FROM personal_access_tokens
+        WHERE user_id = ?
+          AND revoked_at IS NULL`,
+      [userId],
+    )) as QueryRows;
+    return rows.map((row) => String(row['organization_id']));
+  }
+
+  /**
+   * F19 (wave 9). Revoke every live token this person holds in the acting tenant, whichever
+   * membership minted it. Scoped on `organization_id` like every tenant write; `revoked_at IS NULL`
+   * keeps an earlier revocation's timestamp. Returns how many tokens were ended.
+   */
+  async revokeAllForUser(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<number> {
+    const result = await tenantDrizzle(runner)
+      .update(personalAccessTokens)
+      .set({ revokedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(personalAccessTokens.organizationId, context.organizationId),
+          eq(personalAccessTokens.userId, userId),
+          isNull(personalAccessTokens.revokedAt),
+        ),
+      );
+    return result[0].affectedRows;
+  }
 }

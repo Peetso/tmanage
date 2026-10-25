@@ -14,6 +14,7 @@ import { createSeedCipher } from './seed-cipher.js';
 import { createSignInAbuseControl } from './sign-in-abuse-control.js';
 import { REAUTH_TTL_SECONDS, signReauthToken } from './reauth-token.js';
 import { SessionsRepository } from './sessions.repository.js';
+import type { BearerCredentialCutoff } from './bearer-credentials.js';
 import { base32Decode, generateTotpSecret, hotpCode, totpCounterAt } from './totp.js';
 import type { UserMfaFactorRow, UserPasswordRow } from '../../common/database/schema.js';
 import type { IdentityQueryRunner, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -286,7 +287,17 @@ class RecordingSessions extends SessionsRepository {
     noteOn(runner, 'change:other-sessions-revoked');
     return 1;
   }
+
+  /** F01 (wave 9): the session that sets a first password has just signed in. */
+  override async isEstablishedWithin(): Promise<boolean> {
+    return true;
+  }
 }
+
+/** F19 (wave 9): the bearer cutoff runs outside the identity unit; here it only has to resolve. */
+const NO_BEARER_CREDENTIALS: BearerCredentialCutoff = {
+  revokeAllForUser: () => Promise.resolve({ personalAccessTokens: 0, grants: 0 }),
+};
 
 function build(): {
   service: AuthenticationService;
@@ -314,6 +325,7 @@ function build(): {
     credentials,
     () => NOW,
     new RecordingSessions(),
+    NO_BEARER_CREDENTIALS,
   );
 
   return { service, credentials, database };

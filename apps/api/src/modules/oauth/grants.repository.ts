@@ -8,7 +8,9 @@ import {
   users,
 } from '../../common/database/schema.js';
 import type {
+  BootstrapQueryRunner,
   IdentityQueryRunner,
+  QueryRows,
   TenantContext,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
@@ -108,6 +110,54 @@ export class GrantsRepository {
         ),
       );
     return result[0].affectedRows;
+  }
+
+  /**
+   * F19 (wave 9). The organizations in which this person still holds a live grant — the first
+   * half of the per-user bearer cutoff a recovery action applies. Tenant-free by necessity, so it
+   * runs on the audited, read-only bootstrap runner and returns organization ids only.
+   */
+  async listOrganizationsWithLiveGrants(
+    runner: BootstrapQueryRunner,
+    userId: string,
+  ): Promise<readonly string[]> {
+    const rows = (await runner.query(
+      `SELECT DISTINCT organization_id
+         FROM oauth_grants
+        WHERE user_id = ?
+          AND revoked_at IS NULL`,
+      [userId],
+    )) as QueryRows;
+    return rows.map((row) => String(row['organization_id']));
+  }
+
+  /**
+   * F19 (wave 9). Revoke every live grant this person holds in the acting tenant, and return the
+   * ids of all their grants here (live or already revoked) so the caller can end the access and
+   * refresh tokens issued under them. Scoped on `organization_id` like every tenant write.
+   */
+  async revokeAllForUser(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<readonly string[]> {
+    const owned = await tenantDrizzle(runner)
+      .select({ id: oauthGrants.id })
+      .from(oauthGrants)
+      .where(
+        and(eq(oauthGrants.organizationId, context.organizationId), eq(oauthGrants.userId, userId)),
+      );
+    await tenantDrizzle(runner)
+      .update(oauthGrants)
+      .set({ revokedAt: sql`current_timestamp(3)` })
+      .where(
+        and(
+          eq(oauthGrants.organizationId, context.organizationId),
+          eq(oauthGrants.userId, userId),
+          isNull(oauthGrants.revokedAt),
+        ),
+      );
+    return owned.map((row) => row.id);
   }
 
   /** The signed-in person's display name, for the "Owner view · <name>" line. */

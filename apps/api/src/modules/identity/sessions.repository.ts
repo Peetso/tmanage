@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, isNull, ne, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { sessionRefreshTokens, sessions } from '../../common/database/schema.js';
@@ -249,6 +249,32 @@ export class SessionsRepository {
         ),
       );
     return result[0].affectedRows;
+  }
+
+  /**
+   * F01 (wave 9). Is this session a live session of this user, signed in no more than
+   * `maxAgeSeconds` ago? Rotation never moves `created_at`, so this is the age of the sign-in
+   * itself. Decided by the database clock, like every other temporal test in this file. A
+   * bearer principal's synthetic session id (`pat:<id>`) matches no row and is never fresh.
+   */
+  async isEstablishedWithin(
+    runner: IdentityQueryRunner,
+    input: { readonly sessionId: string; readonly userId: string; readonly maxAgeSeconds: number },
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ id: sessions.id })
+      .from(sessions)
+      .where(
+        and(
+          eq(sessions.id, input.sessionId),
+          eq(sessions.userId, input.userId),
+          isNull(sessions.revokedAt),
+          gt(sessions.expiresAt, sql`now(3)`),
+          gte(sessions.createdAt, sql`date_sub(now(3), interval ${input.maxAgeSeconds} second)`),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 
   /** The device/session list (04 §3). Live sessions only, and no credential material. */

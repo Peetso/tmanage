@@ -1,5 +1,6 @@
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { createTwoPhaseFixedWindowLimiter } from '../../common/http/rate-limiter.js';
 import type { PasswordResetMailer } from '../../common/email/password-reset-email.js';
 import { serializeForLog } from '../../common/observability/logger.js';
 import { AUTHENTICATION_ACTIONS } from './authentication.service.js';
@@ -13,6 +14,7 @@ import { describePasswordRejection, hashPassword, screenPassword } from './passw
 import { PasswordResetRepository } from './password-reset.repository.js';
 import type { SeedCipher } from './seed-cipher.js';
 import { SessionsRepository } from './sessions.repository.js';
+import { BEARER_CREDENTIALS_REVOKER, type BearerCredentialCutoff } from './bearer-credentials.js';
 
 /**
  * Self-service password reset — ID-05's recovery half (walkthrough ACC-02).
@@ -62,6 +64,66 @@ const NO_SEED_CIPHER: SeedCipher = {
   needsRotation: refuseSeed,
 };
 
+/**
+ * NV11 (wave 9). The mail budget behind the per-address limiter the controller applies.
+ *
+ * The controller's limiter is keyed by source address only, so a caller with many addresses
+ * could mail one person a reset link without limit. Two more bounds, in process like the
+ * controller's (a restart forgets them; the bootstrap profile runs one API process):
+ *
+ *  - **per recipient** - {@link PASSWORD_RESET_MAX_PER_RECIPIENT} requests per normalised address
+ *    per window, charged for every well-formed address, known or not, so the bound itself says
+ *    nothing about whether an account exists;
+ *  - **global** - {@link PASSWORD_RESET_MAX_DELIVERIES} reset mails per window across everyone,
+ *    charged only when a mail would actually be sent, so random addresses cannot spend it.
+ *
+ * Over either bound the request is answered exactly as every other one (202, no mail): the
+ * person who really asked can ask again in a while, and the answer still enumerates nothing.
+ */
+export const PASSWORD_RESET_MAIL_WINDOW_MS = 60 * 60 * 1000;
+export const PASSWORD_RESET_MAX_PER_RECIPIENT = 3;
+export const PASSWORD_RESET_MAX_DELIVERIES = 500;
+
+export interface PasswordResetMailBudget {
+  /** Charge one request for this normalised address; `false` once its window is used. */
+  admitRecipient(email: string): boolean;
+  /** Charge one delivery against the global window; `false` once it is used. */
+  admitDelivery(): boolean;
+}
+
+export function createPasswordResetMailBudget(
+  options: {
+    readonly windowMs?: number;
+    readonly maxPerRecipient?: number;
+    readonly maxDeliveries?: number;
+    readonly now?: () => number;
+  } = {},
+): PasswordResetMailBudget {
+  const windowMs = options.windowMs ?? PASSWORD_RESET_MAIL_WINDOW_MS;
+  const now = options.now ?? (() => Date.now());
+  const perRecipient = createTwoPhaseFixedWindowLimiter({
+    windowMs,
+    max: options.maxPerRecipient ?? PASSWORD_RESET_MAX_PER_RECIPIENT,
+    now,
+  });
+  const deliveries = createTwoPhaseFixedWindowLimiter({
+    windowMs,
+    max: options.maxDeliveries ?? PASSWORD_RESET_MAX_DELIVERIES,
+    maxKeys: 1,
+    now,
+  });
+  return {
+    admitRecipient: (email) => {
+      const at = now();
+      return perRecipient.test(email, at) && perRecipient.commit(email, at);
+    },
+    admitDelivery: () => {
+      const at = now();
+      return deliveries.test('all', at) && deliveries.commit('all', at);
+    },
+  };
+}
+
 export interface PasswordResetContext {
   readonly correlationId: string;
   readonly ip?: string | null;
@@ -75,6 +137,10 @@ export class PasswordResetService {
     private readonly resets: PasswordResetRepository = new PasswordResetRepository(),
     private readonly credentials: CredentialsRepository = new CredentialsRepository(NO_SEED_CIPHER),
     private readonly sessions: SessionsRepository = new SessionsRepository(),
+    /** F19 (wave 9): the bearer cutoff a completed reset applies beside the session cutoff. */
+    private readonly bearerCutoff: BearerCredentialCutoff = BEARER_CREDENTIALS_REVOKER,
+    /** NV11 (wave 9): the per-recipient and global mail bounds. One per service instance. */
+    private readonly mailBudget: PasswordResetMailBudget = createPasswordResetMailBudget(),
   ) {}
 
   /**
@@ -89,6 +155,8 @@ export class PasswordResetService {
     if (!EMAIL_SHAPE.test(email) || email.length > 254) {
       return { delivery: Promise.resolve('none') };
     }
+    // NV11: the per-recipient bound, before any read, so it costs nothing and reveals nothing.
+    if (!this.mailBudget.admitRecipient(email)) return { delivery: Promise.resolve('none') };
 
     const issued = issueInvitationToken();
     const target = await this.database.identityTransaction(
@@ -96,6 +164,9 @@ export class PasswordResetService {
       async (tx) => {
         const account = await this.resets.findAccount(tx, email);
         if (account === null) return null;
+        // NV11: the global bound, charged only for a mail that would really be sent. Over it,
+        // no link is issued and older links stay as they were.
+        if (!this.mailBudget.admitDelivery()) return null;
         await this.resets.retireOpen(tx, account.userId);
         await this.resets.create(tx, {
           userId: account.userId,
@@ -152,6 +223,14 @@ export class PasswordResetService {
     }
 
     const hash = await hashPassword(candidate);
+    // F19 (wave 9): a reset also ends every personal access token and AI app grant the person
+    // holds, in every organization. Those rows are tenant-owned, so they cannot join the identity
+    // transaction below (see `bearer-credentials.ts`); the cutoff runs before it - a failure then
+    // leaves the link unspent, so the person can retry - and again after it commits.
+    await this.bearerCutoff.revokeAllForUser(this.database, {
+      userId: target.userId,
+      correlationId: context.correlationId,
+    });
     await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...RESET_TABLES] },
       async (tx) => {
@@ -167,6 +246,10 @@ export class PasswordResetService {
         });
       },
     );
+    await this.bearerCutoff.revokeAllForUser(this.database, {
+      userId: target.userId,
+      correlationId: context.correlationId,
+    });
   }
 }
 

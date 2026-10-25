@@ -55,6 +55,8 @@ function harness(options: { account?: ResetTarget | null; live?: boolean; spend?
     resets as unknown as PasswordResetRepository,
     credentials as unknown as CredentialsRepository,
     sessions as unknown as SessionsRepository,
+    // F19 (wave 9): the bearer cutoff has its own regression in `wave9-s1-identity.test.ts`.
+    { revokeAllForUser: () => Promise.resolve({ personalAccessTokens: 0, grants: 0 }) },
   );
   return { service, resets, deliver, credentials, sessions };
 }

@@ -8,6 +8,7 @@ import {
 import { CredentialsRepository } from './credentials.repository.js';
 import { SessionsRepository } from './sessions.repository.js';
 import type { SessionState } from './sessions.repository.js';
+import type { BearerCredentialCutoff } from './bearer-credentials.js';
 import { createSeedCipher } from './seed-cipher.js';
 import { createSignInAbuseControl } from './sign-in-abuse-control.js';
 import { REAUTH_TTL_SECONDS, signReauthToken } from './reauth-token.js';
@@ -136,13 +137,28 @@ class RecordingSessions extends SessionsRepository {
 /** A runner nothing dereferences: every repository method that would use it is overridden. */
 const RUNNER = {} as IdentityQueryRunner;
 
+/** F19 (wave 9): records each bearer cutoff the revoke path asks for. */
+class RecordingBearerCutoff implements BearerCredentialCutoff {
+  readonly calls: string[] = [];
+
+  revokeAllForUser(
+    _database: unknown,
+    input: { readonly userId: string },
+  ): Promise<{ personalAccessTokens: number; grants: number }> {
+    this.calls.push(input.userId);
+    return Promise.resolve({ personalAccessTokens: 1, grants: 1 });
+  }
+}
+
 function build(): {
   service: AuthenticationService;
   credentials: RecordingCredentials;
   sessions: RecordingSessions;
+  bearer: RecordingBearerCutoff;
 } {
   const credentials = new RecordingCredentials();
   const sessions = new RecordingSessions();
+  const bearer = new RecordingBearerCutoff();
   const database = {
     identityRead: <T>(_options: unknown, work: (db: IdentityQueryRunner) => Promise<T>) =>
       work(RUNNER),
@@ -168,9 +184,10 @@ function build(): {
     credentials,
     () => NOW,
     sessions,
+    bearer,
   );
 
-  return { service, credentials, sessions };
+  return { service, credentials, sessions, bearer };
 }
 
 const proof = (sessionId = SESSION): string =>

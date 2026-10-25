@@ -9258,6 +9258,7 @@
   "Profile.tz.Asia/Tokyo": "طوكيو",
   "Profile.tz.Asia/Shanghai": "شنغهاي",
   "Profile.tz.Australia/Sydney": "سيدني",
+  "Profile.freshSignInRequired": "حفاظًا على أمان حسابك، سجّل الدخول مرة أخرى باستخدام Google، ثم عيّن كلمة المرور خلال 10 دقائق.",
   "AiAccess.navLabel": "وصول الذكاء الاصطناعي",
   "AiAccess.crumb": "وصول الذكاء الاصطناعي",
   "AiAccess.title": "وصول الذكاء الاصطناعي",

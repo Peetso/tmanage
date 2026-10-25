@@ -18,6 +18,7 @@ import { REAUTH_TTL_SECONDS, signReauthToken, verifyReauthToken } from './reauth
 import { findRecoveryCode, generateRecoveryCodes } from './recovery-codes.js';
 import { generateTotpSecret, totpUri, verifyTotp } from './totp.js';
 import { SessionsRepository } from './sessions.repository.js';
+import { BEARER_CREDENTIALS_REVOKER, type BearerCredentialCutoff } from './bearer-credentials.js';
 import type { SignInAbuseControl, SignInAbuseReason } from './sign-in-abuse-control.js';
 import type { IdentityQueryRunner } from '../../common/database/tenant-context.js';
 
@@ -278,18 +279,43 @@ export type VerifyFirstDecision = 'admit' | 'locked_out' | 'reject';
  * one. Only the failing path consults the window, and there it throttles exactly as before:
  * a wrong password at or above the threshold is `locked_out`, below it an ordinary `reject`.
  *
- * This does **not** turn either oracle into an unmetered guessing surface (the weakening x14
- * warned against): wrong passwords are still counted and still locked out. Only the *right*
- * password bypasses the window, and the right password is the account holder.
+ * **F20 (wave 9) reversed the "a correct credential bypasses the window" half.** Admitting a
+ * right guess through a full window meant the lockout never changed whether *any* guess
+ * succeeded - it only relabelled wrong ones - so an attacker rotating source addresses could keep
+ * guessing a password or a six-digit code and the first right guess signed in while the account
+ * was nominally locked. Now a full window refuses every guess, right or wrong, without admitting
+ * it. The holder's way out does not pass through this window: password reset by email
+ * (`password-reset.service.ts`) never consults it, and the window drains on its own (refusals
+ * while locked are `locked_out`, which `countRecentFailures` does not count).
  */
 export function decideVerifyFirst(input: {
   readonly passwordCorrect: boolean;
   readonly failuresInWindow: number;
   readonly maxFailuresInWindow: number;
 }): VerifyFirstDecision {
-  if (input.passwordCorrect) return 'admit';
   if (input.failuresInWindow >= input.maxFailuresInWindow) return 'locked_out';
-  return 'reject';
+  return input.passwordCorrect ? 'admit' : 'reject';
+}
+
+/**
+ * F01 (wave 9). How recent a sign-in must be for it to count as fresh proof of the person when a
+ * **first** password is attached to an account that has none (a Google-created account). Ten
+ * minutes: long enough to sign in with Google and open Preferences, short enough that a session
+ * stolen later - or a bearer token, which has no session row at all - cannot attach a durable
+ * password.
+ */
+export const FIRST_PASSWORD_FRESH_SIGN_IN_SECONDS = 600;
+
+/**
+ * F01 (wave 9). A first password was asked for from a session that is not a fresh sign-in. The
+ * controller maps it to `401 reauthentication_required` (audit code `reauth_required`); the
+ * Preferences screen tells the person to sign in with Google again and then set the password.
+ */
+export class FreshSignInRequiredError extends Error {
+  constructor() {
+    super('fresh_sign_in_required');
+    this.name = 'FreshSignInRequiredError';
+  }
 }
 
 export interface AuthenticationOptions {
@@ -406,6 +432,11 @@ export class AuthenticationService {
     private readonly now: () => number = () => Date.now(),
     /** `D06`: the session cutoff a password replacement applies. Stateless, so the default is real. */
     private readonly sessions: SessionsRepository = new SessionsRepository(),
+    /**
+     * F19 (wave 9): the bearer cutoff - personal access tokens and AI app grants - that a password
+     * change and "sign out other sessions" apply beside the session cutoff. Stateless default.
+     */
+    private readonly bearerCutoff: BearerCredentialCutoff = BEARER_CREDENTIALS_REVOKER,
   ) {
     this.credentials = credentials;
   }
@@ -574,11 +605,18 @@ export class AuthenticationService {
   }): Promise<AuthenticatedOutcome> {
     const { challengeToken, code, context } = input;
 
-    // `D08`. Ahead of the token verification, because this route is `@Public()` and writes a
-    // row for every attempt too. No `account`: the caller names no address, and the user this
-    // token claims is not known until it has been verified — so the source and global keys
-    // are the two that apply here.
-    const verdict = this.options.abuseControl.admit({ ip: context.ip });
+    // F20 (wave 9): the challenge token is verified first - an HMAC and a clock read, no I/O -
+    // so the abuse control below can be keyed on the account the token names as well as on the
+    // source. Before, this step carried no account key at all, so its only per-account bound was
+    // the durable window, which a correct guess bypassed.
+    const verified = verifyChallengeToken(challengeToken, this.options.sessionSecret, this.now());
+
+    // `D08`. Still ahead of every read and every row, because this route is `@Public()` and
+    // writes a row for every attempt too.
+    const verdict = this.options.abuseControl.admit({
+      ip: context.ip,
+      account: verified.ok ? verified.claims.userId : undefined,
+    });
     if (!verdict.admitted) {
       if (verdict.firstRefusalInWindow) {
         await this.recordRefusal(context, {
@@ -590,7 +628,6 @@ export class AuthenticationService {
       throw new AuthenticationRejectedError('rate_limited', verdict.reason);
     }
 
-    const verified = verifyChallengeToken(challengeToken, this.options.sessionSecret, this.now());
     if (!verified.ok) {
       const reason: AuthenticationReason =
         verified.rejection === 'expired' ? 'challenge_expired' : 'challenge_invalid';
@@ -605,35 +642,22 @@ export class AuthenticationService {
 
     const userId = verified.claims.userId;
 
-    // Verify first, then charge (C-1) — the same ordering as `signInWithPassword` and
-    // `confirmReauthentication`, through the same pure {@link decideVerifyFirst} helper. The
-    // code is spent *before* the durable window is consulted, so a correct code is admitted
-    // whatever the window says and is never charged; only a failing code consults the window,
-    // and there it is `locked_out` at or above the threshold and an ordinary refusal below it.
-    // Before this, `completeMfaChallenge` read the shared window ahead of `spendTotpCode`, so a
-    // hostile source that filled it with wrong passwords refused an MFA holder's *correct* code
-    // for the rest of the window with no self-service way out — the very DoS C-1 closes for the
-    // password oracles, still open for MFA users. `spendTotpCode` is unchanged, so its
-    // counter compare-and-swap (replay protection) is untouched, and a wrong or replayed code
-    // has no side effect and so cannot charge the window merely by being presented.
+    // F20 (wave 9): the durable window is read **before** the code is spent, as
+    // `completeWithRecoveryCode` does. A full window refuses the attempt without evaluating the
+    // code, so a right guess is no longer admitted while the account is locked; the holder's way
+    // out is password reset by email, which never consults this window. `spendTotpCode` is
+    // unchanged, so its counter compare-and-swap (replay protection) is untouched.
     const outcome = await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...IDENTITY_TABLES] },
       async (tx): Promise<AuthenticationReason | null> => {
-        const factors = await this.credentials.listActiveFactors(tx, userId);
-        const spent =
-          factors.length === 0 ? 'mfa_no_factor' : await this.spendTotpCode(tx, factors, code);
         const failures = await this.credentials.countRecentFailures(
           tx,
           userId,
           this.options.failureWindowSeconds,
         );
-        const decision = decideVerifyFirst({
-          passwordCorrect: spent === null,
-          failuresInWindow: failures,
-          maxFailuresInWindow: this.options.maxFailuresInWindow,
-        });
-        if (decision === 'admit') return null;
-        return decision === 'locked_out' ? 'locked_out' : spent;
+        if (failures >= this.options.maxFailuresInWindow) return 'locked_out';
+        const factors = await this.credentials.listActiveFactors(tx, userId);
+        return factors.length === 0 ? 'mfa_no_factor' : this.spendTotpCode(tx, factors, code);
       },
     );
 
@@ -843,6 +867,15 @@ export class AuthenticationService {
       async (tx): Promise<AuthenticationReason | null> => {
         const factors = await this.credentials.listActiveFactors(tx, userId);
         if (factors.length === 0) return null;
+        // F32 (wave 9): the code step gets the same durable lockout as `completeMfaChallenge`,
+        // read before the code is spent. Without it a session holder who knew the password
+        // could grind six-digit codes here bounded only by the in-process source budgets.
+        const failures = await this.credentials.countRecentFailures(
+          tx,
+          userId,
+          this.options.failureWindowSeconds,
+        );
+        if (failures >= this.options.maxFailuresInWindow) return 'locked_out';
         // A factor exists, so the password alone is not the person. Treated as a wrong code
         // rather than a shape error: the response must not say whether a factor exists.
         if (code === undefined || code === '') return 'mfa_bad_code';
@@ -857,7 +890,10 @@ export class AuthenticationService {
         outcome: 'failed',
         reason: outcome,
       });
-      throw new AuthenticationRejectedError('invalid_credentials', outcome);
+      throw new AuthenticationRejectedError(
+        outcome === 'locked_out' ? 'rate_limited' : 'invalid_credentials',
+        outcome,
+      );
     }
 
     await this.record(context, {
@@ -936,10 +972,11 @@ export class AuthenticationService {
    * choosing a value and cannot fix it without knowing what is wrong with it. There is no
    * enumeration risk: they are already authenticated, and the subject is their own password.
    *
-   * `D05`: *replacing* a password needs fresh proof; *setting the first one* does not. Whether
-   * a row already exists is read before the new value is hashed. An invited person finishing
-   * enrolment has no password to re-present, and demanding one would make the account
-   * unusable rather than safer. Once a password exists, it is the proof.
+   * `D05`: *replacing* a password needs fresh proof (the reauth token). Whether a row already
+   * exists is read before the new value is hashed. A person with no password has none to
+   * re-present, so F01 (wave 9) asks for the other proof they do have: a sign-in no older than
+   * {@link FIRST_PASSWORD_FRESH_SIGN_IN_SECONDS} on this very session. Once a password exists,
+   * it is the proof.
    *
    * `D06`: replacing a password ends every *other* live session, in the same transaction as
    * the new hash. A password is replaced to recover from a suspected compromise as often as
@@ -971,6 +1008,8 @@ export class AuthenticationService {
         action: AUTHENTICATION_ACTIONS.passwordSet,
         context: input.context,
       });
+    } else {
+      await this.requireFreshSignIn(input);
     }
 
     const screened = await screenPassword({
@@ -987,6 +1026,11 @@ export class AuthenticationService {
 
     const hash = await hashPassword(input.password);
     const replacing = existing !== null;
+
+    // F19 (wave 9): a replacement also ends every personal access token and AI app grant the
+    // person holds - before the identity transaction (a failure refuses the change whole) and
+    // again after it (closing the window in which a session about to be revoked could mint one).
+    if (replacing) await this.cutBearerCredentials(input.userId, input.context.correlationId);
 
     await this.database.identityTransaction(
       {
@@ -1012,6 +1056,44 @@ export class AuthenticationService {
         });
       },
     );
+    if (replacing) await this.cutBearerCredentials(input.userId, input.context.correlationId);
+  }
+
+  /**
+   * F01 (wave 9). The proof a **first** password needs. Before, a first password needed none -
+   * any live principal could attach one, including a personal access token (no cookie, no
+   * session row) and a stolen cookie session long after its sign-in. Now only a session row of
+   * this user, still live, created no more than {@link FIRST_PASSWORD_FRESH_SIGN_IN_SECONDS} ago
+   * by the database clock, counts: a Google-created account has just signed in with Google. The
+   * refusal row uses `reauth_required`, which `countRecentFailures` never counts.
+   */
+  private async requireFreshSignIn(input: {
+    userId: string;
+    sessionId: string;
+    context: SignInContext;
+  }): Promise<void> {
+    const fresh = await this.database.identityRead(
+      { correlationId: input.context.correlationId, tables: ['sessions'] },
+      (db) =>
+        this.sessions.isEstablishedWithin(db, {
+          sessionId: input.sessionId,
+          userId: input.userId,
+          maxAgeSeconds: FIRST_PASSWORD_FRESH_SIGN_IN_SECONDS,
+        }),
+    );
+    if (fresh) return;
+    await this.record(input.context, {
+      userId: input.userId,
+      action: AUTHENTICATION_ACTIONS.passwordSet,
+      outcome: 'failed',
+      reason: 'reauth_required',
+    });
+    throw new FreshSignInRequiredError();
+  }
+
+  /** F19 (wave 9). See `bearer-credentials.ts` for why this runs outside the identity transaction. */
+  private async cutBearerCredentials(userId: string, correlationId: string): Promise<void> {
+    await this.bearerCutoff.revokeAllForUser(this.database, { userId, correlationId });
   }
 
   /**
@@ -1363,10 +1445,13 @@ export class AuthenticationService {
       context: input.context,
     });
 
-    return this.database.identityTransaction(
+    // F19 (wave 9): "sign out other sessions" also ends every personal access token and AI app
+    // grant - before and after the session cutoff, for the reason `setPassword` gives.
+    await this.cutBearerCredentials(input.userId, input.context.correlationId);
+    const ended = await this.database.identityTransaction(
       { correlationId: input.context.correlationId, tables: [...IDENTITY_TABLES, 'sessions'] },
       async (tx) => {
-        const ended = await this.sessions.revokeOthersForUser(
+        const count = await this.sessions.revokeOthersForUser(
           tx,
           input.userId,
           input.sessionId,
@@ -1381,9 +1466,11 @@ export class AuthenticationService {
           ip: input.context.ip ?? null,
           userAgent: input.context.userAgent ?? null,
         });
-        return ended;
+        return count;
       },
     );
+    await this.cutBearerCredentials(input.userId, input.context.correlationId);
+    return ended;
   }
 
   /** The factors a person holds, for the security screen. No secrets, ever. */
