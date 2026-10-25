@@ -5893,6 +5893,7 @@
   "ProjectBudgetView.statTrackedHours": "Tracked hours",
   "ProjectBudgetView.title": "Budget",
   "ProjectChannelScreen.alreadyConverted": "Already converted",
+  "ProjectChannelScreen.alreadyConvertedHidden": "This message was already turned into work that you cannot open. Ask a project manager for it.",
   "ProjectChannelScreen.apiError": "The API did not answer. Is it running?",
   "ProjectChannelScreen.archived": "Archived",
   "ProjectChannelScreen.audienceLegend": "Audience",

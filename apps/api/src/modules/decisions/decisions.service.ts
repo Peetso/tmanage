@@ -226,13 +226,30 @@ export class DecisionsService {
     > = new ConversationsRepository(),
   ) {}
 
-  /** F34: may this principal read the channel a source message lives in? Same runner as the read. */
+  /**
+   * F34: may this principal read the channel a source message lives in? Same runner as the read.
+   * `ConversationsService.mayReach` in full: `authorize(conversation.read)` on the channel's
+   * project first (a custom role without the chat capability is refused even with a channel
+   * row), then org-wide scope or a channel row.
+   */
   private async mayReachChannel(
     runner: Parameters<ConversationsRepository['findMembership']>[0],
     context: TenantContext,
     principal: Principal,
+    projectId: string,
     conversationId: string,
   ): Promise<boolean> {
+    const verdict = authorize({
+      principal,
+      capability: 'conversation.read',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) return false;
     if (principal.hasOrgWideScope) return true;
     const membership = await this.conversations.findMembership(
       runner,
@@ -526,6 +543,7 @@ export class DecisionsService {
               runner,
               context,
               principal,
+              decision.projectId,
               channel.conversationId,
             ))
               ? channel
@@ -662,7 +680,13 @@ export class DecisionsService {
         // F34: citing a channel message needs the channel's own read — org-wide scope or a
         // channel row — else the same not-found as an unknown id.
         if (channel)
-          return this.mayReachChannel(runner, context, principal, channel.conversationId);
+          return this.mayReachChannel(
+            runner,
+            context,
+            principal,
+            input.projectId,
+            channel.conversationId,
+          );
         const direct = await this.decisions.findSourceDirectMessage(
           runner,
           context,

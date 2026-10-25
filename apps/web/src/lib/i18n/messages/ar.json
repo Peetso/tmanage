@@ -5893,6 +5893,7 @@
   "ProjectBudgetView.statTrackedHours": "الساعات المسجّلة",
   "ProjectBudgetView.title": "الميزانية",
   "ProjectChannelScreen.alreadyConverted": "سبق تحويلها",
+  "ProjectChannelScreen.alreadyConvertedHidden": "‏تحوّلت هذه الرسالة من قبل إلى عمل لا يمكنك فتحه. اطلب ذلك من مدير المشروع.",
   "ProjectChannelScreen.apiError": "لم تستجب الواجهة البرمجية. هل هي قيد التشغيل؟",
   "ProjectChannelScreen.archived": "مؤرشفة",
   "ProjectChannelScreen.audienceLegend": "الجمهور",

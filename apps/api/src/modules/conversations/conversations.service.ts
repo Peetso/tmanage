@@ -787,6 +787,12 @@ export class ConversationsService {
     if (!verdict.allowed) {
       throw new ApiError(403, 'forbidden', 'Converting a message into work needs work.create');
     }
+    // F26: a conversion straight into a client audience publishes the new item to the client
+    // portal, so it needs what `WorkItemsService.create` asks for that — `deliverable.publish`
+    // on the conversation's project — and is refused before anything is written.
+    if (command.audience !== undefined && command.audience !== 'internal') {
+      this.requirePublish(context, principal, conversation.projectId);
+    }
 
     const project = await this.database.read(context, (runner) =>
       this.projects.findById(runner, context, conversation.projectId),
@@ -800,7 +806,7 @@ export class ConversationsService {
     const existing = await this.database.read(context, (runner) =>
       this.conversations.findWorkLinkByMessage(runner, context, messageId),
     );
-    if (existing) return this.existingConversion(context, existing);
+    if (existing) return this.existingConversion(context, principal, existing);
 
     // FR-02: the title is confirmed at conversion. Confirmed-but-absent falls back to the
     // message's own first line — the thing a person converting in a hurry would have typed.
@@ -873,24 +879,49 @@ export class ConversationsService {
         const winner = await this.database.read(context, (runner) =>
           this.conversations.findWorkLinkByMessage(runner, context, messageId),
         );
-        if (winner) return this.existingConversion(context, winner);
+        if (winner) return this.existingConversion(context, principal, winner);
       }
       throw error;
     }
   }
 
-  /** The conversion that already exists, INT-07's answer to a retry. */
+  /**
+   * The conversion that already exists, INT-07's answer to a retry.
+   *
+   * N02: the existing item is handed back only when this caller may read it **where it is
+   * now** — it may have been moved to a project they are not on, made client-facing, or
+   * deleted since the conversion. Otherwise the answer is one 409 with no work item fields,
+   * the same whatever the reason, so the retry neither leaks the item nor says why.
+   */
   private async existingConversion(
     context: TenantContext,
+    principal: Principal,
     link: { readonly workItemId: string; readonly messageId: string; readonly createdAt: Date },
   ): Promise<ConvertMessageResultView> {
     const row = await this.database.read(context, (runner) =>
       this.workItems.findById(runner, context, link.workItemId),
     );
-    if (!row) {
-      // The link's foreign key makes this unreachable short of manual surgery; refusing
-      // loudly beats inventing a view of a row that is not there.
-      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    const readable =
+      row !== null &&
+      row.deletedAt === null &&
+      authorize({
+        principal,
+        capability: 'work.read',
+        resource: {
+          organizationId: context.organizationId,
+          projectId: row.projectId,
+          audience: row.audience,
+          lifecycle: row.state === 'archived' ? 'archived' : 'active',
+        },
+      }).allowed;
+    if (row === null || !readable) {
+      throw new ApiError(
+        409,
+        'conflict',
+        'This message was already converted into work',
+        [{ field: 'messageId', message: 'message_already_converted' }],
+        'message_already_converted',
+      );
     }
     return {
       workItem: toWorkItemView(row, context.correlationId),
@@ -1091,6 +1122,32 @@ export class ConversationsService {
       this.conversations.findMembership(runner, context, row.id, principal.userId),
     );
     return membership !== null;
+  }
+
+  /**
+   * F26: may this principal publish to the clients of `projectId`? Mirrors
+   * `WorkItemsService.requirePublish` — a 403, because the caller already reads this channel.
+   */
+  private requirePublish(context: TenantContext, principal: Principal, projectId: string): void {
+    const verdict = authorize({
+      principal,
+      capability: 'deliverable.publish',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'work_item_publish_denied',
+      );
+    }
   }
 
   /** The project relation, for an operation that has no conversation to check yet. */

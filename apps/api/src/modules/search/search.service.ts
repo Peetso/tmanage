@@ -185,8 +185,25 @@ export class SearchService {
    * Whether this principal may read the hit, judged against the hit's own project and audience —
    * the single relation rule (`authorize()`), so a search can never surface a row the row's own
    * direct read would refuse.
+   *
+   * F22: a channel message is the channel's content, so its hit needs the channel's own read
+   * capability, `conversation.read` (as `ConversationsService.mayReach` asks it, on an internal
+   * resource), not `work.read` — a custom role granted `work.read` without the chat capability
+   * must not read channel text through search. Every other kind keeps `work.read`.
    */
   private mayRead(principal: Principal, hit: SearchIndexHitRow): boolean {
+    if (hit.targetKind === 'message') {
+      return authorize({
+        principal,
+        capability: 'conversation.read',
+        resource: {
+          organizationId: hit.organizationId,
+          projectId: hit.projectId,
+          audience: 'internal',
+          lifecycle: 'active',
+        },
+      }).allowed;
+    }
     return authorize({
       principal,
       capability: 'work.read',
