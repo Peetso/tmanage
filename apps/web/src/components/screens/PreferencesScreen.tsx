@@ -53,7 +53,14 @@ export interface PreferencesScreenProps {
 
 /** The sections under the account orb, in PREF-01's "YOURS ONLY" order. */
 export type PreferencesSection =
-  'profile' | 'appearance' | 'notifications' | 'accessibility' | 'keyboard' | 'ai-assistant';
+  | 'profile'
+  | 'appearance'
+  | 'notifications'
+  | 'accessibility'
+  | 'keyboard'
+  | 'ai-assistant'
+  // D5 (Figma F5 phone): the person's own data export and account deletion.
+  | 'my-data';
 
 const SECTIONS: readonly { id: PreferencesSection; labelKey: MessageKey; href: string }[] = [
   { id: 'profile', labelKey: 'PreferencesScreen.sectionProfile', href: '/preferences' },
@@ -78,6 +85,12 @@ const SECTIONS: readonly { id: PreferencesSection; labelKey: MessageKey; href: s
     id: 'ai-assistant',
     labelKey: 'PreferencesScreen.sectionAiAssistant',
     href: '/settings/ai-assistant',
+  },
+  // D5 (Figma F5 phone): the key reaches the catalogs through the wave's i18n fragment.
+  {
+    id: 'my-data',
+    labelKey: 'PreferencesScreen.sectionMyData' as string as MessageKey,
+    href: '/settings/my-data',
   },
 ];
 

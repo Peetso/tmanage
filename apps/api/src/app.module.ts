@@ -121,6 +121,8 @@ import { AdminOverviewModule } from './modules/admin/overview.controller.js';
 import { AdminSecurityModule } from './modules/admin/security.controller.js';
 import { AdminSecurityAlertsModule } from './modules/admin/security-alerts.controller.js';
 import { AdminExportRequestsModule } from './modules/admin/export-requests.controller.js';
+// D5 (Figma F5): data export and deletion requests (Control › Privacy, My data).
+import { PrivacyModule } from './modules/privacy/privacy.module.js';
 import { OrgAnnouncementsModule } from './modules/admin/announcements.controller.js';
 import { AdminIpAllowlistModule } from './modules/admin/ip-allowlist.controller.js';
 import { FeatureFlagsModule } from './modules/admin/feature-flags.controller.js';
@@ -318,6 +320,8 @@ export class AppModule {
         AdminSecurityModule.register(),
         AdminSecurityAlertsModule.register(),
         AdminExportRequestsModule.register(),
+        // D5 (Figma F5): data export + deletion requests and their in-process privacy job.
+        PrivacyModule.register(),
         // ADM org announcements (module 18, x276). Org-wide announcement banners: post + delete behind
         // `org.manage`, active-now read behind `work.read`. A module of its own, file-disjoint from the
         // other administration slices; depends only on the global `TENANT_DATABASE`. Per-member

@@ -3094,3 +3094,28 @@ import type {
 } from '../../apps/web/src/lib/api/project-milestones';
 type _a9MilestoneDetail = Assert<Exact<ApiMilestoneDetailView, WebMilestoneDetail>>;
 type _a9MilestonePlan = Assert<Exact<ApiMilestonePlanView, WebMilestonePlan>>;
+
+// D5 (Figma F5) — Privacy: data export and deletion requests (`…/admin/privacy`, `…/me/privacy`),
+// read by Control › Privacy and My data (`apps/web/src/lib/api/privacy.ts`).
+import type {
+  MyPrivacyView as ApiMyPrivacyView,
+  PrivacyDeletionView as ApiPrivacyDeletionView,
+  PrivacyExportView as ApiPrivacyExportView,
+  PrivacyMemberOptionView as ApiPrivacyMemberOptionView,
+  PrivacyOverviewView as ApiPrivacyOverviewView,
+  PrivacyPersonView as ApiPrivacyPersonView,
+} from '../../apps/api/src/modules/privacy/privacy.service.js';
+import type {
+  MyPrivacyView as WebMyPrivacyView,
+  PrivacyDeletionView as WebPrivacyDeletionView,
+  PrivacyExportView as WebPrivacyExportView,
+  PrivacyMemberOptionView as WebPrivacyMemberOptionView,
+  PrivacyOverviewView as WebPrivacyOverviewView,
+  PrivacyPersonView as WebPrivacyPersonView,
+} from '../../apps/web/src/lib/api/privacy';
+type _d5PrivacyPerson = Assert<Exact<ApiPrivacyPersonView, WebPrivacyPersonView>>;
+type _d5PrivacyExport = Assert<Exact<ApiPrivacyExportView, WebPrivacyExportView>>;
+type _d5PrivacyDeletion = Assert<Exact<ApiPrivacyDeletionView, WebPrivacyDeletionView>>;
+type _d5PrivacyMemberOption = Assert<Exact<ApiPrivacyMemberOptionView, WebPrivacyMemberOptionView>>;
+type _d5PrivacyOverview = Assert<Exact<ApiPrivacyOverviewView, WebPrivacyOverviewView>>;
+type _d5MyPrivacy = Assert<Exact<ApiMyPrivacyView, WebMyPrivacyView>>;

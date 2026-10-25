@@ -1296,6 +1296,12 @@ GRANT INSERT ON `tmanage`.`insight_snapshots` TO 'tmanage_app'@'%';
 -- Moving a request through its status lifecycle is the later async export worker's job, which is
 -- granted UPDATE alongside the code that writes it — the withheld UPDATE keeps the record honest here.
 GRANT INSERT ON `tmanage`.`admin_export_requests` TO 'tmanage_app'@'%';
+-- D5 (0231) `privacy_exports` and `privacy_deletion_requests` get INSERT and UPDATE. A request is
+-- created (INSERT) and moved through its lifecycle by the API and its in-process privacy job (UPDATE:
+-- preparing -> ready/failed, scheduled -> cancelled/executed). No DELETE: who asked for an export or a
+-- deletion, and when, is the record the data-rights workflow keeps.
+GRANT INSERT, UPDATE ON `tmanage`.`privacy_exports`           TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`privacy_deletion_requests` TO 'tmanage_app'@'%';
 -- `insight_annotations` (Insights & reporting, x271, 0141) gets INSERT and DELETE. An annotation is
 -- posted (INSERT), read (the database-wide SELECT, line 60), and removed by its author (DELETE) —
 -- the `focus_blocks` posture where the author's own DELETE is a granted privilege. It is never

@@ -665,6 +665,41 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'workflow_condition',
     clause: '§12 policy change — removing a condition widens who and what an automation acts on',
   },
+  /** D5. An owner (or a member, about themselves) asked for a data export (kind + ids only). */
+  'privacy_export.requested': {
+    objectType: 'privacy_export',
+    clause: '§12 data rights — who asked for a copy of whose data',
+  },
+  /** D5. The privacy job finished an export archive (size and scan status, never contents). */
+  'privacy_export.ready': {
+    objectType: 'privacy_export',
+    clause: '§12 data rights — an archive of personal data now exists',
+  },
+  /** D5. The privacy job could not build or clear an export archive (a failure token only). */
+  'privacy_export.failed': {
+    objectType: 'privacy_export',
+    clause: '§12 data rights — a request that was not fulfilled',
+  },
+  /** D5. Someone downloaded an export archive. */
+  'privacy_export.downloaded': {
+    objectType: 'privacy_export',
+    clause: '§12 data export — a bulk copy of personal data left the system',
+  },
+  /** D5. A company or account deletion was requested, with its grace-period end. */
+  'privacy_deletion.requested': {
+    objectType: 'privacy_deletion_request',
+    clause: '§12 data rights — a deletion request starts the grace period',
+  },
+  /** D5. A pending deletion was cancelled within its grace period. */
+  'privacy_deletion.cancelled': {
+    objectType: 'privacy_deletion_request',
+    clause: '§12 data rights — a deletion request was withdrawn',
+  },
+  /** D5. The privacy job carried out a deletion after its grace period ended. */
+  'privacy_deletion.executed': {
+    objectType: 'privacy_deletion_request',
+    clause: '§12 data rights — the deletion itself, after the grace period',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -768,6 +803,13 @@ const AUDIT_ACTION_LABELS = {
   'member.profile_updated': 'Updated their own profile',
   'document.renamed': 'Renamed a document',
   'workflow_condition.deleted': 'Removed a condition from an automation rule',
+  'privacy_export.requested': 'Asked for a data export',
+  'privacy_export.ready': 'A data export was ready to download',
+  'privacy_export.failed': 'A data export could not be made',
+  'privacy_export.downloaded': 'Downloaded a data export',
+  'privacy_deletion.requested': 'Asked for a deletion',
+  'privacy_deletion.cancelled': 'Cancelled a deletion request',
+  'privacy_deletion.executed': 'A requested deletion was carried out',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

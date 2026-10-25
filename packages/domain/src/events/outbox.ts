@@ -216,6 +216,16 @@ export const OUTBOX_EVENT_CATALOG = {
     aggregateType: 'direct_conversation',
     catalog: '§4 message.created.v1 (direct) — realtime, recipient notification',
   },
+  /** D5: a data export archive is ready — the person who asked is emailed (consumer: later slice). */
+  'privacy_export.ready.v1': {
+    aggregateType: 'privacy_export',
+    catalog: '33-LEGAL §8 export ready — requester email',
+  },
+  /** D5: a deletion was requested, cancelled or carried out — the other owners are told. */
+  'privacy_deletion.changed.v1': {
+    aggregateType: 'privacy_deletion_request',
+    catalog: '33-LEGAL §8 deletion lifecycle — owner notification, email',
+  },
 } as const satisfies Record<string, OutboxEventDefinition>;
 
 export type OutboxEventType = keyof typeof OUTBOX_EVENT_CATALOG;
@@ -538,6 +548,24 @@ export interface DirectMessageCreatedV1 {
   readonly recipientUserId: string;
 }
 
+/** D5: ids and the kind only — never the archive's contents or its link. */
+export interface PrivacyExportReadyV1 {
+  readonly exportId: string;
+  readonly kind: 'company' | 'member';
+  readonly requestedByUserId: string;
+  readonly subjectUserId: string | null;
+}
+
+/** D5: the request's new state and when the grace period ends. */
+export interface PrivacyDeletionChangedV1 {
+  readonly requestId: string;
+  readonly kind: 'company' | 'account';
+  readonly status: 'scheduled' | 'cancelled' | 'executed';
+  readonly actorUserId: string;
+  readonly subjectUserId: string | null;
+  readonly scheduledFor: string;
+}
+
 /** Type-indexed payload map, so a producer cannot pair a type with another type's payload. */
 export interface OutboxEventPayloads {
   readonly 'client_request.submitted.v1': ClientRequestSubmittedV1;
@@ -567,6 +595,8 @@ export interface OutboxEventPayloads {
   readonly 'approval.requested.v1': ApprovalRequestedV1;
   readonly 'approval.decided.v1': ApprovalDecidedV1;
   readonly 'direct_message.created.v1': DirectMessageCreatedV1;
+  readonly 'privacy_export.ready.v1': PrivacyExportReadyV1;
+  readonly 'privacy_deletion.changed.v1': PrivacyDeletionChangedV1;
 }
 
 /**

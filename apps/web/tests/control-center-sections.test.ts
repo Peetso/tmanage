@@ -35,6 +35,8 @@ describe('controlCenterSectionsFor', () => {
         ['security', '/admin/security'],
         ['audit', '/admin/audit'],
         ['data', '/admin/audit/export'],
+        // D5 (Figma F5): Privacy sits between Data and retention and Organization.
+        ['privacy', '/admin/privacy'],
         ['organization', '/settings'],
         ['billing', '/billing'],
       ],

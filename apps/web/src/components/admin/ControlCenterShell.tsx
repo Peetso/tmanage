@@ -43,6 +43,8 @@ export type ControlCenterSection =
   | 'policy-simulation'
   | 'audit'
   | 'data'
+  // D5 (Figma F5): data export and deletion requests, owner-only.
+  | 'privacy'
   | 'organization'
   | 'billing';
 
@@ -173,6 +175,13 @@ const GROUPS: readonly SectionGroup[] = [
         labelKey: ccKey('ControlCenter.dataAndRetention'),
         href: '/admin/audit/export',
         capability: 'audit.export',
+      },
+      // D5 (Figma F5): between "Data and retention" and "Organization", as in the frame.
+      {
+        id: 'privacy',
+        labelKey: ccKey('ControlCenter.privacy'),
+        href: '/admin/privacy',
+        capability: 'org.manage',
       },
       {
         id: 'organization',

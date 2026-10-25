@@ -66,6 +66,24 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // D5 (Figma F5): the Privacy page and My data are readable; every export, download and deletion
+  // route is NEVER (`org_creation_or_account`).
+  {
+    id: 'admin.privacy.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/privacy/',
+    capability: 'org.manage',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'me.privacy.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/me/privacy/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
   {
     id: 'admin.feature_flags.list',
     method: 'GET',

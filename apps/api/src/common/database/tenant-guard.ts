@@ -750,6 +750,11 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // C1 (migration 0230). Org-owned: one due-soon firing of one tenant's rule for one of its work
   // items. Written by the worker only; registered so any API read of it is tenant-scoped.
   workflow_due_soon_fires: 'organization_id',
+  // D5 (migration 0231). Org-owned data-rights requests: an export archive of this studio (or of one
+  // member) and a deletion request with its grace period. Unscoped reads would show every studio's
+  // privacy requests, so both are registered and scoped by `organization_id`.
+  privacy_exports: 'organization_id',
+  privacy_deletion_requests: 'organization_id',
   // PEOPLE allocations (x171, migration 0069). Tenant-owned and project-owned: an allocation belongs
   // to the acting tenant, and an unscoped `SELECT ... FROM person_allocations` would be every studio's
   // capacity plan on the server. `organization_id` is NOT NULL and carries the `(organization_id, id)`

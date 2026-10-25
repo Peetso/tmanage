@@ -4277,6 +4277,87 @@ export const workflowDueSoonFires = mysqlTable(
   ],
 );
 
+/** D5 (0231). The vocabularies of the two privacy tables, mirrored from the migration's ENUMs. */
+export const PRIVACY_EXPORT_KINDS = ['company', 'member'] as const;
+export const PRIVACY_EXPORT_STATUSES = ['preparing', 'ready', 'failed'] as const;
+export const PRIVACY_EXPORT_SCAN_STATUSES = ['clean', 'not_scanned'] as const;
+export const PRIVACY_DELETION_KINDS = ['company', 'account'] as const;
+export const PRIVACY_DELETION_STATUSES = ['scheduled', 'cancelled', 'executed'] as const;
+
+/**
+ * D5 (0231). A data-export request: the owner's company archive or one person's personal data. The
+ * privacy job claims a `preparing` row, writes the archive through the scanner and moves it to `ready`
+ * (with `expires_at`) or `failed`. `0231_privacy_requests.sql` is the source of truth.
+ */
+export const privacyExports = mysqlTable(
+  'privacy_exports',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    kind: mysqlEnum('kind', PRIVACY_EXPORT_KINDS).notNull(),
+    subjectUserId: char('subject_user_id', { length: 36 }),
+    requestedByUserId: char('requested_by_user_id', { length: 36 }).notNull(),
+    status: mysqlEnum('status', PRIVACY_EXPORT_STATUSES).notNull().default('preparing'),
+    progressPercent: tinyint('progress_percent', { unsigned: true }).notNull().default(0),
+    objectKey: varchar('object_key', { length: 255 }),
+    sizeBytes: bigint('size_bytes', { mode: 'number', unsigned: true }),
+    scanStatus: mysqlEnum('scan_status', PRIVACY_EXPORT_SCAN_STATUSES),
+    failureCode: varchar('failure_code', { length: 64 }),
+    claimedAt: datetime('claimed_at', { mode: 'date', fsp: 3 }),
+    requestedAt: datetime('requested_at', { mode: 'date', fsp: 3 }).notNull(),
+    completedAt: datetime('completed_at', { mode: 'date', fsp: 3 }),
+    expiresAt: datetime('expires_at', { mode: 'date', fsp: 3 }),
+    purgedAt: datetime('purged_at', { mode: 'date', fsp: 3 }),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_privacy_exports_org_id').on(table.organizationId, table.id),
+    index('ix_privacy_exports_org_requested').on(table.organizationId, table.requestedAt, table.id),
+    index('ix_privacy_exports_org_subject').on(
+      table.organizationId,
+      table.subjectUserId,
+      table.requestedAt,
+    ),
+    index('ix_privacy_exports_status').on(table.status, table.claimedAt),
+  ],
+);
+
+/**
+ * D5 (0231). A deletion request with a grace period: the company (owner-only) or one person's
+ * account in this studio. `scheduled` until `scheduled_for`, cancellable until then, then `executed`
+ * by the privacy job. `0231_privacy_requests.sql` is the source of truth.
+ */
+export const privacyDeletionRequests = mysqlTable(
+  'privacy_deletion_requests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    kind: mysqlEnum('kind', PRIVACY_DELETION_KINDS).notNull(),
+    subjectUserId: char('subject_user_id', { length: 36 }),
+    requestedByUserId: char('requested_by_user_id', { length: 36 }).notNull(),
+    status: mysqlEnum('status', PRIVACY_DELETION_STATUSES).notNull().default('scheduled'),
+    requestedAt: datetime('requested_at', { mode: 'date', fsp: 3 }).notNull(),
+    scheduledFor: datetime('scheduled_for', { mode: 'date', fsp: 3 }).notNull(),
+    cancelledAt: datetime('cancelled_at', { mode: 'date', fsp: 3 }),
+    cancelledByUserId: char('cancelled_by_user_id', { length: 36 }),
+    executedAt: datetime('executed_at', { mode: 'date', fsp: 3 }),
+    version: bigint('version', { mode: 'number', unsigned: true }).notNull().default(1),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_privacy_deletion_requests_org_id').on(table.organizationId, table.id),
+    index('ix_privacy_deletion_requests_org_kind').on(
+      table.organizationId,
+      table.kind,
+      table.status,
+    ),
+    index('ix_privacy_deletion_requests_due').on(table.status, table.scheduledFor),
+  ],
+);
+
 /**
  * PEOPLE / module 14 (x171). A person's allocation to a project — which membership, which project,
  * what share of their time (`percent`, 1..100), an optional `start_date`/`end_date` window, and when
@@ -8971,6 +9052,8 @@ export const TABLES = {
   automation_variables: automationVariables,
   automation_template_tags: automationTemplateTags,
   workflow_due_soon_fires: workflowDueSoonFires,
+  privacy_exports: privacyExports,
+  privacy_deletion_requests: privacyDeletionRequests,
   person_allocations: personAllocations,
   person_capacity: personCapacity,
   member_reporting_lines: memberReportingLines,
@@ -9246,3 +9329,5 @@ export type PortalBrandingRow = typeof portalBranding.$inferSelect;
 export type NewPortalBrandingRow = typeof portalBranding.$inferInsert;
 export type OrgBrandingRow = typeof orgBranding.$inferSelect;
 export type OrganizationLogoRow = typeof organizationLogos.$inferSelect;
+export type PrivacyExportRow = typeof privacyExports.$inferSelect;
+export type PrivacyDeletionRequestRow = typeof privacyDeletionRequests.$inferSelect;

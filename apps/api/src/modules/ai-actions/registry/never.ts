@@ -335,6 +335,48 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'storage_connection',
   },
   { method: 'GET', path: '/v1/integrations/google-drive/callback', reason: 'storage_connection' },
+  // D5 (Figma F5). Data-rights acts: a bulk copy of personal data, its download, and deleting the
+  // company or an account. A person does these themselves; an AI principal never does.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/admin/privacy/exports',
+    reason: 'org_creation_or_account',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/admin/privacy/exports/:exportId/download',
+    reason: 'org_creation_or_account',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/admin/privacy/deletion',
+    reason: 'org_creation_or_account',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/admin/privacy/deletion/cancel',
+    reason: 'org_creation_or_account',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/me/privacy/exports',
+    reason: 'org_creation_or_account',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/me/privacy/exports/:exportId/download',
+    reason: 'org_creation_or_account',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/me/privacy/deletion',
+    reason: 'org_creation_or_account',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/me/privacy/deletion/cancel',
+    reason: 'org_creation_or_account',
+  },
 ];
 
 /** Index of NEVER by route key, for O(1) lookup in the guard and the sync test. */
