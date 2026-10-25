@@ -33,11 +33,18 @@ export interface DueSoonSweepStore {
   listRules(): Promise<readonly DueSoonRule[]>;
   /** Fire one rule for its due items in one transaction; returns how many items it ran for. */
   fireRule(rule: DueSoonRule): Promise<number>;
+  /**
+   * Gap 10: deliver every run a "Skip weekends" rule held on Friday or Saturday, once the
+   * company's clock reads Sunday morning; returns how many held runs it closed. Idempotent.
+   */
+  deliverHeldRuns(): Promise<number>;
 }
 
 export interface DueSoonSweepResult {
   readonly rules: number;
   readonly fired: number;
+  /** Gap 10: weekend-held runs delivered by this sweep. */
+  readonly delivered: number;
 }
 
 /**
@@ -53,10 +60,14 @@ export function dueInDaysOf(config: Readonly<Record<string, unknown>>): number {
   return DEFAULT_DUE_IN_DAYS;
 }
 
-/** Run one sweep. Idempotent per item per rule per day (the claim's unique key). */
+/**
+ * Run one sweep. Idempotent per item per rule per day (the claim's unique key), and per held run
+ * (a delivered run names the held run it closes).
+ */
 export async function sweepDueSoon(store: DueSoonSweepStore): Promise<DueSoonSweepResult> {
   const rules = await store.listRules();
   let fired = 0;
   for (const rule of rules) fired += await store.fireRule(rule);
-  return { rules: rules.length, fired };
+  const delivered = await store.deliverHeldRuns();
+  return { rules: rules.length, fired, delivered };
 }

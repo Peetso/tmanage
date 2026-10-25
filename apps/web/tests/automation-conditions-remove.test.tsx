@@ -10,7 +10,8 @@ import { expectNoAxeViolations } from './axe';
 
 /**
  * L3 — a rule's conditions can be removed (Remove → confirm → DELETE → the list is read again),
- * and the "Skip weekends" hint says what the worker does: nothing is sent on Friday or Saturday.
+ * and the "Skip weekends" hint says what the worker does: Friday and Saturday reminders go out on
+ * Sunday morning instead (gap 10).
  */
 
 interface Call {
@@ -155,7 +156,7 @@ describe('AutomationConditionsScreen — remove a condition', () => {
 });
 
 describe('AutomationTemplateEditScreen — Skip weekends hint', () => {
-  it('says no reminders are sent on Friday or Saturday', async () => {
+  it('says Friday and Saturday reminders are sent on Sunday morning', async () => {
     const { client } = clientOver();
     wrap(
       <AutomationTemplateEditScreen
@@ -166,8 +167,11 @@ describe('AutomationTemplateEditScreen — Skip weekends hint', () => {
       />,
     );
     expect(
-      await screen.findByText('No reminders are sent on Friday or Saturday.'),
+      await screen.findByText(
+        'Reminders that fall on Friday or Saturday are sent on Sunday morning instead.',
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText('No reminders are sent on Friday or Saturday.')).toBeNull();
     expect(screen.queryByText(/go out on Thursday/)).toBeNull();
   });
 });

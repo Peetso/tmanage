@@ -12088,6 +12088,7 @@
   "RouteTitle.workTimeline": "Timeline",
   "RouteTitle.workWorkload": "Workload",
   "AutomationRule.skipWeekendsHintNoSend": "No reminders are sent on Friday or Saturday.",
+  "AutomationRule.skipWeekendsHintSunday": "Reminders that fall on Friday or Saturday are sent on Sunday morning instead.",
   "AutomationConditionsScreen.colActions": "Actions",
   "AutomationConditionsScreen.removeButton": "Remove",
   "AutomationConditionsScreen.removeConfirmTitle": "Remove this condition?",

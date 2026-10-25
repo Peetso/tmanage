@@ -91,9 +91,14 @@ describe('due-soon trigger (C1)', () => {
         fired.push(r.id);
         return 3;
       },
+      deliverHeldRuns: async () => {
+        fired.push('held');
+        return 1;
+      },
     });
-    expect(fired).toEqual(['rule-1', 'rule-2']);
-    expect(result).toEqual({ rules: 2, fired: 6 });
+    // Gap 10: the same sweep then delivers the weekend-held runs.
+    expect(fired).toEqual(['rule-1', 'rule-2', 'held']);
+    expect(result).toEqual({ rules: 2, fired: 6, delivered: 1 });
   });
 
   it('is its own batch command, --sweep-due-soon', () => {

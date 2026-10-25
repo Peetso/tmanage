@@ -3,6 +3,7 @@ import type { WorkerDatabase, WorkerTransaction } from './worker-database.js';
 import { listRuleConditions } from './automation-conditions-store.js';
 import { projectOwners, runRule } from '../../consumers/automation-runs.js';
 import type { TriggerObject } from '../../consumers/automation-runs.js';
+import { deliverHeldRuns, listWeekendRules } from './weekend-hold-store.js';
 import {
   DUE_SOON_TRIGGER,
   dueInDaysOf,
@@ -42,8 +43,8 @@ interface InsertResult {
   readonly affectedRows: number;
 }
 
-/** `config_json` is a string on MariaDB and an object on MySQL. */
-function configOf(raw: unknown): Readonly<Record<string, unknown>> {
+/** `config_json` (or `detail_json`) is a string on MariaDB and an object on MySQL. */
+export function configOf(raw: unknown): Readonly<Record<string, unknown>> {
   let config: unknown = raw;
   if (typeof raw === 'string') {
     try {
@@ -142,10 +143,21 @@ export async function fireDueSoonRule(
   return fired;
 }
 
-/** Bind the sweep's statements to a worker pool as its store port: one transaction per rule. */
+/**
+ * Bind the sweep's statements to a worker pool as its store port: one transaction per rule. Gap 10:
+ * the same sweep delivers weekend-held runs on Sunday morning (`weekend-hold-store.ts`).
+ */
 export function createDueSoonSweepStore(database: WorkerDatabase): DueSoonSweepStore {
   return {
     listRules: () => database.transaction((tx) => listDueSoonRules(tx)),
     fireRule: (rule) => database.transaction((tx) => fireDueSoonRule(tx, rule)),
+    deliverHeldRuns: async () => {
+      const rules = await database.transaction((tx) => listWeekendRules(tx));
+      let delivered = 0;
+      for (const rule of rules) {
+        delivered += await database.transaction((tx) => deliverHeldRuns(tx, rule));
+      }
+      return delivered;
+    },
   };
 }

@@ -12088,6 +12088,7 @@
   "RouteTitle.workTimeline": "الجدول الزمني",
   "RouteTitle.workWorkload": "عبء العمل",
   "AutomationRule.skipWeekendsHintNoSend": "لا تُرسل أي تذكيرات يومي الجمعة والسبت.",
+  "AutomationRule.skipWeekendsHintSunday": "التذكيرات التي تحلّ يومي الجمعة والسبت تُرسل صباح الأحد بدلًا من ذلك.",
   "AutomationConditionsScreen.colActions": "الإجراءات",
   "AutomationConditionsScreen.removeButton": "إزالة",
   "AutomationConditionsScreen.removeConfirmTitle": "هل تريد إزالة هذا الشرط؟",

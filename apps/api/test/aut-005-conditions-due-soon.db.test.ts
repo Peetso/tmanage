@@ -355,7 +355,7 @@ describe('0230 — the due-soon sweep', () => {
     await itemDueIn(org, project, owner().id, 1, 'done'); // closed
 
     const first = await sweepDueSoon(createDueSoonSweepStore(workerDb));
-    expect(first).toEqual({ rules: 1, fired: 1 });
+    expect(first).toEqual({ rules: 1, fired: 1, delivered: 0 });
     expect((await claimsOf(templateId)).map((row) => row['work_item_id'])).toEqual([soon]);
     expect(await runsOf(templateId)).toHaveLength(1);
     const notices = await observe(
@@ -367,7 +367,7 @@ describe('0230 — the due-soon sweep', () => {
 
     // Idempotent for the day: the claim exists, so nothing runs again.
     const second = await sweepDueSoon(createDueSoonSweepStore(workerDb));
-    expect(second).toEqual({ rules: 1, fired: 0 });
+    expect(second).toEqual({ rules: 1, fired: 0, delivered: 0 });
     expect(await claimsOf(templateId)).toHaveLength(1);
     expect(await runsOf(templateId)).toHaveLength(1);
   });
@@ -435,7 +435,7 @@ describe('0230 — the due-soon sweep', () => {
     await itemDueIn(org, world.northstar.projectId, owner().id, 1);
 
     const result = await sweepDueSoon(createDueSoonSweepStore(workerDb));
-    expect(result).toEqual({ rules: 0, fired: 0 });
+    expect(result).toEqual({ rules: 0, fired: 0, delivered: 0 });
     expect(await observe('select id from workflow_due_soon_fires')).toHaveLength(0);
   });
 });

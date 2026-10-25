@@ -22,6 +22,7 @@ const REASONS: Record<string, string> = {
   action_not_available_yet: 'This action is not available yet, so nothing was done.',
   no_owner_to_notify: 'Nobody who owns this could be notified, so nothing was sent.',
   trigger_object_gone: 'What started the rule no longer exists, so nothing was done.',
+  held_for_weekend: 'Held for the weekend. It is sent on Sunday morning instead.',
 };
 
 const OUTCOMES: Record<string, string> = {
@@ -30,7 +31,17 @@ const OUTCOMES: Record<string, string> = {
 };
 
 /** Keys that are ids, not information a reader can use. */
-const HIDDEN = new Set(['templateId', 'runId', 'organizationId']);
+const HIDDEN = new Set([
+  'templateId',
+  'runId',
+  'organizationId',
+  // Gap 10: what a weekend-held run needs to be sent on Sunday, and the held run a delivery closes.
+  'heldEventId',
+  'heldObjectType',
+  'heldObjectId',
+  'heldProjectId',
+  'heldRunId',
+]);
 
 function words(value: string): string {
   const text = value.replace(/[_.]+/g, ' ').trim();

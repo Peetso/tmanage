@@ -6,6 +6,7 @@ import {
   listRuleConditions,
 } from '../common/database/automation-conditions-store.js';
 import { insertNotification } from '../common/database/notifications-store.js';
+import { findOrganizationTimeZone } from '../common/database/organization-clock-store.js';
 import {
   findDocumentFacts,
   findInternalReach,
@@ -154,13 +155,61 @@ export function notRunReason(actionKind: string): string | null {
 
 /**
  * A14 — "Skip weekends". The studio week ends on Friday and Saturday, so a rule with
- * `skipWeekends` does not send a reminder on those days (UTC): the run is recorded as not run,
- * held for the weekend, and nobody is notified. Pure, so the suite can enumerate the days.
+ * `skipWeekends` does not send a reminder on those days **in the company's timezone**
+ * (`organizations.timezone`; an unknown zone reads as UTC): the run is recorded as not run, held
+ * for the weekend, with what it was about. Gap 10: the due-soon sweep then delivers every held run
+ * on Sunday morning ({@link isWeekendHoldReleased}), once (`weekend-hold-store.ts`).
+ * Pure, so the suite can enumerate the days.
  */
-export function isHeldForWeekend(skipWeekends: boolean, at: Date): boolean {
+export function isHeldForWeekend(skipWeekends: boolean, at: Date, timeZone = 'UTC'): boolean {
   if (!skipWeekends) return false;
-  const day = at.getUTCDay();
+  const { day } = localClock(at, timeZone);
   return day === 5 || day === 6;
+}
+
+/** The local hour on Sunday from which held weekend runs go out. */
+export const SUNDAY_DELIVERY_HOUR = 8;
+
+const WEEKDAYS: Readonly<Record<string, number>> = {
+  Sun: 0,
+  Mon: 1,
+  Tue: 2,
+  Wed: 3,
+  Thu: 4,
+  Fri: 5,
+  Sat: 6,
+};
+
+/** The weekday (0 = Sunday) and hour (0–23) at `at` in `timeZone`; an unknown zone reads as UTC. */
+export function localClock(at: Date, timeZone: string): { day: number; hour: number } {
+  let parts: Intl.DateTimeFormatPart[];
+  try {
+    parts = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      hour: 'numeric',
+      hourCycle: 'h23',
+    }).formatToParts(at);
+  } catch {
+    return { day: at.getUTCDay(), hour: at.getUTCHours() };
+  }
+  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? '';
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value);
+  return {
+    day: WEEKDAYS[weekday] ?? at.getUTCDay(),
+    hour: Number.isInteger(hour) ? hour % 24 : at.getUTCHours(),
+  };
+}
+
+/**
+ * Gap 10 — whether a run held over the weekend may go out now: not on Friday or Saturday, and on
+ * Sunday only from {@link SUNDAY_DELIVERY_HOUR} local time. A sweep that misses Sunday delivers on
+ * the next weekday it runs (the store bounds how old a hold it still delivers).
+ */
+export function isWeekendHoldReleased(at: Date, timeZone: string): boolean {
+  const { day, hour } = localClock(at, timeZone);
+  if (day === 5 || day === 6) return false;
+  return day !== 0 || hour >= SUNDAY_DELIVERY_HOUR;
 }
 
 /**
@@ -189,15 +238,48 @@ export async function runRule(
     });
     return;
   }
-  if (isHeldForWeekend(rule.skipWeekends, now)) {
+  if (
+    rule.skipWeekends &&
+    isHeldForWeekend(true, now, await findOrganizationTimeZone(tx, event.organizationId))
+  ) {
+    // What the Sunday delivery needs to send it later. The keys are hidden on the run page.
     await insertWorkflowRun(tx, {
       organizationId: event.organizationId,
       templateId: rule.id,
       status: 'failed',
-      detail: { ...base, outcome: 'not_run', reason: 'held_for_weekend' },
+      detail: {
+        ...base,
+        outcome: 'not_run',
+        reason: 'held_for_weekend',
+        heldEventId: event.id,
+        heldObjectType: object.objectType,
+        heldObjectId: object.objectId,
+        heldProjectId: object.projectId,
+      },
     });
     return;
   }
+  await notifyAndRecord(event, tx, rule, object);
+}
+
+/**
+ * The notify-owner action: tell each owner (and the project lead when the rule says so) who may
+ * still open the object, then append the run. `held` marks a weekend-held run delivered later: the
+ * notice keeps the original dedupe key, and the run names the held run it closes.
+ */
+export async function notifyAndRecord(
+  event: Pick<ClaimedOutboxEvent, 'id' | 'organizationId'>,
+  tx: WorkerTransaction,
+  rule: AutomationRule,
+  object: TriggerObject,
+  held?: { readonly heldRunId: string },
+): Promise<void> {
+  const base = {
+    templateId: rule.id,
+    triggerKind: rule.triggerKind,
+    actionKind: rule.actionKind,
+    ...(held === undefined ? {} : { heldRunId: held.heldRunId }),
+  };
 
   // A14 "Also tell: Project lead" — the project's managers and owner of record hear it too.
   const recipients = [...object.ownerIds];
@@ -208,10 +290,11 @@ export async function runRule(
   }
 
   let told = 0;
+  let fresh = 0;
   for (const userId of recipients) {
     const reach = await findInternalReach(tx, event.organizationId, userId, object.projectId);
     if (!mayBeTold(reach, 'work.read')) continue;
-    await insertNotification(tx, {
+    const inserted = await insertNotification(tx, {
       organizationId: event.organizationId,
       recipientUserId: userId,
       type: AUTOMATION_NOTICE_TYPE,
@@ -220,8 +303,13 @@ export async function runRule(
       dedupeKey: `automation:${rule.id}:${event.id}`,
     });
     told += 1;
+    if (inserted) fresh += 1;
   }
+  // A held run whose every notice already existed was delivered by a racing sweep, which also
+  // appended the run that closes it: record nothing twice.
+  if (held !== undefined && told > 0 && fresh === 0) return;
 
+  const after = held === undefined ? '' : ' on Sunday morning, after the weekend';
   await insertWorkflowRun(tx, {
     organizationId: event.organizationId,
     templateId: rule.id,
@@ -233,8 +321,8 @@ export async function runRule(
             outcome: 'executed',
             effect:
               told === 1
-                ? 'Notified the owner in their inbox.'
-                : `Notified ${told} owners in their inbox.`,
+                ? `Notified the owner in their inbox${after}.`
+                : `Notified ${String(told)} owners in their inbox${after}.`,
           }
         : { ...base, outcome: 'not_run', reason: 'no_owner_to_notify' },
   });
