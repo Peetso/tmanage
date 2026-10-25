@@ -53,10 +53,14 @@ import {
   createAlertNotifier,
   createFastifyAdapter,
   createFixedWindowLimiter,
+  describeReconciliation,
+  describeSweep,
   migrateOnStart,
   MigrationError,
   parseAlertEmails,
   serializeForLog,
+  UPLOAD_SESSION_SWEEPER,
+  USAGE_RECONCILER,
 } from '@tmanage/api/hostinger';
 
 import { webSecurityHeaders } from './boot-guards.mjs';
@@ -64,7 +68,10 @@ import { webCacheHeaders } from './cache-headers.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
 import { beat, reportJobOutcome } from './job-alerts.mjs';
 import {
+  apiReconcileJobs,
+  apiSweepJobs,
   createSweepScheduler,
+  reconcileIntervalMs,
   sweepIntervalMs,
   sweepsEnabled,
   workerSweepJobs,
@@ -365,12 +372,14 @@ async function startInProcessWorker(env) {
 }
 
 /**
- * The scheduled sweeps (invitation expiry, deferred-request reopen) — on unless
- * `SWEEPS_INPROCESS=0`. Replaces the Hostinger cron entries for the worker's `--sweep-*` commands;
- * the cadence, the switch and why two instances cannot double-run are in scheduled-sweeps.mjs.
- * Its own one-connection pool on the worker's credential, so it runs with or without the relay.
+ * The scheduled sweeps — on unless `SWEEPS_INPROCESS=0`. Replaces every Hostinger cron entry:
+ * the worker's `--sweep-*` commands and the API's `sweep:once` every minute, the API's
+ * `reconcile:once` on its own hourly scheduler. The cadences, the switch and why two instances
+ * cannot double-run are in scheduled-sweeps.mjs. The worker sweeps get their own one-connection
+ * pool on the worker's credential, so they run with or without the relay; the API passes run on
+ * the in-process API application `app`, exactly as `sweep.ts` and `reconcile.ts` compose it.
  */
-async function startScheduledSweeps(env) {
+async function startScheduledSweeps(env, app) {
   const worker = await import('@tmanage/worker');
   const database = worker.createWorkerDatabase({
     url: env.WORKER_DATABASE_URL ?? env.DATABASE_URL,
@@ -378,15 +387,23 @@ async function startScheduledSweeps(env) {
     statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => log(`sweep connection rejected: ${serializeForLog(error)}`),
   });
+  const api = { UPLOAD_SESSION_SWEEPER, USAGE_RECONCILER, describeSweep, describeReconciliation };
   const scheduler = createSweepScheduler({
-    jobs: workerSweepJobs(worker, database),
+    jobs: [...workerSweepJobs(worker, database), ...apiSweepJobs(api, app)],
     intervalMs: sweepIntervalMs(process.env),
     log,
     describeError: serializeForLog,
   });
+  const reconciler = createSweepScheduler({
+    jobs: apiReconcileJobs(api, app),
+    intervalMs: reconcileIntervalMs(process.env),
+    log,
+    describeError: serializeForLog,
+  });
   scheduler.start();
+  reconciler.start();
   return async () => {
-    await scheduler.stop();
+    await Promise.all([scheduler.stop(), reconciler.stop()]);
     await database.end();
   };
 }
@@ -473,7 +490,7 @@ async function main() {
   await startWeb(transport, nominalPort);
 
   if (process.env['WORKER_INPROCESS'] === '1') stopWorker = await startInProcessWorker(env);
-  if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env);
+  if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env, app);
   else log('scheduled sweeps off (SWEEPS_INPROCESS)');
 
   state.ready = { fastify: api.fastify };

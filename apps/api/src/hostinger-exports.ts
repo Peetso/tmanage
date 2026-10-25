@@ -26,3 +26,11 @@ export { MigrationError } from './common/database/migrator.js';
 export type { MigrateReport } from './common/database/migrator.js';
 // C10. Operator alerts, so the in-process worker's job failures mail the same `ALERT_EMAILS`.
 export { createAlertNotifier, parseAlertEmails } from './common/observability/alerts.js';
+// The API's two job passes (`sweep:once`, `reconcile:once`), so the one process runs them on a
+// timer instead of cron: the tokens resolve them from the in-process application, the describe
+// functions print the same report line the standalone passes print.
+export { UPLOAD_SESSION_SWEEPER, USAGE_RECONCILER } from './common/http/tokens.js';
+export { describeSweep } from './modules/files/upload-session-sweeper.js';
+export type { SweepReport, UploadSessionSweeper } from './modules/files/upload-session-sweeper.js';
+export { describeReconciliation } from './modules/files/usage-reconciler.js';
+export type { ReconciliationReport, UsageReconciler } from './modules/files/usage-reconciler.js';

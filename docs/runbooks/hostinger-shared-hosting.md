@@ -45,15 +45,15 @@ If any of these three is absent, **stop**: the plan is wrong for this account, n
 The code is six processes (plus one conditional listener). Three are long-running or scheduled;
 three are scheduled one-shot passes. Here is where each one lands.
 
-| #   | Process                             | Entry command                                                                                                                    | Where it goes on this host                                                                                                                       |
-| --- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | **Web**                             | `next start --port 3000` (`apps/web/package.json` `start`)                                                                       | **App slot 1**, on the primary hostname (e.g. `peetrix.com`). Also the same-origin proxy: it rewrites `/v1/*` to the API (§3).                   |
-| 2   | **API**                             | `node dist/main.js` — **there is no `start` script in `apps/api/package.json`**; the hPanel entry command is written out by hand | **App slot 2**, on a second hostname (e.g. `api.peetrix.com`).                                                                                   |
-| 3   | **Worker / outbox relay**           | `node dist/main.js --once` (`apps/worker/package.json` `relay:once`)                                                             | **Cron**, not an app slot (§4). The `--once` mode runs one controlled batch and exits — `apps/worker/src/main.ts:104-117`.                       |
-| 4   | **Verify + scan pass**              | `node dist/verify.js --once` (`apps/api/package.json` `verify:once`)                                                             | **Cron** (§4). One verification pass then one scan pass, then exit — `apps/api/src/verify.ts:35-53`.                                             |
-| 5   | **Sweep pass**                      | `node dist/sweep.js --once` (`apps/api/package.json` `sweep:once`)                                                               | **Cron** (§4). Expires reserved upload sessions and exits — `apps/api/src/sweep.ts:30-48`.                                                       |
-| 6   | **Reconcile pass**                  | `node dist/reconcile.js --once` (`apps/api/package.json` `reconcile:once`)                                                       | **Cron** (§4), on its own hourly schedule. Reconciles each org's usage counter against its ledger and exits — `apps/api/src/reconcile.ts:28-49`. |
-| 7   | **Realtime socket** _(conditional)_ | inside process 3, loop mode only, when `REALTIME_PORT > 0`                                                                       | **Off.** Set `REALTIME_PORT=0` (the default). See below.                                                                                         |
+| #   | Process                             | Entry command                                                                                                                    | Where it goes on this host                                                                                                                                              |
+| --- | ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Web**                             | `next start --port 3000` (`apps/web/package.json` `start`)                                                                       | **App slot 1**, on the primary hostname (e.g. `peetrix.com`). Also the same-origin proxy: it rewrites `/v1/*` to the API (§3).                                          |
+| 2   | **API**                             | `node dist/main.js` — **there is no `start` script in `apps/api/package.json`**; the hPanel entry command is written out by hand | **App slot 2**, on a second hostname (e.g. `api.peetrix.com`).                                                                                                          |
+| 3   | **Worker / outbox relay**           | `node dist/main.js --once` (`apps/worker/package.json` `relay:once`)                                                             | **Cron**, not an app slot (§4). The `--once` mode runs one controlled batch and exits — `apps/worker/src/main.ts:104-117`.                                              |
+| 4   | **Verify + scan pass**              | `node dist/verify.js --once` (`apps/api/package.json` `verify:once`)                                                             | **Cron** (§4). One verification pass then one scan pass, then exit — `apps/api/src/verify.ts:35-53`.                                                                    |
+| 5   | **Sweep pass**                      | `node dist/sweep.js --once` (`apps/api/package.json` `sweep:once`)                                                               | **In-process, no cron** (§4). The one Node app (`apps/server`) runs this pass every minute after the worker sweeps — `apps/server/scheduled-sweeps.mjs` `apiSweepJobs`. |
+| 6   | **Reconcile pass**                  | `node dist/reconcile.js --once` (`apps/api/package.json` `reconcile:once`)                                                       | **In-process, no cron** (§4), on its own hourly scheduler in the one Node app — `apps/server/scheduled-sweeps.mjs` `apiReconcileJobs`.                                  |
+| 7   | **Realtime socket** _(conditional)_ | inside process 3, loop mode only, when `REALTIME_PORT > 0`                                                                       | **Off.** Set `REALTIME_PORT=0` (the default). See below.                                                                                                                |
 
 ### The API cannot fold into the web app
 
@@ -74,6 +74,9 @@ schedule rather than in the every-minute chain: it is a data-integrity sweep ove
 organization's counter, has no delivery-latency requirement, and running a full-table scan every
 minute would waste work and contend needlessly with live counter writes. §4 covers how to run
 them.
+
+On the single Hostinger app, passes 5 and 6 no longer need cron: `apps/server` runs them on
+in-process timers with the same cadences (§4.0).
 
 ### The realtime socket cannot be provided, and nothing is lost that matters
 
@@ -136,7 +139,32 @@ environment** loaded itself. The processes call `loadEnv()` first thing
 a single variable is missing — so an under-provisioned cron entry fails loudly, it does not run
 half a batch.
 
-### 4a. With a cron manager (recommended)
+### 4.0 The single Hostinger app needs no cron for the sweep and reconcile passes
+
+The one Node app (`apps/server/server.mjs`, the bundle `deploy/hostinger/build.mjs` builds) runs
+the sweep pass (process 5) and the reconcile pass (process 6) itself, from the in-process API
+application, with the same providers, pool and credential `sweep.ts` and `reconcile.ts` compose:
+
+| Pass                       | In-process job      | Cadence                                         |
+| -------------------------- | ------------------- | ----------------------------------------------- |
+| `sweep:once` (process 5)   | `upload-sessions`   | every minute, after the worker's `--sweep-*`    |
+| `reconcile:once` (proc. 6) | `storage-reconcile` | hourly, on its own scheduler (and once at boot) |
+
+The rules are those of the worker sweeps (`apps/server/scheduled-sweeps.mjs`): a pass still
+running when its next tick fires is skipped, not stacked; a quiet pass logs nothing, a pass that
+moved rows or failed logs one `[server] sweep <job>: …` line with the standalone pass's report;
+one job's failure does not stop the next. `SWEEPS_INPROCESS=0` turns all of it off (only then
+are the §4a entries for these two passes needed). `SWEEPS_INTERVAL_MS` tunes the minute cadence
+(at least 10 s); `RECONCILE_INTERVAL_MS` tunes the hourly one (at least 60000, default 3600000).
+Two instances cannot double-apply either pass: the sweeper releases a row only through a
+state-conditioned transition (a racing pass counts it `skipped`), and the reconciler corrects
+each counter under that counter's own row lock. The reconcile pass also runs once at every boot,
+so an app that the host idles and restarts more often than hourly still reconciles.
+
+The §4a entries below stay the reference for a deploy that runs the passes as separate
+processes; on the single app, register only what is not already in-process.
+
+### 4a. With a cron manager (separate processes only)
 
 Register **one** entry that sources an env file and runs the three delivery passes in order:
 

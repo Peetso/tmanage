@@ -2,6 +2,7 @@ import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { loadEnv } from '@tmanage/config';
 import { composeAppModule } from './app-composition.js';
+import { serializeForLog } from './common/observability/logger.js';
 import { TENANT_DATABASE, USAGE_RECONCILER } from './common/http/tokens.js';
 import type { TenantDatabase } from './common/database/tenant-context.js';
 import { describeReconciliation } from './modules/files/usage-reconciler.js';
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error('[reconciler] fatal', error);
+  // As in `sweep.ts`: a fatal here usually carries the DSN, so it is redacted through OBS-001.
+  console.error('[reconciler] fatal', serializeForLog(error));
   process.exitCode = 1;
 });

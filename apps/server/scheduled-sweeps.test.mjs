@@ -5,8 +5,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  RECONCILE_INTERVAL_MS,
   SWEEP_INTERVAL_MS,
+  apiReconcileJobs,
+  apiSweepJobs,
   createSweepScheduler,
+  reconcileIntervalMs,
   sweepIntervalMs,
   sweepsEnabled,
   workerSweepJobs,
@@ -168,4 +172,120 @@ test('a tick that fires while one is still running is skipped, not stacked', asy
 test('the Hostinger bundle copies the scheduler next to server.mjs', () => {
   const build = readFileSync(join(HERE, '../../deploy/hostinger/build.mjs'), 'utf8');
   assert.match(build, /'scheduled-sweeps\.mjs'/);
+});
+
+const SWEEPER = Symbol('sweeper');
+const RECONCILER = Symbol('reconciler');
+
+function fakeApi(sweepReport, reconcileReport, calls) {
+  const providers = new Map([
+    [SWEEPER, { sweep: async () => (calls.push('sweep'), sweepReport) }],
+    [RECONCILER, { reconcile: async () => (calls.push('reconcile'), reconcileReport) }],
+  ]);
+  return {
+    api: {
+      UPLOAD_SESSION_SWEEPER: SWEEPER,
+      USAGE_RECONCILER: RECONCILER,
+      describeSweep: (report) => `released ${String(report.released)}`,
+      describeReconciliation: (report) => `drifted ${String(report.drifted)}`,
+    },
+    app: { get: (token) => providers.get(token) },
+  };
+}
+
+const QUIET_SWEEP = { released: 0, failed: 0, counterDrift: 0, reclaimed: 0 };
+const QUIET_RECONCILE = { drifted: 0, failed: 0 };
+
+test('reconcile runs hourly unless a valid interval of at least a minute is set', () => {
+  assert.equal(RECONCILE_INTERVAL_MS, 3_600_000);
+  assert.equal(reconcileIntervalMs({}), 3_600_000);
+  assert.equal(reconcileIntervalMs({ RECONCILE_INTERVAL_MS: '7200000' }), 7_200_000);
+  assert.equal(reconcileIntervalMs({ RECONCILE_INTERVAL_MS: '60000' }), 60_000);
+  assert.equal(reconcileIntervalMs({ RECONCILE_INTERVAL_MS: '30000' }), 3_600_000);
+  assert.equal(reconcileIntervalMs({ RECONCILE_INTERVAL_MS: 'hourly' }), 3_600_000);
+});
+
+test('the upload-session sweep and the reconcile pass resolve their providers from the app', async () => {
+  const calls = [];
+  const { api, app } = fakeApi(QUIET_SWEEP, QUIET_RECONCILE, calls);
+  const [sweep] = apiSweepJobs(api, app);
+  const [reconcile] = apiReconcileJobs(api, app);
+  assert.equal(sweep.name, 'upload-sessions');
+  assert.equal(reconcile.name, 'storage-reconcile');
+  assert.equal(sweep.changed(await sweep.run()), false);
+  assert.equal(reconcile.changed(await reconcile.run()), false);
+  assert.deepEqual(calls, ['sweep', 'reconcile']);
+  for (const field of ['released', 'failed', 'counterDrift', 'reclaimed']) {
+    assert.equal(sweep.changed({ ...QUIET_SWEEP, [field]: 1 }), true, field);
+  }
+  for (const field of ['drifted', 'failed']) {
+    assert.equal(reconcile.changed({ ...QUIET_RECONCILE, [field]: 1 }), true, field);
+  }
+});
+
+test('the reconcile pass on its own scheduler logs only drift, with the API report line', async () => {
+  const lines = [];
+  const timers = fakeTimers();
+  const { api, app } = fakeApi(QUIET_SWEEP, { drifted: 3, failed: 0 }, []);
+  const scheduler = createSweepScheduler({
+    jobs: apiReconcileJobs(api, app),
+    intervalMs: reconcileIntervalMs({}),
+    log: (line) => lines.push(line),
+    timers,
+  });
+  scheduler.start();
+  await scheduler.stop();
+  assert.equal(timers.intervalMs, 3_600_000);
+  assert.deepEqual(lines, [
+    'scheduled sweeps on (storage-reconcile), every 3600000ms',
+    'sweep storage-reconcile: drifted 3',
+  ]);
+});
+
+test('a slow hourly reconcile is skipped, not stacked, and a failure is logged', async () => {
+  let release;
+  let runs = 0;
+  const lines = [];
+  const app = {
+    get: () => ({
+      reconcile: () => {
+        runs += 1;
+        return new Promise((done, fail) => {
+          release = () => fail(new Error('ER_LOCK_WAIT_TIMEOUT'));
+        });
+      },
+    }),
+  };
+  const scheduler = createSweepScheduler({
+    jobs: apiReconcileJobs({ USAGE_RECONCILER: RECONCILER, describeReconciliation: String }, app),
+    intervalMs: RECONCILE_INTERVAL_MS,
+    log: (line) => lines.push(line),
+    describeError: (error) => error.message,
+    timers: fakeTimers(),
+  });
+  const first = scheduler.runOnce();
+  assert.equal(await scheduler.runOnce(), false);
+  release();
+  assert.equal(await first, true);
+  assert.equal(runs, 1);
+  assert.deepEqual(lines, ['sweep storage-reconcile failed: ER_LOCK_WAIT_TIMEOUT']);
+});
+
+test('server.mjs runs both API passes in-process, behind the same SWEEPS_INPROCESS switch', () => {
+  const server = readFileSync(join(HERE, 'server.mjs'), 'utf8');
+  assert.match(server, /\.\.\.apiSweepJobs\(api, app\)/);
+  assert.match(server, /jobs: apiReconcileJobs\(api, app\),\s+intervalMs: reconcileIntervalMs\(/);
+  assert.match(
+    server,
+    /if \(sweepsEnabled\(process\.env\)\) stopSweeps = await startScheduledSweeps\(env, app\)/,
+  );
+  const exports = readFileSync(join(HERE, '../api/src/hostinger-exports.ts'), 'utf8');
+  for (const name of [
+    'UPLOAD_SESSION_SWEEPER',
+    'USAGE_RECONCILER',
+    'describeSweep',
+    'describeReconciliation',
+  ]) {
+    assert.match(exports, new RegExp(String.raw`export \{[^}]*\b${name}\b`), name);
+  }
 });
