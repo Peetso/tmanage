@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { englishBootTitle } from '../../lib/i18n/locale-boot';
 import { translate, type MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 
@@ -73,13 +74,14 @@ export function WebsiteDocumentTitle() {
   const locale = useActiveLocale();
 
   useEffect(() => {
-    let english = document.title;
+    // An Arabic tab's boot script may already have swapped Next's English title (`locale-boot.ts`).
+    let english = englishBootTitle(document.title) ?? document.title;
     let applied: string | undefined;
 
     const apply = () => {
       const current = document.title;
       // A title this component did not write is Next's English title for the current route.
-      if (current !== applied) english = current;
+      if (current !== applied) english = englishBootTitle(current) ?? current;
       const next = localizedWebsiteTitle(english, locale) ?? english;
       applied = next;
       if (next !== current) document.title = next;

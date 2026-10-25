@@ -1,4 +1,6 @@
 import { DISPLAY_LOCALES, type DisplayLocale } from '../api/display-preferences';
+import { PAGE_OWNS_TITLE, ROUTE_TITLES, TITLE_SUFFIX } from '../route-titles';
+import { translate, type MessageKey } from './t';
 import {
   isDisplayLocale,
   LOCALE_COOKIE_MAX_AGE,
@@ -9,21 +11,24 @@ import {
 /**
  * i18n (NFR-02, I18N-01) — the locale a tab boots in, decided before the first paint.
  *
- * The root layout renders `<html lang dir>` from the saved-locale cookie and `?lang=`
- * (`locale-cookie.ts`), but a browser that saved its choice only in `localStorage` (before the
- * cookie existed) or refuses cookies still gets the English baseline. This module is the one place
- * that answers "which locale does this tab start in?", and it answers it twice from the same rules:
+ * The root layout reads no request (no `cookies()`/`headers()`, so the public pages stay
+ * prerendered — release no-go f34db46a): every page arrives as `<html lang="en" dir="ltr">` with
+ * English tab titles, and the tab's own language is applied in the browser before the first paint.
+ * This module is the one place that answers "which locale does this tab start in?", and it answers
+ * it twice from the same rules:
  *
  *  - {@link localeBootScript} — a tiny self-contained script `app/layout.tsx` inlines in `<head>`.
- *    It runs before the body is parsed and sets `document.documentElement.lang`/`dir`.
+ *    It runs before the body is parsed, sets `document.documentElement.lang`/`dir`, and for an
+ *    Arabic tab swaps a prerendered page's English `<title>` for its Arabic one
+ *    ({@link bootTitleTable}) while the document is still parsing, so the tab never shows English.
  *  - {@link resolveBootLocale} — the same decision in TypeScript, which `LocaleStore` uses when it
  *    is constructed, so the store's client value equals what the script already painted.
  *
  * The order is: `?lang=` (`en`, `ar`, or an exact allowlisted tag) wins and is persisted, then the
- * saved-locale cookie (what the server rendered), then the locale cached under
- * {@link LOCALE_STORAGE_KEY} (copied into the cookie, so the next load is rendered right), then
- * nothing (the caller's default). Every value is checked against {@link DISPLAY_LOCALES}, so a
- * crafted query or cookie can never reach `dir` or a formatter.
+ * saved-locale cookie the language switch writes, then the locale cached under
+ * {@link LOCALE_STORAGE_KEY} (copied into the cookie), then nothing (the caller's default). Every
+ * value is checked against {@link DISPLAY_LOCALES}, so a crafted query or cookie can never reach
+ * `dir` or a formatter.
  */
 
 /** The key the active locale is cached under, for a flash-free reload. */
@@ -80,6 +85,45 @@ export function resolveBootLocale(
   return undefined;
 }
 
+/** The catalog locale the boot script's title table is written in (every `ar-*` tab uses it). */
+const BOOT_TITLE_LOCALE = 'ar-EG';
+
+/** The home page's absolute title: the brand plus its hero line (`WebsiteDocumentTitle`). */
+const HOME_TITLE_PREFIX = 'TManage — ';
+
+/**
+ * English tab title → Arabic tab title, for every route without a dynamic segment (the
+ * prerendered public, website and sign-in pages) plus the home page. The boot script applies it to
+ * an `ar-*` tab before the first paint; `RouteDocumentTitle`/`WebsiteDocumentTitle` read it back
+ * ({@link englishBootTitle}) so switching to English restores the English title. A name the
+ * Arabic catalog lacks is left out, so the page keeps its English title rather than a key.
+ */
+export function bootTitleTable(): Readonly<Record<string, string>> {
+  const table: Record<string, string> = {};
+  for (const [pattern, entry] of Object.entries(ROUTE_TITLES)) {
+    if (entry === PAGE_OWNS_TITLE || pattern.includes('[')) continue;
+    const arabic = translate(BOOT_TITLE_LOCALE, entry.key as MessageKey);
+    if (arabic === entry.key || arabic === entry.en) continue;
+    table[`${entry.en}${TITLE_SUFFIX}`] = `${arabic}${TITLE_SUFFIX}`;
+  }
+  const heroEn = translate('en-US', 'HomePage.heroTitle');
+  const heroAr = translate(BOOT_TITLE_LOCALE, 'HomePage.heroTitle');
+  if (heroAr !== heroEn) table[`${HOME_TITLE_PREFIX}${heroEn}`] = `${HOME_TITLE_PREFIX}${heroAr}`;
+  return table;
+}
+
+let bootTitles: Readonly<Record<string, string>> | undefined;
+let bootTitlesReverse: ReadonlyMap<string, string> | undefined;
+
+/** The English title the boot script replaced with `title`, or `undefined` if it is not one. */
+export function englishBootTitle(title: string): string | undefined {
+  if (bootTitlesReverse === undefined) {
+    bootTitles ??= bootTitleTable();
+    bootTitlesReverse = new Map(Object.entries(bootTitles).map(([en, ar]) => [ar, en]));
+  }
+  return bootTitlesReverse.get(title);
+}
+
 /** RTL primary subtags among the allowlist — the script needs only these, not the CLDR table. */
 const RTL_PRIMARY_SUBTAGS = ['ar', 'he', 'fa', 'ur'];
 
@@ -98,6 +142,7 @@ export function localeBootScript(): string {
     a: DISPLAY_LOCALES,
     s: LANG_QUERY_ALIASES,
     r: RTL_PRIMARY_SUBTAGS,
+    t: bootTitleTable(),
   }).replace(/</g, '\\u003c');
   return (
     '(function(c){try{' +
@@ -117,7 +162,15 @@ export function localeBootScript(): string {
     'if(w){try{document.cookie=c.n+"="+encodeURIComponent(l)+"; Path=/; Max-Age="+c.m+' +
     '"; SameSite=Lax"+(window.location.protocol==="https:"?"; Secure":"");}catch(e){}}' +
     'h.lang=l;' +
-    'h.dir=c.r.indexOf(l.split("-")[0].toLowerCase())>-1?"rtl":"ltr";' +
+    'var g=l.split("-")[0].toLowerCase();' +
+    'h.dir=c.r.indexOf(g)>-1?"rtl":"ltr";' +
+    // An Arabic tab: swap the prerendered English <title> now and while the head is still parsing
+    // (the <title> may come after this script); the observer stops once the document is parsed.
+    'if(g==="ar"){var f=function(){var v=document.title;' +
+    'if(Object.prototype.hasOwnProperty.call(c.t,v))document.title=c.t[v];};f();' +
+    'if(document.readyState==="loading"&&typeof MutationObserver==="function"){' +
+    'var o=new MutationObserver(f);o.observe(h,{childList:true,subtree:true,characterData:true});' +
+    'document.addEventListener("DOMContentLoaded",function(){f();o.disconnect();});}}' +
     '}catch(e){}})(' +
     data +
     ');'

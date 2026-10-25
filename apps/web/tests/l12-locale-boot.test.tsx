@@ -2,6 +2,8 @@ import { render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LocaleDirectionProvider } from '../src/components/providers/LocaleDirectionProvider';
 import {
+  bootTitleTable,
+  englishBootTitle,
   LOCALE_STORAGE_KEY,
   localeBootScript,
   resolveBootLocale,
@@ -107,5 +109,48 @@ describe('LocaleDirectionProvider', () => {
     store.set('en-US');
     expect(document.documentElement.dir).toBe('ltr');
     expect(document.documentElement.lang).toBe('en-US');
+  });
+});
+
+describe('the boot script and the tab title (prerendered pages)', () => {
+  function bootWithTitle(path: string, stored: string | null, title: string): void {
+    document.cookie = 'tmanage_locale=; Path=/; Max-Age=0';
+    window.history.replaceState(null, '', path);
+    if (stored) window.localStorage.setItem(LOCALE_STORAGE_KEY, stored);
+    document.title = title;
+    runBootScript();
+  }
+
+  afterEach(() => {
+    document.cookie = 'tmanage_locale=; Path=/; Max-Age=0';
+    document.title = '';
+  });
+
+  it('swaps the English title for the Arabic one before hydration for an Arabic tab', () => {
+    bootWithTitle('/pricing', 'ar-EG', 'Pricing · TManage');
+    expect(document.title).toBe('الأسعار · TManage');
+    expect(englishBootTitle(document.title)).toBe('Pricing · TManage');
+  });
+
+  it('does it for ?lang=ar and for the sign-in page too', () => {
+    const arabicSignIn = bootTitleTable()['Sign in · TManage'];
+    expect(arabicSignIn).toBeDefined();
+    bootWithTitle('/sign-in?lang=ar', null, 'Sign in · TManage');
+    expect(document.title).toBe(arabicSignIn);
+  });
+
+  it('leaves English tabs and unknown titles alone', () => {
+    bootWithTitle('/pricing', 'en-GB', 'Pricing · TManage');
+    expect(document.title).toBe('Pricing · TManage');
+    resetDocument();
+    window.localStorage.clear();
+    bootWithTitle('/resources/a', 'ar-EG', 'An article · TManage');
+    expect(document.title).toBe('An article · TManage');
+  });
+
+  it('covers only routes without a dynamic segment, so the script stays small', () => {
+    const table = bootTitleTable();
+    expect(Object.keys(table)).not.toContain('Work · TManage');
+    expect(localeBootScript().length).toBeLessThan(8000);
   });
 });

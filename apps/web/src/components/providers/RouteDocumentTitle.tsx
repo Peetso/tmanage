@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
+import { englishBootTitle } from '../../lib/i18n/locale-boot';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { englishRouteTitle, localizedRouteTitle } from '../../lib/route-titles';
 
@@ -32,7 +33,12 @@ export function RouteDocumentTitle() {
 
     const apply = () => {
       const current = document.title;
-      const ours = current === BARE_TITLE || current === english || current === lastWritten;
+      // The boot script's Arabic swap of the English title counts as the route's own title too.
+      const ours =
+        current === BARE_TITLE ||
+        current === english ||
+        current === lastWritten ||
+        (english !== undefined && englishBootTitle(current) === english);
       if (!ours || current === target) return;
       lastWritten = target;
       document.title = target;
