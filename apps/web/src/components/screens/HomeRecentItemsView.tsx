@@ -7,7 +7,7 @@ import '../../styles/screens/home.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getRecentItems } from '../../lib/api/home';
 import type { RecentItemObjectType } from '../../lib/api/home';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -31,6 +31,7 @@ export interface HomeRecentItemsViewProps {
  * way the sibling sections are.
  */
 export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItemsViewProps) {
+  const describeRecentsError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
   const locale = useActiveLocale();
   const api = client ?? browserApiClient();
@@ -139,12 +140,4 @@ function recentTypeLabelKey(objectType: RecentItemObjectType): MessageKey {
     case 'meeting':
       return 'HomeRecentItemsView.meetingLabel';
   }
-}
-
-function describeRecentsError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) {
-    return 'The network dropped before your recently-viewed items loaded.';
-  }
-  return 'Something went wrong loading your recently-viewed items.';
 }

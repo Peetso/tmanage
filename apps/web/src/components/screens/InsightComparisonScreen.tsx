@@ -8,7 +8,7 @@ import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPeriodComparison } from '../../lib/api/insights-comparison';
 import type { ComparisonMetric, PeriodComparisonView } from '../../lib/api/insights-comparison';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -80,6 +80,7 @@ export function InsightComparisonScreen({
   organizationName,
   client,
 }: InsightComparisonScreenProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
   const defaults = defaultDays();
@@ -233,13 +234,6 @@ function formatPercent(fraction: number): string {
 /** A short label for a window, from two ISO instants. */
 function windowCaption(startIso: string, endIso: string, t: Translate): string {
   return `${startIso.slice(0, 10)} ${t('InsightComparisonScreen.to')} ${endIso.slice(0, 10)}`;
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /**

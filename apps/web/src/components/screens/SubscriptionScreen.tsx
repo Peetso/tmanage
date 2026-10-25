@@ -11,7 +11,7 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchSubscription, requestPlanChange } from '../../lib/api/subscription';
 import type { SubscriptionView } from '../../lib/api/subscription';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { formatUsd, planPrice } from '../website/pages/pricing/pricing-data';
 import type { BillingPeriod } from '../website/pages/pricing/pricing-data';
@@ -128,6 +128,7 @@ export function SubscriptionScreen({
   organizationName,
   client,
 }: SubscriptionScreenProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const tOr = useTOr();
   const api = client ?? browserApiClient();
@@ -417,11 +418,4 @@ function formatBillDate(iso: string, locale: string): string {
   return new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(
     at,
   );
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }

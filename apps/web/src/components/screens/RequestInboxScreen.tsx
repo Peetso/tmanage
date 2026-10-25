@@ -9,7 +9,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import { MAX_CLIENT_REQUEST_PAGE, listClientRequestRecords } from '../../lib/api/client-requests';
 import type { ClientRequestRecord } from '../../lib/api/client-requests';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import {
   TRIAGE_BUCKETS,
@@ -60,6 +60,7 @@ export function RequestInboxScreen({
   client,
   now = new Date(),
 }: RequestInboxScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const [bucket, setBucket] = useState<TriageBucketId | 'all'>('all');
@@ -308,10 +309,4 @@ function FilterButton({ id, label, count, active, onSelect }: FilterButtonProps)
 function oldestFirst(left: ClientRequestRecord, right: ClientRequestRecord): number {
   if (left.createdAt === right.createdAt) return 0;
   return left.createdAt < right.createdAt ? -1 : 1;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

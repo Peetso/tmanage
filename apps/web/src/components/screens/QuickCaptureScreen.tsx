@@ -15,7 +15,8 @@ import { assignItemLabel, defineWorkLabel, listWorkLabels } from '../../lib/api/
 import { uploadProjectFile } from '../../lib/api/uploads';
 import type { UploadAttachmentOptions } from '../../lib/api/uploads';
 import { CaptureAttachmentPicker, CaptureLabelPicker } from './CaptureExtras';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useDictation } from '../voice/useDictation';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
@@ -140,6 +141,7 @@ export function QuickCaptureScreen({
   client,
   uploadOptions,
 }: QuickCaptureScreenProps) {
+  const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -453,11 +455,6 @@ export function QuickCaptureScreen({
       )}
     </AppShell>
   );
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }
 
 /** The API's messages carry no full stop; the failures are joined into one paragraph. */

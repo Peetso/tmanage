@@ -8,7 +8,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { createFocusBlock, deleteFocusBlock, listFocusBlocks } from '../../lib/api/focus-blocks';
 import type { FocusBlockView } from '../../lib/api/focus-blocks';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { CalendarHeaderActions, CalendarSubnav, whenLabel } from './MeetingsScreen';
 import '../../styles/screens/calendar.css';
@@ -46,6 +46,7 @@ export function FocusBlocksScreen({
   organizationName,
   client,
 }: FocusBlocksScreenProps) {
+  const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -261,9 +262,4 @@ export function FocusBlocksScreen({
 function durationMinutes(startsAt: string, endsAt: string): number {
   const ms = Date.parse(endsAt) - Date.parse(startsAt);
   return Number.isNaN(ms) ? 0 : Math.max(0, Math.round(ms / 60_000));
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }

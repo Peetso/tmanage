@@ -8,7 +8,7 @@ import '../../styles/screens/insights.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { captureSnapshot, listSnapshots } from '../../lib/api/insights-snapshots';
 import type { SnapshotKind, SnapshotView } from '../../lib/api/insights-snapshots';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -45,6 +45,7 @@ export function InsightSnapshotsScreen({
   organizationName,
   client,
 }: InsightSnapshotsScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
@@ -240,13 +241,6 @@ function SnapshotPayload({ title, view }: { title: string; view: SnapshotView })
       </pre>
     </figure>
   );
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /**

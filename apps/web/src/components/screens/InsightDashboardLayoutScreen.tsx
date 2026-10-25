@@ -16,7 +16,7 @@ import type {
   InsightDashboardTileEntry,
   InsightMetricKey,
 } from '../../lib/api/insight-dashboard-layout';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -73,6 +73,7 @@ export function InsightDashboardLayoutScreen({
   organizationName,
   client,
 }: InsightDashboardLayoutScreenProps) {
+  const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
@@ -210,9 +211,4 @@ export function InsightDashboardLayoutScreen({
       </div>
     </AppShell>
   );
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }

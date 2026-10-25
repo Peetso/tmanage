@@ -10,7 +10,7 @@ import {
   type ConnectionHealthIssue,
   type ConnectionHealthView,
 } from '../../lib/api/connection-health';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -40,6 +40,7 @@ export function ConnectionHealthScreen({
   organizationName,
   client,
 }: ConnectionHealthScreenProps) {
+  const describeError = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -123,10 +124,4 @@ function describeIssue(issue: ConnectionHealthIssue, missingConfigKeys: readonly
     default:
       return issue;
   }
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network request failed. Please try again.';
-  return 'Something went wrong. Please try again.';
 }

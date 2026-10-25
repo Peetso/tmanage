@@ -9,7 +9,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listClientRequests, listPortalProjects, listPortalWorkItems } from '../../lib/api/portal';
 import type { PortalWorkItem } from '../../lib/api/portal';
 import { isWaitingOnClient } from '../../lib/client-request-presentation';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { isPast, longDay, Segmented, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
@@ -53,6 +53,7 @@ export function ClientActionsScreen({
   client,
   now = new Date(),
 }: ClientActionsScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -350,12 +351,6 @@ function byDueDate(left: PortalWorkItem, right: PortalWorkItem): number {
 
 function isOverdue(item: PortalWorkItem, now: Date): boolean {
   return isPast(item.dueAt, now);
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }
 
 function describeDue(value: string | null): string {

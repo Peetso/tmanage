@@ -5,7 +5,9 @@ import { useMutation } from '@tanstack/react-query';
 import { InlineAlert, TextButton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { removeMessageBookmark, saveMessageBookmark } from '../../lib/api/message-bookmarks';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface MessageBookmarkViewProps {
@@ -36,6 +38,8 @@ export function MessageBookmarkView({
   onChange,
   client,
 }: MessageBookmarkViewProps) {
+  const tOr = useTOr();
+  const describe = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const [saved, setSaved] = useState(initialSaved);
 
@@ -64,15 +68,13 @@ export function MessageBookmarkView({
         disabled={toggle.isPending}
         onClick={() => toggle.mutate()}
       >
-        {saved ? 'Saved' : 'Save'}
+        {saved ? tOr('MessageBookmark.saved', 'Saved') : tOr('MessageBookmark.save', 'Save')}
       </TextButton>
       {error ? (
         <InlineAlert tone="danger" live>
           {error instanceof ApiRequestError
-            ? 'This message could not be saved.'
-            : error instanceof NetworkError
-              ? 'Could not reach the server. Try again.'
-              : 'Something went wrong.'}
+            ? tOr('MessageBookmark.refused', 'This message could not be saved.')
+            : describe(error)}
         </InlineAlert>
       ) : null}
     </span>

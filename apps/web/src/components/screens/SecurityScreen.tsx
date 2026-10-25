@@ -30,7 +30,7 @@ import type {
   TokenExpiryDays,
   TokenStatus,
 } from '../../lib/api/personal-access-tokens';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { describeApiErrorNow, OFFLINE_LINES } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/access-security.css';
 
@@ -419,6 +419,5 @@ export function Dialog({
 }
 
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
+  return describeApiErrorNow(error, OFFLINE_LINES);
 }

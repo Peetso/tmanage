@@ -9,7 +9,7 @@ import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { auditExportUrl, listAuditEvents, MAX_AUDIT_PAGE } from '../../lib/api/admin-audit';
 import type { AdminAuditEvent } from '../../lib/api/admin-audit';
 import { listMembers } from '../../lib/api/members';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -49,6 +49,7 @@ export function AdminAuditScreen({
   organizationName,
   client,
 }: AdminAuditScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -454,13 +455,6 @@ export function groupDeniedRuns(rows: readonly AdminAuditEvent[]): readonly Audi
   }
   flush();
   return items;
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /** "Today 09:40", "Yest 16:12", "13 Aug 10:04" — ADM-09's timestamp column. */

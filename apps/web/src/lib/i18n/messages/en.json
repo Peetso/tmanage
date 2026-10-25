@@ -12102,5 +12102,13 @@
   "WorkItemAudience.internal": "Internal",
   "WorkItemAudience.clientVisible": "Client can see",
   "WorkItemAudience.clientActionRequired": "Client action needed",
-  "WorkItemAudience.noDate": "No date"
+  "WorkItemAudience.noDate": "No date",
+  "ApiError.offline": "We could not reach TManage. Check your connection and try again.",
+  "ApiError.portalDown": "The portal is not answering. Try again shortly.",
+  "ApiError.statusDown": "The status service did not answer. Try again shortly.",
+  "FirstOwnerSetup.tokenWrong": "That setup token is not correct.",
+  "FirstOwnerSetup.tooManyAttempts": "Too many attempts. Wait a few minutes and try again.",
+  "MessageBookmark.save": "Save",
+  "MessageBookmark.saved": "Saved",
+  "MessageBookmark.refused": "This message could not be saved."
 }

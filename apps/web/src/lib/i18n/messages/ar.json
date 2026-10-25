@@ -12102,5 +12102,13 @@
   "WorkItemAudience.internal": "داخلي",
   "WorkItemAudience.clientVisible": "يراه العميل",
   "WorkItemAudience.clientActionRequired": "مطلوب إجراء من العميل",
-  "WorkItemAudience.noDate": "بلا تاريخ"
+  "WorkItemAudience.noDate": "بلا تاريخ",
+  "ApiError.offline": "تعذّر الوصول إلى TManage. تحقّق من اتصالك وحاول مرة أخرى.",
+  "ApiError.portalDown": "البوابة لا تستجيب. حاول مرة أخرى بعد قليل.",
+  "ApiError.statusDown": "لم تستجب خدمة الحالة. حاول مرة أخرى بعد قليل.",
+  "FirstOwnerSetup.tokenWrong": "رمز الإعداد هذا غير صحيح.",
+  "FirstOwnerSetup.tooManyAttempts": "محاولات كثيرة جدًا. انتظر بضع دقائق ثم حاول مرة أخرى.",
+  "MessageBookmark.save": "حفظ",
+  "MessageBookmark.saved": "محفوظة",
+  "MessageBookmark.refused": "تعذّر حفظ هذه الرسالة."
 }

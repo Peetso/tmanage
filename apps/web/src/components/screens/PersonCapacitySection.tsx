@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getPersonCapacity, setPersonCapacity } from '../../lib/api/person-capacity';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -33,6 +33,7 @@ export function PersonCapacitySection({
   membershipId,
   client,
 }: PersonCapacitySectionProps) {
+  const describeError = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -153,10 +154,4 @@ export function PersonCapacitySection({
       </form>
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped. Check your connection and retry.';
-  return 'Something went wrong. Retry in a moment.';
 }

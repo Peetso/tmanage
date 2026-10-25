@@ -24,7 +24,7 @@ import type {
 import { fetchOrgWorkload } from '../../lib/api/insights-workload';
 import { fetchInsightsPortfolio } from '../../lib/api/insights-portfolio';
 import type { InsightsWorkloadView } from '../../lib/api/insights-workload';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -63,6 +63,7 @@ export function InsightsScreen({
   projectId,
   client,
 }: InsightsScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -519,13 +520,6 @@ function WorkloadTable({
       </p>
     </>
   );
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /**

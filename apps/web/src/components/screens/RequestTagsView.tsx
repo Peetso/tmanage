@@ -7,7 +7,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import { addRequestTag, fetchRequestTags, removeRequestTag } from '../../lib/api/request-tags';
 import type { RequestTagItem } from '../../lib/api/request-tags';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface RequestTagsViewProps {
@@ -36,6 +36,7 @@ export function RequestTagsView({
   clientRequestId,
   client,
 }: RequestTagsViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -149,10 +150,4 @@ export function RequestTagsView({
       ) : null}
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

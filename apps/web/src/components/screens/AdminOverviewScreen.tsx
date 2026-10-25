@@ -11,7 +11,7 @@ import { listAuditEvents } from '../../lib/api/admin-audit';
 import { getConnectedApps } from '../../lib/api/connected-apps';
 import { listWorkflowTemplates } from '../../lib/api/automations';
 import { readSecuritySettings } from '../../lib/api/admin-security';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
@@ -46,6 +46,7 @@ export function AdminOverviewScreen({
   client,
   now,
 }: AdminOverviewScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
   const cc = (key: ControlCenterKey | `ControlCenter.${string}`) => t(ccKey(key));
@@ -214,11 +215,4 @@ function OverviewCard<Data>({
       ) : null}
     </li>
   );
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }

@@ -10,7 +10,7 @@ import {
   savePortalBranding,
 } from '../../lib/api/portal-branding';
 import type { PortalBranding } from '../../lib/api/portal-branding';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -41,6 +41,7 @@ export function PortalBrandingView({
   clientOrganizationId,
   client,
 }: PortalBrandingViewProps) {
+  const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
@@ -176,9 +177,4 @@ export function PortalBrandingView({
       </div>
     </form>
   );
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }

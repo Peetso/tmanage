@@ -9,7 +9,7 @@ import {
   removeRequestComment,
   type RequestComment,
 } from '../../lib/api/request-comments';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -20,12 +20,6 @@ export interface RequestCommentsPanelProps {
 }
 
 const MAX_BODY_LENGTH = 5000;
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
-}
 
 function formatWhen(iso: string): string {
   const at = new Date(iso);
@@ -60,6 +54,7 @@ export function RequestCommentsPanel({
   clientRequestId,
   api,
 }: RequestCommentsPanelProps) {
+  const describe = useDescribeApiError();
   const queries = useQueryClient();
   const t = useT();
   const queryKey = ['request-comments', organizationSlug, clientRequestId] as const;

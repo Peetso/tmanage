@@ -5,7 +5,7 @@ import { Badge, Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui
 import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchPendingInvitations, revokeInvitation } from '../../lib/api/admin-invitations';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { describeInternalRole } from '../../lib/roles';
 import { useT } from '../../lib/i18n/use-t';
@@ -35,6 +35,7 @@ export function AdminInvitationsView({
   organizationName,
   client,
 }: AdminInvitationsViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -126,13 +127,6 @@ export function AdminInvitationsView({
       </section>
     </AppShell>
   );
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /** Format an ISO timestamp following the browser's locale; an unparseable value is shown verbatim. */

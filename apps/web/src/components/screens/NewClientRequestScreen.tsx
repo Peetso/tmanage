@@ -9,6 +9,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listPortalProjects, submitClientRequest } from '../../lib/api/portal';
 import type { ClientRequest } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { formatDay } from '../../lib/client-request-presentation';
 import './PortalParts';
@@ -83,6 +84,7 @@ export function NewClientRequestScreen({
   aboutItemTitle,
   initialProjectId,
 }: NewClientRequestScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -491,10 +493,4 @@ function SentConfirmation({ request, providerName, organizationSlug }: SentConfi
 function errorFor(errors: ReadonlyMap<string, string>, field: string): { error?: string } {
   const message = errors.get(field);
   return message === undefined ? {} : { error: message };
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

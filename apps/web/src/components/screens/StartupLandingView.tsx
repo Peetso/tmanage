@@ -8,7 +8,7 @@ import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getStartupPref, updateStartupPref, LANDING_KEYS } from '../../lib/api/startup-prefs';
 import type { LandingKey, StartupPrefView } from '../../lib/api/startup-prefs';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/preferences.css';
 
@@ -35,6 +35,7 @@ export function StartupLandingView({
   organizationName,
   client,
 }: StartupLandingViewProps) {
+  const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -162,9 +163,4 @@ export function StartupLandingView({
       )}
     </AppShell>
   );
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }

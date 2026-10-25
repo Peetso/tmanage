@@ -12,7 +12,7 @@ import { fetchOrganizationUsage } from '../../lib/api/usage';
 import type { OrganizationUsage } from '../../lib/api/usage';
 import { fetchSubscription } from '../../lib/api/subscription';
 import type { SubscriptionView } from '../../lib/api/subscription';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/billing.css';
 
@@ -45,6 +45,7 @@ export function StorageUsageScreen({
   organizationName,
   client,
 }: StorageUsageScreenProps) {
+  const describe = useDescribeApiError();
   const t = useT();
   const api = client ?? browserApiClient();
 
@@ -266,13 +267,6 @@ function formatDay(iso: string): string {
   const at = new Date(iso);
   if (Number.isNaN(at.getTime())) return iso;
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(at);
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /**

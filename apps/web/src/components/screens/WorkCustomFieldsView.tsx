@@ -15,7 +15,7 @@ import {
   type WorkCustomFieldType,
   type WorkCustomFieldValue,
 } from '../../lib/api/work-custom-fields';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -40,6 +40,7 @@ export function WorkCustomFieldsView({
   workItemId,
   client,
 }: WorkCustomFieldsViewProps) {
+  const describeError = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -245,6 +246,7 @@ function FieldValueEditor({
   onSave: (value: string) => Promise<WorkCustomFieldValue>;
   onSaved: () => Promise<void>;
 }) {
+  const describeError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
   const [draft, setDraft] = useState(field.value ?? '');
 
@@ -302,10 +304,4 @@ function FieldValueEditor({
       ) : null}
     </li>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped. Try again.';
-  return 'Something went wrong.';
 }

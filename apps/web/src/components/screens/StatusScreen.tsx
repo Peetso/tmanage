@@ -12,7 +12,7 @@ import type {
   PublicIncidentView,
   PublicStatusView,
 } from '../../lib/api/public-site';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { STATUS_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface StatusScreenProps {
@@ -36,6 +36,7 @@ export interface StatusScreenProps {
  * owns the one `<h1>` and the content.
  */
 export function StatusScreen({ client }: StatusScreenProps) {
+  const describe = useDescribeApiError(STATUS_LINES);
   const t = useT();
   const api = client ?? browserApiClient();
 
@@ -318,13 +319,6 @@ function duration(incident: PublicIncidentView, t: (key: MessageKey) => string):
 function parseTime(iso: string): number | null {
   const at = new Date(iso).getTime();
   return Number.isNaN(at) ? null : at;
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The status service did not answer. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }
 
 function formatDay(at: number): string {

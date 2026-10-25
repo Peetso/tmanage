@@ -7,7 +7,7 @@ import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { listPortalFiles, listPortalProjects, portalFileDownloadPath } from '../../lib/api/portal';
 import type { PortalFile } from '../../lib/api/portal';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { shortDay } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
@@ -56,6 +56,7 @@ export function PortalFilesScreen({
   providerName: passedProviderName,
   client,
 }: PortalFilesScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -256,10 +257,4 @@ function formatBytes(bytes: number): string {
   }
   const rounded = unit === 0 ? value : Math.round(value * 10) / 10;
   return `${rounded} ${units[unit]}`;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

@@ -9,7 +9,7 @@ import type {
   InboxSnooze,
   InboxSnoozeView as InboxSnoozeViewData,
 } from '../../lib/api/inbox-snooze';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -40,6 +40,7 @@ const HORIZONS: readonly { readonly labelKey: MessageKey; readonly hours: number
  * server's future check is met without depending on any clock but the browser's.
  */
 export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSnoozeViewProps) {
+  const describeError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
@@ -145,9 +146,4 @@ export function InboxSnoozeView({ organizationSlug, bundleId, client }: InboxSno
       ) : null}
     </section>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }

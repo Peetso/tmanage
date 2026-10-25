@@ -7,7 +7,9 @@ import { IdentityShell } from '../shell/IdentityShell';
 import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { completeFirstOwnerSetup, fetchSetupAvailability } from '../../lib/api/setup';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { ApiRequestError } from '../../lib/api/errors';
+import { describeApiError, OFFLINE_LINES, type TranslateOr } from '../../lib/api/describe-error';
+import { useTOr } from '../../lib/i18n/use-t-or';
 import type { ApiClient } from '../../lib/api/client';
 import { authBoundary, type AuthBoundary } from '../../lib/auth-boundary';
 import {
@@ -94,6 +96,7 @@ export function FirstOwnerSetupScreen({
   boundary = authBoundary,
 }: FirstOwnerSetupScreenProps) {
   const t = useT();
+  const tOr = useTOr();
   const api = client ?? browserApiClient();
   const hydrated = useHydrated();
 
@@ -212,7 +215,7 @@ export function FirstOwnerSetupScreen({
         }
         setFieldErrors(next);
       }
-      setFailure(describe(error));
+      setFailure(describe(error, tOr));
     } finally {
       setSubmitting(false);
     }
@@ -448,14 +451,18 @@ function errorProp(message: string | undefined): { error?: string } {
  * Turn a thrown value into a sentence. 401 and 429 get fixed wording; 409 and 400 render the
  * API's message, which names the conflict or the shape problem and carries no stored data.
  */
-function describe(error: unknown): string {
+function describe(error: unknown, tOr: TranslateOr): string {
   if (error instanceof ApiRequestError) {
-    if (error.status === 401) return 'That setup token is not correct.';
-    if (error.status === 429) return 'Too many attempts. Wait a few minutes and try again.';
-    return error.message;
+    if (error.status === 401)
+      return tOr('FirstOwnerSetup.tokenWrong', 'That setup token is not correct.');
+    if (error.status === 429) {
+      return tOr(
+        'FirstOwnerSetup.tooManyAttempts',
+        'Too many attempts. Wait a few minutes and try again.',
+      );
+    }
   }
-  if (error instanceof NetworkError) return 'We could not reach the server. Please try again.';
-  return 'Something went wrong. Please try again.';
+  return describeApiError(error, tOr, OFFLINE_LINES);
 }
 
 /** Every zone the runtime knows, always including the current choice. */

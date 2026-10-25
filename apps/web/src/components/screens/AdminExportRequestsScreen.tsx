@@ -10,7 +10,7 @@ import {
   EXPORT_SCOPES,
   readExportRequests,
 } from '../../lib/api/admin-export-requests';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -34,6 +34,7 @@ export function AdminExportRequestsScreen({
   organizationName,
   client,
 }: AdminExportRequestsScreenProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -176,10 +177,4 @@ export function AdminExportRequestsScreen({
       </section>
     </AppShell>
   );
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

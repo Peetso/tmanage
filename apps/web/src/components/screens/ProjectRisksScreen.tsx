@@ -10,7 +10,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import { createProjectRisk, listProjectRisks } from '../../lib/api/portal';
 import type { ProjectRisk, RiskSeverity, RiskStatus } from '../../lib/api/portal';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 
 export interface ProjectRisksScreenProps {
@@ -52,6 +52,7 @@ export function ProjectRisksScreen({
   projectId,
   client,
 }: ProjectRisksScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -308,10 +309,4 @@ function statusCapsule(status: RiskStatus): CapsuleState {
     default:
       return 'future';
   }
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

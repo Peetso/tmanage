@@ -11,7 +11,7 @@ import { connectorAddress, deploymentAddress } from '../../lib/ai-connector-addr
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { listPersonalAccessTokens } from '../../lib/api/personal-access-tokens';
 import type { PersonalAccessTokenView } from '../../lib/api/personal-access-tokens';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
@@ -50,6 +50,7 @@ export function AiAssistantScreen({
   serverUrl,
   now = () => new Date(),
 }: AiAssistantScreenProps) {
+  const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const t = useT();
   const queryKey = ['personal-access-tokens', organizationSlug] as const;
@@ -442,9 +443,4 @@ function formatDateTime(iso: string): string {
   return Number.isNaN(date.getTime())
     ? iso
     : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }

@@ -7,7 +7,7 @@ import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listClientMessages, postClientMessage } from '../../lib/api/portal';
 import type { ClientMessage } from '../../lib/api/portal';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
@@ -34,6 +34,7 @@ export function PortalClientMessagesScreen({
   providerName: passedProviderName,
   client,
 }: PortalClientMessagesScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -142,6 +143,7 @@ interface ThreadSectionProps {
 }
 
 function ThreadSection({ providerName, messages, isPending, isError, error }: ThreadSectionProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const t = useT();
   return (
     <section className="tm-panel tm-stack" aria-labelledby="tm-portal-messages-thread">
@@ -185,10 +187,4 @@ function ThreadSection({ providerName, messages, isPending, isError, error }: Th
 function formatSent(iso: string): string {
   const at = new Date(iso);
   return Number.isNaN(at.getTime()) ? iso : at.toLocaleString();
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

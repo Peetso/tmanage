@@ -8,7 +8,7 @@ import { AppShell } from '../shell/AppShell';
 import './work-core.css';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { addTimeLog, deleteTimeLog, listTimeLogs, type TimeLog } from '../../lib/api/work-items';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -36,6 +36,7 @@ export function WorkItemTimeLogScreen({
   workItemId,
   client,
 }: WorkItemTimeLogScreenProps) {
+  const describeError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
@@ -225,10 +226,4 @@ function formatMinutes(total: number): string {
   if (hours === 0) return `${mins}m`;
   if (mins === 0) return `${hours}h`;
   return `${hours}h ${mins}m`;
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped. Try again.';
-  return 'Something went wrong.';
 }

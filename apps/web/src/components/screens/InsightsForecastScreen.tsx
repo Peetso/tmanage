@@ -13,7 +13,7 @@ import {
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchWorkloadForecast } from '../../lib/api/workload-forecast';
 import type { WorkloadForecastView, WorkloadForecastWeek } from '../../lib/api/workload-forecast';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -43,6 +43,7 @@ export function InsightsForecastScreen({
   organizationName,
   client,
 }: InsightsForecastScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -358,13 +359,6 @@ function count(
 function perMemberCapacity(totals: WorkloadForecastView['totals']): number {
   if (totals.memberCount === 0 || totals.weeks === 0) return 0;
   return totals.capacity / totals.weeks / totals.memberCount;
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /** Format an ISO week-start for display, date only. An unparseable value is shown verbatim. */

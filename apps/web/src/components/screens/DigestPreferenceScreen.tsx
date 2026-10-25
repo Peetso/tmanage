@@ -8,7 +8,7 @@ import { AppShell } from '../shell/AppShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getDigestPreference, updateDigestPreference } from '../../lib/api/digest';
 import type { DigestCadence, DigestPrefView } from '../../lib/api/digest';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
@@ -75,6 +75,7 @@ export function DigestPreferenceScreen({
   organizationName,
   client,
 }: DigestPreferenceScreenProps) {
+  const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
@@ -267,9 +268,4 @@ export function DigestPreferenceScreen({
       )}
     </AppShell>
   );
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }

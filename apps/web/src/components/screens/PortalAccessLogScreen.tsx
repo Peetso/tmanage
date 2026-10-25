@@ -11,7 +11,7 @@ import type {
   PortalAccessLogEvent,
   PortalAccessResourceKind,
 } from '../../lib/api/portal-access-log';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -55,6 +55,7 @@ export function PortalAccessLogScreen({
   projectId,
   client,
 }: PortalAccessLogScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -153,13 +154,6 @@ function AccessRow({ event }: { event: PortalAccessLogEvent }) {
       <td>{RESOURCE_LABELS[event.resourceKind]}</td>
     </tr>
   );
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /**

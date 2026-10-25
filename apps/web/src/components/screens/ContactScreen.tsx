@@ -6,7 +6,7 @@ import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { PublicIntro, PublicPage } from './public/PublicSite';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { submitContact } from '../../lib/api/contact';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useHydrated } from '../../lib/use-hydrated';
 import { useT } from '../../lib/i18n/use-t';
@@ -35,6 +35,7 @@ export interface ContactScreenProps {
  * round trip; the server remains the authority and its 400 is rendered verbatim.
  */
 export function ContactScreen({ client }: ContactScreenProps) {
+  const describe = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const t = useT();
   const hydrated = useHydrated();
@@ -190,14 +191,4 @@ export function ContactScreen({ client }: ContactScreenProps) {
       </div>
     </PublicPage>
   );
-}
-
-/**
- * Turn a thrown value into a sentence. `ApiRequestError.message` is rendered verbatim — the API's
- * contact 400 is a shape message with no stored data in it.
- */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'We could not reach the server. Please try again.';
-  return 'Something went wrong. Please try again.';
 }

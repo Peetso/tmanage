@@ -22,7 +22,7 @@ import type { InsightsBar, InsightsTone } from './InsightsKit';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { fetchInsightsPortfolio } from '../../lib/api/insights-portfolio';
 import type { InsightsPortfolio, InsightsPortfolioProject } from '../../lib/api/insights-portfolio';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
 import { useT } from '../../lib/i18n/use-t';
@@ -59,6 +59,7 @@ export function InsightsPortfolioScreen({
   headerActions,
   children,
 }: InsightsPortfolioScreenProps) {
+  const describe = useDescribeApiError();
   const api = client ?? browserApiClient();
   const isMobile = useIsMobile();
   const t = useT();
@@ -433,13 +434,6 @@ function formatHours(ms: number): string {
   if (hours < 1) return `${Math.max(1, Math.round(ms / 60_000))}m`;
   if (hours < 72) return `${Math.round(hours)}h`;
   return `${Math.round(hours / 24)}d`;
-}
-
-/** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
 }
 
 /**

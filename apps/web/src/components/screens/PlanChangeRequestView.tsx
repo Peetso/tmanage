@@ -12,7 +12,7 @@ import {
   type PlanChangeRequestView as PlanChangeRequest,
 } from '../../lib/api/plan-change-requests';
 import { fetchSubscription } from '../../lib/api/subscription';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/billing.css';
@@ -60,6 +60,7 @@ export function PlanChangeRequestView({
   organizationName,
   client,
 }: PlanChangeRequestViewProps) {
+  const describeError = useDescribeApiError();
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -330,10 +331,4 @@ export function PlanChangeRequestView({
 
 function planLabel(planId: string): string {
   return PLAN_OPTIONS.find((plan) => plan.id === planId)?.label ?? planId;
-}
-
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Is it running?';
-  return 'Something went wrong. Try again.';
 }

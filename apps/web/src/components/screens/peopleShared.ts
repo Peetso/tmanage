@@ -1,4 +1,4 @@
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { describeApiErrorNow } from '../../lib/api/describe-error';
 
 /**
  * Small helpers the People screens (PEO-01..04, heatmap, org chart) share. Kept beside the screens
@@ -21,7 +21,5 @@ export function firstNameOf(name: string): string {
 
 /** Turn a thrown value into a sentence a person can act on. Never leaks a stack or a cause. */
 export function describePeopleError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The API did not answer. Check that it is running.';
-  return 'Something went wrong. Try again.';
+  return describeApiErrorNow(error);
 }

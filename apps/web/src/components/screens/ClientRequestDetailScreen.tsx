@@ -8,6 +8,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { getClientRequest, listPortalProjects, withdrawClientRequest } from '../../lib/api/portal';
 import type { ClientRequestStatus } from '../../lib/api/portal';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import {
   describeCommitment,
@@ -70,6 +71,7 @@ export function ClientRequestDetailScreen({
   providerName: passedProviderName,
   client,
 }: ClientRequestDetailScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -447,10 +449,4 @@ function journeyLabel(status: ClientRequestStatus, providerName: string): string
     default:
       return 'Studio has it';
   }
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

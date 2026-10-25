@@ -6,7 +6,7 @@ import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listPortalAnnouncements } from '../../lib/api/portal-announcements';
 import type { ClientPortalAnnouncement } from '../../lib/api/portal-announcements';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 
@@ -36,6 +36,7 @@ export function PortalAnnouncementView({
   providerName,
   client,
 }: PortalAnnouncementViewProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const api = client ?? browserApiClient();
   const t = useT();
 
@@ -97,10 +98,4 @@ function formatDate(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(parsed);
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

@@ -11,7 +11,7 @@ import {
   updateAccessibilityPreferences,
 } from '../../lib/api/a11y-preferences';
 import type { A11yFontScale, A11yPreferencesView } from '../../lib/api/a11y-preferences';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { PreferenceToggle } from './PreferencesScreen';
@@ -75,6 +75,7 @@ export function AccessibilityScreen({
   organizationName,
   client,
 }: AccessibilityScreenProps) {
+  const errorMessage = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queries = useQueryClient();
   const t = useT();
@@ -248,9 +249,4 @@ export function AccessibilityScreen({
       )}
     </AppShell>
   );
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof ApiRequestError || error instanceof NetworkError) return error.message;
-  return 'Something went wrong. Please try again.';
 }

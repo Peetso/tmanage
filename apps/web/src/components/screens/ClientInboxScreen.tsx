@@ -13,7 +13,7 @@ import {
   markPortalBundleRead,
 } from '../../lib/api/portal';
 import type { PortalInboxBundle, PortalInboxMode } from '../../lib/api/portal';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { requestStatusLabel } from '../../lib/client-request-presentation';
 import { formatInstant } from '../../lib/work-item-presentation';
@@ -61,6 +61,7 @@ export function ClientInboxScreen({
   providerName: passedProviderName,
   client,
 }: ClientInboxScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -308,10 +309,4 @@ function mergePages(
     }
   }
   return [...byId.values()];
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

@@ -12,7 +12,7 @@ import {
   listPortalProjects,
 } from '../../lib/api/portal';
 import type { PortalDeliverable, PortalDeliverableFile, PortalProject } from '../../lib/api/portal';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { Segmented, shortDay, Tag } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
@@ -47,6 +47,7 @@ export function ClientPortalDeliverablesScreen({
   providerName: passedProviderName,
   client,
 }: ClientPortalDeliverablesScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -195,6 +196,7 @@ function ProjectDeliverables({
   filter,
   labelled,
 }: ProjectDeliverablesProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const t = useT();
   const headingId = useId();
 
@@ -353,6 +355,7 @@ interface DeliverableFilesProps {
  * The files attached to one deliverable, fetched the first time the disclosure opens.
  */
 function DeliverableFiles({ api, organizationSlug, deliverableId }: DeliverableFilesProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const t = useT();
   const files = useQuery({
     queryKey: ['portal-deliverable-files', organizationSlug, deliverableId],
@@ -393,12 +396,6 @@ function DeliverableFiles({ api, organizationSlug, deliverableId }: DeliverableF
       ))}
     </ul>
   );
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }
 
 function describeFile(file: PortalDeliverableFile): string {

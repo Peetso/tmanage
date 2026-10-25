@@ -7,7 +7,7 @@ import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listClientRequests, listPortalProjects } from '../../lib/api/portal';
 import type { ClientRequest, ClientRequestStatus } from '../../lib/api/portal';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import {
   describeCommitment,
@@ -41,6 +41,7 @@ export function ClientRequestsScreen({
   providerName: passedProviderName,
   client,
 }: ClientRequestsScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -181,10 +182,4 @@ function byAttentionThenAge(left: ClientRequest, right: ClientRequest): number {
   if (leftWaiting !== rightWaiting) return leftWaiting - rightWaiting;
   if (left.createdAt === right.createdAt) return 0;
   return left.createdAt < right.createdAt ? 1 : -1;
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

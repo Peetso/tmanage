@@ -10,7 +10,7 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { fetchRequestTriage, putRequestTriage } from '../../lib/api/request-triage';
 import type { RequestTriageView } from '../../lib/api/request-triage';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/work-planning.css';
 
@@ -63,6 +63,7 @@ export function RequestTriagePanelScreen({
   clientRequestId,
   client,
 }: RequestTriagePanelScreenProps) {
+  const describe = useDescribeApiError(OFFLINE_LINES);
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
@@ -206,11 +207,4 @@ export function RequestTriagePanelScreen({
       </section>
     </AppShell>
   );
-}
-
-/** Turn a thrown error into a sentence, the shape the sibling screens use. */
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped before triage could be reached.';
-  return 'Something went wrong loading triage.';
 }

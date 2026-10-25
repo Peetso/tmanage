@@ -11,7 +11,7 @@ import {
   type ClientApprovalView,
   type ClientDecideResult,
 } from '../../lib/api/approvals';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { PORTAL_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { longDay } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
@@ -54,6 +54,7 @@ export function ClientApprovalScreen({
   deliverableVersionId,
   client,
 }: ClientApprovalScreenProps) {
+  const describe = useDescribeApiError(PORTAL_LINES);
   const { clientName, providerName } = usePortalNames(
     organizationSlug,
     passedClientName,
@@ -320,10 +321,4 @@ function Confirmation({ result }: { result: ClientDecideResult }) {
       <p className="tm-prose">{t('ClientApprovalScreen.versionChangedBody')}</p>
     </InlineAlert>
   );
-}
-
-function describe(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The portal is not answering. Try again shortly.';
-  return 'Something went wrong. Try again.';
 }

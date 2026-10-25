@@ -5,7 +5,7 @@ import { Skeleton } from '@tmanage/ui';
 import { useT } from '../../lib/i18n/use-t';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getHomePulse } from '../../lib/api/home';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import '../../styles/screens/home.css';
 
@@ -24,6 +24,7 @@ export interface HomeHeroSectionProps {
  * show nothing the lists do not. Read-only; it owns its own query and error state.
  */
 export function HomeHeroSection({ organizationSlug, client }: HomeHeroSectionProps) {
+  const describePulseError = useDescribeApiError(OFFLINE_LINES);
   const t = useT();
   const api = client ?? browserApiClient();
 
@@ -125,10 +126,4 @@ function Metric({
 /** HOME-01 draws single-digit day counts with a leading zero ("04"). */
 function pad(value: number): string {
   return value < 10 ? `0${value}` : String(value);
-}
-
-function describePulseError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped before your focus loaded.';
-  return 'Something went wrong loading your focus.';
 }
