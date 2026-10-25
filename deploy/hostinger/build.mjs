@@ -331,27 +331,37 @@ function buildArtifacts() {
   });
 }
 
+/**
+ * The apps/server modules shipped next to server.mjs: the entry's whole relative-import closure,
+ * plus web-socket-preload.mjs, which server.mjs passes to the web child by path (`--import`).
+ * A module missing here fails boot on Hostinger (cache-headers.mjs 2026-10-23, job-alerts.mjs
+ * 2026-10-25); server-files.test.mjs derives the closure from the sources and checks this list.
+ * web-transport.mjs and web-socket-preload.mjs carry the listen-first boot and the private
+ * socket to the web child (Hostinger refuses loopback TCP between the app's own processes).
+ */
+export const SERVER_FILES = Object.freeze([
+  'database-env.mjs',
+  'boot-guards.mjs',
+  'production-env.mjs',
+  'web-transport.mjs',
+  'web-socket-preload.mjs',
+  // server.mjs imports the web child's restart backoff from here; missing it, boot fails.
+  'web-restart.mjs',
+  // server.mjs and web-transport.mjs import the CDN cache policy from here; missing it, boot fails.
+  'cache-headers.mjs',
+  // server.mjs imports the in-process sweep scheduler from here; missing it, boot fails.
+  'scheduled-sweeps.mjs',
+  // server.mjs imports the job alerts from here; missing it, boot fails.
+  'job-alerts.mjs',
+]);
+
 function assemble() {
   rmSync(STAGE, { recursive: true, force: true });
   mkdirSync(STAGE, { recursive: true });
 
   // The entry.
   cpSync(join(REPO, 'apps/server/server.mjs'), join(STAGE, 'server.mjs'));
-  // web-transport.mjs and web-socket-preload.mjs carry the listen-first boot and the private
-  // socket to the web child (Hostinger refuses loopback TCP between the app's own processes).
-  for (const file of [
-    'database-env.mjs',
-    'boot-guards.mjs',
-    'production-env.mjs',
-    'web-transport.mjs',
-    'web-socket-preload.mjs',
-    // server.mjs imports the web child's restart backoff from here; missing it, boot fails.
-    'web-restart.mjs',
-    // server.mjs and web-transport.mjs import the CDN cache policy from here; missing it, boot fails.
-    'cache-headers.mjs',
-    // server.mjs imports the in-process sweep scheduler from here; missing it, boot fails.
-    'scheduled-sweeps.mjs',
-  ]) {
+  for (const file of SERVER_FILES) {
     cpSync(join(REPO, 'apps/server', file), join(STAGE, file));
   }
 
