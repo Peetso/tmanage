@@ -290,10 +290,53 @@ async function auditWcag(page: Page, screen: string): Promise<AxeViolation[]> {
     .filter((violation) => violation.nodes.length > 0);
 }
 
+/**
+ * The wave-5 (Figma F1–F5) triggers, in each catalogue: the buttons that bring up the new dialogs
+ * the routes do not show on load.
+ */
+type FLabel =
+  | 'inviteMember'
+  | 'moreActions'
+  | 'recordDecision'
+  | 'changePlan'
+  | 'requestExport'
+  | 'requestDeletion'
+  | 'exportMember';
+const F_LABELS: Readonly<Record<Lang, Readonly<Record<FLabel, string>>>> = {
+  en: {
+    inviteMember: 'Invite member',
+    moreActions: 'More actions',
+    recordDecision: 'Record as decision',
+    changePlan: 'Change plan',
+    requestExport: 'Request export',
+    requestDeletion: 'Request deletion',
+    exportMember: "Export a member's data",
+  },
+  ar: {
+    inviteMember: 'دعوة عضو',
+    moreActions: 'إجراءات أخرى',
+    recordDecision: 'تسجيل كقرار',
+    changePlan: 'غيّر الخطة',
+    requestExport: 'طلب التصدير',
+    requestDeletion: 'طلب الحذف',
+    exportMember: 'تصدير بيانات عضو',
+  },
+};
+
+/** Click a trigger and wait for the (single) modal dialog it opens. */
+async function openDialog(page: Page, trigger: ReturnType<Page['locator']>): Promise<void> {
+  await trigger.click();
+  await expect(page.getByRole('dialog').last()).toBeVisible();
+}
+
 /** The ids the matrix's own fixtures mint once, in `beforeAll`. */
 interface MatrixFixtures {
   conversationId: string;
   deliverableId: string;
+  /** F3: a second channel holding one message, so "Record as decision" has a source. */
+  decisionConversationId: string;
+  /** F2: a doc to open in the editor and rename. */
+  documentId: string;
 }
 
 const MATRIX: ReadonlyArray<{
@@ -353,6 +396,80 @@ const MATRIX: ReadonlyArray<{
   },
   { name: 'portal new request', as: 'client', path: () => `/${ORG}/portal/requests/new` },
   { name: 'portal files', as: 'client', path: () => `/${ORG}/portal/files` },
+  // Wave 5 — the Figma F1–F5 screens.
+  {
+    name: 'F1 invite member dialog (roles)',
+    as: 'owner',
+    path: () => `/${ORG}/people`,
+    open: (page, lang) =>
+      openDialog(page, page.getByRole('button', { name: F_LABELS[lang].inviteMember }).first()),
+  },
+  {
+    name: 'F1 change role dialog (custom roles)',
+    as: 'owner',
+    path: () => `/${ORG}/people`,
+    open: (page) => openDialog(page, page.locator('button.ppl-role-chip').first()),
+  },
+  {
+    name: 'F2 doc rename (editing)',
+    as: 'owner',
+    path: (f) => `/${ORG}/docs/${f.documentId}/edit`,
+    open: async (page) => {
+      await page.locator('button.tm-doctitle__trigger').click();
+      await expect(page.locator('#tm-doc-title-input')).toBeFocused();
+    },
+  },
+  {
+    name: 'F3 record decision dialog',
+    as: 'owner',
+    path: (f) => `/${ORG}/chat/${f.decisionConversationId}`,
+    open: async (page, lang) => {
+      const message = page.locator('.tm-chat-message').first();
+      await message.hover();
+      await message.getByRole('button', { name: F_LABELS[lang].moreActions }).click();
+      await openDialog(page, message.getByRole('button', { name: F_LABELS[lang].recordDecision }));
+    },
+  },
+  { name: 'F4 plan and usage', as: 'owner', path: () => `/${ORG}/billing` },
+  {
+    name: 'F4 change plan preview dialog',
+    as: 'owner',
+    path: () => `/${ORG}/billing`,
+    open: (page, lang) =>
+      openDialog(page, page.getByRole('button', { name: F_LABELS[lang].changePlan })),
+  },
+  { name: 'F5 privacy', as: 'owner', path: () => `/${ORG}/admin/privacy` },
+  {
+    name: 'F5 export company dialog',
+    as: 'owner',
+    path: () => `/${ORG}/admin/privacy`,
+    open: (page, lang) =>
+      openDialog(
+        page,
+        page.getByRole('button', { name: F_LABELS[lang].requestExport, exact: true }),
+      ),
+  },
+  {
+    name: 'F5 export member dialog',
+    as: 'owner',
+    path: () => `/${ORG}/admin/privacy`,
+    open: (page, lang) =>
+      openDialog(
+        page,
+        page.getByRole('button', { name: F_LABELS[lang].exportMember, exact: true }),
+      ),
+  },
+  {
+    name: 'F5 delete company dialog',
+    as: 'owner',
+    path: () => `/${ORG}/admin/privacy`,
+    open: (page, lang) =>
+      openDialog(
+        page,
+        page.getByRole('button', { name: F_LABELS[lang].requestDeletion, exact: true }),
+      ),
+  },
+  { name: 'F5 my data', as: 'owner', path: () => `/${ORG}/settings/my-data` },
 ];
 
 function withLang(path: string, lang: Lang): string {
@@ -360,7 +477,12 @@ function withLang(path: string, lang: Lang): string {
 }
 
 test.describe('accessibility audit — bilingual matrix, WCAG A/AA, 1280 and 375', () => {
-  const fixtures: MatrixFixtures = { conversationId: '', deliverableId: '' };
+  const fixtures: MatrixFixtures = {
+    conversationId: '',
+    deliverableId: '',
+    decisionConversationId: '',
+    documentId: '',
+  };
 
   test.beforeAll(async ({ browser }) => {
     const context = await browser.newContext();
@@ -393,6 +515,27 @@ test.describe('accessibility audit — bilingual matrix, WCAG A/AA, 1280 and 375
         { headers, data: { fileAssetId: null, note: 'a11y audit version' } },
       );
       expect(version.ok(), await version.text()).toBe(true);
+
+      // F3: a separate channel with one message, so the plain chat-channel case above stays as it was.
+      const decisionChannel = await context.request.post(`${base}/conversations`, {
+        headers,
+        data: { projectId, name: `a11y-audit-decision-${Date.now()}` },
+      });
+      expect(decisionChannel.ok(), await decisionChannel.text()).toBe(true);
+      fixtures.decisionConversationId = ((await decisionChannel.json()) as { id: string }).id;
+      const message = await context.request.post(
+        `${base}/conversations/${fixtures.decisionConversationId}/messages`,
+        { headers, data: { body: 'We go with the blue cover. The client agreed on the call.' } },
+      );
+      expect(message.ok(), await message.text()).toBe(true);
+
+      // F2: a doc to rename.
+      const document = await context.request.post(`${base}/documents`, {
+        headers,
+        data: { projectId, title: `a11y-audit-doc-${Date.now()}`, body: 'a11y audit doc body' },
+      });
+      expect(document.ok(), await document.text()).toBe(true);
+      fixtures.documentId = ((await document.json()) as { id: string }).id;
     } finally {
       await context.close();
     }
@@ -434,6 +577,17 @@ test.describe('accessibility audit — bilingual matrix, WCAG A/AA, 1280 and 375
                   requestAnimationFrame(() => requestAnimationFrame(() => done())),
                 ),
             );
+            // Optional: keep a picture of each screen for the side-by-side check against Figma.
+            const shots = process.env['TMANAGE_A11Y_SHOTS'];
+            if (shots) {
+              await page.screenshot({
+                path: resolve(
+                  shots,
+                  `${screen.name.replace(/[^\w]+/g, '-')}-${lang}-${size.width}.png`,
+                ),
+                fullPage: true,
+              });
+            }
             const violations = await auditWcag(page, screen.name);
             found.push(...summarize(violations).map((line) => `@${size.width}: ${line}`));
           }

@@ -1428,6 +1428,16 @@ button.ppl-member {
   color: var(--ink-650);
 }
 
+/* The roster row shares the `ppl-member` name with the Teams card (PEO-03 above); undo the card's
+   flex box, padding, radius and paper-50 fill so the row stays a table row on the white table
+   (it was laid out as a card, overflowed the phone width and dropped the email to 4.2:1). */
+.ppl-members .ppl-member {
+  display: table-row;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+
 .ppl-member + .ppl-member td {
   border-block-start: var(--b-quiet) solid var(--line-300);
 }
@@ -1754,7 +1764,8 @@ button.ppl-member {
   margin: 0;
   font-size: var(--t-ui-md);
   line-height: var(--t-ui-md-line);
-  color: var(--danger-600);
+  /* The danger tone is on the edge and the dot; the words stay ink (danger-600 text is 4.2:1). */
+  color: var(--tm-on-tone);
 }
 
 .ppl-last-owner__title::before {

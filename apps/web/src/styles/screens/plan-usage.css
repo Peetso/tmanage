@@ -145,8 +145,11 @@
   color: var(--ink-500);
 }
 
+/* The tone is carried by the bar (and the alert above); the figure stays ink so it keeps 4.5:1 —
+   warning-600 / danger-600 text on paper is 3.6:1 / 4.2:1 (release axe matrix, 2026-10-25). */
 .tm-pu-meter[data-level='near'] .tm-pu-meter__value {
-  color: var(--warning-600);
+  color: var(--tm-on-tone);
+  font-weight: 600;
 }
 
 .tm-pu-meter[data-level='near'] .tm-pu-meter__fill {
@@ -155,7 +158,11 @@
 
 .tm-pu-meter[data-level='over'] .tm-pu-meter__value,
 .tm-pu-meter[data-level='over'] .tm-pu-meter__note {
-  color: var(--danger-600);
+  color: var(--tm-on-tone);
+}
+
+.tm-pu-meter[data-level='over'] .tm-pu-meter__value {
+  font-weight: 600;
 }
 
 .tm-pu-meter[data-level='over'] .tm-pu-meter__fill {
