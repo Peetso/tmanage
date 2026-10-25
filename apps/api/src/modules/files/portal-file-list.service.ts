@@ -5,6 +5,10 @@ import type { TenantContext, TenantDatabase } from '../../common/database/tenant
 import type { FileAssetRow, FileVersionRow } from '../../common/database/schema.js';
 import type { FileAssetsRepository } from './file-assets.repository.js';
 import { mayDownloadFor } from './purpose-policy.js';
+import { awaitingScan } from './file-download.service.js';
+import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
+import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 
 /**
  * FILE-003 · WEB-006 — the client portal's file list, over the FILE-002 download surface.
@@ -36,9 +40,16 @@ import { mayDownloadFor } from './purpose-policy.js';
  * 3. **The client-organization relation and the servable rule, per row.** The relation is read
  *    from the **request** the file hangs off — never the asset, which an internal upload leaves
  *    without a client organization — so a sibling client's attachment in a shared project is never
- *    returned. Only a `ready`, `clean`, `private` latest version ({@link isServableVersion}) is
- *    listed: a file still scanning, rejected, or quarantined is not "published" and never appears.
+ *    returned. A `ready`, `clean`, `private` latest version ({@link isServableVersion}) is listed
+ *    as `clean`. C4 (B3 follow-up): a file the scan has not judged yet ({@link awaitingScan}, the
+ *    download door's own rule) is listed too, as the owner's "downloads before a virus scan"
+ *    policy says — `not_scanned` under `allow_labeled` (the door serves it, labelled), and
+ *    `being_checked` under `block` (the door answers 409; the screen disables Download). An
+ *    infected, rejected, expired or not-yet-verified file is never listed, whatever the policy.
  */
+
+/** C4. What the list says about a file's virus scan; the screen labels the last two. */
+export type PortalFileScanStatus = 'clean' | 'not_scanned' | 'being_checked';
 
 export interface PortalFileView {
   readonly id: string;
@@ -51,12 +62,17 @@ export interface PortalFileView {
   readonly contentType: string;
   /** When the file asset was created, as an ISO-8601 instant. */
   readonly uploadedAt: string;
+  /** C4. `clean` once scanned; otherwise what the owner's policy makes of an unscanned file. */
+  readonly scanStatus: PortalFileScanStatus;
 }
 
 export class PortalFileListService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly assets: FileAssetsRepository,
+    /** C4. The configured scanner, as the download door gets it; absent means `allow_labeled`. */
+    private readonly scanner?: ScannerPresence,
+    private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
   ) {}
 
   /**
@@ -87,6 +103,8 @@ export class PortalFileListService {
     );
 
     const files: PortalFileView[] = [];
+    // C4. The policy is read once, and only when some file is still waiting for its scan.
+    let unscannedStatus: PortalFileScanStatus | undefined;
     for (const row of rows) {
       // The audience guard: a client sees only their own client organization's request files,
       // read from the request row (an internal upload leaves the asset's own column null). The
@@ -94,20 +112,36 @@ export class PortalFileListService {
       if (row.request.clientOrganizationId !== clientOrganizationId) continue;
       if (row.request.projectId !== row.asset.projectId) continue;
       if (!mayDownloadFor('client', row.asset.purpose)) continue;
-      // "Published" for a file is servable: ready asset, clean verdict, private zone.
       if (row.version === null) continue;
+      // "Published" for a file is servable: ready asset, clean verdict, private zone.
       if (
-        !isServableVersion({
+        isServableVersion({
           status: row.asset.status,
           scanVerdict: row.version.scanVerdict,
           trustZone: row.version.trustZone,
         })
       ) {
+        files.push(toView(row.asset, row.version, 'clean'));
         continue;
       }
-      files.push(toView(row.asset, row.version));
+      // Not judged by the scan yet — the same rule the download door applies. Anything else
+      // (infected, rejected, expired, not verified) stays hidden.
+      if (!awaitingScan(row.asset.status, row.version)) continue;
+      unscannedStatus ??= await this.unscannedStatus(context);
+      files.push(toView(row.asset, row.version, unscannedStatus));
     }
     return files;
+  }
+
+  /** C4. `allow_labeled` → `not_scanned` (downloadable, labelled); `block` → `being_checked`. */
+  private async unscannedStatus(context: TenantContext): Promise<PortalFileScanStatus> {
+    const policy = await readDownloadScanPolicy(
+      this.database,
+      context,
+      this.scanner,
+      this.settings,
+    );
+    return policy.effective === 'block' ? 'being_checked' : 'not_scanned';
   }
 
   /**
@@ -130,8 +164,12 @@ export class PortalFileListService {
   }
 }
 
-/** The allowlist projection. The detected type is non-null: a servable version has one. */
-function toView(asset: FileAssetRow, version: FileVersionRow): PortalFileView {
+/** The allowlist projection. Listed versions are verified, so the detected type is set. */
+function toView(
+  asset: FileAssetRow,
+  version: FileVersionRow,
+  scanStatus: PortalFileScanStatus,
+): PortalFileView {
   return {
     id: asset.id,
     projectId: asset.projectId,
@@ -139,5 +177,6 @@ function toView(asset: FileAssetRow, version: FileVersionRow): PortalFileView {
     sizeBytes: version.sizeBytes,
     contentType: version.detectedMimeType ?? version.declaredMimeType,
     uploadedAt: asset.createdAt.toISOString(),
+    scanStatus,
   };
 }

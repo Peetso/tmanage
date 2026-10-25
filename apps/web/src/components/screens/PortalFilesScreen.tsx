@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQueries, useQuery } from '@tanstack/react-query';
-import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { InlineAlert, LoadingRegion, Skeleton, StateCapsule } from '@tmanage/ui';
 import { ClientPortalShell } from '../shell/ClientPortalShell';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { listPortalFiles, listPortalProjects, portalFileDownloadPath } from '../../lib/api/portal';
@@ -12,6 +12,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { shortDay } from './PortalParts';
 import { usePortalNames } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import './download-scan-policy.css';
 
 export interface PortalFilesScreenProps {
   organizationSlug: string;
@@ -36,6 +37,13 @@ export interface PortalFilesScreenProps {
  * client download (`purpose-policy.ts`). Published deliverables are `DEL-001`/CL-05, unbuilt, so
  * they are named in `BackendPending` rather than drawn empty. Uploading from the portal is the
  * next scope (NS-13); this screen reads, it does not write.
+ *
+ * ## A file the virus scan has not checked yet (C4)
+ *
+ * The list carries the company owner's "downloads before a virus scan" policy per file. Under
+ * "Allow, marked Not scanned" the row keeps Download and shows the same Not scanned label as the
+ * work item Files row. Under "Block until scanned" it shows Being checked, Download is disabled,
+ * and the row says why. A rejected or infected file never reaches this list.
  *
  * ## The empty state
  *
@@ -167,19 +175,47 @@ export function PortalFilesScreen({
                         <div>
                           <p className="tm-pt-file__name">{file.name}</p>
                           <p className="tm-pt-mono">{describeFile(file)}</p>
+                          {file.scanStatus === 'being_checked' ? (
+                            <p className="tm-pt-mono" id={`tm-scan-why-${file.id}`}>
+                              {t('DownloadScan.blocked')}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     </td>
                     <td>{project.name}</td>
                     <td>{shortDay(file.uploadedAt)}</td>
                     <td>
-                      <a
-                        className="tm-pt-btn tm-pt-btn--quiet"
-                        href={`${apiBaseUrl()}${portalFileDownloadPath(organizationSlug, file.id)}`}
-                        download={file.name}
-                      >
-                        {t('PortalFilesScreen.download')}
-                      </a>
+                      <span className="tm-scan-row__actions">
+                        {file.scanStatus === 'not_scanned' ? (
+                          <StateCapsule state="waiting" className="tm-scan-capsule">
+                            {t('DownloadScan.notScanned')}
+                          </StateCapsule>
+                        ) : null}
+                        {file.scanStatus === 'being_checked' ? (
+                          <StateCapsule state="waiting" className="tm-scan-capsule">
+                            {t('WorkDetail.scanning')}
+                          </StateCapsule>
+                        ) : null}
+                        {file.scanStatus === 'being_checked' ? (
+                          <button
+                            type="button"
+                            className="tm-pt-btn tm-pt-btn--quiet"
+                            disabled
+                            aria-describedby={`tm-scan-why-${file.id}`}
+                          >
+                            {t('PortalFilesScreen.download')}
+                          </button>
+                        ) : (
+                          <a
+                            className="tm-pt-btn tm-pt-btn--quiet"
+                            href={`${apiBaseUrl()}${portalFileDownloadPath(organizationSlug, file.id)}`}
+                            download={file.name}
+                          >
+                            {t('PortalFilesScreen.download')}
+                          </a>
+                        )}
+                      </span>
                     </td>
                   </tr>
                 ))}

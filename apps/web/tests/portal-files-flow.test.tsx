@@ -56,6 +56,7 @@ function file(overrides: Record<string, unknown> = {}) {
     sizeBytes: 2048,
     contentType: 'application/pdf',
     uploadedAt: '2026-09-19T00:00:00.000Z',
+    scanStatus: 'clean',
     ...overrides,
   };
 }
@@ -91,6 +92,40 @@ describe('PortalFilesScreen (FILE-003 · WEB-006)', () => {
       '/v1/organizations/northstar/portal/files/file-1/content',
     );
     expect(await screen.findByText('brand-guide.pdf')).toBeInTheDocument();
+
+    await expectNoAxeViolations(container);
+  });
+
+  it('C4: a clean file carries no scan label', async () => {
+    renderFiles([file()]);
+
+    await screen.findByRole('link', { name: 'Download' });
+    expect(screen.queryByText('Not scanned')).not.toBeInTheDocument();
+    expect(screen.queryByText('Being checked for viruses')).not.toBeInTheDocument();
+  });
+
+  it('C4: an unscanned file the owner allows shows Not scanned and keeps Download', async () => {
+    const { container } = renderFiles([file({ scanStatus: 'not_scanned' })]);
+
+    expect(await screen.findByText('Not scanned')).toBeInTheDocument();
+    const link = screen.getByRole('link', { name: 'Download' });
+    expect(link.getAttribute('href')).toContain(
+      '/v1/organizations/northstar/portal/files/file-1/content',
+    );
+
+    await expectNoAxeViolations(container);
+  });
+
+  it('C4: an unscanned file the owner blocks shows Being checked with Download disabled', async () => {
+    const { container } = renderFiles([file({ scanStatus: 'being_checked' })]);
+
+    expect(await screen.findByText('Being checked for viruses')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Download' })).not.toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'Download' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAccessibleDescription(
+      "This file can't be downloaded until it has been scanned for viruses. Your company owner chose this setting.",
+    );
 
     await expectNoAxeViolations(container);
   });

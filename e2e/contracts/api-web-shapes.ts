@@ -375,6 +375,7 @@ import type { WorkspaceView as ApiWorkspaceView } from '../../apps/api/src/modul
 import type { OrgSettingsView as ApiOrgSettingsView } from '../../apps/api/src/modules/tenancy/org-settings.controller.js';
 import type { OrganizationProfileView as ApiOrganizationProfileView } from '../../apps/api/src/modules/tenancy/organizations.controller.js';
 import type { DownloadScanPolicyView as ApiDownloadScanPolicyView } from '../../apps/api/src/modules/tenancy/download-scan-policy.controller.js';
+import type { DownloadScanPolicyView as WebDownloadScanPolicyView } from '../../apps/web/src/lib/api/download-scan-policy';
 import type { PublicTrustView as ApiPublicTrustView } from '../../apps/api/src/modules/public-site/trust-content.service.js';
 import type { PublicLegalView as ApiPublicLegalView } from '../../apps/api/src/modules/public-site/public-content.service.js';
 import type {
@@ -2388,19 +2389,10 @@ type _orgSettings = Assert<Exact<ApiOrgSettingsView, WebOrgSettingsView>>;
 type _organizationProfile = Assert<Exact<ApiOrganizationProfileView, WebOrganizationProfileView>>;
 
 /**
- * B3. `DownloadScanPolicyView` (`GET/PATCH …/file-download-policy`). No web consumer yet (the screen
- * is Figma-first, lane B5), so the API shape is pinned here; B5 swaps the literal for its web type.
+ * B3 / B5. `DownloadScanPolicyView` (`GET/PATCH …/file-download-policy`). `DownloadScanPolicyCard`
+ * reads and saves exactly this response, so the pair is Exact (C4 replaced the B3 literal).
  */
-type _downloadScanPolicy = Assert<
-  Exact<
-    ApiDownloadScanPolicyView,
-    {
-      readonly downloadsBeforeScan: 'allow_labeled' | 'block';
-      readonly effective: 'allow_labeled' | 'block';
-      readonly scannerConfigured: boolean;
-    }
-  >
->;
+type _downloadScanPolicy = Assert<Exact<ApiDownloadScanPolicyView, WebDownloadScanPolicyView>>;
 
 /**
  * Custom roles (x173). `CustomRoleView` (`GET/POST …/admin/roles`, response) — the organization's custom

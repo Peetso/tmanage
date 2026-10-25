@@ -308,11 +308,15 @@ export class FilesModule {
     // FILE-003 · WEB-006. The client's file list, over the same download surface: a read-only
     // service on the tenant database and the file-assets repository. No store, no audit — it
     // hands out no bytes; it names the files the download door would serve, which it audits.
+    // C4: and the scanner, so an unscanned file is listed the way the download door treats it.
     const portalFileList: Provider = {
       provide: PORTAL_FILE_LIST_SERVICE,
-      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY],
-      useFactory: (database: TenantDatabase, assets: FileAssetsRepository) =>
-        new PortalFileListService(database, assets),
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, MALWARE_SCANNER],
+      useFactory: (
+        database: TenantDatabase,
+        assets: FileAssetsRepository,
+        malwareScanner: MalwareScanner,
+      ) => new PortalFileListService(database, assets, malwareScanner),
     };
 
     // x270. File tags: define org tags and assign / list them on file assets. Read-only over the

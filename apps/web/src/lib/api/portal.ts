@@ -708,14 +708,23 @@ export interface PortalFile {
   readonly sizeBytes: number;
   readonly contentType: string;
   readonly uploadedAt: string;
+  /**
+   * C4. `clean` once the virus scan cleared it. Before that, the company owner's policy decides:
+   * `not_scanned` downloads, labelled; `being_checked` cannot be downloaded until the scan is done.
+   */
+  readonly scanStatus: PortalFileScanStatus;
 }
+
+/** C4. Mirrors the API's `PortalFileScanStatus`. */
+export type PortalFileScanStatus = 'clean' | 'not_scanned' | 'being_checked';
 
 /**
  * The downloadable files on one of the client's projects.
  *
  * The project is named in the path. The API answers 404 — not an empty list — for a project the
  * client cannot read, so a not-found is "not yours", never "no files". Only files the download
- * door would actually serve are listed: a file still scanning or rejected never appears.
+ * door would treat as the client's are listed: a rejected or infected file never appears, and one
+ * still waiting for its scan carries the owner's policy in `scanStatus`.
  */
 export async function listPortalFiles(
   client: ApiClient,

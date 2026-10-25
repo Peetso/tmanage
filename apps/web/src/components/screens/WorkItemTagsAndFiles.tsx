@@ -6,6 +6,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { listWorkItemFiles } from '../../lib/api/work-items';
 import { listItemLabels } from '../../lib/api/work-labels';
 import { WorkItemLabelChips } from './WorkItemLabelChips';
+import { NotScannedDownload } from './NotScannedDownload';
 import { useT } from '../../lib/i18n/use-t';
 import './capture-extras.css';
 
@@ -84,17 +85,27 @@ export function WorkItemTagsAndFiles({
                     <span className="tm-capture-extra__file-name">{file.fileName}</span>
                   </a>
                 </li>
+              ) : file.availability === 'scanning' ? (
+                // C4. Not scanned yet: the same Not scanned label and Download as the work item
+                // Files row. Under "Block until scanned" the API refuses it and Download is
+                // disabled with the reason.
+                <li key={file.id} className="tm-scan-row">
+                  <span className="tm-chip tm-chip--compact" aria-disabled="true">
+                    <span className="tm-capture-extra__file-name">{file.fileName}</span>
+                  </span>
+                  <NotScannedDownload
+                    href={`${base}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(file.fileAssetId)}/content`}
+                    fileName={file.fileName}
+                  />
+                </li>
               ) : (
-                // Not yet servable: the file's name with the reason, never a dead link — a file
-                // still being checked for viruses, or one that could not be made available.
+                // Not servable: the file's name with the reason, never a dead link.
                 <li key={file.id}>
                   <span className="tm-chip tm-chip--compact" aria-disabled="true">
                     <span className="tm-capture-extra__file-name">{file.fileName}</span>
                   </span>
                   <span className="tm-capture-extra__hint" role="status">
-                    {file.availability === 'scanning'
-                      ? t('WorkItemTagsAndFiles.scanning')
-                      : t('WorkItemTagsAndFiles.unavailable')}
+                    {t('WorkItemTagsAndFiles.unavailable')}
                   </span>
                 </li>
               ),

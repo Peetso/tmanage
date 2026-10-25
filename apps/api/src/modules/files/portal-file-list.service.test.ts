@@ -5,6 +5,8 @@ import type { FileAssetsRepository } from './file-assets.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { FileAssetRow, FileVersionRow } from '../../common/database/schema.js';
 import { ApiError } from '../../common/http/errors.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
+import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
 
 /**
  * FILE-003 · WEB-006 — the client file list's three gates, `authorize()` exercised for real.
@@ -106,11 +108,29 @@ function candidate(options: {
   };
 }
 
-function serviceWith(rows: readonly Candidate[]): PortalFileListService {
+function serviceWith(
+  rows: readonly Candidate[],
+  policy: { readonly scanner?: ScannerPresence; readonly stored?: string } = {},
+): PortalFileListService {
   const assets = {
     listRequestAttachmentsForProject: () => Promise.resolve(rows),
   } as unknown as FileAssetsRepository;
-  return new PortalFileListService(fakeDatabase(), assets);
+  const settings = {
+    findByKey: () =>
+      Promise.resolve(policy.stored === undefined ? undefined : { settingValue: policy.stored }),
+  } as unknown as OrgSettingsRepository;
+  return new PortalFileListService(fakeDatabase(), assets, policy.scanner, settings);
+}
+
+/** C4. A verified file the scan has not judged yet, still in quarantine. */
+function awaiting(id: string): Candidate {
+  return candidate({
+    id,
+    requestClientOrganizationId: CLIENT_ORG,
+    status: 'scanning',
+    scanVerdict: null,
+    trustZone: 'quarantine',
+  });
 }
 
 describe('PortalFileListService.listForClient', () => {
@@ -119,12 +139,12 @@ describe('PortalFileListService.listForClient', () => {
       candidate({ id: 'own-clean', requestClientOrganizationId: CLIENT_ORG }),
       // The audience guard: another client's attachment in the same shared project.
       candidate({ id: 'sibling', requestClientOrganizationId: SIBLING_CLIENT_ORG }),
-      // Not yet published: still scanning, so no servable version.
+      // Never published: the scan rejected it.
       candidate({
-        id: 'scanning',
+        id: 'rejected',
         requestClientOrganizationId: CLIENT_ORG,
-        status: 'scanning',
-        scanVerdict: null,
+        status: 'rejected',
+        scanVerdict: 'infected',
         trustZone: 'quarantine',
       }),
     ]);
@@ -140,7 +160,91 @@ describe('PortalFileListService.listForClient', () => {
       name: 'File own-clean',
       contentType: 'application/pdf',
       sizeBytes: 1234,
+      scanStatus: 'clean',
     });
+  });
+
+  it('C4: lists an unscanned file as not_scanned when the owner allows labelled downloads', async () => {
+    const service = serviceWith([awaiting('waiting')], {
+      scanner: { kind: 'engine' },
+      stored: 'allow_labeled',
+    });
+
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+
+    expect(files.map((f) => [f.id, f.scanStatus])).toEqual([['waiting', 'not_scanned']]);
+  });
+
+  it('C4: lists an unscanned file as being_checked when the owner blocks until scanned', async () => {
+    const service = serviceWith([awaiting('waiting')], {
+      scanner: { kind: 'engine' },
+      stored: 'block',
+    });
+
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+
+    expect(files.map((f) => [f.id, f.scanStatus])).toEqual([['waiting', 'being_checked']]);
+  });
+
+  it('C4: without a scanner a stored block still lists the file as not_scanned', async () => {
+    const service = serviceWith([awaiting('waiting')], {
+      scanner: { kind: 'none' },
+      stored: 'block',
+    });
+
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+
+    expect(files[0]?.scanStatus).toBe('not_scanned');
+  });
+
+  it('C4: never lists an infected or unverified file, and never a sibling client unscanned one', async () => {
+    const service = serviceWith(
+      [
+        candidate({
+          id: 'infected-ready',
+          requestClientOrganizationId: CLIENT_ORG,
+          status: 'ready',
+          scanVerdict: 'infected',
+          trustZone: 'quarantine',
+        }),
+        candidate({
+          id: 'not-verified',
+          requestClientOrganizationId: CLIENT_ORG,
+          status: 'verifying',
+          scanVerdict: null,
+          trustZone: 'quarantine',
+        }),
+        {
+          ...awaiting('sibling-waiting'),
+          request: {
+            id: 'req-sibling-waiting',
+            projectId: READABLE_PROJECT,
+            clientOrganizationId: SIBLING_CLIENT_ORG,
+          },
+        },
+      ],
+      { scanner: { kind: 'engine' }, stored: 'allow_labeled' },
+    );
+
+    const files = await service.listForClient(
+      context,
+      clientPrincipal(READABLE_PROJECT),
+      READABLE_PROJECT,
+    );
+
+    expect(files).toEqual([]);
   });
 
   it('answers 404 for a project the client cannot read, before any file is read', async () => {
