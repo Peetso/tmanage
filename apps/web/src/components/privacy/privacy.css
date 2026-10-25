@@ -4,9 +4,14 @@
  * padding. Logical properties throughout, so Arabic mirrors the layout.
  */
 
+/*
+ * F5 draws the two columns 663 : 440 inside the 1127 px content of the 1440 frame, i.e. 3 : 2.
+ * A fixed 440 px side column collapsed that to almost equal halves at 1280; fractions keep the
+ * proportion at every desktop width.
+ */
 .prv-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
   gap: var(--s6);
   align-items: start;
 }
@@ -129,6 +134,25 @@
   background: var(--ink-500);
   color: var(--paper-50);
   opacity: 1;
+}
+
+/*
+ * F5 (desktop card, phone card and the delete dialog) draws "Request deletion" / "Delete my
+ * account" as the solid danger fill with ink text, not the design system's resting outline.
+ * Scoped to the privacy screens: the system-wide DestructiveButton stays the Foundations 04
+ * outline the other screens are drawn with. Ink on --danger-600 is 4.69:1 light (AA) and
+ * higher in dark, the same pairing the system already uses for the destructive hover.
+ */
+.prv-card .tm-button--destructive:not(:disabled):not([aria-disabled='true']),
+.prv-dialog__actions .tm-button--destructive:not(:disabled):not([aria-disabled='true']) {
+  background: var(--danger-600);
+  border-color: var(--danger-600);
+  color: var(--tm-ink-absolute);
+}
+
+.prv-card .tm-button--destructive:hover:not(:disabled):not([aria-disabled='true']),
+.prv-dialog__actions .tm-button--destructive:hover:not(:disabled):not([aria-disabled='true']) {
+  border-color: var(--tm-ink-absolute);
 }
 
 .prv-caption {
