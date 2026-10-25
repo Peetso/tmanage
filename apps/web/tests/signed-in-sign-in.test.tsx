@@ -141,6 +141,7 @@ describe('opening /sign-in while signed in', () => {
         client={client}
         developmentSignInEnabled={false}
         onAlreadySignedIn={onAlreadySignedIn}
+        mayHaveSession={() => true}
       />,
     );
     await waitFor(() => expect(onAlreadySignedIn).toHaveBeenCalledWith('/northstar/home'));
@@ -155,6 +156,7 @@ describe('opening /sign-in while signed in', () => {
         client={client}
         developmentSignInEnabled={false}
         onAlreadySignedIn={onAlreadySignedIn}
+        mayHaveSession={() => true}
       />,
     );
     await waitFor(() => expect(onAlreadySignedIn).toHaveBeenCalledWith('/organizations'));
@@ -169,6 +171,7 @@ describe('opening /sign-in while signed in', () => {
         client={client}
         developmentSignInEnabled={false}
         onAlreadySignedIn={onAlreadySignedIn}
+        mayHaveSession={() => true}
       />,
     );
     await waitFor(() => expect(onAlreadySignedIn).toHaveBeenCalledWith('/northstar/home'));
@@ -184,6 +187,7 @@ describe('opening /sign-in while signed out', () => {
         client={client}
         developmentSignInEnabled={false}
         onAlreadySignedIn={onAlreadySignedIn}
+        mayHaveSession={() => true}
       />,
     );
     await waitFor(() => expect(urls.some((url) => url.endsWith('/v1/organizations'))).toBe(true));
@@ -215,6 +219,7 @@ describe('opening /sign-in while signed out', () => {
         client={slow}
         developmentSignInEnabled={false}
         onAlreadySignedIn={onAlreadySignedIn}
+        mayHaveSession={() => true}
         onSignedIn={onSignedIn}
       />,
     );
@@ -229,7 +234,9 @@ describe('opening /sign-in while signed out', () => {
 
   it('makes no check when the caller does not ask for one', async () => {
     const { client, urls } = clientAnswering(json({ organizations: [org('northstar')] }));
-    render(<SignInScreen client={client} developmentSignInEnabled={false} />);
+    render(
+      <SignInScreen client={client} developmentSignInEnabled={false} mayHaveSession={() => true} />,
+    );
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(urls.some((url) => url.endsWith('/v1/organizations'))).toBe(false);
   });

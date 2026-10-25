@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { IdentityShell } from '../shell/IdentityShell';
 import { MfaChallengeScreen } from './MfaChallengeScreen';
-import { browserApiClient } from '../../lib/api/browser-client';
+import { browserApiClient, csrfCookieName } from '../../lib/api/browser-client';
+import { readCookie } from '../../lib/api/client';
 import { signInWithPassword, type MfaRequiredResponse } from '../../lib/api/auth';
 import { developmentSignIn } from '../../lib/api/session';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -46,6 +47,20 @@ export interface SignInScreenProps {
    * (their workspace home, the picker, or an allowed `?next=`). When absent, no check is made.
    */
   onAlreadySignedIn?: (destination: string) => void;
+  /**
+   * Whether this browser may hold a session — the readable CSRF cookie the API sets and clears
+   * with the session cookies (`serializeReadableCookie`). When it is absent the visitor is signed
+   * out, so the already-signed-in check is not made: an anonymous `GET /v1/organizations` would
+   * answer 401, and the browser logs every 401 in the console (live recheck, wave 6). Injected in
+   * tests.
+   */
+  mayHaveSession?: () => boolean;
+}
+
+function browserMayHaveSession(): boolean {
+  return (
+    typeof document !== 'undefined' && readCookie(document.cookie, csrfCookieName()) !== undefined
+  );
 }
 
 /**
@@ -88,6 +103,7 @@ export function SignInScreen({
   signUpOffered = isPublicSignupOffered(),
   boundary = authBoundary,
   onAlreadySignedIn,
+  mayHaveSession = browserMayHaveSession,
 }: SignInScreenProps) {
   const api = client ?? browserApiClient();
 
@@ -139,7 +155,7 @@ export function SignInScreen({
   // signed-out visitor's check answers "no" and nothing changes. Skipped while a Google
   // sign-in is finishing its second step — that person has no session yet.
   useEffect(() => {
-    if (!onAlreadySignedIn) return;
+    if (!onAlreadySignedIn || !mayHaveSession()) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get('google') === 'mfa') return;
     let cancelled = false;
@@ -290,9 +306,8 @@ export function SignInScreen({
       <div className="tm-id-methods">
         {google ? <GoogleSignInButton api={api} input={() => ({ intent: 'sign-in' })} /> : null}
         <Button tone="ink" size="accessible" disabled aria-describedby="tm-sign-in-methods-note">
-          <span className="tm-id-orb" aria-hidden="true">
-            ◉
-          </span>
+          {/* The design's passkey orb; its dot is painted by CSS, so no glyph sits in the text. */}
+          <span className="tm-id-orb" aria-hidden="true" />
           {t('SignInScreen.continuePasskey')}
         </Button>
         <Button

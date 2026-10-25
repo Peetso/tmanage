@@ -43,9 +43,9 @@ export function InlineAlert({
 
   return (
     <div className={classes} role={role}>
-      <span className="tm-inline-alert__glyph" aria-hidden="true">
-        {GLYPH[tone]}
-      </span>
+      {/* The tone mark is drawn by CSS from `data-glyph`, so it is not a bare "i" or "✕" in the
+          page text that a reader or copy-paste picks up. */}
+      <span className="tm-inline-alert__glyph" aria-hidden="true" data-glyph={GLYPH[tone]} />
       <div>
         {title ? <div className="tm-inline-alert__title">{title}</div> : null}
         <div>{children}</div>

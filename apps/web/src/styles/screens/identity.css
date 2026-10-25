@@ -321,6 +321,18 @@
   line-height: 1;
 }
 
+/* The passkey mark from ID-01 (a lime dot in a ring), painted rather than typed as "◉", so no
+   bare glyph sits in the page text. */
+.tm-id-orb::before {
+  content: '';
+  inline-size: 10px;
+  block-size: 10px;
+  box-sizing: border-box;
+  border: 1.5px solid currentColor;
+  border-radius: var(--r-capsule);
+  background: radial-gradient(circle, currentColor 0 2.5px, transparent 3px);
+}
+
 [data-theme='dark'] .tm-id-orb {
   background: var(--tm-ink-absolute, #090a09);
 }

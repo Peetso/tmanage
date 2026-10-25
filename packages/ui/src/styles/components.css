@@ -1205,6 +1205,10 @@
   flex: none;
 }
 
+.tm-inline-alert__glyph[data-glyph]::before {
+  content: attr(data-glyph);
+}
+
 .tm-inline-alert__title {
   font-weight: 600;
   color: var(--ink-950);

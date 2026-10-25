@@ -3231,7 +3231,7 @@
   "RecoveryScreen.completedBody": "سُجّل خروج كل جهاز مسجّل الدخول إلى حسابك، وأرسلنا إليك بريدًا يُعلمك بتغيير كلمة المرور. سجّل الدخول بكلمة مرورك الجديدة.",
   "RecoveryScreen.didNotGoThrough": "لم يتم ذلك",
   "RecoveryScreen.expiredBody": "للأمان لا نمدّد روابط الاستعادة، ويعمل كل رابط مرة واحدة. اطلب رابطًا جديدًا — يستغرق بضع ثوانٍ.",
-  "RecoveryScreen.eyebrow": "استعادة الوصول",
+  "RecoveryScreen.eyebrow": "الاستعادة",
   "RecoveryScreen.linkExpired": "انتهت صلاحية هذا الرابط",
   "RecoveryScreen.linkMaybeTitle": "قد يكون الرابط في طريقه",
   "RecoveryScreen.newPassword": "كلمة المرور الجديدة",
