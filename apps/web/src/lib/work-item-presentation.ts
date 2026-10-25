@@ -60,14 +60,18 @@ export function stateLabel(state: WorkItemState, locale: string = activeLocale.g
  * `client_visible` is visible to *this project's* client and to nobody else. The wording says
  * who, because a screen that said "public" would describe a disclosure that never happens.
  */
-const AUDIENCE_LABEL: Record<WorkItemAudience, string> = {
-  internal: 'Internal',
-  client_visible: 'Client can see',
-  client_action_required: 'Client action needed',
+const AUDIENCE_LABEL_KEY: Record<WorkItemAudience, MessageKey> = {
+  internal: 'WorkItemAudience.internal',
+  client_visible: 'WorkItemAudience.clientVisible',
+  client_action_required: 'WorkItemAudience.clientActionRequired',
 };
 
-export function audienceLabel(audience: WorkItemAudience): string {
-  return AUDIENCE_LABEL[audience] ?? audience;
+export function audienceLabel(
+  audience: WorkItemAudience,
+  locale: string = activeLocale.get(),
+): string {
+  const key = AUDIENCE_LABEL_KEY[audience];
+  return key === undefined ? audience : translate(locale, key);
 }
 
 /** `internal` is the only audience a client principal never sees. */
@@ -83,7 +87,7 @@ export function isClientFacing(audience: WorkItemAudience): boolean {
  * legitimate state for a work item to be in.
  */
 export function formatInstant(value: string | null): string {
-  if (value === null) return 'No date';
+  if (value === null) return translate(activeLocale.get(), 'WorkItemAudience.noDate');
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   // One localized format, in the member's saved language — not `undefined`, which formats in
@@ -103,7 +107,7 @@ export function formatInstant(value: string | null): string {
  * places, and pretending otherwise would be the same lie in the other direction.
  */
 export function formatDay(value: string | null): string {
-  if (value === null) return 'No date';
+  if (value === null) return translate(activeLocale.get(), 'WorkItemAudience.noDate');
   const bare = value.length === 10;
   const iso = bare ? `${value}T00:00:00.000Z` : value;
   if (Number.isNaN(new Date(iso).getTime())) return value;

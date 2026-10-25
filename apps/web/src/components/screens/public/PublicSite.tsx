@@ -73,9 +73,9 @@ export function PublicPage({
     );
   }
   return (
-    <LiveAnnouncer>
+    <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
       <div className={`tm-pub${tone === 'paper' ? ' tm-pub--paper' : ''}`}>
-        <SkipLink targetId="tm-main" />
+        <SkipLink targetId="tm-main">{t('Shell.skipLink')}</SkipLink>
         <div className={`tm-pub__inner${width === 'narrow' ? ' tm-pub__inner--narrow' : ''}`}>
           {bar === 'status' ? (
             <header className="tm-pub__bar tm-pub__bar--status">

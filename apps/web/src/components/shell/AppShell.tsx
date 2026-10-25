@@ -15,6 +15,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations } from '../../lib/api/organizations';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { PlatformAdminLink } from '../platform/PlatformAdminLink';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { MembershipGoneGate } from './MembershipGoneGate';
@@ -193,9 +194,9 @@ export function AppShell({
   const queryClient = useContext(QueryClientContext);
   const t = useT();
   const shell = (
-    <LiveAnnouncer>
+    <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
       <div className="tm-app">
-        <SkipLink targetId="tm-main" />
+        <SkipLink targetId="tm-main">{t('Shell.skipLink')}</SkipLink>
 
         {/* Platform states (SYS-04): the maintenance / degraded-mode banner across the whole
             window. Renders nothing unless a window is active. */}
@@ -369,10 +370,13 @@ export function DayPulseBar({
   now: fixed,
 }: DayPulseBarProps) {
   const t = useT();
+  const locale = useActiveLocale();
   const now = useClock(fixed);
   const day = now ? String(now.getDate()).padStart(2, '0') : '··';
+  // The day in the reader's language, Latin digits in Arabic as the Arabic frames write them.
+  const dateTag = locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
   const date = now
-    ? now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })
+    ? now.toLocaleDateString(dateTag, { weekday: 'short', day: 'numeric', month: 'short' })
     : '';
   const time = now
     ? now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })

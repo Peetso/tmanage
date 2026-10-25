@@ -26,6 +26,8 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { formatDay, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { fill } from '../../lib/privacy-presentation';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/home.css';
 
@@ -60,6 +62,7 @@ type CardFilter = 'all' | 'overdue' | 'due_soon';
 export function MyDayScreen({ organizationSlug, organizationName, client }: MyDayScreenProps) {
   const api = client ?? browserApiClient();
   const t = useT();
+  const locale = useActiveLocale();
   const [filter, setFilter] = useState<CardFilter>('all');
 
   const myDay = useQuery({
@@ -129,7 +132,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
           {t('MyDayScreen.newWork')}
         </Link>
       }
-      description={describeDay(summary.data, summary.isPending || summary.isError)}
+      description={describeDay(summary.data, summary.isPending || summary.isError, t, locale)}
       headerAside={<HomeHeroSection organizationSlug={organizationSlug} client={client} />}
       topBar={
         <DayPulseBar
@@ -161,7 +164,10 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
               </Link>
             </p>
             <p className="tm-focus-capsule__why">
-              Why now — {whyNow(top)} in {projectName(top.workItem.projectId)}.
+              {fill(t('MyDayScreen.whyNow'), {
+                reason: whyNow(top, t, locale),
+                project: projectName(top.workItem.projectId),
+              })}
             </p>
           </div>
           <div className="tm-focus-capsule__end">
@@ -354,7 +360,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                             className="tm-meta-mono tm-home-group__due"
                             data-reason={entry.reason}
                           >
-                            {shortDay(entry.workItem.dueAt)}
+                            {shortDay(entry.workItem.dueAt, locale)}
                           </span>
                         </li>
                       ))}
@@ -423,7 +429,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                         </span>
                         <span className="tm-home-saved__meta">
                           {item.entityType} · {t('MyDayScreen.savedCountSuffix')}{' '}
-                          {shortDay(item.createdAt)}
+                          {shortDay(item.createdAt, locale)}
                         </span>
                       </span>
                     </li>
@@ -455,6 +461,7 @@ function WorkCard({
   projectName: string;
 }) {
   const t = useT();
+  const locale = useActiveLocale();
   const href = `/${organizationSlug}/work/${entry.workItem.id}`;
   return (
     <article className={`tm-card tm-home-card${lime ? ' tm-card--lime' : ''}`}>
@@ -477,7 +484,7 @@ function WorkCard({
       <div className="tm-home-card__foot">
         <span className="tm-card__meta">
           {entry.workItem.dueAt
-            ? `${t('MyDayScreen.due')} ${shortDay(entry.workItem.dueAt)}`
+            ? `${t('MyDayScreen.due')} ${shortDay(entry.workItem.dueAt, locale)}`
             : t('MyDayScreen.noDueDate')}{' '}
           · {t(reasonLabelKey(entry.reason)).toLowerCase()}
         </span>
@@ -500,6 +507,7 @@ function WaitingRow({
   projectName: string;
 }) {
   const t = useT();
+  const locale = useActiveLocale();
   const isApproval = entry.kind === 'approval';
   const title = isApproval ? t('MyDayScreen.deliverableReview') : entry.title;
   const since = isApproval ? entry.requestedAt : entry.waitingSince;
@@ -520,7 +528,7 @@ function WaitingRow({
         {t(waitingReasonLabelKey(entry.reason))}
       </span>
       <span className="tm-meta-mono tm-home-rows__when">
-        {t('MyDayScreen.since')} {shortDay(since)}
+        {t('MyDayScreen.since')} {shortDay(since, locale)}
       </span>
       <Link href={href} className="tm-button tm-button--outline tm-button--compact">
         {isApproval ? t('MyDayScreen.review') : t('MyDayScreen.triage')}
@@ -633,17 +641,45 @@ function groupByProject(items: readonly MyDayEntry[]) {
   return order.map((projectId) => ({ projectId, entries: byProject.get(projectId) ?? [] }));
 }
 
-/** The sentence under the headline, from the API's derived counts. */
-function describeDay(summary: HomeSummary | undefined, unknown: boolean): string {
-  if (unknown || !summary) return 'What needs you today, across every project.';
+type Translate = (key: MessageKey) => string;
+
+function isArabic(locale: string): boolean {
+  return locale.toLowerCase().startsWith('ar');
+}
+
+/** The sentence under the headline, from the API's derived counts, in the reader's language. */
+function describeDay(
+  summary: HomeSummary | undefined,
+  unknown: boolean,
+  t: Translate,
+  locale: string,
+): string {
+  if (unknown || !summary) return t('MyDayScreen.dayUnknown');
   const total = summary.personalWork.total + summary.waiting.total;
-  if (total === 0) return 'Nothing needs you right now. New work and reviews will show up here.';
+  if (total === 0) return t('MyDayScreen.dayClear');
+  const count = (value: number) => String(value);
   const parts: string[] = [];
-  if (summary.personalWork.overdue > 0) parts.push(`${summary.personalWork.overdue} overdue`);
-  if (summary.personalWork.dueSoon > 0) parts.push(`${summary.personalWork.dueSoon} due soon`);
-  if (summary.waiting.total > 0) parts.push(`${summary.waiting.total} waiting on your answer`);
-  const lead = `${spell(total)} ${total === 1 ? 'thing needs' : 'things need'} you today.`;
-  return parts.length > 0 ? `${lead} ${capitalise(parts.join(', '))}.` : lead;
+  if (summary.personalWork.overdue > 0) {
+    parts.push(
+      fill(t('MyDayScreen.dayPartOverdue'), { count: count(summary.personalWork.overdue) }),
+    );
+  }
+  if (summary.personalWork.dueSoon > 0) {
+    parts.push(
+      fill(t('MyDayScreen.dayPartDueSoon'), { count: count(summary.personalWork.dueSoon) }),
+    );
+  }
+  if (summary.waiting.total > 0) {
+    parts.push(fill(t('MyDayScreen.dayPartWaiting'), { count: count(summary.waiting.total) }));
+  }
+  const category = new Intl.PluralRules(isArabic(locale) ? 'ar' : 'en').select(total);
+  const lead = fill(t(`MyDayScreen.dayLead.${category}` as MessageKey), {
+    // English spells one to nine ("Two things need you today."), as the design writes it.
+    count: isArabic(locale) ? String(total) : spell(total),
+  });
+  return parts.length > 0
+    ? `${lead} ${capitalise(parts.join(t('MyDayScreen.listSeparator')))}.`
+    : lead;
 }
 
 function spell(value: number): string {
@@ -656,24 +692,27 @@ function capitalise(value: string): string {
 }
 
 /** "Why now" — the ranking reason in words, with the date when there is one. */
-function whyNow(entry: MyDayEntry): string {
-  const due = entry.workItem.dueAt ? shortDay(entry.workItem.dueAt) : null;
+function whyNow(entry: MyDayEntry, t: Translate, locale: string): string {
+  const date = entry.workItem.dueAt ? shortDay(entry.workItem.dueAt, locale) : null;
   switch (entry.reason) {
     case 'overdue':
-      return due ? `it was due ${due} and is still open` : 'it is overdue';
+      return date ? fill(t('MyDayScreen.whyOverdueDue'), { date }) : t('MyDayScreen.whyOverdue');
     case 'due_soon':
-      return due ? `it is due ${due}` : 'it is due soon';
+      return date ? fill(t('MyDayScreen.whyDueSoonDue'), { date }) : t('MyDayScreen.whyDueSoon');
     case 'assigned':
-      return due ? `it is yours, due ${due}` : 'it is yours and first in your list';
+      return date ? fill(t('MyDayScreen.whyAssignedDue'), { date }) : t('MyDayScreen.whyAssigned');
   }
 }
 
 /** "18 Aug" — the design's short day; the full instant stays one click away on the item. */
-function shortDay(value: string | null): string {
+function shortDay(value: string | null, locale: string): string {
   if (value === null) return '—';
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return formatDay(value);
-  return parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  return parsed.toLocaleDateString(isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
 }
 
 function typeCode(type: string): string {

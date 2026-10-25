@@ -64,9 +64,9 @@ export function AiApproveScreen({
   });
 
   return (
-    <LiveAnnouncer>
+    <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
       <div className="tm-approve">
-        <SkipLink targetId="tm-main" />
+        <SkipLink targetId="tm-main">{t('Shell.skipLink')}</SkipLink>
         <main id="tm-main" className="tm-approve__card" tabIndex={-1}>
           <BrandLockup />
           {approval.isPending ? (

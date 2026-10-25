@@ -48,9 +48,9 @@ export function PlatformShell({
 }: PlatformShellProps) {
   const t = useT();
   return (
-    <LiveAnnouncer>
+    <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
       <div className="tm-app">
-        <SkipLink targetId="tm-main" />
+        <SkipLink targetId="tm-main">{t('Shell.skipLink')}</SkipLink>
         <div className="tm-app__frame">
           <nav className="tm-rail" aria-label={t('PlatformShell.ariaPrimary')}>
             <Link href="/organizations" className="tm-rail__brand">

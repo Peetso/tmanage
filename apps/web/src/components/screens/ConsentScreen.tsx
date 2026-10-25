@@ -455,7 +455,7 @@ function ClientCard({
 function ConsentFrame({ children }: { readonly children: ReactNode }) {
   const t = useT();
   return (
-    <LiveAnnouncer>
+    <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
       <div className="tm-consent">
         <div className="tm-consent__card">
           <header className="tm-consent__brand">

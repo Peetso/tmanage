@@ -403,9 +403,9 @@ export function ControlCenterShell({
   const trail = [t('ControlCenterShell.controlCenter'), ...crumbs];
 
   const shell = (
-    <LiveAnnouncer>
+    <LiveAnnouncer label={t('Shell.liveAnnouncements')}>
       <div className="tm-app tm-cc-app">
-        <SkipLink targetId="tm-main" />
+        <SkipLink targetId="tm-main">{t('Shell.skipLink')}</SkipLink>
         <MaintenanceBanner />
         {queryClient ? <CommandPalette organizationSlug={organizationSlug} /> : null}
 
