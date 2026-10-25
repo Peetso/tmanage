@@ -1,4 +1,11 @@
-import { authorize, isClientRole, isInternalRole, PROJECT_ROLES, uuidv7 } from '@tmanage/domain';
+import {
+  authorize,
+  isClientRole,
+  isInternalRole,
+  mayGrantCapability,
+  PROJECT_ROLES,
+  uuidv7,
+} from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { createTenantContext } from '../../common/database/tenant-context.js';
 import { serializeForLog } from '../../common/observability/logger.js';
@@ -7,6 +14,8 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ClientMembershipsRepository } from '../clients/client-memberships.repository.js';
 import { MembershipsRepository } from './memberships.repository.js';
+import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
+import { customRoleCapabilities } from './member-role.controller.js';
 import {
   InvitationNotFoundError,
   InvitationNotPendingError,
@@ -239,6 +248,8 @@ export class InvitationsService {
     private readonly options: InvitationsServiceOptions = {},
     private readonly inviteeAccounts: InviteeAccountsRepository = new InviteeAccountsRepository(),
     private readonly credentials: CredentialsRepository = new CredentialsRepository(NO_SEED_CIPHER),
+    /** F1: resolves a custom role from Control > Roles when an invitation carries one. */
+    private readonly customRoles: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
   ) {}
 
   async list(
@@ -282,7 +293,8 @@ export class InvitationsService {
     this.requireInviteCapability(principal, context, 'invitation.issue', clientOrganizationId);
 
     const email = input.email.trim().toLowerCase();
-    this.requireRoleMatchesDestination(input.role, clientOrganizationId);
+    const customRole = isCustomRoleCandidate(input.role, clientOrganizationId);
+    if (!customRole) this.requireRoleMatchesDestination(input.role, clientOrganizationId);
     requireOwnerToGrantOwner(principal, input.role, 'invitation.issue');
 
     const projectIds = [...new Set(input.projectIds ?? [])];
@@ -308,6 +320,7 @@ export class InvitationsService {
     const expiresAt = this.expiryFrom(now);
 
     const { row, mailFacts } = await this.database.transaction(context, async (tx) => {
+      if (customRole) await this.requireGrantableCustomRole(tx, context, principal, input.role);
       const existing = await this.invitations.findPendingForEmail(
         tx,
         context,
@@ -387,7 +400,11 @@ export class InvitationsService {
       this.database.transaction(context, async (tx) => {
         const previous = await this.invitations.requireById(tx, context, invitationId);
         const role = input.role ?? previous.role;
-        this.requireRoleMatchesDestination(role, previous.clientOrganizationId);
+        if (isCustomRoleCandidate(role, previous.clientOrganizationId)) {
+          await this.requireGrantableCustomRole(tx, context, principal, role);
+        } else {
+          this.requireRoleMatchesDestination(role, previous.clientOrganizationId);
+        }
         requireOwnerToGrantOwner(principal, role, 'invitation.reissue');
 
         const revoked = await this.invitations.revoke(tx, context, invitationId);
@@ -865,6 +882,37 @@ export class InvitationsService {
   }
 
   /**
+   * F1: an internal invitation may carry a **custom role** id from Control > Roles. It must be a
+   * role of this organization (a foreign or unknown id is the same 400 as an unknown role name),
+   * and every right it grants must be one the inviter could grant (`mayGrantCapability`, the
+   * escalation guard Control > Roles and the bulk assign run): 403, no write.
+   */
+  private async requireGrantableCustomRole(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    principal: Principal,
+    roleId: string,
+  ): Promise<void> {
+    const custom = await this.customRoles.findRoleById(tx, context, roleId);
+    if (!custom) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
+        { field: 'role', message: 'must be an internal role' },
+      ]);
+    }
+    for (const capability of customRoleCapabilities(custom.capabilitiesJson)) {
+      if (!mayGrantCapability(principal, capability, context.organizationId).allowed) {
+        throw new ApiError(
+          403,
+          'forbidden',
+          'You can only give a role whose rights you hold yourself.',
+          undefined,
+          'invitation.custom_role_escalation',
+        );
+      }
+    }
+  }
+
+  /**
    * An internal invitation carries an internal role; a client invitation carries a client one.
    *
    * Checked here rather than left to the foreign keys, because there is no key that could
@@ -1048,6 +1096,13 @@ function alreadyMemberOr(error: unknown): unknown {
     );
   }
   return error;
+}
+
+/** A custom role id is a UUID; a built-in role is a name. Only internal invitations carry one. */
+const CUSTOM_ROLE_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu;
+
+export function isCustomRoleCandidate(role: string, clientOrganizationId: string | null): boolean {
+  return clientOrganizationId === null && !isInternalRole(role) && CUSTOM_ROLE_ID.test(role);
 }
 
 /**

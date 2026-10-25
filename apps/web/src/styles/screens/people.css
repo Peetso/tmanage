@@ -1859,3 +1859,48 @@ button.ppl-member {
     padding: var(--s5);
   }
 }
+
+/*
+ * F1 (Figma 389:4749) — "Built-in roles" / "Custom roles" groups in Change role and Invite, and the
+ * "No custom roles yet" card. The custom cards reuse `.ppl-role-card` unchanged; the empty card takes
+ * the same border, radius and padding.
+ */
+.ppl-role-group {
+  display: grid;
+  gap: var(--s2);
+}
+
+.ppl-role-cards + .ppl-role-group,
+.ppl-role-group + .ppl-role-group {
+  margin-block-start: var(--s3);
+}
+
+.ppl-role-empty {
+  display: grid;
+  gap: 2px;
+  padding: 14px var(--s4);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.ppl-role-empty__title {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.ppl-role-empty__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--ink-650);
+}
+
+.ppl-role-empty__action {
+  justify-self: start;
+  margin-block-start: var(--s3);
+  color: var(--ink-950);
+  text-decoration: none;
+}

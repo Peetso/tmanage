@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
+import { readCustomRoles } from '../../lib/api/admin-roles';
+import type { CustomRoleView } from '../../lib/api/admin-roles';
 import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
 import {
@@ -12,6 +15,7 @@ import {
   MEMBER_ROLE_CHOICES,
 } from '../../lib/api/member-role';
 import type { MemberRoleChange, MemberRoleChoice } from '../../lib/api/member-role';
+import { capabilityLabel } from '../../lib/capability-labels';
 import { useTOr } from '../../lib/i18n/use-t-or';
 
 /** Replace each `{slot}` in a catalog string. */
@@ -64,14 +68,57 @@ const CHIP: Record<string, string> = {
   guest: 'Guest',
 };
 
-export function useRoleChipLabel(): (role: string) => string {
-  const tr = useTOr();
-  return (role: string) => tr(`PeopleDirectoryScreen.role.${role}`, CHIP[role] ?? role);
+/** One custom role from Control > Roles, as the role cards and the chips read it. */
+export type CustomRoleOption = CustomRoleView['roles'][number];
+
+/**
+ * F1 — the organization's custom roles (Control > Roles, `GET admin/roles`), for the role cards
+ * and for naming a member whose stored role is a custom role id. Only an owner or admin reads it.
+ */
+export function useCustomRoles(api: ApiClient, organizationSlug: string, enabled = true) {
+  return useQuery({
+    queryKey: ['custom-roles', organizationSlug],
+    queryFn: async (): Promise<readonly CustomRoleOption[]> => {
+      const view = await readCustomRoles(api, organizationSlug);
+      return Array.isArray(view?.roles) ? view.roles : [];
+    },
+    enabled,
+    retry: false,
+  });
 }
 
 /**
- * The four radio cards both dialogs draw (Owner / Admin / Manager / Member). A role the caller may
- * not hand out is drawn disabled, never hidden, so the choice reads the same for everyone.
+ * The roster chip / confirm label for a stored role: a built-in name, or — F1 — a custom role's own
+ * name when the stored role is that role's id.
+ */
+export function useRoleChipLabel(
+  customRoles?: readonly CustomRoleOption[] | undefined,
+): (role: string) => string {
+  const tr = useTOr();
+  return (role: string) => {
+    const custom = customRoles?.find((entry) => entry.id === role);
+    if (custom) return custom.name;
+    return tr(`PeopleDirectoryScreen.role.${role}`, CHIP[role] ?? role);
+  };
+}
+
+/** A custom role card's second line: its first rights, as Control > Roles lists them. */
+function useCustomRoleSummary(): (role: CustomRoleOption) => string {
+  const tr = useTOr();
+  return (role: CustomRoleOption) => {
+    const named = role.capabilities
+      .slice(0, 3)
+      .map((capability) => tr(`ChangeRoleDialog.right.${capability}`, capabilityLabel(capability)));
+    return `${named.join(' · ')}${role.capabilities.length > 3 ? ' …' : ''}`;
+  };
+}
+
+/**
+ * The radio cards both dialogs draw: the four built-in roles (Owner / Admin / Manager / Member) and,
+ * F1 (Figma 389:4749), a "Custom roles" group with the organization's roles from Control > Roles —
+ * or, when there are none, one card that links to Control > Roles to make one. A built-in role the
+ * caller may not hand out is drawn disabled, never hidden, so the choice reads the same for everyone.
+ * The value is a built-in role name or a custom role id; both groups share one radio name.
  */
 export function RoleChoiceCards({
   name,
@@ -80,18 +127,29 @@ export function RoleChoiceCards({
   onChange,
   assignable,
   organizationName,
+  builtInHeading,
+  customRoles,
+  createRoleHref,
 }: {
   name: string;
   legend: string;
-  value: MemberRoleChoice | null;
-  onChange: (role: MemberRoleChoice) => void;
+  value: string | null;
+  onChange: (role: string) => void;
   assignable: (role: MemberRoleChoice) => boolean;
   organizationName: string;
+  /** Change role draws "Built-in roles" over the four; Invite has its own "Role" label. */
+  builtInHeading?: string;
+  /** The custom roles; `undefined` while they load (the group is not drawn yet). */
+  customRoles?: readonly CustomRoleOption[] | undefined;
+  /** Control > Roles, where the empty state's "Create a custom role" goes. */
+  createRoleHref?: string;
 }) {
   const tr = useTOr();
-  return (
+  const summary = useCustomRoleSummary();
+  const customHeading = tr('ChangeRoleDialog.customRoles', 'Custom roles');
+  const builtIn = (
     <fieldset className="ppl-role-cards">
-      <legend className="tm-visually-hidden">{legend}</legend>
+      <legend className="tm-visually-hidden">{builtInHeading ?? legend}</legend>
       {MEMBER_ROLE_CHOICES.map((role) => {
         const disabled = !assignable(role);
         const describedBy = `${name}-${role}-describe`;
@@ -124,6 +182,74 @@ export function RoleChoiceCards({
         );
       })}
     </fieldset>
+  );
+  const custom =
+    customRoles === undefined ? null : (
+      <div className="ppl-role-group">
+        <p className="ppl-dialog__label" aria-hidden="true">
+          {customHeading}
+        </p>
+        {customRoles.length === 0 ? (
+          <div className="ppl-role-empty">
+            <p className="ppl-role-empty__title">
+              {tr('ChangeRoleDialog.customEmptyTitle', 'No custom roles yet')}
+            </p>
+            <p className="ppl-role-empty__body">
+              {tr(
+                'ChangeRoleDialog.customEmptyBody',
+                'Make a role with only the rights you need, then give it to people here.',
+              )}
+            </p>
+            {createRoleHref ? (
+              <Link
+                href={createRoleHref}
+                className="tm-button tm-button--text tm-button--default ppl-role-empty__action"
+              >
+                {tr('ChangeRoleDialog.customCreate', 'Create a custom role')}
+              </Link>
+            ) : null}
+          </div>
+        ) : (
+          <fieldset className="ppl-role-cards">
+            <legend className="tm-visually-hidden">{customHeading}</legend>
+            {customRoles.map((role) => {
+              const describedBy = `${name}-custom-${role.id}-describe`;
+              return (
+                <label key={role.id} className="ppl-role-card" data-checked={value === role.id}>
+                  <input
+                    type="radio"
+                    className="ppl-role-card__input"
+                    name={name}
+                    value={role.id}
+                    checked={value === role.id}
+                    aria-describedby={describedBy}
+                    onChange={() => onChange(role.id)}
+                  />
+                  <span className="ppl-role-card__title">{role.name}</span>
+                  <span className="ppl-role-card__describe" id={describedBy}>
+                    {summary(role)}
+                  </span>
+                </label>
+              );
+            })}
+          </fieldset>
+        )}
+      </div>
+    );
+  return (
+    <>
+      {builtInHeading ? (
+        <div className="ppl-role-group">
+          <p className="ppl-dialog__label" aria-hidden="true">
+            {builtInHeading}
+          </p>
+          {builtIn}
+        </div>
+      ) : (
+        builtIn
+      )}
+      {custom}
+    </>
   );
 }
 
@@ -164,12 +290,21 @@ export function ChangeRoleDialog({
   onStale: () => void;
 }) {
   const tr = useTOr();
-  const chip = useRoleChipLabel();
+  const customRoles = useCustomRoles(api, organizationSlug);
+  const customList = customRoles.isSuccess
+    ? customRoles.data
+    : customRoles.isError
+      ? []
+      : undefined;
+  const chip = useRoleChipLabel(customList);
   const titleId = useId();
   const groupName = useId();
   const panelRef = useRef<HTMLElement>(null);
-  const current = isMemberRoleChoice(target.role) ? target.role : null;
-  const [choice, setChoice] = useState<MemberRoleChoice | null>(current);
+  const isCustom = (role: string) => customList?.some((entry) => entry.id === role) ?? false;
+  const current = isMemberRoleChoice(target.role) || isCustom(target.role) ? target.role : null;
+  const [picked, setChoice] = useState<string | null>(null);
+  // Until the person picks, the current role is the checked card (a custom one once the list loads).
+  const choice = picked ?? current;
   const first = firstNameOf(target.displayName);
 
   const roles = useQuery({
@@ -181,9 +316,9 @@ export function ChangeRoleDialog({
     roles.data?.some((entry) => entry.role === role && entry.assignable) ?? false;
 
   const change = useMutation({
-    mutationFn: (role: MemberRoleChoice) =>
+    mutationFn: (role: string) =>
       changeMemberRole(api, organizationSlug, target.userId, {
-        role,
+        ...(isMemberRoleChoice(role) ? { role } : { customRoleId: role }),
         ...(target.version === undefined ? {} : { version: target.version }),
       }),
     onSuccess: (result) => onClose(result),
@@ -209,7 +344,7 @@ export function ChangeRoleDialog({
     !blocked &&
     choice !== null &&
     choice !== target.role &&
-    assignable(choice) &&
+    (isMemberRoleChoice(choice) ? assignable(choice) : isCustom(choice)) &&
     !change.isPending;
 
   function submit(event: FormEvent) {
@@ -288,6 +423,9 @@ export function ChangeRoleDialog({
               onChange={setChoice}
               assignable={assignable}
               organizationName={organizationName}
+              builtInHeading={tr('ChangeRoleDialog.builtInRoles', 'Built-in roles')}
+              customRoles={customList}
+              createRoleHref={`/${encodeURIComponent(organizationSlug)}/admin/roles`}
             />
           )}
 
@@ -310,7 +448,15 @@ export function ChangeRoleDialog({
             </div>
           ) : choice !== null && choice !== target.role ? (
             <p className="ppl-dialog__hint">
-              {fill(tr(`ChangeRoleDialog.hint.${choice}`, HINT[choice]), { first })}
+              {isMemberRoleChoice(choice)
+                ? fill(tr(`ChangeRoleDialog.hint.${choice}`, HINT[choice]), { first })
+                : fill(
+                    tr(
+                      'ChangeRoleDialog.hint.custom',
+                      '{first} will get a notice. They get the rights set for {role}.',
+                    ),
+                    { first, role: chip(choice) },
+                  )}
             </p>
           ) : null}
 

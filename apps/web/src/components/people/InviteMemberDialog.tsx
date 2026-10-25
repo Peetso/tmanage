@@ -7,11 +7,11 @@ import type { ApiClient } from '../../lib/api/client';
 import { ApiRequestError } from '../../lib/api/errors';
 import { issueInvitation } from '../../lib/api/invitations';
 import type { IssuedInvitation } from '../../lib/api/invitations';
-import { listBuiltInRoles } from '../../lib/api/member-role';
+import { isMemberRoleChoice, listBuiltInRoles } from '../../lib/api/member-role';
 import type { MemberRoleChoice } from '../../lib/api/member-role';
 import { listProjects } from '../../lib/api/projects';
 import { useTOr } from '../../lib/i18n/use-t-or';
-import { fill, RoleChoiceCards } from './ChangeRoleDialog';
+import { fill, RoleChoiceCards, useCustomRoles } from './ChangeRoleDialog';
 
 /** The API refuses a longer note (`invitations.note` is VARCHAR(500)). */
 const MAX_NOTE = 500;
@@ -21,7 +21,7 @@ const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u;
  * **r-invite** (Figma 374:1985) — "Invite a team member".
  *
  * Email, the same four role cards as Change role (Owner only for an owner, which the API's
- * `assignable` flag says), "Add to projects (optional)" — the projects the person joins when they
+ * `assignable` flag says) and — F1 (Figma 389:4911) — the organization's custom roles below them, "Add to projects (optional)" — the projects the person joins when they
  * accept, nothing before — and "Personal note (optional)". Sends `POST invitations` with
  * `projectIds` and `note`.
  *
@@ -46,7 +46,7 @@ export function InviteMemberDialog({
   const panelRef = useRef<HTMLElement>(null);
   const [email, setEmail] = useState('');
   const [touched, setTouched] = useState(false);
-  const [role, setRole] = useState<MemberRoleChoice | null>('member');
+  const [role, setRole] = useState<string | null>('member');
   const [projectIds, setProjectIds] = useState<readonly string[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [note, setNote] = useState('');
@@ -58,6 +58,17 @@ export function InviteMemberDialog({
   });
   const assignable = (choice: MemberRoleChoice) =>
     roles.data?.some((entry) => entry.role === choice && entry.assignable) ?? false;
+  // F1: the organization's custom roles from Control > Roles, offered under the built-in four.
+  const customRoles = useCustomRoles(api, organizationSlug);
+  const customList = customRoles.isSuccess
+    ? customRoles.data
+    : customRoles.isError
+      ? []
+      : undefined;
+  const allowed = (choice: string) =>
+    isMemberRoleChoice(choice)
+      ? assignable(choice)
+      : (customList?.some((entry) => entry.id === choice) ?? false);
 
   const projects = useQuery({
     queryKey: ['invite-projects', organizationSlug],
@@ -104,7 +115,7 @@ export function InviteMemberDialog({
   function submit(event: FormEvent) {
     event.preventDefault();
     setTouched(true);
-    if (emailInvalid || role === null || !assignable(role) || send.isPending) return;
+    if (emailInvalid || role === null || !allowed(role) || send.isPending) return;
     send.mutate();
   }
 
@@ -208,6 +219,8 @@ export function InviteMemberDialog({
                 onChange={setRole}
                 assignable={assignable}
                 organizationName={organizationName}
+                customRoles={customList}
+                createRoleHref={`/${encodeURIComponent(organizationSlug)}/admin/roles`}
               />
               <p className="ppl-dialog__hint">
                 {tr('InviteMemberDialog.ownerHint', 'Only an owner can invite another owner.')}

@@ -10,6 +10,7 @@ import {
   fill,
   firstNameOf,
   initialsOf,
+  useCustomRoles,
   useRoleChipLabel,
 } from '../people/ChangeRoleDialog';
 import type { ChangeRoleTarget } from '../people/ChangeRoleDialog';
@@ -111,7 +112,9 @@ export function PeopleDirectoryScreen({
   const iAmOwner = myRole === 'owner';
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [announcement, setAnnouncement] = useState('');
-  const chip = useRoleChipLabel();
+  // F1: a member holding a custom role shows that role's name, not its id.
+  const customRoles = useCustomRoles(api, organizationSlug, canAssign);
+  const chip = useRoleChipLabel(customRoles.data);
 
   const people = useQuery({
     queryKey: ['people-directory', organizationSlug, ''],

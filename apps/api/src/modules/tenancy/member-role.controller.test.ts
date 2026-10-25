@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { builtInRoles, MemberRoleController } from './member-role.controller.js';
 import type { MembershipsRepository } from './memberships.repository.js';
+import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ApiError } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
@@ -30,10 +31,18 @@ interface Row {
   role: string;
   status: string;
   version: number;
+  hasOrgWideScope?: boolean;
 }
+
+const PROJECT_LEAD = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
+const CUSTOM_ROLES = [
+  { id: PROJECT_LEAD, organizationId: ORG, capabilitiesJson: '["work.read","project.manage"]' },
+  { id: 'reviewer-role', organizationId: ORG, capabilitiesJson: '["approval.decide"]' },
+];
 
 function setup(rows: Row[]) {
   const audits: unknown[] = [];
+  const scopes: unknown[] = [];
   const memberships = {
     findByUserId: (_r: unknown, _c: unknown, userId: string) =>
       Promise.resolve(rows.find((row) => row.userId === userId) ?? null),
@@ -42,7 +51,15 @@ function setup(rows: Row[]) {
         rows.filter((r) => roles.includes(r.role) && r.status === 'active' && r.id !== exclude)
           .length,
       ),
-    changeRole: (_r: unknown, _c: unknown, id: string, _v: number, role: string) => {
+    changeRole: (
+      _r: unknown,
+      _c: unknown,
+      id: string,
+      _v: number,
+      role: string,
+      scope?: boolean,
+    ) => {
+      scopes.push(scope);
       const row = rows.find((r) => r.id === id)!;
       Object.assign(row, { role, version: row.version + 1 });
       return Promise.resolve({ ...row });
@@ -54,7 +71,15 @@ function setup(rows: Row[]) {
   const audit = {
     record: (_t: unknown, _c: unknown, e: unknown) => Promise.resolve(audits.push(e)),
   } as unknown as AuditService;
-  return { controller: new MemberRoleController(database, memberships, audit), audits };
+  const customRoles = {
+    findRoleById: (_r: unknown, _c: unknown, id: string) =>
+      Promise.resolve(CUSTOM_ROLES.find((role) => role.id === id)),
+  } as unknown as MemberBulkRoleRepository;
+  return {
+    controller: new MemberRoleController(database, memberships, audit, customRoles),
+    audits,
+    scopes,
+  };
 }
 
 async function status(promise: Promise<unknown>): Promise<number> {
@@ -136,5 +161,57 @@ describe('MemberRoleController (ADM-01)', () => {
     expect(admin.find((r) => r.role === 'manager')?.capabilities).toContain('project.manage');
     expect(admin.find((r) => r.role === 'owner')?.assignable).toBe(false);
     expect(builtInRoles(principal('owner')).find((r) => r.role === 'owner')?.assignable).toBe(true);
+  });
+
+  describe('custom roles (F1)', () => {
+    it('gives a member a custom role, keeps their scope and audits the role id', async () => {
+      const { controller, audits, scopes } = setup([member({ hasOrgWideScope: true })]);
+      const view = await controller.change(context, principal('org_admin'), 'u1', {
+        customRoleId: PROJECT_LEAD,
+        version: 1,
+      });
+      expect(view).toMatchObject({ previousRole: 'member', role: PROJECT_LEAD, changed: true });
+      expect(scopes).toEqual([true]);
+      expect(audits).toEqual([
+        expect.objectContaining({
+          action: 'membership.role_changed',
+          metadata: expect.objectContaining({ custom_role_id: PROJECT_LEAD }),
+        }),
+      ]);
+    });
+
+    it('404s a role from another studio or none, with no write', async () => {
+      const { controller, audits } = setup([member()]);
+      expect(
+        await status(
+          controller.change(context, principal('owner'), 'u1', { customRoleId: 'other-org-role' }),
+        ),
+      ).toBe(404);
+      expect(audits).toEqual([]);
+    });
+
+    it('403s a role carrying a right the caller cannot grant (no escalation)', async () => {
+      const { controller, audits } = setup([member()]);
+      expect(
+        await status(
+          controller.change(context, principal('org_admin'), 'u1', {
+            customRoleId: 'reviewer-role',
+          }),
+        ),
+      ).toBe(403);
+      expect(audits).toEqual([]);
+    });
+
+    it('400s an empty custom role id and still keeps the owner seat owner-only', async () => {
+      const { controller } = setup([member({ role: 'owner' }), member({ id: 'm2', userId: 'u2' })]);
+      expect(
+        await status(controller.change(context, principal('owner'), 'u2', { customRoleId: ' ' })),
+      ).toBe(400);
+      expect(
+        await status(
+          controller.change(context, principal('org_admin'), 'u1', { customRoleId: PROJECT_LEAD }),
+        ),
+      ).toBe(403);
+    });
   });
 });

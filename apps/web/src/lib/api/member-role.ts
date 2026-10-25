@@ -50,16 +50,26 @@ export async function listBuiltInRoles(
   return Array.isArray(data?.roles) ? data.roles : [];
 }
 
+/**
+ * F1: a built-in role is sent as `role`; a custom role from Control > Roles as `customRoleId`
+ * (the API resolves it tenant-scoped and refuses one that grants more than the caller holds).
+ */
+export type MemberRoleTarget =
+  | { readonly role: string; readonly version?: number }
+  | { readonly customRoleId: string; readonly version?: number };
+
 export async function changeMemberRole(
   client: ApiClient,
   organizationSlug: string,
   userId: string,
-  input: { readonly role: string; readonly version?: number },
+  input: MemberRoleTarget,
 ): Promise<MemberRoleChange> {
+  const body =
+    'customRoleId' in input ? { customRoleId: input.customRoleId } : { role: input.role };
   const { data } = await client.request<MemberRoleChange>({
     method: 'PATCH',
     path: `/v1/organizations/${encodeURIComponent(organizationSlug)}/members/${encodeURIComponent(userId)}/role`,
-    body: input.version === undefined ? { role: input.role } : input,
+    body: input.version === undefined ? body : { ...body, version: input.version },
   });
   return data;
 }

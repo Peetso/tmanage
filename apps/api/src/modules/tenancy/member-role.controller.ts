@@ -1,9 +1,11 @@
 import { Body, Controller, Get, Inject, Optional, Param, Patch } from '@nestjs/common';
 import {
+  CAPABILITIES,
   capabilitiesFor,
   CLIENT_ROLES,
   INTERNAL_ROLES,
   isInternalRole,
+  mayGrantCapability,
   PROJECT_ROLES,
 } from '@tmanage/domain';
 import type { Capability, InternalRole, Principal, Role } from '@tmanage/domain';
@@ -12,6 +14,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import { MembershipsRepository, MembershipVersionConflictError } from './memberships.repository.js';
 
 /**
@@ -34,6 +37,16 @@ import { MembershipsRepository, MembershipVersionConflictError } from './members
  * cannot be demoted — an organization nobody owns cannot be recovered from inside. Every landed
  * change writes `membership.role_changed` in the same transaction, and `changeRole` bumps
  * `policy_version`, so a context minted under the old role is rotated on the next request.
+ *
+ * ## A custom role (F1, Figma 389:4749)
+ *
+ * The same route also gives one member a **custom role** from Control > Roles: the body carries
+ * `customRoleId` instead of `role`. The role is resolved tenant-scoped first (a role in another
+ * studio, or none, is a 404 with no write), and every capability it carries is re-checked against
+ * the caller with `mayGrantCapability` — the escalation guard the bulk route and the roles editor
+ * run — so nobody can hand out a role that grants more than they hold (403, no write). The stored
+ * `memberships.role` is the custom role id, exactly as the bulk assign writes it, and the member's
+ * org-wide scope is left as it was: a role change never silently widens or narrows reach.
  */
 
 export interface BuiltInRoleView {
@@ -58,7 +71,24 @@ export interface MemberRoleChangeView {
 
 interface ChangeRoleBody {
   readonly role?: unknown;
+  /** F1: a custom role id from Control > Roles, sent instead of `role`. */
+  readonly customRoleId?: unknown;
   readonly version?: unknown;
+}
+
+/** Whether a stored string is one of the fixed allowlisted capabilities. */
+function isCapability(value: unknown): value is Capability {
+  return typeof value === 'string' && (CAPABILITIES as readonly string[]).includes(value);
+}
+
+/** Parse a custom role's stored capability JSON defensively, keeping only allowlisted strings. */
+export function customRoleCapabilities(json: string): readonly Capability[] {
+  try {
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed.filter(isCapability) : [];
+  } catch {
+    return [];
+  }
 }
 
 /** The roles that may assign roles at all (`12-PERMISSION-MATRIX` §2 "Assign roles"). */
@@ -111,6 +141,9 @@ export class MemberRoleController {
     @Inject(MembershipsRepository)
     private readonly memberships: MembershipsRepository = new MembershipsRepository(),
     @Optional() @Inject(AUDIT_SERVICE) private readonly audit?: AuditService,
+    @Optional()
+    @Inject(MemberBulkRoleRepository)
+    private readonly customRoles: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
   ) {}
 
   /**
@@ -128,8 +161,15 @@ export class MemberRoleController {
     @Param('userId') userId: string,
     @Body() body: ChangeRoleBody,
   ): Promise<MemberRoleChangeView> {
-    const role = typeof body?.role === 'string' ? body.role.trim() : '';
-    if (!isInternalRole(role)) {
+    const customRoleId =
+      typeof body?.customRoleId === 'string' ? body.customRoleId.trim() : undefined;
+    if (body?.customRoleId !== undefined && (customRoleId === undefined || customRoleId === '')) {
+      throw new ApiError(400, 'validation_failed', 'Choose a role.', [
+        { field: 'customRoleId', message: 'must be a custom role id' },
+      ]);
+    }
+    const role = customRoleId ?? (typeof body?.role === 'string' ? body.role.trim() : '');
+    if (customRoleId === undefined && !isInternalRole(role)) {
       throw new ApiError(400, 'validation_failed', 'Choose a role.', [
         { field: 'role', message: 'must be one of the built-in staff roles' },
       ]);
@@ -143,6 +183,24 @@ export class MemberRoleController {
     requireRoleAssigner(principal);
 
     return this.database.transaction(context, async (tx) => {
+      if (customRoleId !== undefined) {
+        // F1: resolve the custom role tenant-scoped before anything else (a foreign id is a 404
+        // like an unknown one), then the escalation guard on its capability subset (403).
+        const custom = await this.customRoles.findRoleById(tx, context, customRoleId);
+        if (!custom) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+        for (const capability of customRoleCapabilities(custom.capabilitiesJson)) {
+          const verdict = mayGrantCapability(principal, capability, context.organizationId);
+          if (!verdict.allowed) {
+            throw new ApiError(
+              403,
+              'forbidden',
+              'You can only give a role whose rights you hold yourself.',
+              undefined,
+              `member_role.escalation:${verdict.code}`,
+            );
+          }
+        }
+      }
       const current = await this.memberships.findByUserId(tx, context, userId);
       if (!current) throw new ApiError(404, 'not_found', MESSAGES.notFound);
       if (current.status === 'offboarded') {
@@ -195,7 +253,10 @@ export class MemberRoleController {
           context,
           current.id,
           current.version,
+          // A custom role id is stored in `memberships.role` as the bulk assign stores it; the
+          // org-wide scope stays as it was rather than defaulting from a role name.
           role as InternalRole,
+          customRoleId === undefined ? undefined : current.hasOrgWideScope,
         );
       } catch (error) {
         if (error instanceof MembershipVersionConflictError) {
@@ -208,7 +269,12 @@ export class MemberRoleController {
         action: 'membership.role_changed',
         objectId: updated.id,
         result: 'allowed',
-        metadata: { target_user_id: updated.userId, previous_role: previousRole, new_role: role },
+        metadata: {
+          target_user_id: updated.userId,
+          previous_role: previousRole,
+          new_role: role,
+          ...(customRoleId === undefined ? {} : { custom_role_id: customRoleId }),
+        },
       });
       return view(updated, true);
     });

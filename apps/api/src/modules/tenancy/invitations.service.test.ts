@@ -8,6 +8,7 @@ import { InviteeAccountExistsError } from './invitee-accounts.repository.js';
 import type { InviteeAccountsRepository } from './invitee-accounts.repository.js';
 import type { InvitationsRepository } from './invitations.repository.js';
 import type { MembershipsRepository } from './memberships.repository.js';
+import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import type { Principal } from '@tmanage/domain';
 import {
   ACCOUNT_EXISTS_MESSAGE,
@@ -83,6 +84,8 @@ function harness(
     /** A1: the invitation's live projects, and which ids the tenant holds live. */
     readonly projectIds?: readonly string[];
     readonly liveProjectIds?: readonly string[];
+    /** F1: the organization's custom roles, by id. */
+    readonly customRoles?: readonly { id: string; capabilitiesJson: string }[];
   } = {},
 ): Harness {
   const pending = 'pending' in options ? options.pending : INVITATION;
@@ -137,6 +140,10 @@ function harness(
     {},
     { insertUser } as unknown as InviteeAccountsRepository,
     { setPassword } as unknown as CredentialsRepository,
+    {
+      findRoleById: (_r: unknown, _c: unknown, id: string) =>
+        Promise.resolve(options.customRoles?.find((role) => role.id === id)),
+    } as unknown as MemberBulkRoleRepository,
   );
   return {
     service,
@@ -371,5 +378,53 @@ describe('A1: "Add to projects" and "Personal note" on an invitation', () => {
 
     expect(client.status).toBe(400);
     expect(long.status).toBe(400);
+  });
+});
+
+describe('F1: an invitation with a custom role', () => {
+  const ROLE = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5b';
+  const REVIEWER = '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5c';
+  const customRoles = [
+    { id: ROLE, capabilitiesJson: '["work.read"]' },
+    { id: REVIEWER, capabilitiesJson: '["approval.decide"]' },
+  ];
+  const as = (role: Principal['role']): Principal => ({
+    userId: OWNER,
+    organizationId: ORG,
+    kind: 'internal',
+    role,
+    membershipId: 'm-owner',
+    membershipStatus: 'active',
+    clientOrganizationId: null,
+    projectIds: [],
+    hasOrgWideScope: true,
+  });
+  const context = { organizationId: ORG, userId: OWNER } as unknown as TenantContext;
+
+  it('issues an internal invitation carrying the custom role id', async () => {
+    const { service, issue } = harness({ customRoles });
+    await service.issue(context, as('org_admin'), { email: 'omar@example.com', role: ROLE });
+    expect(issue.mock.calls[0]?.[2]).toMatchObject({ role: ROLE });
+  });
+
+  it('400s a custom role id this organization does not have, without a write', async () => {
+    const { service, issue } = harness({ customRoles });
+    const error = await refusal(
+      service.issue(context, as('owner'), {
+        email: 'omar@example.com',
+        role: '0190a1b2-c3d4-7e5f-8a9b-0c1d2e3f4a5d',
+      }),
+    );
+    expect(error.status).toBe(400);
+    expect(issue).not.toHaveBeenCalled();
+  });
+
+  it('403s a custom role granting a right the inviter cannot grant', async () => {
+    const { service, issue } = harness({ customRoles });
+    const error = await refusal(
+      service.issue(context, as('org_admin'), { email: 'omar@example.com', role: REVIEWER }),
+    );
+    expect(error.status).toBe(403);
+    expect(issue).not.toHaveBeenCalled();
   });
 });
