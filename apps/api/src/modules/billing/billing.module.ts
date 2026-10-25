@@ -28,6 +28,8 @@ import {
   PLAN_CHANGE_REQUESTS_SERVICE,
   PlanChangeRequestsController,
 } from './plan-change-requests.controller.js';
+import { PlanUsageService } from './plan-usage.service.js';
+import { PLAN_USAGE_SERVICE, PlanUsageController } from './plan-usage.controller.js';
 
 /**
  * Billing / module 19 (x177). The subscription module — an organization's current plan (view, and
@@ -91,6 +93,13 @@ export class BillingModule {
       useFactory: (database: TenantDatabase, audit?: AuditService) =>
         new PlanChangeRequestsService(database, new PlanChangeRequestsRepository(), audit),
     };
+    // Figma F4 (Plan and usage). Read-only: plan limits from the catalog, usage counted from existing
+    // tables. A slice-private token, no `tokens.ts` edit; the repositories are stateless.
+    const planUsage: Provider = {
+      provide: PLAN_USAGE_SERVICE,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new PlanUsageService(database),
+    };
 
     return {
       module: BillingModule,
@@ -102,6 +111,7 @@ export class BillingModule {
         taxDetailsRepository,
         taxDetailsService,
         planChangeRequests,
+        planUsage,
       ],
       exports: [service, planPreview],
       controllers: [
@@ -110,6 +120,7 @@ export class BillingModule {
         BillingProfileController,
         BillingTaxDetailsController,
         PlanChangeRequestsController,
+        PlanUsageController,
       ],
     };
   }

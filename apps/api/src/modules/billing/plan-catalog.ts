@@ -63,3 +63,54 @@ export type BillingPeriod = 'monthly' | 'yearly';
 
 /** Re-exported so the service and repository name one status type. Mirrors the `0074` ENUM. */
 export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+/** One gibibyte, the unit the storage allowances are counted in (the same 1024 scale the UI uses). */
+const GB = 1024 ** 3;
+
+/**
+ * What each flat plan allows — Figma F4 (390:22381) "Plan and usage". `null` is "no limit". People
+ * and active projects follow the A12 flat plans (the public pricing page), storage follows doc 30
+ * §storage defaults / doc 49 (2 GB Free, 25 GB Starter, 100 GB Studio, 500 GB Business, 1 TB
+ * Enterprise). Clients are never limited and never billed, so they have no entry here.
+ */
+export interface PlanLimits {
+  readonly people: number | null;
+  readonly activeProjects: number | null;
+  readonly storageBytes: number;
+}
+
+export const PLAN_LIMITS: Readonly<Record<CatalogPlanId, PlanLimits>> = {
+  free: { people: 3, activeProjects: 3, storageBytes: 2 * GB },
+  starter: { people: 10, activeProjects: null, storageBytes: 25 * GB },
+  studio: { people: null, activeProjects: null, storageBytes: 100 * GB },
+  business: { people: null, activeProjects: null, storageBytes: 500 * GB },
+  enterprise: { people: null, activeProjects: null, storageBytes: 1024 * GB },
+};
+
+/** The plan features a change can switch on or off, in the order the preview lists gains. */
+export const PLAN_FEATURES = [
+  'requests_approvals',
+  'client_portal',
+  'docs_decisions',
+  'insights_automations',
+  'security_controls',
+  'admin_audit',
+] as const;
+
+export type PlanFeature = (typeof PLAN_FEATURES)[number];
+
+/** The features each plan includes, cumulative up the ladder (the public pricing bullets). */
+export const PLAN_FEATURE_SET: Readonly<Record<CatalogPlanId, readonly PlanFeature[]>> = {
+  free: [],
+  starter: ['requests_approvals', 'client_portal'],
+  studio: ['requests_approvals', 'client_portal', 'docs_decisions', 'insights_automations'],
+  business: [
+    'requests_approvals',
+    'client_portal',
+    'docs_decisions',
+    'insights_automations',
+    'security_controls',
+    'admin_audit',
+  ],
+  enterprise: [...PLAN_FEATURES],
+};

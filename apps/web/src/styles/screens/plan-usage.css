@@ -1,0 +1,348 @@
+/*
+ * Plan and usage — Figma F4 (section 390:22381). A column of white cards (radius/card, 1px
+ * border/default) under the page title: the near/over InlineAlert, the plan card, the "What you
+ * use" card with its meters, and the next-bill line. The change preview is a 560px dialog with a
+ * sunken summary table. Every value is a TManage token, so dark mode and RTL follow (logical
+ * properties only). There is no Meter component in the design system yet; the bars are local.
+ */
+
+.tm-pu {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s6);
+  max-inline-size: 878px;
+}
+
+.tm-pu-card {
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+/* ── Plan card ─────────────────────────────────────────────────────────────── */
+
+.tm-pu-plan {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s6);
+}
+
+.tm-pu-plan__name-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-pu-plan__name {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pu-plan__price {
+  margin: var(--s1) 0 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-pu-plan__actions {
+  display: flex;
+  flex: none;
+  gap: var(--s4);
+}
+
+/* ── Usage card ────────────────────────────────────────────────────────────── */
+
+.tm-pu-usage__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s4);
+  margin-block-end: var(--s5);
+}
+
+.tm-pu-usage__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pu-usage__updated {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-pu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s5) var(--s6);
+}
+
+.tm-pu-meter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  min-inline-size: 0;
+}
+
+.tm-pu-meter__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  min-block-size: 28px;
+}
+
+.tm-pu-meter__label {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-pu-meter__value {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+  font-variant-numeric: tabular-nums;
+}
+
+.tm-pu-meter__count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s3);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-pu-meter__track {
+  block-size: var(--s2);
+  border-radius: var(--r-capsule);
+  background: var(--paper-150);
+  overflow: hidden;
+}
+
+.tm-pu-meter__fill {
+  block-size: 100%;
+  border-radius: var(--r-capsule);
+  background: var(--ink-950);
+}
+
+.tm-pu-meter__note {
+  margin: 0;
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-500);
+}
+
+.tm-pu-meter[data-level='near'] .tm-pu-meter__value {
+  color: var(--warning-600);
+}
+
+.tm-pu-meter[data-level='near'] .tm-pu-meter__fill {
+  background: var(--warning-600);
+}
+
+.tm-pu-meter[data-level='over'] .tm-pu-meter__value,
+.tm-pu-meter[data-level='over'] .tm-pu-meter__note {
+  color: var(--danger-600);
+}
+
+.tm-pu-meter[data-level='over'] .tm-pu-meter__fill {
+  background: var(--danger-600);
+}
+
+.tm-pu-foot {
+  margin: 0;
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+  color: var(--ink-650);
+}
+
+/* ── Change preview dialog ─────────────────────────────────────────────────── */
+
+.tm-pu-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: var(--tm-scrim);
+}
+
+.tm-pu-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: min(560px, 100%);
+  max-block-size: 92vh;
+  overflow-y: auto;
+  padding: var(--s10);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+.tm-pu-dialog:focus {
+  outline: none;
+}
+
+.tm-pu-dialog__back {
+  display: none;
+}
+
+.tm-pu-dialog__title {
+  margin: 0;
+  font-size: var(--t-heading-card);
+  line-height: var(--t-heading-card-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pu-dialog__lede {
+  margin: calc(var(--s3) * -1) 0 0;
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  color: var(--ink-650);
+}
+
+.tm-pu-summary {
+  margin: 0;
+  padding: var(--s2) var(--s4);
+  border-radius: var(--r-card);
+  background: var(--paper-150);
+}
+
+.tm-pu-summary__row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: var(--s4);
+  padding-block: var(--s3);
+}
+
+.tm-pu-summary__row + .tm-pu-summary__row {
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-pu-summary dt {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-650);
+}
+
+.tm-pu-summary dd {
+  margin: 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-pu-dialog__subhead {
+  margin: var(--s2) 0 0;
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-950);
+}
+
+.tm-pu-changes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-pu-changes .tm-status-dot {
+  gap: var(--s3);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  color: var(--ink-950);
+}
+
+.tm-pu-rule {
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-pu-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--s3);
+}
+
+/* ── Phone (F4 390:22817 / 390:22881) ──────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .tm-pu-plan {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tm-pu-plan__actions > * {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .tm-pu-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tm-pu-scrim {
+    padding: 0;
+  }
+
+  .tm-pu-dialog {
+    inline-size: 100%;
+    block-size: 100%;
+    max-block-size: none;
+    padding: var(--s6) var(--s5);
+    border: 0;
+    border-radius: 0;
+  }
+
+  .tm-pu-dialog__back {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--s3);
+    align-self: flex-start;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: var(--t-ui-md);
+    color: var(--ink-650);
+    cursor: pointer;
+  }
+
+  [dir='rtl'] .tm-pu-dialog__back > span {
+    transform: scaleX(-1);
+  }
+
+  .tm-pu-summary__row {
+    grid-template-columns: 108px minmax(0, 1fr);
+  }
+
+  .tm-pu-rule {
+    display: none;
+  }
+
+  .tm-pu-dialog__actions {
+    flex-direction: column-reverse;
+    margin-block-start: auto;
+  }
+}

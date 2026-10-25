@@ -300,6 +300,24 @@ export const billingDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Preview', args: { targetPlanCode: 'pro' } }],
   }),
   det({
+    id: 'billing.plan_usage.get',
+    title: 'Plan and usage',
+    description:
+      'The current flat plan, its limits, and the people, projects, storage and clients used against it.',
+    input: noArgs(),
+    redact: 'billing',
+    examples: [{ summary: 'Current usage', args: {} }],
+  }),
+  det({
+    id: 'billing.plan_usage.preview',
+    title: 'Preview a plan change against usage',
+    description:
+      'What moving to another plan changes: new price, start date, amount due today (computed, never charged), gains, losses and any limit you would be over.',
+    input: bodyArgs([], { target: f.shortText(60) }),
+    redact: 'billing',
+    examples: [{ summary: 'Upgrade to Studio', args: { target: 'studio' } }],
+  }),
+  det({
     id: 'billing.usage.export_csv',
     title: 'Export usage as CSV',
     description:

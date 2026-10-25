@@ -255,6 +255,10 @@ import type { SessionSummaryView as ApiSessionSummaryView } from '../../apps/api
 import type { UsageView as ApiUsageView } from '../../apps/api/src/modules/files/usage.service.js';
 import type { SubscriptionView as ApiSubscriptionView } from '../../apps/api/src/modules/billing/subscription.service.js';
 import type { PlanChangePreviewView as ApiPlanChangePreviewView } from '../../apps/api/src/modules/billing/plan-preview.service.js';
+import type {
+  PlanUsagePreviewView as ApiPlanUsagePreviewView,
+  PlanUsageView as ApiPlanUsageView,
+} from '../../apps/api/src/modules/billing/plan-usage.service.js';
 import type { ApprovalCycleView as ApiApprovalCycleView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { DeliveryFlowView as ApiDeliveryFlowView } from '../../apps/api/src/modules/insights/insights.service.js';
 import type { InsightsPortfolioView as ApiInsightsPortfolioView } from '../../apps/api/src/modules/insights/insights.service.js';
@@ -737,6 +741,10 @@ import type {
 import type { OrganizationUsage as WebOrganizationUsage } from '../../apps/web/src/lib/api/usage';
 import type { SubscriptionView as WebSubscriptionView } from '../../apps/web/src/lib/api/subscription';
 import type { PlanChangePreviewView as WebPlanChangePreviewView } from '../../apps/web/src/lib/api/plan-preview';
+import type {
+  PlanUsagePreviewView as WebPlanUsagePreviewView,
+  PlanUsageView as WebPlanUsageView,
+} from '../../apps/web/src/lib/api/plan-usage';
 import type {
   UsageAlertSummary as WebUsageAlertSummary,
   UsageAlertStatus as WebUsageAlertStatus,
@@ -1548,6 +1556,14 @@ type _subscription = Assert<Exact<ApiSubscriptionView, WebSubscriptionView>>;
  * Paired with a live web consumer — x198 ships `PlanChangePreviewScreen` — so this is an `Exact` pair.
  */
 type _planChangePreview = Assert<Exact<ApiPlanChangePreviewView, WebPlanChangePreviewView>>;
+
+/**
+ * D4 / Figma F4 — `GET …/billing/plan-usage` and `…/plan-usage/preview?target=`. The plan, its
+ * limits and the usage against them; and what a change would do (computed, never charged).
+ * Paired with the live `PlanUsageScreen`, so both are `Exact`.
+ */
+type _planUsage = Assert<Exact<ApiPlanUsageView, WebPlanUsageView>>;
+type _planUsagePreview = Assert<Exact<ApiPlanUsagePreviewView, WebPlanUsagePreviewView>>;
 
 /**
  * INS-02 — `GET …/insights/projects/:projectId/approval-cycle`. A project's approvals rolled up by
