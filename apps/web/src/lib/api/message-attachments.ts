@@ -24,9 +24,9 @@ export interface MessageAttachmentSummary {
   /**
    * L2 — the virus scan's word on the file, as the download door treats it. `clean` downloads;
    * `not_scanned` downloads marked "Not scanned" (B5); `being_checked` is refused until the scan is
-   * done ("Block until scanned"); `unavailable` is never served. Absent from an older API: clean.
+   * done ("Block until scanned"); `unavailable` is never served.
    */
-  readonly scanStatus?: MessageAttachmentScanStatus;
+  readonly scanStatus: MessageAttachmentScanStatus;
 }
 
 export type MessageAttachmentScanStatus = 'clean' | 'not_scanned' | 'being_checked' | 'unavailable';

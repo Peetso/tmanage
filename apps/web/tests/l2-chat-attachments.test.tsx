@@ -60,14 +60,14 @@ const ar = (key: string) => translate('ar-EG', key as MessageKey);
 
 function file(
   fileAssetId: string,
-  scanStatus?: MessageAttachmentSummary['scanStatus'],
+  scanStatus: MessageAttachmentSummary['scanStatus'] = 'clean',
 ): MessageAttachmentSummary {
   return {
     fileAssetId,
     name: `${fileAssetId}.pdf`,
     sizeBytes: 4096,
     attachedAt: '2026-10-25T10:00:00.000Z',
-    ...(scanStatus === undefined ? {} : { scanStatus }),
+    scanStatus,
   };
 }
 

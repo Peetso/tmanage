@@ -685,7 +685,7 @@ export function fileTypeOf(name: string): string | undefined {
 
 /** L2: whether the download door serves this attachment now (clean, or labelled Not scanned). */
 function isDownloadable(file: MessageAttachmentSummary): boolean {
-  const status = file.scanStatus ?? 'clean';
+  const status = file.scanStatus;
   return status === 'clean' || status === 'not_scanned';
 }
 
@@ -706,7 +706,7 @@ export function ChannelFileCard({
 }) {
   const t = useT();
   const tOr = useTOr();
-  const status = file.scanStatus ?? 'clean';
+  const status = file.scanStatus;
   const meta = [formatFileSize(file.sizeBytes), fileTypeOf(file.name)].filter(Boolean).join(' · ');
   const scanRow = status === 'not_scanned' || status === 'being_checked';
   const whyId = `tm-chat-file-why-${file.fileAssetId}`;
