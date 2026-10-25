@@ -6,17 +6,27 @@
  * Signs in seeded test users, hits the main read routes and one write route for a fixed time
  * each, prints p50/p95/p99 and errors per route against its target, and exits 1 on any miss
  * (2 on a setup error). It refuses any API that is not a local development host.
+ *
+ * Optional: `--fill-work` / `--fill-messages` grow the seed through the API first (the seed is a
+ * handful of rows; the budgets are about a working tenant), and `--realtime-sockets` adds the
+ * NFR-06 fan-out probe: that many subscribed sockets, a series of posted messages, and the time
+ * from each POST to each socket's frame.
  */
 import { readFileSync, writeFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
+import { clearTimeout } from 'node:timers';
 import { parseArgs } from 'node:util';
 
 import {
   DEFAULT_MAX_ERROR_RATE,
+  REALTIME_FRAME_TIMEOUT_MS,
+  REALTIME_P95_MS,
+  REALTIME_ROUTE,
   WRITE_P95_MS,
   buildRoutes,
   cookieHeaderFrom,
   evaluate,
+  fanOutSamples,
   formatReport,
   isLocalTarget,
   summarise,
@@ -43,6 +53,12 @@ async function main() {
       'max-error-rate': { type: 'string', default: String(DEFAULT_MAX_ERROR_RATE) },
       'write-p95': { type: 'string', default: String(WRITE_P95_MS) },
       json: { type: 'string' },
+      'fill-work': { type: 'string', default: '0' },
+      'fill-messages': { type: 'string', default: '0' },
+      'realtime-sockets': { type: 'string', default: '0' },
+      'realtime-messages': { type: 'string', default: '20' },
+      'realtime-gap': { type: 'string', default: '1500' },
+      'realtime-p95': { type: 'string', default: String(REALTIME_P95_MS) },
       help: { type: 'boolean', default: false },
     },
     strict: true,
@@ -83,10 +99,54 @@ async function main() {
   }
 
   const sessions = [];
-  for (const userId of userIds)
-    sessions.push(await signIn(api, values.origin, '/v1/dev/sessions', { userId }));
+  for (const userId of userIds) {
+    sessions.push({
+      ...(await signIn(api, values.origin, '/v1/dev/sessions', { userId })),
+      userId,
+    });
+  }
   for (const email of emails) {
     sessions.push(await signIn(api, values.origin, '/v1/auth/password', { email, password }));
+  }
+
+  const base = `${api}/v1/organizations/${encodeURIComponent(values.org)}`;
+  const projectId = values.project ?? tenant?.projectId;
+  const fillWork = Math.floor(nonNegative(values['fill-work'], '--fill-work'));
+  const fillMessages = Math.floor(nonNegative(values['fill-messages'], '--fill-messages'));
+  const rtSockets = Math.floor(nonNegative(values['realtime-sockets'], '--realtime-sockets'));
+  const rtMessages = Math.floor(positive(values['realtime-messages'], '--realtime-messages'));
+  const rtGapMs = nonNegative(values['realtime-gap'], '--realtime-gap');
+  const rtP95 = positive(values['realtime-p95'], '--realtime-p95');
+  const ctx = { base, origin: values.origin, sessions, connections };
+
+  let channelId;
+  if (fillMessages > 0 || rtSockets > 0) {
+    if (!projectId)
+      throw new SetupError('--fill-messages and the probe need --project or --world.');
+    channelId = await createChannel(ctx, projectId);
+  }
+  if (fillWork > 0) {
+    if (!projectId) throw new SetupError('--fill-work needs --project or --world.');
+    const made = await fill(ctx, fillWork, (i, session) => ({
+      method: 'POST',
+      path: '/work-items',
+      body: {
+        projectId,
+        title: `Load item ${i} ${['brief', 'review', 'layout', 'copy', 'handoff'][i % 5]}`,
+        ...(session.userId ? { ownerUserId: session.userId } : {}),
+        // A fifth due within the hour, so My Day has real rows to rank.
+        ...(i % 5 === 0 ? { dueAt: new Date(Date.now() + 3_600_000).toISOString() } : {}),
+      },
+    }));
+    console.error(`filled ${made} of ${fillWork} work items`);
+  }
+  if (fillMessages > 0) {
+    const made = await fill(ctx, fillMessages, (i) => ({
+      method: 'POST',
+      path: `/conversations/${channelId}/messages`,
+      body: { body: `Load message ${i} about the layout review` },
+    }));
+    console.error(`filled ${made} of ${fillMessages} messages`);
   }
 
   let routes = buildRoutes({
@@ -115,6 +175,13 @@ async function main() {
     const summary = summarise(samples, elapsedMs);
     const verdict = evaluate(summary, { p95Ms: route.p95Ms, maxErrorRate });
     results.push({ route, summary, verdict });
+  }
+
+  if (rtSockets > 0) {
+    const probe = await fanOutProbe(ctx, channelId, rtSockets, rtMessages, rtGapMs);
+    const route = { ...REALTIME_ROUTE, p95Ms: rtP95 };
+    const summary = summarise(probe.samples, probe.elapsedMs);
+    results.push({ route, summary, verdict: evaluate(summary, { p95Ms: rtP95, maxErrorRate }) });
   }
 
   const settings = { api, connections, durationS, users: sessions.length };
@@ -177,6 +244,144 @@ async function once(api, origin, route, session) {
     const status = error?.name === 'TimeoutError' ? 'timeout' : 'network';
     return { ms: performance.now() - t0, ok: false, status };
   }
+}
+
+/** One authenticated JSON call through a session; returns the parsed body or throws. */
+async function call(ctx, session, { method, path, body }) {
+  const response = await fetch(`${ctx.base}${path}`, {
+    method,
+    headers: {
+      cookie: session.cookie,
+      origin: ctx.origin,
+      accept: 'application/json',
+      'x-csrf-token': session.csrf,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify(body ?? {}),
+    signal: globalThis.AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new SetupError(`${method} ${path} answered ${response.status}`);
+  return payload;
+}
+
+/** A fresh channel the signed-in users all belong to. */
+async function createChannel(ctx, projectId) {
+  const [creator, ...others] = ctx.sessions;
+  const channel = await call(ctx, creator, {
+    method: 'POST',
+    path: '/conversations',
+    body: { projectId, name: `load-${Date.now().toString(36)}` },
+  });
+  for (const other of others) {
+    if (!other.userId || other.userId === creator.userId) continue;
+    await call(ctx, creator, {
+      method: 'POST',
+      path: `/conversations/${channel.id}/members`,
+      body: { userId: other.userId },
+    });
+  }
+  return channel.id;
+}
+
+/** Make `total` rows through the API, `connections` at a time. Returns how many succeeded. */
+async function fill(ctx, total, request) {
+  let next = 0;
+  let made = 0;
+  const loop = async (index) => {
+    const session = ctx.sessions[index % ctx.sessions.length];
+    while (next < total) {
+      const i = next++;
+      try {
+        await call(ctx, session, request(i, session));
+        made += 1;
+      } catch {
+        // Counted by the caller's "filled N of M" line; the run still measures what exists.
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: ctx.connections }, (_, i) => loop(i)));
+  return made;
+}
+
+/**
+ * NFR-06 fan-out probe. Opens `socketCount` sockets (tickets minted round-robin over the
+ * sessions), subscribes each to the channel, then posts `messages` messages `gapMs` apart and
+ * records when each socket's `message.created.v1` frame for each one lands.
+ */
+async function fanOutProbe(ctx, channelId, socketCount, messages, gapMs) {
+  const sockets = [];
+  const arrivals = [];
+  for (let i = 0; i < socketCount; i += 1) {
+    const session = ctx.sessions[i % ctx.sessions.length];
+    const minted = await call(ctx, session, { method: 'POST', path: '/realtime/tickets' });
+    if (typeof minted.socketUrl !== 'string' || !isLocalTarget(minted.socketUrl)) {
+      throw new SetupError('The API serves no local socket URL (set REALTIME_PUBLIC_URL).');
+    }
+    const seen = new Map();
+    arrivals.push(seen);
+    sockets.push(await subscribe(minted.socketUrl, minted.ticket, channelId, seen));
+  }
+
+  const posts = [];
+  const started = performance.now();
+  for (let i = 0; i < messages; i += 1) {
+    const session = ctx.sessions[i % ctx.sessions.length];
+    const sentAt = performance.now();
+    const message = await call(ctx, session, {
+      method: 'POST',
+      path: `/conversations/${channelId}/messages`,
+      body: { body: `Realtime probe ${i}` },
+    });
+    posts.push({ messageId: message.id, sentAt });
+    if (gapMs > 0) await sleep(gapMs);
+  }
+  // Give the last message its full window before anything is counted lost.
+  const lastSent = posts.at(-1)?.sentAt ?? performance.now();
+  const allSeen = () => arrivals.every((seen) => posts.every((p) => seen.has(p.messageId)));
+  while (performance.now() < lastSent + REALTIME_FRAME_TIMEOUT_MS && !allSeen()) await sleep(50);
+  const elapsedMs = performance.now() - started;
+  for (const socket of sockets) socket.close();
+  return { samples: fanOutSamples(posts, arrivals), elapsedMs };
+}
+
+/** Open one socket, subscribe it, and resolve once the server acknowledges the subscription. */
+function subscribe(socketUrl, ticket, conversationId, seen) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(socketUrl);
+    url.searchParams.set('ticket', ticket);
+    const socket = new globalThis.WebSocket(url);
+    const timer = setTimeout(() => reject(new SetupError('A socket never confirmed.')), 10_000);
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({ type: 'subscribe', conversationId }));
+    });
+    socket.addEventListener('message', (event) => {
+      const at = performance.now();
+      let frame;
+      try {
+        frame = JSON.parse(String(event.data));
+      } catch {
+        return;
+      }
+      if (frame.type === 'subscribed') {
+        clearTimeout(timer);
+        resolve(socket);
+      } else if (frame.type === 'refused') {
+        clearTimeout(timer);
+        reject(new SetupError('The socket refused the subscription.'));
+      } else if (frame.type === 'event' && !seen.has(frame.objectId)) {
+        seen.set(frame.objectId, at);
+      }
+    });
+    socket.addEventListener('close', (event) => {
+      clearTimeout(timer);
+      reject(new SetupError(`A socket closed during the handshake (${event.code}).`));
+    });
+  });
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 class SetupError extends Error {}

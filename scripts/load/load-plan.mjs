@@ -15,6 +15,46 @@
 export const READ_P95_MS = 300;
 export const SEARCH_P95_MS = 500;
 export const WRITE_P95_MS = 500;
+/**
+ * NFR-06 / PERF-06: typical realtime delivery < 1 s. "Typical" is held to p95 here, the
+ * stricter reading, so a probe that passes leaves no room for argument.
+ */
+export const REALTIME_P95_MS = 1000;
+/** How long the fan-out probe waits for one frame on one socket before counting it lost. */
+export const REALTIME_FRAME_TIMEOUT_MS = 10_000;
+
+/** The fan-out probe's pseudo-route, so its result rides the same report as the HTTP routes. */
+export const REALTIME_ROUTE = {
+  name: 'realtime-fan-out',
+  ref: 'NFR-06',
+  kind: 'realtime',
+  method: 'WS',
+  path: 'message.created.v1 frame',
+  p95Ms: REALTIME_P95_MS,
+};
+
+/**
+ * Turn the fan-out probe's raw timings into ordinary samples.
+ *
+ * `posts` = `[{ messageId, sentAt }]` (sentAt = just before the message POST left);
+ * `arrivals` = one `Map<messageId, receivedAt>` per subscribed socket. Every (socket, message)
+ * pair is one sample: delivered pairs measure `receivedAt - sentAt`; a frame that never came
+ * is a failure counted at the timeout, so a lost frame can never improve p95.
+ */
+export function fanOutSamples(posts, arrivals, timeoutMs = REALTIME_FRAME_TIMEOUT_MS) {
+  const samples = [];
+  for (const socket of arrivals) {
+    for (const { messageId, sentAt } of posts) {
+      const receivedAt = socket.get(messageId);
+      if (receivedAt === undefined || receivedAt - sentAt > timeoutMs) {
+        samples.push({ ms: timeoutMs, ok: false, status: 'lost' });
+      } else {
+        samples.push({ ms: Math.max(0, receivedAt - sentAt), ok: true, status: 'frame' });
+      }
+    }
+  }
+  return samples;
+}
 /** Share of requests that may fail (non-2xx, timeout, network error) before a route misses. */
 export const DEFAULT_MAX_ERROR_RATE = 0.01;
 
@@ -151,6 +191,7 @@ export function isLocalTarget(url) {
   } catch {
     return false;
   }
+  if (!['http:', 'https:', 'ws:', 'wss:'].includes(new URL(url).protocol)) return false;
   if (host.startsWith('[') && host.endsWith(']')) host = host.slice(1, -1);
   if (host === 'localhost' || host === '::1') return true;
   if (host.endsWith('.localhost') || host.endsWith('.test')) return true;

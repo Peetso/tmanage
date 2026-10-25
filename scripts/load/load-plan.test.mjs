@@ -3,10 +3,13 @@ import { test } from 'node:test';
 
 import {
   READ_P95_MS,
+  REALTIME_P95_MS,
+  REALTIME_ROUTE,
   SEARCH_P95_MS,
   buildRoutes,
   cookieHeaderFrom,
   evaluate,
+  fanOutSamples,
   formatReport,
   isLocalTarget,
   percentile,
@@ -162,4 +165,54 @@ test('formatReport marks each route and says how many missed', () => {
   assert.match(missing, /MISS/);
   assert.match(missing, /- p95 900 ms is over the 300 ms target/);
   assert.match(missing, /1 route\(s\) missed their targets\./);
+});
+
+test('isLocalTarget accepts a local socket URL and refuses other schemes', () => {
+  assert.equal(isLocalTarget('ws://localhost:3102'), true);
+  assert.equal(isLocalTarget('wss://rt.tmanage.test'), true);
+  assert.equal(isLocalTarget('wss://tmanage.peetrix.com'), false);
+  assert.equal(isLocalTarget('ftp://localhost'), false);
+  assert.equal(isLocalTarget('file:///C:/x'), false);
+});
+
+test('fanOutSamples measures every socket x message pair and counts a lost frame at the timeout', () => {
+  const posts = [
+    { messageId: 'a', sentAt: 1000 },
+    { messageId: 'b', sentAt: 2000 },
+  ];
+  const first = new Map([
+    ['a', 1150],
+    ['b', 2400],
+  ]);
+  const second = new Map([['a', 1900]]); // never got b
+  const late = new Map([
+    ['a', 1000 + 20_000],
+    ['b', 2001],
+  ]);
+  const samples = fanOutSamples(posts, [first, second, late], 10_000);
+  assert.equal(samples.length, 6);
+  assert.deepEqual(
+    samples.map((s) => [s.ms, s.ok]),
+    [
+      [150, true],
+      [400, true],
+      [900, true],
+      [10_000, false],
+      [10_000, false],
+      [1, true],
+    ],
+  );
+  const summary = summarise(samples, 1000);
+  assert.equal(summary.errors, 2);
+  assert.equal(summary.statuses['lost'], 2);
+  // Two of six lost is far over 1 %, and the lost frames sit at the top of the latencies.
+  const verdict = evaluate(summary, { p95Ms: REALTIME_P95_MS, maxErrorRate: 0.01 });
+  assert.equal(verdict.pass, false);
+  assert.equal(summary.p99, 10_000);
+});
+
+test('the realtime pseudo-route carries the NFR-06 one-second target', () => {
+  assert.equal(REALTIME_P95_MS, 1000);
+  assert.equal(REALTIME_ROUTE.ref, 'NFR-06');
+  assert.equal(REALTIME_ROUTE.p95Ms, REALTIME_P95_MS);
 });

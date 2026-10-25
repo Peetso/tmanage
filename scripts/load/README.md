@@ -19,6 +19,7 @@ it uses Node 22's built-in `fetch`.
 | `conversations`     | p95 < 300 ms | NFR-04 (common read)                                     |
 | `search`            | p95 < 500 ms | PERF-03                                                  |
 | `recent-item-write` | p95 < 500 ms | not in the plan; the script's default, see `--write-p95` |
+| `realtime-fan-out`  | p95 < 1 s    | NFR-06, PERF-06 (only with `--realtime-sockets`)         |
 
 Every route also misses when more than 1 % of its requests fail (non-2xx, timeout after 10 s,
 or network error). Latency percentiles include failed requests.
@@ -73,9 +74,24 @@ Exit code: `0` every route met its target, `1` at least one missed, `2` setup er
 | `--max-error-rate <0..1>`  | `0.01`                            | allowed share of failed requests                      |
 | `--write-p95 <ms>`         | `500`                             | target for the write route                            |
 | `--json <file>`            | -                                 | also write the full results as JSON                   |
+| `--fill-work <n>`          | `0`                               | first create n work items through the API             |
+| `--fill-messages <n>`      | `0`                               | first post n messages in a fresh channel              |
+| `--realtime-sockets <n>`   | `0` (off)                         | run the fan-out probe with n subscribed sockets       |
+| `--realtime-messages <n>`  | `20`                              | messages the probe posts                              |
+| `--realtime-gap <ms>`      | `1500`                            | pause between probe messages                          |
+| `--realtime-p95 <ms>`      | `1000`                            | target for the probe                                  |
 
 The write route records a recent item (`PUT /home/recent-items`), which is an idempotent upsert,
 so a long run does not grow the database.
+
+## Realtime fan-out probe
+
+The socket lives in the worker, so the probe needs the worker in loop mode with `REALTIME_PORT`
+set, and the API with `REALTIME_PUBLIC_URL` pointing at it (a local `ws://` URL). The probe
+creates a channel, adds the signed-in users, opens n sockets with tickets from
+`POST .../realtime/tickets`, subscribes each one, posts the messages and times each POST to
+each socket's `message.created.v1` frame. A frame not seen within 10 s counts as a failure at
+10 s. Delivery waits on the outbox poll (`OUTBOX_POLL_INTERVAL_MS`, 5 s by default).
 
 ## Tests
 
