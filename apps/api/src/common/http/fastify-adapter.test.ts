@@ -219,3 +219,54 @@ describe('the composition root hands the adapter the configured trust', () => {
     expect(MAIN_TS).not.toMatch(/trustProxy:\s*(?:true|\d)/);
   });
 });
+
+/**
+ * Security audit NV09 — a spoofed `X-Forwarded-For` against the Hostinger trust list
+ * (`127.0.0.1,::1`, `deploy/hostinger/.env.example`). Each edge shape the lead names is mapped to
+ * the `request.ip` it yields; which shape production has is an owner check, not a source fact.
+ */
+async function ipFor(
+  app: Awaited<ReturnType<typeof trusting>>,
+  remoteAddress: string,
+  forwardedFor?: string,
+): Promise<string> {
+  const response = await app.inject({
+    method: 'GET',
+    url: '/whoami',
+    remoteAddress,
+    headers: forwardedFor === undefined ? {} : { 'x-forwarded-for': forwardedFor },
+  });
+  return response.json<WhoAmI>().ip;
+}
+
+describe('a spoofed X-Forwarded-For under the Hostinger trust list (NV09)', () => {
+  const HOSTINGER = ['127.0.0.1', '::1'];
+
+  it('a direct caller (untrusted peer) cannot choose its address by writing the header', async () => {
+    const app = await trusting(HOSTINGER);
+    expect(await ipFor(app, '203.0.113.50', '192.0.2.111')).toBe('203.0.113.50');
+    expect(await ipFor(app, '203.0.113.50', '127.0.0.1, 192.0.2.111')).toBe('203.0.113.50');
+  });
+
+  it('with no trusted proxy configured, a loopback peer is the client and the header is ignored', async () => {
+    const app = await trusting(undefined);
+    expect(await ipFor(app, '127.0.0.1', '192.0.2.111')).toBe('127.0.0.1');
+  });
+
+  it('behind an appending loopback proxy the right-most untrusted entry wins, not the forged one', async () => {
+    const app = await trusting(HOSTINGER);
+    // Client forged 192.0.2.111; the edge appended what it saw, 198.51.100.7.
+    expect(await ipFor(app, '127.0.0.1', '192.0.2.111, 198.51.100.7')).toBe('198.51.100.7');
+    expect(await ipFor(app, '::1', '192.0.2.111, 198.51.100.7')).toBe('198.51.100.7');
+    // A forged loopback entry to the right is skipped only because loopback is trusted.
+    expect(await ipFor(app, '127.0.0.1', '198.51.100.7, 127.0.0.1')).toBe('198.51.100.7');
+    // No header from the trusted proxy: the proxy's own address, never a client choice.
+    expect(await ipFor(app, '127.0.0.1')).toBe('127.0.0.1');
+  });
+
+  it('records the unsafe edge shape: a prepending or pass-through edge lets the client choose', async () => {
+    // Not a defect of the adapter — the documented reason the owner check exists.
+    const app = await trusting(HOSTINGER);
+    expect(await ipFor(app, '127.0.0.1', '198.51.100.7, 192.0.2.111')).toBe('192.0.2.111');
+  });
+});

@@ -65,7 +65,13 @@ function fakeTx(
   const resumes: { recipientUserId: unknown; resumeAt: unknown }[] = [];
   const tx = {
     async query(sql: string, params: readonly unknown[] = []): Promise<unknown> {
-      if (/FROM memberships/.test(sql)) return memberships;
+      if (/FROM memberships/.test(sql)) {
+        // The single-recipient read (F58 resume re-check) names one user; the fan-out does not.
+        if (/m\.user_id = \?/.test(sql)) {
+          return memberships.filter((m) => m.user_id === params[1]);
+        }
+        return memberships;
+      }
       if (/FROM users u/.test(sql)) {
         const row = recipients[params[1] as string];
         return row === undefined ? [] : [row];
@@ -195,26 +201,54 @@ describe('createUsageThresholdMail', () => {
   });
 });
 
+function resumeEventFor(recipientUserId: string): ClaimedOutboxEvent {
+  return event(85, {
+    type: QUIET_HOURS_MAIL_RESUME_TYPE,
+    payload: {
+      originalType: 'usage.threshold_reached.v1',
+      originalPayload: {
+        band: 85,
+        used: 8_000_000_000,
+        reserved: 500_000_000,
+        quota: 10_000_000_000,
+      },
+      recipientUserId,
+    },
+  });
+}
+
 describe('createUsageThresholdMailResume', () => {
   it('sends to the one named recipient after the window, re-reading the mail toggle', async () => {
-    const { tx } = fakeTx([], { 'owner-1': recipient('owner@x', quietWindowAround()) });
+    const { tx } = fakeTx(MEMBERS, { 'owner-1': recipient('owner@x', quietWindowAround()) });
     const { effects, staged } = fakeEffects();
     const { mailer, sent } = fakeMailer();
-    const resumeEvent = event(85, {
-      type: QUIET_HOURS_MAIL_RESUME_TYPE,
-      payload: {
-        originalType: 'usage.threshold_reached.v1',
-        originalPayload: {
-          band: 85,
-          used: 8_000_000_000,
-          reserved: 500_000_000,
-          quota: 10_000_000_000,
-        },
-        recipientUserId: 'owner-1',
-      },
-    });
-    await createUsageThresholdMailResume(mailer)(resumeEvent, tx, effects);
+    await createUsageThresholdMailResume(mailer)(resumeEventFor('owner-1'), tx, effects);
     await runEffects(staged);
     expect(sent.map((s) => s.recipientEmail)).toEqual(['owner@x']); // window already waited out
+  });
+
+  // F58 regression: deferred, then removed / demoted / scope lost before resume -> no send.
+  it.each([
+    ['was removed (no active membership)', [] as readonly Membership[]],
+    ['was demoted to member', [{ user_id: 'admin-1', role: 'member', has_org_wide_scope: 1 }]],
+    ['lost org-wide scope', [{ user_id: 'admin-1', role: 'org_admin', has_org_wide_scope: 0 }]],
+    ['left while another user stays admin', [MEMBERS[0] as Membership]],
+  ])('does not mail a recipient who %s during the deferral (F58)', async (_label, members) => {
+    const { tx } = fakeTx(members, { 'admin-1': recipient('admin@x') });
+    const { effects, staged } = fakeEffects();
+    const { mailer, sent } = fakeMailer();
+    await createUsageThresholdMailResume(mailer)(resumeEventFor('admin-1'), tx, effects);
+    await runEffects(staged);
+    expect(staged).toHaveLength(0);
+    expect(sent).toHaveLength(0);
+  });
+
+  it('still mails a recipient who is still an org-wide admin at resume (F58 control)', async () => {
+    const { tx } = fakeTx(MEMBERS, { 'admin-1': recipient('admin@x') });
+    const { effects, staged } = fakeEffects();
+    const { mailer, sent } = fakeMailer();
+    await createUsageThresholdMailResume(mailer)(resumeEventFor('admin-1'), tx, effects);
+    await runEffects(staged);
+    expect(sent.map((s) => s.recipientEmail)).toEqual(['admin@x']);
   });
 });

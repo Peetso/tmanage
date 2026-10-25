@@ -101,6 +101,38 @@ export async function listActiveOrgWideMemberships(
   }));
 }
 
+/**
+ * The one user's **active** membership in the organization, in the same shape as
+ * {@link listActiveOrgWideMemberships}, or `null` when they hold none now. A deferred usage mail
+ * re-resolves its recipient through this at resume, so a person removed, suspended or demoted
+ * during their quiet hours is not told (security audit F58, `24-EVENT-CATALOG` §6).
+ */
+export async function findActiveOrgWideMembership(
+  tx: WorkerTransaction,
+  organizationId: string,
+  userId: string,
+): Promise<OrgWideMembershipCandidate | null> {
+  interface Row {
+    readonly user_id: string;
+    readonly role: string;
+    readonly has_org_wide_scope: number;
+  }
+  const rows = await tx.query<readonly Row[]>(
+    `SELECT m.user_id, m.role, m.has_org_wide_scope
+       FROM memberships m
+      WHERE m.organization_id = ? AND m.user_id = ? AND m.status = 'active'
+      LIMIT 1`,
+    [organizationId, userId],
+  );
+  const row = rows[0];
+  if (row === undefined || row.user_id !== userId) return null;
+  return {
+    userId: row.user_id,
+    role: row.role,
+    hasOrgWideScope: Boolean(row.has_org_wide_scope),
+  };
+}
+
 /** Whether one user holds an active internal membership — a blocker owner's gate. */
 export async function isActiveInternalMember(
   tx: WorkerTransaction,

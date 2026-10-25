@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sanitizeSvg } from './svg-sanitizer.js';
+import { sanitizeSvg, SVG_MAX_ELEMENTS, SVG_MAX_INPUT_CHARS } from './svg-sanitizer.js';
 
 /** C6 — the company-logo SVG sanitiser: what it strips, and what it refuses. */
 
@@ -81,5 +81,61 @@ describe('sanitizeSvg', () => {
     expect(sanitizeSvg('<svg xmlns="http://www.w3.org/2000/svg"><script>x</script></svg>')).toEqual(
       { ok: false, reason: 'empty' },
     );
+  });
+});
+
+describe('sanitizeSvg — bounded work (security audit NV14)', () => {
+  const wrap = (inner: string): string =>
+    `<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/>${inner}</svg>`;
+
+  it('answers N=64000 self-closing <style/> tags in under 200 ms, with no <style in any output', () => {
+    const input = wrap('<style/>'.repeat(64_000));
+    expect(input.length).toBeLessThanOrEqual(512 * 1024);
+    const started = performance.now();
+    const result = sanitizeSvg(input);
+    const elapsed = performance.now() - started;
+    expect(elapsed).toBeLessThan(200);
+    expect(result).toEqual({ ok: false, reason: 'too_complex' });
+    expect(JSON.stringify(result)).not.toContain('<style');
+  });
+
+  it('drops self-closing <style/> under the element cap, in linear time', () => {
+    const result = sanitizeSvg(wrap('<style/>'.repeat(SVG_MAX_ELEMENTS - 2)));
+    expect(result.ok).toBe(true);
+    if (result.ok) expect(result.svg).not.toContain('<style');
+  });
+
+  it('judges many unclosed-looking sheets one by one and still drops an unsafe one', () => {
+    const result = sanitizeSvg(
+      wrap(
+        '<style>.a{fill:#000}</style>'.repeat(3000) +
+          '<style>@import url(https://x/y.css);</style>',
+      ),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.svg).not.toContain('@import');
+      expect(result.svg.split('<style>').length - 1).toBe(3000);
+      expect(result.removed).toContain('external reference in <style>');
+    }
+  });
+
+  it('refuses more elements than the cap, and input longer than the cap', () => {
+    expect(sanitizeSvg(wrap('<rect/>'.repeat(SVG_MAX_ELEMENTS)))).toEqual({
+      ok: false,
+      reason: 'too_complex',
+    });
+    expect(sanitizeSvg(wrap(' '.repeat(SVG_MAX_INPUT_CHARS)))).toEqual({
+      ok: false,
+      reason: 'too_complex',
+    });
+  });
+
+  it('parses a tag with many attributes in linear time', () => {
+    const attrs = Array.from({ length: 20_000 }, (_v, i) => ` a${i}="1"`).join('');
+    const started = performance.now();
+    const result = sanitizeSvg(wrap(`<g${attrs}/>`));
+    expect(performance.now() - started).toBeLessThan(500);
+    expect(result.ok).toBe(true);
   });
 });

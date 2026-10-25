@@ -84,9 +84,11 @@ import {
 } from './scheduled-sweeps.mjs';
 import { WEB_HEALTHY_MS, webRestartDelayMs } from './web-restart.mjs';
 import {
+  bindProxyLifetimes,
   cleanupWebTransport,
   createPublicHandler,
   describeWebTransport,
+  forwardableHeaders,
   prepareWebTransport,
   resolveWebTransport,
   webChildEnv,
@@ -204,12 +206,13 @@ function spawnWebChild(transport, nominalPort) {
         ...webChildEnv(process.env, transport, nominalPort),
         // next.config.ts re-runs its public-config validation when `next start` loads it, so the
         // same values the build inlined must be present. The /v1 rewrite they imply is never used
-        // (this process answers /v1 before the web child sees it), so the proxy target is a
-        // harmless loopback placeholder.
+        // (this process answers /v1, and refuses its case variants, before the web child sees
+        // it), so the proxy target is a placeholder on a privileged port nothing of this account
+        // can listen on (NV05; the same value the bundle build bakes in).
         NEXT_PUBLIC_API_BASE_URL: process.env['NEXT_PUBLIC_API_BASE_URL'] ?? 'same-origin',
         NEXT_PUBLIC_SESSION_COOKIE_NAME:
           process.env['NEXT_PUBLIC_SESSION_COOKIE_NAME'] ?? 'tmanage_session',
-        API_PROXY_TARGET: process.env['API_PROXY_TARGET'] ?? `http://127.0.0.1:${nominalPort}`,
+        API_PROXY_TARGET: process.env['API_PROXY_TARGET'] ?? 'http://127.0.0.1:1',
       },
       stdio: ['ignore', 'inherit', 'inherit'],
     },
@@ -264,7 +267,13 @@ async function startWeb(transport, nominalPort) {
 /** Reverse-proxy one request to the private web server, streaming both ways. */
 function proxyToWeb(req, res, transport) {
   const upstream = httpRequest(
-    { ...webTarget(transport), method: req.method, path: req.url, headers: req.headers },
+    {
+      ...webTarget(transport),
+      method: req.method,
+      path: req.url,
+      // NV06: hop-by-hop headers (Connection, Upgrade, ...) stay on this hop.
+      headers: forwardableHeaders(req.headers),
+    },
     (up) => {
       // HSTS on every page response, and a report-only CSP on HTML (security review §3). Pages
       // never keep Next's one-year s-maxage at the CDN, and vary by the saved-locale cookie
@@ -282,6 +291,8 @@ function proxyToWeb(req, res, transport) {
     if (!res.headersSent) res.writeHead(502);
     res.end();
   });
+  // NV06: the upstream dies with the client (close, error or idle), never outlives it.
+  bindProxyLifetimes(req, res, upstream);
   req.pipe(upstream);
 }
 

@@ -5,14 +5,19 @@ import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:f
 import { createServer, request } from 'node:http';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
+import { clearTimeout } from 'node:timers';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
+import { createUpgradeHandler } from './realtime-inprocess.mjs';
 import {
+  bindProxyLifetimes,
   cleanupWebTransport,
   createPublicHandler,
+  forwardableHeaders,
   MAX_SOCKET_PATH,
   prepareWebTransport,
+  refusedPublicTarget,
   resolveWebTransport,
   STARTING_BODY,
   webChildEnv,
@@ -269,5 +274,180 @@ test('the preload moves the child listen() on its nominal port onto the private 
     await new Promise((done) => (child.exitCode !== null ? done() : child.once('exit', done)));
     cleanupWebTransport(transport);
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+/** Send one raw HTTP/1.1 request and collect whatever comes back until the server closes. */
+function raw(server, text, waitMs = 1500) {
+  const { port } = server.address();
+  return new Promise((done, fail) => {
+    const socket = createConnection({ host: '127.0.0.1', port }, () => socket.write(text));
+    let body = '';
+    const timer = setTimeout(() => {
+      socket.destroy();
+      done({ body, closed: false });
+    }, waitMs);
+    socket.on('data', (chunk) => (body += chunk));
+    socket.on('close', () => {
+      clearTimeout(timer);
+      done({ body, closed: true });
+    });
+    socket.on('error', fail);
+  });
+}
+
+function readyState(routed) {
+  return {
+    ready: {
+      fastify: {
+        routing: (_req, res) => {
+          routed.push('api');
+          res.end('api');
+        },
+      },
+    },
+  };
+}
+
+test('NV05: case and escape variants of API paths are 404 here, never proxied to the web child', async () => {
+  const routed = [];
+  const server = await listen(
+    createPublicHandler(readyState(routed), (_req, res) => {
+      routed.push('web');
+      res.end('web');
+    }),
+  );
+  try {
+    for (const path of [
+      '/V1/me',
+      '/V1',
+      '/v1%2Fme',
+      '/%76%31/me',
+      '/%56%31/me',
+      '/MCP',
+      '/Public/Site/x',
+    ]) {
+      const res = await get(server, path);
+      assert.equal(res.status, 404, path);
+      assert.equal(res.headers['cache-control'], 'no-store', path);
+    }
+    assert.deepEqual(routed, [], 'nothing reached the API router or the web proxy');
+
+    // The real API path still goes to the API, and pages still go to the web child.
+    assert.equal((await get(server, '/v1/me')).body, 'api');
+    assert.equal((await get(server, '/sign-in')).body, 'web');
+    assert.equal((await get(server, '/v1x')).body, 'web');
+    assert.deepEqual(routed, ['api', 'web', 'web']);
+  } finally {
+    server.close();
+  }
+});
+
+test('NV05: an absolute-form request-target is refused (400), never handed to Next', async () => {
+  const routed = [];
+  const server = await listen(
+    createPublicHandler(readyState(routed), (_req, res) => {
+      routed.push('web');
+      res.end('web');
+    }),
+  );
+  try {
+    const { port } = server.address();
+    const res = await raw(
+      server,
+      `GET http://127.0.0.1:${port}/v1/me HTTP/1.1\r\nHost: 127.0.0.1\r\nCookie: tmanage_session=dummy\r\nConnection: close\r\n\r\n`,
+    );
+    assert.match(res.body, /^HTTP\/1\.1 400 /);
+    assert.deepEqual(routed, []);
+  } finally {
+    server.close();
+  }
+  assert.equal(refusedPublicTarget('*'), 400);
+  assert.equal(refusedPublicTarget('/v1/me'), undefined);
+  assert.equal(refusedPublicTarget('/V1/me?x=1'), 404);
+  assert.equal(
+    refusedPublicTarget('/%E0%A4%A'),
+    undefined,
+    'a malformed escape is not an API path',
+  );
+});
+
+test('NV06: 20 raw Upgrade requests to a non-websocket path leave no socket open and reach no upstream', async () => {
+  const routed = [];
+  const server = createServer(
+    createPublicHandler(readyState(routed), (_req, res) => {
+      routed.push('web');
+      res.end('web');
+    }),
+  );
+  server.on(
+    'upgrade',
+    createUpgradeHandler(() => undefined),
+  );
+  await new Promise((done) => server.listen(0, '127.0.0.1', done));
+  try {
+    const results = await Promise.all(
+      Array.from({ length: 20 }, (_v, i) =>
+        raw(
+          server,
+          `GET /no-such-page-${i} HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n`,
+        ),
+      ),
+    );
+    for (const result of results) assert.equal(result.closed, true, 'the server closed it');
+    assert.deepEqual(routed, [], 'no Upgrade reached the web proxy');
+    const open = await new Promise((done) => server.getConnections((_e, n) => done(n)));
+    assert.equal(open, 0);
+  } finally {
+    server.close();
+  }
+});
+
+test('NV06: hop-by-hop headers are not forwarded to the web child', () => {
+  const out = forwardableHeaders({
+    host: 'x',
+    connection: 'Upgrade, X-Secret-Hop',
+    upgrade: 'websocket',
+    'keep-alive': 'timeout=5',
+    'proxy-connection': 'keep-alive',
+    te: 'trailers',
+    'x-secret-hop': '1',
+    cookie: 'a=b',
+    'sec-websocket-key': 'k',
+  });
+  assert.deepEqual(Object.keys(out).sort(), ['cookie', 'host', 'sec-websocket-key']);
+});
+
+test('NV06: the upstream is destroyed when the client goes away or the exchange idles', async () => {
+  // A web child that never answers: the upstream would hang for ever without the binding.
+  const sockets = new Set();
+  const child = createServer(() => {});
+  child.on('connection', (socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+  });
+  await new Promise((done) => child.listen(0, '127.0.0.1', done));
+  const childPort = child.address().port;
+  const front = createServer((req, res) => {
+    const upstream = request({ host: '127.0.0.1', port: childPort, path: req.url, method: 'GET' });
+    upstream.on('error', () => {});
+    bindProxyLifetimes(req, res, upstream, req.url === '/idle' ? 300 : 60_000);
+    upstream.end();
+  });
+  await new Promise((done) => front.listen(0, '127.0.0.1', done));
+  try {
+    // Client hangs up early (idle limit a minute away): the close alone frees the upstream.
+    const early = await raw(front, 'GET /hang HTTP/1.1\r\nHost: x\r\n\r\n', 150);
+    assert.equal(early.closed, false);
+    await new Promise((done) => setTimeout(done, 300));
+    assert.equal(sockets.size, 0, 'the client close destroyed the upstream');
+    // Idle: the client stays, the binding closes both sides after 300 ms.
+    const idle = await raw(front, 'GET /idle HTTP/1.1\r\nHost: x\r\n\r\n', 3000);
+    assert.equal(idle.closed, true, 'the idle exchange was closed');
+    await new Promise((done) => setTimeout(done, 200));
+    assert.equal(sockets.size, 0, 'no parent-to-child socket outlived its request');
+  } finally {
+    front.close();
+    child.close();
   }
 });

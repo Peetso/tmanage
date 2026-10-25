@@ -30,7 +30,13 @@ export type SvgSanitizeResult =
   | { readonly ok: false; readonly reason: SvgRefusal };
 
 export type SvgRefusal =
-  'unreadable' | 'not_svg' | 'entity_definitions' | 'unknown_entity' | 'too_deep' | 'empty';
+  | 'unreadable'
+  | 'not_svg'
+  | 'entity_definitions'
+  | 'unknown_entity'
+  | 'too_deep'
+  | 'too_complex'
+  | 'empty';
 
 /** Elements that draw, group or define paint. Case-sensitive, as SVG is. */
 const ALLOWED_ELEMENTS: ReadonlySet<string> = new Set([
@@ -94,6 +100,14 @@ const SAFE_HREF = /^(#[A-Za-z_][\w.:-]*|data:image\/(png|jpeg|gif|webp);base64,[
 
 /** Nesting limit — a logo has no reason to be deeper, and a bound keeps the work bounded. */
 const MAX_DEPTH = 64;
+
+/**
+ * Size and element-count caps, checked before and during the rebuild (security audit NV14). The
+ * route already caps the bytes at 512 KiB; the sanitiser repeats it in characters so it is never
+ * handed more, and a logo has no reason to carry thousands of elements.
+ */
+export const SVG_MAX_INPUT_CHARS = 512 * 1024;
+export const SVG_MAX_ELEMENTS = 10_000;
 
 const ENTITIES: Readonly<Record<string, string>> = {
   amp: '&',
@@ -171,9 +185,12 @@ interface Attribute {
 function parseAttributes(source: string): Attribute[] {
   const attributes: Attribute[] = [];
   const pattern = /\s*([^\s=/>"']+)\s*=\s*("([^"<]*)"|'([^'<]*)')/y;
+  // Sticky, so the trailing-whitespace check reads from `index` without copying the rest (NV14).
+  const trailing = /\s*$/y;
   let index = 0;
   while (index < source.length) {
-    if (/^\s*$/.test(source.slice(index))) break;
+    trailing.lastIndex = index;
+    if (trailing.test(source)) break;
     pattern.lastIndex = index;
     const match = pattern.exec(source);
     if (!match) throw new Refused('unreadable');
@@ -239,6 +256,9 @@ interface Frame {
   readonly name: string;
   /** False when this element (or an ancestor) was dropped: nothing inside it is written. */
   readonly kept: boolean;
+  /** For a kept `<style>`: where its start tag and its sheet text begin in the output. */
+  readonly outStart?: number;
+  readonly contentStart?: number;
 }
 
 /**
@@ -255,6 +275,7 @@ export function sanitizeSvg(input: string): SvgSanitizeResult {
 }
 
 function rebuild(input: string): { svg: string; removed: string[] } {
+  if (input.length > SVG_MAX_INPUT_CHARS) throw new Refused('too_complex');
   const source = input.replace(/^\uFEFF/, '');
   const removed: string[] = [];
   const stack: Frame[] = [];
@@ -262,6 +283,7 @@ function rebuild(input: string): { svg: string; removed: string[] } {
   let rootSeen = false;
   let rootClosed = false;
   let drawn = 0;
+  let elements = 0;
   let index = 0;
 
   const insideKept = () => stack.length === 0 || (stack[stack.length - 1] as Frame).kept;
@@ -322,7 +344,18 @@ function rebuild(input: string): { svg: string; removed: string[] } {
       const name = source.slice(index + 2, end).trim();
       const frame = stack.pop();
       if (!frame || frame.name !== name) throw new Refused('unreadable');
-      if (frame.kept) out += `</${name}>`;
+      if (frame.kept && frame.outStart !== undefined && frame.contentStart !== undefined) {
+        // A <style> sheet is judged when it closes, from the text already written (NV14: no
+        // regex post-pass over the whole output). One with an external reference is dropped whole.
+        if (isSafeCss(out.slice(frame.contentStart))) {
+          out += `</${name}>`;
+        } else {
+          out = out.slice(0, frame.outStart);
+          removed.push('external reference in <style>');
+        }
+      } else if (frame.kept) {
+        out += `</${name}>`;
+      }
       if (stack.length === 0) rootClosed = true;
       index = end + 1;
       continue;
@@ -359,11 +392,14 @@ function rebuild(input: string): { svg: string; removed: string[] } {
       rootSeen = true;
     }
     if (stack.length >= MAX_DEPTH) throw new Refused('too_deep');
+    elements += 1;
+    if (elements > SVG_MAX_ELEMENTS) throw new Refused('too_complex');
 
     const parentKept = insideKept();
     const allowed = ALLOWED_ELEMENTS.has(name);
     if (parentKept && !allowed) removed.push(`<${name}>`);
     const kept = parentKept && allowed;
+    let outStart = out.length;
     if (kept) {
       const keptAttributes = attributes
         .map((attribute) => keepAttribute(name, attribute, removed))
@@ -383,10 +419,16 @@ function rebuild(input: string): { svg: string; removed: string[] } {
       const rendered = keptAttributes
         .map((attribute) => ` ${attribute.name}="${escapeAttribute(attribute.value)}"`)
         .join('');
-      out += `<${name}${rendered}${selfClosing ? '/>' : '>'}`;
+      // An empty, self-closing <style/> holds no sheet: it is not written at all.
+      if (!(selfClosing && name === 'style')) {
+        outStart = out.length;
+        out += `<${name}${rendered}${selfClosing ? '/>' : '>'}`;
+      }
     }
     if (selfClosing) {
       if (stack.length === 0) rootClosed = true;
+    } else if (kept && name === 'style') {
+      stack.push({ name, kept, outStart, contentStart: out.length });
     } else {
       stack.push({ name, kept });
     }
@@ -396,12 +438,6 @@ function rebuild(input: string): { svg: string; removed: string[] } {
   if (!rootSeen) throw new Refused('not_svg');
   if (stack.length > 0 || !rootClosed) throw new Refused('unreadable');
 
-  // A <style> sheet with an external reference is dropped whole after the fact.
-  const svg = out.replace(/<style([^>]*)>([\s\S]*?)<\/style>/g, (match, _attrs, css: string) => {
-    if (isSafeCss(css)) return match;
-    removed.push('external reference in <style>');
-    return '';
-  });
   if (drawn === 0) throw new Refused('empty');
-  return { svg, removed };
+  return { svg: out, removed };
 }

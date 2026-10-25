@@ -2,6 +2,7 @@ import { eventBypassesQuietHours, isInQuietHours, quietHoursResumeAt } from '@tm
 import {
   decodeQuietHoursMailResume,
   enqueueQuietHoursMailResume,
+  findActiveOrgWideMembership,
   findUsageMailRecipient,
   listActiveOrgWideMemberships,
 } from '../common/database/notifications-store.js';
@@ -143,8 +144,9 @@ export function createUsageThresholdMail(mailer: UsageThresholdMailer): OutboxHa
  * {@link QUIET_HOURS_MAIL_RESUME_TYPE} beside the client-request resume; it acts only on a resume
  * row whose original type is the usage crossing and which names a recipient, and no-ops otherwise
  * so the two resume handlers can be composed on the one type. The window was already waited out,
- * so the send is staged unconditionally — but the mail-channel toggle is re-read, so a recipient
- * who turned mail off during the deferral is still honoured, and a user gone by now is silence.
+ * so quiet hours are not re-checked — but the recipient's active owner/admin membership and the
+ * mail-channel toggle are re-read, so a person removed or demoted during the deferral (F58), or
+ * who turned mail off, is not mailed, and a user gone by now is silence.
  */
 export function createUsageThresholdMailResume(mailer: UsageThresholdMailer): OutboxHandler {
   return async (event, tx, effects) => {
@@ -155,6 +157,11 @@ export function createUsageThresholdMailResume(mailer: UsageThresholdMailer): Ou
     if (envelope.originalType !== 'usage.threshold_reached.v1') return; // Not ours to resume.
     const recipientUserId = envelope.recipientUserId;
     if (recipientUserId === undefined) return; // A usage resume always names its one recipient.
+
+    // F58: the recipient was an org-wide owner/admin when deferred; re-check it now, so a person
+    // removed, suspended or demoted during their quiet hours does not get the org's storage figures.
+    const membership = await findActiveOrgWideMembership(tx, event.organizationId, recipientUserId);
+    if (membership === null || !isUsageThresholdRecipient(membership)) return;
 
     const payload = readUsagePayload({ ...event, payload: envelope.originalPayload });
     const recipient = await findUsageMailRecipient(tx, event.organizationId, recipientUserId);

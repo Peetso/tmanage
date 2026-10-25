@@ -170,6 +170,103 @@ export function answerStarting(res) {
   res.end(STARTING_BODY);
 }
 
+const NOT_FOUND_BODY = '{"statusCode":404,"code":"not_found","message":"Not found."}';
+const BAD_REQUEST_BODY = '{"statusCode":400,"code":"bad_request","message":"Bad request."}';
+
+/**
+ * Security audit NV05. `isApiPath` decides the API boundary on the raw, case-sensitive
+ * origin-form target, while `next start` matches its build-time `/v1/:path*` rewrite
+ * case-insensitively, decodes percent-escapes and parses absolute-form targets. A target that
+ * only Next would read as an API path must therefore never reach Next: an absolute-form (or
+ * otherwise non-origin-form) target is a 400, and a case- or escape-variant of an API path
+ * (`/V1/me`, `/%76%31/me`, `/MCP`) is a 404 from here.
+ */
+export function refusedPublicTarget(url) {
+  const raw = String(url ?? '');
+  if (!raw.startsWith('/')) return 400;
+  if (isApiPath(raw)) return undefined;
+  const path = raw.split('?')[0];
+  let decoded = path;
+  try {
+    decoded = decodeURIComponent(path);
+  } catch {
+    // A malformed escape: keep the raw path for the comparison below.
+  }
+  const folded = decoded
+    .toLowerCase()
+    .replace(/\\/g, '/')
+    .replace(/\/{2,}/g, '/');
+  if (isApiPath(folded) || isApiPath(path.toLowerCase())) return 404;
+  return undefined;
+}
+
+function answerRefused(res, status) {
+  res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+  res.end(status === 404 ? NOT_FOUND_BODY : BAD_REQUEST_BODY);
+}
+
+/**
+ * Hop-by-hop headers (RFC 9110 §7.6.1) are never forwarded to the web child (security audit
+ * NV06): `Connection`, `Upgrade`, `Keep-Alive`, `Proxy-Connection`, `TE`, `Trailer` and any
+ * header the client's `Connection` names. Only the realtime path upgrades, and it never reaches
+ * the web child, so nothing the child receives can ask it to switch protocols.
+ */
+const HOP_BY_HOP = new Set([
+  'connection',
+  'upgrade',
+  'keep-alive',
+  'proxy-connection',
+  'te',
+  'trailer',
+  'http2-settings',
+]);
+
+export function forwardableHeaders(headers) {
+  const named = new Set(
+    String(headers?.['connection'] ?? '')
+      .split(',')
+      .map((token) => token.trim().toLowerCase())
+      .filter((token) => token !== ''),
+  );
+  const out = {};
+  for (const [key, value] of Object.entries(headers ?? {})) {
+    const lower = key.toLowerCase();
+    if (HOP_BY_HOP.has(lower) || named.has(lower)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
+/** How long a proxied exchange may sit with no bytes moving before both sides are closed. */
+export const WEB_PROXY_IDLE_MS = 120_000;
+
+/**
+ * Tie the upstream request to the client's lifetime (security audit NV06): when the client goes
+ * away, errors, or the exchange idles past `idleMs`, the upstream is destroyed, so no
+ * parent-to-child socket outlives the request it served.
+ */
+export function bindProxyLifetimes(req, res, upstream, idleMs = WEB_PROXY_IDLE_MS) {
+  const destroyUpstream = () => {
+    if (!upstream.destroyed) upstream.destroy();
+  };
+  // A response that was sent in full leaves the upstream to its agent; any other close kills it.
+  res.once('close', () => {
+    if (!res.writableFinished) destroyUpstream();
+  });
+  req.once('error', destroyUpstream);
+  upstream.setTimeout(idleMs, () => {
+    if (res.writableFinished) return;
+    upstream.destroy(new Error('web upstream idle timeout'));
+    if (!res.destroyed) res.destroy();
+  });
+  upstream.once('upgrade', (_response, socket) => {
+    // Never expected (no Upgrade header is forwarded); if it happens, nothing is relayed.
+    socket.destroy();
+    destroyUpstream();
+    if (!res.destroyed) res.destroy();
+  });
+}
+
 /**
  * The public request handler. `state.ready` is undefined until boot completes, then holds the
  * Fastify instance; until then EVERY path — /healthz included — answers 503 "starting", so a
@@ -190,6 +287,11 @@ export function createPublicHandler(state, proxyToWeb) {
     if (isApiPath(req.url)) {
       applyApiCacheDefault(res);
       ready.fastify.routing(req, res);
+      return;
+    }
+    const refused = refusedPublicTarget(req.url);
+    if (refused !== undefined) {
+      answerRefused(res, refused);
       return;
     }
     proxyToWeb(req, res);

@@ -51,6 +51,7 @@ const MESSAGES: Readonly<Record<LogoRefusalCode, string>> = {
   svg_unknown_entity:
     'This SVG uses entities that cannot be made safe. Save it again as plain SVG, or upload a PNG.',
   svg_too_deep: 'This SVG is nested too deeply to check. Simplify it, or upload a PNG.',
+  svg_too_complex: 'This SVG has too many parts to check. Simplify it, or upload a PNG.',
   svg_empty:
     'Nothing would be left of this SVG once its scripts and external links are removed. Upload a PNG instead.',
 };

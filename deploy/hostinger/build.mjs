@@ -276,10 +276,10 @@ const VENDOR_PKGS = [
   'api',
 ];
 
-function run(cmd, args, env) {
+function run(cmd, args, env, cwd = REPO) {
   process.stdout.write(`\n$ ${cmd} ${args.join(' ')}\n`);
   const result = spawnSync(cmd, args, {
-    cwd: REPO,
+    cwd,
     stdio: 'inherit',
     shell: process.platform === 'win32',
     env: { ...process.env, ...env },
@@ -329,20 +329,85 @@ function vendorManifest(dir) {
   return manifest;
 }
 
+/**
+ * The `/v1` rewrite target the web build bakes in (security audit NV05). server.mjs answers every
+ * `/v1` path itself and refuses case/escape variants before Next sees them, so the rewrite is never
+ * meant to be dialled; it still has to name an origin for the public-config validation. Port 1 is
+ * privileged, so no process of a shared-hosting account can listen there and receive the visitor's
+ * cookies if a request ever slipped through (the old value, port 3000, could be bound by anyone).
+ */
+export const WEB_BUILD_API_PROXY_TARGET = 'http://127.0.0.1:1';
+
+/**
+ * What the bundle's `.npmrc` says (security audit NV08). `install-links`/`bin-links` as before
+ * (Hostinger's sandbox refuses symlinks); `ignore-scripts=true` so no dependency's
+ * preinstall/install/postinstall runs at Hostinger install time. `npm run build`/`npm start`
+ * still run the root's own named scripts — npm only skips lifecycle hooks under this setting.
+ */
+export const BUNDLE_NPMRC = 'install-links=true\nbin-links=false\nignore-scripts=true\n';
+
+/**
+ * Packages allowed to need an install script. npm has no per-package allowlist, so with
+ * `ignore-scripts=true` this list is the review gate instead: the build fails when the pinned tree
+ * gains a package that declares one, until someone decides it here. Empty: the runtime tree has
+ * none (checked 2026-10-25: 253 packages, no `hasInstallScript`).
+ */
+export const INSTALL_SCRIPT_ALLOWLIST = Object.freeze([]);
+
+/**
+ * Pin the bundle's whole install (security audit NV08). Writes {@link BUNDLE_NPMRC} and a
+ * `package-lock.json` resolved at bundle build time (`npm install --package-lock-only
+ * --ignore-scripts`, nothing executed, no node_modules written), so Hostinger's `npm install`
+ * installs the transitive tree this build was made and reviewed against rather than whatever the
+ * registry serves on deploy day. Throws when the lockfile is missing or names a package with an
+ * install script that is not on {@link INSTALL_SCRIPT_ALLOWLIST}.
+ *
+ * @param {string} stageDir   the staged bundle root (holds package.json and vendor/)
+ * @param {(cmd: string, args: string[], env: object | undefined, cwd: string) => void} runner
+ * @returns {{ packages: number, installScripts: string[] }}
+ */
+export function stageInstallPins(stageDir, runner = run) {
+  writeFileSync(join(stageDir, '.npmrc'), BUNDLE_NPMRC);
+  runner(
+    'npm',
+    ['install', '--package-lock-only', '--ignore-scripts', '--no-audit', '--no-fund'],
+    undefined,
+    stageDir,
+  );
+  const lockPath = join(stageDir, 'package-lock.json');
+  if (!existsSync(lockPath)) throw new Error('the bundle has no package-lock.json');
+  const lock = JSON.parse(readFileSync(lockPath, 'utf8'));
+  if (!(lock.lockfileVersion >= 2) || typeof lock.packages !== 'object' || lock.packages === null) {
+    throw new Error('the bundle package-lock.json is not a v2+ lockfile');
+  }
+  const installScripts = Object.entries(lock.packages)
+    .filter(([, entry]) => entry && entry.hasInstallScript === true)
+    .map(([key, entry]) => `${key.replace(/^.*node_modules\//, '')}@${entry.version ?? '?'}`);
+  const unreviewed = installScripts.filter(
+    (name) => !INSTALL_SCRIPT_ALLOWLIST.includes(name.replace(/@[^@]*$/, '')),
+  );
+  if (unreviewed.length > 0) {
+    throw new Error(
+      `bundle dependencies with install scripts not on INSTALL_SCRIPT_ALLOWLIST: ${unreviewed.join(', ')}`,
+    );
+  }
+  return { packages: Object.keys(lock.packages).length, installScripts };
+}
+
 function buildArtifacts() {
   run('pnpm', ['build:packages']);
   run('pnpm', ['--filter', '@tmanage/worker', 'build']);
   run('pnpm', ['--filter', '@tmanage/api', 'build']);
   // The web build inlines NEXT_PUBLIC_* at compile time: same-origin topology, the documented
   // default cookie name, and a loopback proxy target the runtime never actually dials (the
-  // single process answers /v1 before Next's rewrite would). The project's own build script
+  // single process answers /v1, and refuses its case variants, before Next's rewrite would). The project's own build script
   // (Turbopack, the Next 16 default) is used as-is; the bundle serves that build with
   // `next start`, which is the server it is made for.
   run('pnpm', ['--filter', '@tmanage/web', 'build'], {
     NODE_ENV: 'production',
     NEXT_PUBLIC_API_BASE_URL: 'same-origin',
     NEXT_PUBLIC_SESSION_COOKIE_NAME: 'tmanage_session',
-    API_PROXY_TARGET: 'http://127.0.0.1:3000',
+    API_PROXY_TARGET: WEB_BUILD_API_PROXY_TARGET,
   });
 }
 
@@ -480,7 +545,11 @@ function assemble() {
   // `symlink ../../vendor/@tmanage/worker`). `install-links` makes npm COPY the file: packages
   // into node_modules instead of linking them, and `bin-links=false` skips the node_modules/.bin
   // links (server.mjs starts Next via require.resolve('next/dist/bin/next'), not .bin/next).
-  writeFileSync(join(STAGE, '.npmrc'), 'install-links=true\nbin-links=false\n');
+  // NV08: the same .npmrc plus ignore-scripts, and a lockfile that pins the transitive tree.
+  const pins = stageInstallPins(STAGE);
+  process.stdout.write(
+    `\nbundle lockfile: ${pins.packages} packages pinned, install scripts off\n`,
+  );
 
   // The owner's guide, the settings template and the secret generator travel with the bundle,
   // so the ZIP alone is enough to follow DEPLOY-HOSTINGER.md. None of them holds a secret.
