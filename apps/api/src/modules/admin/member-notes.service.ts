@@ -2,8 +2,9 @@ import { authorize } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import { MemberNotesRepository } from './member-notes.repository.js';
+import type { MemberNotesRepository } from './member-notes.repository.js';
 import type { MemberAdminNoteRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * The application service for admin private member notes (Administration module 18, x280).
@@ -24,6 +25,13 @@ import type { MemberAdminNoteRow } from '../../common/database/schema.js';
  * `org.manage`-gated surface.
  *
  * The author is the acting membership (`context.membershipId`), never a value from the body.
+ *
+ * ## Never about yourself, and never without a trace (wave 9 S8, audit F56)
+ *
+ * A note is never shown to the member it is about — including a member who holds `org.manage`. So
+ * a subject equal to the caller's own membership is the module's 404 on every route, decided before
+ * any note is read or deleted. Adding and deleting a note each append an audit row
+ * (`member_admin_note.created` / `.deleted`, ids only, never the text) in the same transaction.
  */
 
 /** What a caller is allowed to see of one member note. `organizationId` is deliberately absent. */
@@ -56,8 +64,16 @@ const MAX_BODY_LENGTH = 60_000;
 export class MemberNotesService {
   constructor(
     private readonly database: TenantDatabase,
-    private readonly notes: MemberNotesRepository = new MemberNotesRepository(),
+    private readonly notes: MemberNotesRepository,
+    private readonly audit: Pick<AuditService, 'record'>,
   ) {}
+
+  /** F56: a note about the caller's own membership is invisible to them — the same 404. */
+  private refuseSelfSubject(context: TenantContext, subjectMembershipId: string): void {
+    if (subjectMembershipId === context.membershipId) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'membership_not_visible');
+    }
+  }
 
   /**
    * Resolve the subject membership tenant-scoped, then authorize `org.manage` org-wide.
@@ -71,6 +87,7 @@ export class MemberNotesService {
     principal: Principal,
     subjectMembershipId: string,
   ): Promise<void> {
+    this.refuseSelfSubject(context, subjectMembershipId);
     const subject = await this.database.read(context, (runner) =>
       this.notes.findMembership(runner, context, subjectMembershipId),
     );
@@ -131,13 +148,22 @@ export class MemberNotesService {
     body: string,
   ): Promise<MemberAdminNoteView> {
     await this.requireManageableSubject(context, principal, subjectMembershipId);
-    const row = await this.database.transaction(context, (tx) =>
-      this.notes.append(tx, context, {
+    const row = await this.database.transaction(context, async (tx) => {
+      const appended = await this.notes.append(tx, context, {
         subjectMembershipId,
         body,
         authorMembershipId: context.membershipId,
-      }),
-    );
+      });
+      // F56: the note's existence is recorded with it (ids only — never the text).
+      await this.audit.record(tx, context, {
+        action: 'member_admin_note.created',
+        result: 'allowed',
+        objectId: appended.id,
+        actorUserId: principal.userId,
+        metadata: { target_membership_id: subjectMembershipId },
+      });
+      return appended;
+    });
     return toView(row);
   }
 
@@ -152,6 +178,8 @@ export class MemberNotesService {
     subjectMembershipId: string,
     noteId: string,
   ): Promise<void> {
+    // F56: before any read or delete, a note about the caller themself is not theirs to see.
+    this.refuseSelfSubject(context, subjectMembershipId);
     await this.database.transaction(context, async (tx) => {
       const subject = await this.notes.findMembership(tx, context, subjectMembershipId);
       if (!subject) {
@@ -169,6 +197,13 @@ export class MemberNotesService {
       }
       this.requireOrgManage(principal, context);
       await this.notes.remove(tx, context, subjectMembershipId, noteId);
+      await this.audit.record(tx, context, {
+        action: 'member_admin_note.deleted',
+        result: 'allowed',
+        objectId: note.id,
+        actorUserId: principal.userId,
+        metadata: { target_membership_id: subjectMembershipId },
+      });
     });
   }
 

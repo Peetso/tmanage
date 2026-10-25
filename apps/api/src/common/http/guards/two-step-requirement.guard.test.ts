@@ -7,6 +7,9 @@ import { requireRequestState } from '../request-state.js';
 import { isTwoStepExemptPath, TwoStepRequirementGuard } from './two-step-requirement.guard.js';
 import { OrgSettingsController } from '../../../modules/tenancy/org-settings.controller.js';
 import type { OrgSettingsRepository } from '../../../modules/tenancy/org-settings.repository.js';
+import { SecuritySettingsController } from '../../../modules/admin/security.controller.js';
+import type { SecuritySettingsRepository } from '../../../modules/admin/security.repository.js';
+import type { AuditService } from '../../../modules/audit/audit.service.js';
 import type { TenantContext, TenantDatabase } from '../../database/tenant-context.js';
 
 /**
@@ -118,7 +121,7 @@ describe('TwoStepRequirementGuard', () => {
   });
 });
 
-describe('OrgSettingsController — no self lock-out on require_two_step', () => {
+describe('the require_two_step writer — no self lock-out (wave 9 S8: the owner security route)', () => {
   const owner: Principal = {
     userId: USER,
     organizationId: ORG,
@@ -133,33 +136,54 @@ describe('OrgSettingsController — no self lock-out on require_two_step', () =>
 
   function controllerFor(enrolled: boolean) {
     const { database } = fakes({ required: false, enrolled });
-    const repo = {
+    const orgSettings = {
       resolveOrganization: async () => ({ id: ORG }),
       listAll: async () => [],
+      findByKey: async () => undefined,
       upsert: vi.fn(async () => undefined),
     };
-    const controller = new OrgSettingsController(
+    const security = {
+      resolveOrganization: async () => ({ id: ORG }),
+      find: async () => undefined,
+      upsert: vi.fn(async () => undefined),
+    };
+    const controller = new SecuritySettingsController(
       database,
-      repo as unknown as OrgSettingsRepository,
+      { record: vi.fn(async () => ({})) } as unknown as Pick<AuditService, 'record'>,
+      security as unknown as SecuritySettingsRepository,
+      orgSettings as unknown as OrgSettingsRepository,
     );
-    return { controller, repo };
+    const generic = new OrgSettingsController(
+      database,
+      orgSettings as unknown as OrgSettingsRepository,
+    );
+    return { controller, generic, repo: orgSettings };
   }
 
   it('refuses to turn it on (409, no write) for someone not enrolled themselves', async () => {
     const { controller, repo } = controllerFor(false);
-    await expect(
-      controller.set(CONTEXT, owner, 'require_two_step', { value: true }),
-    ).rejects.toMatchObject({ status: 409, code: 'conflict' });
+    await expect(controller.set(CONTEXT, owner, { enforce2fa: true })).rejects.toMatchObject({
+      status: 409,
+      code: 'conflict',
+    });
     expect(repo.upsert).not.toHaveBeenCalled();
   });
 
   it('turns it on for an enrolled owner, and always lets it be turned off', async () => {
     const enrolled = controllerFor(true);
-    await enrolled.controller.set(CONTEXT, owner, 'require_two_step', { value: true });
+    await enrolled.controller.set(CONTEXT, owner, { enforce2fa: true });
     expect(enrolled.repo.upsert).toHaveBeenCalledTimes(1);
 
     const notEnrolled = controllerFor(false);
-    await notEnrolled.controller.set(CONTEXT, owner, 'require_two_step', { value: false });
+    await notEnrolled.controller.set(CONTEXT, owner, { enforce2fa: false });
     expect(notEnrolled.repo.upsert).toHaveBeenCalledTimes(1);
+  });
+
+  it('the generic settings route no longer writes it at all (403, owner included)', async () => {
+    const { generic, repo } = controllerFor(true);
+    await expect(
+      generic.set(CONTEXT, owner, 'require_two_step', { value: false }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(repo.upsert).not.toHaveBeenCalled();
   });
 });

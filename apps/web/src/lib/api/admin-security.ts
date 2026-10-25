@@ -41,3 +41,21 @@ export async function setSecuritySettings(
   });
   return data;
 }
+
+/**
+ * Wave 9 S8 (F09/F12b): turn the company's two-step requirement on or off — the owner's choice.
+ * Sends `enforce2fa` alone, so the stored trusted networks are kept. The generic settings route
+ * refuses this key, so the Organization settings screen saves it here.
+ */
+export async function setTwoStepRequirement(
+  client: ApiClient,
+  organizationSlug: string,
+  required: boolean,
+): Promise<SecuritySettingsView> {
+  const { data } = await client.request<SecuritySettingsView>({
+    method: 'PUT',
+    path: base(organizationSlug),
+    body: { enforce2fa: required },
+  });
+  return data;
+}

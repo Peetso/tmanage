@@ -8,6 +8,7 @@ import { ApiError } from '../../common/http/errors.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MemberAdminNoteRow, MembershipRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * Admin private member notes (x280) over fakes, with the **real** `authorize`.
@@ -115,7 +116,9 @@ function controllerWith(repo: FakeMemberNotesRepository): MemberNotesController 
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
-  const service = new MemberNotesService(database, repo as unknown as MemberNotesRepository);
+  // Wave 9 S8 (F56): adding and deleting a note are audited; this fake accepts the rows.
+  const audit = { record: async () => ({}) } as unknown as Pick<AuditService, 'record'>;
+  const service = new MemberNotesService(database, repo as unknown as MemberNotesRepository, audit);
   return new MemberNotesController(service);
 }
 

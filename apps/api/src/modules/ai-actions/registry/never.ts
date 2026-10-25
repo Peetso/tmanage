@@ -277,6 +277,13 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/platform/companies/:organizationId/suspension',
     reason: 'platform_admin',
   },
+  // Wave 9 S8 (F07): the platform-wide maintenance banner moved off the tenant admin route.
+  { method: 'POST', path: '/v1/platform/maintenance/', reason: 'platform_admin' },
+  {
+    method: 'POST',
+    path: '/v1/platform/maintenance/:windowId/unpublish',
+    reason: 'platform_admin',
+  },
   { method: 'GET', path: '/v1/platform/me', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/overview', reason: 'platform_admin' },
   { method: 'GET', path: '/v1/platform/people', reason: 'platform_admin' },

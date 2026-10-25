@@ -12,6 +12,8 @@ import { shortDevice, sinceLabel } from '../admin/format';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
 import { useDescribeApiError } from '../../lib/api/describe-error';
+import { useOrganizationRole } from '../../lib/use-organization-names';
+import { useTOr } from '../../lib/i18n/use-t-or';
 
 export interface AdminSecurityScreenProps {
   organizationSlug: string;
@@ -37,6 +39,10 @@ export function AdminSecurityScreen({
   const api = client ?? browserApiClient();
   const queryClient = useQueryClient();
   const t = useT();
+  const tr = useTOr();
+  // Wave 9 S8 (F09): the sign-in policy is the company owner's choice; everyone else reads it.
+  const { role, known } = useOrganizationRole(organizationSlug);
+  const readOnly = known && role !== 'owner';
 
   const settings = useQuery({
     queryKey: ['admin-security', organizationSlug],
@@ -119,16 +125,23 @@ export function AdminSecurityScreen({
               onSubmit={(event: FormEvent<HTMLFormElement>) => {
                 event.preventDefault();
                 setSaved(false);
-                if (!save.isPending) save.mutate();
+                if (!save.isPending && !readOnly) save.mutate();
               }}
             >
               <ul className="tm-cc-rows">
                 <li>
                   <Switch
                     label={t('AdminSecurityScreen.require2faLabel')}
-                    hint={t('AdminSecurityScreen.require2faHint')}
+                    hint={
+                      readOnly
+                        ? tr(
+                            'AdminSecurityScreen.s8.ownerOnly',
+                            'Only the company owner can change this setting.',
+                          )
+                        : t('AdminSecurityScreen.require2faHint')
+                    }
                     checked={enforce2fa}
-                    disabled={save.isPending}
+                    disabled={save.isPending || readOnly}
                     onChange={(event) => {
                       setSaved(false);
                       setEnforce2fa(event.target.checked);
@@ -181,17 +194,19 @@ export function AdminSecurityScreen({
                 </InlineAlert>
               ) : null}
 
-              <div className="tm-row">
-                <Button
-                  type="submit"
-                  tone="ink"
-                  size="accessible"
-                  loading={save.isPending}
-                  loadingLabel={t('AdminSecurityScreen.saving')}
-                >
-                  {t('AdminSecurityScreen.save')}
-                </Button>
-              </div>
+              {readOnly ? null : (
+                <div className="tm-row">
+                  <Button
+                    type="submit"
+                    tone="ink"
+                    size="accessible"
+                    loading={save.isPending}
+                    loadingLabel={t('AdminSecurityScreen.saving')}
+                  >
+                    {t('AdminSecurityScreen.save')}
+                  </Button>
+                </div>
+              )}
             </form>
           ) : null}
         </section>

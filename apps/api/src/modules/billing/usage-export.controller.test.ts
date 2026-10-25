@@ -6,6 +6,7 @@ import { UsageExportService, USAGE_EXPORT_MAX_ROWS } from './usage-export.servic
 import type { UsageExportRepository } from './usage-export.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { UsageCounterRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * Billing usage export (x227). `UsageExportController.export` — the date-windowed usage CSV over
@@ -63,7 +64,12 @@ function controllerWith(store: readonly UsageCounterRow[]): UsageExportControlle
     listForExport: async (_runner: unknown, ctx: TenantContext, limit: number) =>
       store.filter((r) => r.organizationId === ctx.organizationId).slice(0, limit),
   } as unknown as UsageExportRepository;
-  return new UsageExportController(new UsageExportService(database, counters));
+  // Wave 9 S8 (F53): the export's audit row; a fake that accepts it.
+  const audit = { recordStandalone: async () => ({}) } as unknown as Pick<
+    AuditService,
+    'recordStandalone'
+  >;
+  return new UsageExportController(new UsageExportService(database, counters), audit);
 }
 
 function reply(): { header(name: string, value: string): unknown; headers: Map<string, string> } {

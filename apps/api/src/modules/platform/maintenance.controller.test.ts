@@ -1,11 +1,18 @@
 import 'reflect-metadata';
 import { describe, expect, it, vi } from 'vitest';
-import type { Principal, Role } from '@tmanage/domain';
+import type { ExecutionContext } from '@nestjs/common';
+import { GUARDS_METADATA } from '@nestjs/common/constants.js';
+import { Reflector } from '@nestjs/core';
 import { ApiError } from '../../common/http/errors.js';
+import { SKIPS_TENANT } from '../../common/http/decorators.js';
+import { ensureRequestState } from '../../common/http/request-state.js';
 import type { MaintenanceWindowRow } from '../../common/database/schema.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { PlatformAdminGuard } from '../platform-admin/platform-admin.guard.js';
+import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
 import {
-  AdminMaintenanceController,
+  MaintenanceModule,
+  PlatformMaintenanceController,
   PublicMaintenanceController,
 } from './maintenance.controller.js';
 import type { MaintenanceWindowsRepository } from './maintenance.repository.js';
@@ -14,31 +21,32 @@ import type { MaintenanceWindowsRepository } from './maintenance.repository.js';
  * Platform states (x185) — the maintenance window, proved without a database.
  *
  * The properties that matter here are boundaries, so they are proved over fakes with the **real**
- * authorize and the real validation: the public read shows only a published, currently-active window
- * and needs no session; the admin write is `org.manage` (a privileged `workspace_admin` that lacks it is
- * refused, because the flag is platform-wide), validates the severity enum and the `startsAt<endsAt`
- * order, and writes nothing on a bad body. The repository is a spy, so "no write" is a fact about the
+ * guard and the real validation: the public read shows only a published, currently-active window
+ * and needs no session; the write is the platform operator's alone (F07: `@NoTenant()` behind
+ * `PlatformAdminGuard`, no organization route), needs a typed reason, validates the severity enum
+ * and the `startsAt<endsAt` order, and writes nothing on a bad body. The repository is a spy, so "no write" is a fact about the
  * call, not a mock of one.
  */
 
-const ORG = 'organization-0000-0000-0000-000000000001';
+const OPERATOR: PlatformAdminActor = {
+  account: {
+    userId: 'user-0000-0000-0000-0000-0000000000ff',
+    email: 'operator@tmanage.test',
+    displayName: 'Operator',
+    emailVerified: true,
+    mfaEnabled: true,
+  },
+  sessionId: 'session-operator',
+  stepUp: { expiresAt: new Date('2999-01-01T00:00:00.000Z'), mfaVerified: true },
+};
 
-function principal(role: Role, overrides: Partial<Principal> = {}): Principal {
-  return {
-    userId: 'user-0000-0000-0000-0000-0000000000aa',
-    organizationId: ORG,
-    kind: 'internal',
-    role,
-    membershipId: 'membership-0000-0000-000000000001',
-    membershipStatus: 'active',
-    clientOrganizationId: null,
-    projectIds: [],
-    hasOrgWideScope: true,
-    ...overrides,
-  } as Principal;
+const WINDOW_ID = '0199aa00-0000-7000-8000-0000000000ff';
+
+function operatorRequest(): object {
+  const request = { headers: {} };
+  ensureRequestState(request);
+  return request;
 }
-
-const context = { organizationId: ORG } as unknown as TenantContext;
 
 /** A window that is active against the controller's real clock: started in the past, ends far ahead. */
 function windowRow(overrides: Partial<MaintenanceWindowRow> = {}): MaintenanceWindowRow {
@@ -68,12 +76,13 @@ function publicHarness(rows: readonly MaintenanceWindowRow[]) {
 }
 
 function adminHarness() {
-  const insert = vi.fn(async () => ({
-    id: '0199aa00-0000-7000-8000-0000000000ff',
+  const schedule = vi.fn(async () => ({
+    id: WINDOW_ID,
     createdAt: new Date('2026-01-01T00:00:00.000Z'),
   }));
-  const repository = { insert } as unknown as MaintenanceWindowsRepository;
-  return { controller: new AdminMaintenanceController(repository), insert };
+  const unpublish = vi.fn(async () => true);
+  const repository = { schedule, unpublish } as unknown as MaintenanceWindowsRepository;
+  return { controller: new PlatformMaintenanceController(repository), schedule, unpublish };
 }
 
 const VALID = {
@@ -81,6 +90,7 @@ const VALID = {
   severity: 'degraded',
   startsAt: '2999-01-01T00:00:00.000Z',
   endsAt: '2999-01-01T02:00:00.000Z',
+  reason: 'Database upgrade window',
 };
 
 describe('PublicMaintenanceController.current', () => {
@@ -101,47 +111,107 @@ describe('PublicMaintenanceController.current', () => {
   });
 });
 
-describe('AdminMaintenanceController.schedule', () => {
-  it('schedules exactly one window for a valid request (org.manage)', async () => {
-    const { controller, insert } = adminHarness();
-    const view = await controller.schedule(context, principal('owner'), { ...VALID });
-    expect(insert).toHaveBeenCalledTimes(1);
-    expect(insert).toHaveBeenCalledWith(
+describe('PlatformMaintenanceController (F07: operator-only, audited)', () => {
+  it('schedules exactly one window with the platform audit row for a platform admin', async () => {
+    const { controller, schedule } = adminHarness();
+    const view = await controller.schedule(OPERATOR, { ...VALID }, operatorRequest());
+    expect(schedule).toHaveBeenCalledTimes(1);
+    expect(schedule).toHaveBeenCalledWith(
       expect.objectContaining({ severity: 'degraded', published: true }),
+      expect.objectContaining({
+        action: 'platform.maintenance_scheduled',
+        actorUserId: OPERATOR.account.userId,
+        actorEmail: OPERATOR.account.email,
+        reason: VALID.reason,
+      }),
     );
     expect(view.severity).toBe('degraded');
     expect(view.active).toBe(false); // starts in the far future
   });
 
-  it('refuses a caller without org.manage with 403 and writes nothing', async () => {
-    const { controller, insert } = adminHarness();
-    // workspace_admin does not hold org.manage — the platform-wide toggle is still refused.
-    await expect(
-      controller.schedule(context, principal('workspace_admin'), { ...VALID }),
-    ).rejects.toThrow(ApiError);
+  it('refuses a write without a typed reason with 400 and writes nothing', async () => {
+    const { controller, schedule } = adminHarness();
+    const { reason: _omit, ...withoutReason } = VALID;
     await controller
-      .schedule(context, principal('workspace_admin'), { ...VALID })
-      .catch((error: ApiError) => expect(error.status).toBe(403));
-    expect(insert).not.toHaveBeenCalled();
+      .schedule(OPERATOR, withoutReason, operatorRequest())
+      .catch((error: ApiError) => expect(error.status).toBe(400));
+    expect(schedule).not.toHaveBeenCalled();
   });
 
   it('rejects an unknown severity with 400 and writes nothing', async () => {
-    const { controller, insert } = adminHarness();
+    const { controller, schedule } = adminHarness();
     await controller
-      .schedule(context, principal('owner'), { ...VALID, severity: 'catastrophe' })
+      .schedule(OPERATOR, { ...VALID, severity: 'catastrophe' }, operatorRequest())
       .catch((error: ApiError) => expect(error.status).toBe(400));
-    expect(insert).not.toHaveBeenCalled();
+    expect(schedule).not.toHaveBeenCalled();
   });
 
   it('rejects startsAt >= endsAt with 400 and writes nothing', async () => {
-    const { controller, insert } = adminHarness();
+    const { controller, schedule } = adminHarness();
     await controller
-      .schedule(context, principal('owner'), {
-        ...VALID,
-        startsAt: '2999-01-01T02:00:00.000Z',
-        endsAt: '2999-01-01T02:00:00.000Z',
-      })
+      .schedule(
+        OPERATOR,
+        { ...VALID, startsAt: '2999-01-01T02:00:00.000Z', endsAt: '2999-01-01T02:00:00.000Z' },
+        operatorRequest(),
+      )
       .catch((error: ApiError) => expect(error.status).toBe(400));
-    expect(insert).not.toHaveBeenCalled();
+    expect(schedule).not.toHaveBeenCalled();
+  });
+
+  it('unpublishes a window with the audit row, and 404s an unknown window', async () => {
+    const { controller, unpublish } = adminHarness();
+    expect(
+      await controller.unpublish(
+        OPERATOR,
+        WINDOW_ID,
+        { reason: 'Window ended early' },
+        operatorRequest(),
+      ),
+    ).toEqual({ unpublished: true });
+    expect(unpublish).toHaveBeenCalledWith(
+      WINDOW_ID,
+      expect.objectContaining({ action: 'platform.maintenance_unpublished' }),
+    );
+    unpublish.mockResolvedValueOnce(false);
+    await controller
+      .unpublish(OPERATOR, WINDOW_ID, { reason: 'Window ended early' }, operatorRequest())
+      .catch((error: ApiError) => expect(error.status).toBe(404));
+  });
+});
+
+describe('wave9-S8 F07 regression: an organization owner cannot publish a platform banner', () => {
+  it('no tenant route writes maintenance: the module serves no /v1/organizations/... path', () => {
+    const registered = MaintenanceModule.register().controllers ?? [];
+    const paths = registered.map((c) => Reflect.getMetadata('path', c as object) as string);
+    expect(paths).toEqual(['public/site', 'v1/platform/maintenance']);
+    // The only writer is behind PlatformAdminGuard and resolves no organization.
+    const guards = Reflect.getMetadata(GUARDS_METADATA, PlatformMaintenanceController) as unknown[];
+    expect(guards).toContain(PlatformAdminGuard);
+    expect(Reflect.getMetadata(SKIPS_TENANT, PlatformMaintenanceController)).toBe(true);
+  });
+
+  it('PlatformAdminGuard refuses an organization owner who is not on the operator list (404)', async () => {
+    const guard = new PlatformAdminGuard(new Reflector(), ['operator@tmanage.test'], {
+      findAccount: async () => ({
+        userId: 'user-owner',
+        email: 'owner@customer.test',
+        displayName: 'Owner',
+        emailVerified: true,
+        mfaEnabled: true,
+      }),
+      findLiveStepUp: async () => ({ expiresAt: new Date(), mfaVerified: true }),
+    });
+    const request = { headers: {} };
+    const state = ensureRequestState(request);
+    state.session = { sessionId: 's', userId: 'user-owner' } as NonNullable<typeof state.session>;
+    state.authScheme = 'cookie';
+    const context = {
+      switchToHttp: () => ({ getRequest: () => request }),
+      getHandler: () => PlatformMaintenanceController.prototype.schedule,
+      getClass: () => PlatformMaintenanceController,
+    } as unknown as ExecutionContext;
+    const error = await guard.canActivate(context).catch((e: ApiError) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
   });
 });

@@ -1,13 +1,38 @@
-import { Body, Controller, Get, HttpCode, Inject, Module, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  Inject,
+  Module,
+  Param,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { DynamicModule, Provider } from '@nestjs/common';
-import { authorize, uuidv7 } from '@tmanage/domain';
-import type { Principal } from '@tmanage/domain';
-import { Ctx, CurrentPrincipal, Public, RequireCapability } from '../../common/http/decorators.js';
-import { ApiError } from '../../common/http/errors.js';
-import { MAINTENANCE_WINDOWS_REPOSITORY, TENANT_DATABASE } from '../../common/http/tokens.js';
+import { uuidv7 } from '@tmanage/domain';
+import { NoTenant, Public } from '../../common/http/decorators.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { requireRequestState } from '../../common/http/request-state.js';
+import type { ApiConfig } from '../../common/http/api-config.js';
+import {
+  API_CONFIG,
+  MAINTENANCE_WINDOWS_REPOSITORY,
+  TENANT_DATABASE,
+} from '../../common/http/tokens.js';
 import { MAINTENANCE_SEVERITIES } from '../../common/database/schema.js';
 import type { MaintenanceWindowRow } from '../../common/database/schema.js';
-import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { TenantDatabase } from '../../common/database/tenant-context.js';
+import { requireId, requireReason } from '../platform-admin/platform-admin.access.js';
+import {
+  CurrentPlatformAdmin,
+  PLATFORM_ADMIN_ALLOWLIST,
+  PLATFORM_ADMIN_LOOKUP,
+  PlatformAdminGuard,
+} from '../platform-admin/platform-admin.guard.js';
+import type { PlatformAdminActor } from '../platform-admin/platform-admin.guard.js';
+import { PlatformAdminRepository } from '../platform-admin/platform-admin.repository.js';
 import { MaintenanceWindowsRepository } from './maintenance.repository.js';
 
 /**
@@ -22,13 +47,12 @@ import { MaintenanceWindowsRepository } from './maintenance.repository.js';
  *    the GLOBAL table on the identity path. Only `published = 1` windows that have not yet ended are
  *    considered, and the response carries the current-or-next window (or none).
  *
- *  - **Admin write** — `POST /v1/organizations/:orgSlug/admin/maintenance`, `org.manage`. The flag is
- *    GLOBAL (platform-wide), so scheduling one is a platform-operator action; it is gated by
- *    `org.manage` on the org the operator names (`CapabilityGuard` refuses a caller without it with
- *    the ordinary 403 before the handler runs, and {@link AdminMaintenanceController.schedule}
- *    authorizes again — the audit-controller discipline). Authority is proved against the tenant; the
- *    row persists globally (`identityTransaction`). The write validates the `severity` enum and the
- *    `starts_at < ends_at` order, and a bad body is a 400 with no write.
+ *  - **Operator write** — `POST /v1/platform/maintenance` and `POST /v1/platform/maintenance/:id/
+ *    unpublish`, `@NoTenant()` behind `PlatformAdminGuard` (wave 9 S8, audit F07). The flag is GLOBAL,
+ *    so only the platform operator may set it; no organization role (owner included) reaches these
+ *    routes. Each write needs a typed reason and commits with its platform audit row. The write
+ *    validates the `severity` enum and the `starts_at < ends_at` order; a bad body is a 400 with no
+ *    write.
  */
 
 /** Column/severity bounds mirrored from `0080_maintenance_windows.sql`. Over-length is a 400. */
@@ -54,8 +78,9 @@ export interface PublicMaintenanceView {
   readonly asOf: string;
 }
 
-/** The admin write body. Untrusted, so every value is `unknown`; `Input` suffix keeps it request-side. */
+/** The operator write body. Untrusted, so every value is `unknown`; `Input` suffix keeps it request-side. */
 interface ScheduleMaintenanceInput {
+  readonly reason?: unknown;
   readonly message?: unknown;
   readonly severity?: unknown;
   readonly startsAt?: unknown;
@@ -83,26 +108,30 @@ export class PublicMaintenanceController {
   }
 }
 
-@Controller('v1/organizations/:orgSlug/admin')
-export class AdminMaintenanceController {
+/**
+ * F07 (wave 9, S8) — the platform operator's maintenance surface. `@NoTenant()`: no organization is
+ * resolved and no organization role is consulted, so an owner of every company is refused exactly
+ * like a stranger. `PlatformAdminGuard` is the whole of the authorization (listed, verified email,
+ * browser session, fresh step-up); the old tenant route `POST /v1/organizations/:orgSlug/admin/
+ * maintenance` no longer exists. Every write carries a typed reason into the platform audit log in
+ * the same transaction as the window change.
+ */
+@Controller('v1/platform/maintenance')
+@NoTenant()
+@UseGuards(PlatformAdminGuard)
+export class PlatformMaintenanceController {
   constructor(
     @Inject(MAINTENANCE_WINDOWS_REPOSITORY)
     private readonly repository: MaintenanceWindowsRepository,
   ) {}
 
-  @Post('maintenance')
-  @RequireCapability('org.manage')
+  @Post()
   @HttpCode(201)
   async schedule(
-    @Ctx() context: TenantContext,
-    @CurrentPrincipal() principal: Principal,
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
     @Body() body: ScheduleMaintenanceInput,
+    @Req() request: object,
   ): Promise<MaintenanceWindowView> {
-    // Authorize first. The flag is platform-wide, so writing it is `org.manage` on the platform org;
-    // the guard already refused a caller without it, and this is the service-level re-check the
-    // audit controller documents. An unauthorized caller never reaches validation.
-    this.requireOrgManage(principal, context);
-
     const now = new Date();
     const message = boundedText(body?.message, MAX_MESSAGE);
     const severity = asSeverity(body?.severity);
@@ -132,19 +161,23 @@ export class AdminMaintenanceController {
       endsAt === undefined ||
       published === undefined
     ) {
-      // A shape error, not an authorization one, so it is specific. Nothing is written: the
-      // repository is not reached on this path.
+      // A shape error, not an authorization one, so it is specific. Nothing is written.
       throw new ApiError(400, 'validation_failed', 'The maintenance window is invalid', details);
     }
+    // The typed reason is required (400, nothing written), like every platform action.
+    const reason = requireReason(body?.reason);
 
-    const inserted = await this.repository.insert({
-      message,
-      severity,
-      startsAt,
-      endsAt,
-      published,
-      correlationId: uuidv7(),
-    });
+    const inserted = await this.repository.schedule(
+      { message, severity, startsAt, endsAt, published },
+      {
+        actorUserId: actor.account.userId,
+        actorEmail: actor.account.email,
+        action: 'platform.maintenance_scheduled',
+        targetLabel: severity,
+        reason,
+        correlationId: requireRequestState(request).correlationId,
+      },
+    );
 
     return toMaintenanceWindowView(
       {
@@ -160,27 +193,27 @@ export class AdminMaintenanceController {
     );
   }
 
-  private requireOrgManage(principal: Principal, context: TenantContext): void {
-    const verdict = authorize({
-      principal,
-      capability: 'org.manage',
-      resource: {
-        organizationId: context.organizationId,
-        // Null: this is an org-level (indeed platform-level) resource, not a project one.
-        projectId: null,
-        audience: 'internal',
-        lifecycle: 'active',
-      },
+  /** Take a window off the banner. Unknown id is a 404 with nothing written. Audited with the reason. */
+  @Post(':windowId/unpublish')
+  @HttpCode(200)
+  async unpublish(
+    @CurrentPlatformAdmin() actor: PlatformAdminActor,
+    @Param('windowId') windowId: string,
+    @Body() body: { readonly reason?: unknown },
+    @Req() request: object,
+  ): Promise<{ readonly unpublished: true }> {
+    const id = requireId(windowId);
+    const reason = requireReason(body?.reason);
+    const found = await this.repository.unpublish(id, {
+      actorUserId: actor.account.userId,
+      actorEmail: actor.account.email,
+      action: 'platform.maintenance_unpublished',
+      targetLabel: null,
+      reason,
+      correlationId: requireRequestState(request).correlationId,
     });
-    if (!verdict.allowed) {
-      throw new ApiError(
-        403,
-        'forbidden',
-        'You do not have permission to manage maintenance windows',
-        undefined,
-        `maintenance.schedule:${verdict.code}`,
-      );
-    }
+    if (!found) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    return { unpublished: true };
   }
 }
 
@@ -245,8 +278,8 @@ function asBoolean(value: unknown): boolean | undefined {
 /**
  * Platform states (x185). Wires the two maintenance controllers over one stateless repository.
  *
- * The public read depends only on the GLOBAL `TENANT_DATABASE` (identity path); the admin write is
- * capability-gated by the global guards. Following the `InsightsAdoptionModule` precedent, the module
+ * The public read depends only on the GLOBAL `TENANT_DATABASE` (identity path); the operator write
+ * is gated by `PlatformAdminGuard` (F07). Following the `InsightsAdoptionModule` precedent, the module
  * lives beside its controllers rather than in a file of its own.
  */
 @Module({})
@@ -258,10 +291,23 @@ export class MaintenanceModule {
       inject: [TENANT_DATABASE],
     };
 
+    // F07: the operator gate, built the way `PlatformAdminModule` builds it. An unset
+    // `PLATFORM_ADMIN_EMAILS` is an empty list, which the guard refuses with the ordinary 404.
+    const lookup: Provider = {
+      provide: PLATFORM_ADMIN_LOOKUP,
+      inject: [TENANT_DATABASE],
+      useFactory: (database: TenantDatabase) => new PlatformAdminRepository(database),
+    };
+    const allowlist: Provider = {
+      provide: PLATFORM_ADMIN_ALLOWLIST,
+      inject: [API_CONFIG],
+      useFactory: (config: ApiConfig) => config.platformAdminEmails ?? [],
+    };
+
     return {
       module: MaintenanceModule,
-      providers: [repository],
-      controllers: [PublicMaintenanceController, AdminMaintenanceController],
+      providers: [repository, lookup, allowlist, PlatformAdminGuard],
+      controllers: [PublicMaintenanceController, PlatformMaintenanceController],
     };
   }
 }

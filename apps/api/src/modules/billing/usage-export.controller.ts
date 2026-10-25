@@ -3,8 +3,9 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuditService } from '../audit/audit.service.js';
 import { toCsv } from '../insights/csv.js';
 import { UsageExportService, type UsageExportView } from './usage-export.service.js';
 
@@ -86,7 +87,10 @@ function usageExportToCsv(rows: readonly UsageExportView[]): string {
  */
 @Controller('v1/organizations/:orgSlug/billing/usage')
 export class UsageExportController {
-  constructor(@Inject(USAGE_EXPORT_SERVICE) private readonly usage: UsageExportService) {}
+  constructor(
+    @Inject(USAGE_EXPORT_SERVICE) private readonly usage: UsageExportService,
+    @Inject(AUDIT_SERVICE) private readonly audit: Pick<AuditService, 'recordStandalone'>,
+  ) {}
 
   @Get('export.csv')
   @RequireCapability('org.manage')
@@ -129,6 +133,19 @@ export class UsageExportController {
     });
 
     const body = Buffer.from(usageExportToCsv(windowed), 'utf-8');
+    // F53 (wave 9 S8): the export is audited before the bytes leave, and fails closed.
+    await this.audit.recordStandalone(context, {
+      action: 'usage.exported',
+      result: 'allowed',
+      objectId: context.organizationId,
+      actorUserId: principal.userId,
+      metadata: {
+        export_kind: 'usage_counters',
+        row_count: windowed.length,
+        window_from: new Date(fromMs!).toISOString(),
+        window_to: new Date(toMs!).toISOString(),
+      },
+    });
     reply.header('content-type', CSV_CONTENT_TYPE);
     reply.header('content-length', String(body.byteLength));
     reply.header('content-disposition', `attachment; filename="${CSV_FILENAME}"`);

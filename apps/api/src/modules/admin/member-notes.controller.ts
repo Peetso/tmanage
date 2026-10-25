@@ -13,16 +13,19 @@ import type { DynamicModule, Provider } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { AUDIT_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MemberNotesService } from './member-notes.service.js';
 import type { MemberAdminNoteView } from './member-notes.service.js';
+import { MemberNotesRepository } from './member-notes.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
 
 /**
  * Admin private member notes (Administration module 18, x280). An org admin's private, internal notes
  * about a member: add a note, list a member's notes, delete one — all keyed by the member's membership
  * id in the path, all behind `org.manage`. A note is an HR-style annotation, never shown to the member
- * it is about: this `org.manage`-gated surface is its only reader.
+ * it is about: this `org.manage`-gated surface is its only reader, and (wave 9 S8, F56) a caller's
+ * own membership is a 404 on every route. Adding and deleting a note are audited.
  *
  * Like every tenant-scoped controller here it never reads `organizationId` (or the acting membership)
  * from the body, a header, or its `:orgSlug` segment: it receives the `TenantContext` that
@@ -127,8 +130,9 @@ export class MemberNotesModule {
   static register(): DynamicModule {
     const service: Provider = {
       provide: MEMBER_NOTES_SERVICE,
-      inject: [TENANT_DATABASE],
-      useFactory: (database: TenantDatabase) => new MemberNotesService(database),
+      inject: [TENANT_DATABASE, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, audit: AuditService) =>
+        new MemberNotesService(database, new MemberNotesRepository(), audit),
     };
 
     return {

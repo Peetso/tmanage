@@ -27,9 +27,10 @@ import { hasActiveSecondFactorRow } from '../../../modules/identity/second-facto
  *
  * ## No self lock-out
  *
- * Nobody can be locked out: the enrolment routes are always open. On top of that the settings
- * route refuses to turn the switch on for someone who has not enrolled themselves
- * (`assertCanRequireTwoStep`), so an owner turning it on is already compliant.
+ * Nobody can be locked out: the enrolment routes are always open. On top of that the one writer
+ * of the switch — the owner-only `PUT …/admin/security` (`enforce2fa`, wave 9 S8 / F09) — refuses
+ * to turn it on for someone who has not enrolled themselves (`assertCanRequireTwoStep`), so an
+ * owner turning it on is already compliant. The generic settings route never writes this key.
  *
  * It only ever refuses — it never widens what the other guards allow.
  */

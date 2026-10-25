@@ -1,11 +1,25 @@
-import { and, asc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
-import { memberships, sessions, users } from '../../common/database/schema.js';
+import { clientMemberships, memberships, sessions, users } from '../../common/database/schema.js';
 import type {
+  BootstrapQueryRunner,
   IdentityQueryRunner,
   TenantContext,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
+
+/**
+ * Wave 9 S8 (audit F42). The only cross-tenant read here, and it answers one yes/no per person:
+ * "does this member of the caller's organization also act somewhere else?". A session row is
+ * global (one session signs a person into every organization they belong to), so an org admin may
+ * see or end it only for people whose ONLY access is this organization. The read is keyed on user
+ * ids a tenant-scoped roster read already proved are members here, returns user ids only (never
+ * which organizations, never counts), and goes through the audited `bootstrapRead`.
+ */
+export const ACCESS_ELSEWHERE_REASON =
+  'admin sessions (F42): whether a member of the acting organization also holds access in another ' +
+  'organization, so a global session is only listed or ended for single-organization members';
+export const ACCESS_ELSEWHERE_TABLES = ['memberships', 'client_memberships'] as const;
 
 /**
  * Admin session visibility + revocation storage (x223, Administration module 18).
@@ -38,6 +52,8 @@ export interface OrgMemberRow {
   readonly membershipId: string;
   readonly userId: string;
   readonly displayName: string;
+  /** F42: the member's role here, so a lower role can never act on the owner's sessions. */
+  readonly role: string;
 }
 
 /**
@@ -64,6 +80,7 @@ export class AdminSessionsRepository {
         membershipId: memberships.id,
         userId: memberships.userId,
         displayName: users.displayName,
+        role: memberships.role,
       })
       .from(memberships)
       .innerJoin(users, eq(users.id, memberships.userId))
@@ -104,6 +121,41 @@ export class AdminSessionsRepository {
         ),
       )
       .orderBy(asc(sessions.userId), asc(sessions.id));
+  }
+
+  /**
+   * F42: of `userIds` (members of `organizationId`, proved by the tenant roster read), the ones who
+   * also hold an active internal membership or a live client membership in ANY other organization.
+   * Bootstrap runner only (see {@link ACCESS_ELSEWHERE_REASON}); an empty list reads nothing.
+   */
+  async listUsersWithAccessElsewhere(
+    runner: BootstrapQueryRunner,
+    organizationId: string,
+    userIds: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    if (userIds.length === 0) return new Set();
+    const internal = await tenantDrizzle(runner)
+      .select({ userId: memberships.userId })
+      .from(memberships)
+      .where(
+        and(
+          inArray(memberships.userId, [...userIds]),
+          ne(memberships.organizationId, organizationId),
+          eq(memberships.status, 'active'),
+        ),
+      );
+    const client = await tenantDrizzle(runner)
+      .select({ userId: clientMemberships.userId })
+      .from(clientMemberships)
+      .where(
+        and(
+          inArray(clientMemberships.userId, [...userIds]),
+          ne(clientMemberships.organizationId, organizationId),
+          eq(clientMemberships.status, 'active'),
+          or(isNull(clientMemberships.expiresAt), sql`${clientMemberships.expiresAt} > now(3)`),
+        ),
+      );
+    return new Set([...internal, ...client].map((row) => row.userId));
   }
 
   /**

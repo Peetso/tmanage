@@ -101,6 +101,21 @@ export class AuditController {
     });
 
     const csv = auditEventsToCsv(events);
+    // F53 (wave 9 S8): the export itself is audited before a byte leaves, and fails closed — if
+    // the row cannot be written this throws and no CSV is returned. Filter flags only, no values.
+    await this.audit.recordStandalone(context, {
+      action: 'audit.exported',
+      result: 'allowed',
+      objectId: context.organizationId,
+      actorUserId: principal.userId,
+      metadata: {
+        export_kind: 'audit_events',
+        row_count: events.length,
+        filter_actor: Boolean(actorId),
+        filter_entity: Boolean(entityId),
+        filter_before: Boolean(before),
+      },
+    });
     reply.header('content-type', 'text/csv; charset=utf-8');
     reply.header('content-disposition', 'attachment; filename="audit-events.csv"');
     reply.header('x-content-type-options', 'nosniff');

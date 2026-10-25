@@ -8,6 +8,8 @@ import { ApiError } from '../../common/http/errors.js';
 import { REQUIRED_CAPABILITY } from '../../common/http/decorators.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { SecuritySettingsRow } from '../../common/database/schema.js';
+import type { AuditService } from '../audit/audit.service.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 
 /**
  * Organization security settings (x176) read + update over fakes, with the **real** `authorize`.
@@ -88,12 +90,34 @@ class FakeSecurityRepository {
   }
 }
 
+/**
+ * Wave 9 S8 (F09): the switch lives in `org_settings.require_two_step`, the audit row commits with
+ * the write, and turning it on asks whether the writer is enrolled (`identityRead`, here: yes).
+ */
+class FakeOrgSettings {
+  value: string | undefined;
+  findByKey(): Promise<{ settingValue: string } | undefined> {
+    return Promise.resolve(this.value === undefined ? undefined : { settingValue: this.value });
+  }
+  upsert(_r: unknown, _c: unknown, input: { key: string; value: string }): Promise<void> {
+    this.value = input.value;
+    return Promise.resolve();
+  }
+}
+
 function controllerWith(repo: FakeSecurityRepository): SecuritySettingsController {
   const database = {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
+    identityRead: async () => true,
   } as unknown as TenantDatabase;
-  return new SecuritySettingsController(database, repo as unknown as SecuritySettingsRepository);
+  const audit = { record: async () => ({}) } as unknown as Pick<AuditService, 'record'>;
+  return new SecuritySettingsController(
+    database,
+    audit,
+    repo as unknown as SecuritySettingsRepository,
+    new FakeOrgSettings() as unknown as OrgSettingsRepository,
+  );
 }
 
 async function expectStatus<T>(promise: Promise<T>, status: number): Promise<void> {

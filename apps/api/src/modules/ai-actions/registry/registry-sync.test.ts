@@ -78,7 +78,8 @@ const METHOD_NAMES = ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'ALL', 'OPTIONS',
  *  C5: +1 op, GET .../conversations/:conversationId/reactions (batched reaction tallies). */
 // C6: +4 ops, GET .../logo, GET/PUT/DELETE .../logo/image (company logo, organization-scoped).
 // L2: +1 op, GET .../conversations/:conversationId/attachments (batched message attachments).
-const EXPECTED_ROUTE_COUNT = 803; // D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
+const EXPECTED_ROUTE_COUNT = 804; // wave9 S8/S7: -1 tenant maintenance op, +2 platform maintenance NEVER.
+// D4: +2 ops, GET .../billing/plan-usage(/preview). D5: +10 (admin/privacy, me/privacy).
 // C1: +1 op, DELETE .../automations/templates/:templateId/conditions/:conditionId.
 // C7: +2 ops, GET/POST .../files/:fileId/versions (version history for plain attachments).
 

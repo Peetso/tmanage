@@ -52,6 +52,11 @@ export interface ActiveSessionView {
   readonly deviceLabel: string | null;
 }
 
+/** The caller's role here, or `''` for a non-internal principal (never an owner). */
+function callerRole(principal: Principal): string {
+  return principal.kind === 'internal' ? principal.role : '';
+}
+
 /** The org-wide resource the real `org.manage` decision authorizes against. */
 function orgWideResource(context: TenantContext) {
   return {
@@ -82,7 +87,8 @@ export class AdminSessionsController {
   ): Promise<{ readonly sessions: readonly ActiveSessionView[] }> {
     // The real org-wide `org.manage` decision (the decorator is the coarse HTTP gate).
     this.requireOrgManage(principal, context);
-    const sessions = await this.sessions.listOrgSessions(context);
+    // F42: single-organization members only; an owner's sessions only for an owner.
+    const sessions = await this.sessions.listOrgSessions(context, callerRole(principal));
     return { sessions };
   }
 
@@ -106,6 +112,18 @@ export class AdminSessionsController {
 
     // 2. The real org-wide `org.manage` decision.
     this.requireOrgManage(principal, context);
+
+    // 2b. F42: the owner is exempt from the actions of others — only an owner may end an owner's
+    //     session. (A member who also acts in another organization already resolved to 404 above.)
+    if (resolved.role === 'owner' && callerRole(principal) !== 'owner') {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        undefined,
+        'admin_sessions.revoke:owner_exempt',
+      );
+    }
 
     // 3. Soft-close (idempotent, never a hard delete).
     await this.sessions.revokeSession(context, sessionId);

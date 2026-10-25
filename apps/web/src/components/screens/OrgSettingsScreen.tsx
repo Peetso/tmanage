@@ -13,6 +13,7 @@ import {
   type MemberSwitchKey,
 } from '../../lib/api/org-settings';
 import { readOrganizationProfile, renameOrganization } from '../../lib/api/organizations';
+import { setTwoStepRequirement } from '../../lib/api/admin-security';
 import {
   LOGO_IMAGE_ACCEPT,
   logoImageUrl,
@@ -158,6 +159,11 @@ export function OrgSettingsScreen({
     mutationFn: async () => {
       if (nameChanged) await renameOrganization(api, organizationSlug, (nameDraft ?? '').trim());
       for (const key of changedSwitches) {
+        // Wave 9 S8 (F09/F12b): the two-step requirement is the owner's, saved on its own route.
+        if (key === 'require_two_step') {
+          await setTwoStepRequirement(api, organizationSlug, switchDrafts[key] === true);
+          continue;
+        }
         await setOrgSetting(api, organizationSlug, key, String(switchDrafts[key]));
       }
       for (const key of changedDefaults) {
@@ -328,6 +334,8 @@ export function OrgSettingsScreen({
                 const copy = SWITCH_COPY[key];
                 const labelId = `tm-orgset-${key}-label`;
                 const hintId = `tm-orgset-${key}-hint`;
+                // Wave 9 S8: only the company owner changes the two-step requirement; others read it.
+                const ownerOnly = key === 'require_two_step' && known && role !== 'owner';
                 return (
                   <li key={key} className="tm-orgset-switch">
                     <span className="tm-orgset-switch__text">
@@ -336,7 +344,12 @@ export function OrgSettingsScreen({
                       </span>
                       {copy.hint ? (
                         <span className="tm-orgset-switch__hint" id={hintId}>
-                          {tr(`OrgSettingsScreen.a11.${key}Hint`, copy.hint)}
+                          {ownerOnly
+                            ? tr(
+                                'OrgSettingsScreen.s8.twoStepOwnerOnly',
+                                'Only the company owner can change this setting.',
+                              )
+                            : tr(`OrgSettingsScreen.a11.${key}Hint`, copy.hint)}
                         </span>
                       ) : null}
                     </span>
@@ -347,6 +360,7 @@ export function OrgSettingsScreen({
                       aria-labelledby={labelId}
                       aria-describedby={copy.hint ? hintId : undefined}
                       checked={switchValue(key)}
+                      disabled={ownerOnly}
                       onChange={(event) => {
                         setSaved(false);
                         const checked = event.target.checked;

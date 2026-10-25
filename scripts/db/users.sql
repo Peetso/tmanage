@@ -1286,6 +1286,10 @@ GRANT INSERT ON `tmanage`.`import_rows` TO 'tmanage_app'@'%';
 -- NON_TENANT_TABLES; the write is authorized by `org.manage` in the controller but persists on the
 -- identity path.
 GRANT INSERT ON `tmanage`.`maintenance_windows` TO 'tmanage_app'@'%';
+-- Wave 9 S8 (audit F07): the platform operator's unpublish (`POST /v1/platform/maintenance/:id/
+-- unpublish`, PlatformAdminGuard) sets `published = 0` on one window, with its platform audit row in
+-- the same transaction. UPDATE only; a window is still never deleted by a runtime credential.
+GRANT UPDATE ON `tmanage`.`maintenance_windows` TO 'tmanage_app'@'%';
 -- `insight_snapshots` (Insights & reporting, x211, 0090) gets INSERT and nothing else. A snapshot is
 -- captured (INSERT) and read (the database-wide SELECT, line 60); it is a historical fact, never
 -- amended or removed by a runtime credential, so UPDATE and DELETE are withheld the way the

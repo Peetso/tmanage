@@ -50,8 +50,13 @@ const context = {
   correlationId: 'test-correlation',
 } as unknown as TenantContext;
 
-function member(userId: string, membershipId: string, displayName: string): OrgMemberRow {
-  return { userId, membershipId, displayName };
+function member(
+  userId: string,
+  membershipId: string,
+  displayName: string,
+  role = 'member',
+): OrgMemberRow {
+  return { userId, membershipId, displayName, role };
 }
 
 function sessionRow(id: string, userId: string): AdminSessionRow {
@@ -77,7 +82,17 @@ class FakeRepository {
   constructor(
     readonly members: OrgMemberRow[] = [],
     readonly rows: AdminSessionRow[] = [],
+    /** F42 (wave 9 S8): user ids that also hold access in another organization. */
+    readonly elsewhere: readonly string[] = [],
   ) {}
+
+  listUsersWithAccessElsewhere(
+    _r: unknown,
+    _org: string,
+    userIds: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    return Promise.resolve(new Set(userIds.filter((id) => this.elsewhere.includes(id))));
+  }
 
   listOrgMembers(): Promise<readonly OrgMemberRow[]> {
     return Promise.resolve(this.members);
@@ -106,6 +121,7 @@ function controllerWith(repo: FakeRepository): AdminSessionsController {
     read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     identityRead: async (_o: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
     identityTransaction: async (_o: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
+    bootstrapRead: async (_o: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
   const service = new AdminSessionsService(database, repo as unknown as AdminSessionsRepository);
   return new AdminSessionsController(service);
@@ -172,5 +188,54 @@ describe('AdminSessionsController (ADM active sessions + revocation, x223)', () 
     await expectStatus(controllerWith(repo).list(context, orgAdmin()), 403);
     await expectStatus(controllerWith(repo).revoke(context, orgAdmin(), 's-a'), 403);
     expect(repo.revokeCalls).toBe(0);
+  });
+});
+
+describe('wave9-S8 F42 regression: org admins act only on single-organization members, never the owner', () => {
+  /** An org_admin: holds `org.manage` (full ceiling) but is not the owner. */
+  function admin(): Principal {
+    return { ...owner(), role: 'org_admin' };
+  }
+
+  it('omits the sessions of a member who also belongs to another organization, and 404s their revoke', async () => {
+    const repo = new FakeRepository(
+      [member('user-v', 'm-v', 'Vic'), member('user-a', 'm-a', 'Ada')],
+      [sessionRow('s-v', 'user-v'), sessionRow('s-a', 'user-a')],
+      ['user-v'],
+    );
+    const controller = controllerWith(repo);
+    const { sessions } = await controller.list(context, owner());
+    expect(sessions.map((s) => s.sessionId)).toEqual(['s-a']);
+    // No device or activity metadata for the multi-organization member leaves this organization.
+    expect(JSON.stringify(sessions)).not.toContain('s-v');
+    await expectStatus(controller.revoke(context, owner(), 's-v'), 404);
+    expect(repo.revokeCalls).toBe(0);
+  });
+
+  it('still lists and revokes a single-organization member', async () => {
+    const repo = new FakeRepository(
+      [member('user-a', 'm-a', 'Ada')],
+      [sessionRow('s-a', 'user-a')],
+    );
+    const controller = controllerWith(repo);
+    expect((await controller.list(context, admin())).sessions).toHaveLength(1);
+    expect(await controller.revoke(context, admin(), 's-a')).toEqual({ revoked: true });
+    expect(repo.revokeCalls).toBe(1);
+  });
+
+  it("refuses an org_admin acting on the owner's session (403, no write) and hides it from their list", async () => {
+    const repo = new FakeRepository(
+      [member('user-o', 'm-o', 'Olu', 'owner'), member('user-a', 'm-a', 'Ada')],
+      [sessionRow('s-o', 'user-o'), sessionRow('s-a', 'user-a')],
+    );
+    const controller = controllerWith(repo);
+    await expectStatus(controller.revoke(context, admin(), 's-o'), 403);
+    expect(repo.revokeCalls).toBe(0);
+    expect((await controller.list(context, admin())).sessions.map((s) => s.sessionId)).toEqual([
+      's-a',
+    ]);
+    // The owner still sees and manages their own and everyone's sessions.
+    expect((await controller.list(context, owner())).sessions).toHaveLength(2);
+    expect(await controller.revoke(context, owner(), 's-o')).toEqual({ revoked: true });
   });
 });

@@ -1,5 +1,9 @@
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
-import { AdminSessionsRepository } from './admin-sessions.repository.js';
+import {
+  ACCESS_ELSEWHERE_REASON,
+  ACCESS_ELSEWHERE_TABLES,
+  AdminSessionsRepository,
+} from './admin-sessions.repository.js';
 import type { AdminSessionRow, OrgMemberRow } from './admin-sessions.repository.js';
 
 /**
@@ -13,6 +17,14 @@ import type { AdminSessionRow, OrgMemberRow } from './admin-sessions.repository.
  * member of the caller's organization. A session whose owner is not a member is invisible to
  * the list and answers 404 to a revoke — the controller never distinguishes it from an id that
  * does not exist, so one organization's admin cannot probe another's sessions.
+ *
+ * ## Wave 9 S8 (audit F42): single-organization members only, and never the owner from below
+ *
+ * A session row is global: it signs the person into every organization they belong to. So an admin
+ * here may list or end the sessions only of members whose ONLY access is this organization — a
+ * member who also works elsewhere is invisible to the list (no device or activity metadata leaves)
+ * and a revoke of their session is the same 404 as an unknown id. And the owner is exempt from the
+ * actions of others: only an owner may see or end an owner's sessions (a lower role gets 403).
  */
 
 /** The global tables the session half reaches — enforced by `TenantDatabase.identity*`. */
@@ -49,10 +61,11 @@ export class AdminSessionsService {
    * read tenant-scoped; the sessions are read on the identity path for exactly those members'
    * user ids; the two are joined here. A member with no live session simply contributes no row.
    */
-  async listOrgSessions(context: TenantContext): Promise<readonly AdminSessionListEntry[]> {
-    const members = await this.database.read(context, (runner) =>
-      this.repository.listOrgMembers(runner, context),
-    );
+  async listOrgSessions(
+    context: TenantContext,
+    callerRole: string,
+  ): Promise<readonly AdminSessionListEntry[]> {
+    const members = await this.manageableMembers(context, callerRole);
     if (members.length === 0) return [];
 
     const byUserId = new Map<string, OrgMemberRow>(members.map((m) => [m.userId, m]));
@@ -79,7 +92,7 @@ export class AdminSessionsService {
   async resolveMemberSession(
     context: TenantContext,
     sessionId: string,
-  ): Promise<{ readonly membershipId: string } | null> {
+  ): Promise<{ readonly membershipId: string; readonly role: string } | null> {
     const ownerUserId = await this.database.identityRead(
       { correlationId: context.correlationId, tables: [...SESSION_TABLES] },
       (runner) => this.repository.findSessionUserId(runner, sessionId),
@@ -90,7 +103,47 @@ export class AdminSessionsService {
       this.repository.listOrgMembers(runner, context),
     );
     const member = members.find((m) => m.userId === ownerUserId);
-    return member ? { membershipId: member.membershipId } : null;
+    if (!member) return null;
+    // F42: a person who also acts in another organization is not this organization's to sign out.
+    const elsewhere = await this.usersWithAccessElsewhere(context, [member.userId]);
+    if (elsewhere.has(member.userId)) return null;
+    return { membershipId: member.membershipId, role: member.role };
+  }
+
+  /**
+   * F42: the members whose sessions this caller may see — single-organization members only, and an
+   * owner's sessions only for an owner caller.
+   */
+  private async manageableMembers(
+    context: TenantContext,
+    callerRole: string,
+  ): Promise<readonly OrgMemberRow[]> {
+    const members = await this.database.read(context, (runner) =>
+      this.repository.listOrgMembers(runner, context),
+    );
+    if (members.length === 0) return [];
+    const elsewhere = await this.usersWithAccessElsewhere(
+      context,
+      members.map((m) => m.userId),
+    );
+    return members.filter(
+      (m) => !elsewhere.has(m.userId) && (m.role !== 'owner' || callerRole === 'owner'),
+    );
+  }
+
+  private async usersWithAccessElsewhere(
+    context: TenantContext,
+    userIds: readonly string[],
+  ): Promise<ReadonlySet<string>> {
+    return this.database.bootstrapRead(
+      {
+        correlationId: context.correlationId,
+        reason: ACCESS_ELSEWHERE_REASON,
+        tables: [...ACCESS_ELSEWHERE_TABLES],
+      },
+      (runner) =>
+        this.repository.listUsersWithAccessElsewhere(runner, context.organizationId, userIds),
+    );
   }
 
   /**

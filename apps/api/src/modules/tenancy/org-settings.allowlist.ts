@@ -29,6 +29,8 @@ export const ORG_SETTING_KEYS = [
   'members_can_create_projects',
   'members_can_invite_clients',
   'clients_can_upload_files',
+  // Wave 9 S8 (F09/F12b): an owner-only key. Written only through the owner-only, audited
+  // `PUT …/admin/security` (`enforce2fa`), never through the generic PUT.
   'require_two_step',
   // B3 — downloads before a virus scan. The company OWNER's choice alone (`OWNER_ONLY_SETTING_KEYS`):
   // written through `PATCH …/file-download-policy`, never through the generic PUT.
@@ -60,9 +62,14 @@ export type DownloadsBeforeScan = (typeof DOWNLOADS_BEFORE_SCAN_VALUES)[number];
 
 /**
  * B3. Keys only the company owner may change. The generic `PUT …/settings/:key` refuses them for
- * every caller; each has its own owner-only, audited route.
+ * every caller; each has its own owner-only, audited route: `downloads_before_scan` through
+ * `PATCH …/file-download-policy`, and (wave 9 S8, F09/F12b) `require_two_step` through
+ * `PUT …/admin/security`. The owner decides workspace security policy.
  */
-export const OWNER_ONLY_SETTING_KEYS: readonly OrgSettingKey[] = ['downloads_before_scan'];
+export const OWNER_ONLY_SETTING_KEYS: readonly OrgSettingKey[] = [
+  'downloads_before_scan',
+  'require_two_step',
+];
 
 /** Whether `key` may only be changed by the owner, through its own route. */
 export function isOwnerOnlySettingKey(key: OrgSettingKey): boolean {

@@ -700,6 +700,37 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'privacy_deletion_request',
     clause: '§12 data rights — the deletion itself, after the grace period',
   },
+  /**
+   * Wave 9 S8 (F53). The audit trail left the system as a CSV. Metadata: which export, the row
+   * count, whether actor/entity/action filters were set and the window bounds — never row content.
+   */
+  'audit.exported': {
+    objectType: 'organization',
+    clause: '§12 export — a bulk copy of the security log is itself a security event',
+  },
+  /** Wave 9 S8 (F53). The usage counters left the system as a CSV (row count and window only). */
+  'usage.exported': {
+    objectType: 'organization',
+    clause: '§12 export — a bulk copy of the usage counters',
+  },
+  /** Wave 9 S8 (F56). A private admin note about a member was written (ids only, never the text). */
+  'member_admin_note.created': {
+    objectType: 'member_admin_note',
+    clause: '§12 — a confidential note about a person exists from this moment',
+  },
+  /** Wave 9 S8 (F56). A private admin note about a member was deleted (ids only). */
+  'member_admin_note.deleted': {
+    objectType: 'member_admin_note',
+    clause: '§12 — removing a confidential note must leave a trace',
+  },
+  /**
+   * Wave 9 S8 (F09). The owner changed the company's sign-in policy (two-step requirement, trusted
+   * networks). Metadata: previous and new two-step state and the allowlist entry count.
+   */
+  'organization.security_settings_changed': {
+    objectType: 'organization',
+    clause: '§12 policy change — who must use two-step sign-in, and from where',
+  },
 } as const satisfies Record<string, AuditActionDefinition>;
 
 export type AuditAction = keyof typeof AUDIT_ACTION_CATALOG;
@@ -810,6 +841,11 @@ const AUDIT_ACTION_LABELS = {
   'privacy_deletion.requested': 'Asked for a deletion',
   'privacy_deletion.cancelled': 'Cancelled a deletion request',
   'privacy_deletion.executed': 'A requested deletion was carried out',
+  'audit.exported': 'Exported the audit log',
+  'usage.exported': 'Exported the usage figures',
+  'member_admin_note.created': 'Added a private note about a member',
+  'member_admin_note.deleted': 'Deleted a private note about a member',
+  'organization.security_settings_changed': 'Changed how people sign in',
 } as const satisfies Record<AuditAction, string>;
 
 /** The plain sentence for an action, for display. Falls back to a de-coded action name. */

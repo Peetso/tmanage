@@ -205,6 +205,19 @@ export class AuditService {
   }
 
   /**
+   * Wave 9 S8 (F53). Append an `allowed` event in a transaction of its own, for an action that
+   * changes no state but must leave a trace — a bulk export. Unlike {@link recordDenial} it
+   * THROWS when the row cannot be written, so the caller fails closed: an export whose record
+   * cannot be kept is not handed out.
+   */
+  async recordStandalone(
+    context: TenantContext,
+    input: AppendAuditEventInput,
+  ): Promise<AuditEventRow> {
+    return this.database.transaction(context, (tx) => this.events.append(tx, context, input));
+  }
+
+  /**
    * Record a refused attempt. Never throws, and returns whether anything was written.
    *
    * The metadata is checked with the non-throwing `isSafeAuditMetadata` and replaced wholesale

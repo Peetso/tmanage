@@ -59,12 +59,21 @@ function row(overrides: Partial<AuditEventRow>): AuditEventRow {
   } as unknown as AuditEventRow;
 }
 
+/** Every audit row the exports append (F53), across the suite. */
+const APPENDED: unknown[] = [];
+
 /** A service whose repository holds exactly `rows`, filtered the way the DB-proven `list` is. */
 function serviceWith(rows: readonly AuditEventRow[]): AuditService {
   const database = {
     read: async (ctx: unknown, work: (runner: unknown) => Promise<unknown>) => work({ ctx }),
+    // Wave 9 S8 (F53): the export's own audit row is written in a transaction of its own.
+    transaction: async (ctx: unknown, work: (runner: unknown) => Promise<unknown>) => work({ ctx }),
   } as unknown as TenantDatabase;
   const events = {
+    append: async (_runner: unknown, _ctx: unknown, input: unknown) => {
+      APPENDED.push(input);
+      return input;
+    },
     list: async (
       _runner: unknown,
       ctx: TenantContext,

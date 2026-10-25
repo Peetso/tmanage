@@ -1,5 +1,6 @@
 import { Controller, Get, Inject, Module, Query, Res, StreamableFile } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
+import { isAuditAction } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
@@ -116,6 +117,23 @@ export class AuditExportController {
     });
 
     const body = Buffer.from(auditEventsToCsv(windowed), 'utf-8');
+    // F53 (wave 9 S8): one audit row per export, written before the bytes are returned; if it
+    // cannot be written this throws and nothing is handed out. The window and the filter shape
+    // only — an action filter is named only when it is a catalogued action, never free text.
+    await this.audit.recordStandalone(context, {
+      action: 'audit.exported',
+      result: 'allowed',
+      objectId: context.organizationId,
+      actorUserId: principal.userId,
+      metadata: {
+        export_kind: 'audit_window',
+        row_count: windowed.length,
+        window_from: new Date(fromMs!).toISOString(),
+        window_to: new Date(toMs!).toISOString(),
+        filter_actor: Boolean(actor),
+        filter_action: trimmed === '' ? null : isAuditAction(trimmed) ? trimmed : 'other',
+      },
+    });
     reply.header('content-type', CSV_CONTENT_TYPE);
     reply.header('content-length', String(body.byteLength));
     reply.header('content-disposition', `attachment; filename="${CSV_FILENAME}"`);

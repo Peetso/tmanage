@@ -122,14 +122,6 @@ export const adminDetails: readonly AiActionDetail[] = [
     examples: [{ summary: 'Revoke', args: { id: 'inv_1' } }],
   }),
   det({
-    id: 'admin.maintenance.create',
-    title: 'Set maintenance mode',
-    description: 'Turn workspace maintenance mode on or off.',
-    input: bodyArgs([], { enabled: f.bool(), message: f.text(500).optional() }),
-    redact: 'standard',
-    examples: [{ summary: 'Enable', args: { enabled: true } }],
-  }),
-  det({
     id: 'admin.members.notes.list',
     title: 'List member notes',
     description: 'Internal admin notes about a member.',

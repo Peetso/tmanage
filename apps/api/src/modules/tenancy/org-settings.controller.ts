@@ -15,7 +15,6 @@ import {
 } from './org-settings.allowlist.js';
 import { OrgSettingsRepository } from './org-settings.repository.js';
 import { DownloadScanPolicyController } from './download-scan-policy.controller.js';
-import { assertCanRequireTwoStep } from '../../common/http/guards/two-step-requirement.guard.js';
 
 /**
  * Organization settings / policy (Administration module 18, x153) — the read + update surface the
@@ -101,7 +100,9 @@ export class OrgSettingsController {
         ]);
       }
       // B3: an owner-only key has its own owner-only, audited route; this generic one never
-      // writes it, so an org_admin holding `org.manage` cannot reach it from here.
+      // writes it, so an org_admin holding `org.manage` cannot reach it from here. Wave 9 S8:
+      // `require_two_step` is one of them (F12b), so an AI grant or a script driving this generic
+      // route cannot switch the company's two-step requirement off.
       if (isOwnerOnlySettingKey(key)) {
         throw new ApiError(
           403,
@@ -125,11 +126,6 @@ export class OrgSettingsController {
           'That value is not allowed for this setting.',
           [{ field: 'value', message: validation.message }],
         );
-      }
-
-      // A11: no self lock-out — only someone already enrolled may require two-step sign-in.
-      if (key === 'require_two_step' && validation.value === 'true') {
-        await assertCanRequireTwoStep(this.database, principal.userId, context.correlationId);
       }
 
       // 4. Upsert on (organization_id, setting_key): a first write inserts, a re-set overwrites.

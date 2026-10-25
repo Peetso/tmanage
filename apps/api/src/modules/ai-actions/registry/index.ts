@@ -117,14 +117,6 @@ export const OPS: readonly AiActionOp[] = [
     scope: 'manage',
   },
   {
-    id: 'admin.maintenance.create',
-    method: 'POST',
-    path: '/v1/organizations/:orgSlug/admin/maintenance',
-    capability: 'org.manage',
-    risk: 'confirm',
-    scope: 'manage',
-  },
-  {
     id: 'admin.members.notes.list',
     method: 'GET',
     path: '/v1/organizations/:orgSlug/admin/members/:membershipId/notes/',
