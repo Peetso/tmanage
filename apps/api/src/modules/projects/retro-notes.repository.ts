@@ -117,13 +117,15 @@ export class ProjectRetroNotesRepository {
   }
 
   /**
-   * Remove a note by id, within the acting tenant. The predicate carries both `organization_id` and
-   * `id`, so a cross-tenant id deletes nothing — the delete is idempotent and the service has already
-   * resolved the note's project tenant-scoped for the relation gate.
+   * Remove a note by id, within the acting tenant and the authorised project. The predicate carries
+   * `organization_id`, `project_id` and `id`: the service authorises only the path project, so the
+   * `project_id` predicate is what binds the note to it (F29). A cross-tenant id, or a note of another
+   * project, deletes nothing — the delete stays idempotent.
    */
   async deleteById(
     runner: TenantQueryRunner,
     context: TenantContext,
+    projectId: string,
     noteId: string,
   ): Promise<void> {
     await tenantDrizzle(runner)
@@ -131,6 +133,7 @@ export class ProjectRetroNotesRepository {
       .where(
         and(
           eq(projectRetroNotes.organizationId, context.organizationId),
+          eq(projectRetroNotes.projectId, projectId),
           eq(projectRetroNotes.id, noteId),
         ),
       );

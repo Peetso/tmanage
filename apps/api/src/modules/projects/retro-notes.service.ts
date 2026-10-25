@@ -173,8 +173,9 @@ export class ProjectRetroNotesService {
 
   /**
    * Delete one retro note, idempotently (204). The project is resolved manage-visible first
-   * (Known-trap), then the delete predicate carries `(organization_id, id)`, so a note that does not
-   * exist — or belongs to another tenant — removes nothing and still returns 204.
+   * (Known-trap), then the delete predicate carries `(organization_id, project_id, id)`, so a note that
+   * does not exist, belongs to another tenant, or belongs to another project (F29) removes nothing and
+   * still returns 204.
    */
   async delete(
     context: TenantContext,
@@ -184,7 +185,9 @@ export class ProjectRetroNotesService {
   ): Promise<void> {
     await this.requireManageableProject(context, principal, projectId);
 
-    await this.database.transaction(context, (tx) => this.notes.deleteById(tx, context, noteId));
+    await this.database.transaction(context, (tx) =>
+      this.notes.deleteById(tx, context, projectId, noteId),
+    );
   }
 }
 

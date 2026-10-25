@@ -11,7 +11,7 @@ import {
 } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
-import { ApiError } from '../../common/http/errors.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { PROJECTS_SERVICE, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { requireOrgPermission } from '../tenancy/org-policy.js';
@@ -143,8 +143,13 @@ export class ProjectsController {
     if (principal) {
       await requireOrgPermission(this.database, context, principal, 'members_can_create_projects');
     }
+    // F47. The shared create enforces `project.create` and the switch itself; the guard chain always
+    // supplies the principal on this route.
+    if (!principal) {
+      throw new ApiError(401, 'unauthenticated', MESSAGES.unauthenticated);
+    }
 
-    return this.projects.create(context, {
+    return this.projects.create(context, principal, {
       workspaceId,
       name,
       ...(ownerUserId === undefined ? {} : { ownerUserId }),

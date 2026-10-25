@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import type { Principal } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import type { ProjectsRepository } from './projects.repository.js';
@@ -6,6 +7,17 @@ import type { ProjectMembershipsRepository } from './project-memberships.reposit
 import { ProjectsService } from './projects.service.js';
 
 const context = { organizationId: 'org-1', userId: 'u-creator' } as TenantContext;
+const owner: Principal = {
+  userId: 'u-creator',
+  organizationId: 'org-1',
+  kind: 'internal',
+  role: 'owner',
+  membershipId: 'm-1',
+  membershipStatus: 'active',
+  clientOrganizationId: null,
+  projectIds: [],
+  hasOrgWideScope: true,
+};
 const tx = { tx: true };
 const at = new Date('2026-10-18T00:00:00.000Z');
 
@@ -41,7 +53,7 @@ describe('PRJ-01 ProjectsService.create', () => {
       { add } as unknown as ProjectMembershipsRepository,
     );
 
-    await service.create(context, { workspaceId: 'ws-1', name: 'Atlas' });
+    await service.create(context, owner, { workspaceId: 'ws-1', name: 'Atlas' });
 
     expect(add).toHaveBeenCalledWith(tx, context, {
       projectId: 'p-1',

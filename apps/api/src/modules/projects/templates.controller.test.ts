@@ -8,7 +8,11 @@ import {
   type CreateProjectTemplateInput,
   type ProjectTemplatesRepository,
 } from './templates.repository.js';
-import type { ProjectView, ProjectsService } from './projects.service.js';
+import { ProjectsService } from './projects.service.js';
+import type { ProjectView } from './projects.service.js';
+import type { ProjectsRepository } from './projects.repository.js';
+import type { ProjectMembershipsRepository } from './project-memberships.repository.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ProjectTemplateRow } from '../../common/database/schema.js';
 
@@ -86,7 +90,12 @@ function build(seed: readonly ProjectTemplateRow[] = []): {
 
   const createdProjects: { workspaceId: string; name: string }[] = [];
   const projects = {
-    create: async (_c: TenantContext, input: { workspaceId: string; name: string }) => {
+    requireMayCreate: async () => undefined,
+    create: async (
+      _c: TenantContext,
+      _p: Principal,
+      input: { workspaceId: string; name: string },
+    ) => {
       createdProjects.push(input);
       return {
         id: `project-from-${input.name}`,
@@ -224,7 +233,8 @@ describe('A9 instantiate copies the template plan', () => {
     } as unknown as ProjectTemplatesRepository;
     const created: Record<string, unknown>[] = [];
     const projects = {
-      create: async (_c: TenantContext, input: Record<string, unknown>) => {
+      requireMayCreate: async () => undefined,
+      create: async (_c: TenantContext, _p: Principal, input: Record<string, unknown>) => {
         created.push(input);
         return { id: 'project-new', name: input['name'] } as unknown as ProjectView;
       },
@@ -336,5 +346,98 @@ describe('A9 instantiate copies the template plan', () => {
         startDate: '3 Nov',
       }),
     ).rejects.toEqual(expect.objectContaining({ status: 400 }));
+  });
+});
+
+describe('F47: instantiate answers to the creation policy (real ProjectsService)', () => {
+  const TEMPLATE = {
+    id: 'template-f47',
+    organizationId: ORG,
+    name: 'Bypass',
+    description: null,
+    defaultObjectivesJson: null,
+    createdBy: USER,
+    createdAt: new Date(Date.UTC(2026, 0, 1)),
+  } as ProjectTemplateRow;
+
+  function buildReal(switchValue: 'true' | 'false'): {
+    controller: ProjectTemplatesController;
+    projectRows: unknown[];
+  } {
+    const projectRows: unknown[] = [];
+    const database = {
+      read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
+      transaction: async (_c: unknown, work: (tx: unknown) => Promise<unknown>) => work({}),
+    } as unknown as TenantDatabase;
+    const repository = {
+      findById: async (_r: unknown, ctx: TenantContext, id: string) =>
+        id === TEMPLATE.id && ctx.organizationId === ORG ? TEMPLATE : null,
+    } as unknown as ProjectTemplatesRepository;
+    const projectsRepo = {
+      create: async (_r: unknown, _c: unknown, input: { workspaceId: string; name: string }) => {
+        const row = {
+          id: 'project-f47',
+          organizationId: ORG,
+          workspaceId: input.workspaceId,
+          name: input.name,
+          status: 'active',
+          ownerUserId: USER,
+          committedAt: null,
+          forecastAt: null,
+          createdAt: new Date(Date.UTC(2026, 0, 1)),
+          updatedAt: new Date(Date.UTC(2026, 0, 1)),
+          archivedAt: null,
+        };
+        projectRows.push(row);
+        return row;
+      },
+    } as unknown as ProjectsRepository;
+    const memberships = {
+      add: async (_r: unknown, _c: unknown, input: Record<string, string>) => ({
+        id: 'pm-f47',
+        ...input,
+      }),
+    } as unknown as ProjectMembershipsRepository;
+    const orgSettings = {
+      findByKey: async () => ({ settingValue: switchValue }),
+    } as unknown as OrgSettingsRepository;
+    const projects = new ProjectsService(
+      database,
+      projectsRepo,
+      undefined,
+      memberships,
+      orgSettings,
+    );
+    const service = new ProjectTemplatesService(database, repository, projects);
+    return { controller: new ProjectTemplatesController(service), projectRows };
+  }
+
+  it('switch off: a manager instantiating a template is refused and no project is created', async () => {
+    const { controller, projectRows } = buildReal('false');
+    await expect(
+      controller.instantiate(context, principal('manager'), TEMPLATE.id, {
+        workspaceId: WORKSPACE,
+      }),
+    ).rejects.toEqual(
+      expect.objectContaining({ status: 403, auditCode: 'org_policy:members_can_create_projects' }),
+    );
+    expect(projectRows).toHaveLength(0);
+  });
+
+  it('switch off: the owner still instantiates (201)', async () => {
+    const { controller, projectRows } = buildReal('false');
+    const project = await controller.instantiate(context, owner, TEMPLATE.id, {
+      workspaceId: WORKSPACE,
+    });
+    expect(project.name).toBe('Bypass');
+    expect(projectRows).toHaveLength(1);
+  });
+
+  it('switch on: a manager instantiates as before', async () => {
+    const { controller, projectRows } = buildReal('true');
+    await controller.instantiate(context, principal('manager'), TEMPLATE.id, {
+      workspaceId: WORKSPACE,
+    });
+    expect(projectRows).toHaveLength(1);
   });
 });

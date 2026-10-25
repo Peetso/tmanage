@@ -219,7 +219,8 @@ export class ProjectTemplatesService {
    *
    * The template is resolved tenant-scoped **before** the authorize check (Known-trap): an unknown or
    * cross-tenant `templateId` is a 404, never a foreign-key 500. Then `project.manage` is re-checked at
-   * the org level. Then a project is created through the **shared** {@link ProjectsService.create} path
+   * the org level, and the creation policy (`project.create` + "Members can create projects", F47).
+   * Then a project is created through the **shared** {@link ProjectsService.create} path
    * — seeded with the template's name (or a caller override) — so no create logic is duplicated or
    * bypassed.
    */
@@ -244,6 +245,11 @@ export class ProjectTemplatesService {
       throw new ApiError(500, 'internal_error', MESSAGES.internal);
     }
 
+    // F47. Instantiating creates a project, so it answers to the creation policy (`project.create`
+    // and "Members can create projects"), refused before any other read. The shared create runs it
+    // again.
+    await this.projects.requireMayCreate(context, principal);
+
     // A9: the client and the lead are checked before anything is written, so a bad id is a 400
     // and no half-made project is left behind.
     if (input.clientOrganizationId !== undefined) {
@@ -252,7 +258,7 @@ export class ProjectTemplatesService {
     if (input.leadUserId !== undefined) await this.requireMember(context, input.leadUserId);
 
     const name = input.name ?? template.name;
-    const project = await this.projects.create(context, {
+    const project = await this.projects.create(context, principal, {
       workspaceId: input.workspaceId,
       name,
       ...(input.leadUserId === undefined ? {} : { ownerUserId: input.leadUserId }),

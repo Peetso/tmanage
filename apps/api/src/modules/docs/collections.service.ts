@@ -132,9 +132,43 @@ export class DocCollectionsService {
   }
 
   /**
-   * Add a document to a collection, idempotently. The collection **and** the document are resolved
-   * tenant-scoped (both 404 if missing or cross-tenant — the refusal proof) before the authorize
-   * (`work.create`, 403) and before the write. A repeated add returns the same view, never a second row.
+   * F55. Resolve a document tenant-scoped and require that the principal may read it (`work.read`)
+   * and, for a membership write, write in its project (`work.create`), both on the document's own
+   * project. A missing, cross-tenant or unreadable document is the same 404 `document_not_visible`
+   * the documents route gives, so nothing about it — not even its existence — is disclosed.
+   */
+  private async requireVisibleDocument(
+    context: TenantContext,
+    principal: Principal,
+    documentId: string,
+  ): Promise<{ readonly id: string; readonly title: string; readonly projectId: string }> {
+    const document = await this.database.read(context, (runner) =>
+      this.documentsRepo.findById(runner, context, documentId),
+    );
+    const resource = document
+      ? {
+          organizationId: context.organizationId,
+          projectId: document.projectId,
+          audience: 'internal' as const,
+          lifecycle: 'active' as const,
+        }
+      : null;
+    const permitted =
+      resource !== null &&
+      authorize({ principal, capability: 'work.read', resource }).allowed &&
+      authorize({ principal, capability: 'work.create', resource }).allowed;
+    if (!document || !permitted) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'document_not_visible');
+    }
+    return document;
+  }
+
+  /**
+   * Add a document to a collection, idempotently. The collection is resolved tenant-scoped (404) and
+   * the org-level write authorised (`work.create`, 403); then the document is resolved and
+   * authorised on its own project (F55: a missing or unreadable document is the same 404) before the
+   * write and before any of its fields are echoed. A repeated add returns the same view, never a
+   * second row.
    */
   async addDocument(
     context: TenantContext,
@@ -143,15 +177,8 @@ export class DocCollectionsService {
     documentId: string,
   ): Promise<CollectionDocumentView> {
     await this.requireCollection(context, collectionId);
-
-    const document = await this.database.read(context, (runner) =>
-      this.documentsRepo.findById(runner, context, documentId),
-    );
-    if (!document) {
-      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'document_not_visible');
-    }
-
     this.requireAuthorized(principal, context, 'work.create', 'collection_write_denied');
+    const document = await this.requireVisibleDocument(context, principal, documentId);
 
     const row = await this.database.transaction(context, (tx) =>
       this.collections.addMember(tx, context, collectionId, documentId),
@@ -167,7 +194,9 @@ export class DocCollectionsService {
 
   /**
    * Remove a document from a collection, idempotently. The collection is resolved tenant-scoped (404)
-   * before the authorize (`work.create`, 403) and before the delete.
+   * before the authorize (`work.create`, 403); the document is then resolved and authorised on its
+   * own project (F55, 404 `document_not_visible`) before the delete, so a caller cannot detach — or
+   * probe — a document they cannot see.
    */
   async removeDocument(
     context: TenantContext,
@@ -177,6 +206,7 @@ export class DocCollectionsService {
   ): Promise<void> {
     await this.requireCollection(context, collectionId);
     this.requireAuthorized(principal, context, 'work.create', 'collection_write_denied');
+    await this.requireVisibleDocument(context, principal, documentId);
     await this.database.transaction(context, (tx) =>
       this.collections.removeMember(tx, context, collectionId, documentId),
     );

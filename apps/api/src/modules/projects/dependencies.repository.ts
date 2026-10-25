@@ -35,6 +35,11 @@ export interface ProjectDependencyWithProject {
   /** The name of the project on the far end of the edge (the blocked one for a blocker list). */
   readonly projectName: string;
   readonly projectStatus: string;
+  /**
+   * F49. When the far-end project was archived, so the service can authorise `work.read` on it with
+   * the right lifecycle before disclosing its name or status. Absent on a freshly written edge.
+   */
+  readonly projectArchivedAt?: Date | null;
 }
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -63,6 +68,7 @@ export class ProjectDependenciesRepository {
         edge: projectDependencies,
         name: projects.name,
         status: projects.status,
+        archivedAt: projects.archivedAt,
       })
       .from(projectDependencies)
       .innerJoin(
@@ -85,6 +91,7 @@ export class ProjectDependenciesRepository {
       edge: row.edge,
       projectName: row.name,
       projectStatus: row.status,
+      projectArchivedAt: row.archivedAt ?? null,
     }));
   }
 
@@ -104,6 +111,7 @@ export class ProjectDependenciesRepository {
         edge: projectDependencies,
         name: projects.name,
         status: projects.status,
+        archivedAt: projects.archivedAt,
       })
       .from(projectDependencies)
       .innerJoin(
@@ -126,6 +134,7 @@ export class ProjectDependenciesRepository {
       edge: row.edge,
       projectName: row.name,
       projectStatus: row.status,
+      projectArchivedAt: row.archivedAt ?? null,
     }));
   }
 

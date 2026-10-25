@@ -151,6 +151,8 @@ function build(options: {
             workItemState: item?.state ?? '',
             workItemOwnerName: item?.ownerUserId ? 'Lina Samir' : null,
             workItemDueAt: item?.dueAt ?? null,
+            workItemProjectId: item?.projectId ?? '',
+            workItemDeletedAt: item?.deletedAt ?? null,
           };
         }),
     findById: async (_runner: unknown, ctx: TenantContext, linkId: string) =>
@@ -308,6 +310,38 @@ describe('the relation gate (real authorize)', () => {
       controller.link(context, managerElsewhere, DECISION, { workItemId: WORK_ITEM }),
     ).rejects.toEqual(expect.objectContaining({ status: 404 }));
     expect(store).toHaveLength(0);
+  });
+});
+
+describe('F31: the list discloses only items still in the decision project', () => {
+  const linkTo = (workItemId: string, n: number): DecisionWorkLinkRow =>
+    ({
+      id: `link-0000-0000-0000-0000000000b${n}`,
+      organizationId: ORG,
+      decisionId: DECISION,
+      workItemId,
+      createdBy: USER,
+      createdAt: new Date(Date.UTC(2026, 0, n)),
+    }) as DecisionWorkLinkRow;
+
+  it('a moved or soft-deleted linked item is omitted for a source-project-only member', async () => {
+    const MOVED = 'work-0000-0000-0000-0000-000000000002';
+    const DELETED = 'work-0000-0000-0000-0000-000000000003';
+    const memberOfSourceOnly = principal('member', [PROJECT]);
+    // The fake repository ignores the project predicate (the pre-fix SQL), so this proves the
+    // service's own re-check; the SQL predicate is the first layer.
+    const { controller } = build({
+      workItemsSeed: [
+        workItemRow(WORK_ITEM),
+        { ...workItemRow(MOVED, ORG, OTHER_PROJECT), title: 'Secret in Q' } as WorkItemRow,
+        workItemRow(DELETED, ORG, PROJECT, new Date()),
+      ],
+      linksSeed: [linkTo(WORK_ITEM, 1), linkTo(MOVED, 2), linkTo(DELETED, 3)],
+    });
+
+    const listed = await controller.list(context, memberOfSourceOnly, DECISION);
+    expect(listed.workLinks.map((l) => l.workItemId)).toEqual([WORK_ITEM]);
+    expect(JSON.stringify(listed)).not.toContain('Secret in Q');
   });
 });
 

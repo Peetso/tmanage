@@ -7,6 +7,8 @@ import { ProjectMembershipsRepository } from './project-memberships.repository.j
 import type { CreateProjectInput, ListProjectsOptions } from './projects.repository.js';
 import type { ProjectRow } from '../../common/database/schema.js';
 import type { AuditService } from '../audit/audit.service.js';
+import { requireOrgPermission } from '../tenancy/org-policy.js';
+import type { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 
 /**
  * The application service between the controller and the repository — spec §3 steps 5 to 7.
@@ -88,7 +90,39 @@ export class ProjectsService {
      */
     private readonly audit?: AuditService,
     private readonly memberships: ProjectMembershipsRepository = new ProjectMembershipsRepository(),
+    /** F47. Injected only by a unit test; the default reads the org settings table. */
+    private readonly orgSettings?: OrgSettingsRepository,
   ) {}
+
+  /**
+   * F47. The creation policy, in the one place every create path passes through: the principal must
+   * hold `project.create` in this organization (a custom role with `project.manage` alone may not
+   * originate projects), and when the owner has turned "Members can create projects" off only the
+   * admins may. Public so a caller that writes more than the project (a template's plan) can refuse
+   * before its own reads; {@link create} always runs it again.
+   */
+  async requireMayCreate(context: TenantContext, principal: Principal): Promise<void> {
+    const permitted = authorize({
+      principal,
+      capability: 'project.create',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    }).allowed;
+    if (!permitted) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'denied_project.create');
+    }
+    await requireOrgPermission(
+      this.database,
+      context,
+      principal,
+      'members_can_create_projects',
+      this.orgSettings,
+    );
+  }
 
   /**
    * List the projects this principal may read.
@@ -181,8 +215,17 @@ export class ProjectsService {
    * project they had just made: `Principal.projectIds` comes from `project_memberships`, and an
    * empty relation is "not found". Only roles at or above manager hold `project.create`, so the
    * grant never exceeds the creator's own ceiling.
+   *
+   * F47. The principal is required: `project.create` and the "Members can create projects" switch
+   * are enforced here, so no entry point (POST /projects, a template instantiate) can skip them.
    */
-  async create(context: TenantContext, input: CreateProjectInput): Promise<ProjectView> {
+  async create(
+    context: TenantContext,
+    principal: Principal,
+    input: CreateProjectInput,
+  ): Promise<ProjectView> {
+    await this.requireMayCreate(context, principal);
+
     const withOwner: CreateProjectInput = {
       ...input,
       ownerUserId: input.ownerUserId ?? context.userId,

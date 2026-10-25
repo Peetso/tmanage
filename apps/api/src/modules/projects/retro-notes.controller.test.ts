@@ -83,9 +83,12 @@ function build(
       store.push(row);
       return row;
     },
-    deleteById: async (_r: unknown, ctx: TenantContext, noteId: string) => {
+    deleteById: async (_r: unknown, ctx: TenantContext, projectId: string, noteId: string) => {
       const index = store.findIndex(
-        (row) => row.id === noteId && row.organizationId === ctx.organizationId,
+        (row) =>
+          row.id === noteId &&
+          row.organizationId === ctx.organizationId &&
+          row.projectId === projectId,
       );
       if (index >= 0) store.splice(index, 1);
     },
@@ -195,6 +198,28 @@ describe('the relation gate (real authorize)', () => {
       }),
     ).rejects.toEqual(expect.objectContaining({ status: 404 }));
     expect(store).toHaveLength(0);
+  });
+});
+
+describe('F29: delete is bound to the authorised project', () => {
+  it("a manager of project A cannot delete project B's note through A's path", async () => {
+    const OTHER_PROJECT = 'project-0000-0000-0000-0000-000000000002';
+    const { controller, store } = build([PROJECT, OTHER_PROJECT]);
+    const foreign = await controller.create(context, owner, OTHER_PROJECT, {
+      category: 'went_well',
+      body: 'Project B only.',
+    });
+    const managerOfA: Principal = { ...principal('manager'), projectIds: [PROJECT] };
+
+    await expect(
+      controller.remove(context, managerOfA, PROJECT, foreign.id),
+    ).resolves.toBeUndefined();
+    expect(store.map((row) => row.id)).toEqual([foreign.id]);
+    // The same manager has no route to B at all.
+    await expect(controller.remove(context, managerOfA, OTHER_PROJECT, foreign.id)).rejects.toEqual(
+      expect.objectContaining({ status: 404 }),
+    );
+    expect(store).toHaveLength(1);
   });
 });
 

@@ -1,4 +1,4 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { decisionWorkLinks, memberships, users, workItems } from '../../common/database/schema.js';
@@ -57,6 +57,10 @@ export interface DecisionWorkLinkWithItem {
   readonly workItemOwnerName: string | null;
   /** A15. The work item's due instant; `null` when it has none. */
   readonly workItemDueAt: Date | null;
+  /** F31. The work item's current project, so the service can re-check it against the decision's. */
+  readonly workItemProjectId: string;
+  /** F31. The work item's soft-delete instant; a deleted item is never listed. */
+  readonly workItemDeletedAt: Date | null;
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -73,11 +77,16 @@ export class DecisionWorkLinksRepository {
    * present, and the join is on the composite `(organization_id, work_item_id)` so it never crosses a
    * tenant. The order is `created_at ASC, id ASC` — oldest link first, with the UUIDv7 id as the
    * deterministic tiebreaker.
+   *
+   * F31. The same-project rule is checked only when a link is written, and a work item can later move
+   * to another project or be soft-deleted. So the read carries it too: only items still in the
+   * decision's `projectId` and not soft-deleted are joined, and nothing of a moved item is disclosed.
    */
   async listByDecision(
     runner: TenantQueryRunner,
     context: TenantContext,
     decisionId: string,
+    projectId: string,
     limit?: number,
   ): Promise<readonly DecisionWorkLinkWithItem[]> {
     const db = tenantDrizzle(runner);
@@ -87,6 +96,8 @@ export class DecisionWorkLinksRepository {
         title: workItems.title,
         state: workItems.state,
         dueAt: workItems.dueAt,
+        itemProjectId: workItems.projectId,
+        itemDeletedAt: workItems.deletedAt,
         ownerName: users.displayName,
       })
       .from(decisionWorkLinks)
@@ -110,6 +121,8 @@ export class DecisionWorkLinksRepository {
         and(
           eq(decisionWorkLinks.organizationId, context.organizationId),
           eq(decisionWorkLinks.decisionId, decisionId),
+          eq(workItems.projectId, projectId),
+          isNull(workItems.deletedAt),
         ),
       )
       .orderBy(asc(decisionWorkLinks.createdAt), asc(decisionWorkLinks.id))
@@ -121,6 +134,8 @@ export class DecisionWorkLinksRepository {
       workItemState: row.state,
       workItemOwnerName: row.ownerName ?? null,
       workItemDueAt: row.dueAt ?? null,
+      workItemProjectId: row.itemProjectId,
+      workItemDeletedAt: row.itemDeletedAt ?? null,
     }));
   }
 

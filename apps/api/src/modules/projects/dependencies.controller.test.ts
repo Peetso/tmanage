@@ -223,3 +223,42 @@ describe('the route ceilings the CapabilityGuard enforces', () => {
     expect(cap(ProjectDependenciesController.prototype.list)).toBe('project.manage');
   });
 });
+
+describe('F49: the far-end project must be readable', () => {
+  const managerOfP1Only = principal('manager', [P1]);
+
+  it('create onto a project the manager cannot read is a 404, writes nothing, echoes nothing', async () => {
+    const { controller, store } = build({});
+    const attempt = controller.create(context, managerOfP1Only, P1, { blockedProjectId: P2 });
+    await expect(attempt).rejects.toEqual(expect.objectContaining({ status: 404 }));
+    await attempt.catch((error: unknown) =>
+      expect(JSON.stringify(error)).not.toContain(`Project ${P2}`),
+    );
+    expect(store).toHaveLength(0);
+  });
+
+  it('list omits edges whose other project the manager cannot read', async () => {
+    const edge = (id: string, blocker: string, blocked: string): ProjectDependencyRow =>
+      ({
+        id,
+        organizationId: ORG,
+        blockerProjectId: blocker,
+        blockedProjectId: blocked,
+        note: null,
+        createdBy: USER,
+        createdAt: new Date(Date.UTC(2026, 0, 1)),
+      }) as ProjectDependencyRow;
+    const { controller } = build({
+      seed: [edge('dep-b1', P1, P2), edge('dep-b2', P2, P1)],
+    });
+
+    const graph = await controller.list(context, managerOfP1Only, P1);
+    expect(graph.blocking).toHaveLength(0);
+    expect(graph.blockedBy).toHaveLength(0);
+    expect(JSON.stringify(graph)).not.toContain(`Project ${P2}`);
+
+    const asOwner = await controller.list(context, owner, P1);
+    expect(asOwner.blocking.map((d) => d.projectName)).toEqual([`Project ${P2}`]);
+    expect(asOwner.blockedBy).toHaveLength(1);
+  });
+});

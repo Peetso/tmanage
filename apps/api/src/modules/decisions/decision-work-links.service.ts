@@ -117,18 +117,29 @@ export class DecisionWorkLinksService {
    * The decision is resolved read-visible first (Known-trap): an unknown or cross-tenant `decisionId`
    * and a non-member's probe both earn the same not-found. The tenant filter, the join and the
    * deterministic order are the repository's.
+   *
+   * F31. Only work items still in the decision's project and not soft-deleted are listed: an item
+   * moved to a project the reader may not see must not keep showing its title, state, owner or due
+   * date here. The repository filters in SQL; the service re-checks the joined row as a second layer.
    */
   async list(
     context: TenantContext,
     principal: Principal,
     options: { readonly decisionId: string; readonly limit?: number },
   ): Promise<readonly DecisionWorkLinkView[]> {
-    await this.requireVisibleDecision(context, principal, options.decisionId, 'work.read');
+    const { projectId } = await this.requireVisibleDecision(
+      context,
+      principal,
+      options.decisionId,
+      'work.read',
+    );
 
     const rows = await this.database.read(context, (runner) =>
-      this.links.listByDecision(runner, context, options.decisionId, options.limit),
+      this.links.listByDecision(runner, context, options.decisionId, projectId, options.limit),
     );
-    return rows.map(toView);
+    return rows
+      .filter((row) => row.workItemProjectId === projectId && row.workItemDeletedAt === null)
+      .map(toView);
   }
 
   /**
@@ -181,6 +192,8 @@ export class DecisionWorkLinksService {
         workItemState: workItem.state,
         workItemOwnerName: ownerName,
         workItemDueAt: workItem.dueAt ?? null,
+        workItemProjectId: workItem.projectId,
+        workItemDeletedAt: workItem.deletedAt,
       });
     } catch (error) {
       if (error instanceof DuplicateDecisionWorkLinkError) {

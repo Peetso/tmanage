@@ -77,9 +77,19 @@ export class ProjectDependenciesService {
       ),
     ]);
 
+    // F49. An edge discloses the far-end project's name and status, so it is listed only when the
+    // principal may read that project; an edge to a project they cannot see is omitted entirely.
     return {
-      blocking: blocking.map((row) => this.toView(row)),
-      blockedBy: blockedBy.map((row) => this.toView(row)),
+      blocking: blocking
+        .filter((row) =>
+          mayReadProject(context, principal, row.edge.blockedProjectId, row.projectArchivedAt),
+        )
+        .map((row) => this.toView(row)),
+      blockedBy: blockedBy
+        .filter((row) =>
+          mayReadProject(context, principal, row.edge.blockerProjectId, row.projectArchivedAt),
+        )
+        .map((row) => this.toView(row)),
     };
   }
 
@@ -87,7 +97,8 @@ export class ProjectDependenciesService {
    * Record that the path project blocks another (the other project depends on it).
    *
    * BOTH ids are resolved tenant-scoped BEFORE the write (Known-trap): the path project is resolved
-   * manage-visible; the blocked project is resolved inside the tenant, else the same not-found. Then
+   * manage-visible; the blocked project is resolved inside the tenant and must pass `work.read` for
+   * the principal (F49), else the same not-found. Then
    * the invariants — a self-dependency (400) — and finally the write, which is a 409 on a duplicate
    * pair.
    */
@@ -119,7 +130,9 @@ export class ProjectDependenciesService {
       this.projects.findById(runner, context, input.blockedProjectId),
     );
     // A project in another tenant is already null; an unknown id is a 404, never a foreign-key 500.
-    if (!blocked) {
+    // F49. A project the principal may not read earns the same 404: no edge is written onto it and
+    // neither its name nor its status is echoed, and the answer is no existence oracle.
+    if (!blocked || !mayReadProject(context, principal, blocked.id, blocked.archivedAt)) {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
     }
 
@@ -216,6 +229,28 @@ export class ProjectDependenciesService {
       createdAt: row.edge.createdAt.toISOString(),
     };
   }
+}
+
+/**
+ * F49. Whether the principal may read a far-end project (`work.read`, relation-gated), the same rule
+ * `ProjectsService.list` applies. Used before any of that project's fields leave the service.
+ */
+function mayReadProject(
+  context: TenantContext,
+  principal: Principal,
+  projectId: string,
+  archivedAt: Date | null | undefined,
+): boolean {
+  return authorize({
+    principal,
+    capability: 'work.read',
+    resource: {
+      organizationId: context.organizationId,
+      projectId,
+      audience: 'internal',
+      lifecycle: archivedAt ? 'archived' : 'active',
+    },
+  }).allowed;
 }
 
 /**

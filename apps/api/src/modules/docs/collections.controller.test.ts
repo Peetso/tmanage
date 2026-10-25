@@ -191,4 +191,33 @@ describe('DocCollections', () => {
     expect((error as ApiError).status).toBe(403);
     expect(store).toHaveLength(before);
   });
+
+  it('F55: a member outside the document project gets 404 and no row; title never echoed', async () => {
+    const { ctl, store } = controllerWith();
+    const before = store.length;
+    const outsider: Principal = { ...owner(), role: 'member', hasOrgWideScope: false };
+    const error = await ctl
+      .addDocument(context, outsider, COLLECTION, DOC)
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(ApiError);
+    expect((error as ApiError).status).toBe(404);
+    expect((error as ApiError).auditCode).toBe('document_not_visible');
+    expect(JSON.stringify(error)).not.toContain('Onboarding');
+    expect(store).toHaveLength(before);
+
+    // Nor may they detach it once someone who can see it has added it.
+    await ctl.addDocument(context, owner(), COLLECTION, DOC);
+    const removal = await ctl
+      .removeDocument(context, outsider, COLLECTION, DOC)
+      .catch((e: unknown) => e);
+    expect((removal as ApiError).status).toBe(404);
+    expect(store).toHaveLength(before + 1);
+
+    // A member of the project may add it.
+    const insider: Principal = { ...outsider, projectIds: [PROJECT] };
+    await ctl.removeDocument(context, owner(), COLLECTION, DOC);
+    await expect(ctl.addDocument(context, insider, COLLECTION, DOC)).resolves.toEqual(
+      expect.objectContaining({ documentId: DOC }),
+    );
+  });
 });
