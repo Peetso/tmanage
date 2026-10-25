@@ -38,6 +38,8 @@ export const decisionsDetails: readonly AiActionDetail[] = [
       rationale: f.text(20_000).optional(),
       sourceMessageId: f.id().optional(),
       audience: f.shortText(40).optional(),
+      // F3: who took it (an active member); the caller when absent.
+      decidedBy: f.id().optional(),
     }),
     redact: 'standard',
     notifies: true,

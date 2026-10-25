@@ -1,0 +1,120 @@
+/*
+ * F3 — Record as decision (Figma 390:5808). The dialog is the Edit work item dialog's frame,
+ * fields and chips (work-core.css); this file adds only what F3 draws differently: the Decision
+ * field wraps its text, the phone sheet sits on the bottom edge, the direct message's actions,
+ * and the "Decision recorded" toast.
+ */
+
+.tm-recdec__statement {
+  min-block-size: 48px;
+  overflow-wrap: anywhere;
+}
+
+/* Phone (390:6268 / 390:22155): the same form as a bottom sheet with a rounded top. */
+@media (max-width: 719px) {
+  .tm-wk-dialog__scrim:has(.tm-recdec) {
+    place-items: end stretch;
+    padding: 0;
+  }
+
+  .tm-wk-dialog:has(> .tm-recdec) {
+    max-block-size: calc(100dvh - var(--s10));
+    padding: var(--s6) var(--s5);
+    border-end-start-radius: 0;
+    border-end-end-radius: 0;
+  }
+}
+
+/*
+ * F3 (390:5809) — a direct message's actions: "⋯" on hover or focus, the Dropdown items, and the
+ * chosen message outlined while its menu is open.
+ */
+.tm-dm__message {
+  position: relative;
+}
+
+.tm-dm__message[data-selected='true'] {
+  margin-inline: -12px;
+  padding: 6px 12px;
+  border: var(--b-quiet) solid var(--ink-950);
+  border-radius: var(--r-control);
+}
+
+.tm-dm__actions {
+  position: absolute;
+  inset-block-start: -14px;
+  inset-inline-end: 0;
+  z-index: 2;
+  display: flex;
+  padding: 2px;
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.tm-dm__message:hover > .tm-dm__actions,
+.tm-dm__message:focus-within > .tm-dm__actions,
+.tm-dm__message[data-selected='true'] > .tm-dm__actions {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.tm-dm__actions .tm-chat-more {
+  min-inline-size: 280px;
+}
+
+@media (hover: none) {
+  .tm-dm__actions {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* The saved toast (378:18159 / 378:18166). */
+.tm-recdec-toast {
+  position: fixed;
+  inset-block-end: 32px;
+  inset-inline-end: 344px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: 12px 18px 12px 16px;
+  border: var(--b-quiet) solid var(--success-600);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+  color: var(--ink-950);
+}
+
+.tm-recdec-toast__dot {
+  flex: none;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: var(--r-capsule);
+  background: var(--success-600);
+}
+
+.tm-recdec-toast__text {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-recdec-toast__title {
+  font-size: var(--t-ui-sm);
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-recdec-toast__body {
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  color: var(--ink-650);
+}
+
+@media (max-width: 1023px) {
+  .tm-recdec-toast {
+    inset-inline: var(--s4);
+    inset-block-end: var(--s6);
+  }
+}

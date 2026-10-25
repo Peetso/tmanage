@@ -68,6 +68,13 @@ export interface CreateDecisionInput {
   readonly status?: DecisionStatus;
   /** An ISO-8601 instant. Optional; the API defaults it to now. */
   readonly decidedAt?: string;
+  /** A15. "Why we decided this". */
+  readonly rationale?: string;
+  /** A15 / F3. The chat message — a project channel message or a direct message — it came from. */
+  readonly sourceMessageId?: string;
+  readonly audience?: DecisionAudience;
+  /** F3. Who took it; the signed-in person when absent. */
+  readonly decidedBy?: string;
 }
 
 export async function createDecision(
@@ -99,6 +106,8 @@ export interface DecisionDetail extends DecisionSummary {
   readonly decidedByName: string | null;
   /** A15. The Source card: the chat message the decision came from. */
   readonly source: {
+    /** F3. `channel` — a project channel message; `direct` — a direct message. */
+    readonly kind: 'channel' | 'direct';
     readonly messageId: string;
     readonly conversationId: string;
     readonly channelName: string;

@@ -170,6 +170,40 @@ describe('DecisionDetailScreen', () => {
     });
   });
 
+  it('F3: a direct-message source says so and opens the direct message', async () => {
+    const direct = {
+      ...DECISION,
+      source: { ...DECISION.source, kind: 'direct', conversationId: 'dm-lina', channelName: '' },
+    };
+    const query = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={query}>
+        <DecisionDetailScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          decisionId="dec-14"
+          client={clientOver(
+            (call) => (call.url.endsWith('/decisions/dec-14') ? json(direct) : handler(call)),
+            [],
+          )}
+        />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText(/Direct message · Salma Riad/)).toBeVisible();
+    expect(screen.getByRole('link', { name: /Open the message/ })).toHaveAttribute(
+      'href',
+      '/acme/chat/dm/dm-lina#message-msg-1',
+    );
+  });
+
+  it('F3: arriving from Record as decision shows the Decision recorded toast once', async () => {
+    window.history.replaceState(null, '', '/acme/decisions/dec-14?recorded=1');
+    render(page([]));
+    expect(await screen.findByText('Decision recorded')).toBeVisible();
+    expect(screen.getByText('Saved from Salma Riad’s message.')).toBeVisible();
+    expect(window.location.search).toBe('');
+  });
+
   it('prints the register number as DEC-014', () => {
     expect(decisionCode(14)).toBe('DEC-014');
     expect(decisionCode(1203)).toBe('DEC-1203');

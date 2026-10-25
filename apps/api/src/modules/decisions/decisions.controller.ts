@@ -27,8 +27,13 @@ interface CreateDecisionBody {
   readonly decidedAt?: unknown;
   /** A15. Optional "Why we decided this". */
   readonly rationale?: unknown;
-  /** A15. Optional chat message the decision came from (a message of this project's channels). */
+  /**
+   * A15. Optional chat message the decision came from: a message of this project's channels, or
+   * (F3) a direct message the caller takes part in.
+   */
   readonly sourceMessageId?: unknown;
+  /** F3. Optional user id of who took the decision; the caller when absent. */
+  readonly decidedBy?: unknown;
   /** A15. `internal` (default) or `client_visible`. */
   readonly audience?: unknown;
 }
@@ -154,6 +159,12 @@ export class DecisionsController {
       details.push({ field: 'sourceMessageId', message: 'must be a non-empty string' });
     }
 
+    const decidedBy =
+      typeof body?.decidedBy === 'string' && body.decidedBy !== '' ? body.decidedBy : undefined;
+    if (body?.decidedBy !== undefined && body.decidedBy !== null && !decidedBy) {
+      details.push({ field: 'decidedBy', message: 'must be a non-empty string' });
+    }
+
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
     }
@@ -173,6 +184,7 @@ export class DecisionsController {
       decidedAt,
       ...extra,
       ...(sourceMessageId === undefined ? {} : { sourceMessageId }),
+      ...(decidedBy === undefined ? {} : { decidedBy }),
     });
   }
 

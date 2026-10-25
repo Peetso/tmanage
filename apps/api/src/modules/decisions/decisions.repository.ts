@@ -4,6 +4,8 @@ import { tenantDrizzle } from '../../common/database/drizzle.js';
 import {
   conversations,
   decisions,
+  directConversations,
+  directMessages,
   memberships,
   messages,
   users,
@@ -37,8 +39,12 @@ export type DecisionAudience = (typeof DECISION_AUDIENCES)[number];
 
 /** A15. The chat message a decision came from, as the detail page's Source card draws it. */
 export interface DecisionSourceMessage {
+  /** F3. `channel` — a project channel message; `direct` — a direct message (COL-10). */
+  readonly kind: 'channel' | 'direct';
   readonly messageId: string;
+  /** The channel's id, or the direct conversation's id for a direct message. */
   readonly conversationId: string;
+  /** The channel's name; empty for a direct message, which has none. */
   readonly channelName: string;
   readonly authorName: string;
   readonly body: string;
@@ -317,6 +323,7 @@ export class DecisionsRepository {
     const row = rows[0];
     if (!row || row.deletedAt !== null) return null;
     return {
+      kind: 'channel',
       messageId: row.messageId,
       conversationId: row.conversationId,
       channelName: row.channelName,
@@ -324,5 +331,84 @@ export class DecisionsRepository {
       body: row.body,
       createdAt: row.createdAt,
     };
+  }
+
+  /**
+   * F3 (COL-10). A direct message of this tenant, with its conversation's two participants and its
+   * author — the Source card of a decision recorded from a direct message. The create-time check
+   * that the recorder is one of the two participants is the service's; this read only resolves the
+   * message inside the tenant.
+   */
+  async findSourceDirectMessage(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    messageId: string,
+  ): Promise<
+    | (DecisionSourceMessage & {
+        readonly participantIds: readonly [string, string];
+      })
+    | null
+  > {
+    const rows = await tenantDrizzle(runner)
+      .select({
+        messageId: directMessages.id,
+        conversationId: directMessages.directConversationId,
+        authorName: users.displayName,
+        body: directMessages.body,
+        createdAt: directMessages.createdAt,
+        userLowId: directConversations.userLowId,
+        userHighId: directConversations.userHighId,
+      })
+      .from(directMessages)
+      .innerJoin(
+        directConversations,
+        and(
+          eq(directConversations.organizationId, directMessages.organizationId),
+          eq(directConversations.id, directMessages.directConversationId),
+        ),
+      )
+      .innerJoin(users, eq(users.id, directMessages.authorUserId))
+      .where(
+        and(
+          eq(directMessages.organizationId, context.organizationId),
+          eq(directMessages.id, messageId),
+        ),
+      )
+      .limit(1);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      kind: 'direct',
+      messageId: row.messageId,
+      conversationId: row.conversationId,
+      channelName: '',
+      authorName: row.authorName,
+      body: row.body,
+      createdAt: row.createdAt,
+      participantIds: [row.userLowId, row.userHighId],
+    };
+  }
+
+  /**
+   * F3. Whether a user is an **active** member of this tenant — the "Decided by" a recorder may
+   * name. A suspended or removed member, or a user of another tenant, is not.
+   */
+  async isActiveMember(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(runner)
+      .select({ userId: memberships.userId })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.organizationId, context.organizationId),
+          eq(memberships.userId, userId),
+          eq(memberships.status, 'active'),
+        ),
+      )
+      .limit(1);
+    return rows.length > 0;
   }
 }

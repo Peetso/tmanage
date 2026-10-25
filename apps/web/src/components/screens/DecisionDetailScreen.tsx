@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InlineAlert, LoadingRegion, Skeleton } from '@tmanage/ui';
@@ -30,6 +30,7 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { RecordedDecisionToast, takeRecordedFlag } from '../decisions/RecordDecisionDialog';
 
 export interface DecisionDetailScreenProps {
   organizationSlug: string;
@@ -78,6 +79,11 @@ export function DecisionDetailScreen({
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
+  // F3. Arriving from "Record as decision" (`?recorded=1`): the "Decision recorded" toast.
+  const [recorded, setRecorded] = useState(false);
+  useEffect(() => {
+    if (takeRecordedFlag()) setRecorded(true);
+  }, []);
 
   const decision = useQuery({
     queryKey: ['decision', organizationSlug, decisionId],
@@ -236,8 +242,12 @@ export function DecisionDetailScreen({
                       </span>
                       <span>
                         {isArabic(locale) ? '\u200F' : ''}
-                        <bdi dir="ltr">#{data.source.channelName}</bdi> · {data.source.authorName} ·{' '}
-                        {formatDocMoment(data.source.at, locale)}
+                        {data.source.kind === 'direct' ? (
+                          tOr('DecisionDetailScreen.directMessage', 'Direct message')
+                        ) : (
+                          <bdi dir="ltr">#{data.source.channelName}</bdi>
+                        )}{' '}
+                        · {data.source.authorName} · {formatDocMoment(data.source.at, locale)}
                       </span>
                     </div>
                     <blockquote className="tm-decpage__quote">
@@ -245,7 +255,11 @@ export function DecisionDetailScreen({
                     </blockquote>
                     <Link
                       className="tm-decpage__open"
-                      href={`/${organizationSlug}/chat/${data.source.conversationId}#message-${data.source.messageId}`}
+                      href={
+                        data.source.kind === 'direct'
+                          ? `/${organizationSlug}/chat/dm/${data.source.conversationId}#message-${data.source.messageId}`
+                          : `/${organizationSlug}/chat/${data.source.conversationId}#message-${data.source.messageId}`
+                      }
                     >
                       {tOr('DecisionDetailScreen.openMessage', 'Open the message')}{' '}
                       <span aria-hidden="true">↗</span>
@@ -332,6 +346,12 @@ export function DecisionDetailScreen({
               </dl>
             </aside>
           </div>
+        ) : null}
+        {recorded && data ? (
+          <RecordedDecisionToast
+            authorName={data.source?.authorName}
+            onDone={() => setRecorded(false)}
+          />
         ) : null}
       </div>
     </AppShell>

@@ -67,6 +67,8 @@ export interface DecisionView {
 
 /** A15. The Source card of the detail page. Inline and unexported, a member of the detail. */
 interface DecisionSourceView {
+  /** F3. `channel` — a project channel message; `direct` — a direct message. */
+  readonly kind: 'channel' | 'direct';
   readonly messageId: string;
   readonly conversationId: string;
   readonly channelName: string;
@@ -151,6 +153,7 @@ function toSourceView(source: DecisionSourceMessage | null): DecisionSourceView 
   if (!source) return null;
   const text = source.body.trim();
   return {
+    kind: source.kind,
     messageId: source.messageId,
     conversationId: source.conversationId,
     channelName: source.channelName,
@@ -480,13 +483,20 @@ export class DecisionsService {
         const by = await this.supersessions.findSupersededBy(runner, context, decisionId);
         const of = await this.supersessions.listSupersedes(runner, context, decisionId);
         const name = await this.decisions.findMemberName(runner, context, decision.decidedBy);
+        // F3: a channel message of the decision's project, else a direct message of this tenant
+        // (the recorder, a participant, chose to show it on the decision).
         const message = decision.sourceMessageId
-          ? await this.decisions.findSourceMessage(
+          ? ((await this.decisions.findSourceMessage(
               runner,
               context,
               decision.projectId,
               decision.sourceMessageId,
-            )
+            )) ??
+            (await this.decisions.findSourceDirectMessage(
+              runner,
+              context,
+              decision.sourceMessageId,
+            )))
           : null;
         return [by, of, name, message] as const;
       },
@@ -559,6 +569,8 @@ export class DecisionsService {
       readonly rationale?: string | null;
       readonly sourceMessageId?: string | null;
       readonly audience?: DecisionAudience;
+      /** F3. Who took the decision; the recorder when absent. Must be an active member. */
+      readonly decidedBy?: string;
     },
   ): Promise<DecisionView> {
     const project = await this.database.read(context, (runner) =>
@@ -595,14 +607,39 @@ export class DecisionsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'project_not_visible');
     }
 
-    // A15. A source message must be a message of this tenant in one of this project's channels.
+    // A15. A source message must be a message of this tenant in one of this project's channels —
+    // or (F3, COL-10) a direct message the recorder is one of the two participants of. A direct
+    // message of two other people is not found, exactly like an unknown id.
     const sourceMessageId = input.sourceMessageId ?? null;
     if (sourceMessageId !== null) {
-      const source = await this.database.read(context, (runner) =>
-        this.decisions.findSourceMessage(runner, context, input.projectId, sourceMessageId),
-      );
-      if (!source) {
+      const visible = await this.database.read(context, async (runner) => {
+        const channel = await this.decisions.findSourceMessage(
+          runner,
+          context,
+          input.projectId,
+          sourceMessageId,
+        );
+        if (channel) return true;
+        const direct = await this.decisions.findSourceDirectMessage(
+          runner,
+          context,
+          sourceMessageId,
+        );
+        return direct !== null && direct.participantIds.includes(context.userId);
+      });
+      if (!visible) {
         throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'message_not_visible');
+      }
+    }
+
+    // F3. "Decided by" another person: an active member of this tenant, else not found.
+    const decidedBy = input.decidedBy ?? context.userId;
+    if (decidedBy !== context.userId) {
+      const member = await this.database.read(context, (runner) =>
+        this.decisions.isActiveMember(runner, context, decidedBy),
+      );
+      if (!member) {
+        throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'member_not_visible');
       }
     }
 
@@ -612,7 +649,7 @@ export class DecisionsService {
       title: input.title,
       statement: input.statement,
       status: input.status,
-      decidedBy: context.userId,
+      decidedBy,
       decidedAt: input.decidedAt,
       ...(input.rationale !== undefined ? { rationale: input.rationale } : {}),
       ...(sourceMessageId !== null ? { sourceMessageId } : {}),

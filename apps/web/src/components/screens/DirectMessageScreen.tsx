@@ -23,6 +23,11 @@ import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useMembers } from '../../lib/use-members';
 import { useDirectConversationLiveFeed } from '../../lib/use-channel-live-feed';
+import {
+  RecordDecisionDialog,
+  recordedDecisionHref,
+  type RecordDecisionMessage,
+} from '../decisions/RecordDecisionDialog';
 import type { LiveSocketFactory } from '../../lib/use-channel-live-feed';
 import '../../styles/screens/chat.css';
 import '../chat/chat-shell.css';
@@ -139,6 +144,25 @@ export function DirectMessageScreen({
     .filter(Boolean)
     .join(' · ');
 
+  // F3. The signed-in person is the DM's other participant: whoever wrote here who is not them.
+  const selfUserId = rows.find(
+    (message) => conversation !== undefined && message.authorUserId !== conversation.otherUserId,
+  )?.authorUserId;
+  const [menuFor, setMenuFor] = useState<string | undefined>(undefined);
+  const [recordFrom, setRecordFrom] = useState<RecordDecisionMessage | undefined>(undefined);
+  useEffect(() => {
+    if (menuFor === undefined) return;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuFor(undefined);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [menuFor]);
+  const copy = (text: string) => {
+    void navigator.clipboard?.writeText(text).catch(() => {});
+    setMenuFor(undefined);
+  };
+
   const today = new Date().toDateString();
   const firstTodayIndex = rows.findIndex(
     (message) => new Date(message.createdAt).toDateString() === today,
@@ -229,13 +253,16 @@ export function DirectMessageScreen({
               aria-live="polite"
             >
               {rows.map((message, index) => (
-                <li key={message.id} className="tm-dm__item">
+                <li key={message.id} id={`message-${message.id}`} className="tm-dm__item">
                   {index === firstTodayIndex ? (
                     <p className="tm-dm__divider" role="separator">
                       <span>{tOr('DirectMessageScreen.today', 'Today')}</span>
                     </p>
                   ) : null}
-                  <div className="tm-dm__message">
+                  <div
+                    className="tm-dm__message"
+                    {...(menuFor === message.id ? { 'data-selected': 'true' } : {})}
+                  >
                     <span className="tm-chat-side__orb tm-dm__orb" aria-hidden="true">
                       {initialsOf(nameOf(message.authorUserId))}
                     </span>
@@ -247,6 +274,57 @@ export function DirectMessageScreen({
                         </time>
                       </p>
                       <p className="tm-dm__body tm-break">{message.body}</p>
+                    </div>
+                    <div className="tm-dm__actions">
+                      <button
+                        type="button"
+                        className="tm-chat-hover"
+                        aria-label={tOr('ProjectChannelScreen.moreActions', 'More actions')}
+                        aria-expanded={menuFor === message.id}
+                        onClick={() =>
+                          setMenuFor((open) => (open === message.id ? undefined : message.id))
+                        }
+                      >
+                        <span aria-hidden="true">⋯</span>
+                      </button>
+                      {menuFor === message.id ? (
+                        <div className="tm-chat-more">
+                          <button
+                            type="button"
+                            className="tm-chat-more__item"
+                            onClick={() => copy(message.body)}
+                          >
+                            {tOr('MessageActionsSheet.copy', 'Copy text')}
+                          </button>
+                          <button
+                            type="button"
+                            className="tm-chat-more__item"
+                            onClick={() =>
+                              copy(
+                                `${window.location.origin}/${organizationSlug}/chat/dm/${directConversationId}#message-${message.id}`,
+                              )
+                            }
+                          >
+                            {tOr('RecordDecision.copyLink', 'Copy link')}
+                          </button>
+                          <button
+                            type="button"
+                            className="tm-chat-more__item"
+                            aria-haspopup="dialog"
+                            onClick={() => {
+                              setMenuFor(undefined);
+                              setRecordFrom({
+                                id: message.id,
+                                body: message.body,
+                                authorName: nameOf(message.authorUserId),
+                                createdAt: message.createdAt,
+                              });
+                            }}
+                          >
+                            {tOr('RecordDecision.action', 'Record as decision')}
+                          </button>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </li>
@@ -268,6 +346,19 @@ export function DirectMessageScreen({
                   )
                 : tOr('DirectMessageScreen.messageLabel', 'Message')
             }
+          />
+        ) : null}
+        {recordFrom !== undefined ? (
+          <RecordDecisionDialog
+            api={api}
+            organizationSlug={organizationSlug}
+            message={recordFrom}
+            {...(selfUserId === undefined ? {} : { selfUserId })}
+            onClose={() => setRecordFrom(undefined)}
+            onRecorded={(decision) => {
+              setRecordFrom(undefined);
+              window.location.assign(recordedDecisionHref(organizationSlug, decision.id));
+            }}
           />
         ) : null}
       </div>

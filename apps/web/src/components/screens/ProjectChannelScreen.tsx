@@ -64,6 +64,11 @@ import {
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
 import { MessageReactionPills, useMessageReactionTally } from './MessageReactionsView';
 import { MessageActionsSheet } from '../chat/MessageActionsSheet';
+import {
+  RecordDecisionDialog,
+  recordedDecisionHref,
+  type RecordDecisionMessage,
+} from '../decisions/RecordDecisionDialog';
 import '../../styles/screens/chat.css';
 import '../chat/chat-shell.css';
 
@@ -139,6 +144,8 @@ export function ProjectChannelScreen({
   const [convertTargetId, setConvertTargetId] = useState<string | undefined>(undefined);
   const [historyMessageId, setHistoryMessageId] = useState<string | undefined>(undefined);
   const [removeTargetId, setRemoveTargetId] = useState<string | undefined>(undefined);
+  // F3. "Record as decision" from a message's actions.
+  const [recordFrom, setRecordFrom] = useState<RecordDecisionMessage | undefined>(undefined);
 
   /*
    * WCAG 2.2 4.1.3, verbosity. The transcript's <ol> is a live region so a genuinely new message
@@ -376,6 +383,13 @@ export function ProjectChannelScreen({
     },
     closeSheet,
     moderate,
+    recordDecision: (message) =>
+      setRecordFrom({
+        id: message.id,
+        body: message.body ?? '',
+        authorName: nameOf(message.authorUserId),
+        createdAt: message.createdAt,
+      }),
   };
 
   return (
@@ -590,6 +604,19 @@ export function ProjectChannelScreen({
             />
           </div>
         ) : null}
+        {recordFrom !== undefined ? (
+          <RecordDecisionDialog
+            api={api}
+            organizationSlug={organizationSlug}
+            message={recordFrom}
+            {...(projectId === undefined ? {} : { defaultProjectId: projectId })}
+            onClose={() => setRecordFrom(undefined)}
+            onRecorded={(decision) => {
+              setRecordFrom(undefined);
+              window.location.assign(recordedDecisionHref(organizationSlug, decision.id));
+            }}
+          />
+        ) : null}
       </div>
     </AppShell>
   );
@@ -622,6 +649,8 @@ interface ChannelRowContext {
   openSheet: (messageId: string, trigger: HTMLElement) => void;
   closeSheet: () => void;
   moderate: { isPending: boolean; isError: boolean; error: unknown; mutate: (id: string) => void };
+  /** F3. Opens "Record as decision" filled in from the message. */
+  recordDecision: (message: MessageSummary) => void;
 }
 
 const LONG_PRESS_MS = 500;
@@ -881,6 +910,19 @@ function ChannelMessage({
                     {t('ProjectChannelScreen.createWorkFromThis')}
                   </button>
                 )}
+                {removed || message.body === null ? null : (
+                  <button
+                    type="button"
+                    className="tm-chat-more__item"
+                    aria-haspopup="dialog"
+                    onClick={() => {
+                      context.setMoreFor(undefined);
+                      context.recordDecision(message);
+                    }}
+                  >
+                    {tOr('RecordDecision.action', 'Record as decision')}
+                  </button>
+                )}
                 {message.editedAt !== null ? (
                   <button
                     type="button"
@@ -959,6 +1001,9 @@ function ChannelMessage({
             if (rowRef.current !== null) context.openThread(message.id, rowRef.current);
           }}
           {...(editable ? { onEdit: () => context.setEditingId(message.id) } : {})}
+          {...(!removed && message.body !== null
+            ? { onRecordDecision: () => context.recordDecision(message) }
+            : {})}
           {...(!removed && message.body !== null
             ? {
                 onCopy: () => {

@@ -37,6 +37,13 @@ const UNKNOWN_MEETING = 'meeting-0000-0000-0000-0000-0000000000ff';
 const USER = 'user-0000-0000-0000-0000-000000000001';
 /** A15. A chat message in one of PROJECT's channels. */
 const SOURCE_MESSAGE = 'message-0000-0000-0000-0000-000000000001';
+/** F3. A direct message between USER and Lina. */
+const DIRECT_MESSAGE = 'dm-message-0000-0000-0000-000000000001';
+/** F3. A direct message between two other people. */
+const OTHERS_DIRECT_MESSAGE = 'dm-message-0000-0000-0000-000000000002';
+const LINA = 'user-0000-0000-0000-0000-000000000002';
+/** F3. A member who is no longer active. */
+const SUSPENDED = 'user-0000-0000-0000-0000-000000000003';
 
 function member(projectIds: readonly string[], hasOrgWideScope = false): Principal {
   return {
@@ -94,6 +101,7 @@ function serviceWith(
     ) =>
       projectId === PROJECT && messageId === SOURCE_MESSAGE
         ? {
+            kind: 'channel' as const,
             messageId,
             conversationId: 'conversation-0000-0000-0000-000000000001',
             channelName: 'atlas-relaunch',
@@ -102,6 +110,25 @@ function serviceWith(
             createdAt: new Date('2026-10-15T10:51:00.000Z'),
           }
         : null,
+    // F3. Direct messages of this tenant, with their two participants.
+    findSourceDirectMessage: async (_runner: unknown, _ctx: unknown, messageId: string) =>
+      messageId === DIRECT_MESSAGE || messageId === OTHERS_DIRECT_MESSAGE
+        ? {
+            kind: 'direct' as const,
+            messageId,
+            conversationId: 'direct-0000-0000-0000-000000000001',
+            channelName: '',
+            authorName: 'Lina Samir',
+            body: 'Agreed: we launch the mobile booking flow first.',
+            createdAt: new Date('2026-10-25T09:15:00.000Z'),
+            participantIds:
+              messageId === DIRECT_MESSAGE
+                ? [USER, LINA]
+                : [LINA, 'user-0000-0000-0000-0000-000000000004'],
+          }
+        : null,
+    isActiveMember: async (_runner: unknown, _ctx: unknown, userId: string) =>
+      userId === USER || userId === LINA,
     updateDetails: async (
       _runner: unknown,
       ctx: TenantContext,
@@ -512,6 +539,7 @@ describe('DecisionsService lifecycle (DEC-01-b / DEC-02)', () => {
     expect(detail.audience).toBe('client_visible');
     expect(detail.decidedByName).toBe('Omar Adel');
     expect(detail.source).toEqual({
+      kind: 'channel',
       messageId: SOURCE_MESSAGE,
       conversationId: 'conversation-0000-0000-0000-000000000001',
       channelName: 'atlas-relaunch',
@@ -535,6 +563,71 @@ describe('DecisionsService lifecycle (DEC-01-b / DEC-02)', () => {
       .catch((caught: unknown) => caught);
     expect((error as ApiError).status).toBe(404);
     expect(store).toHaveLength(0);
+  });
+
+  it('F3: records a decision from a direct message the recorder takes part in', async () => {
+    const { service } = serviceWith();
+    const created = await service.create(context, member([PROJECT]), {
+      projectId: PROJECT,
+      title: 'Launch the mobile booking flow first',
+      statement: 'Agreed: we launch the mobile booking flow first.',
+      status: 'accepted',
+      decidedAt: DECIDED_AT,
+      sourceMessageId: DIRECT_MESSAGE,
+    });
+    expect(created.sourceMessageId).toBe(DIRECT_MESSAGE);
+    const detail = await service.detail(context, member([PROJECT]), created.id);
+    expect(detail.source).toEqual({
+      kind: 'direct',
+      messageId: DIRECT_MESSAGE,
+      conversationId: 'direct-0000-0000-0000-000000000001',
+      channelName: '',
+      authorName: 'Lina Samir',
+      quote: 'Agreed: we launch the mobile booking flow first.',
+      at: '2026-10-25T09:15:00.000Z',
+    });
+  });
+
+  it('F3: a direct message between two other people is a 404 with no write', async () => {
+    const { service, store } = serviceWith();
+    const error = await service
+      .create(context, member([PROJECT]), {
+        projectId: PROJECT,
+        title: 'T',
+        statement: 'S',
+        status: 'proposed',
+        decidedAt: DECIDED_AT,
+        sourceMessageId: OTHERS_DIRECT_MESSAGE,
+      })
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
+    expect(store).toHaveLength(0);
+  });
+
+  it('F3: "Decided by" names another active member; an inactive one is a 404', async () => {
+    const { service, store } = serviceWith();
+    const created = await service.create(context, member([PROJECT]), {
+      projectId: PROJECT,
+      title: 'T',
+      statement: 'S',
+      status: 'accepted',
+      decidedAt: DECIDED_AT,
+      decidedBy: LINA,
+    });
+    expect(created.decidedBy).toBe(LINA);
+
+    const error = await service
+      .create(context, member([PROJECT]), {
+        projectId: PROJECT,
+        title: 'T',
+        statement: 'S',
+        status: 'accepted',
+        decidedAt: DECIDED_AT,
+        decidedBy: SUSPENDED,
+      })
+      .catch((caught: unknown) => caught);
+    expect((error as ApiError).status).toBe(404);
+    expect(store).toHaveLength(1);
   });
 
   it('A15: Edit changes the rationale and audience; a locked decision refuses it', async () => {

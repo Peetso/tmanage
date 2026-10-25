@@ -13,6 +13,8 @@ export interface MessageActionsSheetProps {
   /** The "+" chip: the full reaction picker under the message. */
   onMoreReactions: () => void;
   onReply: () => void;
+  /** F3. Absent when the message has no text to record (a rich or removed message). */
+  onRecordDecision?: () => void;
   /** Absent when the message cannot be edited here (a rich or removed message). */
   onEdit?: () => void;
   /** Absent when the message has no text to copy. */
@@ -41,6 +43,7 @@ export function MessageActionsSheet({
   onReact,
   onMoreReactions,
   onReply,
+  onRecordDecision,
   onEdit,
   onCopy,
   attachmentHref,
@@ -125,6 +128,21 @@ export function MessageActionsSheet({
               {t('ProjectChannelScreen.replyInThread')}
             </button>
           </li>
+          {onRecordDecision ? (
+            <li>
+              <button
+                type="button"
+                className="tm-chat-actions-sheet__item"
+                aria-haspopup="dialog"
+                onClick={act(onRecordDecision)}
+              >
+                <span className="tm-chat-actions-sheet__glyph" aria-hidden="true">
+                  ◇
+                </span>
+                {tOr('RecordDecision.action', 'Record as decision')}
+              </button>
+            </li>
+          ) : null}
           {onEdit ? (
             <li>
               <button type="button" className="tm-chat-actions-sheet__item" onClick={act(onEdit)}>
