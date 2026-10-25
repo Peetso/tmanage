@@ -79,6 +79,12 @@ export class SessionAuthGuard implements CanActivate {
    */
   private internalGrants: Pick<InternalGrantStore, 'consume'> = internalGrants;
 
+  /**
+   * NV02. Coalesces the refusal rows (see {@link GuardRefusalSampler}). A field so a test can
+   * substitute one with a controllable clock.
+   */
+  private refusalSampler = new GuardRefusalSampler();
+
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC, [
       context.getHandler(),
@@ -257,6 +263,9 @@ export class SessionAuthGuard implements CanActivate {
     correlationId: string,
   ): void {
     try {
+      // NV02. Each row is a detached insert holding a pool connection; anonymous traffic must not
+      // be able to queue thousands of them. The 401 itself is unchanged either way.
+      if (!this.refusalSampler.admit(request.ip ?? null)) return;
       const userAgent = request.headers['user-agent'];
       this.events.recordGuardRefusal({
         action: GUARD_REFUSAL_ACTIONS.session,
@@ -268,6 +277,54 @@ export class SessionAuthGuard implements CanActivate {
     } catch {
       // A recording failure is never the caller's problem; the 401 stands.
     }
+  }
+}
+
+/** NV02: at most this many refusal rows per source address per window. */
+export const REFUSAL_ROWS_PER_ADDRESS = 1;
+/** NV02: at most this many refusal rows per window across the whole process. */
+export const REFUSAL_ROWS_PER_WINDOW = 60;
+/** NV02: the coalescing window. */
+export const REFUSAL_WINDOW_MS = 60_000;
+
+/**
+ * NV02 — the missing-session refusal record, coalesced in process.
+ *
+ * Every anonymous request to a protected route is refused, and each refusal used to launch its
+ * own unawaited `authentication_events` insert on the shared (small) connection pool, with no
+ * bound. A burst of anonymous requests could therefore queue an unlimited number of inserts and
+ * starve signed-in requests of connections, and grow the table without limit.
+ *
+ * Now a refusal is written for at most {@link REFUSAL_ROWS_PER_ADDRESS} per source address and
+ * {@link REFUSAL_ROWS_PER_WINDOW} in total per {@link REFUSAL_WINDOW_MS}; the rest are counted,
+ * not written. Memory is bounded too: an address is remembered only when its row is admitted, so
+ * the map never holds more than the global cap. The 401 is never affected.
+ */
+export class GuardRefusalSampler {
+  private window = -1;
+  private admitted = 0;
+  private readonly perAddress = new Map<string, number>();
+  /** Refusals not written in this process (observability only). */
+  suppressed = 0;
+
+  constructor(private readonly now: () => number = () => Date.now()) {}
+
+  admit(address: string | null): boolean {
+    const window = Math.floor(this.now() / REFUSAL_WINDOW_MS);
+    if (window !== this.window) {
+      this.window = window;
+      this.admitted = 0;
+      this.perAddress.clear();
+    }
+    const key = address ?? '';
+    const seen = this.perAddress.get(key) ?? 0;
+    if (this.admitted >= REFUSAL_ROWS_PER_WINDOW || seen >= REFUSAL_ROWS_PER_ADDRESS) {
+      this.suppressed += 1;
+      return false;
+    }
+    this.perAddress.set(key, seen + 1);
+    this.admitted += 1;
+    return true;
   }
 }
 

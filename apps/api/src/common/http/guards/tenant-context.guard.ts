@@ -1,10 +1,44 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import type { CanActivate, ExecutionContext } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { ModuleRef, Reflector } from '@nestjs/core';
 import { ApiError, MESSAGES } from '../errors.js';
 import { SKIPS_TENANT, IS_PUBLIC } from '../decorators.js';
 import { isBoundTokenScheme, requireRequestState } from '../request-state.js';
-import { MEMBERSHIP_RESOLVER, PRINCIPAL_REPOSITORY, TENANT_DATABASE } from '../tokens.js';
+import type { RequestState } from '../request-state.js';
+import {
+  MEMBERSHIP_RESOLVER,
+  PRINCIPAL_REPOSITORY,
+  SESSION_SERVICE,
+  TENANT_DATABASE,
+} from '../tokens.js';
+import { boundTokenAllowedOnNoTenantRoute } from './bound-token-allowlist.js';
+import type { TenantContext, TenantQueryRunner } from '../../database/tenant-context.js';
+import {
+  AI_ACCESS_SWITCHES,
+  aiPlatformDisabledError,
+  aiWorkspaceDisabledError,
+  createAiAccessSwitches,
+  environmentAiDisabled,
+} from '../../../modules/oauth/ai-access.js';
+import type { AiAccessSwitches } from '../../../modules/oauth/ai-access.js';
+import { normalizePolicy } from '../../../modules/admin/policies.allowlist.js';
+import { PoliciesRepository } from '../../../modules/admin/policies.repository.js';
+import type { SessionService } from '../../../modules/identity/session.service.js';
+import { SessionsRepository } from '../../../modules/identity/sessions.repository.js';
+
+/** Substitutes the guard's policy checks in a test. Never provided in production. */
+export const TENANT_GUARD_CHECKS = Symbol.for('tmanage.TenantGuardChecks');
+
+/** What `TenantContextGuard` consults beyond membership (F10, F52a). */
+export interface TenantGuardChecks {
+  readonly aiSwitches: AiAccessSwitches;
+  /** The stored `session_max_hours` of the acting company, or `null` when it stored no policy. */
+  sessionMaxHours(runner: TenantQueryRunner, context: TenantContext): Promise<number | null>;
+  /** Was this session started more than `hours` ago, by the database clock? */
+  sessionOlderThan(sessionId: string, hours: number, correlationId: string): Promise<boolean>;
+  /** End the session, so its refresh token stops working too. */
+  endSession(sessionId: string, correlationId: string): Promise<void>;
+}
 import {
   MembershipNotResolvedError,
   SUSPENDED_MESSAGE,
@@ -50,12 +84,41 @@ import { withActorChannel } from '../../database/tenant-context.js';
  */
 @Injectable()
 export class TenantContextGuard implements CanActivate {
+  /** The production checks, built on first use when Nest constructed this guard. */
+  private builtChecks: TenantGuardChecks | undefined;
+
   constructor(
     @Inject(Reflector) private readonly reflector: Reflector,
     @Inject(MEMBERSHIP_RESOLVER) private readonly resolver: MembershipResolver,
     @Inject(PRINCIPAL_REPOSITORY) private readonly principals: PrincipalRepository,
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
+    /** A test substitutes the checks here; production builds them (see `checks()`). */
+    @Optional()
+    @Inject(TENANT_GUARD_CHECKS)
+    private readonly injectedChecks?: TenantGuardChecks,
+    @Optional() @Inject(ModuleRef) private readonly moduleRef?: ModuleRef,
+    @Optional()
+    @Inject(SESSION_SERVICE)
+    private readonly sessionService?: Pick<SessionService, 'revoke'>,
   ) {}
+
+  /**
+   * The AI switches (F10) and the session-lifetime policy (F52a). When Nest builds the guard it
+   * always has a `ModuleRef`, so production always gets the real checks: the AI switches shared
+   * from the module that provides them (or built over the same database, fail-closed), the
+   * stored company policy and the session row. Only a guard constructed by hand with neither — a
+   * unit test of the membership rules — runs without them.
+   */
+  private checks(): TenantGuardChecks | undefined {
+    if (this.injectedChecks !== undefined) return this.injectedChecks;
+    if (this.moduleRef === undefined) return undefined;
+    this.builtChecks ??= createTenantGuardChecks(
+      this.database,
+      resolveAiSwitches(this.moduleRef, this.database),
+      this.sessionService,
+    );
+    return this.builtChecks;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const skip = this.reflector.getAllAndOverride<boolean>(SKIPS_TENANT, [
@@ -66,12 +129,31 @@ export class TenantContextGuard implements CanActivate {
       context.getHandler(),
       context.getClass(),
     ]);
-    if (skip || isPublic) return true;
+    if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest<{
       readonly params: Record<string, string | undefined>;
     }>();
     const state = requireRequestState(request);
+
+    if (skip) {
+      // F01 part b. A `@NoTenant()` route is about the person, not the company, so an org-bound
+      // token (PAT, OAuth token, internal grant) is refused on all of them except the few the AI
+      // connector needs (`bound-token-allowlist.ts`). A cookie session is unaffected.
+      if (isBoundTokenScheme(state.authScheme)) {
+        if (!boundTokenAllowedOnNoTenantRoute(this.reflector, context)) {
+          throw new ApiError(
+            403,
+            'forbidden',
+            MESSAGES.forbidden,
+            undefined,
+            'bound_token_not_allowed',
+          );
+        }
+        await this.enforceAiSwitches(state);
+      }
+      return true;
+    }
 
     const session = state.session;
     if (!session) {
@@ -129,6 +211,38 @@ export class TenantContextGuard implements CanActivate {
       );
     }
 
+    // F10. A bound token is an AI app's key: the owner's "Allow AI apps" switch and the operator's
+    // platform switch stop it on REST exactly as they stop it on `/mcp`.
+    if (isBoundTokenScheme(state.authScheme)) await this.enforceAiSwitches(state);
+
+    const checks = state.authScheme === 'cookie' ? this.checks() : undefined;
+    const loaded = await this.database.read(resolved.context, async (runner) => ({
+      principal: await this.principals.load(runner, resolved),
+      // F52a. Read on the same scoped connection as the principal: no extra pool slot.
+      sessionMaxHours:
+        checks === undefined ? null : await checks.sessionMaxHours(runner, resolved.context),
+    }));
+
+    // F52a. The company's "session lifetime" policy: a cookie session older than it is ended and
+    // the person signs in again. Sessions are user-level, so it is enforced where the company is
+    // known; a company that stored no policy keeps the sign-in session's own deadline.
+    if (checks !== undefined && loaded.sessionMaxHours !== null) {
+      const tooOld = await checks.sessionOlderThan(
+        session.sessionId,
+        loaded.sessionMaxHours,
+        state.correlationId,
+      );
+      if (tooOld) {
+        await checks.endSession(session.sessionId, state.correlationId);
+        throw new ApiError(
+          401,
+          'unauthenticated',
+          MESSAGES.unauthenticated,
+          undefined,
+          'reauth_required:org_session_max_hours',
+        );
+      }
+    }
     state.membership = resolved;
     // AUT-08. A personal access token, and the MCP connector's internal grant (S6), are the
     // AI-assistant / MCP channel, so tag the context the services will act under; the audit append
@@ -138,10 +252,80 @@ export class TenantContextGuard implements CanActivate {
     state.tenant = isBoundTokenScheme(state.authScheme)
       ? withActorChannel(resolved.context, 'ai_assistant')
       : resolved.context;
-    state.principal = await this.database.read(resolved.context, (runner) =>
-      this.principals.load(runner, resolved),
-    );
+    state.principal = loaded.principal;
 
     return true;
   }
+
+  /**
+   * F10. For a bound token: the platform switch off is 503 `ai_access_disabled`, the token's
+   * workspace switch off is 403 `ai_disabled` — the same answers the hosted `/mcp` gives.
+   */
+  private async enforceAiSwitches(state: RequestState): Promise<void> {
+    const checks = this.checks();
+    if (checks === undefined) return;
+    if (!(await checks.aiSwitches.platformOn(state.correlationId))) {
+      throw aiPlatformDisabledError();
+    }
+    const binding = state.personalAccessToken;
+    if (
+      binding !== undefined &&
+      !(await checks.aiSwitches.organizationOn(binding.organizationId, state.correlationId))
+    ) {
+      throw aiWorkspaceDisabledError();
+    }
+  }
+}
+
+/** Recorded on `sessions.revoked_reason` when a company's session lifetime ends a session. */
+export const ORG_SESSION_MAX_HOURS_REASON = 'org_session_max_hours';
+
+/** The AI switches the MCP and OAuth modules provide, else a fail-closed set over the database. */
+function resolveAiSwitches(moduleRef: ModuleRef, database: TenantDatabase): AiAccessSwitches {
+  try {
+    return moduleRef.get<AiAccessSwitches>(AI_ACCESS_SWITCHES, { strict: false });
+  } catch {
+    return createAiAccessSwitches(
+      database,
+      environmentAiDisabled(process.env['TMANAGE_MCP_DISABLED']),
+    );
+  }
+}
+
+/** The production checks over the database. */
+export function createTenantGuardChecks(
+  database: TenantDatabase,
+  aiSwitches: AiAccessSwitches,
+  sessionService: Pick<SessionService, 'revoke'> | undefined,
+  policies: PoliciesRepository = new PoliciesRepository(),
+  sessionRows: Pick<SessionsRepository, 'findById'> = new SessionsRepository(),
+  now: () => number = () => Date.now(),
+): TenantGuardChecks {
+  return {
+    aiSwitches,
+    async sessionMaxHours(runner, context) {
+      const row = await policies.find(runner, context);
+      return row === undefined ? null : normalizePolicy(row.policyJson).session_max_hours;
+    },
+    async sessionOlderThan(sessionId, hours, correlationId) {
+      const found = await database.identityRead({ correlationId, tables: ['sessions'] }, (runner) =>
+        sessionRows.findById(runner, sessionId),
+      );
+      if (found === null) return false;
+      return now() - found.session.createdAt.getTime() > hours * 3_600_000;
+    },
+    async endSession(sessionId, correlationId) {
+      if (sessionService === undefined) return;
+      try {
+        await sessionService.revoke({
+          sessionId,
+          reason: ORG_SESSION_MAX_HOURS_REASON,
+          correlationId,
+        });
+      } catch {
+        // The 401 stands whether or not the revocation was written; the next request is refused
+        // again by the same check.
+      }
+    },
+  };
 }
