@@ -329,6 +329,10 @@ import type {
   FileTagAssignmentView as ApiFileTagAssignmentView,
 } from '../../apps/api/src/modules/files/file-tags.service.js';
 import type {
+  AttachmentVersionView as ApiAttachmentVersionView,
+  AttachmentHistoryView as ApiAttachmentHistoryView,
+} from '../../apps/api/src/modules/files/attachment-versions.service.js';
+import type {
   ChecklistTemplateView as ApiChecklistTemplateView,
   ApplyTemplateResultView as ApiApplyTemplateResultView,
 } from '../../apps/api/src/modules/work/checklist-templates.service.js';
@@ -812,6 +816,8 @@ import type { ProjectTag as WebProjectTag } from '../../apps/web/src/lib/api/pro
 import type { ProjectTagAssignment as WebProjectTagAssignment } from '../../apps/web/src/lib/api/project-tags';
 import type { FileTag as WebFileTag } from '../../apps/web/src/lib/api/file-tags';
 import type { FileTagAssignment as WebFileTagAssignment } from '../../apps/web/src/lib/api/file-tags';
+import type { AttachmentVersion as WebAttachmentVersion } from '../../apps/web/src/lib/api/attachment-versions';
+import type { AttachmentHistory as WebAttachmentHistory } from '../../apps/web/src/lib/api/attachment-versions';
 import type { ChecklistTemplate as WebChecklistTemplate } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { ApplyTemplateResult as WebApplyTemplateResult } from '../../apps/web/src/lib/api/work-checklist-templates';
 import type { BoardColumn as WebBoardColumn } from '../../apps/web/src/lib/api/board-columns';
@@ -1912,6 +1918,14 @@ type _projectTagAssignment = Assert<Exact<ApiProjectTagAssignmentView, WebProjec
  */
 type _fileTag = Assert<Exact<ApiFileTagView, WebFileTag>>;
 type _fileTagAssignment = Assert<Exact<ApiFileTagAssignmentView, WebFileTagAssignment>>;
+
+/**
+ * C7 (0228). A plain attachment's version history (`GET`/`POST …/files/:fileAssetId/versions`).
+ * `AttachmentVersionView` ↔ `AttachmentVersion` — one version; `AttachmentHistoryView` ↔
+ * `AttachmentHistory` — the chain, newest first. The work item's Files card reads both.
+ */
+type _attachmentVersion = Assert<Exact<ApiAttachmentVersionView, WebAttachmentVersion>>;
+type _attachmentHistory = Assert<Exact<ApiAttachmentHistoryView, WebAttachmentHistory>>;
 
 /**
  * x292. Reusable work-item checklist templates (Work module 7). `ChecklistTemplateView` ↔

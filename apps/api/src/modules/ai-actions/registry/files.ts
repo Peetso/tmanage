@@ -93,4 +93,24 @@ export const filesDetails: readonly AiActionDetail[] = [
     redact: 'standard',
     examples: [{ summary: 'Untag', args: { fileId: 'file_7', tagId: 'tag_2' } }],
   }),
+  // C7 (0228). Version history for plain attachments (work item, request and document files).
+  det({
+    id: 'files.versions.list',
+    title: 'List a file’s versions',
+    description: 'The versions of an attached file, newest first. Version 1 is the original file.',
+    input: pathOnly('fileId'),
+    redact: 'standard',
+    examples: [{ summary: 'Versions', args: { fileId: 'file_7' } }],
+  }),
+  det({
+    id: 'files.versions.create',
+    title: 'Add a new version of a file',
+    description:
+      'Make an already uploaded file the next version of an attached file of the same project.',
+    input: bodyArgs(['fileId'], { fileAssetId: f.id(36), note: f.text(2_000).nullish() }),
+    redact: 'standard',
+    examples: [
+      { summary: 'New version', args: { fileId: 'file_7', fileAssetId: 'file_8', note: 'Fixed' } },
+    ],
+  }),
 ];

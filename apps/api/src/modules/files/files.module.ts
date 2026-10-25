@@ -43,6 +43,11 @@ import { FileScanner } from './file-scanner.js';
 import { FILE_SCAN_JOB, FileScanJob, fileScanJobEnabled } from './file-scan-job.js';
 import { FileDownloadService } from './file-download.service.js';
 import { FileDownloadsController } from './file-downloads.controller.js';
+import {
+  ATTACHMENT_VERSIONS_SERVICE,
+  AttachmentVersionsService,
+} from './attachment-versions.service.js';
+import { AttachmentVersionsController } from './attachment-versions.controller.js';
 import { FileTagsRepository } from './file-tags.repository.js';
 import { FileTagsService } from './file-tags.service.js';
 import { FileTagsController } from './file-tags.controller.js';
@@ -362,6 +367,15 @@ export class FilesModule {
         ),
     };
 
+    // C7 (0228). A plain attachment's version history: reads and appends version rows; serves no
+    // bytes (each version downloads through the download gate above, under the scan policy).
+    const attachmentVersions: Provider = {
+      provide: ATTACHMENT_VERSIONS_SERVICE,
+      inject: [TENANT_DATABASE, FILE_ASSETS_REPOSITORY, AUDIT_SERVICE],
+      useFactory: (database: TenantDatabase, assets: FileAssetsRepository, audit: AuditService) =>
+        new AttachmentVersionsService(database, assets, new ProjectsRepository(), audit),
+    };
+
     return {
       module: FilesModule,
       providers: [
@@ -379,6 +393,7 @@ export class FilesModule {
         scanJob,
         downloads,
         portalFileList,
+        attachmentVersions,
       ],
       exports: [
         service,
@@ -394,6 +409,7 @@ export class FilesModule {
         scanJob,
         downloads,
         portalFileList,
+        attachmentVersions,
       ],
       controllers: [
         UploadSessionsController,
@@ -406,6 +422,7 @@ export class FilesModule {
         FileTagsController,
         FileFoldersController,
         FileCommentsController,
+        AttachmentVersionsController,
       ],
     };
   }

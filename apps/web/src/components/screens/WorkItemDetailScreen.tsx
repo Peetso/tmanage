@@ -41,6 +41,8 @@ import type { DeliverableDetailView, DeliverableVersionView } from '../../lib/ap
 import { listClientOrganizationOptions } from '../../lib/api/project-client';
 import { listProjectShares } from '../../lib/api/clients';
 import { uploadProjectFile } from '../../lib/api/uploads';
+import { addAttachmentVersion, getAttachmentHistory } from '../../lib/api/attachment-versions';
+import type { AttachmentVersion } from '../../lib/api/attachment-versions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import { workItemKeys } from '../../lib/query-keys';
 import { memberDisplayName } from '../../lib/members-presentation';
@@ -168,9 +170,11 @@ function fileKind(name: string): string {
  * the item, reloads it and never retries — a retry with a fresh version is the lost update the
  * token exists to prevent. Field refusals stay on the field that caused them.
  *
- * The Files card's "Version history" block exists only for files that are versions of a
- * deliverable (`lib/api/deliverables.ts`): plain attachments have no history to show, so the
- * block is omitted for them rather than drawn empty.
+ * The Files card's "Version history" block shows a deliverable file's versions
+ * (`lib/api/deliverables.ts`) and, since C7, a plain attachment's (`lib/api/attachment-versions`):
+ * every file offers "Upload new version", and the block is drawn once a file has more than one
+ * version rather than drawn empty. A previous plain version downloads by its own file id, so the
+ * scan policy decides exactly as for the current one.
  */
 export function WorkItemDetailScreen({
   organizationSlug,
@@ -939,7 +943,16 @@ interface FilesCardProps {
   locale: string;
 }
 
-/** The Files card: attachments, "Attach file", and a version history for deliverable files. */
+/** Which chain "Upload new version" adds to: a deliverable's, or a plain attachment's (C7). */
+type VersionTarget =
+  | { readonly kind: 'deliverable'; readonly id: string }
+  | { readonly kind: 'plain'; readonly id: string };
+
+function attachmentHistoryKey(organizationSlug: string, fileAssetId: string) {
+  return ['attachment-history', organizationSlug, fileAssetId] as const;
+}
+
+/** The Files card: attachments, "Attach file", and a version history for every file. */
 function FilesCard({
   api,
   organizationSlug,
@@ -956,11 +969,38 @@ function FilesCard({
   const queries = useQueryClient();
   const picker = useRef<HTMLInputElement>(null);
   const versionPicker = useRef<HTMLInputElement>(null);
-  const [versionTarget, setVersionTarget] = useState<string | null>(null);
+  const [versionTarget, setVersionTarget] = useState<VersionTarget | null>(null);
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const base = apiBaseUrl();
   const href = (fileAssetId: string) =>
     `${base}/v1/organizations/${encodeURIComponent(organizationSlug)}/files/${encodeURIComponent(fileAssetId)}/content`;
+
+  // C7. The version history of each plain (not deliverable-backed) attachment.
+  const plainFiles = files.filter((file) => backingOf(file) === undefined).slice(0, 20);
+  const plainHistories = useQueries({
+    queries: plainFiles.map((file) => ({
+      queryKey: attachmentHistoryKey(organizationSlug, file.fileAssetId),
+      queryFn: () => getAttachmentHistory(api, organizationSlug, file.fileAssetId),
+    })),
+  });
+  const plainHistoryOf = (file: ItemFile): readonly AttachmentVersion[] => {
+    const index = plainFiles.findIndex((entry) => entry.id === file.id);
+    return index < 0 ? [] : (plainHistories[index]?.data?.versions ?? []);
+  };
+
+  const addPlainVersion = useMutation({
+    mutationFn: (input: { rootFileAssetId: string; fileAssetId: string }) =>
+      addAttachmentVersion(api, organizationSlug, input.rootFileAssetId, {
+        fileAssetId: input.fileAssetId,
+      }),
+    onSuccess: (_history, input) => {
+      setProblem(undefined);
+      void queries.invalidateQueries({
+        queryKey: attachmentHistoryKey(organizationSlug, input.rootFileAssetId),
+      });
+    },
+    onError: (error) => setProblem(describe(error, ta)),
+  });
 
   const attach = useMutation({
     mutationFn: async (file: File) => {
@@ -1005,7 +1045,11 @@ function FilesCard({
         projectId: item.projectId,
         file,
       });
-      addVersion.mutate({ deliverableId: versionTarget, fileAssetId, note: null });
+      if (versionTarget.kind === 'deliverable') {
+        addVersion.mutate({ deliverableId: versionTarget.id, fileAssetId, note: null });
+      } else {
+        addPlainVersion.mutate({ rootFileAssetId: versionTarget.id, fileAssetId });
+      }
     } catch (error) {
       setProblem(describe(error, ta));
     }
@@ -1065,7 +1109,10 @@ function FilesCard({
         {files.map((file) => {
           const backing = backingOf(file);
           const latest = backing ? latestOf(backing) : undefined;
-          const servedAsset = latest?.fileAssetId ?? file.fileAssetId;
+          const plain = backing ? [] : plainHistoryOf(file);
+          const plainLatest = plain.length > 1 ? plain[0] : undefined;
+          const servedAsset = latest?.fileAssetId ?? plainLatest?.fileAssetId ?? file.fileAssetId;
+          const availability = plainLatest?.availability ?? file.availability;
           const history = backing
             ? [...backing.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))
             : [];
@@ -1073,9 +1120,7 @@ function FilesCard({
             <li key={file.id} className="tm-wk-file" data-backed={backing !== undefined}>
               <div
                 className={
-                  file.availability === 'scanning'
-                    ? 'tm-wk-file__row tm-scan-row'
-                    : 'tm-wk-file__row'
+                  availability === 'scanning' ? 'tm-wk-file__row tm-scan-row' : 'tm-wk-file__row'
                 }
               >
                 <span className="tm-wk-badge">{fileKind(file.fileName)}</span>
@@ -1088,13 +1133,19 @@ function FilesCard({
                           day: formatShortDay(dayOf(latest.createdAt), locale),
                           name: nameOf(latest.createdByUserId),
                         })
-                      : ta('WorkDetail.versionOn', {
-                          n: 1,
-                          day: formatShortDay(dayOf(file.createdAt), locale),
-                        })}
+                      : plainLatest
+                        ? ta('WorkDetail.versionUpdated', {
+                            n: plainLatest.versionNo,
+                            day: formatShortDay(dayOf(plainLatest.createdAt), locale),
+                            name: nameOf(plainLatest.createdByUserId),
+                          })
+                        : ta('WorkDetail.versionOn', {
+                            n: 1,
+                            day: formatShortDay(dayOf(file.createdAt), locale),
+                          })}
                   </span>
                 </span>
-                {file.availability === 'ready' ? (
+                {availability === 'ready' ? (
                   <a
                     className="tm-wk-text-button"
                     href={href(servedAsset)}
@@ -1103,7 +1154,7 @@ function FilesCard({
                   >
                     {ta('WorkDetail.download')}
                   </a>
-                ) : file.availability === 'scanning' ? (
+                ) : availability === 'scanning' ? (
                   <NotScannedDownload href={href(servedAsset)} fileName={file.fileName} />
                 ) : (
                   <span className="tm-wk-file__meta" role="status">
@@ -1157,14 +1208,67 @@ function FilesCard({
                     data-tone="outline"
                     disabled={addVersion.isPending}
                     onClick={() => {
-                      setVersionTarget(backing.id);
+                      setVersionTarget({ kind: 'deliverable', id: backing.id });
                       versionPicker.current?.click();
                     }}
                   >
                     {ta('WorkDetail.uploadVersion')}
                   </button>
                 </>
-              ) : null}
+              ) : (
+                <>
+                  {plain.length > 1 ? (
+                    <div className="tm-wk-history">
+                      <p className="tm-wk-history__title">{ta('WorkDetail.versionHistory')}</p>
+                      <ul>
+                        {plain.map((version) => (
+                          <li key={version.fileAssetId} data-current={version.current}>
+                            <span>
+                              {version.current
+                                ? ta('WorkDetail.versionCurrent', { n: version.versionNo })
+                                : ta('WorkDetail.versionBy', {
+                                    n: version.versionNo,
+                                    name: nameOf(version.createdByUserId),
+                                  })}
+                            </span>
+                            {version.current ? (
+                              <span>{formatShortDay(dayOf(version.createdAt), locale)}</span>
+                            ) : version.availability === 'ready' ? (
+                              <a
+                                className="tm-wk-text-button"
+                                href={href(version.fileAssetId)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                {ta('WorkDetail.download')}
+                              </a>
+                            ) : version.availability === 'scanning' ? (
+                              <NotScannedDownload
+                                href={href(version.fileAssetId)}
+                                fileName={version.fileName}
+                              />
+                            ) : (
+                              <span role="status">{ta('WorkDetail.unavailable')}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="tm-wk-pill-button"
+                    data-tone="outline"
+                    disabled={addPlainVersion.isPending}
+                    onClick={() => {
+                      setVersionTarget({ kind: 'plain', id: file.fileAssetId });
+                      versionPicker.current?.click();
+                    }}
+                  >
+                    {ta('WorkDetail.uploadVersion')}
+                  </button>
+                </>
+              )}
             </li>
           );
         })}

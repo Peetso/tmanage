@@ -624,6 +624,11 @@ export const AUDIT_ACTION_CATALOG = {
     objectType: 'deliverable',
     clause: '§12 — a new version changes what the client is asked to approve',
   },
+  /** C7 (0228). A new version of a plain attachment — which file a download of it now serves. */
+  'file_asset.version_added': {
+    objectType: 'file_asset',
+    clause: '§12 — a new version changes which file a work item, request or document serves',
+  },
   'deliverable.sent_for_approval': {
     objectType: 'deliverable',
     clause: '§12 disclosure — publishing a version to the client and naming who decides',
@@ -754,6 +759,7 @@ const AUDIT_ACTION_LABELS = {
   'mcp.tool_called': 'An AI app ran an action',
   'deliverable.created': 'Created a deliverable',
   'deliverable.version_added': 'Uploaded a new deliverable version',
+  'file_asset.version_added': 'Uploaded a new file version',
   'deliverable.sent_for_approval': 'Sent a deliverable for client approval',
   'approval.approved': 'Approved a deliverable',
   'approval.changes_requested': 'Requested changes on a deliverable',

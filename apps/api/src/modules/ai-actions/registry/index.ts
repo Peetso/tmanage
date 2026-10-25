@@ -1960,6 +1960,23 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'write',
     scope: 'write',
   },
+  // C7 (0228). A plain attachment's version history: list it, and add an uploaded file as the next.
+  {
+    id: 'files.versions.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/files/:fileId/versions/',
+    capability: 'file.download',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'files.versions.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/files/:fileId/versions/',
+    capability: 'file.upload',
+    risk: 'write',
+    scope: 'write',
+  },
   {
     id: 'glossary.terms.list',
     method: 'GET',

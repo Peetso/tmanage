@@ -5259,6 +5259,35 @@ export const fileVersions = mysqlTable(
   ],
 );
 
+/**
+ * C7 (0228). Version history for plain attachments: version 1 is the root file asset itself (the
+ * one a work item, request or document links to); each row here makes another asset version N of
+ * it. Append-only (INSERT + SELECT, a `BEFORE UPDATE` trigger). `0228_attachment_versions.sql`.
+ */
+export const attachmentVersions = mysqlTable(
+  'attachment_versions',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    projectId: char('project_id', { length: 36 }).notNull(),
+    rootFileAssetId: char('root_file_asset_id', { length: 36 }).notNull(),
+    fileAssetId: char('file_asset_id', { length: 36 }).notNull(),
+    versionNo: int('version_no', { unsigned: true }).notNull(),
+    note: varchar('note', { length: 2000 }),
+    createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_attachment_versions_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_attachment_versions_org_root_no').on(
+      table.organizationId,
+      table.rootFileAssetId,
+      table.versionNo,
+    ),
+    uniqueIndex('uq_attachment_versions_org_file').on(table.organizationId, table.fileAssetId),
+  ],
+);
+
 export const uploadSessions = mysqlTable(
   'upload_sessions',
   {
@@ -8823,6 +8852,7 @@ export const TABLES = {
   usage_ledger_entries: usageLedgerEntries,
   file_assets: fileAssets,
   file_versions: fileVersions,
+  attachment_versions: attachmentVersions,
   upload_sessions: uploadSessions,
   user_passwords: userPasswords,
   password_reset_tokens: passwordResetTokens,
@@ -9142,6 +9172,7 @@ export type UsageCounterRow = typeof usageCounters.$inferSelect;
 export type UsageLedgerEntryRow = typeof usageLedgerEntries.$inferSelect;
 export type FileAssetRow = typeof fileAssets.$inferSelect;
 export type FileVersionRow = typeof fileVersions.$inferSelect;
+export type AttachmentVersionRow = typeof attachmentVersions.$inferSelect;
 export type UploadSessionRow = typeof uploadSessions.$inferSelect;
 export type WorkItemDependencyRow = typeof workItemDependencies.$inferSelect;
 export type WorkBlockerRow = typeof workBlockers.$inferSelect;
