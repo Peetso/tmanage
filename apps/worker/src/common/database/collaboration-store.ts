@@ -1,5 +1,8 @@
 import { uuidv7 } from '@tmanage/domain';
+import type { PrincipalRole } from '@tmanage/domain';
 import type { WorkerTransaction } from './worker-database.js';
+import { CUSTOM_ROLE_COLUMNS, customRoleJoin, internalPrincipalRole } from './principal-role.js';
+import type { CustomRoleColumns } from './principal-role.js';
 
 /**
  * CQ-12 — the statements the collaboration notices, the client-action mail and the automation
@@ -12,7 +15,8 @@ import type { WorkerTransaction } from './worker-database.js';
 /** An internal recipient as the reach rule needs to see them. `null` when not an active member. */
 export interface InternalReach {
   readonly membershipId: string;
-  readonly role: string;
+  /** The resolved principal role (H1: a custom role carries its own set); null holds nothing. */
+  readonly role: PrincipalRole | null;
   readonly hasOrgWideScope: boolean;
   readonly onProject: boolean;
 }
@@ -24,14 +28,14 @@ export async function findInternalReach(
   userId: string,
   projectId: string,
 ): Promise<InternalReach | null> {
-  interface Row {
+  interface Row extends CustomRoleColumns {
     readonly id: string;
     readonly role: string;
     readonly has_org_wide_scope: number;
     readonly on_project: number;
   }
   const rows = await tx.query<readonly Row[]>(
-    `SELECT m.id, m.role, m.has_org_wide_scope,
+    `SELECT m.id, m.role, ${CUSTOM_ROLE_COLUMNS}, m.has_org_wide_scope,
             EXISTS (
               SELECT 1 FROM project_memberships pm
                WHERE pm.organization_id = m.organization_id
@@ -39,6 +43,7 @@ export async function findInternalReach(
                  AND pm.user_id = m.user_id
             ) AS on_project
        FROM memberships m
+       ${customRoleJoin('m')}
       WHERE m.organization_id = ? AND m.user_id = ? AND m.status = 'active'`,
     [projectId, organizationId, userId],
   );
@@ -46,7 +51,7 @@ export async function findInternalReach(
   if (row === undefined) return null;
   return {
     membershipId: row.id,
-    role: row.role,
+    role: internalPrincipalRole(row.role, row),
     hasOrgWideScope: Boolean(row.has_org_wide_scope),
     onProject: Boolean(row.on_project),
   };

@@ -1,6 +1,8 @@
 import { uuidv7 } from '@tmanage/domain';
-import type { QuietHoursPreferences } from '@tmanage/domain';
+import type { PrincipalRole, QuietHoursPreferences } from '@tmanage/domain';
 import type { WorkerTransaction } from './worker-database.js';
+import { CUSTOM_ROLE_COLUMNS, customRoleJoin, internalPrincipalRole } from './principal-role.js';
+import type { CustomRoleColumns } from './principal-role.js';
 import type { ClaimedOutboxEvent } from './outbox-store.js';
 
 /**
@@ -17,7 +19,8 @@ import type { ClaimedOutboxEvent } from './outbox-store.js';
 /** An internal membership as the recipient decision needs to see it. */
 export interface InternalRecipientCandidate {
   readonly userId: string;
-  readonly role: string;
+  /** The resolved principal role (H1: a custom role carries its own set); null holds nothing. */
+  readonly role: PrincipalRole | null;
   readonly hasOrgWideScope: boolean;
   /** Whether this user holds a project membership on the event's project. */
   readonly onProject: boolean;
@@ -33,14 +36,14 @@ export async function listActiveInternalMemberships(
   organizationId: string,
   projectId: string,
 ): Promise<readonly InternalRecipientCandidate[]> {
-  interface Row {
+  interface Row extends CustomRoleColumns {
     readonly user_id: string;
     readonly role: string;
     readonly has_org_wide_scope: number;
     readonly on_project: number;
   }
   const rows = await tx.query<readonly Row[]>(
-    `SELECT m.user_id, m.role, m.has_org_wide_scope,
+    `SELECT m.user_id, m.role, ${CUSTOM_ROLE_COLUMNS}, m.has_org_wide_scope,
             EXISTS (
               SELECT 1 FROM project_memberships pm
                WHERE pm.organization_id = m.organization_id
@@ -48,12 +51,13 @@ export async function listActiveInternalMemberships(
                  AND pm.user_id = m.user_id
             ) AS on_project
        FROM memberships m
+       ${customRoleJoin('m')}
       WHERE m.organization_id = ? AND m.status = 'active'`,
     [projectId, organizationId],
   );
   return rows.map((row) => ({
     userId: row.user_id,
-    role: row.role,
+    role: internalPrincipalRole(row.role, row),
     hasOrgWideScope: Boolean(row.has_org_wide_scope),
     onProject: Boolean(row.on_project),
   }));

@@ -1,5 +1,11 @@
-import { hasCapability, isRole } from '@tmanage/domain';
 import type { WorkerTransaction } from './worker-database.js';
+import {
+  CUSTOM_ROLE_COLUMNS,
+  customRoleJoin,
+  internalPrincipalRole,
+  roleHolds,
+} from './principal-role.js';
+import type { CustomRoleColumns } from './principal-role.js';
 
 /**
  * The reads a realtime subscription needs — RT-001, `13-ENGINEERING` §6's "subscription
@@ -44,7 +50,7 @@ export async function checkConversationSubscription(
     readonly conversationId: string;
   },
 ): Promise<SubscriptionVerdict> {
-  interface Row {
+  interface Row extends CustomRoleColumns {
     readonly role: string;
     readonly next_sequence_no: number;
     readonly is_member: number;
@@ -52,7 +58,8 @@ export async function checkConversationSubscription(
     readonly has_org_wide_scope: number;
   }
   const rows = await tx.query<readonly Row[]>(
-    `SELECT m.role, c.next_sequence_no, m.has_org_wide_scope AS has_org_wide_scope,
+    `SELECT m.role, ${CUSTOM_ROLE_COLUMNS}, c.next_sequence_no,
+            m.has_org_wide_scope AS has_org_wide_scope,
             EXISTS (
               SELECT 1 FROM conversation_memberships cm
                WHERE cm.organization_id = c.organization_id
@@ -73,13 +80,15 @@ export async function checkConversationSubscription(
          ON m.organization_id = c.organization_id
         AND m.user_id = ?
         AND m.status = 'active'
+       ${customRoleJoin('m')}
       WHERE c.organization_id = ? AND c.id = ?`,
     [input.userId, input.organizationId, input.conversationId],
   );
 
   const row = rows[0];
   if (!row) return REFUSED;
-  if (!isRole(row.role) || !hasCapability(row.role, 'conversation.read')) return REFUSED;
+  // H1: a custom-role member is checked against their role's own set, not skipped.
+  if (!roleHolds(internalPrincipalRole(row.role, row), 'conversation.read')) return REFUSED;
   // The project gate `authorize()` applies over HTTP (rule 12): a channel membership row is
   // not on its own a licence to the project the channel belongs to. Without this, a revoked
   // project member with a stale conversation-membership row keeps receiving the project's

@@ -217,6 +217,7 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
         displayName: 'Ada',
         email: 'ada@studio.test',
         role: 'member',
+        roleName: null,
         status: 'active',
         projectCount: 2,
         version: 3,
@@ -233,6 +234,7 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
         displayName: 'Bo',
         email: 'bo@studio.test',
         role: 'guest',
+        roleName: null,
         status: 'active',
         projectCount: 0,
         version: 1,
@@ -254,6 +256,47 @@ describe('GET /v1/organizations/:orgSlug/people', () => {
     const asClient = await controller.list(contextFor(ORG, 'client'), undefined, '50');
     expect(asClient.people.map((person) => person.email)).toEqual([null, null]);
     expect(asClient.people.map((person) => person.version)).toEqual([3, 1]);
+  });
+
+  it('H1: names a custom role for every viewer, and only roles of this organization', async () => {
+    const roleId = '0192a8f0-0000-7000-8000-00000000c0de';
+    const unknownId = '0192a8f0-0000-7000-8000-00000000beef';
+    const person = (membershipId: string, role: string) => ({
+      membershipId,
+      userId: `u-${membershipId}`,
+      displayName: membershipId,
+      email: `${membershipId}@studio.test`,
+      role,
+      status: 'active',
+      projectCount: 0,
+      version: 1,
+    });
+    const rows = [person('m-1', roleId), person('m-2', unknownId), person('m-3', 'member')];
+    const asked: string[][] = [];
+    const controller = new PeopleDirectoryController(
+      {
+        read: <T>(_c: TenantContext, work: (db: never) => Promise<T>) => work(undefined as never),
+      } as never,
+      {
+        list: () => Promise.resolve(rows),
+        rowDetails: () => Promise.resolve(new Map()),
+      } as unknown as PeopleDirectoryRepository,
+      {
+        describe: (_db: never, _context: TenantContext, roles: Iterable<string>) => {
+          asked.push([...roles]);
+          return Promise.resolve(
+            new Map([[roleId, { name: 'Night editor', capabilities: ['work.read'] }]]),
+          );
+        },
+      } as never,
+    );
+
+    const page = await controller.list(contextFor(ORG), undefined, '50');
+
+    expect(page.people.map((p) => p.roleName)).toEqual(['Night editor', null, null]);
+    // The raw role stays as stored, so the role-change dialog still compares by id.
+    expect(page.people.map((p) => p.role)).toEqual([roleId, unknownId, 'member']);
+    expect(asked).toEqual([[roleId, unknownId, 'member']]);
   });
 
   it('refuses a non-positive limit with a 400 rather than a silent default', async () => {

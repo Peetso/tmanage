@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { approvalStateMachine, authorize, hasCapability, isRole } from '@tmanage/domain';
+import { approvalStateMachine, authorize, hasCapability, isClientRole } from '@tmanage/domain';
 import type { ApprovalState, Capability, Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
@@ -491,7 +491,9 @@ export class DeliverablesService {
     const seen = new Set<string>();
     const out: ApproverView[] = [];
     for (const p of people) {
-      if (seen.has(p.userId) || !isRole(p.role) || !hasCapability(p.role, 'approval.decide'))
+      // A client membership never holds a custom role (the resolver refuses one), so only a
+      // built-in client role may decide; an internal role name on a client row is refused too.
+      if (seen.has(p.userId) || !isClientRole(p.role) || !hasCapability(p.role, 'approval.decide'))
         continue;
       seen.add(p.userId);
       out.push({

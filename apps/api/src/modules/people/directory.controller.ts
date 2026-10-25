@@ -1,9 +1,13 @@
-import { Controller, Get, Inject, Query } from '@nestjs/common';
+import { Controller, Get, Inject, Optional, Query } from '@nestjs/common';
 import { Ctx, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { PeopleDirectoryRepository } from './directory.repository.js';
+import {
+  CustomRoleNamesRepository,
+  customRoleSummaryOf,
+} from '../tenancy/custom-role-names.repository.js';
 
 /**
  * People & capacity — module 14, audit #4 (the `/people` stub replacement).
@@ -42,6 +46,12 @@ export interface PersonDirectoryView {
    */
   readonly email: string | null;
   readonly role: string;
+  /**
+   * H1: a custom role's own name when `role` is a custom role id, for every viewer (Control >
+   * Roles is behind `org.manage`, so the browser cannot name it otherwise). Null for a built-in
+   * role, which the screen names in the reader's language.
+   */
+  readonly roleName: string | null;
   readonly status: string;
   readonly projectCount: number;
   /** The membership's compare-and-swap token, sent back on `PATCH members/:userId/role`. */
@@ -82,7 +92,12 @@ export class PeopleDirectoryController {
   constructor(
     @Inject(TENANT_DATABASE) private readonly database: TenantDatabase,
     @Inject(PeopleDirectoryRepository) private readonly directory: PeopleDirectoryRepository,
-  ) {}
+    @Optional() @Inject(CustomRoleNamesRepository) roleNames?: CustomRoleNamesRepository,
+  ) {
+    this.roleNames = roleNames ?? new CustomRoleNamesRepository();
+  }
+
+  private readonly roleNames: CustomRoleNamesRepository;
 
   /**
    * The organization's active people, by name, each with a project count.
@@ -122,13 +137,21 @@ export class PeopleDirectoryController {
       fromDate: isoDate(now),
       toDate: isoDate(new Date(now.getTime() + (DECLARED_HORIZON_DAYS - 1) * 86_400_000)),
     };
-    const { rows, details } = await this.database.read(context, async (db) => {
+    const { rows, details, roleNames } = await this.database.read(context, async (db) => {
       const page = await this.directory.list(db, context, {
         ...(after ? { after } : {}),
         ...(search === '' ? {} : { q: search }),
         limit: effectiveLimit,
       });
-      return { rows: page, details: await this.directory.rowDetails(db, context, page, window) };
+      return {
+        rows: page,
+        details: await this.directory.rowDetails(db, context, page, window),
+        roleNames: await this.roleNames.describe(
+          db,
+          context,
+          page.map((row) => row.role),
+        ),
+      };
     });
 
     const full = rows.length === effectiveLimit;
@@ -145,6 +168,7 @@ export class PeopleDirectoryController {
           displayName: row.displayName,
           email: mayReadEmail ? row.email : null,
           role: row.role,
+          roleName: customRoleSummaryOf(roleNames, row.role)?.name ?? null,
           status: row.status,
           projectCount: row.projectCount,
           version: row.version,

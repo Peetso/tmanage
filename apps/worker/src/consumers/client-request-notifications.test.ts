@@ -3,6 +3,7 @@ import { INTERNAL_ROLES } from '@tmanage/domain';
 import { expectedCeilingGrants } from '@tmanage/test-kit';
 import type { ClaimedOutboxEvent } from '../common/database/outbox-store.js';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
+import { internalPrincipalRole } from '../common/database/principal-role.js';
 import {
   clientRequestTransitionedConsumer,
   mayTriageClientRequests,
@@ -18,8 +19,7 @@ import {
  * `mayTriageClientRequests` is
  *
  * ```ts
- * if (!isRole(candidate.role)) return false;
- * if (!hasCapability(candidate.role, 'client_request.triage')) return false;
+ * if (!roleHolds(candidate.role, 'client_request.triage')) return false;
  * return candidate.hasOrgWideScope || candidate.onProject;
  * ```
  *
@@ -85,14 +85,32 @@ describe('mayTriageClientRequests', () => {
   });
 
   it('refuses a role the domain does not know', () => {
+    // The store resolves the raw value; an unknown name resolves to no role at all.
     expect(
       mayTriageClientRequests({
         userId: 'u',
-        role: 'superuser',
+        role: internalPrincipalRole('superuser'),
         hasOrgWideScope: true,
         onProject: true,
       }),
     ).toBe(false);
+  });
+
+  it('H1: tells a custom-role member whose role holds triage, and not one whose role does not', () => {
+    const id = '0192a8f0-0000-7000-8000-00000000c0de';
+    const triager = internalPrincipalRole(id, {
+      custom_role_id: id,
+      custom_role_capabilities: '["client_request.triage","work.read"]',
+    });
+    const reader = internalPrincipalRole(id, {
+      custom_role_id: id,
+      custom_role_capabilities: '["work.read"]',
+    });
+    const base = { userId: 'u', hasOrgWideScope: false, onProject: true } as const;
+    expect(mayTriageClientRequests({ ...base, role: triager })).toBe(true);
+    expect(mayTriageClientRequests({ ...base, role: reader })).toBe(false);
+    // The relation rule still applies to a custom role.
+    expect(mayTriageClientRequests({ ...base, role: triager, onProject: false })).toBe(false);
   });
 });
 

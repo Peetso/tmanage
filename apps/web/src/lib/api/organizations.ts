@@ -13,6 +13,10 @@ export interface OrganizationSummary {
   readonly name: string;
   readonly audience: 'internal' | 'client';
   readonly role: string;
+  /** H1: a custom role's own name; present only when `role` is a custom role id. */
+  readonly roleName?: string;
+  /** H1: the custom role's loaded capabilities; present only when `role` is a custom role id. */
+  readonly capabilities?: readonly string[];
   readonly clientOrganizationName: string | null;
   /** True when the platform operator suspended it; its members see the suspended page. */
   readonly suspended?: boolean;

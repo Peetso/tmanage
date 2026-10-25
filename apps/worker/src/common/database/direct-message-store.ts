@@ -1,6 +1,13 @@
-import { hasCapability, isRole, mayDirectMessage } from '@tmanage/domain';
-import type { DirectParty } from '@tmanage/domain';
+import { mayDirectMessage } from '@tmanage/domain';
+import type { DirectParty, PrincipalRole } from '@tmanage/domain';
 import type { WorkerTransaction } from './worker-database.js';
+import {
+  CUSTOM_ROLE_COLUMNS,
+  customRoleJoin,
+  internalPrincipalRole,
+  roleHolds,
+} from './principal-role.js';
+import type { CustomRoleColumns } from './principal-role.js';
 import type { SubscriptionVerdict } from './realtime-store.js';
 
 /**
@@ -16,7 +23,8 @@ import type { SubscriptionVerdict } from './realtime-store.js';
 
 /** A participant with the membership the per-kind opt-out is keyed by (internal only). */
 export interface WorkerDirectParty extends DirectParty {
-  readonly role: string | null;
+  /** The resolved principal role (H1: a custom role carries its own set); null for a client. */
+  readonly role: PrincipalRole | null;
   readonly membershipId: string | null;
 }
 
@@ -25,9 +33,11 @@ export async function findDirectParty(
   organizationId: string,
   userId: string,
 ): Promise<WorkerDirectParty | null> {
-  const internal = await tx.query<readonly { id: string; role: string }[]>(
-    `SELECT id, role FROM memberships
-      WHERE organization_id = ? AND user_id = ? AND status = 'active'
+  const internal = await tx.query<readonly ({ id: string; role: string } & CustomRoleColumns)[]>(
+    `SELECT m.id, m.role, ${CUSTOM_ROLE_COLUMNS}
+       FROM memberships m
+       ${customRoleJoin('m')}
+      WHERE m.organization_id = ? AND m.user_id = ? AND m.status = 'active'
       LIMIT 1`,
     [organizationId, userId],
   );
@@ -42,7 +52,7 @@ export async function findDirectParty(
       kind: 'internal',
       clientOrganizationIds: [],
       projectIds: projects.map((row) => row.project_id),
-      role: membership.role,
+      role: internalPrincipalRole(membership.role, membership),
       membershipId: membership.id,
     };
   }
@@ -78,7 +88,7 @@ export function mayReadDirect(
 ): boolean {
   if (self === null || !mayDirectMessage(self, other)) return false;
   if (self.kind === 'client') return true;
-  return self.role !== null && isRole(self.role) && hasCapability(self.role, 'conversation.read');
+  return roleHolds(self.role, 'conversation.read');
 }
 
 /**

@@ -146,6 +146,14 @@ export interface OrganizationSummaryView {
   readonly name: string;
   readonly audience: 'internal' | 'client';
   readonly role: string;
+  /** H1: a custom role's own name, present only when `role` is a custom role id. */
+  readonly roleName?: string;
+  /**
+   * H1: the capabilities the custom role holds, present only when `role` is a custom role id, so
+   * the browser can show a custom-role member the Control pages their role opens. A display hint;
+   * the API still authorizes every request on its own.
+   */
+  readonly capabilities?: readonly string[];
   readonly clientOrganizationName: string | null;
   /** 0206. True when the platform operator suspended it; its members see the suspended page. */
   readonly suspended?: boolean;

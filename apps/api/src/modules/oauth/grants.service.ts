@@ -1,4 +1,4 @@
-import { hasCapability, isRole } from '@tmanage/domain';
+import { capabilitySetFor } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { FeatureFlagsRepository } from '../admin/feature-flags.repository.js';
@@ -47,9 +47,13 @@ export interface ConnectedAppsView {
 /** The capability that makes the viewer the workspace's AI owner. */
 export const AI_OWNER_CAPABILITY = 'org.security.manage' as const;
 
-/** Is this membership role an owner for the Connected apps page? Pure. */
+/**
+ * Is this membership role an owner for the Connected apps page? Pure. The role is the principal
+ * role the membership resolver built, so a custom role (H1) is judged by its own loaded set; a
+ * raw or unknown value holds nothing.
+ */
 export function isAiOwner(role: string | undefined): boolean {
-  return role !== undefined && isRole(role) && hasCapability(role, AI_OWNER_CAPABILITY);
+  return role !== undefined && capabilitySetFor(role).has(AI_OWNER_CAPABILITY);
 }
 
 /** The stored space-separated scopes as a list in the canonical display order. Pure. */

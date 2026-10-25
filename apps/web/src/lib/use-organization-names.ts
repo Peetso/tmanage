@@ -102,6 +102,10 @@ export function usePortalNames(
  */
 export function useOrganizationRole(organizationSlug: string): {
   readonly role: string | undefined;
+  /** H1: a custom role's loaded set (absent for a built-in role); see `roleMayUse`. */
+  readonly capabilities: readonly string[] | undefined;
+  /** H1: a custom role's own name (absent for a built-in role). */
+  readonly roleName: string | undefined;
   readonly known: boolean;
   /** True when no `QueryClientProvider` is mounted, so the role can never be read here. */
   readonly unavailable: boolean;
@@ -109,5 +113,11 @@ export function useOrganizationRole(organizationSlug: string): {
   const contextClient = useContext(QueryClientContext);
   const { summary, pending } = useOrganizationSummary(organizationSlug);
   const unavailable = contextClient === undefined;
-  return { role: summary?.role, known: !unavailable && !pending, unavailable };
+  return {
+    role: summary?.role,
+    capabilities: summary?.capabilities,
+    roleName: summary?.roleName,
+    known: !unavailable && !pending,
+    unavailable,
+  };
 }

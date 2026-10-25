@@ -1562,6 +1562,9 @@ GRANT SELECT ON `tmanage`.`workflow_runs`            TO 'tmanage_worker'@'%';
 -- the due-soon sweep reads its own claims where it writes them (`due-soon-store.ts`).
 GRANT SELECT ON `tmanage`.`workflow_conditions`      TO 'tmanage_worker'@'%';
 GRANT SELECT ON `tmanage`.`workflow_due_soon_fires`  TO 'tmanage_worker'@'%';
+-- H1: a custom-role member's capability set, joined tenant-scoped beside `memberships` wherever the
+-- relay checks a role (`principal-role.ts`), so custom-role members are not skipped. Read only.
+GRANT SELECT ON `tmanage`.`custom_roles`             TO 'tmanage_worker'@'%';
 
 -- Read where it writes. MariaDB reads to write: an `UPDATE … WHERE` needs SELECT on the
 -- columns it filters by, and the notification insert's `ON DUPLICATE KEY UPDATE id = id`

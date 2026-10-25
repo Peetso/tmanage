@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { customRoleKey } from '@tmanage/domain';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { FeatureFlagsRepository } from '../admin/feature-flags.repository.js';
 import {
@@ -108,6 +109,14 @@ describe('Connected apps (S11)', () => {
     expect(isAiOwner('owner')).toBe(true);
     expect(isAiOwner('member')).toBe(false);
     expect(isAiOwner(undefined)).toBe(false);
+  });
+
+  it('H1: a custom role is an owner exactly when its loaded set holds org.security.manage', () => {
+    const id = '0192a8f0-0000-7000-8000-00000000c0de';
+    expect(isAiOwner(customRoleKey(id, ['org.security.manage', 'work.read']))).toBe(true);
+    expect(isAiOwner(customRoleKey(id, ['work.read']))).toBe(false);
+    // A bare stored id (never resolved) holds nothing.
+    expect(isAiOwner(id)).toBe(false);
   });
 
   it('a member revokes only their own grant; the grant and all its tokens go together', async () => {

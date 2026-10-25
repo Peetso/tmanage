@@ -19,6 +19,11 @@ export interface PersonSummary {
   /** r-people's second line. Null when the caller is not an internal principal. */
   readonly email: string | null;
   readonly role: string;
+  /**
+   * H1: a custom role's own name, sent for every viewer; null for a built-in role (named in the
+   * reader's language). Optional only while an older API is still deployed.
+   */
+  readonly roleName?: string | null;
   readonly status: string;
   /** How many of this organization's projects the person is a member of. */
   readonly projectCount: number;

@@ -1,12 +1,13 @@
 import {
   eventTypeBypassesQuietHours,
   hasCapability,
+  isClientRole,
   isInQuietHours,
-  isRole,
   quietHoursResumeAt,
 } from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
+import { roleHolds } from '../common/database/principal-role.js';
 import {
   clientRecipientStillPermitted,
   decodeQuietHoursMailResume,
@@ -123,8 +124,18 @@ function idList(payload: Record<string, unknown>, key: string): readonly string[
  */
 export function mayBeTold(reach: InternalReach | null, capability: Capability): boolean {
   if (reach === null) return false;
-  if (!isRole(reach.role) || !hasCapability(reach.role, capability)) return false;
+  // H1: `reach.role` is already resolved, so a custom-role member is judged by their own set.
+  if (!roleHolds(reach.role, capability)) return false;
   return reach.hasOrgWideScope || reach.onProject;
+}
+
+/**
+ * A client person who may decide. A client membership never holds a custom role (the API's
+ * resolver refuses one), so only a built-in **client** role counts — an internal role name on a
+ * client row is refused there too, and is refused here.
+ */
+export function mayClientDecide(role: string): boolean {
+  return isClientRole(role) && hasCapability(role, 'approval.decide');
 }
 
 /** A readable UTC time for an email — "2026-10-20 14:30 UTC". */
@@ -481,7 +492,7 @@ export const planClientActionNotices: NoticePlanner = async (event, tx, mailer) 
 
   const people = await listProjectClientPeople(tx, event.organizationId, projectId);
   return people
-    .filter((person) => isRole(person.role) && hasCapability(person.role, 'approval.decide'))
+    .filter((person) => mayClientDecide(person.role))
     .map((person): PlannedNotice => ({
       recipientUserId: person.userId,
       optOutKind: null,
@@ -518,7 +529,7 @@ export const planApprovalRequestedNotices: NoticePlanner = async (event, tx, mai
 
   const people = await listProjectClientPeople(tx, event.organizationId, projectId);
   return people
-    .filter((person) => isRole(person.role) && hasCapability(person.role, 'approval.decide'))
+    .filter((person) => mayClientDecide(person.role))
     .filter((person) => picked.size === 0 || picked.has(person.userId))
     .map((person): PlannedNotice => ({
       recipientUserId: person.userId,

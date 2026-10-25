@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { hasCapability, isRole } from '@tmanage/domain';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button, Field, InlineAlert, LoadingRegion, Select, Skeleton } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
@@ -34,6 +33,7 @@ import {
 import { ApiRequestError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
+import { roleMayUse } from '../../lib/role-capability';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { DownloadScanPolicyCard } from './DownloadScanPolicyCard';
@@ -94,10 +94,9 @@ export function OrgSettingsScreen({
   const t = useT();
   const tr = useTOr();
 
-  const { role, known } = useOrganizationRole(organizationSlug);
-  const mayManage = known
-    ? role !== undefined && isRole(role) && hasCapability(role, 'org.manage')
-    : null;
+  // H1: a custom role whose set holds `org.manage` opens the page too.
+  const { role, capabilities, known } = useOrganizationRole(organizationSlug);
+  const mayManage = known ? roleMayUse(role, capabilities, 'org.manage') : null;
   useEffect(() => {
     if (mayManage === false) window.location.replace(`/${organizationSlug}/preferences`);
   }, [mayManage, organizationSlug]);

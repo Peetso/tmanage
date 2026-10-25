@@ -5,7 +5,6 @@ import { useContext } from 'react';
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query';
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
-import { hasCapability, isRole } from '@tmanage/domain';
 import type { Capability } from '@tmanage/domain';
 import { Wordmark } from '../brand/Wordmark';
 import { MaintenanceBanner } from '../screens/MaintenanceBanner';
@@ -16,6 +15,7 @@ import { browserApiClient } from '../../lib/api/browser-client';
 import { getConnectedApps } from '../../lib/api/connected-apps';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
+import { roleMayUse } from '../../lib/role-capability';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import '../../styles/screens/admin.css';
@@ -219,22 +219,30 @@ export function menuEntryFor(section: ControlCenterSection): ControlCenterSectio
 
 /**
  * May a person with this role use the entry? Pure, so it is provable without a render. `null` is
- * "the role cannot be read here" (no query client — a story), where every entry is drawn.
+ * "the role cannot be read here" (no query client — a story), where every entry is drawn. A
+ * custom role (H1) is judged by its loaded `capabilities`, not skipped.
  */
-export function mayOpenSection(role: string | undefined | null, item: SectionLink): boolean {
+export function mayOpenSection(
+  role: string | undefined | null,
+  item: SectionLink,
+  capabilities?: readonly string[],
+): boolean {
   if (item.capability === undefined || role === null) return true;
-  return role !== undefined && isRole(role) && hasCapability(role, item.capability);
+  return roleMayUse(role, capabilities, item.capability);
 }
 
 /** The menu's groups minus the entries this role would be refused. `foot` is kept empty. */
-export function controlCenterSectionsFor(role: string | undefined | null): {
+export function controlCenterSectionsFor(
+  role: string | undefined | null,
+  capabilities?: readonly string[],
+): {
   readonly groups: readonly SectionGroup[];
   readonly foot: readonly SectionLink[];
 } {
   return {
     groups: GROUPS.map((group) => ({
       labelKey: group.labelKey,
-      items: group.items.filter((item) => mayOpenSection(role, item)),
+      items: group.items.filter((item) => mayOpenSection(role, item, capabilities)),
     })).filter((group) => group.items.length > 0),
     foot: [],
   };
@@ -287,8 +295,11 @@ export function ControlCenterSections({
 }) {
   // While the role is being read nothing gated is drawn, so a refused entry never flashes up.
   const t = useT();
-  const { role, known, unavailable } = useOrganizationRole(organizationSlug);
-  const { groups } = controlCenterSectionsFor(unavailable ? null : known ? role : undefined);
+  const { role, capabilities, known, unavailable } = useOrganizationRole(organizationSlug);
+  const { groups } = controlCenterSectionsFor(
+    unavailable ? null : known ? role : undefined,
+    capabilities,
+  );
   const marked = menuEntryFor(section);
   return (
     <div className="tm-cc-sections">

@@ -12,7 +12,7 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
-import { authorize } from '@tmanage/domain';
+import { authorize, isRole } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import {
@@ -32,6 +32,9 @@ import {
 import type { AuditService } from '../audit/audit.service.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { AddressAvailabilityRepository } from './address-availability.repository.js';
+import { CustomRoleNamesRepository, customRoleSummaryOf } from './custom-role-names.repository.js';
+import type { CustomRoleSummary } from './custom-role-names.repository.js';
+import { MembershipResolver } from './membership-resolver.repository.js';
 import { OrganizationProfileRepository } from './organization-profile.repository.js';
 import { MAX_NAME_LENGTH } from './organization-input.js';
 import type { AuthenticatedSession } from '../identity/session.service.js';
@@ -174,17 +177,57 @@ export class OrganizationsController {
         ? rows.filter((row) => row.organizationId === binding.organizationId)
         : rows;
 
+    const custom = new Map<string, CustomRoleSummary>();
+    for (const row of visible) {
+      if (row.audience !== 'internal' || row.suspended || isRole(row.role)) continue;
+      const summary = await this.customRoleOf(session.userId, row.organizationId, row.role, state);
+      if (summary !== undefined) custom.set(row.organizationId, summary);
+    }
+
     return {
-      organizations: visible.map((row) => ({
-        id: row.organizationId,
-        slug: row.slug,
-        name: row.name,
-        audience: row.audience,
-        role: row.role,
-        clientOrganizationName: row.clientOrganizationName,
-        suspended: row.suspended,
-      })),
+      organizations: visible.map((row) => {
+        const summary = row.audience === 'internal' ? custom.get(row.organizationId) : undefined;
+        return {
+          id: row.organizationId,
+          slug: row.slug,
+          name: row.name,
+          audience: row.audience,
+          role: row.role,
+          ...(summary === undefined
+            ? {}
+            : { roleName: summary.name, capabilities: summary.capabilities }),
+          clientOrganizationName: row.clientOrganizationName,
+          suspended: row.suspended,
+        };
+      }),
     };
+  }
+
+  /**
+   * H1: a custom-role member's role name and set in one organization. The membership is resolved
+   * first, exactly as a request into that organization would be, and the role row is read on that
+   * tenant-scoped path, so nothing here reaches past what the member could already open. Any
+   * refusal leaves the row without the hint (the browser then shows the role's generic label).
+   */
+  private async customRoleOf(
+    userId: string,
+    organizationId: string,
+    role: string,
+    state: { readonly correlationId: string },
+  ): Promise<CustomRoleSummary | undefined> {
+    try {
+      const resolved = await new MembershipResolver(this.database).resolve({
+        userId,
+        organization: { organizationId },
+        correlationId: state.correlationId,
+      });
+      const names = await this.database.read(resolved.context, (runner) =>
+        new CustomRoleNamesRepository().describe(runner, resolved.context, [role]),
+      );
+      return customRoleSummaryOf(names, role);
+    } catch {
+      return undefined;
+    }
   }
 
   /**

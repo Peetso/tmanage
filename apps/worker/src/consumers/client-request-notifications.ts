@@ -1,5 +1,5 @@
-import { hasCapability, isRole } from '@tmanage/domain';
 import type { WorkerTransaction } from '../common/database/worker-database.js';
+import { roleHolds } from '../common/database/principal-role.js';
 import {
   clientRecipientStillPermitted,
   findRequestSubmitter,
@@ -49,8 +49,8 @@ import type { OutboxHandler } from '../outbox/dispatcher.js';
 
 /** The recipient rule for a submitted request, pure so the unit suite can enumerate it. */
 export function mayTriageClientRequests(candidate: InternalRecipientCandidate): boolean {
-  if (!isRole(candidate.role)) return false;
-  if (!hasCapability(candidate.role, 'client_request.triage')) return false;
+  // H1: the store resolved the role, so a custom role with triage is told like a built-in one.
+  if (!roleHolds(candidate.role, 'client_request.triage')) return false;
   return candidate.hasOrgWideScope || candidate.onProject;
 }
 
