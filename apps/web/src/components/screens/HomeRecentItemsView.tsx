@@ -10,6 +10,7 @@ import type { RecentItemObjectType } from '../../lib/api/home';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import type { MessageKey } from '../../lib/i18n/t';
 
 export interface HomeRecentItemsViewProps {
@@ -31,6 +32,7 @@ export interface HomeRecentItemsViewProps {
  */
 export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItemsViewProps) {
   const t = useT();
+  const locale = useActiveLocale();
   const api = client ?? browserApiClient();
 
   const recents = useQuery({
@@ -91,7 +93,7 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
                 </span>
                 <span className="tm-home-saved__meta">
                   {item.objectType} · {t('HomeRecentItemsView.viewedPrefix')}{' '}
-                  {shortDay(item.viewedAt)}
+                  {shortDay(item.viewedAt, locale)}
                 </span>
               </span>
             </li>
@@ -103,11 +105,13 @@ export function HomeRecentItemsView({ organizationSlug, client }: HomeRecentItem
 }
 
 /** "13 Aug" — the design's short day in the saved-context meta line. */
-function shortDay(value: string): string {
+function shortDay(value: string, locale: string): string {
   const parsed = new Date(value);
+  // Latin digits in Arabic, as the Arabic frames write them.
+  const tag = locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
   return Number.isNaN(parsed.getTime())
     ? value
-    : parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    : parsed.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
 }
 
 function recentGlyph(objectType: RecentItemObjectType): string {

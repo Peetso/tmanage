@@ -10,6 +10,7 @@ import type { HomePinTargetKind } from '../../lib/api/home';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import type { MessageKey } from '../../lib/i18n/t';
 
 export interface HomePinnedSectionProps {
@@ -30,6 +31,7 @@ export interface HomePinnedSectionProps {
  */
 export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectionProps) {
   const t = useT();
+  const locale = useActiveLocale();
   const api = client ?? browserApiClient();
 
   const pins = useQuery({
@@ -90,7 +92,7 @@ export function HomePinnedSection({ organizationSlug, client }: HomePinnedSectio
                 </span>
                 <span className="tm-home-saved__meta">
                   {item.targetKind} · {t('HomePinnedSection.pinnedPrefix')}{' '}
-                  {shortDay(item.createdAt)}
+                  {shortDay(item.createdAt, locale)}
                 </span>
               </span>
             </li>
@@ -113,11 +115,13 @@ function pinGlyph(targetKind: HomePinTargetKind): string {
 }
 
 /** "13 Aug" — the design's short day in the saved-context meta line. */
-function shortDay(value: string): string {
+function shortDay(value: string, locale: string): string {
   const parsed = new Date(value);
+  // Latin digits in Arabic, as the Arabic frames write them.
+  const tag = locale.toLowerCase().startsWith('ar') ? 'ar-u-nu-latn' : 'en-GB';
   return Number.isNaN(parsed.getTime())
     ? value
-    : parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    : parsed.toLocaleDateString(tag, { day: 'numeric', month: 'short' });
 }
 
 /** The message key each pinned reference shows. The live title/preview is the deferred read fan-out. */
