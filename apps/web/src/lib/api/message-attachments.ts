@@ -21,7 +21,15 @@ export interface MessageAttachmentSummary {
   /** `null` before the file's first completed version. */
   readonly sizeBytes: number | null;
   readonly attachedAt: string;
+  /**
+   * L2 — the virus scan's word on the file, as the download door treats it. `clean` downloads;
+   * `not_scanned` downloads marked "Not scanned" (B5); `being_checked` is refused until the scan is
+   * done ("Block until scanned"); `unavailable` is never served. Absent from an older API: clean.
+   */
+  readonly scanStatus?: MessageAttachmentScanStatus;
 }
+
+export type MessageAttachmentScanStatus = 'clean' | 'not_scanned' | 'being_checked' | 'unavailable';
 
 function attachmentsPath(
   organizationSlug: string,
@@ -73,4 +81,103 @@ export async function listMessageAttachments(
     path: attachmentsPath(organizationSlug, conversationId, messageId),
   });
   return data.attachments;
+}
+
+/** L2: how many message ids one batched read names — one channel page, the API's own ceiling. */
+export const ATTACHMENT_BATCH_LIMIT = 200;
+
+/** L2: the attachments of several messages of one conversation, in one request. */
+export async function listAttachmentsForMessages(
+  client: ApiClient,
+  organizationSlug: string,
+  conversationId: string,
+  messageIds: readonly string[],
+): Promise<
+  readonly {
+    readonly messageId: string;
+    readonly attachments: readonly MessageAttachmentSummary[];
+  }[]
+> {
+  const parameters = new URLSearchParams({ messageIds: messageIds.join(',') });
+  const { data } = await client.request<{
+    messages?: readonly {
+      readonly messageId: string;
+      readonly attachments: readonly MessageAttachmentSummary[];
+    }[];
+  }>({
+    path:
+      `/v1/organizations/${encodeURIComponent(organizationSlug)}` +
+      `/conversations/${encodeURIComponent(conversationId)}/attachments?${parameters.toString()}`,
+  });
+  return Array.isArray(data?.messages) ? data.messages : [];
+}
+
+interface PendingAttachments {
+  readonly resolve: (attachments: readonly MessageAttachmentSummary[]) => void;
+  readonly reject: (error: unknown) => void;
+}
+
+const pendingByClient = new WeakMap<ApiClient, Map<string, Map<string, PendingAttachments[]>>>();
+
+/**
+ * L2 — one message's attachments, read together with every other message asked for in the same
+ * tick (C5's reactions pattern). A channel page mounts all its rows at once, so its rows' asks are
+ * sent as one `…/attachments?messageIds=` read (in chunks of {@link ATTACHMENT_BATCH_LIMIT}); each
+ * caller gets its own message's list back, an empty one when nothing is attached.
+ */
+export function getMessageAttachmentsBatched(
+  client: ApiClient,
+  organizationSlug: string,
+  conversationId: string,
+  messageId: string,
+): Promise<readonly MessageAttachmentSummary[]> {
+  return new Promise((resolve, reject) => {
+    let byConversation = pendingByClient.get(client);
+    if (byConversation === undefined) {
+      byConversation = new Map();
+      pendingByClient.set(client, byConversation);
+    }
+    const key = `${organizationSlug}\n${conversationId}`;
+    let waiting = byConversation.get(key);
+    if (waiting === undefined) {
+      waiting = new Map();
+      byConversation.set(key, waiting);
+      const batch = waiting;
+      const owner = byConversation;
+      queueMicrotask(() => {
+        owner.delete(key);
+        void flushAttachments(client, organizationSlug, conversationId, batch);
+      });
+    }
+    const callers = waiting.get(messageId) ?? [];
+    callers.push({ resolve, reject });
+    waiting.set(messageId, callers);
+  });
+}
+
+async function flushAttachments(
+  client: ApiClient,
+  organizationSlug: string,
+  conversationId: string,
+  batch: ReadonlyMap<string, readonly PendingAttachments[]>,
+): Promise<void> {
+  const ids = [...batch.keys()];
+  for (let start = 0; start < ids.length; start += ATTACHMENT_BATCH_LIMIT) {
+    const chunk = ids.slice(start, start + ATTACHMENT_BATCH_LIMIT);
+    try {
+      const listed = await listAttachmentsForMessages(
+        client,
+        organizationSlug,
+        conversationId,
+        chunk,
+      );
+      const byId = new Map(listed.map((entry) => [entry.messageId, entry.attachments]));
+      for (const id of chunk) {
+        const attachments = byId.get(id) ?? [];
+        for (const caller of batch.get(id) ?? []) caller.resolve(attachments);
+      }
+    } catch (error) {
+      for (const id of chunk) for (const caller of batch.get(id) ?? []) caller.reject(error);
+    }
+  }
 }

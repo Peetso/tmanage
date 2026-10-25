@@ -8,16 +8,24 @@ import {
   Module,
   Param,
   Post,
+  Query,
   Res,
 } from '@nestjs/common';
 import type { DynamicModule } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
-import { TENANT_DATABASE } from '../../common/http/tokens.js';
+import { MALWARE_SCANNER, TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MessageAttachmentsService } from './message-attachments.service.js';
-import type { MessageAttachmentView } from './message-attachments.service.js';
+import type {
+  MessageAttachmentsOfMessage,
+  MessageAttachmentView,
+} from './message-attachments.service.js';
+import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
+
+/** L2: how many message ids one batched read may name — one channel page (`MAX_MESSAGE_PAGE`). */
+export const MAX_ATTACHMENT_BATCH_MESSAGE_IDS = 200;
 
 /**
  * x275 — CH-06's composer attachments. A message author links an already-uploaded file to their
@@ -105,6 +113,40 @@ export class MessageAttachmentsController {
       attachments: await this.attachments.list(context, principal, conversationId, messageId),
     };
   }
+
+  /**
+   * L2 — `GET …/conversations/:conversationId/attachments?messageIds=a,b,c`: the attachments of
+   * many messages of one channel in one request (C5's reactions shape), so a channel page does not
+   * ask once per message. Capped at one page of messages.
+   */
+  @Get('conversations/:conversationId/attachments')
+  @RequireCapability('conversation.read')
+  async listMany(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('conversationId') conversationId: string,
+    @Query('messageIds') messageIds?: unknown,
+  ): Promise<{ readonly messages: readonly MessageAttachmentsOfMessage[] }> {
+    const ids = (typeof messageIds === 'string' ? messageIds : '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter((id) => id !== '');
+    if (
+      ids.length === 0 ||
+      ids.length > MAX_ATTACHMENT_BATCH_MESSAGE_IDS ||
+      ids.some((id) => id.length > 36)
+    ) {
+      throw new ApiError(400, 'validation_failed', 'The query is invalid', [
+        {
+          field: 'messageIds',
+          message: `must list 1 to ${MAX_ATTACHMENT_BATCH_MESSAGE_IDS} message ids, comma separated`,
+        },
+      ]);
+    }
+    return {
+      messages: await this.attachments.listMany(context, principal, conversationId, ids),
+    };
+  }
 }
 
 /**
@@ -122,8 +164,11 @@ export class MessageAttachmentsModule {
       providers: [
         {
           provide: MessageAttachmentsService,
-          useFactory: (database: TenantDatabase) => new MessageAttachmentsService(database),
-          inject: [TENANT_DATABASE],
+          // L2: the scanner (global `ScannerModule`) tells the scan status the download door's
+          // policy; optional, so a context without it reads as `allow_labeled`.
+          useFactory: (database: TenantDatabase, scanner?: ScannerPresence) =>
+            new MessageAttachmentsService(database, undefined, undefined, undefined, scanner),
+          inject: [TENANT_DATABASE, { token: MALWARE_SCANNER, optional: true }],
         },
       ],
       controllers: [MessageAttachmentsController],

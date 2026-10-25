@@ -269,6 +269,17 @@ export const conversationsDetails: readonly AiActionDetail[] = [
     ],
   }),
   det({
+    id: 'conversations.attachments.list',
+    title: 'List attachments on several messages',
+    description:
+      'The files attached to several messages of one conversation, in one read, each with its virus-scan status.',
+    input: bodyArgs(['conversationId'], { messageIds: f.shortText(7_400) }),
+    redact: 'standard',
+    examples: [
+      { summary: 'Two messages', args: { conversationId: 'conv_123', messageIds: 'msg_5,msg_6' } },
+    ],
+  }),
+  det({
     id: 'conversations.messages.revisions.list',
     title: 'List message edit history',
     description: 'The edit history of a message.',

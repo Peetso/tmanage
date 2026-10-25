@@ -1,4 +1,4 @@
-import { authorize, SERVABLE_UPLOAD_STATES } from '@tmanage/domain';
+import { authorize, isServableVersion, SERVABLE_UPLOAD_STATES } from '@tmanage/domain';
 import type { Principal, UploadState } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type {
@@ -6,10 +6,15 @@ import type {
   TenantDatabase,
   TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
-import type { MessageRow } from '../../common/database/schema.js';
+import type { ConversationRow, MessageRow } from '../../common/database/schema.js';
 import { FileAssetsRepository } from '../files/file-assets.repository.js';
+import { awaitingScan } from '../files/file-download.service.js';
+import { readDownloadScanPolicy } from '../tenancy/download-scan-policy.js';
+import type { ScannerPresence } from '../tenancy/download-scan-policy.js';
+import { OrgSettingsRepository } from '../tenancy/org-settings.repository.js';
 import { ConversationsRepository } from './conversations.repository.js';
 import { MessageAttachmentsRepository } from './message-attachments.repository.js';
+import type { AttachedFileRow } from './message-attachments.repository.js';
 
 /**
  * x275 — a message author links an already-uploaded file to their message, and any reader of the
@@ -42,12 +47,27 @@ import { MessageAttachmentsRepository } from './message-attachments.repository.j
  * message never references bytes that are not servable.
  */
 
+/**
+ * L2 — what the virus scan says about an attached file, as the download door would treat it:
+ * `clean` downloads; `not_scanned` downloads under the owner's "Allow, marked Not scanned" (the row
+ * shows B5's label); `being_checked` is refused until the scan is done under "Block until scanned";
+ * `unavailable` (rejected, infected or expired after it was attached) is never served.
+ */
+export type MessageAttachmentScanStatus = 'clean' | 'not_scanned' | 'being_checked' | 'unavailable';
+
 /** What a caller sees of one attached file. `sizeBytes` is `null` before the file's first version. */
 export interface MessageAttachmentView {
   readonly fileAssetId: string;
   readonly name: string;
   readonly sizeBytes: number | null;
   readonly attachedAt: string;
+  readonly scanStatus: MessageAttachmentScanStatus;
+}
+
+/** L2 — one message's attachments in the batched read. */
+export interface MessageAttachmentsOfMessage {
+  readonly messageId: string;
+  readonly attachments: readonly MessageAttachmentView[];
 }
 
 export class MessageAttachmentsService {
@@ -56,6 +76,9 @@ export class MessageAttachmentsService {
     private readonly attachments: MessageAttachmentsRepository = new MessageAttachmentsRepository(),
     private readonly conversations: ConversationsRepository = new ConversationsRepository(),
     private readonly files: FileAssetsRepository = new FileAssetsRepository(),
+    /** L2. The configured scanner, as the download door gets it; absent means `allow_labeled`. */
+    private readonly scanner?: ScannerPresence,
+    private readonly settings: OrgSettingsRepository = new OrgSettingsRepository(),
   ) {}
 
   /**
@@ -79,22 +102,17 @@ export class MessageAttachmentsService {
         fileAssetId: fileId,
       });
       const listed = await this.attachments.listForMessage(tx, context, messageId);
-      const view = listed.find((item) => item.fileAssetId === fileId);
+      const found = listed.find((item) => item.fileAssetId === fileId);
       // The row was just written in this transaction, so the projection always finds it; the
-      // fallback keeps the type honest without inventing a size.
-      const attachment: MessageAttachmentView = view
-        ? {
-            fileAssetId: view.fileAssetId,
-            name: view.name,
-            sizeBytes: view.sizeBytes,
-            attachedAt: view.attachedAt.toISOString(),
-          }
-        : {
-            fileAssetId: fileId,
-            name: '',
-            sizeBytes: null,
-            attachedAt: row.createdAt.toISOString(),
-          };
+      // fallback keeps the type honest without inventing a size. An attachable file is `ready`.
+      const [view] = found ? await this.toViews(context, [found]) : [];
+      const attachment: MessageAttachmentView = view ?? {
+        fileAssetId: fileId,
+        name: '',
+        sizeBytes: null,
+        attachedAt: row.createdAt.toISOString(),
+        scanStatus: 'unavailable',
+      };
       return { attachment, created };
     });
   }
@@ -133,12 +151,94 @@ export class MessageAttachmentsService {
       await this.resolveReadableMessage(context, principal, conversationId, messageId, runner);
       return this.attachments.listForMessage(runner, context, messageId);
     });
-    return rows.map((row) => ({
-      fileAssetId: row.fileAssetId,
-      name: row.name,
-      sizeBytes: row.sizeBytes,
-      attachedAt: row.attachedAt.toISOString(),
-    }));
+    return this.toViews(context, rows);
+  }
+
+  /**
+   * L2 — the attachments of several messages of one conversation in one round trip, so a channel
+   * reads a page's attachment cards with one request instead of one per message. The conversation
+   * gate runs once (`conversation.read`, then membership unless org-wide); ids that are not
+   * messages of this conversation are dropped rather than answered, so the batch never says
+   * anything about another channel's message. Answers in the order asked, a message with no
+   * attachments with an empty list.
+   */
+  async listMany(
+    context: TenantContext,
+    principal: Principal,
+    conversationId: string,
+    messageIds: readonly string[],
+  ): Promise<readonly MessageAttachmentsOfMessage[]> {
+    const asked = [...new Set(messageIds)];
+    const { inConversation, rows } = await this.database.read(context, async (runner) => {
+      const conversation = await this.conversations.findById(runner, context, conversationId);
+      if (!conversation) throw new ApiError(404, 'not_found', MESSAGES.notFound);
+      await this.requireReach(context, principal, conversation, 'conversation.read', runner);
+      const ids = await this.attachments.messageIdsInConversation(
+        runner,
+        context,
+        conversationId,
+        asked,
+      );
+      return {
+        inConversation: new Set(ids),
+        rows: await this.attachments.listForMessages(runner, context, ids),
+      };
+    });
+    const views = await this.toViews(context, rows);
+    return asked
+      .filter((messageId) => inConversation.has(messageId))
+      .map((messageId) => ({
+        messageId,
+        attachments: views.filter((_view, index) => rows[index]?.messageId === messageId),
+      }));
+  }
+
+  /**
+   * L2 — rows to views, each with its scan status, by the download door's own rules. The owner's
+   * policy is read once, and only when some file is still waiting for its scan (C4's rule).
+   */
+  private async toViews(
+    context: TenantContext,
+    rows: readonly AttachedFileRow[],
+  ): Promise<readonly MessageAttachmentView[]> {
+    let unscanned: MessageAttachmentScanStatus | undefined;
+    const views: MessageAttachmentView[] = [];
+    for (const row of rows) {
+      let scanStatus: MessageAttachmentScanStatus = 'unavailable';
+      const version = row.latestVersion;
+      if (
+        version !== null &&
+        isServableVersion({
+          status: row.assetStatus,
+          scanVerdict: version.scanVerdict,
+          trustZone: version.trustZone,
+        })
+      ) {
+        scanStatus = 'clean';
+      } else if (version !== null && awaitingScan(row.assetStatus, version)) {
+        unscanned ??= await this.unscannedStatus(context);
+        scanStatus = unscanned;
+      }
+      views.push({
+        fileAssetId: row.fileAssetId,
+        name: row.name,
+        sizeBytes: row.sizeBytes,
+        attachedAt: row.attachedAt.toISOString(),
+        scanStatus,
+      });
+    }
+    return views;
+  }
+
+  /** `allow_labeled` -> `not_scanned` (downloadable, labelled); `block` -> `being_checked`. */
+  private async unscannedStatus(context: TenantContext): Promise<MessageAttachmentScanStatus> {
+    const policy = await readDownloadScanPolicy(
+      this.database,
+      context,
+      this.scanner,
+      this.settings,
+    );
+    return policy.effective === 'block' ? 'being_checked' : 'not_scanned';
   }
 
   /**
@@ -211,6 +311,22 @@ export class MessageAttachmentsService {
       throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
 
+    await this.requireReach(context, principal, conversation, capability, runner);
+    return message;
+  }
+
+  /**
+   * The capability's resource gate (404 on denial, never 403 — the channel's existence is
+   * information), then the membership relation gate unless the caller holds organization-wide
+   * scope. Shared by the per-message spine and the L2 batched read.
+   */
+  private async requireReach(
+    context: TenantContext,
+    principal: Principal,
+    conversation: ConversationRow,
+    capability: 'conversation.read' | 'conversation.write',
+    runner: TenantQueryRunner,
+  ): Promise<void> {
     const verdict = authorize({
       principal,
       capability,
@@ -227,13 +343,11 @@ export class MessageAttachmentsService {
       const membership = await this.conversations.findMembership(
         runner,
         context,
-        conversationId,
+        conversation.id,
         principal.userId,
       );
       if (!membership) throw new ApiError(404, 'not_found', MESSAGES.notFound);
     }
-
-    return message;
   }
 
   /**

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { DestructiveButton, InlineAlert, TextButton } from '@tmanage/ui';
+import { DestructiveButton, InlineAlert, StateCapsule, TextButton } from '@tmanage/ui';
 import { browserApiClient } from '../../lib/api/browser-client';
 import {
   attachMessageFile,
@@ -110,6 +110,22 @@ export function MessageAttachmentsView({
             <li key={row.fileAssetId} className="tm-message-attachments__chip">
               <span className="tm-message-attachments__name">{row.name}</span>
               <span className="tm-message-attachments__size">{formatBytes(row.sizeBytes)}</span>
+              {/* L2: the virus scan's word, the labels the channel's file cards use. */}
+              {row.scanStatus === 'not_scanned' ? (
+                <StateCapsule state="waiting" className="tm-scan-capsule">
+                  {t('DownloadScan.notScanned')}
+                </StateCapsule>
+              ) : null}
+              {row.scanStatus === 'being_checked' ? (
+                <StateCapsule state="waiting" className="tm-scan-capsule">
+                  {t('WorkDetail.scanning')}
+                </StateCapsule>
+              ) : null}
+              {row.scanStatus === 'unavailable' ? (
+                <span className="tm-message-attachments__size" role="status">
+                  {t('WorkDetail.unavailable')}
+                </span>
+              ) : null}
               {isAuthor ? (
                 <DestructiveButton
                   type="button"

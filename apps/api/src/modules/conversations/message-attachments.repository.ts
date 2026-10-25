@@ -1,9 +1,14 @@
-import { and, asc, eq, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { unwrapQueryError } from '../../common/database/query-error.js';
-import { fileAssets, fileVersions, messageAttachments } from '../../common/database/schema.js';
-import type { MessageAttachmentRow } from '../../common/database/schema.js';
+import {
+  fileAssets,
+  fileVersions,
+  messageAttachments,
+  messages,
+} from '../../common/database/schema.js';
+import type { FileVersionRow, MessageAttachmentRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 
 /** MySQL's duplicate-key error. */
@@ -28,10 +33,15 @@ function driverErrorCode(error: unknown): string | undefined {
  */
 export interface AttachedFileRow {
   readonly attachmentId: string;
+  /** L2: the message the file is attached to — the batched read groups by it. */
+  readonly messageId: string;
   readonly fileAssetId: string;
   readonly name: string;
   readonly sizeBytes: number | null;
   readonly attachedAt: Date;
+  /** L2: the asset's upload state and its latest version, which together give the scan status. */
+  readonly assetStatus: string;
+  readonly latestVersion: FileVersionRow | null;
 }
 
 /**
@@ -132,6 +142,30 @@ export class MessageAttachmentsRepository {
   }
 
   /**
+   * L2 (batched read): which of `messageIds` are messages of `conversationId` in this studio. The
+   * batched list answers only for these, so an id from another channel is dropped, never listed.
+   */
+  async messageIdsInConversation(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    conversationId: string,
+    messageIds: readonly string[],
+  ): Promise<readonly string[]> {
+    if (messageIds.length === 0) return [];
+    const rows = await tenantDrizzle(runner)
+      .select({ id: messages.id })
+      .from(messages)
+      .where(
+        and(
+          eq(messages.organizationId, context.organizationId),
+          eq(messages.conversationId, conversationId),
+          inArray(messages.id, [...messageIds]),
+        ),
+      );
+    return rows.map((row) => row.id);
+  }
+
+  /**
    * A message's attachments, oldest first, each with the file's name and its latest version's size.
    * The join to `file_assets` gives the file; the correlated `max(version_no)` join to
    * `file_versions` gives the size, `null` before the first completed version — the same latest-
@@ -142,13 +176,28 @@ export class MessageAttachmentsRepository {
     context: TenantContext,
     messageId: string,
   ): Promise<readonly AttachedFileRow[]> {
+    return this.listForMessages(runner, context, [messageId]);
+  }
+
+  /**
+   * L2 — the attachments of several messages in one query, message by message, oldest first. The
+   * caller has already narrowed `messageIds` to messages of one conversation it may read.
+   */
+  async listForMessages(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    messageIds: readonly string[],
+  ): Promise<readonly AttachedFileRow[]> {
+    if (messageIds.length === 0) return [];
     const rows = await tenantDrizzle(runner)
       .select({
         attachmentId: messageAttachments.id,
+        messageId: messageAttachments.messageId,
         fileAssetId: fileAssets.id,
         name: fileAssets.name,
-        sizeBytes: fileVersions.sizeBytes,
+        assetStatus: fileAssets.status,
         attachedAt: messageAttachments.createdAt,
+        latestVersion: fileVersions,
       })
       .from(messageAttachments)
       .innerJoin(
@@ -172,18 +221,23 @@ export class MessageAttachmentsRepository {
       .where(
         and(
           eq(messageAttachments.organizationId, context.organizationId),
-          eq(messageAttachments.messageId, messageId),
+          inArray(messageAttachments.messageId, [...messageIds]),
         ),
       )
       .orderBy(asc(messageAttachments.createdAt), asc(messageAttachments.id));
 
-    return rows.map((row) => ({
-      attachmentId: row.attachmentId,
-      fileAssetId: row.fileAssetId,
-      name: row.name,
-      sizeBytes:
-        row.sizeBytes === null || row.sizeBytes === undefined ? null : Number(row.sizeBytes),
-      attachedAt: row.attachedAt,
-    }));
+    return rows.map((row) => {
+      const size = row.latestVersion?.sizeBytes;
+      return {
+        attachmentId: row.attachmentId,
+        messageId: row.messageId,
+        fileAssetId: row.fileAssetId,
+        name: row.name,
+        sizeBytes: size === null || size === undefined ? null : Number(size),
+        attachedAt: row.attachedAt,
+        assetStatus: row.assetStatus,
+        latestVersion: row.latestVersion ?? null,
+      };
+    });
   }
 }

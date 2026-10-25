@@ -4,7 +4,14 @@ import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEven
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
-import { Button, InlineAlert, LoadingRegion, Skeleton, VisuallyHidden } from '@tmanage/ui';
+import {
+  Button,
+  InlineAlert,
+  LoadingRegion,
+  Skeleton,
+  StateCapsule,
+  VisuallyHidden,
+} from '@tmanage/ui';
 import { AppShell } from '../shell/AppShell';
 import { ChatSidebar } from '../chat/ChatSidebar';
 import {
@@ -58,9 +65,10 @@ import {
   listChannelMembers,
 } from '../../lib/api/channel-members';
 import {
-  listMessageAttachments,
+  getMessageAttachmentsBatched,
   type MessageAttachmentSummary,
 } from '../../lib/api/message-attachments';
+import { NotScannedDownload } from './NotScannedDownload';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
 import { MessageReactionPills, useMessageReactionTally } from './MessageReactionsView';
 import { MessageActionsSheet } from '../chat/MessageActionsSheet';
@@ -675,6 +683,76 @@ export function fileTypeOf(name: string): string | undefined {
   return name.slice(dot + 1).toUpperCase();
 }
 
+/** L2: whether the download door serves this attachment now (clean, or labelled Not scanned). */
+function isDownloadable(file: MessageAttachmentSummary): boolean {
+  const status = file.scanStatus ?? 'clean';
+  return status === 'clean' || status === 'not_scanned';
+}
+
+/**
+ * L2 — one attachment card. A clean file opens; a file the virus scan has not checked yet shows
+ * B5's "Not scanned" label and Download (`NotScannedDownload`); under "Block until scanned" the
+ * card says the file is being checked, with Download disabled and the reason — never a bare link
+ * that answers a raw 409. A file no longer served (rejected after it was attached) says so.
+ */
+export function ChannelFileCard({
+  file,
+  href,
+  isMobile,
+}: {
+  file: MessageAttachmentSummary;
+  href: string;
+  isMobile: boolean;
+}) {
+  const t = useT();
+  const tOr = useTOr();
+  const status = file.scanStatus ?? 'clean';
+  const meta = [formatFileSize(file.sizeBytes), fileTypeOf(file.name)].filter(Boolean).join(' · ');
+  const scanRow = status === 'not_scanned' || status === 'being_checked';
+  const whyId = `tm-chat-file-why-${file.fileAssetId}`;
+  return (
+    <li className={scanRow ? 'tm-chat-file tm-scan-row' : 'tm-chat-file'}>
+      <span className="tm-chat-file__icon" aria-hidden="true">
+        ▣
+      </span>
+      <span className="tm-chat-file__text">
+        <span className="tm-chat-file__name">{file.name}</span>
+        {meta !== '' ? <span className="tm-chat-file__meta">{meta}</span> : null}
+      </span>
+      {status === 'not_scanned' ? <NotScannedDownload href={href} fileName={file.name} /> : null}
+      {status === 'being_checked' ? (
+        <>
+          <span className="tm-scan-row__actions">
+            <StateCapsule state="waiting" className="tm-scan-capsule">
+              {t('WorkDetail.scanning')}
+            </StateCapsule>
+            <Button type="button" tone="outline" disabled aria-describedby={whyId}>
+              {t('DownloadScan.download')}
+            </Button>
+          </span>
+          <div className="tm-scan-row__message" id={whyId}>
+            <InlineAlert tone="warning">{t('DownloadScan.blocked')}</InlineAlert>
+          </div>
+        </>
+      ) : null}
+      {status === 'unavailable' ? (
+        <span className="tm-chat-file__meta" role="status">
+          {t('WorkDetail.unavailable')}
+        </span>
+      ) : null}
+      {status === 'clean' && !isMobile ? (
+        <a
+          className="tm-chat-file__open"
+          href={href}
+          aria-label={`${tOr('ProjectChannelScreen.openFile', 'Open')} ${file.name}`}
+        >
+          {tOr('ProjectChannelScreen.openFile', 'Open')}
+        </a>
+      ) : null}
+    </li>
+  );
+}
+
 /**
  * A16 — one transcript row as the approved Figma draws it: orb (client-ringed for a client),
  * author · time · "Client" chip · "(edited)", the body or the inline edit card, the attachment
@@ -705,7 +783,8 @@ function ChannelMessage({
 
   const attachments = useQuery({
     queryKey: ['message-attachments', organizationSlug, conversationId, message.id],
-    queryFn: () => listMessageAttachments(api, organizationSlug, conversationId, message.id),
+    // L2: read with the other messages of the page in one batched request, not one GET each.
+    queryFn: () => getMessageAttachmentsBatched(api, organizationSlug, conversationId, message.id),
     enabled: !removed,
     staleTime: 30_000,
   });
@@ -794,31 +873,14 @@ function ChannelMessage({
 
         {files.length > 0 ? (
           <ul className="tm-chat-files">
-            {files.map((file) => {
-              const meta = [formatFileSize(file.sizeBytes), fileTypeOf(file.name)]
-                .filter(Boolean)
-                .join(' · ');
-              return (
-                <li key={file.fileAssetId} className="tm-chat-file">
-                  <span className="tm-chat-file__icon" aria-hidden="true">
-                    ▣
-                  </span>
-                  <span className="tm-chat-file__text">
-                    <span className="tm-chat-file__name">{file.name}</span>
-                    {meta !== '' ? <span className="tm-chat-file__meta">{meta}</span> : null}
-                  </span>
-                  {isMobile ? null : (
-                    <a
-                      className="tm-chat-file__open"
-                      href={fileContentHref(organizationSlug, file.fileAssetId)}
-                      aria-label={`${tOr('ProjectChannelScreen.openFile', 'Open')} ${file.name}`}
-                    >
-                      {tOr('ProjectChannelScreen.openFile', 'Open')}
-                    </a>
-                  )}
-                </li>
-              );
-            })}
+            {files.map((file) => (
+              <ChannelFileCard
+                key={file.fileAssetId}
+                file={file}
+                href={fileContentHref(organizationSlug, file.fileAssetId)}
+                isMobile={isMobile}
+              />
+            ))}
           </ul>
         ) : null}
 
@@ -1012,7 +1074,7 @@ function ChannelMessage({
                 },
               }
             : {})}
-          {...(files[0] !== undefined
+          {...(files[0] !== undefined && isDownloadable(files[0])
             ? {
                 attachmentHref: fileContentHref(organizationSlug, files[0].fileAssetId),
                 attachmentName: files[0].name,
