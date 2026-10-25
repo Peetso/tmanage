@@ -593,6 +593,8 @@ describe('0030: documents is a tenant-scoped, project-owned, forward-only table'
         'published_at',
         'published_by_user_id',
         'title',
+        // 0227 (F2 rename in the editor, approved D2 design): who made the current title.
+        'title_updated_by_user_id',
         'updated_at',
       ].sort(),
     );
