@@ -127,6 +127,8 @@ describe('the flow cookie', () => {
 interface World {
   bySubject?: string;
   byEmail?: string;
+  /** Whether the `byEmail` account ever proved its address; true unless a test says otherwise. */
+  byEmailVerified?: boolean;
   factors?: number;
   invitedEmail?: string;
   signupOpen?: boolean;
@@ -141,7 +143,15 @@ function serviceFor(world: World) {
   const link = vi.fn(async () => undefined);
   const identities = {
     findUserBySubject: vi.fn(async () => (world.bySubject ? { userId: world.bySubject } : null)),
-    findUserByEmail: vi.fn(async () => (world.byEmail ? { userId: world.byEmail } : null)),
+    findUserByEmail: vi.fn(async () =>
+      world.byEmail
+        ? {
+            userId: world.byEmail,
+            emailVerifiedAt:
+              world.byEmailVerified === false ? null : new Date('2026-10-01T00:00:00.000Z'),
+          }
+        : null,
+    ),
     link,
     touch: vi.fn(async () => undefined),
   } as unknown as UserIdentitiesRepository;
@@ -188,7 +198,7 @@ function serviceFor(world: World) {
     accounts: { insertUser } as unknown as SignupAccountsRepository,
     now: () => NOW * 1000,
   });
-  return { service, link, accept, createOwnerAccount, insertUser, events };
+  return { service, link, accept, createOwnerAccount, insertUser, events, credentials };
 }
 
 const CLAIMS: GoogleClaims = {
@@ -308,6 +318,107 @@ function controllerFor(world: World = { byEmail: 'user-1' }) {
   );
   return { controller, exchangeCode, start };
 }
+
+describe('Google never merges into an unverified pre-registered account (wave 9 S6, F03)', () => {
+  // The audit's exploit: someone signs up with a password for the victim's address (no mailbox
+  // proof, email_verified_at NULL), then the victim uses "Continue with Google".
+  const PRE_REGISTERED: World = { byEmail: 'attacker-account', byEmailVerified: false };
+
+  it('sign-in: refused as unverified_account, nothing linked, no session, a failed event', async () => {
+    const h = serviceFor(PRE_REGISTERED);
+    await expect(h.service.complete(flowOf('sign-in'), CLAIMS, CONTEXT)).resolves.toEqual({
+      kind: 'refused',
+      reason: 'unverified_account',
+    });
+    expect(h.link).not.toHaveBeenCalled();
+    expect(h.credentials.listActiveFactors).not.toHaveBeenCalled();
+    expect(h.events).toContainEqual(
+      expect.objectContaining({ outcome: 'failed', reason: 'google_unverified_account' }),
+    );
+    expect(h.events).not.toContainEqual(expect.objectContaining({ outcome: 'succeeded' }));
+  });
+
+  it('sign-up: refused the same way, and no second account or organization is made', async () => {
+    const h = serviceFor(PRE_REGISTERED);
+    await expect(h.service.complete(flowOf('sign-up'), CLAIMS, CONTEXT)).resolves.toEqual({
+      kind: 'refused',
+      reason: 'unverified_account',
+    });
+    expect(h.link).not.toHaveBeenCalled();
+    expect(h.createOwnerAccount).not.toHaveBeenCalled();
+  });
+
+  it('invitation: refused, nothing linked, the invitation is NOT accepted for that account', async () => {
+    const h = serviceFor({ ...PRE_REGISTERED, invitedEmail: 'mona@example.com' });
+    await expect(
+      h.service.complete(flowOf('invitation', { invitationToken: INVITE_TOKEN }), CLAIMS, CONTEXT),
+    ).resolves.toEqual({ kind: 'refused', reason: 'unverified_account' });
+    expect(h.link).not.toHaveBeenCalled();
+    expect(h.accept).not.toHaveBeenCalled();
+    expect(h.insertUser).not.toHaveBeenCalled();
+  });
+
+  it('a verified account with that address still links and signs in, and accepts invitations', async () => {
+    const signIn = serviceFor({ byEmail: 'user-1', byEmailVerified: true });
+    await expect(signIn.service.complete(flowOf('sign-in'), CLAIMS, CONTEXT)).resolves.toEqual({
+      kind: 'signed-in',
+      userId: 'user-1',
+      returnTo: '/organizations',
+    });
+    expect(signIn.link).toHaveBeenCalledTimes(1);
+
+    const invite = serviceFor({
+      byEmail: 'user-1',
+      byEmailVerified: true,
+      invitedEmail: 'mona@example.com',
+    });
+    const outcome = await invite.service.complete(
+      flowOf('invitation', { invitationToken: INVITE_TOKEN }),
+      CLAIMS,
+      CONTEXT,
+    );
+    expect(outcome).toMatchObject({ kind: 'signed-in', userId: 'user-1' });
+    expect(invite.accept).toHaveBeenCalledWith(INVITE_TOKEN, 'user-1', CORR);
+  });
+
+  it('an identity already linked by subject is unaffected (it was linked while verified)', async () => {
+    const h = serviceFor({ bySubject: 'user-1', byEmail: 'user-1', byEmailVerified: false });
+    await expect(h.service.complete(flowOf('sign-in'), CLAIMS, CONTEXT)).resolves.toMatchObject({
+      kind: 'signed-in',
+      userId: 'user-1',
+    });
+  });
+
+  it('the callback sends the person back with google_error=unverified_account and no session', async () => {
+    vi.useFakeTimers({ now: NOW * 1000 });
+    try {
+      const signIn = controllerFor(PRE_REGISTERED);
+      const flow = { ...newFlow('sign-in'), nonce: 'nonce-1' };
+      const result = await signIn.controller.callback(
+        { state: flow.state, code: 'c' },
+        requestWith(flow),
+        { header: vi.fn() },
+      );
+      expect(result.url).toBe('/sign-in?google_error=unverified_account');
+      expect(signIn.start).not.toHaveBeenCalled();
+
+      const invite = controllerFor({ ...PRE_REGISTERED, invitedEmail: 'mona@example.com' });
+      const inviteFlow = {
+        ...newFlow('invitation', { invitationToken: INVITE_TOKEN }),
+        nonce: 'nonce-1',
+      };
+      const invited = await invite.controller.callback(
+        { state: inviteFlow.state, code: 'c' },
+        requestWith(inviteFlow),
+        { header: vi.fn() },
+      );
+      expect(invited.url).toBe(`/invitations/${INVITE_TOKEN}?google_error=unverified_account`);
+      expect(invite.start).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
 
 function requestWith(flow: GoogleFlow | null) {
   const request = {

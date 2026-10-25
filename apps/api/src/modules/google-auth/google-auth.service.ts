@@ -30,13 +30,34 @@ import {
  * - **invitation**: the Google email must equal the invited email (`email_mismatch` otherwise).
  *   No account: one is created for the invited address, linked, and the invitation accepted.
  *   An existing account signs in (MFA first, if enabled) and the invitation is accepted.
+ * - **Existing account whose address was never proved** (`email_verified_at` NULL — a public
+ *   password sign-up): refused (`unverified_account`) for every intent, nothing linked, no
+ *   session, no invitation accepted. Anyone can pre-register an address with a password; merging
+ *   the real owner's Google identity into that account would hand the pre-registrant the
+ *   victim's sign-ins and invitations (audit run 1, F03). The person signs in with the password
+ *   or resets it by email instead.
  */
 
 export const GOOGLE_PROVIDER = 'google';
 export const GOOGLE_SIGN_IN_ACTION = 'google_sign_in';
 
 export type GoogleRefusal =
-  'no_account' | 'signup_closed' | 'email_mismatch' | 'invitation_unusable' | 'already_linked';
+  | 'no_account'
+  | 'signup_closed'
+  | 'email_mismatch'
+  | 'invitation_unusable'
+  | 'already_linked'
+  | 'unverified_account';
+
+type LinkResult = string | null | 'already_linked' | 'unverified_account';
+
+/** A refusal for a link that did not happen; `undefined` when the result is a user id or null. */
+function linkRefusal(result: LinkResult): GoogleOutcome | undefined {
+  if (result === 'already_linked' || result === 'unverified_account') {
+    return { kind: 'refused', reason: result };
+  }
+  return undefined;
+}
 
 export type GoogleOutcome =
   | { readonly kind: 'signed-in'; readonly userId: string; readonly returnTo: string }
@@ -93,7 +114,8 @@ export class GoogleAuthService {
     if (flow.intent === 'invitation') return this.completeInvitation(flow, claims, context);
 
     const existing = await this.findOrLink(claims, context);
-    if (existing === 'already_linked') return { kind: 'refused', reason: 'already_linked' };
+    const refusedLink = linkRefusal(existing);
+    if (refusedLink) return refusedLink;
     if (existing !== null) return this.signIn(existing, AFTER_SIGN_IN, context);
 
     if (flow.intent === 'sign-in') {
@@ -131,8 +153,9 @@ export class GoogleAuthService {
       // Raced with another sign-up for the same address: sign in to the account that won.
       if (error instanceof SignupEmailTakenError) {
         const again = await this.findOrLink(claims, context);
-        if (again !== null && again !== 'already_linked')
-          return this.signIn(again, AFTER_SIGN_IN, context);
+        const refusedAgain = linkRefusal(again);
+        if (refusedAgain) return refusedAgain;
+        if (again !== null) return this.signIn(again, AFTER_SIGN_IN, context);
       }
       throw error;
     }
@@ -159,8 +182,11 @@ export class GoogleAuthService {
       return { kind: 'refused', reason: 'email_mismatch' };
     }
 
-    let userId = await this.findOrLink(claims, context);
-    if (userId === 'already_linked') return { kind: 'refused', reason: 'already_linked' };
+    const found = await this.findOrLink(claims, context);
+    if (found === 'already_linked' || found === 'unverified_account') {
+      return { kind: 'refused', reason: found };
+    }
+    let userId: string | null = found;
 
     if (userId === null) {
       const newId = uuidv7();
@@ -185,8 +211,9 @@ export class GoogleAuthService {
       } catch (error) {
         if (!(error instanceof SignupEmailTakenError)) throw error;
         const again = await this.findOrLink(claims, context);
-        if (again === null || again === 'already_linked')
-          return { kind: 'refused', reason: 'already_linked' };
+        const refusedAgain = linkRefusal(again);
+        if (refusedAgain) return refusedAgain;
+        if (again === null) return { kind: 'refused', reason: 'already_linked' };
         userId = again;
       }
     }
@@ -212,11 +239,8 @@ export class GoogleAuthService {
   }
 
   /** The person this Google identity belongs to, linking by verified email on first use. */
-  private async findOrLink(
-    claims: GoogleClaims,
-    context: SignInContext,
-  ): Promise<string | null | 'already_linked'> {
-    return this.deps.database.identityTransaction(
+  private async findOrLink(claims: GoogleClaims, context: SignInContext): Promise<LinkResult> {
+    const result = await this.deps.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...GOOGLE_IDENTITY_TABLES] },
       async (tx) => {
         const bySubject = await this.identities.findUserBySubject(
@@ -230,6 +254,8 @@ export class GoogleAuthService {
         }
         const byEmail = await this.identities.findUserByEmail(tx, claims.email);
         if (!byEmail) return null;
+        // Never merge into an account whose mailbox nobody has proved: it may be pre-registered.
+        if (!byEmail.emailVerifiedAt) return 'unverified_account' as const;
         try {
           await this.link(tx, byEmail.userId, claims);
         } catch (error) {
@@ -240,6 +266,10 @@ export class GoogleAuthService {
         return byEmail.userId;
       },
     );
+    if (result === 'unverified_account') {
+      await this.record(context, null, 'failed', 'google_unverified_account');
+    }
+    return result;
   }
 
   private link(tx: IdentityQueryRunner, userId: string, claims: GoogleClaims): Promise<void> {

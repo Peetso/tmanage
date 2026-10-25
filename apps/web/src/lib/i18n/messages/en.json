@@ -55,6 +55,8 @@
   "google.error.emailMismatch": "This invitation was sent to a different email address. Choose the Google account for the invited address, or use the form below.",
   "google.error.invitationUnusable": "This invitation cannot be used any more. Ask whoever invited you for a new link.",
   "google.error.alreadyLinked": "This TManage account is already linked to a different Google account. Sign in with your email and password.",
+  "google.error.unverifiedAccount": "An account with this email address already exists, but its address has not been confirmed, so Google cannot be used to open it. Sign in with your email and password, or reset the password by email.",
+  "google.error.resetPassword": "Reset your password",
   "google.error.unverified": "Google has not verified this email address, so it cannot be used to sign in.",
   "google.error.cancelled": "Google sign-in was cancelled.",
   "google.error.state": "That Google sign-in expired or was started in another browser. Start again.",

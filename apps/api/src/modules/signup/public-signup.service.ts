@@ -230,8 +230,6 @@ export class PublicSignupService {
     // After commit, and never fatal: the account exists whether or not the mail goes out.
     await this.welcome.deliver({
       to: account.email,
-      displayName: account.displayName,
-      organizationName: result.organizationName,
       organizationSlug: result.slug,
       locale: account.defaultLocale,
     });

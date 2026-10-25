@@ -1,7 +1,7 @@
 import { Body, Controller, Get, HttpCode, Inject, Optional, Post, Req, Res } from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { Public } from '../../common/http/decorators.js';
-import type { RequestAdmission } from '../../common/http/rate-limiter.js';
+import { clientAddressKey, type RequestAdmission } from '../../common/http/rate-limiter.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import type { SessionService } from '../identity/session.service.js';
 import type { PublicSignupSwitch } from '../platform-admin/platform-settings.js';
@@ -71,7 +71,7 @@ export class PublicSignupController {
   ): Promise<PublicSignupView> {
     const state = requireRequestState(request);
     await this.requireOpen(request);
-    if (!this.admitSource(request.ip ?? 'unknown')) {
+    if (!this.admitSource(clientAddressKey(request.ip))) {
       throw new ApiError(429, 'rate_limited', RATE_LIMITED);
     }
     const honeypot = body?.website;

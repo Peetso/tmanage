@@ -37,12 +37,17 @@ export class UserIdentitiesRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * The account using this address, with whether its owner ever proved the mailbox
+   * (`email_verified_at`). A public password sign-up leaves it NULL; Google sign-in must not
+   * merge into such an account (audit run 1, F03).
+   */
   async findUserByEmail(
     runner: IdentityQueryRunner,
     email: string,
-  ): Promise<{ readonly userId: string } | null> {
+  ): Promise<{ readonly userId: string; readonly emailVerifiedAt: Date | null } | null> {
     const rows = await tenantDrizzle(runner)
-      .select({ userId: users.id })
+      .select({ userId: users.id, emailVerifiedAt: users.emailVerifiedAt })
       .from(users)
       .where(eq(users.email, email.trim().toLowerCase()))
       .limit(1);

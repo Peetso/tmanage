@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Button, InlineAlert } from '@tmanage/ui';
 import type { ApiClient } from '../../lib/api/client';
@@ -84,6 +85,7 @@ const ERROR_KEYS: Record<string, MessageKey> = {
   email_mismatch: 'google.error.emailMismatch',
   invitation_unusable: 'google.error.invitationUnusable',
   already_linked: 'google.error.alreadyLinked',
+  unverified_account: 'google.error.unverifiedAccount',
   unverified: 'google.error.unverified',
   cancelled: 'google.error.cancelled',
   state: 'google.error.state',
@@ -94,4 +96,24 @@ export function googleErrorKey(search: string): MessageKey | undefined {
   const code = new URLSearchParams(search).get('google_error');
   if (code === null) return undefined;
   return ERROR_KEYS[code] ?? 'google.error.failed';
+}
+
+/**
+ * The `?google_error` sentence. An account whose address was never proved cannot take Google
+ * (it may have been pre-registered by someone else), so that sentence carries the way forward:
+ * sign in with the password, or reset it by email.
+ */
+export function GoogleErrorMessage({ messageKey }: { readonly messageKey: MessageKey }) {
+  const t = useT();
+  return (
+    <>
+      {t(messageKey)}
+      {messageKey === 'google.error.unverifiedAccount' ? (
+        <>
+          {' '}
+          <Link href="/recover">{t('google.error.resetPassword')}</Link>
+        </>
+      ) : null}
+    </>
+  );
 }

@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { Public } from '../../common/http/decorators.js';
-import type { RequestAdmission } from '../../common/http/rate-limiter.js';
+import { clientAddressKey, type RequestAdmission } from '../../common/http/rate-limiter.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { looksLikeInvitationToken } from '../identity/invitation-token.js';
 import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
@@ -132,7 +132,7 @@ export class GoogleAuthController {
     @Req() request: RequestLike,
     @Res({ passthrough: true }) reply: ReplyLike,
   ): Promise<GoogleStartView> {
-    if (!this.admit(request.ip ?? 'unknown')) {
+    if (!this.admit(clientAddressKey(request.ip))) {
       throw new ApiError(
         429,
         'rate_limited',

@@ -17,7 +17,12 @@ import { isPublicSignupOffered } from '../../lib/public-signup';
 import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { takeGooglePendingMfa } from '../../lib/api/google-auth';
-import { GoogleSignInButton, googleErrorKey, useGoogleAvailability } from './GoogleSignInButton';
+import {
+  GoogleErrorMessage,
+  GoogleSignInButton,
+  googleErrorKey,
+  useGoogleAvailability,
+} from './GoogleSignInButton';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 import '../../styles/screens/identity.css';
 
@@ -294,7 +299,7 @@ export function SignInScreen({
       */}
       {googleError ? (
         <InlineAlert tone="danger" live>
-          {t(googleError)}
+          <GoogleErrorMessage messageKey={googleError} />
           {googleError === 'google.error.noAccount' && signUpOffered ? (
             <>
               {' '}

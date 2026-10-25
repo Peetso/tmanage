@@ -1,3 +1,5 @@
+import { isIP } from 'node:net';
+
 /**
  * A fixed-window request limiter, in process — `04-SECURITY-PRIVACY` §6's "rate limiting,
  * abuse detection" and `26-THREAT-MODELS` §2's "rate limits at every crossing", for the
@@ -116,4 +118,59 @@ export function createFixedWindowLimiter(options: FixedWindowLimiterOptions): Re
   // the two-phase limiter rather than duplicating its arithmetic.
   const limiter = createTwoPhaseFixedWindowLimiter(options);
   return (key) => limiter.commit(key, limiter.now());
+}
+
+/** Longest key a malformed source contributes; a canonical IPv4 or IPv6 literal is shorter. */
+const MAX_CLIENT_KEY_LENGTH = 45;
+
+/** Eight 16-bit groups of an IPv6 literal (embedded IPv4 tail allowed); undefined if malformed. */
+function ipv6Groups(address: string): number[] | undefined {
+  let text = address;
+  if (text.includes('.')) {
+    const cut = text.lastIndexOf(':');
+    const octets = text
+      .slice(cut + 1)
+      .split('.')
+      .map(Number);
+    if (octets.length !== 4 || octets.some((o) => !Number.isInteger(o) || o < 0 || o > 255)) {
+      return undefined;
+    }
+    const [a = 0, b = 0, c = 0, d = 0] = octets;
+    text = `${text.slice(0, cut + 1)}${((a << 8) | b).toString(16)}:${((c << 8) | d).toString(16)}`;
+  }
+  const halves = text.split('::');
+  if (halves.length > 2) return undefined;
+  const head = halves[0] ? halves[0].split(':') : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(':') : [];
+  const fill = halves.length === 2 ? 8 - head.length - tail.length : 0;
+  if (halves.length === 2 ? fill < 1 : head.length !== 8) return undefined;
+  const parts = [...head, ...Array<string>(fill).fill('0'), ...tail];
+  if (parts.length !== 8 || parts.some((part) => !/^[0-9a-fA-F]{1,4}$/u.test(part))) {
+    return undefined;
+  }
+  return parts.map((part) => Number.parseInt(part, 16));
+}
+
+/**
+ * The key a per-source limiter should charge for a client address (audit run 1, NV03).
+ *
+ * One IPv6 /64 is the normal allocation for a single line or server and holds 2^64 addresses,
+ * so keying on the full literal lets one caller start a fresh window per request. IPv4 is
+ * returned unchanged; an IPv4-mapped IPv6 address (`::ffff:a.b.c.d`, dotted or hex) becomes the
+ * IPv4 it carries, so both forms share one budget; every other IPv6 address becomes its /64
+ * network (`2001:db8:0:0::/64`), zone ids dropped. Anything else is clamped and kept as it is,
+ * and a missing address is `unknown`. The same folding `sign-in-abuse-control.ts` applies.
+ */
+export function clientAddressKey(ip: string | null | undefined): string {
+  const address = (ip ?? '').trim();
+  if (address === '') return 'unknown';
+  if (isIP(address) === 4) return address;
+  const unzoned = address.split('%')[0] ?? '';
+  const groups = isIP(unzoned) === 6 ? ipv6Groups(unzoned) : undefined;
+  if (groups === undefined) return address.slice(0, MAX_CLIENT_KEY_LENGTH);
+  const [g0 = 0, g1 = 0, g2 = 0, g3 = 0, g4 = 0, g5 = 0, g6 = 0, g7 = 0] = groups;
+  if (g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0xffff) {
+    return `${g6 >> 8}.${g6 & 0xff}.${g7 >> 8}.${g7 & 0xff}`;
+  }
+  return `${[g0, g1, g2, g3].map((group) => group.toString(16)).join(':')}::/64`;
 }

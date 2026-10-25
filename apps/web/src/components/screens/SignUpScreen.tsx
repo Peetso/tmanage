@@ -14,7 +14,12 @@ import { useT } from '../../lib/i18n/use-t';
 import type { MessageKey } from '../../lib/i18n/t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { GETTING_IN_MIN_PASSWORD, gettingIn, type GettingInKey } from '../../lib/public-signup';
-import { GoogleSignInButton, googleErrorKey, useGoogleAvailability } from './GoogleSignInButton';
+import {
+  GoogleErrorMessage,
+  GoogleSignInButton,
+  googleErrorKey,
+  useGoogleAvailability,
+} from './GoogleSignInButton';
 import '../../styles/screens/identity.css';
 
 const MAX_NAME = 190;
@@ -243,7 +248,7 @@ export function SignUpScreen({
         <>
           {googleError ? (
             <InlineAlert tone="danger" live>
-              {t(googleError)}
+              <GoogleErrorMessage messageKey={googleError} />
             </InlineAlert>
           ) : null}
           {alternatives}

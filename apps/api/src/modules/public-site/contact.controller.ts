@@ -3,7 +3,7 @@ import { ApiError } from '../../common/http/errors.js';
 import { Public } from '../../common/http/decorators.js';
 import { requireRequestState } from '../../common/http/request-state.js';
 import { CONTACT_ADMISSION, MARKETING_LEADS_REPOSITORY } from '../../common/http/tokens.js';
-import type { RequestAdmission } from '../../common/http/rate-limiter.js';
+import { clientAddressKey, type RequestAdmission } from '../../common/http/rate-limiter.js';
 import type { MarketingLeadsRepository } from './contact.repository.js';
 
 /** Column bounds, mirrored from `0062_marketing_leads.sql`. Over-length is a 400, never a truncation. */
@@ -73,7 +73,7 @@ export class ContactController {
     @Req() request: { headers: Record<string, string | string[] | undefined>; ip?: string },
   ): Promise<ContactSubmitView> {
     const state = requireRequestState(request);
-    if (!this.admit(request.ip ?? 'unknown')) {
+    if (!this.admit(clientAddressKey(request.ip))) {
       // Before validation and before the repository: a refused caller costs one map lookup.
       throw new ApiError(429, 'rate_limited', 'too many submissions; try again later');
     }
