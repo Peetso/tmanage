@@ -106,8 +106,14 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
   const waitingItems = waiting.data?.items ?? [];
   const savedGroups = saved.data?.groups ?? [];
 
-  const overdueCount = items.filter((entry) => entry.reason === 'overdue').length;
-  const dueSoonCount = items.filter((entry) => entry.reason === 'due_soon').length;
+  // The My Day list is bounded on the API (H2); the counts come from the summary, which counts
+  // every open item, and fall back to the list while the summary is loading or failed.
+  const personalWork = summary.data?.personalWork;
+  const totalCount = personalWork?.total ?? items.length;
+  const overdueCount =
+    personalWork?.overdue ?? items.filter((entry) => entry.reason === 'overdue').length;
+  const dueSoonCount =
+    personalWork?.dueSoon ?? items.filter((entry) => entry.reason === 'due_soon').length;
   const cards = items.filter((entry) => filter === 'all' || entry.reason === filter).slice(0, 3);
   const top = items[0];
 
@@ -196,7 +202,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
                 {t('MyDayScreen.dueAtRisk')}
               </h2>
               <span className="tm-section-head__meta tm-home-section__count">
-                {items.length} {items.length === 1 ? t('MyDayScreen.item') : t('MyDayScreen.items')}
+                {totalCount} {totalCount === 1 ? t('MyDayScreen.item') : t('MyDayScreen.items')}
               </span>
               <div
                 className="tm-section-head__end tm-chip-row"

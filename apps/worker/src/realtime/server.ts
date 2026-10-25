@@ -1,3 +1,5 @@
+import type { IncomingMessage } from 'node:http';
+import type { Duplex } from 'node:stream';
 import { WebSocketServer } from 'ws';
 import type { WebSocket } from 'ws';
 import { verifyRealtimeTicket } from '@tmanage/domain/realtime-ticket';
@@ -67,8 +69,12 @@ export interface RealtimeServerOptions {
   readonly database: WorkerDatabase;
   /** The session secret the ticket key derives from — the API's own. */
   readonly sessionSecret: string;
-  /** 0 asks the OS for an ephemeral port, which is how the suite runs one. */
-  readonly port: number;
+  /**
+   * 0 asks the OS for an ephemeral port, which is how the suite runs one. `'attached'` binds no
+   * port at all: the caller hands upgrades in through {@link RealtimeServer.handleUpgrade} — the
+   * single Hostinger process, whose one public port already belongs to its HTTP server (H2).
+   */
+  readonly port: number | 'attached';
   /** Injected clock, so a suite can expire a ticket without waiting. */
   readonly now?: () => Date;
   /**
@@ -87,7 +93,10 @@ const DEFAULT_REVALIDATE_INTERVAL_MS = 60_000;
 
 export interface RealtimeServer {
   readonly hub: RealtimeHub;
+  /** The bound port; 0 when the server is `'attached'` and binds none of its own. */
   readonly port: number;
+  /** Complete one HTTP upgrade on a caller-owned server (the `'attached'` mode). */
+  handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void;
   close(): Promise<void>;
 }
 
@@ -97,12 +106,17 @@ export async function createRealtimeServer(
   const hub = new RealtimeHub();
   const now = options.now ?? (() => new Date());
   const revalidateIntervalMs = options.revalidateIntervalMs ?? DEFAULT_REVALIDATE_INTERVAL_MS;
-  const wss = new WebSocketServer({ port: options.port });
+  const attached = options.port === 'attached';
+  const wss = attached
+    ? new WebSocketServer({ noServer: true })
+    : new WebSocketServer({ port: options.port as number });
 
-  await new Promise<void>((resolve, reject) => {
-    wss.once('listening', resolve);
-    wss.once('error', reject);
-  });
+  if (!attached) {
+    await new Promise<void>((resolve, reject) => {
+      wss.once('listening', resolve);
+      wss.once('error', reject);
+    });
+  }
 
   wss.on('connection', (socket: WebSocket, request) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
@@ -239,12 +253,22 @@ export async function createRealtimeServer(
     });
   });
 
-  const address = wss.address();
-  const port = typeof address === 'object' && address !== null ? address.port : options.port;
+  const address = attached ? null : wss.address();
+  const port =
+    typeof address === 'object' && address !== null
+      ? address.port
+      : attached
+        ? 0
+        : (options.port as number);
 
   return {
     hub,
     port,
+    handleUpgrade(request: IncomingMessage, socket: Duplex, head: Buffer): void {
+      wss.handleUpgrade(request, socket, head, (client) => {
+        wss.emit('connection', client, request);
+      });
+    },
     async close(): Promise<void> {
       for (const client of wss.clients) client.terminate();
       await new Promise<void>((resolve, reject) => {

@@ -2851,6 +2851,8 @@ export const workItems = mysqlTable(
       table.state,
       table.dueAt,
     ),
+    // H2 (0234): search's newest-first read; `updated_at` is a DESC key part in the migration.
+    index('ix_work_items_org_updated').on(table.organizationId, table.updatedAt, table.id),
   ],
 );
 
@@ -5583,6 +5585,8 @@ export const messages = mysqlTable(
       table.parentMessageId,
       table.sequenceNo,
     ),
+    // H2 (0234): search's newest-first read; `updated_at` is a DESC key part in the migration.
+    index('ix_messages_org_updated').on(table.organizationId, table.updatedAt, table.id),
   ],
 );
 

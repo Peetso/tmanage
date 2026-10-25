@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
-import { HomeService } from './home.service.js';
+import { DUE_SOON_WINDOW_MS, HomeService } from './home.service.js';
 import type { MyDayRepository } from './my-day.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { WorkItemRow } from '../../common/database/schema.js';
@@ -54,12 +54,22 @@ function member(projectIds: readonly string[]): Principal {
 
 // The fake repository returns the canned rows; the service still authorizes each through
 // `mayRead`, so a cross-tenant row placed in the set must be dropped there (belt-and-braces).
+const windows: { now: Date; dueSoonCutoff: Date }[] = [];
+
 function serviceWith(rows: readonly WorkItemRow[]): HomeService {
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
   const myDay = {
-    listOwnedOpen: async () => rows,
+    listOwnedOpen: async (
+      _runner: unknown,
+      _context: unknown,
+      _owner: string,
+      window: { now: Date; dueSoonCutoff: Date },
+    ) => {
+      windows.push(window);
+      return rows;
+    },
   } as unknown as MyDayRepository;
   return new HomeService(database, myDay);
 }
@@ -109,6 +119,13 @@ describe('HomeService.myDayOf ranking', () => {
       [noDate.id, 'assigned'],
     ]);
     expect(JSON.stringify(view)).not.toContain(OTHER_ORG);
+    // H2: the bounded read is asked for the due-soon cutoff the ranking uses, and the card view
+    // carries no `description` (the read no longer selects it).
+    expect(windows.at(-1)).toEqual({
+      now: NOW,
+      dueSoonCutoff: new Date(NOW.getTime() + DUE_SOON_WINDOW_MS),
+    });
+    expect(view.items.every((entry) => !('description' in entry.workItem))).toBe(true);
   });
 
   it('returns no items for a user with none', async () => {

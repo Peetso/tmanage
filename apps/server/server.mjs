@@ -66,6 +66,12 @@ import {
 import { webSecurityHeaders } from './boot-guards.mjs';
 import { webCacheHeaders } from './cache-headers.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
+import {
+  applyRealtimePublicUrl,
+  createUpgradeHandler,
+  realtimeInProcessEnabled,
+  withRealtimeFanOut,
+} from './realtime-inprocess.mjs';
 import { beat, reportJobOutcome } from './job-alerts.mjs';
 import {
   apiReconcileJobs,
@@ -286,7 +292,8 @@ function proxyToWeb(req, res, transport) {
  * keep a third Node process alive still delivers mail and notifications. Limitation (documented):
  * when Hostinger sleeps the app, the timer sleeps too, so delivery resumes on the next request.
  */
-async function startInProcessWorker(env) {
+async function startInProcessWorker(env, attachRealtime) {
+  const worker = await import('@tmanage/worker');
   const {
     createWorkerDatabase,
     createWorkerOutboxHandlers,
@@ -299,7 +306,7 @@ async function startInProcessWorker(env) {
     CredentialChangeMailer,
     PrivacyMailer,
     writeHeartbeat,
-  } = await import('@tmanage/worker');
+  } = worker;
   const { ConsoleMailer, SmtpMailer } = await import('@tmanage/mail');
 
   const from = { fromAddress: env.EMAIL_FROM_ADDRESS, fromName: env.EMAIL_FROM_NAME };
@@ -323,12 +330,25 @@ async function startInProcessWorker(env) {
     statementTimeoutMs: env.DATABASE_STATEMENT_TIMEOUT_MS,
     onConnectionError: (error) => log(`worker connection rejected: ${serializeForLog(error)}`),
   });
-  const handlers = createWorkerOutboxHandlers({
+  const relayHandlers = createWorkerOutboxHandlers({
     clientRequestMailer: new ClientRequestMailer(transport, env.WEB_PUBLIC_URL),
     usageThresholdMailer: new UsageThresholdMailer(transport),
     // H3 — data export ready, deletion scheduled / cancelled / carried out.
     privacyMailer: new PrivacyMailer(transport, env.WEB_PUBLIC_URL),
   });
+  // H2: live pushes. The worker's socket server runs attached to this process's public port
+  // (realtime-inprocess.mjs); the relay fans chat events out to it. Off, the clients refetch.
+  const realtime = realtimeInProcessEnabled(process.env)
+    ? await worker.createRealtimeServer({
+        database,
+        sessionSecret: env.SESSION_SECRET,
+        port: 'attached',
+      })
+    : undefined;
+  if (realtime) attachRealtime(realtime);
+  const handlers = realtime
+    ? withRealtimeFanOut(worker, relayHandlers, realtime.hub)
+    : relayHandlers;
   const noticeHandlers = createWorkerNoticeHandlers({
     credentialChangeMailer: new CredentialChangeMailer(transport),
   });
@@ -370,6 +390,7 @@ async function startInProcessWorker(env) {
   void tick();
   return async () => {
     clearInterval(timer);
+    await realtime?.close();
     await database.end();
   };
 }
@@ -441,6 +462,13 @@ async function main() {
   const server = createHttpServer(
     createPublicHandler(state, (req, res) => proxyToWeb(req, res, transport)),
   );
+  // H2: WebSocket upgrades go to the attached realtime socket once the app is ready; any other
+  // upgrade (or one while starting) is closed.
+  let realtimeServer;
+  server.on(
+    'upgrade',
+    createUpgradeHandler(() => (state.ready ? realtimeServer : undefined)),
+  );
   await new Promise((done, fail) => {
     server.once('error', fail);
     server.listen(port, '0.0.0.0', () => {
@@ -482,6 +510,8 @@ async function main() {
   const database = resolveDatabaseEnv(process.env);
   Object.assign(process.env, database.values);
   for (const note of database.notes) log(note);
+  // H2: the socket URL the API serves beside the ticket, derived same-origin when not set.
+  log(applyRealtimePublicUrl(process.env));
 
   const env = loadEnv();
   await runMigrations(env);
@@ -492,7 +522,11 @@ async function main() {
   const nominalPort = transport.kind === 'tcp' ? transport.port : port + 1;
   await startWeb(transport, nominalPort);
 
-  if (process.env['WORKER_INPROCESS'] === '1') stopWorker = await startInProcessWorker(env);
+  if (process.env['WORKER_INPROCESS'] === '1') {
+    stopWorker = await startInProcessWorker(env, (realtime) => {
+      realtimeServer = realtime;
+    });
+  }
   if (sweepsEnabled(process.env)) stopSweeps = await startScheduledSweeps(env, app);
   else log('scheduled sweeps off (SWEEPS_INPROCESS)');
 

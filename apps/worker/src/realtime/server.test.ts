@@ -218,3 +218,40 @@ describe('the realtime server authority lifecycle', () => {
     expect(server.hub.publish(ORG, CONV, eventFrame)).toBe(0);
   });
 });
+
+describe('the attached mode (H2: the single Hostinger process)', () => {
+  it('binds no port, takes upgrades from a caller-owned HTTP server, and delivers frames', async () => {
+    const { createServer } = await import('node:http');
+    server = await createRealtimeServer({
+      database: makeDatabase(() => ALLOWED_ROWS),
+      sessionSecret: SESSION_SECRET,
+      port: 'attached',
+    });
+    expect(server.port).toBe(0);
+
+    const attached = server;
+    const http = createServer((_req, res) => res.end());
+    http.on('upgrade', (request, socket, head) => attached.handleUpgrade(request, socket, head));
+    await new Promise<void>((resolve) => http.listen(0, '127.0.0.1', resolve));
+    const address = http.address();
+    const port = typeof address === 'object' && address !== null ? address.port : 0;
+
+    try {
+      const client = connect(port, farFutureTicket());
+      await opened(client.socket);
+      client.socket.send(JSON.stringify({ type: 'subscribe', conversationId: CONV }));
+      expect(await client.next()).toMatchObject({ type: 'subscribed', conversationId: CONV });
+
+      attached.hub.publish(ORG, CONV, eventFrame);
+      expect(await client.next()).toMatchObject({ type: 'event', objectId: 'msg-1' });
+
+      // The ticket still guards the handshake in this mode.
+      const stranger = connect(port, 'not-a-ticket');
+      await closed(stranger.socket);
+      client.socket.close();
+      await closed(client.socket);
+    } finally {
+      await new Promise<void>((resolve) => http.close(() => resolve()));
+    }
+  });
+});

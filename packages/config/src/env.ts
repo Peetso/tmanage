@@ -377,7 +377,9 @@ export const envSchema = z
     // After this many failed attempts an event is parked — reported, never claimed again
     // until an operator intervenes. §2's poison-event rule, without a second queue to lose.
     OUTBOX_MAX_ATTEMPTS: positiveInt.max(50).default(8),
-    OUTBOX_POLL_INTERVAL_MS: positiveInt.default(5_000),
+    // H2 (L5, NFR-06): a realtime frame waits on average half a poll, so 5 s gave p95 4.5 s
+    // against a 1 s target (250 ms measured p95 251 ms). A few light reads a second when idle.
+    OUTBOX_POLL_INTERVAL_MS: positiveInt.default(500),
     // Exponential backoff: base * 2^(attempts-1), capped. §2 asks for exponential retry.
     OUTBOX_BACKOFF_BASE_MS: positiveInt.default(1_000),
     OUTBOX_BACKOFF_CAP_MS: positiveInt.default(900_000),

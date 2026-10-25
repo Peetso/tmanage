@@ -368,6 +368,8 @@ export const SERVER_FILES = Object.freeze([
   'scheduled-sweeps.mjs',
   // server.mjs imports the job alerts from here; missing it, boot fails.
   'job-alerts.mjs',
+  // server.mjs imports the attached realtime socket (H2) from here; missing it, boot fails.
+  'realtime-inprocess.mjs',
 ]);
 
 function assemble() {

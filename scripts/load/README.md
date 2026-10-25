@@ -91,7 +91,8 @@ set, and the API with `REALTIME_PUBLIC_URL` pointing at it (a local `ws://` URL)
 creates a channel, adds the signed-in users, opens n sockets with tickets from
 `POST .../realtime/tickets`, subscribes each one, posts the messages and times each POST to
 each socket's `message.created.v1` frame. A frame not seen within 10 s counts as a failure at
-10 s. Delivery waits on the outbox poll (`OUTBOX_POLL_INTERVAL_MS`, 5 s by default).
+10 s. Delivery waits on the outbox poll (`OUTBOX_POLL_INTERVAL_MS`, 500 ms by default since H2;
+it was 5 s).
 
 ## Tests
 

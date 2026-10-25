@@ -168,6 +168,7 @@ export type { RealtimeEventFrame } from './realtime/hub.js';
 export { createRealtimeServer } from './realtime/server.js';
 export type { RealtimeServer, RealtimeServerOptions } from './realtime/server.js';
 export { createMessageFanOut } from './realtime/fan-out.js';
+export { createDirectMessageFanOut } from './realtime/fan-out.js';
 export { checkConversationSubscription } from './common/database/realtime-store.js';
 export type { SubscriptionVerdict } from './common/database/realtime-store.js';
 export type { InternalRecipientCandidate } from './common/database/notifications-store.js';

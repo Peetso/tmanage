@@ -411,28 +411,69 @@ export class HomeService {
     principal: Principal,
     now: Date = new Date(),
   ): Promise<MyDayView> {
+    const window = { now, dueSoonCutoff: new Date(now.getTime() + DUE_SOON_WINDOW_MS) };
     const rows = await this.database.read(context, (runner) =>
-      this.myDay.listOwnedOpen(runner, context, principal.userId),
+      this.myDay.listOwnedOpen(runner, context, principal.userId, window),
     );
     const readable = rows.filter((row) => this.mayRead(principal, row));
-    return { items: rankMyDay(readable, context.correlationId, now) };
+    // H2: the bounded read selects no `description`, so the card's view omits the field rather
+    // than claiming the item has none (`WorkItemView.description` is optional for this reason).
+    const items = rankMyDay(readable, context.correlationId, now).map(
+      ({ reason, workItem: { description: _description, ...workItem } }) => ({ reason, workItem }),
+    );
+    return { items };
+  }
+
+  /**
+   * H2: the personal-work counts over every open owned item — the list above is bounded, the
+   * hero's numbers must not be. One grouped count, each group authorized by the same `work.read`
+   * rule as a row (`mayRead` reads only the organization, project, audience and lifecycle; an open,
+   * non-deleted item is always `active`).
+   */
+  private async personalWorkCounts(
+    context: TenantContext,
+    principal: Principal,
+    now: Date,
+  ): Promise<HomeSummaryView['personalWork']> {
+    const window = { now, dueSoonCutoff: new Date(now.getTime() + DUE_SOON_WINDOW_MS) };
+    const groups = await this.database.read(context, (runner) =>
+      this.myDay.countOwnedOpen(runner, context, principal.userId, window),
+    );
+    const counts = { total: 0, overdue: 0, dueSoon: 0 };
+    for (const group of groups) {
+      const allowed = this.mayReadResource(principal, {
+        organizationId: context.organizationId,
+        projectId: group.projectId,
+        audience: group.audience,
+        lifecycle: 'active',
+      });
+      if (!allowed) continue;
+      counts.total += group.total;
+      counts.overdue += group.overdue;
+      counts.dueSoon += group.dueSoon;
+    }
+    return counts;
   }
 
   private mayRead(principal: Principal, row: WorkItemRow): boolean {
-    return authorize({
-      principal,
-      capability: 'work.read',
-      resource: {
-        organizationId: row.organizationId,
-        projectId: row.projectId,
-        audience: row.audience,
-        lifecycle: row.deletedAt
-          ? ('soft_deleted' as const)
-          : row.state === 'archived'
-            ? ('archived' as const)
-            : ('active' as const),
-      },
-    }).allowed;
+    return this.mayReadResource(principal, {
+      organizationId: row.organizationId,
+      projectId: row.projectId,
+      audience: row.audience,
+      lifecycle: row.deletedAt ? 'soft_deleted' : row.state === 'archived' ? 'archived' : 'active',
+    });
+  }
+
+  private mayReadResource(
+    principal: Principal,
+    resource: {
+      readonly organizationId: string;
+      readonly projectId: string;
+      readonly audience: WorkItemRow['audience'];
+      readonly lifecycle: 'active' | 'archived' | 'soft_deleted';
+    },
+  ): boolean {
+    return authorize({ principal, capability: 'work.read', resource }).allowed;
   }
 
   /**
@@ -476,17 +517,18 @@ export class HomeService {
   }
 
   /**
-   * HOME-01's hero summary — the derived counts the hero shows, aggregated purely from the two
-   * reads above. Reuses {@link myDayOf} and {@link waitingOf} rather than re-querying, so every
-   * count is a fact about the same ranked lists the sections render — the hero can invent no number.
+   * HOME-01's hero summary — the derived counts the hero shows. The waiting counts reuse
+   * {@link waitingOf}'s ranked list; the personal-work counts are one grouped SQL count under the
+   * same open-state predicate and the same per-row `work.read` rule as {@link myDayOf} (H2: that
+   * list is bounded at `MY_DAY_LIMIT`, the counts cover every open item).
    */
   async summaryOf(
     context: TenantContext,
     principal: Principal,
     now: Date = new Date(),
   ): Promise<HomeSummaryView> {
-    const [myDay, waiting] = await Promise.all([
-      this.myDayOf(context, principal, now),
+    const [personalWork, waiting] = await Promise.all([
+      this.personalWorkCounts(context, principal, now),
       this.waitingOf(context, principal, now),
     ]);
 
@@ -494,11 +536,7 @@ export class HomeService {
       entry.kind === 'client_request' && entry.reason !== 'stale_follow_up';
 
     return {
-      personalWork: {
-        total: myDay.items.length,
-        overdue: myDay.items.filter((entry) => entry.reason === 'overdue').length,
-        dueSoon: myDay.items.filter((entry) => entry.reason === 'due_soon').length,
-      },
+      personalWork,
       waiting: {
         total: waiting.items.length,
         approvals: waiting.items.filter((entry) => entry.kind === 'approval').length,

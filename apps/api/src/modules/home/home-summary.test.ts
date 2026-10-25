@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Principal } from '@tmanage/domain';
 import { HomeService, STALE_FOLLOW_UP_WINDOW_MS } from './home.service.js';
-import type { MyDayRepository } from './my-day.repository.js';
+import type { MyDayCountRow, MyDayRepository } from './my-day.repository.js';
 import type { WaitingRepository } from './waiting.repository.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { ApprovalRow, ClientRequestRow, WorkItemRow } from '../../common/database/schema.js';
@@ -110,8 +110,42 @@ function serviceWith(
   const database = {
     read: async (_context: unknown, work: (db: unknown) => Promise<unknown>) => work({}),
   } as unknown as TenantDatabase;
+  // H2: the hero counts come from the grouped SQL count, not the bounded list. The fake groups
+  // the canned rows by project + audience with the same boundaries the SQL uses.
   const myDay = {
     listOwnedOpen: async () => workRows,
+    countOwnedOpen: async (
+      _runner: unknown,
+      _context: unknown,
+      _owner: string,
+      window: { now: Date; dueSoonCutoff: Date },
+    ): Promise<MyDayCountRow[]> => {
+      const groups = new Map<string, MyDayCountRow>();
+      for (const row of workRows) {
+        const key = `${row.projectId}|${row.audience}`;
+        const group = groups.get(key) ?? {
+          projectId: row.projectId,
+          audience: row.audience,
+          total: 0,
+          overdue: 0,
+          dueSoon: 0,
+        };
+        const due = row.dueAt?.getTime();
+        groups.set(key, {
+          ...group,
+          total: group.total + 1,
+          overdue: group.overdue + (due !== undefined && due < window.now.getTime() ? 1 : 0),
+          dueSoon:
+            group.dueSoon +
+            (due !== undefined &&
+            due >= window.now.getTime() &&
+            due <= window.dueSoonCutoff.getTime()
+              ? 1
+              : 0),
+        });
+      }
+      return [...groups.values()];
+    },
   } as unknown as MyDayRepository;
   const waiting = {
     listPending: async () => approvalRows,
@@ -157,6 +191,24 @@ describe('HomeService.summaryOf (HOME-01 hero)', () => {
       personalWork: { total: 3, overdue: 1, dueSoon: 1 },
       waiting: { total: 4, approvals: 1, clientRequests: 2, staleFollowUps: 1 },
     });
+  });
+
+  it('counts every open item, not only the bounded My Day list, and skips unreadable projects (H2)', async () => {
+    const OTHER_PROJECT = 'project-0000-0000-0000-0000-000000000077';
+    const workRows = [
+      ...Array.from({ length: 150 }, (_, index) =>
+        item({
+          id: `w-many-${String(index).padStart(23, '0')}`,
+          dueAt: new Date(NOW.getTime() - (index + 1) * HOUR),
+        }),
+      ),
+      // In a project the manager is not on: never counted.
+      item({ id: 'w-hidden-0000000000000000000001', projectId: OTHER_PROJECT, dueAt: null }),
+    ];
+
+    const summary = await serviceWith(workRows, [], []).summaryOf(context, manager(), NOW);
+
+    expect(summary.personalWork).toEqual({ total: 150, overdue: 150, dueSoon: 0 });
   });
 
   it('reports zeros when nothing needs the caller', async () => {
