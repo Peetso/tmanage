@@ -1,4 +1,4 @@
-import { Catch, HttpException, Injectable } from '@nestjs/common';
+import { Catch, HttpException, Inject, Injectable, Optional } from '@nestjs/common';
 import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { ApiError, MESSAGES, apiErrorBody } from './errors.js';
 import type { ApiErrorCode } from './errors.js';
@@ -12,6 +12,8 @@ import {
   ProjectVersionConflictError,
 } from '../../modules/projects/projects.repository.js';
 import { McpChallengeError } from '../../modules/mcp/mcp-auth.js';
+import { ALERT_NOTIFIER } from '../observability/alerts.js';
+import type { AlertNotifier } from '../observability/alerts.js';
 
 /**
  * The single place a thrown value becomes a response.
@@ -37,9 +39,12 @@ import { McpChallengeError } from '../../modules/mcp/mcp-auth.js';
 @Catch()
 @Injectable()
 export class HttpExceptionFilter implements ExceptionFilter {
+  /** C10. Optional so a suite that builds the filter by hand needs no notifier. */
+  constructor(@Optional() @Inject(ALERT_NOTIFIER) private readonly alerts?: AlertNotifier | null) {}
+
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
-    const request = http.getRequest<{ readonly url?: unknown }>();
+    const request = http.getRequest<{ readonly url?: unknown; readonly method?: unknown }>();
     const response = http.getResponse<{
       header(name: string, value: string): unknown;
       status(code: number): { send(body: unknown): unknown };
@@ -59,6 +64,31 @@ export class HttpExceptionFilter implements ExceptionFilter {
     // They are attached to the error object rather than printed here so that wiring the
     // logger is one change in one place — and so this filter never writes content anywhere.
     response.status(apiError.status).send(apiErrorBody(apiError, correlationId));
+    if (apiError.status >= 500) this.alert(exception, apiError, request, correlationId);
+  }
+
+  /**
+   * C10. A server error mails the operator — at most once per 15 minutes per kind, never
+   * awaited and never thrown from, so the response above is already on its way. The kind is the
+   * audit code plus the error's class name; the message is never sent (see `alerts.ts`).
+   */
+  private alert(
+    exception: unknown,
+    apiError: ApiError,
+    request: { readonly url?: unknown; readonly method?: unknown },
+    correlationId: string,
+  ): void {
+    if (!this.alerts?.enabled) return;
+    const errorName = exception instanceof Error ? exception.constructor.name : typeof exception;
+    const method = typeof request.method === 'string' ? request.method : 'GET';
+    const url = typeof request.url === 'string' ? request.url : '';
+    void this.alerts
+      .notify(`http_5xx:${apiError.auditCode ?? apiError.code}:${errorName}`, {
+        route: `${method} ${url}`,
+        correlationId,
+        errorName,
+      })
+      .catch(() => undefined);
   }
 
   private toApiError(exception: unknown, request: { readonly url?: unknown }): ApiError {

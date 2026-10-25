@@ -38,6 +38,9 @@ const API_EXACT_PATHS = new Set([
   '/oauth/token',
   '/openapi/ai.json',
   '/downloads/tmanage-mcp.tgz',
+  // C10. The deep readiness check (database, migrations, worker heartbeat, scanner) an external
+  // uptime monitor polls. `/healthz` itself stays answered by server.mjs, dependency-free.
+  '/healthz/deep',
 ]);
 
 /** The paths the in-process API answers; everything else goes to the Next.js web server. */

@@ -5,6 +5,10 @@ import { ApiConfigModule } from './common/http/api-config.js';
 import type { ApiConfig } from './common/http/api-config.js';
 import { CorrelationInterceptor } from './common/http/correlation.interceptor.js';
 import { NOOP_TRACER, TRACER } from './common/observability/tracer.js';
+import { ALERT_NOTIFIER, createAlertNotifier } from './common/observability/alerts.js';
+import { DeepHealthModule } from './common/observability/deep-health.js';
+import { MAILER } from './common/http/tokens.js';
+import type { Mailer } from '@tmanage/mail';
 import { ClientProjectionInterceptor } from './common/http/client-projection.interceptor.js';
 import { HttpExceptionFilter } from './common/http/http-exception.filter.js';
 import { SessionAuthGuard } from './common/http/guards/session-auth.guard.js';
@@ -1045,6 +1049,9 @@ export class AppModule {
         // /oauth/token and /oauth/revoke, so AI apps connect with a browser consent instead of a
         // copied key. PKCE S256 only, opaque hashed tokens, rotation with reuse detection.
         OAuthModule.register(),
+        // C10. `GET /healthz/deep` — database, migrations, worker heartbeat, scanner — for a free
+        // external uptime monitor. Public; the body is ok/fail per check and nothing else.
+        DeepHealthModule.register(options.config.deepHealth ?? { heartbeatMaxAgeSeconds: 900 }),
       ],
       providers: [
         // OBS-001. The tracing seam. No-op until the OpenTelemetry SDK (a follow-up needing a
@@ -1056,6 +1063,14 @@ export class AppModule {
         // id a log line is findable by. It only inspects responses on the client's side of the
         // boundary — see `ClientProjectionInterceptor`.
         { provide: APP_INTERCEPTOR, useClass: ClientProjectionInterceptor },
+        // C10. Operator alerts: a 5xx mails `ALERT_EMAILS` through the app's mailer, at most once
+        // per 15 minutes per kind. Off (no mail) when ALERT_EMAILS is unset.
+        {
+          provide: ALERT_NOTIFIER,
+          useFactory: (mailer: Mailer | null) =>
+            createAlertNotifier(options.config.alertEmails ?? [], mailer ?? null),
+          inject: [{ token: MAILER, optional: true }],
+        },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
         { provide: APP_GUARD, useClass: SessionAuthGuard },
         { provide: APP_GUARD, useClass: CsrfGuard },

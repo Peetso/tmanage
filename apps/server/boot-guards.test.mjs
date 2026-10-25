@@ -111,3 +111,11 @@ test('HSTS on every web response, the report-only CSP on HTML only', () => {
   });
   assert.deepEqual(kept, {});
 });
+
+test('the deep health check at /healthz/deep goes to the API; /healthz stays with the server', () => {
+  assert.equal(isApiPath('/healthz/deep'), true);
+  assert.equal(isApiPath('/healthz/deep?x=1'), true);
+  for (const path of ['/healthz', '/healthz/', '/healthz/deeper', '/healthz/deep/x']) {
+    assert.equal(isApiPath(path), false, path);
+  }
+});

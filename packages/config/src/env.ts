@@ -482,6 +482,15 @@ export const envSchema = z
       .string()
       .optional()
       .transform((value) => (value === undefined || value.trim() === '' ? undefined : value)),
+    /**
+     * C10. Operator alerts: the comma list of addresses (the owner(s) of the account that runs
+     * this TManage service) mailed on an unhandled server error or a failed background job, at
+     * most once per 15 minutes per kind, through the app's own mailer. Unset or empty = off.
+     */
+    ALERT_EMAILS: z
+      .string()
+      .optional()
+      .transform((value) => (value === undefined || value.trim() === '' ? undefined : value)),
     PUBLIC_SIGNUP: z
       .string()
       .optional()

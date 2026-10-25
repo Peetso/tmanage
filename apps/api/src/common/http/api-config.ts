@@ -8,6 +8,8 @@ import {
 import type { SeedKeyring } from '@tmanage/config';
 import { API_CONFIG } from './tokens.js';
 import { parsePlatformAdminEmails } from '../../modules/platform-admin/platform-admin.access.js';
+import { parseAlertEmails } from '../observability/alerts.js';
+import type { DeepHealthConfig } from '../observability/deep-health.js';
 import type { SessionServiceOptions } from '../../modules/identity/session.service.js';
 
 /**
@@ -140,6 +142,10 @@ export interface ApiConfig extends SessionServiceOptions {
   readonly authAbuseMaxPerSource: number;
   readonly authAbuseMaxPerSourceAccount: number;
   readonly authAbuseMaxGlobal: number;
+  /** C10. `ALERT_EMAILS`, parsed: who is mailed on a server error or a failed job. Empty = off. */
+  readonly alertEmails?: readonly string[];
+  /** C10. What `GET /healthz/deep` checks. */
+  readonly deepHealth?: DeepHealthConfig;
 }
 
 export interface ApiConfigSource {
@@ -190,6 +196,12 @@ export interface ApiConfigSource {
   readonly RATE_LIMIT_AUTH_MAX_PER_SOURCE?: number;
   readonly RATE_LIMIT_AUTH_MAX_REQUESTS?: number;
   readonly RATE_LIMIT_AUTH_MAX_GLOBAL?: number;
+  /** C10. Optional so hand-built bags keep compiling; absent = alerts off / checks not configured. */
+  readonly ALERT_EMAILS?: string | undefined;
+  readonly OUTBOX_HEARTBEAT_FILE?: string | undefined;
+  readonly OUTBOX_HEARTBEAT_MAX_AGE_SECONDS?: number;
+  readonly MALWARE_SCAN_DRIVER?: string;
+  readonly CLAMAV_HOST?: string | undefined;
 }
 
 /**
@@ -256,6 +268,13 @@ export function apiConfigFrom(env: ApiConfigSource): ApiConfig {
     authAbuseMaxPerSourceAccount:
       env.RATE_LIMIT_AUTH_MAX_REQUESTS ?? AUTH_ABUSE_MAX_PER_SOURCE_ACCOUNT_DEFAULT,
     authAbuseMaxGlobal: env.RATE_LIMIT_AUTH_MAX_GLOBAL ?? 3000,
+    alertEmails: parseAlertEmails(env.ALERT_EMAILS),
+    deepHealth: {
+      heartbeatFile: env.OUTBOX_HEARTBEAT_FILE,
+      heartbeatMaxAgeSeconds: env.OUTBOX_HEARTBEAT_MAX_AGE_SECONDS ?? 900,
+      scannerDriver: env.MALWARE_SCAN_DRIVER,
+      scannerHost: env.CLAMAV_HOST,
+    },
   };
 }
 

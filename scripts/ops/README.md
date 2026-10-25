@@ -41,3 +41,11 @@ node scripts/ops/restore.mjs --from backups/<stamp> --target mysql://u:p@h:3306/
 ```
 node --test scripts/ops/backup-plan.test.mjs
 ```
+
+## Uptime check (`uptime-check.mjs`)
+
+Polls `/healthz` and `/healthz/deep` and mails `ALERT_EMAILS` (through the `SMTP_*` settings) when
+either fails, at most once per 15 minutes per kind, plus one "recovered" mail. Run it from a machine
+other than the server: `UPTIME_URL=https://your-site node scripts/ops/uptime-check.mjs` (one pass,
+exit 1 while failing — for Task Scheduler or cron) or add `--loop` (every `UPTIME_INTERVAL_SECONDS`,
+default 300). A free external monitor pointed at `/healthz/deep` works too; it answers 503 on failure.

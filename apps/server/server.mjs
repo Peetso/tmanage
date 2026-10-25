@@ -50,16 +50,19 @@ import { NestFactory } from '@nestjs/core';
 import {
   composeAppModule,
   corsOptions,
+  createAlertNotifier,
   createFastifyAdapter,
   createFixedWindowLimiter,
   migrateOnStart,
   MigrationError,
+  parseAlertEmails,
   serializeForLog,
 } from '@tmanage/api/hostinger';
 
 import { webSecurityHeaders } from './boot-guards.mjs';
 import { webCacheHeaders } from './cache-headers.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
+import { beat, reportJobOutcome } from './job-alerts.mjs';
 import {
   createSweepScheduler,
   sweepIntervalMs,
@@ -286,6 +289,7 @@ async function startInProcessWorker(env) {
     ClientRequestMailer,
     UsageThresholdMailer,
     CredentialChangeMailer,
+    writeHeartbeat,
   } = await import('@tmanage/worker');
   const { ConsoleMailer, SmtpMailer } = await import('@tmanage/mail');
 
@@ -324,15 +328,27 @@ async function startInProcessWorker(env) {
     backoffCapMs: env.OUTBOX_BACKOFF_CAP_MS,
   };
 
+  // C10. A failed or parked job mails ALERT_EMAILS (at most once per 15 min per kind); a clean
+  // pass records the heartbeat GET /healthz/deep reads (job-alerts.mjs).
+  const alerts = createAlertNotifier(parseAlertEmails(env.ALERT_EMAILS), transport);
   let running = false;
   const tick = async () => {
     if (running) return;
     running = true;
     try {
-      await runOutboxBatch(database, handlers, options);
-      await runQueueBatch(database, CREDENTIAL_NOTICE_QUEUE, noticeHandlers, options);
+      const outbox = await runOutboxBatch(database, handlers, options);
+      await reportJobOutcome(alerts, 'outbox', { report: outbox });
+      const notices = await runQueueBatch(
+        database,
+        CREDENTIAL_NOTICE_QUEUE,
+        noticeHandlers,
+        options,
+      );
+      await reportJobOutcome(alerts, 'notices', { report: notices });
+      await beat(writeHeartbeat, env.OUTBOX_HEARTBEAT_FILE);
     } catch (error) {
       log(`worker batch failed: ${serializeForLog(error)}`);
+      await reportJobOutcome(alerts, 'relay', { error });
     } finally {
       running = false;
     }

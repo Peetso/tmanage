@@ -24,3 +24,5 @@ export { serializeForLog } from './common/observability/logger.js';
 export { migrateOnStart } from './common/database/migrate-on-start.js';
 export { MigrationError } from './common/database/migrator.js';
 export type { MigrateReport } from './common/database/migrator.js';
+// C10. Operator alerts, so the in-process worker's job failures mail the same `ALERT_EMAILS`.
+export { createAlertNotifier, parseAlertEmails } from './common/observability/alerts.js';
