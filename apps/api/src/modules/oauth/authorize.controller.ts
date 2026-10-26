@@ -9,6 +9,8 @@ import type { OAuthOptions } from './oauth.module.js';
 
 interface RequestLike {
   readonly headers: Record<string, string | string[] | undefined>;
+  /** The client address (Fastify's `request.ip`), charged against the CIMD per-source budget. */
+  readonly ip?: string;
 }
 
 interface ReplyLike {
@@ -66,6 +68,7 @@ export class OAuthAuthorizeController {
           state: query['state'],
         },
         correlationId,
+        request.ip ?? null,
       );
     } catch (error) {
       if (error instanceof OAuthError && error.redirectable && rawRedirect !== '') {

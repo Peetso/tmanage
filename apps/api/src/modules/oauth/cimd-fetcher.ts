@@ -3,6 +3,7 @@ import { request as httpsRequest } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { clientAddressKey } from '../../common/http/rate-limiter.js';
 import { isKnownCimdClient } from './known-clients.js';
 import { sanitiseClientName } from './dcr-metadata.js';
 import { validateRegistrationRedirectUris } from './redirect-uri.js';
@@ -32,6 +33,13 @@ import { isBlockedAddress } from './ssrf.js';
  * capped per host and in total, both in flight and per minute; over a cap the caller gets `429`
  * ({@link cimdBusyError}) and nothing leaves the process. The caller also keeps a good result for
  * 24 h as the `oauth_clients` row's age (`oauth.service.ts`).
+ *
+ * **One caller cannot spend everyone's budget (audit run 2, N06).** New fetches are also capped
+ * per requesting source ({@link CIMD_MAX_PER_MINUTE_PER_SOURCE}, the address folded to its IPv6
+ * /64 by `clientAddressKey`), so one address spraying fresh hostnames is refused long before the
+ * shared per-minute cap fills. A known first-party client URL (`known-clients.ts`) is not counted
+ * against, nor refused by, the two global caps — its own per-host caps still bound it — so a
+ * flood of unknown hosts cannot lock the real AI connectors out of sign-in.
  */
 
 const MAX_BODY_BYTES = 5 * 1024;
@@ -48,6 +56,8 @@ export const CIMD_MAX_CONCURRENT_PER_HOST = 1;
 /** New outbound fetches allowed per minute, in total and per host. */
 export const CIMD_MAX_PER_MINUTE = 30;
 export const CIMD_MAX_PER_MINUTE_PER_HOST = 5;
+/** New outbound fetches one requesting source (an IPv4 address or an IPv6 /64) may start per minute. */
+export const CIMD_MAX_PER_MINUTE_PER_SOURCE = 5;
 const RATE_WINDOW_MS = 60_000;
 
 /** A validated CIMD client, ready to upsert as an `oauth_clients` row (kind `cimd`). */
@@ -116,7 +126,12 @@ export class CimdFetcher {
   private readonly inFlight = new Map<string, Promise<Outcome>>();
   private readonly activeByHost = new Map<string, number>();
   private active = 0;
-  private starts: { readonly at: number; readonly host: string }[] = [];
+  private starts: {
+    readonly at: number;
+    readonly host: string;
+    readonly source: string;
+    readonly known: boolean;
+  }[] = [];
   private readonly resolve: (hostname: string) => Promise<Resolved[]>;
   private readonly getBody: (url: URL, pinned: Resolved, signal: AbortSignal) => Promise<string>;
   private readonly now: () => number;
@@ -134,8 +149,12 @@ export class CimdFetcher {
    * Fetch and validate the CIMD document for `clientIdUrl`. Returns the client to persist, or
    * throws `CimdError` (or {@link cimdBusyError} when a cap is reached). No part of the
    * client-supplied URL or document is trusted until it has passed every check above.
+   *
+   * `requester` is the caller's client address (`request.ip`); it is folded with
+   * `clientAddressKey` and charged against the per-source budget. A missing address shares the
+   * one `unknown` budget, which is the conservative direction.
    */
-  async fetchMetadata(clientIdUrl: string): Promise<CimdClient> {
+  async fetchMetadata(clientIdUrl: string, requester?: string | null): Promise<CimdClient> {
     const url = assertCimdUrl(clientIdUrl);
     const key = url.toString();
     const now = this.now();
@@ -144,9 +163,11 @@ export class CimdFetcher {
 
     let pending = this.inFlight.get(key);
     if (pending === undefined) {
-      this.admit(url.hostname, now); // throws 429 before anything leaves the process
+      const known = isKnownCimdClient(key);
+      // Throws 429 before anything leaves the process.
+      this.admit(url.hostname, now, clientAddressKey(requester), known);
       pending = this.fetchOnce(url, clientIdUrl).finally(() => {
-        this.release(url.hostname);
+        this.release(url.hostname, known);
         this.inFlight.delete(key);
       });
       this.inFlight.set(key, pending);
@@ -154,26 +175,32 @@ export class CimdFetcher {
     return unwrap(await pending);
   }
 
-  /** Reserve one fetch slot for `host`, or throw `429`. */
-  private admit(host: string, now: number): void {
+  /**
+   * Reserve one fetch slot for `host` on behalf of `source`, or throw `429`. The per-host and
+   * per-source caps always apply; the two global caps count and refuse only unknown hosts, so a
+   * known first-party client is never starved by a flood of unknown ones (N06).
+   */
+  private admit(host: string, now: number, source: string, known: boolean): void {
     this.starts = this.starts.filter((s) => now - s.at < RATE_WINDOW_MS);
     const hostStarts = this.starts.filter((s) => s.host === host).length;
+    const sourceStarts = this.starts.filter((s) => s.source === source).length;
+    const globalStarts = this.starts.filter((s) => !s.known).length;
     const hostActive = this.activeByHost.get(host) ?? 0;
     if (
-      this.active >= CIMD_MAX_CONCURRENT ||
       hostActive >= CIMD_MAX_CONCURRENT_PER_HOST ||
-      this.starts.length >= CIMD_MAX_PER_MINUTE ||
-      hostStarts >= CIMD_MAX_PER_MINUTE_PER_HOST
+      hostStarts >= CIMD_MAX_PER_MINUTE_PER_HOST ||
+      sourceStarts >= CIMD_MAX_PER_MINUTE_PER_SOURCE ||
+      (!known && (this.active >= CIMD_MAX_CONCURRENT || globalStarts >= CIMD_MAX_PER_MINUTE))
     ) {
       throw cimdBusyError();
     }
-    this.active += 1;
+    if (!known) this.active += 1;
     this.activeByHost.set(host, hostActive + 1);
-    this.starts.push({ at: now, host });
+    this.starts.push({ at: now, host, source, known });
   }
 
-  private release(host: string): void {
-    this.active = Math.max(0, this.active - 1);
+  private release(host: string, known: boolean): void {
+    if (!known) this.active = Math.max(0, this.active - 1);
     const left = (this.activeByHost.get(host) ?? 1) - 1;
     if (left <= 0) this.activeByHost.delete(host);
     else this.activeByHost.set(host, left);

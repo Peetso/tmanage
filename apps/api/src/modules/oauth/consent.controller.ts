@@ -36,6 +36,8 @@ export const CONSENT_TICKETS = Symbol.for('tmanage.OAuthConsentTickets');
 
 interface RequestLike {
   readonly headers: Record<string, string | string[] | undefined>;
+  /** The client address (Fastify's `request.ip`), charged against the CIMD per-source budget. */
+  readonly ip?: string;
 }
 
 interface ReplyLike {
@@ -104,7 +106,7 @@ export class OAuthConsentController {
   ): Promise<ConsentView> {
     const state = this.requireCookie(request);
     noStore(reply);
-    const validated = await this.validate(query, state.correlationId);
+    const validated = await this.validate(query, state.correlationId, request.ip);
     return {
       client: describeClient({ ...validated, name: validated.clientName }),
       requestedScopes: validated.scopes,
@@ -124,7 +126,7 @@ export class OAuthConsentController {
   ): Promise<{ readonly redirectUrl: string }> {
     const state = this.requireCookie(request);
     noStore(reply);
-    const validated = await this.validate(body ?? {}, state.correlationId);
+    const validated = await this.validate(body ?? {}, state.correlationId, request.ip);
     if (!this.tickets.verify(body?.ticket, bindingOf(session, validated))) {
       throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, 'consent_ticket_invalid');
     }
@@ -148,6 +150,8 @@ export class OAuthConsentController {
         resource: validated.resource,
         scopes: granted.scopes,
         state: validated.state,
+        // N04: re-checked after the grant commits; a session ended meanwhile revokes it (401).
+        sessionId: session.sessionId,
       },
       { grantId: randomUUID() },
     );
@@ -164,7 +168,7 @@ export class OAuthConsentController {
   ): Promise<{ readonly redirectUrl: string }> {
     const state = this.requireCookie(request);
     noStore(reply);
-    const validated = await this.validate(body ?? {}, state.correlationId);
+    const validated = await this.validate(body ?? {}, state.correlationId, request.ip);
     return {
       redirectUrl: this.oauth.buildRedirect(validated.redirectUri, {
         error: 'access_denied',
@@ -185,6 +189,7 @@ export class OAuthConsentController {
   private async validate(
     params: ConsentParams,
     correlationId: string,
+    requester: string | undefined,
   ): Promise<ValidatedAuthorize> {
     try {
       return await this.oauth.validateAuthorize(
@@ -199,6 +204,7 @@ export class OAuthConsentController {
           state: params.state,
         },
         correlationId,
+        requester ?? null,
       );
     } catch (error) {
       if (error instanceof OAuthError) {

@@ -7,7 +7,10 @@ import type {
 import { OAUTH_GRANT_BOOTSTRAP_REASON, OAUTH_IDENTITY_TABLES } from './oauth-tokens.repository.js';
 import type { OauthTokensRepository } from './oauth-tokens.repository.js';
 import type { OauthClientRow } from '../../common/database/schema.js';
-import { CimdError, type CimdFetcher } from './cimd-fetcher.js';
+import { ApiError, MESSAGES } from '../../common/http/errors.js';
+import { SessionsRepository } from '../identity/sessions.repository.js';
+import { assertCimdUrl, CimdError, type CimdFetcher } from './cimd-fetcher.js';
+import { GrantsRepository } from './grants.repository.js';
 import { verifyPkceS256 } from './pkce.js';
 import { matchesRegisteredRedirect } from './redirect-uri.js';
 import { parseScopes, scopesToString } from './scopes.js';
@@ -51,6 +54,27 @@ export interface OAuthServiceOptions {
    * again once the switch is back on. Optional so the protocol-core tests need no database.
    */
   readonly aiAccess?: AiAccessSwitches;
+  /** N04: the consenting session is re-read after the grant commits. Defaults to the real one. */
+  readonly sessions?: Pick<SessionsRepository, 'findById'>;
+  /** N04: revokes a grant minted for a session that ended meanwhile. Defaults to the real one. */
+  readonly grants?: Pick<GrantsRepository, 'revokeGrant'>;
+}
+
+/** The identity tables the N04 consent re-check reads. */
+const SESSION_TABLES = ['sessions'] as const;
+
+/**
+ * The form a client_id is stored and looked up under (NV07 follow-up). A CIMD id is the
+ * normalised URL the fetcher inserts (`https://Claude.AI/x` and `https://claude.ai/x` are one
+ * client); an opaque DCR id, or a URL the fetcher would refuse anyway, is kept exactly as sent.
+ */
+export function normaliseClientId(clientId: string): string {
+  if (!/^https:\/\//i.test(clientId)) return clientId;
+  try {
+    return assertCimdUrl(clientId).toString();
+  } catch {
+    return clientId;
+  }
 }
 
 /** DCR rate limit — threat model B1: 10 registrations per IP per hour, 1000 per day overall. */
@@ -94,6 +118,17 @@ export class OAuthError extends Error {
   }
 }
 
+/** MySQL/MariaDB duplicate-key error, seen directly or one level down on Drizzle's `.cause`. */
+function isDuplicateKeyError(error: unknown): boolean {
+  const marks = (candidate: unknown): boolean =>
+    typeof candidate === 'object' &&
+    candidate !== null &&
+    ((candidate as { errno?: number }).errno === 1062 ||
+      (candidate as { code?: string }).code === 'ER_DUP_ENTRY');
+  if (marks(error)) return true;
+  return typeof error === 'object' && error !== null && marks((error as { cause?: unknown }).cause);
+}
+
 function hashToken(value: string): string {
   return createHash('sha256').update(value, 'utf8').digest('hex');
 }
@@ -133,6 +168,8 @@ export class OAuthService {
   private readonly canonicalResource: string;
   private readonly cimdFetcher: CimdFetcher | undefined;
   private readonly aiAccess: AiAccessSwitches | undefined;
+  private readonly sessions: Pick<SessionsRepository, 'findById'>;
+  private readonly grants: Pick<GrantsRepository, 'revokeGrant'>;
 
   constructor(options: OAuthServiceOptions) {
     this.database = options.database;
@@ -141,6 +178,8 @@ export class OAuthService {
     this.canonicalResource = options.canonicalResource;
     this.cimdFetcher = options.cimdFetcher;
     this.aiAccess = options.aiAccess;
+    this.sessions = options.sessions ?? new SessionsRepository();
+    this.grants = options.grants ?? new GrantsRepository();
   }
 
   get issuerUrl(): string {
@@ -163,6 +202,8 @@ export class OAuthService {
   async validateAuthorize(
     params: AuthorizeParams,
     correlationId: string,
+    /** The requester's address, charged against the CIMD per-source fetch budget (N06). */
+    requester?: string | null,
   ): Promise<ValidatedAuthorize> {
     const clientId = typeof params.clientId === 'string' ? params.clientId : '';
     const redirectUri = typeof params.redirectUri === 'string' ? params.redirectUri : '';
@@ -173,7 +214,7 @@ export class OAuthService {
     // A `client_id` that is an https URL is a CIMD client — resolved (fetched once, cached 24 h)
     // through the SSRF-guarded fetcher. Any other value is an opaque DCR id, looked up directly.
     const client = /^https:\/\//i.test(clientId)
-      ? await this.resolveCimdClient(clientId, correlationId)
+      ? await this.resolveCimdClient(clientId, correlationId, requester)
       : await this.database.identityRead(
           { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
           (db) => this.repo.findClientByClientId(db, clientId),
@@ -273,30 +314,39 @@ export class OAuthService {
    * upserted. If the fetch fails but a (stale) row exists, that row is used — a vendor's blip does
    * not lock out a client already known. A first-time fetch failure, or an unconfigured fetcher,
    * yields `null`, which the authorize path turns into a non-redirectable `invalid_client`.
+   *
+   * N06: when the fetcher is over a cap (`429`) a stale row is served the same way, so filling
+   * the caps cannot lock out a client TManage already knows; only a first-time client sees 429.
+   * NV07 follow-up: the row is looked up under the normalised id (the value the fetcher returns
+   * and the insert writes), so a differently-cased URL no longer misses it and hits a duplicate key.
    */
   async resolveCimdClient(
     clientIdUrl: string,
     correlationId: string,
+    requester?: string | null,
   ): Promise<OauthClientRow | null> {
+    const lookupId = normaliseClientId(clientIdUrl);
     const existing = await this.database.identityRead(
       { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
-      (db) => this.repo.findClientByClientId(db, clientIdUrl),
+      (db) => this.repo.findClientByClientId(db, lookupId),
     );
     if (existing && existing.kind === 'cimd' && this.isCimdFresh(existing)) return existing;
     if (!this.cimdFetcher) return existing ?? null;
 
     let fetched;
     try {
-      fetched = await this.cimdFetcher.fetchMetadata(clientIdUrl);
+      fetched = await this.cimdFetcher.fetchMetadata(clientIdUrl, requester);
     } catch (error) {
+      if (error instanceof ApiError && error.status === 429 && existing) return existing;
       if (!(error instanceof CimdError)) throw error;
       // Fall back to a known (if stale) row; otherwise the client is unknown.
       return existing ?? null;
     }
 
-    await this.database.identityTransaction(
-      { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
-      async (tx) => {
+    // Two first-time requests for one client share one fetch and may race to insert the row; the
+    // loser's duplicate key means the row now exists, so it is simply read back (NV07 follow-up).
+    await this.database
+      .identityTransaction({ correlationId, tables: [...OAUTH_IDENTITY_TABLES] }, async (tx) => {
         if (existing) {
           await this.repo.refreshCimdClient(tx, {
             id: existing.id,
@@ -315,10 +365,46 @@ export class OAuthService {
             createdIpHash: null,
           });
         }
-      },
-    );
+      })
+      .catch((error: unknown) => {
+        if (!isDuplicateKeyError(error)) throw error;
+      });
     return this.database.identityRead({ correlationId, tables: [...OAUTH_IDENTITY_TABLES] }, (db) =>
       this.repo.findClientByClientId(db, fetched.clientId),
+    );
+  }
+
+  /**
+   * N04: re-read the consenting session after the grant committed. If it ended meanwhile (or is
+   * not this person's), revoke the grant and anything it issued, spend its code, and refuse 401.
+   */
+  private async assertConsentSessionLive(
+    context: TenantContext,
+    sessionId: string,
+    grantId: string,
+    codeHash: string,
+  ): Promise<void> {
+    const state = await this.database.identityRead(
+      { correlationId: context.correlationId, tables: [...SESSION_TABLES] },
+      (db) => this.sessions.findById(db, sessionId),
+    );
+    const live =
+      state !== null &&
+      state.session.revokedAt === null &&
+      !state.expired &&
+      state.session.userId === context.userId;
+    if (live) return;
+    await this.database.transaction(context, async (tx) => {
+      await this.grants.revokeGrant(tx, context, grantId, null);
+      await this.repo.revokeTokensByGrant(tx, grantId);
+      await this.repo.spendCode(tx, codeHash);
+    });
+    throw new ApiError(
+      401,
+      'unauthenticated',
+      MESSAGES.unauthenticated,
+      undefined,
+      'consent_session_ended',
     );
   }
 
@@ -337,6 +423,12 @@ export class OAuthService {
    *
    * The caller (S9 consent page handler) supplies the `TenantContext` for the chosen organization
    * after verifying the user's membership; S7 owns the minting, not the UI.
+   *
+   * N04: a recovery (password reset, sign-out everywhere) revokes the person's sessions and their
+   * live grants. A consent already past the session guard when that cutoff ran would mint a grant
+   * after it and survive. So once the grant commits, the consenting session is read again; if it
+   * is gone, revoked or expired, the grant, its tokens and its code are revoked and the request is
+   * refused with 401. Whichever of the two finishes last, no grant outlives the cutoff.
    */
   async grantConsent(
     context: TenantContext,
@@ -349,6 +441,11 @@ export class OAuthService {
       readonly resource: string;
       readonly scopes: readonly string[];
       readonly state: string | null;
+      /**
+       * The consenting cookie session (N04). The consent controller always passes it; it is
+       * optional only so the protocol-core tests can mint a grant without a session store.
+       */
+      readonly sessionId?: string;
     },
     ids: { grantId: string },
   ): Promise<{ redirectUrl: string; code: string }> {
@@ -371,6 +468,9 @@ export class OAuthService {
         ttlSeconds: CODE_TTL_SECONDS,
       });
     });
+    if (input.sessionId !== undefined) {
+      await this.assertConsentSessionLive(context, input.sessionId, ids.grantId, hashToken(code));
+    }
     return {
       code,
       redirectUrl: this.buildRedirect(input.redirectUri, { code, state: input.state }),
@@ -428,7 +528,7 @@ export class OAuthService {
 
     const client = await this.database.identityRead(
       { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
-      (db) => this.repo.findClientByClientId(db, clientId),
+      (db) => this.repo.findClientByClientId(db, normaliseClientId(clientId)),
     );
     if (!client || client.id !== grant.clientPk) {
       throw new OAuthError('invalid_grant', 'client_id does not match the code.', false);
@@ -524,7 +624,7 @@ export class OAuthService {
     }
     const client = await this.database.identityRead(
       { correlationId, tables: [...OAUTH_IDENTITY_TABLES] },
-      (db) => this.repo.findClientByClientId(db, clientId),
+      (db) => this.repo.findClientByClientId(db, normaliseClientId(clientId)),
     );
     if (!client || client.id !== grant.clientPk) {
       throw new OAuthError('invalid_grant', 'client_id does not match the refresh token.', false);
