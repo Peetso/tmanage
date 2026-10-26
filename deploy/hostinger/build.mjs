@@ -295,14 +295,23 @@ export const BUNDLE_DIRECT_DEPENDENCIES = Object.freeze({
   'reflect-metadata': 'apps/api',
 });
 
-function run(cmd, args, env, cwd = REPO) {
+/**
+ * Run a command. Throws on a non-zero exit — except with `{ capture: true }`, where the caller
+ * reads the exit itself: stdout is captured (stderr still shows) and `{ status, stdout }` returned.
+ */
+function run(cmd, args, env, cwd = REPO, options = {}) {
   process.stdout.write(`\n$ ${cmd} ${args.join(' ')}\n`);
   const result = spawnSync(cmd, args, {
     cwd,
-    stdio: 'inherit',
+    stdio: options.capture ? ['ignore', 'pipe', 'inherit'] : 'inherit',
     shell: process.platform === 'win32',
     env: { ...process.env, ...env },
+    ...(options.capture ? { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 } : {}),
   });
+  if (options.capture) {
+    if (result.error) throw result.error;
+    return { status: result.status, stdout: result.stdout ?? '' };
+  }
   if (result.status !== 0) {
     throw new Error(`${cmd} ${args.join(' ')} exited ${result.status ?? 'null'}`);
   }
@@ -374,6 +383,109 @@ export const BUNDLE_NPMRC = 'install-links=true\nbin-links=false\nignore-scripts
 export const INSTALL_SCRIPT_ALLOWLIST = Object.freeze([]);
 
 /**
+ * High/critical advisories the build accepts after review (audit run 2, NO-GO reason 1). npm audit
+ * has no per-advisory ignore, so this list is the gate, as INSTALL_SCRIPT_ALLOWLIST is for install
+ * scripts: an entry names one GHSA id for one exact `package@version`, so the same advisory on any
+ * other version, any other advisory, or an entry older than {@link AUDIT_ALLOWLIST_MAX_AGE_DAYS}
+ * fails the build again.
+ */
+export const AUDIT_ADVISORY_ALLOWLIST = Object.freeze([
+  Object.freeze({
+    id: 'GHSA-mrhx-c7xc-m3w5',
+    package: 'zod@3.25.76',
+    reason:
+      'Unreachable with oversized input: the only untrusted zod input is POST /mcp, authenticated, 1 MiB body cap, and refused before zod above 1,000 array items or 20,000 values (apps/api/src/modules/mcp/mcp-body-shape.ts); the patch is zod 4, a major.',
+    reviewed: '2026-10-26',
+  }),
+]);
+
+/** An allowlist entry older than this fails the build until someone reviews it again. */
+export const AUDIT_ALLOWLIST_MAX_AGE_DAYS = 90;
+
+const SEVERITY_RANK = { info: 0, low: 1, moderate: 2, high: 3, critical: 4 };
+
+/**
+ * Read `npm audit --json` and return the high/critical advisories not covered by the allowlist,
+ * as `GHSA-id package@version (severity)` strings. Throws on a report it cannot read, so a broken
+ * or empty audit is never a pass.
+ *
+ * @param {string} reportText   npm audit --json stdout
+ * @param {object} lock         the staged package-lock.json (for the installed versions)
+ * @param {ReadonlyArray<{id: string, package: string, reviewed: string}>} allowlist
+ * @param {Date} now
+ * @returns {string[]}
+ */
+export function unallowedAuditFindings(
+  reportText,
+  lock,
+  allowlist = AUDIT_ADVISORY_ALLOWLIST,
+  now = new Date(),
+) {
+  let report;
+  try {
+    report = JSON.parse(reportText);
+  } catch {
+    throw new Error('npm audit --json printed no readable report');
+  }
+  if (report === null || typeof report !== 'object' || report.error) {
+    throw new Error(`npm audit failed: ${JSON.stringify(report?.error ?? report)}`);
+  }
+  const vulnerabilities = report.vulnerabilities;
+  if (vulnerabilities === null || typeof vulnerabilities !== 'object') {
+    throw new Error('npm audit --json report has no vulnerabilities object');
+  }
+  const versionsOf = (name) =>
+    [
+      ...new Set(
+        Object.entries(lock.packages ?? {})
+          .filter(
+            ([key]) => key === `node_modules/${name}` || key.endsWith(`/node_modules/${name}`),
+          )
+          .map(([, entry]) => entry?.version)
+          .filter((v) => typeof v === 'string'),
+      ),
+    ].sort();
+  const maxAgeMs = AUDIT_ALLOWLIST_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  const allowed = (id, name, versions) =>
+    allowlist.some((entry) => {
+      const reviewed = Date.parse(entry.reviewed);
+      if (!Number.isFinite(reviewed) || now.getTime() - reviewed > maxAgeMs) return false;
+      if (entry.id !== id) return false;
+      // Every installed copy of the package must be the reviewed version.
+      return versions.length > 0 && versions.every((v) => `${name}@${v}` === entry.package);
+    });
+
+  const findings = new Set();
+  let serious = 0;
+  for (const [key, vuln] of Object.entries(vulnerabilities)) {
+    if ((SEVERITY_RANK[vuln?.severity] ?? 0) < SEVERITY_RANK.high) continue;
+    serious += 1;
+    for (const via of vuln.via ?? []) {
+      // A string `via` is another vulnerable package of this report; it is judged on its own entry.
+      if (typeof via === 'string') continue;
+      if ((SEVERITY_RANK[via?.severity] ?? SEVERITY_RANK.critical) < SEVERITY_RANK.high) continue;
+      const name = via.name ?? vuln.name ?? key;
+      const id = /GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}/i.exec(String(via.url ?? ''))?.[0];
+      const versions = versionsOf(name);
+      const label = `${id ?? `advisory ${via.source ?? '?'}`} ${name}@${versions.join('|') || '?'} (${via.severity ?? vuln.severity})`;
+      if (id === undefined || !allowed(id, name, versions)) findings.add(label);
+    }
+    // A high entry whose cause is not itself in the report cannot be judged: refuse it.
+    const viaNames = (vuln.via ?? []).filter((v) => typeof v === 'string');
+    if ((vuln.via ?? []).length === 0 || viaNames.some((n) => !(n in vulnerabilities))) {
+      findings.add(`${key} (${vuln.severity}, unexplained by the report)`);
+    }
+  }
+  const counted =
+    (report.metadata?.vulnerabilities?.high ?? 0) +
+    (report.metadata?.vulnerabilities?.critical ?? 0);
+  if (counted > serious) {
+    findings.add(`npm audit counts ${counted} high/critical but lists ${serious}`);
+  }
+  return [...findings].sort();
+}
+
+/**
  * Pin the bundle's whole install (security audit NV08). Writes {@link BUNDLE_NPMRC} and a
  * `package-lock.json` resolved at bundle build time (`npm install --package-lock-only
  * --ignore-scripts`, nothing executed, no node_modules written), so Hostinger's `npm install`
@@ -384,12 +496,16 @@ export const INSTALL_SCRIPT_ALLOWLIST = Object.freeze([]);
  * Run 2 of the audit (NV08 partial): the lockfile npm resolved is no longer trusted as-is. The
  * build also fails when its production `name@version` set differs from `pnpmSet` (the tree
  * pnpm-lock.yaml resolved, which the tests and reviews ran against), when any package sits below a
- * root `pnpm.overrides` floor, and when `npm audit --omit=dev --audit-level=high` reports a high or
- * critical advisory for the staged tree.
+ * root `pnpm.overrides` floor, and when `npm audit --omit=dev --audit-level=high --json` reports a
+ * high or critical advisory for the staged tree that {@link AUDIT_ADVISORY_ALLOWLIST} does not
+ * name for the exact installed version.
  *
  * @param {string} stageDir   the staged bundle root (holds package.json and vendor/)
- * @param {(cmd: string, args: string[], env: object | undefined, cwd: string) => void} runner
- * @param {{ pnpmSet: Set<string>, rootOverrides?: Record<string, string> }} expected
+ * @param {(cmd: string, args: string[], env: object | undefined, cwd: string,
+ *   options?: { capture?: boolean }) => void | { status: number | null, stdout: string }} runner
+ *   throws on failure; with `capture` returns the exit status and stdout instead
+ * @param {{ pnpmSet: Set<string>, rootOverrides?: Record<string, string>,
+ *   auditAllowlist?: typeof AUDIT_ADVISORY_ALLOWLIST, now?: Date }} expected
  *   pnpmProductionSet() output and the root package.json `pnpm.overrides`; required
  * @returns {{ packages: number, installScripts: string[] }}
  */
@@ -434,9 +550,33 @@ export function stageInstallPins(stageDir, runner = run, expected = undefined) {
   if (belowFloor.length > 0) {
     throw new Error(`bundle packages below a root override floor: ${belowFloor.join(', ')}`);
   }
-  // Read-only: audits the staged lockfile against the registry's advisories; a high or critical
-  // finding exits non-zero and the runner throws, so no bundle is zipped.
-  runner('npm', ['audit', '--omit=dev', '--audit-level=high'], undefined, stageDir);
+  // Read-only: audits the staged lockfile against the registry's advisories. A high or critical
+  // advisory that is not on AUDIT_ADVISORY_ALLOWLIST for the exact installed version throws, so
+  // no bundle is zipped; so does a report that cannot be read.
+  const audit = runner(
+    'npm',
+    ['audit', '--omit=dev', '--audit-level=high', '--json'],
+    undefined,
+    stageDir,
+    { capture: true },
+  );
+  if (audit === null || typeof audit !== 'object' || typeof audit.stdout !== 'string') {
+    throw new Error('npm audit returned no report');
+  }
+  const unallowed = unallowedAuditFindings(
+    audit.stdout,
+    lock,
+    expected.auditAllowlist ?? AUDIT_ADVISORY_ALLOWLIST,
+    expected.now ?? new Date(),
+  );
+  if (unallowed.length > 0) {
+    throw new Error(
+      `npm audit: high/critical advisories not on AUDIT_ADVISORY_ALLOWLIST: ${unallowed.join(', ')}`,
+    );
+  }
+  if (audit.status !== 0 && audit.status !== 1) {
+    throw new Error(`npm audit exited ${audit.status ?? 'null'}`);
+  }
   return { packages: Object.keys(lock.packages).length, installScripts };
 }
 
@@ -594,7 +734,7 @@ function assemble() {
   // NV08: the same .npmrc plus ignore-scripts, and a lockfile that pins the transitive tree.
   const pins = stageInstallPins(STAGE, run, { pnpmSet, rootOverrides: rootPkg.pnpm?.overrides });
   process.stdout.write(
-    `\nbundle lockfile: ${pins.packages} packages pinned, same tree as pnpm-lock.yaml, override floors and npm audit passed, install scripts off\n`,
+    `\nbundle lockfile: ${pins.packages} packages pinned, same tree as pnpm-lock.yaml, override floors and npm audit passed (reviewed allowlist: ${AUDIT_ADVISORY_ALLOWLIST.map((a) => `${a.id} ${a.package}`).join(', ') || 'none'}), install scripts off\n`,
   );
 
   // The owner's guide, the settings template and the secret generator travel with the bundle,

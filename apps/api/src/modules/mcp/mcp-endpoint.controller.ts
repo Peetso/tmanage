@@ -43,6 +43,7 @@ import {
   mcpResourceUri,
   mcpUnauthenticated,
 } from './mcp-auth.js';
+import { mcpBodyShapeRefusal } from './mcp-body-shape.js';
 import { DatabaseMcpWorkspaceResolver, MCP_WORKSPACE_RESOLVER } from './mcp-workspace.js';
 import { DatabaseMcpCallAuditor, MCP_CALL_AUDITOR, auditedRuntime } from './mcp-call-audit.js';
 import type { McpCallAuditor } from './mcp-call-audit.js';
@@ -269,6 +270,18 @@ export class McpEndpointController {
     // Keyed by the token row's id (`pat:<id>`) or the grant (`oauth:<id>`), never the token itself.
     if (!this.admit(state.session.sessionId)) {
       throw new ApiError(429, 'rate_limited', MESSAGES.rateLimited, undefined, 'mcp_rate_limited');
+    }
+    // GHSA-mrhx-c7xc-m3w5: no oversized collection reaches zod (the SDK's message parse or a tool's
+    // argument schema). Before the scope walk below, which reads the body too.
+    const shape = mcpBodyShapeRefusal(request.body);
+    if (shape !== undefined) {
+      throw new ApiError(
+        400,
+        'validation_failed',
+        'The request is too large to process',
+        undefined,
+        `mcp_body_${shape}`,
+      );
     }
 
     // T-SCP-01. A call outside the grant's scopes is refused before anything runs, with the

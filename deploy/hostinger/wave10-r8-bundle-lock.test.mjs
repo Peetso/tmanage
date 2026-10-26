@@ -146,6 +146,12 @@ const CLEAN = {
   'node_modules/styler': { version: '1.0.0' },
 };
 
+const NO_ADVISORIES = JSON.stringify({
+  auditReportVersion: 2,
+  vulnerabilities: {},
+  metadata: { vulnerabilities: { info: 0, low: 0, moderate: 0, high: 0, critical: 0, total: 0 } },
+});
+
 function withStage(packages, fn) {
   const dir = mkdtempSync(join(tmpdir(), 'tmanage-r8-'));
   const calls = [];
@@ -155,6 +161,7 @@ function withStage(packages, fn) {
       writeFileSync(join(cwd, 'package-lock.json'), JSON.stringify(npmLock(packages)));
     }
     if (args[0] === 'audit' && fn.auditFails) throw new Error('npm audit exited 1');
+    if (args[0] === 'audit') return { status: 0, stdout: NO_ADVISORIES };
   };
   try {
     return fn(dir, runner, calls);
@@ -174,14 +181,14 @@ test('the npm production set skips dev, file: and @tmanage entries', () => {
   assert.deepEqual([...npmLockProductionSet(npmLock(CLEAN))].sort(), EXPECTED);
 });
 
-test('a matching lockfile passes and is audited with --omit=dev --audit-level=high', () => {
+test('a matching lockfile passes and is audited with --omit=dev --audit-level=high --json', () => {
   withStage(CLEAN, (dir, runner, calls) => {
     const result = stageInstallPins(dir, runner, {
       pnpmSet: pnpmSet(),
       rootOverrides: ROOT_OVERRIDES,
     });
     assert.equal(result.installScripts.length, 0);
-    assert.deepEqual(calls.at(-1), ['audit', '--omit=dev', '--audit-level=high']);
+    assert.deepEqual(calls.at(-1), ['audit', '--omit=dev', '--audit-level=high', '--json']);
   });
 });
 
