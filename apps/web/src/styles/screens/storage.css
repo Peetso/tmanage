@@ -335,3 +335,80 @@
     flex-basis: auto;
   }
 }
+
+/* Control > Storage, first time (Figma 419:23593 / AR 419:23699): the two choices as cards. */
+.tm-storage--first-time .tm-storage__options {
+  gap: var(--s4);
+}
+
+.tm-storage--first-time .tm-storage__option {
+  gap: var(--s4);
+  padding: var(--s5);
+  border-radius: 18px;
+}
+
+.tm-storage__details {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-inline-start: 44px;
+}
+
+.tm-storage__note {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  line-height: var(--t-ui-sm-line);
+}
+
+/* Attach · no storage yet (Figma 419:23834 owner, 419:23867 member). */
+.tm-no-storage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: 18px var(--s5);
+  border: var(--b-quiet) dashed var(--line-700);
+  border-radius: var(--r-card);
+  background: var(--paper-0);
+}
+
+.tm-no-storage__eyebrow {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-caption);
+  font-weight: 500;
+  line-height: var(--t-caption-line);
+  text-transform: uppercase;
+}
+
+.tm-no-storage__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: var(--t-heading-card);
+  font-weight: 600;
+  line-height: var(--t-heading-card-line);
+}
+
+.tm-no-storage__body {
+  margin: 0;
+  color: var(--ink-650);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  line-height: var(--t-ui-sm-line);
+}
+
+.tm-no-storage__action {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-no-storage__hint {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-ui-sm);
+  font-weight: 500;
+  line-height: var(--t-ui-sm-line);
+}

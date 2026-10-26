@@ -27,6 +27,7 @@ import type { PickedDriveItem } from '../../lib/google-picker';
 import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
 import { attachOneDriveFile, getOneDriveStatus } from '../../lib/api/onedrive';
 import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
+import { NoStorageAttach, useAttachStorageState } from '../storage/NoStorageAttach';
 import '../../styles/screens/home.css';
 
 /**
@@ -151,6 +152,9 @@ export function QuickCaptureScreen({
   const t = useT();
   const headingId = useId();
   const canCreateProjects = useCanCreateProjects(organizationSlug, client);
+  // 419:23811 / 419:23844: with neither Google Drive nor OneDrive chosen, nothing can be attached.
+  const attachState = useAttachStorageState(organizationSlug, api);
+  const noStorage = attachState === 'connect' || attachState === 'ask';
 
   const projects = useQuery({
     queryKey: ['capture-projects', organizationSlug],
@@ -410,14 +414,22 @@ export function QuickCaptureScreen({
               disabled={capture.isPending}
             />
 
-            <CaptureAttachmentPicker
-              files={files}
-              onAdd={(picked) => setFiles((current) => [...current, ...picked])}
-              onRemove={(index) =>
-                setFiles((current) => current.filter((_, position) => position !== index))
-              }
-              disabled={capture.isPending}
-            />
+            {noStorage ? (
+              <NoStorageAttach
+                organizationSlug={organizationSlug}
+                client={api}
+                state={attachState}
+              />
+            ) : (
+              <CaptureAttachmentPicker
+                files={files}
+                onAdd={(picked) => setFiles((current) => [...current, ...picked])}
+                onRemove={(index) =>
+                  setFiles((current) => current.filter((_, position) => position !== index))
+                }
+                disabled={capture.isPending}
+              />
+            )}
 
             {uploads.rows.length > 0 ? (
               <ul className="tm-upload-list">
@@ -493,30 +505,32 @@ export function QuickCaptureScreen({
             <span>{t('QuickCaptureScreen.calloutBody')}</span>
           </p>
 
-          <div className="tm-cloud-attach">
-            <DriveAttachPicker
-              organizationSlug={organizationSlug}
-              client={api}
-              picked={driveFiles}
-              onPick={(picked) => setDriveFiles((current) => [...current, ...picked])}
-              onRemove={(id) =>
-                setDriveFiles((current) => current.filter((file) => file.id !== id))
-              }
-              projectId={effectiveProjectId}
-              disabled={capture.isPending}
-            />
-            <OneDriveAttachPicker
-              organizationSlug={organizationSlug}
-              client={api}
-              picked={oneDriveFiles}
-              onPick={(picked) => setOneDriveFiles((current) => [...current, ...picked])}
-              onRemove={(itemId) =>
-                setOneDriveFiles((current) => current.filter((file) => file.itemId !== itemId))
-              }
-              projectId={effectiveProjectId}
-              disabled={capture.isPending}
-            />
-          </div>
+          {noStorage ? null : (
+            <div className="tm-cloud-attach">
+              <DriveAttachPicker
+                organizationSlug={organizationSlug}
+                client={api}
+                picked={driveFiles}
+                onPick={(picked) => setDriveFiles((current) => [...current, ...picked])}
+                onRemove={(id) =>
+                  setDriveFiles((current) => current.filter((file) => file.id !== id))
+                }
+                projectId={effectiveProjectId}
+                disabled={capture.isPending}
+              />
+              <OneDriveAttachPicker
+                organizationSlug={organizationSlug}
+                client={api}
+                picked={oneDriveFiles}
+                onPick={(picked) => setOneDriveFiles((current) => [...current, ...picked])}
+                onRemove={(itemId) =>
+                  setOneDriveFiles((current) => current.filter((file) => file.itemId !== itemId))
+                }
+                projectId={effectiveProjectId}
+                disabled={capture.isPending}
+              />
+            </div>
+          )}
 
           <p className="tm-capture__keys">{t('QuickCaptureScreen.keysHint')}</p>
         </form>

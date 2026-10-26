@@ -12385,5 +12385,20 @@
   "DesktopApp.browserNote": "تفضّل المتصفح؟ يعمل TManage كما هو على tmanage.peetrix.com.",
   "DesktopApp.windowLabel": "نافذة تطبيق TManage لسطح المكتب",
   "AccountMenu.downloadDesktop": "تنزيل تطبيق سطح المكتب",
-  "AccountMenu.downloadDesktopHint": "Windows · حوالي {size} ميجابايت"
+  "AccountMenu.downloadDesktopHint": "Windows · حوالي {size} ميجابايت",
+  "StorageFirstTime.title": "اختر مكان ملفات شركتك",
+  "StorageFirstTime.intro": "‏اختر Google Drive أو OneDrive. يحتفظ TManage بمجلد لكل مشروع هناك ويربط كل ملف بعمله.",
+  "StorageFirstTime.note": "‏لا تُحفظ الملفات على TManage أبدًا. إلى أن تختار، لا يمكن لأعضاء الشركة إرفاق ملفات بالعمل.",
+  "NoStorageAttach.eyebrow": "المرفقات",
+  "NoStorageAttach.title": "‏اربط Google Drive‏ أو OneDrive‏ لإرفاق الملفات",
+  "NoStorageAttach.ownerBody": "‏لم تختر شركتك مكان الملفات بعد. يستغرق ذلك دقيقة.",
+  "NoStorageAttach.connect": "ربط التخزين",
+  "NoStorageAttach.connectHint": "‏يفتح مركز التحكم › التخزين",
+  "NoStorageAttach.memberBody": "‏يمكن للمالك أو المسؤول فقط اختيار مكان الملفات.",
+  "NoStorageAttach.ask": "اسأل المسؤول",
+  "NoStorageAttach.askHint": "‏سنُبلغ {name}.",
+  "NoStorageAttach.askHintNoName": "‏سنُبلغ المسؤول.",
+  "NoStorageAttach.asked": "‏تم إبلاغ {name}.",
+  "NoStorageAttach.askFailed": "‏تعذّر الوصول إلى المسؤول. حاول مرة أخرى لاحقًا.",
+  "NoStorageAttach.message": "‏هل يمكنك ربط Google Drive‏ أو OneDrive‏ من مركز التحكم › التخزين؟ حتى ذلك الحين لا يمكن لأحد إرفاق ملفات بالعمل."
 }

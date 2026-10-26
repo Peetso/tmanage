@@ -39,6 +39,7 @@ import { openDrivePicker } from '../../lib/google-picker';
 import { openOneDrivePicker, reservePickerWindow } from '../../lib/onedrive-picker';
 import { closeIfBlank, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { isFirstTimeStorage } from '../../lib/storage-attach-state';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/storage.css';
@@ -229,6 +230,9 @@ export function AdminStorageScreen({
     changeFolder.isPending ||
     oneDriveMutations.some((mutation) => mutation.isPending);
   const oneDriveView = oneDriveStatus.data;
+  // Figma 419:23593 / 419:23699: before Google Drive or OneDrive has ever been connected, the
+  // screen is the first-time choice between the two.
+  const firstTime = isFirstTimeStorage(status.data, oneDriveView);
 
   return (
     <ControlCenterShell
@@ -236,7 +240,8 @@ export function AdminStorageScreen({
       organizationName={organizationName}
       section="storage"
       crumbs={[t('AdminStorageScreen.crumb')]}
-      title={t('AdminStorageScreen.title')}
+      title={t(firstTime ? 'StorageFirstTime.title' : 'AdminStorageScreen.title')}
+      description={firstTime ? t('StorageFirstTime.intro') : undefined}
     >
       {status.isPending ? (
         <LoadingRegion label={t('AdminStorageScreen.loading')}>
@@ -247,13 +252,18 @@ export function AdminStorageScreen({
           {t('AdminStorageScreen.tryAgain')}
         </InlineAlert>
       ) : (
-        <section className="tm-storage" aria-labelledby="tm-storage-heading">
+        <section
+          className={firstTime ? 'tm-storage tm-storage--first-time' : 'tm-storage'}
+          aria-labelledby="tm-storage-heading"
+        >
           <h2 id="tm-storage-heading" className="tm-visually-hidden">
             {t('AdminStorageScreen.title')}
           </h2>
-          <p className="tm-storage__intro">
-            {t('AdminStorageScreen.introNamed').replace('{name}', organizationName)}
-          </p>
+          {firstTime ? null : (
+            <p className="tm-storage__intro">
+              {t('AdminStorageScreen.introNamed').replace('{name}', organizationName)}
+            </p>
+          )}
 
           {failed ? (
             <InlineAlert tone="danger" title={t('AdminStorageScreen.actionFailedTitle')} live>
@@ -282,6 +292,7 @@ export function AdminStorageScreen({
             <DriveOption
               view={status.data}
               oneDrive={oneDriveView}
+              firstTime={firstTime}
               busy={busy}
               onUseDrive={() => settings.mutate({ storageMode: 'google_drive' })}
               onConnect={() => connect.mutate()}
@@ -293,6 +304,7 @@ export function AdminStorageScreen({
             {oneDriveView ? (
               <OneDriveOption
                 view={oneDriveView}
+                firstTime={firstTime}
                 busy={busy}
                 onUse={() => oneDriveSettings.mutate({ storageMode: 'onedrive' })}
                 onConnect={(libraries) => connectOneDrive.mutate(libraries)}
@@ -301,6 +313,12 @@ export function AdminStorageScreen({
               />
             ) : null}
           </div>
+
+          {firstTime ? (
+            <p className="tm-storage__note">
+              {t('StorageFirstTime.note').replace('{name}', organizationName)}
+            </p>
+          ) : null}
         </section>
       )}
     </ControlCenterShell>
@@ -311,6 +329,8 @@ interface DriveOptionProps {
   view: StorageStatusView;
   /** 0236. While OneDrive is connected Google Drive is not offered a connect; see 395:5385. */
   oneDrive: OneDriveStatusView | undefined;
+  /** 419:23660: the first-time card, its state and ink button indented under the choice. */
+  firstTime: boolean;
   busy: boolean;
   onUseDrive: () => void;
   onConnect: () => void;
@@ -322,6 +342,7 @@ interface DriveOptionProps {
 function DriveOption({
   view,
   oneDrive,
+  firstTime,
   busy,
   onUseDrive,
   onConnect,
@@ -352,6 +373,17 @@ function DriveOption({
         <InlineAlert tone="neutral" title={t('AdminStorageScreen.notConfiguredTitle')}>
           {t('AdminStorageScreen.notConfiguredBody')}
         </InlineAlert>
+      ) : drive.status === 'not_connected' && firstTime ? (
+        <div className="tm-storage__details">
+          <StateCapsule className="tm-storage__capsule">
+            {t('AdminStorageScreen.notConnected')}
+          </StateCapsule>
+          <div className="tm-storage__actions">
+            <Button tone="ink" size="feature" loading={busy} onClick={onConnect}>
+              {t('AdminStorageScreen.connect')}
+            </Button>
+          </div>
+        </div>
       ) : drive.status === 'not_connected' ? (
         <>
           <StateCapsule className="tm-storage__capsule">
@@ -449,6 +481,8 @@ function DriveOption({
 
 interface OneDriveOptionProps {
   view: OneDriveStatusView;
+  /** 419:23670: the first-time card, its state, ink button and note indented under the choice. */
+  firstTime: boolean;
   busy: boolean;
   onUse: () => void;
   onConnect: (libraries: boolean) => void;
@@ -463,6 +497,7 @@ interface OneDriveOptionProps {
  */
 function OneDriveOption({
   view,
+  firstTime,
   busy,
   onUse,
   onConnect,
@@ -498,6 +533,18 @@ function OneDriveOption({
             </Button>
           </div>
         </>
+      ) : drive.status === 'not_connected' && firstTime ? (
+        <div className="tm-storage__details">
+          <StateCapsule className="tm-storage__capsule">
+            {t('OneDriveStorage.notConnected')}
+          </StateCapsule>
+          <div className="tm-storage__actions">
+            <Button tone="ink" size="feature" loading={busy} onClick={() => onConnect(false)}>
+              {t('OneDriveStorage.connect')}
+            </Button>
+          </div>
+          <p className="tm-storage__caption">{t('OneDriveStorage.connectNote')}</p>
+        </div>
       ) : drive.status === 'not_connected' ? (
         <>
           <StateCapsule className="tm-storage__capsule">

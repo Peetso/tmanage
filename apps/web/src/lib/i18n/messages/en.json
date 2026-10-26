@@ -12385,5 +12385,20 @@
   "DesktopApp.browserNote": "Prefer the browser? TManage keeps working at tmanage.peetrix.com.",
   "DesktopApp.windowLabel": "The TManage desktop app window",
   "AccountMenu.downloadDesktop": "Download the desktop app",
-  "AccountMenu.downloadDesktopHint": "For Windows · about {size} MB"
+  "AccountMenu.downloadDesktopHint": "For Windows · about {size} MB",
+  "StorageFirstTime.title": "Choose where your company’s files live",
+  "StorageFirstTime.intro": "Pick Google Drive or OneDrive. TManage keeps a folder for each project there and links every file to its work.",
+  "StorageFirstTime.note": "Files are never stored on TManage. Until you choose, people in {name} can’t attach files to work.",
+  "NoStorageAttach.eyebrow": "Attachments",
+  "NoStorageAttach.title": "Connect Google Drive or OneDrive to attach files",
+  "NoStorageAttach.ownerBody": "Your company hasn’t chosen where files live yet. It takes a minute.",
+  "NoStorageAttach.connect": "Connect storage",
+  "NoStorageAttach.connectHint": "Opens Control › Storage",
+  "NoStorageAttach.memberBody": "Only an owner or admin can choose where files live.",
+  "NoStorageAttach.ask": "Ask your admin",
+  "NoStorageAttach.askHint": "We’ll let {name} know.",
+  "NoStorageAttach.askHintNoName": "We’ll let your admin know.",
+  "NoStorageAttach.asked": "{name} has been asked.",
+  "NoStorageAttach.askFailed": "Your admin couldn’t be reached. Please try again later.",
+  "NoStorageAttach.message": "Could you connect Google Drive or OneDrive in Control › Storage? Until then nobody can attach files to work."
 }

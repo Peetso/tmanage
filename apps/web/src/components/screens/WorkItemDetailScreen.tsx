@@ -55,6 +55,7 @@ import {
 } from '../../lib/api/onedrive';
 import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
 import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
+import { NoStorageAttach, useAttachStorageState } from '../storage/NoStorageAttach';
 import { addAttachmentVersion, getAttachmentHistory } from '../../lib/api/attachment-versions';
 import type { AttachmentVersion } from '../../lib/api/attachment-versions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -1025,6 +1026,10 @@ function FilesCard({
     staleTime: 60_000,
   };
   const storage = useQuery(storageQuery);
+  // 419:23811 / 419:23844: with neither Google Drive nor OneDrive chosen, nothing can be attached;
+  // files attached before stay listed.
+  const attachState = useAttachStorageState(organizationSlug, api);
+  const noStorage = attachState === 'connect' || attachState === 'ask';
   const driveKey = ['drive-attachments', organizationSlug, item.id] as const;
   const driveFiles = useQuery({
     queryKey: driveKey,
@@ -1154,24 +1159,28 @@ function FilesCard({
         <h2 id="tm-wk-files" className="tm-wk-card__title">
           {ta('WorkDetail.files')}
         </h2>
-        <button
-          type="button"
-          className="tm-wk-pill-button"
-          data-tone="outline"
-          onClick={() => picker.current?.click()}
-        >
-          {ta('WorkDetail.attachFile')}
-        </button>
-        <OneDriveAttachPicker
-          organizationSlug={organizationSlug}
-          client={api}
-          picked={[]}
-          onPick={(picked) => attachFromOneDrive.mutate(picked)}
-          onRemove={() => undefined}
-          projectId={item.projectId}
-          disabled={attachFromOneDrive.isPending}
-          showList={false}
-        />
+        {noStorage ? null : (
+          <>
+            <button
+              type="button"
+              className="tm-wk-pill-button"
+              data-tone="outline"
+              onClick={() => picker.current?.click()}
+            >
+              {ta('WorkDetail.attachFile')}
+            </button>
+            <OneDriveAttachPicker
+              organizationSlug={organizationSlug}
+              client={api}
+              picked={[]}
+              onPick={(picked) => attachFromOneDrive.mutate(picked)}
+              onRemove={() => undefined}
+              projectId={item.projectId}
+              disabled={attachFromOneDrive.isPending}
+              showList={false}
+            />
+          </>
+        )}
         <input
           ref={picker}
           type="file"
@@ -1194,6 +1203,9 @@ function FilesCard({
         />
       </div>
 
+      {noStorage ? (
+        <NoStorageAttach organizationSlug={organizationSlug} client={api} state={attachState} />
+      ) : null}
       {problem ? (
         <InlineAlert tone="danger" title={ta('WorkDetail.fileProblem')} live>
           {problem}
@@ -1203,6 +1215,7 @@ function FilesCard({
       {failed ? <p className="tm-field__hint">{ta('WorkDetail.filesError')}</p> : null}
       {!loading &&
       !failed &&
+      !noStorage &&
       files.length === 0 &&
       uploads.rows.length === 0 &&
       driveRows.length === 0 &&
