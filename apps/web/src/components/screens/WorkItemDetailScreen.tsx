@@ -16,6 +16,7 @@ import { SendForApprovalDialog } from './SendForApprovalDialog';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import {
   deleteWorkItem,
+  detachWorkItemFile,
   duplicateWorkItem,
   getWorkItem,
   listWorkItemFiles,
@@ -39,7 +40,13 @@ import {
 import type { DeliverableDetailView, DeliverableVersionView } from '../../lib/api/deliverables';
 import { listClientOrganizationOptions } from '../../lib/api/project-client';
 import { listProjectShares } from '../../lib/api/clients';
-import { uploadProjectFile, uploadWorkItemAttachment } from '../../lib/api/uploads';
+import {
+  uploadDestination,
+  uploadProjectFile,
+  uploadWorkItemAttachment,
+} from '../../lib/api/uploads';
+import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
+import type { UploadRow } from '../../lib/upload-queue';
 import { getStorageStatus, listDriveAttachments } from '../../lib/api/google-drive';
 import {
   attachOneDriveFile,
@@ -1049,29 +1056,57 @@ function FilesCard({
     onSettled: () => void queries.invalidateQueries({ queryKey: oneDriveKey }),
   });
 
-  const attach = useMutation({
-    mutationFn: async (file: File) =>
-      uploadWorkItemAttachment(api, organizationSlug, {
-        workItemId: item.id,
-        projectId: item.projectId,
-        file,
-        // Read at click time, so a status still loading is not mistaken for TManage storage.
-        storage: await queries.fetchQuery(storageQuery).catch(() => undefined),
-        oneDrive: await queries.fetchQuery(oneDriveQuery).catch(() => undefined),
-      }),
-    onSuccess: (result) => {
-      setProblem(undefined);
+  // 409:6602. Each new file is a progress row (bar, Cancel, Retry) until it is attached; a dropped
+  // connection reads "Upload stopped at N %", any other refusal in the API's words.
+  const filesKey = ['work-item-files', organizationSlug, item.id] as const;
+  const uploads = useUploadQueue((error) =>
+    error instanceof NetworkError ? null : describe(error, ta),
+  );
+  const attachFile = async (file: File) => {
+    setProblem(undefined);
+    // Read at click time, so a status still loading is not mistaken for TManage storage.
+    const storageNow = await queries.fetchQuery(storageQuery).catch(() => undefined);
+    const oneDriveNow = await queries.fetchQuery(oneDriveQuery).catch(() => undefined);
+    await uploads.start(file, uploadDestination(storageNow, oneDriveNow), async (sent, deps) => {
+      const result = await uploadWorkItemAttachment(
+        api,
+        organizationSlug,
+        {
+          workItemId: item.id,
+          projectId: item.projectId,
+          file: sent,
+          storage: storageNow,
+          oneDrive: oneDriveNow,
+        },
+        deps,
+      );
       void queries.invalidateQueries({
         queryKey:
           result.kind === 'google_drive'
             ? driveKey
             : result.kind === 'onedrive'
               ? oneDriveKey
-              : ['work-item-files', organizationSlug, item.id],
+              : filesKey,
       });
-    },
-    onError: (error) => setProblem(describe(error, ta)),
-  });
+      return result.kind === 'tmanage' ? result.file.id : result.attachment.id;
+    });
+  };
+  // A finished row stands in for its attachment, so the list below does not show it twice.
+  const justUploaded = new Set(
+    uploads.rows.flatMap((row) => (row.state === 'done' && row.resultId ? [row.resultId] : [])),
+  );
+  const removeUpload = async (row: UploadRow) => {
+    if (row.state === 'done' && row.resultId) {
+      try {
+        await detachWorkItemFile(api, organizationSlug, item.id, row.resultId);
+      } catch (error) {
+        setProblem(describe(error, ta));
+        return;
+      }
+      void queries.invalidateQueries({ queryKey: filesKey });
+    }
+    uploads.remove(row.id);
+  };
 
   const addVersion = useMutation({
     mutationFn: async (input: {
@@ -1123,10 +1158,9 @@ function FilesCard({
           type="button"
           className="tm-wk-pill-button"
           data-tone="outline"
-          disabled={attach.isPending}
           onClick={() => picker.current?.click()}
         >
-          {attach.isPending ? ta('WorkDetail.attaching') : ta('WorkDetail.attachFile')}
+          {ta('WorkDetail.attachFile')}
         </button>
         <OneDriveAttachPicker
           organizationSlug={organizationSlug}
@@ -1147,7 +1181,7 @@ function FilesCard({
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = '';
-            if (file) attach.mutate(file);
+            if (file) void attachFile(file);
           }}
         />
         <input
@@ -1170,230 +1204,247 @@ function FilesCard({
       {!loading &&
       !failed &&
       files.length === 0 &&
+      uploads.rows.length === 0 &&
       driveRows.length === 0 &&
       oneDriveRows.length === 0 ? (
         <p className="tm-field__hint">{ta('WorkDetail.noFiles')}</p>
       ) : null}
 
       <ul className="tm-wk-files">
-        {files.map((file) => {
-          const backing = backingOf(file);
-          const latest = backing ? latestOf(backing) : undefined;
-          const plain = backing ? [] : plainHistoryOf(file);
-          const plainLatest = plain.length > 1 ? plain[0] : undefined;
-          const servedAsset = latest?.fileAssetId ?? plainLatest?.fileAssetId ?? file.fileAssetId;
-          const availability = plainLatest?.availability ?? file.availability;
-          const history = backing
-            ? [...backing.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))
-            : [];
-          return (
-            <li key={file.id} className="tm-wk-file" data-backed={backing !== undefined}>
-              <div
-                className={
-                  availability === 'scanning' ? 'tm-wk-file__row tm-scan-row' : 'tm-wk-file__row'
-                }
-              >
-                <span className="tm-wk-badge">{fileKind(file.fileName)}</span>
-                <span className="tm-wk-file__text">
-                  <span className="tm-wk-file__name">{file.fileName}</span>
-                  <span className="tm-wk-file__meta">
-                    {latest
-                      ? ta('WorkDetail.versionUpdated', {
-                          n: latest.versionNo ?? 1,
-                          day: formatShortDay(dayOf(latest.createdAt), locale),
-                          name: nameOf(latest.createdByUserId),
-                        })
-                      : plainLatest
+        {uploads.rows.map((row) => (
+          <UploadProgressItem
+            key={row.id}
+            row={row}
+            onCancel={uploads.cancel}
+            onRetry={uploads.retry}
+            onRemove={(done) => void removeUpload(done)}
+            removableWhenDone={row.destination === 'tmanage'}
+          />
+        ))}
+        {files
+          .filter((file) => !justUploaded.has(file.id))
+          .map((file) => {
+            const backing = backingOf(file);
+            const latest = backing ? latestOf(backing) : undefined;
+            const plain = backing ? [] : plainHistoryOf(file);
+            const plainLatest = plain.length > 1 ? plain[0] : undefined;
+            const servedAsset = latest?.fileAssetId ?? plainLatest?.fileAssetId ?? file.fileAssetId;
+            const availability = plainLatest?.availability ?? file.availability;
+            const history = backing
+              ? [...backing.versions].sort((a, b) => (b.versionNo ?? 0) - (a.versionNo ?? 0))
+              : [];
+            return (
+              <li key={file.id} className="tm-wk-file" data-backed={backing !== undefined}>
+                <div
+                  className={
+                    availability === 'scanning' ? 'tm-wk-file__row tm-scan-row' : 'tm-wk-file__row'
+                  }
+                >
+                  <span className="tm-wk-badge">{fileKind(file.fileName)}</span>
+                  <span className="tm-wk-file__text">
+                    <span className="tm-wk-file__name">{file.fileName}</span>
+                    <span className="tm-wk-file__meta">
+                      {latest
                         ? ta('WorkDetail.versionUpdated', {
-                            n: plainLatest.versionNo,
-                            day: formatShortDay(dayOf(plainLatest.createdAt), locale),
-                            name: nameOf(plainLatest.createdByUserId),
+                            n: latest.versionNo ?? 1,
+                            day: formatShortDay(dayOf(latest.createdAt), locale),
+                            name: nameOf(latest.createdByUserId),
                           })
-                        : ta('WorkDetail.versionOn', {
-                            n: 1,
-                            day: formatShortDay(dayOf(file.createdAt), locale),
-                          })}
+                        : plainLatest
+                          ? ta('WorkDetail.versionUpdated', {
+                              n: plainLatest.versionNo,
+                              day: formatShortDay(dayOf(plainLatest.createdAt), locale),
+                              name: nameOf(plainLatest.createdByUserId),
+                            })
+                          : ta('WorkDetail.versionOn', {
+                              n: 1,
+                              day: formatShortDay(dayOf(file.createdAt), locale),
+                            })}
+                    </span>
+                  </span>
+                  {availability === 'ready' ? (
+                    <a
+                      className="tm-wk-text-button"
+                      href={href(servedAsset)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {ta('WorkDetail.download')}
+                    </a>
+                  ) : availability === 'scanning' ? (
+                    <NotScannedDownload href={href(servedAsset)} fileName={file.fileName} />
+                  ) : (
+                    <span className="tm-wk-file__meta" role="status">
+                      {ta('WorkDetail.unavailable')}
+                    </span>
+                  )}
+                </div>
+
+                {backing ? (
+                  <>
+                    <div className="tm-wk-history">
+                      <p className="tm-wk-history__title">{ta('WorkDetail.versionHistory')}</p>
+                      <ul>
+                        {history.map((version, index) => (
+                          <li key={version.id} data-current={index === 0}>
+                            <span>
+                              {index === 0
+                                ? ta('WorkDetail.versionCurrent', { n: version.versionNo ?? 1 })
+                                : ta('WorkDetail.versionBy', {
+                                    n: version.versionNo ?? 1,
+                                    name: nameOf(version.createdByUserId),
+                                  })}
+                            </span>
+                            {index === 0 ? (
+                              <span>{formatShortDay(dayOf(version.createdAt), locale)}</span>
+                            ) : version.fileAssetId !== null ? (
+                              <button
+                                type="button"
+                                className="tm-wk-text-button"
+                                disabled={addVersion.isPending}
+                                onClick={() =>
+                                  addVersion.mutate({
+                                    deliverableId: backing.id,
+                                    fileAssetId: version.fileAssetId as string,
+                                    note: ta('WorkDetail.restoredNote', {
+                                      n: version.versionNo ?? 1,
+                                    }),
+                                  })
+                                }
+                              >
+                                {ta('WorkDetail.restore')}
+                              </button>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <button
+                      type="button"
+                      className="tm-wk-pill-button"
+                      data-tone="outline"
+                      disabled={addVersion.isPending}
+                      onClick={() => {
+                        setVersionTarget({ kind: 'deliverable', id: backing.id });
+                        versionPicker.current?.click();
+                      }}
+                    >
+                      {ta('WorkDetail.uploadVersion')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {plain.length > 1 ? (
+                      <div className="tm-wk-history">
+                        <p className="tm-wk-history__title">{ta('WorkDetail.versionHistory')}</p>
+                        <ul>
+                          {plain.map((version) => (
+                            <li key={version.fileAssetId} data-current={version.current}>
+                              <span>
+                                {version.current
+                                  ? ta('WorkDetail.versionCurrent', { n: version.versionNo })
+                                  : ta('WorkDetail.versionBy', {
+                                      n: version.versionNo,
+                                      name: nameOf(version.createdByUserId),
+                                    })}
+                              </span>
+                              {version.current ? (
+                                <span>{formatShortDay(dayOf(version.createdAt), locale)}</span>
+                              ) : version.availability === 'ready' ? (
+                                <a
+                                  className="tm-wk-text-button"
+                                  href={href(version.fileAssetId)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                >
+                                  {ta('WorkDetail.download')}
+                                </a>
+                              ) : version.availability === 'scanning' ? (
+                                <NotScannedDownload
+                                  href={href(version.fileAssetId)}
+                                  fileName={version.fileName}
+                                />
+                              ) : (
+                                <span role="status">{ta('WorkDetail.unavailable')}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      className="tm-wk-pill-button"
+                      data-tone="outline"
+                      disabled={addPlainVersion.isPending}
+                      onClick={() => {
+                        setVersionTarget({ kind: 'plain', id: file.fileAssetId });
+                        versionPicker.current?.click();
+                      }}
+                    >
+                      {ta('WorkDetail.uploadVersion')}
+                    </button>
+                  </>
+                )}
+              </li>
+            );
+          })}
+        {driveRows
+          .filter((drive) => !justUploaded.has(drive.id))
+          .map((drive) => (
+            <li key={drive.id} className="tm-wk-file" data-backed={false}>
+              <div className="tm-wk-file__row">
+                <span className="tm-wk-badge">{fileKind(drive.name)}</span>
+                <span className="tm-wk-file__text">
+                  <span className="tm-wk-file__name">{drive.name}</span>
+                  <span className="tm-wk-file__meta">
+                    {ta('WorkDetail.versionOn', {
+                      n: 1,
+                      day: formatShortDay(dayOf(drive.createdAt), locale),
+                    })}
                   </span>
                 </span>
-                {availability === 'ready' ? (
+                {drive.webViewLink ? (
                   <a
                     className="tm-wk-text-button"
-                    href={href(servedAsset)}
+                    href={drive.webViewLink}
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     {ta('WorkDetail.download')}
                   </a>
-                ) : availability === 'scanning' ? (
-                  <NotScannedDownload href={href(servedAsset)} fileName={file.fileName} />
-                ) : (
-                  <span className="tm-wk-file__meta" role="status">
-                    {ta('WorkDetail.unavailable')}
-                  </span>
-                )}
+                ) : null}
               </div>
-
-              {backing ? (
-                <>
-                  <div className="tm-wk-history">
-                    <p className="tm-wk-history__title">{ta('WorkDetail.versionHistory')}</p>
-                    <ul>
-                      {history.map((version, index) => (
-                        <li key={version.id} data-current={index === 0}>
-                          <span>
-                            {index === 0
-                              ? ta('WorkDetail.versionCurrent', { n: version.versionNo ?? 1 })
-                              : ta('WorkDetail.versionBy', {
-                                  n: version.versionNo ?? 1,
-                                  name: nameOf(version.createdByUserId),
-                                })}
-                          </span>
-                          {index === 0 ? (
-                            <span>{formatShortDay(dayOf(version.createdAt), locale)}</span>
-                          ) : version.fileAssetId !== null ? (
-                            <button
-                              type="button"
-                              className="tm-wk-text-button"
-                              disabled={addVersion.isPending}
-                              onClick={() =>
-                                addVersion.mutate({
-                                  deliverableId: backing.id,
-                                  fileAssetId: version.fileAssetId as string,
-                                  note: ta('WorkDetail.restoredNote', {
-                                    n: version.versionNo ?? 1,
-                                  }),
-                                })
-                              }
-                            >
-                              {ta('WorkDetail.restore')}
-                            </button>
-                          ) : null}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                  <button
-                    type="button"
-                    className="tm-wk-pill-button"
-                    data-tone="outline"
-                    disabled={addVersion.isPending}
-                    onClick={() => {
-                      setVersionTarget({ kind: 'deliverable', id: backing.id });
-                      versionPicker.current?.click();
-                    }}
-                  >
-                    {ta('WorkDetail.uploadVersion')}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {plain.length > 1 ? (
-                    <div className="tm-wk-history">
-                      <p className="tm-wk-history__title">{ta('WorkDetail.versionHistory')}</p>
-                      <ul>
-                        {plain.map((version) => (
-                          <li key={version.fileAssetId} data-current={version.current}>
-                            <span>
-                              {version.current
-                                ? ta('WorkDetail.versionCurrent', { n: version.versionNo })
-                                : ta('WorkDetail.versionBy', {
-                                    n: version.versionNo,
-                                    name: nameOf(version.createdByUserId),
-                                  })}
-                            </span>
-                            {version.current ? (
-                              <span>{formatShortDay(dayOf(version.createdAt), locale)}</span>
-                            ) : version.availability === 'ready' ? (
-                              <a
-                                className="tm-wk-text-button"
-                                href={href(version.fileAssetId)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                              >
-                                {ta('WorkDetail.download')}
-                              </a>
-                            ) : version.availability === 'scanning' ? (
-                              <NotScannedDownload
-                                href={href(version.fileAssetId)}
-                                fileName={version.fileName}
-                              />
-                            ) : (
-                              <span role="status">{ta('WorkDetail.unavailable')}</span>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  <button
-                    type="button"
-                    className="tm-wk-pill-button"
-                    data-tone="outline"
-                    disabled={addPlainVersion.isPending}
-                    onClick={() => {
-                      setVersionTarget({ kind: 'plain', id: file.fileAssetId });
-                      versionPicker.current?.click();
-                    }}
-                  >
-                    {ta('WorkDetail.uploadVersion')}
-                  </button>
-                </>
-              )}
             </li>
-          );
-        })}
-        {driveRows.map((drive) => (
-          <li key={drive.id} className="tm-wk-file" data-backed={false}>
-            <div className="tm-wk-file__row">
-              <span className="tm-wk-badge">{fileKind(drive.name)}</span>
-              <span className="tm-wk-file__text">
-                <span className="tm-wk-file__name">{drive.name}</span>
-                <span className="tm-wk-file__meta">
-                  {ta('WorkDetail.versionOn', {
-                    n: 1,
-                    day: formatShortDay(dayOf(drive.createdAt), locale),
-                  })}
+          ))}
+        {oneDriveRows
+          .filter((file) => !justUploaded.has(file.id))
+          .map((file) => (
+            <li key={file.id} className="tm-wk-file" data-backed={false}>
+              <div className="tm-wk-file__row">
+                <span className="tm-wk-badge">{fileKind(file.name)}</span>
+                <span className="tm-wk-file__text">
+                  <span className="tm-wk-file__name">{file.name}</span>
+                  <span className="tm-wk-file__meta">
+                    {ta('WorkDetail.versionOn', {
+                      n: 1,
+                      day: formatShortDay(dayOf(file.createdAt), locale),
+                    })}
+                  </span>
                 </span>
-              </span>
-              {drive.webViewLink ? (
-                <a
-                  className="tm-wk-text-button"
-                  href={drive.webViewLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {ta('WorkDetail.download')}
-                </a>
-              ) : null}
-            </div>
-          </li>
-        ))}
-        {oneDriveRows.map((file) => (
-          <li key={file.id} className="tm-wk-file" data-backed={false}>
-            <div className="tm-wk-file__row">
-              <span className="tm-wk-badge">{fileKind(file.name)}</span>
-              <span className="tm-wk-file__text">
-                <span className="tm-wk-file__name">{file.name}</span>
-                <span className="tm-wk-file__meta">
-                  {ta('WorkDetail.versionOn', {
-                    n: 1,
-                    day: formatShortDay(dayOf(file.createdAt), locale),
-                  })}
-                </span>
-              </span>
-              {file.webUrl ? (
-                <a
-                  className="tm-wk-text-button"
-                  href={file.webUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {ta('WorkDetail.download')}
-                </a>
-              ) : null}
-            </div>
-          </li>
-        ))}
+                {file.webUrl ? (
+                  <a
+                    className="tm-wk-text-button"
+                    href={file.webUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    {ta('WorkDetail.download')}
+                  </a>
+                ) : null}
+              </div>
+            </li>
+          ))}
       </ul>
     </section>
   );

@@ -12358,5 +12358,19 @@
   "BetaBilling.include4": "مساعدو الذكاء الاصطناعي عبر موصّل TManage",
   "BetaBilling.include5": "تطبيق سطح المكتب لنظامَي Windows وMac",
   "BetaBilling.feedbackPrompt": "هل ينقص شيء في النسخة التجريبية؟",
-  "BetaBilling.feedbackLink": "أرسل ملاحظاتك"
+  "BetaBilling.feedbackLink": "أرسل ملاحظاتك",
+  "UploadProgress.uploading": "‏جارٍ الرفع · {sent} من {total} {unit} · {pct}٪",
+  "UploadProgress.uploadingDrive": "‏جارٍ الرفع إلى Google Drive · {pct}٪",
+  "UploadProgress.uploadingOneDrive": "‏جارٍ الرفع إلى OneDrive · {pct}٪",
+  "UploadProgress.toDrive": "‏إلى Google Drive",
+  "UploadProgress.toOneDrive": "‏إلى OneDrive",
+  "UploadProgress.stopped": "‏توقف الرفع عند {pct}٪. تحقق من الاتصال ثم أعد المحاولة.",
+  "UploadProgress.done": "‏تم الرفع · {size} · الآن",
+  "UploadProgress.cancel": "‏إلغاء",
+  "UploadProgress.retry": "‏إعادة المحاولة",
+  "UploadProgress.remove": "‏إزالة",
+  "UploadProgress.progressLabel": "‏تقدم رفع {name}",
+  "UploadProgress.unitB": "بايت",
+  "UploadProgress.unitKB": "كيلوبايت",
+  "UploadProgress.unitMB": "ميجابايت"
 }

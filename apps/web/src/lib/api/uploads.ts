@@ -147,6 +147,150 @@ export interface UploadAttachmentOptions {
   readonly newKey?: () => string;
   /** The signal that aborts a step after `ms`. Injectable so a test need not wait. */
   readonly deadline?: (ms: number) => AbortSignal;
+  /** Bytes of this file sent so far, summed over every part (Figma 409:6602). */
+  readonly onProgress?: (sentBytes: number) => void;
+  /** The row's Cancel: aborts whatever step is running and ends in `UploadCancelledError`. */
+  readonly signal?: AbortSignal;
+}
+
+/** The upload was cancelled by the person, not stopped by a fault; the screen drops its row. */
+export class UploadCancelledError extends Error {
+  constructor() {
+    super('upload_cancelled');
+    this.name = 'UploadCancelledError';
+  }
+}
+
+/** A `fetch` that may also report the bytes its body has sent (`xhrFetch` does). */
+type ProgressFetch = (
+  url: string,
+  init: RequestInit & { readonly onUploadProgress?: (loaded: number) => void },
+) => Promise<Response>;
+
+/**
+ * `fetch` over `XMLHttpRequest`, because only XHR reports upload progress (`upload.onprogress`).
+ * Same contract as `fetch` for what this file sends: method, headers, a Blob or string body,
+ * `credentials`, an abort `signal`; it rejects with a `TypeError` on a network failure.
+ */
+export const xhrFetch: ProgressFetch = (url, init) =>
+  new Promise<Response>((resolve, reject) => {
+    const signal = init.signal ?? undefined;
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const xhr = new XMLHttpRequest();
+    xhr.open(init.method ?? 'GET', url);
+    xhr.withCredentials = init.credentials === 'include';
+    new Headers(init.headers).forEach((value, name) => xhr.setRequestHeader(name, value));
+    const onAbort = () => xhr.abort();
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const settle = () => signal?.removeEventListener('abort', onAbort);
+    if (init.onUploadProgress) {
+      const report = init.onUploadProgress;
+      xhr.upload.onprogress = (event) => report(event.loaded);
+    }
+    xhr.onload = () => {
+      settle();
+      const headers = new Headers();
+      for (const line of xhr
+        .getAllResponseHeaders()
+        .trim()
+        .split(/[\r\n]+/)) {
+        const colon = line.indexOf(':');
+        if (colon > 0) headers.append(line.slice(0, colon).trim(), line.slice(colon + 1).trim());
+      }
+      const empty = xhr.status === 204 || xhr.status === 304;
+      resolve(new Response(empty ? null : xhr.responseText, { status: xhr.status, headers }));
+    };
+    xhr.onerror = () => {
+      settle();
+      reject(new TypeError('Failed to fetch'));
+    };
+    xhr.onabort = () => {
+      settle();
+      reject(signal?.reason ?? new DOMException('Aborted', 'AbortError'));
+    };
+    xhr.send((init.body ?? null) as XMLHttpRequestBodyInit | null);
+  });
+
+/**
+ * One figure for a file sent in several requests: each request reports its own bytes, and the
+ * file's progress is their sum (requests go one after another, each slice once), capped at the
+ * file's size.
+ */
+export function createProgressTracker(
+  totalBytes: number,
+  report: (sentBytes: number) => void,
+): { request(): (loaded: number) => void } {
+  const loaded: number[] = [];
+  return {
+    request() {
+      const index = loaded.push(0) - 1;
+      return (bytes) => {
+        loaded[index] = Math.max(loaded[index] ?? 0, bytes);
+        report(
+          Math.min(
+            totalBytes,
+            loaded.reduce((sum, value) => sum + value, 0),
+          ),
+        );
+      };
+    },
+  };
+}
+
+/** A signal that aborts when any of `signals` does. */
+function anySignal(...signals: readonly (AbortSignal | undefined)[]): AbortSignal {
+  const controller = new AbortController();
+  for (const signal of signals) {
+    if (!signal) continue;
+    if (signal.aborted) {
+      controller.abort(signal.reason);
+      break;
+    }
+    signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+  }
+  return controller.signal;
+}
+
+/**
+ * The PUT every byte transfer goes through: XHR when a screen shows progress (only XHR reports
+ * it), else `fetch` — the injected one (a test's) wins, and reports a request's bytes once it
+ * answers. Each request also stops on the person's Cancel and on its own deadline.
+ */
+function progressPut(
+  deps: UploadAttachmentOptions,
+  totalBytes: number,
+  deadlineFor: (body: unknown) => AbortSignal | undefined,
+): typeof globalThis.fetch {
+  const send: ProgressFetch =
+    deps.fetch ??
+    (deps.onProgress && typeof XMLHttpRequest === 'function'
+      ? xhrFetch
+      : globalThis.fetch.bind(globalThis));
+  const tracker = createProgressTracker(totalBytes, deps.onProgress ?? (() => undefined));
+  return async (input, init = {}) => {
+    const report = tracker.request();
+    const body = init.body;
+    const response = await send(String(input), {
+      ...init,
+      // A body-less request (OneDrive's clean-up DELETE) must still run after a Cancel.
+      signal: anySignal(
+        deadlineFor(body),
+        init.signal ?? undefined,
+        body ? deps.signal : undefined,
+      ),
+      onUploadProgress: report,
+    });
+    if (response.ok && body instanceof Blob) report(body.size);
+    return response;
+  };
+}
+
+/** Rethrow as `UploadCancelledError` when the person cancelled, else as it came. */
+function cancelledOr(error: unknown, signal: AbortSignal | undefined): unknown {
+  return signal?.aborted ? new UploadCancelledError() : error;
 }
 
 function defaultDeadline(ms: number): AbortSignal {
@@ -218,21 +362,28 @@ async function runUpload(
 ): Promise<string> {
   const mimeType = attachmentMimeType(file);
   if (mimeType === null) throw new Error(`“${file.name}” is not a file type TManage accepts.`);
-  const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
   const deadline = deps.deadline ?? defaultDeadline;
+  const send = progressPut(deps, file.size, (body) =>
+    deadline(transferTimeoutMs(body instanceof Blob ? body.size : 0)),
+  );
+  const step = (ms: number) => anySignal(deadline(ms), deps.signal);
 
-  const { data: session } = await client.request<UploadSessionReply>({
-    method: 'POST',
-    path: sessionsPath,
-    signal: deadline(UPLOAD_STEP_TIMEOUT_MS),
-    headers: { 'idempotency-key': (deps.newKey ?? defaultKey)() },
-    body: {
-      ...target,
-      fileName: file.name,
-      mimeType,
-      sizeBytes: file.size,
-    },
-  });
+  const { data: session } = await client
+    .request<UploadSessionReply>({
+      method: 'POST',
+      path: sessionsPath,
+      signal: step(UPLOAD_STEP_TIMEOUT_MS),
+      headers: { 'idempotency-key': (deps.newKey ?? defaultKey)() },
+      body: {
+        ...target,
+        fileName: file.name,
+        mimeType,
+        sizeBytes: file.size,
+      },
+    })
+    .catch((error: unknown) => {
+      throw cancelledOr(error, deps.signal);
+    });
 
   try {
     const parts: { partNumber: number; etag: string }[] = [];
@@ -247,9 +398,9 @@ async function runUpload(
           body: chunk,
           // The part token authorises the PUT; the session cookie must not travel with it.
           credentials: 'omit',
-          signal: deadline(transferTimeoutMs(chunk.size)),
         });
       } catch (cause) {
+        if (deps.signal?.aborted) throw new UploadCancelledError();
         throw new NetworkError(`“${file.name}” did not reach TManage.`, cause);
       }
       const etag = response.headers.get('etag');
@@ -263,7 +414,7 @@ async function runUpload(
       method: 'POST',
       path: `${sessionsPath}/${encodeURIComponent(session.id)}/complete`,
       body: { parts },
-      signal: deadline(UPLOAD_COMPLETE_TIMEOUT_MS),
+      signal: step(UPLOAD_COMPLETE_TIMEOUT_MS),
     });
     return asset.id;
   } catch (error) {
@@ -274,8 +425,20 @@ async function runUpload(
         signal: deadline(UPLOAD_STEP_TIMEOUT_MS),
       })
       .catch(() => undefined);
-    throw error;
+    throw cancelledOr(error, deps.signal);
   }
+}
+
+/** Where a new attachment goes (B, 0236): the row's "To Google Drive" / "To OneDrive" note. */
+export type UploadDestination = 'tmanage' | 'google_drive' | 'onedrive';
+
+export function uploadDestination(
+  storage: StorageStatusView | undefined,
+  oneDrive: OneDriveStatusView | undefined,
+): UploadDestination {
+  if (uploadsGoToOneDrive(oneDrive)) return 'onedrive';
+  if (uploadsGoToDrive(storage)) return 'google_drive';
+  return 'tmanage';
 }
 
 /**
@@ -321,29 +484,29 @@ export async function uploadWorkItemAttachment(
   | { readonly kind: 'tmanage'; readonly file: ItemFile }
 > {
   const deadline = deps.deadline ?? defaultDeadline;
-  if (uploadsGoToOneDrive(input.oneDrive)) {
-    const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
+  const destination = uploadDestination(input.storage, input.oneDrive);
+  if (destination !== 'tmanage') {
     const transfer = transferTimeoutMs(input.file.size);
-    const put: typeof globalThis.fetch = (url, init) =>
-      send(url, { ...init, signal: deadline(transfer) });
-    const attachment = await settleBy(
-      uploadToOneDrive(client, organizationSlug, input.workItemId, input.file, put),
-      deadline(2 * UPLOAD_STEP_TIMEOUT_MS + transfer),
-      `“${input.file.name}” did not reach OneDrive.`,
-    );
-    return { kind: 'onedrive', attachment };
-  }
-  if (uploadsGoToDrive(input.storage)) {
-    const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
-    const transfer = transferTimeoutMs(input.file.size);
-    const put: typeof globalThis.fetch = (url, init) =>
-      send(url, { ...init, signal: deadline(transfer) });
-    const attachment = await settleBy(
-      uploadToDrive(client, organizationSlug, input.workItemId, input.file, put),
-      deadline(2 * UPLOAD_STEP_TIMEOUT_MS + transfer),
-      `“${input.file.name}” did not reach Google Drive.`,
-    );
-    return { kind: 'google_drive', attachment };
+    const put = progressPut(deps, input.file.size, () => deadline(transfer));
+    const within = anySignal(deadline(2 * UPLOAD_STEP_TIMEOUT_MS + transfer), deps.signal);
+    try {
+      if (destination === 'onedrive') {
+        const attachment = await settleBy(
+          uploadToOneDrive(client, organizationSlug, input.workItemId, input.file, put),
+          within,
+          `“${input.file.name}” did not reach OneDrive.`,
+        );
+        return { kind: 'onedrive', attachment };
+      }
+      const attachment = await settleBy(
+        uploadToDrive(client, organizationSlug, input.workItemId, input.file, put),
+        within,
+        `“${input.file.name}” did not reach Google Drive.`,
+      );
+      return { kind: 'google_drive', attachment };
+    } catch (error) {
+      throw cancelledOr(error, deps.signal);
+    }
   }
   const fileAssetId = await uploadProjectFile(
     client,

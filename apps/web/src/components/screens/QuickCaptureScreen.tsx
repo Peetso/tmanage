@@ -12,10 +12,11 @@ import { listProjects } from '../../lib/api/projects';
 import { addWorkComment, createWorkItem } from '../../lib/api/work-items';
 import type { CreateWorkItemInput, WorkItemSummary } from '../../lib/api/work-items';
 import { assignItemLabel, defineWorkLabel, listWorkLabels } from '../../lib/api/work-labels';
-import { uploadWorkItemAttachment } from '../../lib/api/uploads';
+import { uploadDestination, uploadWorkItemAttachment } from '../../lib/api/uploads';
 import type { UploadAttachmentOptions } from '../../lib/api/uploads';
 import { CaptureAttachmentPicker, CaptureLabelPicker } from './CaptureExtras';
-import { ApiRequestError } from '../../lib/api/errors';
+import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { UploadProgressItem, useUploadQueue } from '../storage/UploadProgress';
 import { OFFLINE_LINES, useDescribeApiError } from '../../lib/api/describe-error';
 import type { ApiClient } from '../../lib/api/client';
 import { useDictation } from '../voice/useDictation';
@@ -176,6 +177,11 @@ export function QuickCaptureScreen({
   const [progress, setProgress] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [captured, setCaptured] = useState<CaptureResult | null>(null);
+  // 409:6602. Each file is a progress row while it goes up; a stopped one keeps Retry, which
+  // re-sends it to the item already filed.
+  const uploads = useUploadQueue((error) =>
+    error instanceof Error && !(error instanceof NetworkError) ? withFullStop(error.message) : null,
+  );
 
   // The project the caller came from (`?project=`), when it is one of theirs — otherwise no
   // preselection (CQ-07 / WRK-09), so the destination is an explicit pick rather than the first
@@ -204,6 +210,7 @@ export function QuickCaptureScreen({
   const capture = useMutation({
     mutationFn: async (): Promise<CaptureResult> => {
       setProgress(t('QuickCaptureScreen.filing'));
+      uploads.clearSettled();
       const item = await createWorkItem(
         api,
         organizationSlug,
@@ -245,24 +252,23 @@ export function QuickCaptureScreen({
                 staleTime: 60_000,
               })
               .catch(() => undefined);
-      for (const [index, file] of files.entries()) {
-        setProgress(`Uploading ${index + 1} of ${files.length}…`);
-        try {
-          await uploadWorkItemAttachment(
-            api,
-            organizationSlug,
-            { workItemId: item.id, projectId: item.projectId, file, storage, oneDrive },
-            uploadOptions,
-          );
-        } catch (error) {
-          failures.push(
-            error instanceof ApiRequestError
-              ? `“${file.name}” was not attached: ${withFullStop(error.message)}`
-              : error instanceof Error
-                ? withFullStop(error.message)
-                : `“${file.name}” was not attached.`,
-          );
-        }
+      const destination = uploadDestination(storage, oneDrive);
+      for (const file of files) {
+        await uploads.start(file, destination, async (sent, deps) => {
+          try {
+            const result = await uploadWorkItemAttachment(
+              api,
+              organizationSlug,
+              { workItemId: item.id, projectId: item.projectId, file: sent, storage, oneDrive },
+              { ...uploadOptions, ...deps },
+            );
+            return result.kind === 'tmanage' ? result.file.id : result.attachment.id;
+          } catch (error) {
+            throw error instanceof ApiRequestError
+              ? new Error(`“${sent.name}” was not attached: ${withFullStop(error.message)}`)
+              : error;
+          }
+        });
       }
       // "Attach from Google Drive" (0210): the picked Drive files are linked once the item exists.
       for (const driveFile of driveFiles) {
@@ -412,6 +418,20 @@ export function QuickCaptureScreen({
               }
               disabled={capture.isPending}
             />
+
+            {uploads.rows.length > 0 ? (
+              <ul className="tm-upload-list">
+                {uploads.rows.map((row) => (
+                  <UploadProgressItem
+                    key={row.id}
+                    row={row}
+                    onCancel={uploads.cancel}
+                    onRetry={uploads.retry}
+                    onRemove={(gone) => uploads.remove(gone.id)}
+                  />
+                ))}
+              </ul>
+            ) : null}
 
             <Field
               className="tm-capture__note"

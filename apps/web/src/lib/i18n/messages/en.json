@@ -12358,5 +12358,19 @@
   "BetaBilling.include4": "AI assistants via the TManage connector",
   "BetaBilling.include5": "Desktop app for Windows and Mac",
   "BetaBilling.feedbackPrompt": "Something missing in the beta?",
-  "BetaBilling.feedbackLink": "Send feedback"
+  "BetaBilling.feedbackLink": "Send feedback",
+  "UploadProgress.uploading": "Uploading · {sent} of {total} {unit} · {pct} %",
+  "UploadProgress.uploadingDrive": "Uploading to Google Drive · {sent} of {total} {unit} · {pct} %",
+  "UploadProgress.uploadingOneDrive": "Uploading to OneDrive · {sent} of {total} {unit} · {pct} %",
+  "UploadProgress.toDrive": "To Google Drive",
+  "UploadProgress.toOneDrive": "To OneDrive",
+  "UploadProgress.stopped": "Upload stopped at {pct} %. Check your connection, then try again.",
+  "UploadProgress.done": "Uploaded · {size} · just now",
+  "UploadProgress.cancel": "Cancel",
+  "UploadProgress.retry": "Retry",
+  "UploadProgress.remove": "Remove",
+  "UploadProgress.progressLabel": "Upload progress for {name}",
+  "UploadProgress.unitB": "B",
+  "UploadProgress.unitKB": "KB",
+  "UploadProgress.unitMB": "MB"
 }
