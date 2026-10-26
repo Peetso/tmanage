@@ -2,9 +2,10 @@
  * **The size and shape caps on a body sent to this package's Streamable HTTP listener (audit run
  * 3, M02, GHSA-mrhx-c7xc-m3w5).**
  *
- * zod 3 keeps validating every element of an array (and every key of a record) after a `.max()`
- * has already failed, so an oversized collection costs memory in proportion to its length, not to
- * the schema's limit. The MCP SDK parses every JSON-RPC message with zod, so the listener caps the
+ * zod 3 kept validating every element of an array (and every key of a record) after a `.max()`
+ * had already failed, so an oversized collection cost memory in proportion to its length, not to
+ * the schema's limit. Wave 13 moved to zod 4.6.x, which fixes that; this cap stays as a second
+ * line. The MCP SDK parses every JSON-RPC message with zod, so the listener caps the
  * body's size and shape before the SDK sees it.
  *
  * This is a local copy of the rules in `apps/api/src/modules/mcp/mcp-body-shape.ts` (same

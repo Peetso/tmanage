@@ -110,8 +110,10 @@ test('NV05: the baked /v1 rewrite target is a privileged loopback port, not 3000
 });
 
 // Audit run 2, NO-GO reason 1: the release could not be built because npm audit flags zod@3.25.76
-// (GHSA-mrhx-c7xc-m3w5). The reviewed allowlist lets exactly that advisory on exactly that version
-// through; any other high, the same advisory on another version, or a stale review still fails.
+// (GHSA-mrhx-c7xc-m3w5). A reviewed allowlist entry lets exactly that advisory on exactly that
+// version through; any other high, the same advisory on another version, or a stale review still
+// fails. Wave 13 moved to zod 4.6.x and emptied the production list, so the mechanism is proven
+// here against FIXTURE_ALLOWLIST, the entry the list held until then.
 // The report below is npm 11's real `npm audit --omit=dev --audit-level=high --json` for zod@3.25.76.
 function advisory(name, version, ghsa, severity = 'high') {
   return {
@@ -151,8 +153,39 @@ function advisory(name, version, ghsa, severity = 'high') {
 
 const REVIEW_DAY = new Date('2026-10-26T12:00:00Z');
 
+/** The reviewed entry the production list held until wave 13 (a test fixture now). */
+const FIXTURE_ALLOWLIST = Object.freeze([
+  Object.freeze({
+    id: 'GHSA-mrhx-c7xc-m3w5',
+    package: 'zod@3.25.76',
+    reason: 'Test fixture: the reviewed zod 3 entry the production list held until wave 13.',
+    reviewed: '2026-10-26',
+  }),
+]);
+
+test('wave 13: the production allowlist is empty, so the old zod advisory fails the build', () => {
+  assert.deepEqual([...AUDIT_ADVISORY_ALLOWLIST], []);
+  const { report, lock } = advisory('zod', '3.25.76', 'GHSA-mrhx-c7xc-m3w5');
+  assert.deepEqual(unallowedAuditFindings(report, lock, undefined, REVIEW_DAY), [
+    'GHSA-mrhx-c7xc-m3w5 zod@3.25.76 (high)',
+  ]);
+});
+
+test('wave 13: the runtime packages pin a zod with the advisory fixed (>= 4.6.6)', () => {
+  for (const pkg of ['apps/api', 'apps/mcp-server', 'packages/config']) {
+    const manifest = JSON.parse(
+      readFileSync(new URL(`../../${pkg}/package.json`, import.meta.url), 'utf8'),
+    );
+    const [major, minor, patch] = manifest.dependencies.zod
+      .replace(/^\^/, '')
+      .split('.')
+      .map(Number);
+    assert.ok(major > 4 || (major === 4 && (minor > 6 || (minor === 6 && patch >= 6))), pkg);
+  }
+});
+
 test('the allowlist entry is complete: id, exact package@version, reason, review date', () => {
-  for (const entry of AUDIT_ADVISORY_ALLOWLIST) {
+  for (const entry of [...AUDIT_ADVISORY_ALLOWLIST, ...FIXTURE_ALLOWLIST]) {
     assert.match(entry.id, /^GHSA-[0-9a-z]{4}-[0-9a-z]{4}-[0-9a-z]{4}$/);
     assert.match(entry.package, /^[^@]+@\d+\.\d+\.\d+$/);
     assert.ok(entry.reason.length > 20);
@@ -160,27 +193,26 @@ test('the allowlist entry is complete: id, exact package@version, reason, review
   }
 });
 
-test('the reviewed zod advisory on zod@3.25.76 passes', () => {
+test('a reviewed advisory on its exact version passes', () => {
   const { report, lock } = advisory('zod', '3.25.76', 'GHSA-mrhx-c7xc-m3w5');
-  assert.deepEqual(unallowedAuditFindings(report, lock, AUDIT_ADVISORY_ALLOWLIST, REVIEW_DAY), []);
+  assert.deepEqual(unallowedAuditFindings(report, lock, FIXTURE_ALLOWLIST, REVIEW_DAY), []);
 });
 
 test('exploit: any other high advisory fails the build', () => {
   const { report, lock } = advisory('left-pad', '1.3.0', 'GHSA-aaaa-bbbb-cccc');
-  assert.deepEqual(unallowedAuditFindings(report, lock, AUDIT_ADVISORY_ALLOWLIST, REVIEW_DAY), [
+  assert.deepEqual(unallowedAuditFindings(report, lock, FIXTURE_ALLOWLIST, REVIEW_DAY), [
     'GHSA-aaaa-bbbb-cccc left-pad@1.3.0 (high)',
   ]);
   const critical = advisory('zod', '3.25.76', 'GHSA-zzzz-yyyy-xxxx', 'critical');
   assert.equal(
-    unallowedAuditFindings(critical.report, critical.lock, AUDIT_ADVISORY_ALLOWLIST, REVIEW_DAY)
-      .length,
+    unallowedAuditFindings(critical.report, critical.lock, FIXTURE_ALLOWLIST, REVIEW_DAY).length,
     1,
   );
 });
 
 test('exploit: the allowed advisory on a different zod version fails the build', () => {
   const { report, lock } = advisory('zod', '3.25.75', 'GHSA-mrhx-c7xc-m3w5');
-  assert.deepEqual(unallowedAuditFindings(report, lock, AUDIT_ADVISORY_ALLOWLIST, REVIEW_DAY), [
+  assert.deepEqual(unallowedAuditFindings(report, lock, FIXTURE_ALLOWLIST, REVIEW_DAY), [
     'GHSA-mrhx-c7xc-m3w5 zod@3.25.75 (high)',
   ]);
 });
@@ -188,7 +220,7 @@ test('exploit: the allowed advisory on a different zod version fails the build',
 test('a review older than the maximum age fails the build again', () => {
   const { report, lock } = advisory('zod', '3.25.76', 'GHSA-mrhx-c7xc-m3w5');
   const later = new Date(REVIEW_DAY.getTime() + (AUDIT_ALLOWLIST_MAX_AGE_DAYS + 1) * 86_400_000);
-  assert.equal(unallowedAuditFindings(report, lock, AUDIT_ADVISORY_ALLOWLIST, later).length, 1);
+  assert.equal(unallowedAuditFindings(report, lock, FIXTURE_ALLOWLIST, later).length, 1);
 });
 
 test('an unreadable or error report is never a pass', () => {
@@ -224,7 +256,11 @@ test('stageInstallPins: an allowed advisory builds, any other high throws', () =
           }),
         );
       };
-      const expected = { pnpmSet: new Set(['zod@3.25.76']), now: REVIEW_DAY };
+      const expected = {
+        pnpmSet: new Set(['zod@3.25.76']),
+        auditAllowlist: FIXTURE_ALLOWLIST,
+        now: REVIEW_DAY,
+      };
       if (ok) assert.equal(stageInstallPins(dir, runner, expected).packages, 2);
       else assert.throws(() => stageInstallPins(dir, runner, expected), /GHSA-aaaa-bbbb-cccc/);
     } finally {

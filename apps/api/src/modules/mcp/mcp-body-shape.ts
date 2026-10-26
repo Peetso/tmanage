@@ -1,9 +1,10 @@
 /**
  * **The shape cap on a `POST /mcp` body (audit run 2, NO-GO reason 1, GHSA-mrhx-c7xc-m3w5).**
  *
- * zod 3 keeps validating every element of an array (and every key of a record) after a `.max()`
- * has already failed, so an oversized collection costs memory in proportion to its length, not to
- * the schema's limit. Untrusted input meets zod in two places: `POST /mcp` (the SDK parses the
+ * zod 3 kept validating every element of an array (and every key of a record) after a `.max()`
+ * had already failed, so an oversized collection cost memory in proportion to its length, not to
+ * the schema's limit. Wave 13 moved to zod 4.6.x, which fixes that; this cap stays as a second
+ * line. Untrusted input meets zod in two places: `POST /mcp` (the SDK parses the
  * JSON-RPC message with zod, and `tmanage_run_action` / the pending-action freeze parse the tool
  * arguments with the op's zod schema), and a personal-access-token call to a confirm-class REST
  * route, whose body `BoundTokenConfirmInterceptor` freezes through the same op schema. Fastify

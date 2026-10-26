@@ -65,56 +65,73 @@ export interface JsonSchemaNode {
   additionalProperties?: boolean | JsonSchemaNode;
 }
 
-interface ZodDef {
-  readonly checks?: ReadonlyArray<{ kind: string; value?: unknown }>;
-  readonly description?: string;
-  readonly innerType?: z.ZodTypeAny;
-  readonly type?: z.ZodTypeAny;
-  readonly valueType?: z.ZodTypeAny;
-  readonly values?: readonly unknown[];
+/**
+ * The parts of a zod 4 check's definition this generator reads. Zod 4 keeps each `.min()`/`.max()`
+ * as a check object whose `_zod.def` names the check kind (`min_length`, `greater_than`, …).
+ */
+interface ZodCheckDef {
+  readonly check?: string;
+  readonly minimum?: unknown;
+  readonly maximum?: unknown;
   readonly value?: unknown;
-  readonly unknownKeys?: string;
-  readonly minLength?: { value: number } | null;
-  readonly maxLength?: { value: number } | null;
 }
 
-function defOf(schema: z.ZodTypeAny): ZodDef {
-  return (schema as unknown as { _def: ZodDef })._def;
+function checksOf(schema: z.ZodType): ZodCheckDef[] {
+  const checks = (schema._zod.def as { checks?: ReadonlyArray<{ _zod: { def: ZodCheckDef } }> })
+    .checks;
+  return (checks ?? []).map((c) => c._zod.def);
 }
 
-function withDescription(node: JsonSchemaNode, schema: z.ZodTypeAny): JsonSchemaNode {
-  const description = defOf(schema).description;
+function withDescription(node: JsonSchemaNode, schema: z.ZodType): JsonSchemaNode {
+  const description = schema.description;
   return description === undefined ? node : { ...node, description };
+}
+
+/** `minLength`/`maxLength` (strings) or `minItems`/`maxItems` (arrays), in check order. */
+function lengthBounds(
+  schema: z.ZodType,
+  node: JsonSchemaNode,
+  min: 'minLength' | 'minItems',
+): void {
+  const max = min === 'minLength' ? 'maxLength' : 'maxItems';
+  for (const check of checksOf(schema)) {
+    if (check.check === 'min_length' && typeof check.minimum === 'number')
+      node[min] = check.minimum;
+    if (check.check === 'max_length' && typeof check.maximum === 'number')
+      node[max] = check.maximum;
+  }
 }
 
 /**
  * Convert one zod schema to a JSON Schema node, over the vocabulary the registry uses. Anything
  * unrecognised yields a permissive `{}` so the output stays valid — never a throw.
  */
-export function zodToJsonSchema(schema: z.ZodTypeAny): JsonSchemaNode {
-  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable) {
-    const inner = defOf(schema).innerType;
-    return inner === undefined ? {} : zodToJsonSchema(inner);
-  }
-  if (schema instanceof z.ZodDefault) {
-    const inner = defOf(schema).innerType;
-    return inner === undefined ? {} : zodToJsonSchema(inner);
+export function zodToJsonSchema(schema: z.core.$ZodType): JsonSchemaNode {
+  if (
+    schema instanceof z.ZodOptional ||
+    schema instanceof z.ZodNullable ||
+    schema instanceof z.ZodDefault
+  ) {
+    return zodToJsonSchema(schema._zod.def.innerType);
   }
   if (schema instanceof z.ZodString) {
     const node: JsonSchemaNode = { type: 'string' };
-    for (const check of defOf(schema).checks ?? []) {
-      if (check.kind === 'min' && typeof check.value === 'number') node.minLength = check.value;
-      if (check.kind === 'max' && typeof check.value === 'number') node.maxLength = check.value;
-    }
+    lengthBounds(schema, node, 'minLength');
     return withDescription(node, schema);
   }
   if (schema instanceof z.ZodNumber) {
+    // `.int()` is a `number_format` check in zod 4; its implied safe-integer bounds are not
+    // emitted, only the bounds the registry wrote with `.min()`/`.max()`/`.positive()`.
+    const node: JsonSchemaNode = { type: 'number' };
     let type = 'number';
-    const node: JsonSchemaNode = { type };
-    for (const check of defOf(schema).checks ?? []) {
-      if (check.kind === 'int') type = 'integer';
-      if (check.kind === 'min' && typeof check.value === 'number') node.minimum = check.value;
-      if (check.kind === 'max' && typeof check.value === 'number') node.maximum = check.value;
+    for (const check of checksOf(schema)) {
+      if (check.check === 'number_format') type = 'integer';
+      if (check.check === 'greater_than' && typeof check.value === 'number') {
+        node.minimum = check.value;
+      }
+      if (check.check === 'less_than' && typeof check.value === 'number') {
+        node.maximum = check.value;
+      }
     }
     node.type = type;
     return withDescription(node, schema);
@@ -123,26 +140,26 @@ export function zodToJsonSchema(schema: z.ZodTypeAny): JsonSchemaNode {
     return withDescription({ type: 'boolean' }, schema);
   }
   if (schema instanceof z.ZodArray) {
-    const def = defOf(schema);
     const node: JsonSchemaNode = {
       type: 'array',
-      items: def.type === undefined ? {} : zodToJsonSchema(def.type),
+      items: zodToJsonSchema(schema.element),
     };
-    if (def.minLength != null) node.minItems = def.minLength.value;
-    if (def.maxLength != null) node.maxItems = def.maxLength.value;
+    lengthBounds(schema, node, 'minItems');
     return withDescription(node, schema);
   }
   if (schema instanceof z.ZodEnum) {
-    const values = defOf(schema).values ?? [];
-    return withDescription({ type: 'string', enum: [...values] }, schema);
+    return withDescription({ type: 'string', enum: [...schema.options] }, schema);
   }
   if (schema instanceof z.ZodLiteral) {
-    return withDescription({ const: defOf(schema).value }, schema);
+    const values = [...schema.values];
+    return withDescription(values.length === 1 ? { const: values[0] } : { enum: values }, schema);
   }
   if (schema instanceof z.ZodRecord) {
-    const value = defOf(schema).valueType;
     return withDescription(
-      { type: 'object', additionalProperties: value === undefined ? true : zodToJsonSchema(value) },
+      {
+        type: 'object',
+        additionalProperties: zodToJsonSchema(schema._zod.def.valueType),
+      },
       schema,
     );
   }
@@ -154,11 +171,11 @@ export function zodToJsonSchema(schema: z.ZodTypeAny): JsonSchemaNode {
 }
 
 /** Whether a property is optional (so it is not in `required`). */
-function isOptional(schema: z.ZodTypeAny): boolean {
+function isOptional(schema: z.core.$ZodType): boolean {
   return schema instanceof z.ZodOptional || schema instanceof z.ZodDefault;
 }
 
-function objectToJsonSchema(schema: z.ZodObject<z.ZodRawShape>): JsonSchemaNode {
+function objectToJsonSchema(schema: z.ZodObject): JsonSchemaNode {
   const shape = schema.shape as z.ZodRawShape;
   const properties: Record<string, JsonSchemaNode> = {};
   const required: string[] = [];
@@ -169,7 +186,8 @@ function objectToJsonSchema(schema: z.ZodObject<z.ZodRawShape>): JsonSchemaNode 
   const node: JsonSchemaNode = {
     type: 'object',
     properties,
-    additionalProperties: defOf(schema).unknownKeys === 'strict' ? false : true,
+    // `.strict()` is a `never` catchall in zod 4; anything else (strip, passthrough) admits extras.
+    additionalProperties: !(schema._zod.def.catchall instanceof z.ZodNever),
   };
   if (required.length > 0) node.required = required;
   return withDescription(node, schema);

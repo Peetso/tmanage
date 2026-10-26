@@ -12,10 +12,10 @@ import {
 } from './mcp-body-shape.js';
 
 /**
- * Audit run 2, NO-GO reason 1 (GHSA-mrhx-c7xc-m3w5, zod 3.25.76): zod keeps validating every
- * element of a collection after its `.max()` failed, so the cost follows the input, not the schema.
- * The bundle accepts that advisory only because no oversized collection reaches zod: `POST /mcp`
- * refuses the body's shape first.
+ * Audit run 2, NO-GO reason 1 (GHSA-mrhx-c7xc-m3w5, zod 3.25.76): zod 3 kept validating every
+ * element of a collection after its `.max()` failed, so the cost followed the input, not the
+ * schema. Wave 13 moved to zod 4.6.x, where the advisory is fixed; `POST /mcp` still refuses an
+ * oversized body's shape before zod, as a second line.
  */
 
 function toolCall(args: Record<string, unknown>): unknown {
@@ -28,12 +28,14 @@ function toolCall(args: Record<string, unknown>): unknown {
 }
 
 describe('GHSA-mrhx-c7xc-m3w5 — the mechanism the cap answers', () => {
-  it('zod 3 reports one issue per element of an oversized array, not one for the max', () => {
+  it('the zod in use stops at the max of an oversized array instead of one issue per element', () => {
     const schema = z.array(z.string().max(64)).max(500);
     const result = schema.safeParse(Array.from({ length: 5_000 }, () => 1));
     expect(result.success).toBe(false);
-    // The work (and memory) is per element: the max is not a short circuit.
-    expect(result.error?.issues.length).toBeGreaterThan(5_000);
+    // zod 3.25.76 returned more than 5,000 issues here (one per element); the patched zod
+    // reports the max alone, so the cost no longer follows the input.
+    expect(result.error?.issues).toHaveLength(1);
+    expect(result.error?.issues[0]?.code).toBe('too_big');
   });
 });
 

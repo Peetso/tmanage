@@ -387,16 +387,11 @@ export const INSTALL_SCRIPT_ALLOWLIST = Object.freeze([]);
  * has no per-advisory ignore, so this list is the gate, as INSTALL_SCRIPT_ALLOWLIST is for install
  * scripts: an entry names one GHSA id for one exact `package@version`, so the same advisory on any
  * other version, any other advisory, or an entry older than {@link AUDIT_ALLOWLIST_MAX_AGE_DAYS}
- * fails the build again.
+ * fails the build again. An entry is `{ id, package, reason, reviewed }` (see the tests' fixture).
  */
 export const AUDIT_ADVISORY_ALLOWLIST = Object.freeze([
-  Object.freeze({
-    id: 'GHSA-mrhx-c7xc-m3w5',
-    package: 'zod@3.25.76',
-    reason:
-      'Unreachable with oversized input: untrusted input reaches zod only through POST /mcp and a personal-access-token call to a confirm-class REST route (BoundTokenConfirmInterceptor, freezeConfirmAction); both are authenticated, 1 MiB body cap, and refused before zod above 1,000 array items or 20,000 values (apps/api/src/modules/mcp/mcp-body-shape.ts); the optional apps/mcp-server Streamable HTTP transport (loopback by default, opt-in) has the same 1 MiB body cap (413) and shape caps (400) after its Bearer check and before the SDK (apps/mcp-server/src/transports/body-shape.ts); the patch is zod 4, a major.',
-    reviewed: '2026-10-26',
-  }),
+  // Empty since wave 13 (2026-10-26): zod moved to 4.6.x, which fixes GHSA-mrhx-c7xc-m3w5, the only
+  // entry this list ever held (zod@3.25.76). The staged tree has no high or critical advisory.
 ]);
 
 /** An allowlist entry older than this fails the build until someone reviews it again. */
