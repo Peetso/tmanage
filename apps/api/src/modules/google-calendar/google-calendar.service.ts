@@ -12,6 +12,7 @@ import { MeetingCalendarRepository } from '../calendar/meeting-calendar.reposito
 import type { CalendarSyncPort } from '../calendar/calendar-sync.port.js';
 import type { StoredAttendeeRsvp } from '../calendar/meeting-attendees.repository.js';
 import { parseReminders } from '../calendar/meeting-options.js';
+import { pushProviderFor } from '../calendar/calendar-provider.js';
 import {
   CalendarEventNotFoundError,
   CalendarGrantRevokedError,
@@ -76,6 +77,11 @@ export interface GoogleCalendarServiceDeps {
   readonly calendar?: MeetingCalendarRepository;
   readonly now?: () => Date;
   readonly log?: (line: string) => void;
+  /**
+   * Slice B: whether Outlook is set up too. When the organizer connected both, the one rule in
+   * `calendar-provider.ts` picks a single calendar (a Teams meeting goes to Outlook).
+   */
+  readonly microsoftConfigured?: boolean;
 }
 
 /** The additional data binding a stored refresh token to its organization, person and provider. */
@@ -272,10 +278,22 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
         );
         const link = await this.calendar.findLink(runner, context, meetingId, GOOGLE);
         const organizerEmail = await this.connections.userEmail(runner, meeting.createdByUserId);
+        const microsoft = this.deps.microsoftConfigured
+          ? {
+              connection: await this.connections.findFor(
+                runner,
+                context,
+                meeting.createdByUserId,
+                'microsoft',
+              ),
+              link: await this.calendar.findLink(runner, context, meetingId, 'microsoft'),
+            }
+          : null;
         return {
           meeting,
           connection,
           link,
+          microsoft,
           snapshot: await this.snapshot(runner, context, meeting, [
             organizerEmail,
             connection?.accountEmail ?? null,
@@ -287,7 +305,7 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
       return;
     }
     if (!state) return;
-    const { meeting, connection, link, snapshot } = state;
+    const { meeting, connection, link, microsoft, snapshot } = state;
     // A meeting whose organizer has not connected Google stays TManage-only (no link is made).
     if (!connection || connection.status !== 'connected' || !connection.refreshTokenEnc) {
       if (link && link.syncStatus !== 'deleted') {
@@ -295,6 +313,17 @@ export class GoogleCalendarService implements CalendarSyncPort, CalendarProvider
       }
       return;
     }
+    const route = pushProviderFor({
+      conference: meeting.conference,
+      googleConnected: true,
+      microsoftConnected:
+        microsoft?.connection?.status === 'connected' && !!microsoft.connection.refreshTokenEnc,
+      googleLinked: !!link?.externalEventId && link.syncStatus !== 'deleted',
+      microsoftLinked:
+        !!microsoft?.link?.externalEventId && microsoft.link.syncStatus !== 'deleted',
+    });
+    // The organizer's Outlook calendar holds (or will hold) this meeting instead.
+    if (route !== GOOGLE) return;
     const live = connection as Live;
     try {
       const accessToken = await this.accessToken(context, live);

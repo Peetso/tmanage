@@ -413,6 +413,32 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/integrations/google-calendar/callback',
     reason: 'calendar_connection',
   },
+  // 0237 slice B. The same for a person's own Outlook calendar connection.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/microsoft-calendar/',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/microsoft-calendar/connect',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/microsoft-calendar/complete',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/integrations/microsoft-calendar/',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/integrations/microsoft-calendar/callback',
+    reason: 'calendar_connection',
+  },
   // D5 (Figma F5). Data-rights acts: a bulk copy of personal data, its download, and deleting the
   // company or an account. A person does these themselves; an AI principal never does.
   {

@@ -23,6 +23,10 @@ import type { AuditService } from '../audit/audit.service.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import { expireCookie, readCookie, serializeCookie } from '../identity/session-token.js';
 import { CALENDAR_SYNC } from '../calendar/calendar-sync.port.js';
+import { combineCalendarSync } from '../calendar/calendar-provider.js';
+import { oneDriveConfigFrom } from '../onedrive/onedrive.graph.js';
+import { MICROSOFT_CALENDAR_SERVICE } from '../microsoft-calendar/microsoft-calendar.controller.js';
+import type { MicrosoftCalendarService } from '../microsoft-calendar/microsoft-calendar.service.js';
 import {
   GCAL_COOKIE_PATH,
   GCAL_FLOW_COOKIE,
@@ -220,14 +224,32 @@ export class GoogleCalendarModule {
           cipher: createSeedCipher(config.mfaSeedKeys),
           config: calendarConfigFrom(process.env),
           apiPublicUrl: config.apiPublicUrl ?? config.webPublicUrl ?? '',
+          // Slice B: Outlook uses the OneDrive app registration (`MICROSOFT_CLIENT_ID/SECRET`).
+          microsoftConfigured: oneDriveConfigFrom(process.env) !== null,
         }),
     };
-    const port: Provider = { provide: CALENDAR_SYNC, useExisting: GOOGLE_CALENDAR_SERVICE };
+    // Slice B: the Outlook service (MicrosoftCalendarModule, global) joins the same port and job.
+    // Optional, so a suite that registers only this module still boots.
+    const microsoft = { token: MICROSOFT_CALENDAR_SERVICE, optional: true };
+    const port: Provider = {
+      provide: CALENDAR_SYNC,
+      inject: [GOOGLE_CALENDAR_SERVICE, microsoft],
+      useFactory: (google: GoogleCalendarService, outlook?: MicrosoftCalendarService) =>
+        combineCalendarSync([google, outlook]),
+    };
     const job: Provider = {
       provide: CALENDAR_SYNC_JOB,
-      inject: [TENANT_DATABASE, GOOGLE_CALENDAR_SERVICE],
-      useFactory: (database: TenantDatabase, google: GoogleCalendarService) =>
-        new CalendarSyncJob(database, [google], calendarSyncJobEnabled()),
+      inject: [TENANT_DATABASE, GOOGLE_CALENDAR_SERVICE, microsoft],
+      useFactory: (
+        database: TenantDatabase,
+        google: GoogleCalendarService,
+        outlook?: MicrosoftCalendarService,
+      ) =>
+        new CalendarSyncJob(
+          database,
+          outlook ? [google, outlook] : [google],
+          calendarSyncJobEnabled(),
+        ),
     };
     return {
       module: GoogleCalendarModule,

@@ -132,6 +132,10 @@ const EXEMPT = new Map([
     'CalendarConnectionStatusView',
     'No web consumer yet: the Connected apps calendar cards are slice C (after Figma approval); pair it then.',
   ],
+  [
+    'MicrosoftCalendarStatusView',
+    'No web consumer yet: the Outlook card in Connected apps is slice C (after Figma approval); pair it then.',
+  ],
 ]);
 
 /**

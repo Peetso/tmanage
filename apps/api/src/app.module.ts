@@ -119,6 +119,7 @@ import { PersonalAccessTokensModule } from './modules/personal-access-tokens/per
 import { GoogleDriveModule } from './modules/google-drive/google-drive.controller.js';
 import { OneDriveModule } from './modules/onedrive/onedrive.controller.js';
 import { GoogleCalendarModule } from './modules/google-calendar/google-calendar.controller.js';
+import { MicrosoftCalendarModule } from './modules/microsoft-calendar/microsoft-calendar.controller.js';
 import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
 import { AiConnectorFallbacksModule } from './modules/mcp/ai-connector-fallbacks.controller.js';
 import { PendingAiActionsModule } from './modules/mcp/pending-actions.controller.js';
@@ -1057,6 +1058,10 @@ export class AppModule {
         // calendar port the meetings services push through. Without a Google client in the
         // environment the routes answer "not configured" and meetings stay TManage-only.
         GoogleCalendarModule.register(),
+        // 0237 slice B. Each person's own Outlook calendar + Teams meetings, over the OneDrive app
+        // registration. Global: its service joins the Google module's calendar port and sync job.
+        // Without MICROSOFT_CLIENT_ID/SECRET the routes answer "not configured".
+        MicrosoftCalendarModule.register(),
         // Hosted MCP endpoint (`POST /mcp`): the `@tmanage/mcp-server` tools over Streamable HTTP,
         // signed in with a personal access token. Every tool call is an in-process request
         // through this same guard chain, so it is tenant- and permission-scoped like REST.

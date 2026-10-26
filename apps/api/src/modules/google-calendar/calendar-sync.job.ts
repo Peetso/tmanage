@@ -61,7 +61,7 @@ export class CalendarSyncJob implements OnApplicationBootstrap, OnModuleDestroy 
     for (const adapter of adapters) this.register(adapter);
   }
 
-  /** Slice B registers the Microsoft adapter here. */
+  /** Slice B: the Microsoft adapter is passed in by `GoogleCalendarModule` (or registered here). */
   register(adapter: CalendarProviderAdapter): void {
     this.adapters.set(adapter.provider, adapter);
   }
