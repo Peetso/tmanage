@@ -8,6 +8,7 @@ import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import { Wordmark } from '../brand/Wordmark';
 import { CONTROL_CENTER_NAVIGATION, INTERNAL_NAVIGATION } from './navigation';
 import { MobilePrimaryNav } from './MobilePrimaryNav';
+import { PhoneHeaderActions } from './PhoneHeaderActions';
 import { MaintenanceBanner } from '../screens/MaintenanceBanner';
 import { CommandPalette, OPEN_COMMAND_PALETTE_EVENT } from '../screens/CommandPalette';
 import { InboxNotificationBridge } from '../pwa/InboxNotificationBridge';
@@ -255,15 +256,12 @@ export function AppShell({
           </nav>
 
           <div className="tm-app__body">
-            {/* Phone top bar (ph-tabbar): the avatar at the end of the organization line. Hidden
+            {/* Phone top bar: the bell and avatar orbs at the end of the organization line. Hidden
                 above the dock breakpoint, where the rail's account orb is the one on screen. */}
-            <Link
-              href={`/${organizationSlug}/preferences`}
-              className="tm-phone-avatar"
-              aria-label={t('shell.account.preferences')}
-            >
-              <span aria-hidden="true">{phoneInitials(accountInitials, accountName)}</span>
-            </Link>
+            <PhoneHeaderActions
+              organizationSlug={organizationSlug}
+              initials={phoneInitials(accountInitials, accountName)}
+            />
             {topBar ? <div className="tm-app__topbar">{topBar}</div> : null}
 
             <header

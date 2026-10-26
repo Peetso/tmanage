@@ -5,11 +5,13 @@ import Link from 'next/link';
 import { QueryClientContext, useQuery } from '@tanstack/react-query';
 import { MOBILE_DESTINATIONS, MOBILE_MORE_ITEM } from './navigation';
 import { MoreSheet, OrbBadge } from './MoreSheet';
+import { PhoneIcon } from '../icons/phone';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listInbox } from '../../lib/api/inbox';
 import { useIsMobile } from '../../lib/hooks/useIsMobile';
 import { useT } from '../../lib/i18n/use-t';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import '../../styles/phone/shell.css';
 
 /** The width the dock is drawn at — the same line as the `.tm-phone-dock` rule in `globals.css`. */
 export const PHONE_DOCK_MEDIA_QUERY = '(max-width: 56.19rem)';
@@ -106,7 +108,10 @@ export function MobilePrimaryNav({
                   {...(isInbox && inboxBadge ? { 'aria-describedby': badgeId } : {})}
                 >
                   <span className="tm-mobile-nav__orb">
-                    <span aria-hidden="true">{item.glyph}</span>
+                    <span className="tm-mobile-nav__glyph" aria-hidden="true">
+                      {item.glyph}
+                    </span>
+                    {item.phoneIcon ? <PhoneIcon name={item.phoneIcon} /> : null}
                     {isInbox ? inboxBadge : null}
                   </span>
                   <span className="tm-mobile-nav__label">{t(item.messageKey)}</span>
@@ -126,7 +131,8 @@ export function MobilePrimaryNav({
               onClick={() => setMoreOpen((open) => !open)}
             >
               <span className="tm-mobile-nav__orb" aria-hidden="true">
-                {MOBILE_MORE_ITEM.glyph}
+                <span className="tm-mobile-nav__glyph">{MOBILE_MORE_ITEM.glyph}</span>
+                <PhoneIcon name="more" />
               </span>
               <span className="tm-mobile-nav__label">
                 {tOr(MOBILE_MORE_ITEM.messageKey, MOBILE_MORE_ITEM.label)}
@@ -140,7 +146,10 @@ export function MobilePrimaryNav({
         className="tm-phone-dock__fab"
         aria-label={tOr('shell.mobile.capture', 'Quick capture')}
       >
-        <span aria-hidden="true">+</span>
+        <span className="tm-mobile-nav__glyph" aria-hidden="true">
+          +
+        </span>
+        <PhoneIcon name="plus" size={28} />
       </Link>
       {moreOpen ? (
         <MoreSheet

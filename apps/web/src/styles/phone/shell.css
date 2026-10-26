@@ -1,0 +1,302 @@
+/*
+ * Phone shell, website direction (Figma 405:6293 "Phone redesign — website direction").
+ *
+ * Below 768px only: the black tab-bar capsule with a lime pill on the current tab and the lime
+ * quick-capture orb (405:6575), real 24px line icons instead of the text glyphs (405:6313), the
+ * top bar's bell and avatar orbs (406:6389), the paper page and the shared card / section styles
+ * the phone screens use. From 768px nothing here applies except the two neutral defaults just
+ * below, so the rail, the wider dock and the desktop header render exactly as before.
+ *
+ * Selectors are one class deeper than the `globals.css` dock rules they replace, so the result
+ * does not depend on stylesheet order.
+ */
+
+:root {
+  /* The design's Elevation/High and Elevation/Low effect styles, which tokens.css does not carry. */
+  --tm-phone-elevation-high: 0 8px 16px rgb(9 10 9 / 0.08), 0 24px 64px rgb(9 10 9 / 0.18);
+  --tm-phone-elevation-low: 0 1px 1px rgb(9 10 9 / 0.04), 0 1px 2px rgb(9 10 9 / 0.06);
+}
+
+.tm-phone-actions {
+  display: contents;
+}
+
+.tm-phone-bell,
+.tm-phone-dock .tm-phone-icon,
+.tm-phone-dock__fab .tm-phone-icon {
+  display: none;
+}
+
+@media (max-width: 47.99rem) {
+  /* ── Page ─────────────────────────────────────────────────────────────────────────────── */
+
+  .tm-app {
+    background: var(--paper-50);
+  }
+
+  .tm-app .tm-app__body {
+    padding-block: var(--s5) 7.5rem;
+    padding-inline: var(--s4);
+  }
+
+  /* ── Top bar (406:6389): mono organization line, then the title; bell + avatar at the end ── */
+
+  .tm-app .tm-canvas-header[data-title-variant] .tm-canvas-header__context,
+  .tm-app .tm-canvas-header .tm-canvas-header__title-row {
+    padding-inline-end: 100px;
+  }
+
+  .tm-app .tm-canvas-header[data-title-variant] .tm-canvas-header__context {
+    min-block-size: 17px;
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    color: var(--ink-650);
+  }
+
+  /* The organization keeps the mono face in Arabic too (406:6511); `:lang(ar)` would reset it. */
+  .tm-app .tm-canvas-header[data-title-variant] .tm-canvas-header__org {
+    font-family: inherit;
+  }
+
+  .tm-app .tm-canvas-header[data-title-variant] .tm-canvas-header__titles {
+    gap: var(--s1);
+  }
+
+  .tm-app .tm-canvas-header[data-title-variant='page'] .tm-canvas-header__title {
+    font-size: var(--t-display-lg);
+    line-height: var(--t-display-lg-line);
+    font-weight: 500;
+    letter-spacing: -0.025em;
+  }
+
+  .tm-phone-actions {
+    position: absolute;
+    z-index: 5;
+    inset-block-start: calc(var(--s5) + 2px);
+    inset-inline-end: var(--s4);
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+  }
+
+  .tm-phone-bell {
+    display: grid;
+    place-items: center;
+    inline-size: var(--orb-comfortable);
+    block-size: var(--orb-comfortable);
+    border-radius: var(--r-capsule);
+    background: var(--paper-0);
+    color: var(--ink-950);
+  }
+
+  .tm-phone-actions > .tm-phone-avatar {
+    position: static;
+    inline-size: var(--orb-default);
+    block-size: var(--orb-default);
+    background: var(--paper-250);
+    color: var(--ink-800);
+    font-size: var(--t-ui-sm);
+    line-height: var(--t-ui-sm-line);
+    font-weight: 500;
+  }
+
+  /* ── Tab bar (405:6575) ───────────────────────────────────────────────────────────────── */
+
+  .tm-phone-dock {
+    inset-inline: var(--s4);
+    inset-block-end: var(--s4);
+    gap: var(--s2);
+  }
+
+  .tm-phone-dock .tm-mobile-nav__list {
+    padding: var(--s2);
+    gap: var(--s1);
+    border: 0;
+    background: var(--tm-ink-absolute);
+    box-shadow: var(--tm-phone-elevation-high);
+  }
+
+  .tm-phone-dock .tm-mobile-nav__item {
+    justify-content: center;
+    gap: var(--s1);
+    min-block-size: 60px;
+    padding: var(--s2) var(--s1);
+    border-radius: var(--r-capsule);
+    color: var(--tm-paper-absolute);
+  }
+
+  .tm-phone-dock .tm-mobile-nav__item:hover {
+    color: var(--tm-paper-absolute);
+  }
+
+  .tm-phone-dock .tm-mobile-nav__item[aria-current='page'],
+  .tm-phone-dock .tm-mobile-nav__item[data-active='true'] {
+    background: var(--lime-500);
+    color: var(--tm-on-lime);
+  }
+
+  .tm-phone-dock .tm-mobile-nav__item .tm-mobile-nav__orb,
+  .tm-phone-dock .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__orb,
+  .tm-phone-dock .tm-mobile-nav__item[data-active='true'] .tm-mobile-nav__orb {
+    inline-size: 24px;
+    block-size: 24px;
+    background: none;
+    color: inherit;
+  }
+
+  .tm-phone-dock .tm-mobile-nav__glyph {
+    display: none;
+  }
+
+  .tm-phone-dock .tm-phone-icon,
+  .tm-phone-dock .tm-phone-dock__fab .tm-phone-icon {
+    display: block;
+  }
+
+  .tm-phone-dock .tm-mobile-nav__label,
+  .tm-phone-dock .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__label,
+  .tm-phone-dock .tm-mobile-nav__item[data-active='true'] .tm-mobile-nav__label {
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+    font-weight: 500;
+    opacity: 0.72;
+  }
+
+  .tm-phone-dock .tm-mobile-nav__item[aria-current='page'] .tm-mobile-nav__label,
+  .tm-phone-dock .tm-mobile-nav__item[data-active='true'] .tm-mobile-nav__label {
+    opacity: 1;
+  }
+
+  /* The inbox count keeps its lime disc; an ink ring parts it from the capsule or the pill. */
+  .tm-phone-dock .tm-orb-badge {
+    box-shadow: 0 0 0 2px var(--tm-ink-absolute);
+  }
+
+  .tm-phone-dock > .tm-phone-dock__fab {
+    inline-size: var(--orb-hero);
+    block-size: var(--orb-hero);
+    background: var(--lime-500);
+    color: var(--tm-on-lime);
+    box-shadow: var(--tm-phone-elevation-high);
+  }
+
+  /* ── Shared phone surfaces the screens compose ────────────────────────────────────────── */
+
+  /* A white card (406:6434): 24px radius, 20px padding, the low elevation. */
+  .tm-phone-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s4);
+    padding: var(--s5);
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+    box-shadow: var(--tm-phone-elevation-low);
+  }
+
+  /* The black feature card (406:6390 "Hero"): 32px radius, 24px padding, lime eyebrow. */
+  .tm-phone-card--feature {
+    gap: var(--s5);
+    padding: var(--s6);
+    border-radius: var(--r-feature);
+    background: var(--tm-ink-absolute);
+    box-shadow: none;
+    color: var(--tm-paper-absolute);
+  }
+
+  /* The lime feature card (406:6406 "Up next"). Text on lime is always ink (law 1). */
+  .tm-phone-card--accent {
+    border-radius: var(--r-feature);
+    background: var(--lime-500);
+    box-shadow: none;
+    color: var(--tm-on-lime);
+  }
+
+  .tm-phone-eyebrow {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+    font-weight: 500;
+    text-transform: uppercase;
+    color: var(--ink-650);
+  }
+
+  .tm-phone-card--feature .tm-phone-eyebrow {
+    color: var(--lime-500);
+  }
+
+  .tm-phone-card--accent .tm-phone-eyebrow {
+    color: var(--tm-on-lime);
+  }
+
+  /* A section head (406:6430): the 24px heading and its count badge at the end. */
+  .tm-phone-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--s3);
+  }
+
+  .tm-phone-section-head__title {
+    margin: 0;
+    font-size: var(--t-heading-section);
+    line-height: var(--t-heading-section-line);
+    font-weight: 600;
+    color: var(--ink-950);
+  }
+
+  /* An icon orb: 44px sunken by default; `--surface` is white, `--ink` is black. */
+  .tm-phone-orb {
+    flex: none;
+    display: grid;
+    place-items: center;
+    inline-size: var(--orb-comfortable);
+    block-size: var(--orb-comfortable);
+    border-radius: var(--r-capsule);
+    background: var(--paper-150);
+    color: var(--ink-950);
+  }
+
+  .tm-phone-orb--surface {
+    background: var(--paper-0);
+  }
+
+  .tm-phone-orb--ink {
+    background: var(--tm-ink-absolute);
+    color: var(--tm-paper-absolute);
+  }
+
+  /* A 6px progress track (406:6451); the fill is an inline-size percentage. */
+  .tm-phone-progress {
+    position: relative;
+    block-size: 6px;
+    overflow: hidden;
+    border-radius: var(--r-capsule);
+    background: var(--paper-150);
+  }
+
+  .tm-phone-progress__done {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    border-radius: var(--r-capsule);
+    background: var(--ink-950);
+  }
+}
+
+/* 320px (1.4.10 Reflow): the capsule keeps five tabs in one row beside a smaller capture orb. */
+@media (max-width: 22.5rem) {
+  .tm-phone-dock > .tm-phone-dock__fab {
+    inline-size: var(--orb-feature);
+    block-size: var(--orb-feature);
+  }
+
+  .tm-phone-dock .tm-mobile-nav__list {
+    padding: var(--s1);
+    gap: 0;
+  }
+}

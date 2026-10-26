@@ -21,6 +21,7 @@
  */
 
 import type { MessageKey } from '../../lib/i18n/t';
+import type { PhoneIconName } from '../icons/phone';
 
 export interface NavigationItem {
   readonly id: string;
@@ -35,6 +36,11 @@ export interface NavigationItem {
   readonly messageKey: MessageKey;
   readonly href: string;
   readonly glyph: string;
+  /**
+   * The 24px line icon the phone tab bar draws (Figma 405:6575) below 768px. The glyph stays the
+   * rail's and the wider dock's, so desktop is unchanged.
+   */
+  readonly phoneIcon?: PhoneIconName;
 }
 
 /**
@@ -42,10 +48,38 @@ export interface NavigationItem {
  * HOME-01: Home is "My Day" there, and the glyphs are the rail's own (◉ ✉ ◌ ▤ ◫ ◔).
  */
 export const INTERNAL_NAVIGATION: readonly NavigationItem[] = [
-  { id: 'home', label: 'My Day', messageKey: 'nav.home', href: '/home', glyph: '◉' },
-  { id: 'inbox', label: 'Inbox', messageKey: 'nav.inbox', href: '/inbox', glyph: '✉' },
-  { id: 'chat', label: 'Chat', messageKey: 'nav.chat', href: '/chat', glyph: '◌' },
-  { id: 'work', label: 'Work', messageKey: 'nav.work', href: '/work', glyph: '▤' },
+  {
+    id: 'home',
+    label: 'My Day',
+    messageKey: 'nav.home',
+    href: '/home',
+    glyph: '◉',
+    phoneIcon: 'home',
+  },
+  {
+    id: 'inbox',
+    label: 'Inbox',
+    messageKey: 'nav.inbox',
+    href: '/inbox',
+    glyph: '✉',
+    phoneIcon: 'inbox',
+  },
+  {
+    id: 'chat',
+    label: 'Chat',
+    messageKey: 'nav.chat',
+    href: '/chat',
+    glyph: '◌',
+    phoneIcon: 'chat',
+  },
+  {
+    id: 'work',
+    label: 'Work',
+    messageKey: 'nav.work',
+    href: '/work',
+    glyph: '▤',
+    phoneIcon: 'work',
+  },
   { id: 'calendar', label: 'Calendar', messageKey: 'nav.calendar', href: '/calendar', glyph: '◷' },
   { id: 'docs', label: 'Docs', messageKey: 'nav.docs', href: '/docs', glyph: '◫' },
   { id: 'clients', label: 'Clients', messageKey: 'nav.clients', href: '/clients', glyph: '◇' },
@@ -95,6 +129,7 @@ export const MOBILE_MORE_ITEM: NavigationItem = {
   messageKey: 'shell.mobile.more' as MessageKey,
   href: '',
   glyph: '⋯',
+  phoneIcon: 'more',
 };
 
 /** The five tab-bar slots, in order: four destinations and the More disclosure. */
