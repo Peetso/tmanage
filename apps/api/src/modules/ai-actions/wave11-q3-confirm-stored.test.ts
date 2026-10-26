@@ -339,7 +339,7 @@ describe('M01 (iii) — editing an item the client already sees needs approval',
 });
 
 describe('M01 — the rule itself', () => {
-  it('callNeedsConfirmWithState: stored client audience → true; internal, missing or unreadable → false', async () => {
+  it('callNeedsConfirmWithState: stored client audience or unreadable → true; internal or missing → false', async () => {
     const update = findOpById('work_items.update')!;
     const lookup = async (_r: string, id: string) => STORED[id];
     expect(
@@ -354,8 +354,9 @@ describe('M01 — the rule itself', () => {
     const throws = async (): Promise<string | undefined> => {
       throw new Error('db down');
     };
-    expect(await callNeedsConfirmWithState(update, { workItemId: 'wi_client' }, throws)).toBe(
-      false,
+    // R4-01 (wave 12): a lookup that throws fails closed - the call needs approval.
+    expect(await callNeedsConfirmWithState(update, { workItemId: 'wi_internal' }, throws)).toBe(
+      true,
     );
     // The argument rule still wins without any lookup.
     expect(await callNeedsConfirmWithState(update, { audience: 'client_visible' }, undefined)).toBe(

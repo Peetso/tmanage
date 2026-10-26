@@ -155,9 +155,10 @@ export function callNeedsConfirm(op: AiActionOp, args: Readonly<Record<string, u
 
 /**
  * {@link callNeedsConfirm}, plus the stored-state rule (M01): also `true` when the op carries
- * `confirmWhenStored` and the stored row's field is outside `notIn`. A missing id, a missing or
- * unreadable row, or no `lookup` gives `false` for the stored rule — the handler answers 404 for a
- * row that does not exist, so nothing client-facing can happen on that path.
+ * `confirmWhenStored` and the stored row's field is outside `notIn`. A missing id, a missing row,
+ * or no `lookup` gives `false` for the stored rule — the handler answers 404 for a row that does
+ * not exist, so nothing client-facing can happen on that path. A lookup that **throws** gives
+ * `true` (R4-01, wave 12): the stored state is unknown, so the call needs approval (fail closed).
  */
 export async function callNeedsConfirmWithState(
   op: AiActionOp,
@@ -173,7 +174,8 @@ export async function callNeedsConfirmWithState(
   try {
     stored = await lookup(rule.resource, id, rule.field);
   } catch {
-    return false;
+    // R4-01: an unreadable row is not a row known to be internal - fail closed.
+    return true;
   }
   if (typeof stored !== 'string') return false;
   return !(rule.notIn as readonly string[]).includes(stored);
