@@ -22,7 +22,8 @@ import type {
 import { listProjects } from '../../lib/api/projects';
 import { getCalendarGrid } from '../../lib/api/calendar-grid';
 import { listFocusBlocks } from '../../lib/api/focus-blocks';
-import { ApiRequestError, NetworkError } from '../../lib/api/errors';
+import { useDescribeApiError } from '../../lib/api/describe-error';
+import type { ApiErrorLines } from '../../lib/api/describe-error';
 import { formatDay, stateCapsule, stateLabel } from '../../lib/work-item-presentation';
 import type { ApiClient } from '../../lib/api/client';
 import { useT } from '../../lib/i18n/use-t';
@@ -63,6 +64,10 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
   const api = client ?? browserApiClient();
   const t = useT();
   const locale = useActiveLocale();
+  const describeError = useDescribeApiError(WORK_ERROR_LINES);
+  const describeWaitingError = useDescribeApiError(WAITING_ERROR_LINES);
+  const describeSavedError = useDescribeApiError(SAVED_ERROR_LINES);
+  const describeSummaryError = useDescribeApiError(SUMMARY_ERROR_LINES);
   const [filter, setFilter] = useState<CardFilter>('all');
 
   const myDay = useQuery({
@@ -784,11 +789,11 @@ function savedTypeLabelKey(entityType: SavedContextEntityType): MessageKey {
   }
 }
 
-function describeSavedError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped before your saved items loaded.';
-  return 'Something went wrong loading your saved items.';
-}
+/** The saved column’s failure lines — catalog keys, so Arabic never shows English. */
+const SAVED_ERROR_LINES: ApiErrorLines = {
+  network: ['MyDayScreen.savedNetworkError', 'The network dropped before your saved items loaded.'],
+  generic: ['MyDayScreen.savedGenericError', 'Something went wrong loading your saved items.'],
+};
 
 /** The message key for the word each ranking reason shows — the capsule is never colour alone. */
 function reasonLabelKey(reason: MyDayReason): MessageKey {
@@ -802,11 +807,11 @@ function reasonLabelKey(reason: MyDayReason): MessageKey {
   }
 }
 
-function describeError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped before your work loaded.';
-  return 'Something went wrong loading your work.';
-}
+/** The work lists’ failure lines. */
+const WORK_ERROR_LINES: ApiErrorLines = {
+  network: ['MyDayScreen.workNetworkError', 'The network dropped before your work loaded.'],
+  generic: ['MyDayScreen.workGenericError', 'Something went wrong loading your work.'],
+};
 
 /** The message key for the word each waiting reason shows — the status is never colour alone. */
 function waitingReasonLabelKey(reason: WaitingReason): MessageKey {
@@ -837,14 +842,17 @@ function waitingTone(reason: WaitingReason): 'warning' | 'danger' | 'neutral' {
   }
 }
 
-function describeWaitingError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped before your reviews loaded.';
-  return 'Something went wrong loading what is waiting on you.';
-}
+/** "Waiting on you" failure lines. */
+const WAITING_ERROR_LINES: ApiErrorLines = {
+  network: ['MyDayScreen.waitingNetworkError', 'The network dropped before your reviews loaded.'],
+  generic: [
+    'MyDayScreen.waitingGenericError',
+    'Something went wrong loading what is waiting on you.',
+  ],
+};
 
-function describeSummaryError(error: unknown): string {
-  if (error instanceof ApiRequestError) return error.message;
-  if (error instanceof NetworkError) return 'The network dropped before your summary loaded.';
-  return 'Something went wrong loading your summary.';
-}
+/** The summary’s failure lines. */
+const SUMMARY_ERROR_LINES: ApiErrorLines = {
+  network: ['MyDayScreen.summaryNetworkError', 'The network dropped before your summary loaded.'],
+  generic: ['MyDayScreen.summaryGenericError', 'Something went wrong loading your summary.'],
+};

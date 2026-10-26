@@ -4,6 +4,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { MyDayScreen } from '../src/components/screens/MyDayScreen';
 import { RequestInboxScreen } from '../src/components/screens/RequestInboxScreen';
 import { RequestTagsView } from '../src/components/screens/RequestTagsView';
 import { describePeopleError } from '../src/components/screens/peopleShared';
@@ -146,6 +147,82 @@ describe('the screens named in the audit, in Arabic', () => {
     );
     expect(await screen.findByText(AR_NETWORK_DOWN)).toBeInTheDocument();
     expect(container.textContent).not.toContain('Is it running?');
+  });
+});
+
+/**
+ * **My Day** (audit 2026-10-26, gap 2): its four sections — summary, work, waiting, saved — each
+ * word their own failure, through `useDescribeApiError` and `MyDayScreen.*Error` catalog keys.
+ * The Arabic lines come from the real `ar.json`.
+ */
+const AR_MY_DAY_NETWORK = [
+  'انقطع الاتصال بالشبكة قبل تحميل ملخّصك.',
+  'انقطع الاتصال بالشبكة قبل تحميل أعمالك.',
+  'انقطع الاتصال بالشبكة قبل تحميل المراجعات.',
+  'انقطع الاتصال بالشبكة قبل تحميل العناصر المحفوظة.',
+];
+
+describe('MyDayScreen, in Arabic', () => {
+  it('shows the English section lines in English', async () => {
+    render(
+      withQuery(
+        <MyDayScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          client={unreachableClient()}
+        />,
+      ),
+    );
+    expect(
+      await screen.findByText('The network dropped before your summary loaded.'),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText('The network dropped before your saved items loaded.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows every section’s failure in Arabic, with no English left', async () => {
+    act(() => activeLocale.set('ar-EG'));
+    const { container } = render(
+      withQuery(
+        <MyDayScreen
+          organizationSlug="acme"
+          organizationName="Acme"
+          client={unreachableClient()}
+        />,
+      ),
+    );
+    for (const line of AR_MY_DAY_NETWORK) {
+      expect(await screen.findByText(line)).toBeInTheDocument();
+    }
+    expect(container.textContent).not.toMatch(/The network dropped|Something went wrong/);
+  });
+
+  it('no longer words API failures itself', () => {
+    const source = readFileSync(
+      join(__dirname, '../src/components/screens/MyDayScreen.tsx'),
+      'utf8',
+    );
+    expect(source).not.toMatch(/instanceof (NetworkError|ApiRequestError)/);
+    expect(source).toContain('useDescribeApiError');
+  });
+
+  it('carries every MyDayScreen error key in both catalogs', () => {
+    const catalog = (lang: string) =>
+      JSON.parse(
+        readFileSync(join(__dirname, `../src/lib/i18n/messages/${lang}.json`), 'utf8'),
+      ) as Record<string, string>;
+    const en = catalog('en');
+    const ar = catalog('ar');
+    for (const area of ['summary', 'work', 'waiting', 'saved']) {
+      for (const kind of ['Network', 'Generic']) {
+        const key = `MyDayScreen.${area}${kind}Error`;
+        expect(en[key], key).toBeTruthy();
+        expect(ar[key], key).toBeTruthy();
+        expect(ar[key], key).not.toBe(en[key]);
+        expect(ar[key], key).not.toMatch(/[A-Za-z]/);
+      }
+    }
   });
 });
 
