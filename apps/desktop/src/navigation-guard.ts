@@ -67,3 +67,78 @@ export function shouldOpenExternally(targetUrl: string, appOrigin: string): bool
 export function isInAppNavigation(targetUrl: string, appOrigin: string): boolean {
   return classifyNavigation(targetUrl, appOrigin) === 'allow';
 }
+
+/* ── AI side panel (Figma 400:5399) ─────────────────────────────────────────────────── */
+
+/**
+ * The assistants' own websites the docked AI panel may show. The web app names an assistant by
+ * `key` only; the start page and the domains it may move between are fixed here, so the
+ * renderer can never point the panel at an arbitrary address. `domains` also lists the sign-in
+ * providers an assistant hands off to, so a person can sign in with their own account.
+ *
+ * Only the panel's own view is classified with these rules: the TManage window keeps
+ * `classifyNavigation`, under which every one of these sites is still an outward link.
+ */
+export interface AssistantSiteRule {
+  readonly home: string;
+  readonly domains: readonly string[];
+}
+
+const SIGN_IN_PROVIDERS = [
+  'accounts.google.com',
+  'appleid.apple.com',
+  'login.microsoftonline.com',
+  'login.live.com',
+] as const;
+
+export const AI_ASSISTANT_SITES: Readonly<Record<string, AssistantSiteRule>> = {
+  claude: { home: 'https://claude.ai/', domains: ['claude.ai', 'claude.com', 'anthropic.com'] },
+  chatgpt: { home: 'https://chatgpt.com/', domains: ['chatgpt.com', 'openai.com'] },
+  cursor: { home: 'https://cursor.com/', domains: ['cursor.com', 'cursor.sh'] },
+  gemini: { home: 'https://gemini.google.com/', domains: ['gemini.google.com'] },
+  copilot: { home: 'https://copilot.microsoft.com/', domains: ['copilot.microsoft.com'] },
+  perplexity: { home: 'https://www.perplexity.ai/', domains: ['perplexity.ai'] },
+  mistral: { home: 'https://chat.mistral.ai/', domains: ['mistral.ai'] },
+};
+
+/** The rule for a key the web app sent; `undefined` for anything not on the list. */
+export function assistantSite(siteKey: unknown): AssistantSiteRule | undefined {
+  if (typeof siteKey !== 'string' || !Object.hasOwn(AI_ASSISTANT_SITES, siteKey)) return undefined;
+  return AI_ASSISTANT_SITES[siteKey];
+}
+
+function hostMatches(host: string, domain: string): boolean {
+  return host === domain || host.endsWith(`.${domain}`);
+}
+
+/**
+ * Decide a navigation inside the AI panel's view: the assistant's own https domains (and the
+ * sign-in providers) stay in the panel; any other web, mail or phone link goes to the system
+ * browser; everything else — TManage itself included, other schemes, unknown keys — is dropped or
+ * sent out, never loaded beside the assistant.
+ */
+export function classifyAssistantNavigation(
+  targetUrl: string,
+  siteKey: string,
+): NavigationDecision {
+  const site = assistantSite(siteKey);
+  if (!site || typeof targetUrl !== 'string' || targetUrl.length === 0) return 'block';
+  let target: URL;
+  try {
+    target = new URL(targetUrl);
+  } catch {
+    return 'block';
+  }
+  if (target.protocol === 'https:' && target.username === '' && target.password === '') {
+    const host = target.hostname.toLowerCase();
+    const allowed = [...site.domains, ...SIGN_IN_PROVIDERS];
+    if (allowed.some((domain) => hostMatches(host, domain))) return 'allow';
+  }
+  if (
+    EXTERNAL_WEB_PROTOCOLS.has(target.protocol) ||
+    EXTERNAL_HANDOFF_PROTOCOLS.has(target.protocol)
+  ) {
+    return 'external';
+  }
+  return 'block';
+}

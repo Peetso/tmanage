@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  classifyAssistantNavigation,
   classifyNavigation,
   isInAppNavigation,
   shouldOpenExternally,
@@ -61,5 +62,28 @@ describe('guard predicates', () => {
   it('isInAppNavigation is true only for same-origin links', () => {
     expect(isInAppNavigation('http://localhost:3000/x', ORIGIN)).toBe(true);
     expect(isInAppNavigation('https://other.example/x', ORIGIN)).toBe(false);
+  });
+});
+
+describe('classifyAssistantNavigation (AI side panel)', () => {
+  it('keeps the assistant, its subdomains and sign-in providers in the panel, https only', () => {
+    expect(classifyAssistantNavigation('https://claude.ai/new', 'claude')).toBe('allow');
+    expect(classifyAssistantNavigation('https://auth.openai.com/log-in', 'chatgpt')).toBe('allow');
+    expect(classifyAssistantNavigation('https://accounts.google.com/o', 'claude')).toBe('allow');
+    expect(classifyAssistantNavigation('http://claude.ai/new', 'claude')).toBe('external');
+  });
+
+  it('sends look-alikes, other sites and TManage itself out of the panel', () => {
+    expect(classifyAssistantNavigation('https://claude.ai.evil.example/', 'claude')).toBe(
+      'external',
+    );
+    expect(classifyAssistantNavigation('https://chatgpt.com/', 'claude')).toBe('external');
+    expect(classifyAssistantNavigation('http://localhost:3000/acme', 'claude')).toBe('external');
+    expect(classifyAssistantNavigation('javascript:alert(1)', 'claude')).toBe('block');
+    expect(classifyAssistantNavigation('https://claude.ai/', 'toString')).toBe('block');
+  });
+
+  it('leaves the TManage window rules unchanged: assistants stay outward links there', () => {
+    expect(classifyNavigation('https://claude.ai/new', ORIGIN)).toBe('external');
   });
 });

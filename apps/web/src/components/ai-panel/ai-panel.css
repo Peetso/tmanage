@@ -1,0 +1,504 @@
+/*
+ * "Let AI do the job" — the top-bar button, its popovers and the desktop side panel
+ * (Figma section 400:5399). Logical properties throughout, so Arabic mirrors: the panel docks at
+ * the inline end (left in Arabic) with its resize grip on the inner edge.
+ */
+
+/* The design's Button instance: 48px, 20px sides, UI/MD, the border/control line. */
+.tm-ai-button {
+  --tm-control-h: 48px;
+  padding-inline: var(--s5);
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+}
+
+.tm-ai-button.tm-button--outline {
+  border-color: var(--ink-500);
+}
+
+.tm-ai-launcher {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+}
+
+/* ── Popovers ──────────────────────────────────────────────────────────── */
+
+.tm-ai-popover {
+  position: absolute;
+  inset-block-start: calc(100% + var(--s2));
+  inset-inline-end: 0;
+  z-index: 60;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper-0);
+  border: 1px solid var(--line-300);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgb(9 10 9 / 12%);
+  text-align: start;
+}
+
+.tm-ai-popover p {
+  margin: 0;
+}
+
+.tm-ai-chooser {
+  inline-size: 380px;
+  gap: 6px;
+  padding: 12px 8px 8px;
+}
+
+.tm-ai-chooser__heading {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 12px 6px;
+  line-height: 1.45;
+}
+
+.tm-ai-chooser__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-ai-chooser__hint,
+.tm-ai-chooser__detail {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.tm-ai-chooser__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-ai-chooser__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  inline-size: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.tm-ai-chooser__row[data-active] {
+  background: var(--paper-150);
+}
+
+.tm-ai-chooser__row:focus-visible {
+  outline: var(--focus-ring);
+}
+
+.tm-ai-chooser__text {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.45;
+}
+
+.tm-ai-chooser__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-ai-chooser__divider {
+  block-size: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--line-300);
+}
+
+.tm-ai-chooser__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding-block-start: 4px;
+  padding-inline: 12px 4px;
+}
+
+.tm-ai-chooser__remember .tm-choice__label {
+  font-size: var(--t-ui-md);
+  line-height: var(--t-ui-md-line);
+  font-weight: 500;
+  color: var(--ink-800);
+  white-space: nowrap;
+}
+
+.tm-ai-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  border-radius: 16px;
+  background: var(--paper-150);
+  color: var(--ink-650);
+}
+
+.tm-ai-card {
+  inline-size: 380px;
+  gap: var(--s3);
+  padding: 20px;
+}
+
+.tm-ai-card--window {
+  inline-size: 360px;
+}
+
+.tm-ai-card__title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tm-ai-card__glyph {
+  display: inline-flex;
+  color: var(--ink-950);
+}
+
+.tm-ai-card__title {
+  flex: 1;
+  min-inline-size: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink-950);
+}
+
+.tm-ai-card__body {
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink-650);
+}
+
+.tm-ai-card__note {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-500);
+}
+
+.tm-ai-card__actions,
+.tm-ai-hint__actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: var(--s2);
+}
+
+.tm-ai-address {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+.tm-ai-address__value {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 10px 12px;
+  overflow: hidden;
+  border: 1px solid var(--line-300);
+  border-radius: 8px;
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ink-950);
+  text-align: start;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-ai-placement {
+  display: flex;
+  gap: var(--s2);
+}
+
+.tm-ai-placement__app,
+.tm-ai-placement__assistant {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  block-size: 72px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.tm-ai-placement__app {
+  flex: 1;
+  border: 1px solid var(--line-300);
+  background: var(--paper-150);
+  font-weight: 500;
+  color: var(--ink-650);
+}
+
+.tm-ai-placement__assistant {
+  inline-size: 112px;
+  border: 1.5px solid var(--line-700);
+  background: var(--paper-0);
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+/* ── The desktop side panel ────────────────────────────────────────────── */
+
+html[data-ai-panel='open'] .tm-app {
+  padding-inline-end: var(--tm-ai-panel-width);
+}
+
+.tm-ai-panel {
+  position: fixed;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 40;
+  box-sizing: border-box;
+  display: flex;
+  inline-size: var(--tm-ai-panel-width, 400px);
+  border-inline-start: 1px solid var(--line-300);
+  background: var(--paper-0);
+}
+
+.tm-ai-panel p,
+.tm-ai-panel h2 {
+  margin: 0;
+}
+
+.tm-ai-panel__handle {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.tm-ai-panel__handle:focus-visible {
+  outline: var(--focus-ring);
+}
+
+.tm-ai-panel__grip {
+  inline-size: 4px;
+  block-size: 40px;
+  border-radius: 2px;
+  background: var(--line-700);
+}
+
+.tm-ai-panel__body {
+  flex: 1;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-ai-panel__header {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding-block: 12px 8px;
+  padding-inline: 14px 12px;
+}
+
+.tm-ai-panel__sparkle {
+  display: inline-flex;
+  color: var(--ink-650);
+}
+
+.tm-ai-panel__name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.45;
+  color: var(--ink-950);
+  white-space: nowrap;
+}
+
+.tm-ai-panel__spacer {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.tm-ai-panel__switch {
+  position: relative;
+  display: inline-flex;
+}
+
+.tm-ai-panel__icon-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 32px;
+  block-size: 32px;
+  padding: 0;
+  border: 1px solid var(--line-300);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ink-650);
+  cursor: pointer;
+}
+
+.tm-ai-panel__icon-button:hover {
+  background: var(--tm-hover-surface);
+}
+
+.tm-ai-panel__icon-button:focus-visible {
+  outline: var(--focus-ring);
+}
+
+.tm-ai-panel__trust {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-block-end: 10px;
+  padding-inline: 16px 14px;
+}
+
+.tm-ai-panel__lock {
+  display: inline-flex;
+  color: var(--ink-500);
+}
+
+.tm-ai-panel__trust-text {
+  min-inline-size: 0;
+  overflow: hidden;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--ink-500);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-ai-panel__chip {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--paper-150);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--ink-650);
+}
+
+.tm-ai-panel__divider {
+  flex: none;
+  block-size: 1px;
+  margin: 0;
+  border: 0;
+  background: var(--line-300);
+}
+
+.tm-ai-panel__notice {
+  padding: 12px 12px 0;
+}
+
+.tm-ai-panel__area {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+
+.tm-ai-panel__site {
+  flex: 1;
+  min-block-size: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding-inline: 24px;
+  border: 1px dashed var(--line-700);
+  border-radius: 12px;
+  background: var(--paper-150);
+  line-height: 1.45;
+  text-align: center;
+}
+
+.tm-ai-panel__site-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ink-650);
+}
+
+.tm-ai-panel__site-body {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.tm-ai-panel__setup {
+  padding: 0 12px 12px;
+}
+
+.tm-ai-panel__status {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px 12px;
+  border-block-start: 1px solid var(--line-300);
+  font-size: 12px;
+  line-height: 17px;
+  color: var(--ink-650);
+}
+
+.tm-ai-hint {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line-300);
+  border-radius: 12px;
+  background: var(--paper-0);
+  line-height: 1.45;
+}
+
+.tm-ai-hint[data-strong] {
+  border-color: var(--line-700);
+}
+
+.tm-ai-hint__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-950);
+}
+
+.tm-ai-hint__body {
+  font-size: 13px;
+  color: var(--ink-650);
+}
+
+.tm-ai-hint__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-500);
+}
+
+/* The phone shell has no room beside TManage; the assistant is a website away there. */
+@media (max-width: 56.19rem) {
+  .tm-ai-launcher,
+  .tm-ai-panel {
+    display: none;
+  }
+
+  html[data-ai-panel='open'] .tm-app {
+    padding-inline-end: 0;
+  }
+}

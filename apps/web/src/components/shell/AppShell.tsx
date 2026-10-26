@@ -22,6 +22,7 @@ import { PlatformAdminLink } from '../platform/PlatformAdminLink';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { MembershipGoneGate } from './MembershipGoneGate';
 import { AccountMenu } from './AccountMenu';
+import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
 
 export interface AppShellProps {
   /**
@@ -282,7 +283,13 @@ export function AppShell({
                 <div className="tm-canvas-header__title-row">
                   <h1 className="tm-canvas-header__title">{title}</h1>
                   {titleMeta ? <span className="tm-canvas-header__meta">{titleMeta}</span> : null}
-                  {actions ? <div className="tm-canvas-header__actions">{actions}</div> : null}
+                  {actions || queryClient ? (
+                    <div className="tm-canvas-header__actions">
+                      {actions}
+                      {/* "Let AI do the job" (Figma 400:5399): needs the query client. */}
+                      {queryClient ? <AiPanelLauncher organizationSlug={organizationSlug} /> : null}
+                    </div>
+                  ) : null}
                 </div>
                 {description ? (
                   <p className="tm-canvas-header__description">{description}</p>

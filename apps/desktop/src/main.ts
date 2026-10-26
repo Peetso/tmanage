@@ -18,7 +18,14 @@ import { classifyNavigation, isInAppNavigation, shouldOpenExternally } from './n
 import { DEEP_LINK_PROTOCOL, findDeepLinkArg, resolveDeepLink } from './deep-link';
 import { createTray } from './tray';
 import { loadWindowState, saveWindowState, type WindowState } from './window-state';
-import { IPC, type NotifyRequest, type NotifyResult } from './ipc';
+import {
+  IPC,
+  type AiPanelBounds,
+  type AiPanelOpenRequest,
+  type NotifyRequest,
+  type NotifyResult,
+} from './ipc';
+import { createAiPanelController } from './ai-panel';
 
 const config = resolveConfig();
 const assetsDir = path.join(__dirname, '..', 'assets');
@@ -26,6 +33,7 @@ const assetsDir = path.join(__dirname, '..', 'assets');
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+const aiPanel = createAiPanelController(() => mainWindow);
 
 /* ── Single-instance lock ──────────────────────────────────────────────────── */
 // A companion app is a singleton: a second launch (or an OS deep-link hand-off) must
@@ -134,7 +142,13 @@ function createMainWindow(): void {
   });
 
   mainWindow.on('closed', () => {
+    aiPanel.close();
     mainWindow = null;
+  });
+
+  // A full page load in TManage drops the panel chrome, so the docked assistant goes with it.
+  mainWindow.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) aiPanel.close();
   });
 
   void mainWindow.loadURL(config.startUrl);
@@ -232,6 +246,22 @@ function registerIpcHandlers(): void {
     notification.on('click', focusMainWindow);
     notification.show();
     return { shown: true };
+  });
+
+  // The AI side panel answers the TManage page only — never the assistant's own view.
+  const fromApp = (event: Electron.IpcMainInvokeEvent): boolean =>
+    mainWindow !== null && event.sender === mainWindow.webContents;
+  ipcMain.handle(IPC.aiPanelOpen, (event, request: AiPanelOpenRequest): boolean =>
+    fromApp(event) ? aiPanel.open(String(request?.site ?? ''), request?.bounds) : false,
+  );
+  ipcMain.handle(IPC.aiPanelBounds, (event, bounds: AiPanelBounds): void => {
+    if (fromApp(event)) aiPanel.setBounds(bounds);
+  });
+  ipcMain.handle(IPC.aiPanelPopOut, (event): boolean =>
+    fromApp(event) ? aiPanel.popOut() : false,
+  );
+  ipcMain.handle(IPC.aiPanelClose, (event): void => {
+    if (fromApp(event)) aiPanel.close();
   });
 }
 

@@ -4,12 +4,18 @@
  * Runs with `contextIsolation: true` and `sandbox: true`, so this is the *only* seam
  * between the hosted web app and the native shell. It exposes a deliberately tiny,
  * allowlisted surface (03-TECHNICAL-ARCHITECTURE §"Phase 1": capabilities are
- * allowlisted, no generic shell access): a native-notification bridge and the app
- * version. Nothing here hands the renderer a Node primitive, `ipcRenderer`, or any
- * ability beyond these two calls.
+ * allowlisted, no generic shell access): a native-notification bridge, the app
+ * version and the AI side panel. Nothing here hands the renderer a Node primitive,
+ * `ipcRenderer`, or any ability beyond these calls.
  */
 import { contextBridge, ipcRenderer } from 'electron';
-import { IPC, type NotifyRequest, type NotifyResult } from './ipc';
+import {
+  IPC,
+  type AiPanelBounds,
+  type AiPanelOpenRequest,
+  type NotifyRequest,
+  type NotifyResult,
+} from './ipc';
 
 const api = {
   /** Resolve the installed desktop app version (e.g. "0.1.0"). */
@@ -23,6 +29,22 @@ const api = {
   notify: (request: NotifyRequest): Promise<NotifyResult> =>
     ipcRenderer.invoke(IPC.notify, sanitiseNotify(request)) as Promise<NotifyResult>,
 
+  /**
+   * The docked AI side panel (Figma 400:5399). The page names an assistant by key and reports
+   * where its website area is; the shell owns the view, which the page cannot script or read.
+   */
+  aiPanel: {
+    open: (request: AiPanelOpenRequest): Promise<boolean> =>
+      ipcRenderer.invoke(IPC.aiPanelOpen, {
+        site: String(request?.site ?? ''),
+        bounds: sanitiseBounds(request?.bounds),
+      }) as Promise<boolean>,
+    setBounds: (bounds: AiPanelBounds): Promise<void> =>
+      ipcRenderer.invoke(IPC.aiPanelBounds, sanitiseBounds(bounds)) as Promise<void>,
+    popOut: (): Promise<boolean> => ipcRenderer.invoke(IPC.aiPanelPopOut) as Promise<boolean>,
+    close: (): Promise<void> => ipcRenderer.invoke(IPC.aiPanelClose) as Promise<void>,
+  },
+
   /** Lets the web app detect it is running inside the native companion. */
   readonly: true as const,
 };
@@ -35,6 +57,17 @@ function sanitiseNotify(request: NotifyRequest): NotifyRequest {
   if (request?.body !== undefined) out.body = String(request.body);
   if (request?.silent !== undefined) out.silent = Boolean(request.silent);
   return out;
+}
+
+function sanitiseBounds(bounds: AiPanelBounds | undefined): AiPanelBounds {
+  const n = (value: unknown): number => (Number.isFinite(Number(value)) ? Number(value) : 0);
+  return {
+    x: n(bounds?.x),
+    y: n(bounds?.y),
+    width: n(bounds?.width),
+    height: n(bounds?.height),
+    visible: Boolean(bounds?.visible),
+  };
 }
 
 contextBridge.exposeInMainWorld('tmanageDesktop', api);
