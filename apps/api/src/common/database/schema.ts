@@ -8857,6 +8857,11 @@ export const storageConnections = mysqlTable(
     onedriveDriveName: varchar('onedrive_drive_name', { length: 190 }),
     /** 0236. The scopes the grant holds (OneDrive: whether SharePoint libraries were consented). */
     grantedScopes: varchar('granted_scopes', { length: 512 }),
+    /**
+     * 0238. Google rows: the name of the place the `TManage/` root sits in — the picked folder, or
+     * `My Drive`. NULL for rows saved before 0238 and for OneDrive (it uses `onedriveDriveName`).
+     */
+    locationName: varchar('location_name', { length: 190 }),
     connectedByUserId: char('connected_by_user_id', { length: 36 }),
     connectedAt: datetime('connected_at', { mode: 'date', fsp: 3 }),
     disconnectedAt: datetime('disconnected_at', { mode: 'date', fsp: 3 }),

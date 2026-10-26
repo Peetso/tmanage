@@ -161,6 +161,18 @@ describe('0236 — registry in all four places', () => {
     ]);
     expect(columns.every((c) => c['nullable'] === 'YES')).toBe(true);
   });
+
+  it('0238 adds the nullable location name the Storage screen shows', async () => {
+    const columns = await observe(
+      `select is_nullable as nullable, character_maximum_length as length
+         from information_schema.columns
+        where table_schema = database() and table_name = 'storage_connections'
+          and column_name = 'location_name'`,
+    );
+    expect(columns).toHaveLength(1);
+    expect(columns[0]?.['nullable']).toBe('YES');
+    expect(Number(columns[0]?.['length'])).toBe(190);
+  });
 });
 
 describe('0236 — identity pinned and tenancy enforced', () => {

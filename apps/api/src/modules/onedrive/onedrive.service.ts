@@ -1021,11 +1021,20 @@ export function toOneDriveStatusView(
     oneDrive: {
       status,
       accountEmail: canManage ? (live?.accountEmail ?? null) : null,
-      folderPath: live ? `${ONEDRIVE_ROOT_FOLDER_NAME}/` : null,
+      folderPath: live ? oneDriveFolderPath(live.onedriveDriveName) : null,
       driveName: live?.onedriveDriveName ?? null,
       librariesEnabled: live ? grantsLibraries(live.grantedScopes) : false,
     },
   };
+}
+
+/**
+ * Where the company's files go, as the Storage screen shows it: `<chosen place>/TManage/` (the
+ * picked folder, library or drive, kept in `onedrive_drive_name`), or `TManage/` without one.
+ */
+export function oneDriveFolderPath(locationName: string | null | undefined): string {
+  const location = locationName?.trim();
+  return location ? `${location}/${ONEDRIVE_ROOT_FOLDER_NAME}/` : `${ONEDRIVE_ROOT_FOLDER_NAME}/`;
 }
 
 function toView(row: OneDriveAttachmentRow): OneDriveAttachmentView {

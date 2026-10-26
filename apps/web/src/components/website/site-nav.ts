@@ -370,7 +370,5 @@ export const FOOTER_LEGAL: readonly WebLink[] = [
 ];
 
 export const FOOTER_SOCIAL: readonly { label: MessageKey; href: string; icon: WebIconName }[] = [
-  { label: 'SiteNav.socialLinkedIn', href: 'https://www.linkedin.com/', icon: 'linkedin' },
-  { label: 'SiteNav.socialYouTube', href: 'https://www.youtube.com/', icon: 'video' },
   { label: 'SiteNav.socialEmail', href: '/contact', icon: 'mail' },
 ];

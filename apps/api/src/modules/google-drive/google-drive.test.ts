@@ -19,7 +19,12 @@ import {
   type DriveTransport,
 } from './google-drive.google.js';
 import type { GoogleDriveRepository } from './google-drive.repository.js';
-import { GoogleDriveService, safeDriveLink, tokenBinding } from './google-drive.service.js';
+import {
+  GoogleDriveService,
+  driveFolderPath,
+  safeDriveLink,
+  tokenBinding,
+} from './google-drive.service.js';
 import { effectiveModeOf } from './storage-mode.repository.js';
 /** 0236. The storage-mode seam, backed by the fake repository's one row. */
 function rowBackedModes(repository: object) {
@@ -303,6 +308,63 @@ describe('a refused grant and the status view', () => {
     });
     expect((await drive.status(ctx(), true)).configured).toBe(false);
     expect(() => drive.startConnect(ctx(), 'north')).toThrow(/not set up/);
+  });
+});
+
+describe('0238: the Storage screen shows the folder the company chose', () => {
+  const folder = (name: string, driveId: string | null = null) => ({
+    id: 'picked_folder_1',
+    name,
+    mimeType: 'application/vnd.google-apps.folder',
+    size: null,
+    webViewLink: null,
+    driveId,
+    parents: [],
+  });
+
+  it('keeps the name of the picked folder and answers <folder>/TManage/', async () => {
+    const { repository, current } = fakeRepository({
+      refreshTokenEnc: CIPHER.encrypt('rt', tokenBinding(ORG_A)),
+    });
+    const google = transport({ getFile: vi.fn(async () => folder('Clients / 2026')) });
+    const view = await service(repository, google).updateSettings(ctx(), {
+      location: { kind: 'folder', folderId: 'picked_folder_1' },
+    });
+    expect(current()?.locationName).toBe('Clients 2026');
+    expect(view.googleDrive.folderPath).toBe('Clients 2026/TManage/');
+  });
+
+  it('a shared drive folder keeps its own name too', async () => {
+    const { repository } = fakeRepository({
+      refreshTokenEnc: CIPHER.encrypt('rt', tokenBinding(ORG_A)),
+    });
+    const google = transport({ getFile: vi.fn(async () => folder('Studio', 'shared_drive_1')) });
+    const view = await service(repository, google).updateSettings(ctx(), {
+      location: { kind: 'folder', folderId: 'picked_folder_1' },
+    });
+    expect(view.googleDrive.folderPath).toBe('Studio/TManage/');
+    expect(view.googleDrive.sharedDriveName).toBe('Studio');
+  });
+
+  it('choosing the top of the Drive answers My Drive/TManage/', async () => {
+    const { repository, current } = fakeRepository({
+      refreshTokenEnc: CIPHER.encrypt('rt', tokenBinding(ORG_A)),
+      locationName: 'Clients',
+    });
+    const view = await service(repository, transport()).updateSettings(ctx(), {
+      location: { kind: 'my_drive' },
+    });
+    expect(current()?.locationName).toBe('My Drive');
+    expect(view.googleDrive.folderPath).toBe('My Drive/TManage/');
+  });
+
+  it('a row saved before 0238 still answers TManage/', async () => {
+    const { repository } = fakeRepository({ refreshTokenEnc: 'x', locationName: null });
+    expect(
+      (await service(repository, transport()).status(ctx(), true)).googleDrive.folderPath,
+    ).toBe('TManage/');
+    expect(driveFolderPath('  ')).toBe('TManage/');
+    expect(driveFolderPath(undefined)).toBe('TManage/');
   });
 });
 

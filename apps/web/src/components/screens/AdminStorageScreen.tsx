@@ -508,7 +508,9 @@ function OneDriveOption({
   const drive = view.oneDrive;
   const connected = view.configured && drive.status === 'connected';
   const library = drive.librariesEnabled && drive.driveName ? drive.driveName : null;
-  const folder = (drive.folderPath ?? 'TManage/').replace(/\/+$/, '');
+  // The API answers `<chosen place>/TManage/`; the place is shown as the root, the last part as the folder.
+  const folder = (drive.folderPath ?? 'TManage/').replace(/\/+$/, '').split('/').pop() || 'TManage';
+  const root = drive.driveName ?? t('OneDriveStorage.myFiles');
 
   return (
     <div className="tm-storage__option">
@@ -591,9 +593,7 @@ function OneDriveOption({
             <div className="tm-storage__fact">
               <dt>{t('OneDriveStorage.rootFolder')}</dt>
               <dd>
-                {t('OneDriveStorage.rootPath')
-                  .replace('{root}', library ?? t('OneDriveStorage.myFiles'))
-                  .replace('{folder}', folder)}
+                {t('OneDriveStorage.rootPath').replace('{root}', root).replace('{folder}', folder)}
               </dd>
             </div>
             <div className="tm-storage__fact">

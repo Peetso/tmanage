@@ -27,6 +27,8 @@ export const DRIVE_COOKIE_PATH = '/v1';
 export const DRIVE_FLOW_COOKIE = 'tm_gdrive_flow';
 export const DRIVE_FLOW_TTL_SECONDS = 600;
 export const DRIVE_ROOT_FOLDER_NAME = 'TManage';
+/** 0238. The name shown for the top of a person's Drive when the root sits there. */
+export const DRIVE_MY_DRIVE_NAME = 'My Drive';
 export const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 const FLOW_PURPOSE = 'google-drive-flow.v1';
 

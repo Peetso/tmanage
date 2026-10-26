@@ -1,7 +1,7 @@
 'use client';
 
 import { useId, useState, type FormEvent } from 'react';
-import Link from 'next/link';
+import Link from '../website/WebLink';
 import { Button, Field, InlineAlert } from '@tmanage/ui';
 import { PublicIntro, PublicPage } from './public/PublicSite';
 import { browserApiClient } from '../../lib/api/browser-client';

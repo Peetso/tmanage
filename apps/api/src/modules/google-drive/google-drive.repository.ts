@@ -15,6 +15,7 @@ import type {
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
 import type { StorageMode } from './storage-mode.repository.js';
+import { DRIVE_MY_DRIVE_NAME } from './google-drive.google.js';
 
 /**
  * The data half of Google Drive storage. Every query carries
@@ -101,6 +102,8 @@ export class GoogleDriveRepository {
       rootFolderId: input.rootFolderId,
       sharedDriveId: null,
       sharedDriveName: null,
+      // 0238. A (re)connect puts the root at the top of My Drive.
+      locationName: DRIVE_MY_DRIVE_NAME,
       lastErrorCode: null,
       connectedByUserId: input.connectedByUserId,
       connectedAt: sql`current_timestamp(3)`,
@@ -140,6 +143,7 @@ export class GoogleDriveRepository {
       rootFolderId: string | null;
       sharedDriveId: string | null;
       sharedDriveName: string | null;
+      locationName: string | null;
       lastErrorCode: string | null;
       disconnectedAt: Date | null;
     }>,

@@ -24,8 +24,10 @@ import type { OneDriveRepository } from './onedrive.repository.js';
 import {
   OneDriveService,
   grantsLibraries,
+  oneDriveFolderPath,
   pickerTarget,
   safeOneDriveLink,
+  toOneDriveStatusView,
   tokenBinding,
 } from './onedrive.service.js';
 
@@ -277,6 +279,20 @@ describe('pure rules', () => {
     expect(isGraphId('01ABC!123')).toBe(true);
     expect(isGraphId('../x/y')).toBe(false);
     expect(skipTokenOf('https://graph.microsoft.com/v1.0/x?$skiptoken=abc123')).toBe('abc123');
+  });
+
+  it('shows the chosen place in front of TManage/', () => {
+    expect(oneDriveFolderPath('Clients')).toBe('Clients/TManage/');
+    expect(oneDriveFolderPath(null)).toBe('TManage/');
+    const row = {
+      status: 'connected',
+      accountEmail: 'a@example.com',
+      onedriveDriveName: 'Clients',
+      grantedScopes: 'Files.ReadWrite',
+    } as unknown as Parameters<typeof toOneDriveStatusView>[1];
+    expect(toOneDriveStatusView(null, row, true, 'onedrive').oneDrive.folderPath).toBe(
+      'Clients/TManage/',
+    );
   });
 
   it('mints picker tokens only for the account’s own origins', () => {

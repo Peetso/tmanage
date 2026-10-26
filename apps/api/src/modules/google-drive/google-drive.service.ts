@@ -17,6 +17,7 @@ import { WorkItemsRepository } from '../work/work-items.repository.js';
 import { ProjectsRepository } from '../projects/projects.repository.js';
 import {
   DRIVE_CALLBACK_PATH,
+  DRIVE_MY_DRIVE_NAME,
   DRIVE_ROOT_FOLDER_NAME,
   DriveFileNotFoundError,
   DriveGrantRevokedError,
@@ -307,6 +308,7 @@ export class GoogleDriveService {
         );
         patch.sharedDriveId = null;
         patch.sharedDriveName = null;
+        patch.locationName = DRIVE_MY_DRIVE_NAME;
       } else {
         const folderId = input.location.folderId;
         const folder = await this.google(() => this.deps.transport.getFile(accessToken, folderId));
@@ -322,6 +324,11 @@ export class GoogleDriveService {
         patch.sharedDriveName = folder.driveId
           ? driveFolderName(folder.name, 'Shared Drive')
           : null;
+        // 0238. The picked folder's own name, so the Storage screen shows where files go.
+        patch.locationName = driveFolderName(
+          folder.name,
+          folder.driveId ? 'Shared Drive' : 'Folder',
+        );
       }
     }
     // 0236. The mode itself is written by `switchTo` below, which also resets OneDrive's row.
@@ -1024,10 +1031,19 @@ export function toStatusView(
     googleDrive: {
       status,
       accountEmail: canManage ? (live?.accountEmail ?? null) : null,
-      folderPath: live ? `${DRIVE_ROOT_FOLDER_NAME}/` : null,
+      folderPath: live ? driveFolderPath(live.locationName) : null,
       sharedDriveName: live?.sharedDriveName ?? null,
     },
   };
+}
+
+/**
+ * 0238. Where the company's files go, as the Storage screen shows it: `<location>/TManage/`, or
+ * `TManage/` for a row saved before the location's name was kept.
+ */
+export function driveFolderPath(locationName: string | null | undefined): string {
+  const location = locationName?.trim();
+  return location ? `${location}/${DRIVE_ROOT_FOLDER_NAME}/` : `${DRIVE_ROOT_FOLDER_NAME}/`;
 }
 
 function toView(row: GoogleDriveAttachmentRow): DriveAttachmentView {
