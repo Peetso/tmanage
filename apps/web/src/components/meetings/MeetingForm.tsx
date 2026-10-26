@@ -539,6 +539,7 @@ export function MeetingForm({
                   account.provider === 'microsoft' ? 'teams' : 'google_meet';
                 const usable = account.status === 'connected';
                 return (
+                  // eslint-disable-next-line jsx-a11y/label-has-associated-control -- the option's name is in its <strong>, one level deeper than the rule looks
                   <label
                     key={value}
                     className="tm-mtg-radio"
@@ -564,6 +565,7 @@ export function MeetingForm({
                   </label>
                 );
               })}
+              {/* eslint-disable-next-line jsx-a11y/label-has-associated-control -- the option's name is in its <strong>, one level deeper than the rule looks */}
               <label className="tm-mtg-radio" data-checked={conference === 'none' || undefined}>
                 <input
                   type="radio"

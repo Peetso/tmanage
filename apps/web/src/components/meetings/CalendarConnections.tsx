@@ -326,6 +326,7 @@ function Defaults({ accounts }: { accounts: readonly CalendarAccount[] }) {
         </span>
         <div className="tm-mtg-radios" role="radiogroup" aria-labelledby="tm-cc-video">
           {conferenceOptions.map(([value, label, hint]) => (
+            // eslint-disable-next-line jsx-a11y/label-has-associated-control -- the option's name is in its <strong>, one level deeper than the rule looks
             <label
               key={value}
               className="tm-mtg-radio"

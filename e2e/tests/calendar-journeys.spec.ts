@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import type { BrowserContext } from '@playwright/test';
+import type { BrowserContext, Page } from '@playwright/test';
 import { API_URL } from '../setup/stack.js';
 
 /**
@@ -37,11 +37,7 @@ async function signIn(context: BrowserContext, userId: string): Promise<void> {
   expect(response.ok()).toBe(true);
 }
 
-async function scheduleMeeting(
-  page: import('@playwright/test').Page,
-  title: string,
-  date: string,
-): Promise<void> {
+async function scheduleMeeting(page: Page, title: string, date: string): Promise<void> {
   await page.goto('/northstar-studio/calendar');
   await page.getByRole('link', { name: 'New meeting' }).first().click();
   await expect(page).toHaveURL(/\/calendar\/new/);
