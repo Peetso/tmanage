@@ -376,10 +376,12 @@ describe('what must not resolve', () => {
     ]);
   });
 
-  it('refuses when one person holds both an internal and a client membership', async () => {
-    // Picking one silently is the tempting behaviour and the wrong one in both directions:
-    // preferring internal escalates whoever was added to the wrong table, preferring client
-    // demotes staff. Neither failure announces itself. Refusing does.
+  // Wave 10 R5 (F27b). This used to assert a `principal_kind_ambiguous` refusal, and that refusal
+  // was the exploit: a client admin who forged an active client row for a staff member locked that
+  // person out of the whole tenant (security audit F27). Now an internal row plus a client row in
+  // the same organization resolves as exactly what the internal row grants, no more, and the
+  // shadowed client row is audited.
+  it('a person with both an internal and a client membership resolves as staff, and the client row is audited', async () => {
     const id = uuidv7();
     await db.admin.execute(
       `insert into memberships (id, organization_id, user_id, role, has_org_wide_scope)
@@ -387,12 +389,24 @@ describe('what must not resolve', () => {
       [id, world.northstar.organizationId, world.atlas.reviewer.id],
     );
 
-    await expectRefusal(
-      resolveInternal(world.atlas.reviewer.id, 'northstar-studio'),
-      'principal_kind_ambiguous',
-    );
+    try {
+      const resolved = await resolveInternal(world.atlas.reviewer.id, 'northstar-studio');
+      expect(resolved.context.principalKind).toBe('internal');
+      expect(resolved.context.membershipId).toBe(id);
+      expect(resolved.role).toBe('member');
+      expect(resolved.clientOrganizationId).toBeNull();
+      expect(resolved.hasOrgWideScope).toBe(false);
 
-    await db.admin.execute('delete from memberships where id = ?', [id]);
+      const [audits] = await db.admin.query<RowDataPacket[]>(
+        `select result from audit_events
+          where action = 'client_membership.shadowed_by_internal' and organization_id = ?`,
+        [world.northstar.organizationId],
+      );
+      expect(audits.length).toBeGreaterThanOrEqual(1);
+      expect(audits.every((row) => row['result'] === 'allowed')).toBe(true);
+    } finally {
+      await db.admin.execute('delete from memberships where id = ?', [id]);
+    }
   });
 });
 

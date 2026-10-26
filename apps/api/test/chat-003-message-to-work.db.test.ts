@@ -368,7 +368,9 @@ describe('INT-07 — one linked work item, ever', () => {
     expect(items).toHaveLength(2); // the seeded work item, plus exactly one conversion
   });
 
-  it('the conversion is spent: a soft-deleted work item is still the answer', async () => {
+  // R3 N02: this used to answer 200 with the deleted work item's fields. A retry now returns the
+  // existing work item only while the caller may still read it; a deleted one is a bare 409.
+  it('the conversion is spent: a soft-deleted work item is a 409 that names nothing', async () => {
     const session = await signIn(manager().id);
     const channel = await createChannel(session);
     const message = await postMessage(session, channel);
@@ -378,10 +380,17 @@ describe('INT-07 — one linked work item, ever', () => {
     await db.admin.query('update work_items set deleted_at = now(3) where id = ?', [workItemId]);
 
     const retry = await convert(session, channel, message.id);
-    expect(retry.statusCode).toBe(200);
-    const repeated = retry.json<ConversionClient>();
-    expect(repeated.workItem.id).toBe(workItemId);
-    expect(repeated.workItem.deletedAt).not.toBeNull();
+    expect(retry.statusCode).toBe(409);
+    expect(retry.body).toContain('message_already_converted');
+    expect(retry.body).not.toContain(workItemId);
+    expect(retry.body).not.toContain('workItem');
+
+    const links = await observe(
+      'select work_item_id from message_work_links where message_id = ?',
+      [message.id],
+    );
+    expect(links).toHaveLength(1);
+    expect(links[0]?.['work_item_id']).toBe(workItemId);
   });
 });
 

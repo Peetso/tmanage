@@ -382,7 +382,9 @@ describe('a non-admin member cannot reach the role write paths', () => {
     expect(await roleCount(world.northstar.organizationId)).toBe(before);
   });
 
-  it('editing an existing role is refused by the org.manage decision (403), leaving it unchanged', async () => {
+  // Wave 10 R5 (F30): edit and clone are "Assign roles" acts (owner / org_admin), refused before the
+  // org.manage decision is even reached, so the audit code is the assigner refusal now.
+  it('editing an existing role is refused as a non-assigner (403), leaving it unchanged', async () => {
     // A real role in the member's own tenant, created by the owner.
     const targetId = roleIdByName(
       await roles.create(ownerCtx, owner, {
@@ -400,11 +402,11 @@ describe('a non-admin member cannot reach the role write paths', () => {
       }),
       403,
     );
-    expect(error.auditCode).toMatch(/^custom_roles\.manage:/);
+    expect(error.auditCode).toBe('custom_roles.edit.assigner');
     expect(await roleSnapshot(targetId)).toEqual(before);
   });
 
-  it('cloning an existing role is refused by the org.manage decision (403), with no copy written', async () => {
+  it('cloning an existing role is refused as a non-assigner (403), with no copy written', async () => {
     const targetId = roleIdByName(
       await roles.create(ownerCtx, owner, {
         name: 'Owner made another',
@@ -418,7 +420,7 @@ describe('a non-admin member cannot reach the role write paths', () => {
       edit.clone(memberCtx, member, targetId, { name: 'Member clone attempt' }),
       403,
     );
-    expect(error.auditCode).toMatch(/^custom_roles\.manage:/);
+    expect(error.auditCode).toBe('custom_roles.clone.assigner');
     expect(await roleCount(world.northstar.organizationId)).toBe(before);
   });
 });
