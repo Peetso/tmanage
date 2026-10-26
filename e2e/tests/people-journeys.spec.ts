@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import type { Browser, BrowserContext, Page } from '@playwright/test';
-import { API_URL } from '../setup/stack.js';
+import { API_URL, WEB_URL } from '../setup/stack.js';
 
 /**
  * PPL-01 — the People & capacity directory (module 14, audit #4), through a real browser against
@@ -18,7 +18,8 @@ import { API_URL } from '../setup/stack.js';
  * members no mutating journey touches (the owner, the manager and the designer — never the
  * offboardee, whom the member-admin and offboarding journeys re-role and revoke). E2E-PPL-02 is the
  * one write: it changes the designer's organization role and changes it back before it ends, and
- * runs last in the file (the suite runs one worker, in order).
+ * runs last in the file (the suite runs one worker, in order). E2E-PPL-03 (H1, audit 2026-10-26
+ * gap 3) follows it on the same terms: it gives the designer a custom role and restores Member.
  */
 
 interface SeededUser {
@@ -55,6 +56,15 @@ async function openAs(
   await signIn(context, userId);
   const page = await context.newPage();
   return { context, page };
+}
+
+/** The CSRF header pair the API's guard wants on a write (the app's fetch client sends the same). */
+async function csrfHeaders(context: BrowserContext): Promise<Record<string, string>> {
+  const csrf = (await context.cookies(API_URL)).find(
+    (cookie) => cookie.name === 'tmanage_session_csrf',
+  );
+  expect(csrf?.value).toBeTruthy();
+  return { 'x-csrf-token': csrf?.value as string, origin: WEB_URL };
 }
 
 const PEOPLE_URL = '/northstar-studio/people';
@@ -157,6 +167,84 @@ test.describe('the People & capacity directory journeys', () => {
       await expect(row).toBeVisible();
       if (!((await row.textContent()) ?? '').includes('Member')) {
         await changeRole(owner.page, designer, 'Manager', 'Member');
+      }
+      await owner.context.close();
+    }
+  });
+
+  test('E2E-PPL-03: a member given a custom role opens the company and sees the nav that role allows', async ({
+    browser,
+  }) => {
+    const designer = world().northstar.designer;
+    // A fresh name each run: a custom role is never deleted, and a duplicate name is a 409.
+    const roleName = `Studio lead ${Date.now().toString(36)}`;
+    const rail = (page: Page) => page.getByRole('navigation', { name: 'Primary', exact: true });
+
+    // Before: as a plain Member the designer is offered no Control Center.
+    const before = await openAs(browser, designer.id);
+    await before.page.goto('/northstar-studio/home');
+    await expect(rail(before.page).getByRole('link', { name: 'Chat' })).toBeVisible();
+    await expect(rail(before.page).getByRole('link', { name: 'My Day' })).toBeVisible();
+    await expect(rail(before.page).getByRole('link', { name: 'Control' })).toHaveCount(0);
+    await before.context.close();
+
+    const owner = await openAs(browser, world().northstar.owner.id);
+    try {
+      // The owner defines the role in Control > Roles' API: chat, work and the admin right.
+      const created = await owner.context.request.post(
+        `${API_URL}/v1/organizations/northstar-studio/admin/roles`,
+        {
+          headers: await csrfHeaders(owner.context),
+          data: {
+            name: roleName,
+            capabilities: [
+              'conversation.read',
+              'conversation.write',
+              'work.read',
+              'client_projection.read',
+              'org.manage',
+            ],
+          },
+        },
+      );
+      expect(created.status(), await created.text()).toBe(201);
+
+      // ...and gives it to the designer from Members and roles, the custom-role group of Change role.
+      await owner.page.goto(PEOPLE_URL);
+      await changeRole(owner.page, designer.displayName, 'Member', roleName);
+      await owner.page.reload();
+      await expect(personRow(owner.page, designer.displayName)).toContainText(roleName);
+
+      // After: she signs in fresh, opens the company, and the rail carries what her role allows —
+      // the everyday destinations and, because the role holds org.manage, the Control Center.
+      const member = await openAs(browser, designer.id);
+      try {
+        await member.page.goto('/northstar-studio/home');
+        const nav = rail(member.page);
+        await expect(nav.getByRole('link', { name: 'Chat' })).toBeVisible();
+        await expect(nav.getByRole('link', { name: 'Work' })).toBeVisible();
+        await expect(nav.getByRole('link', { name: 'People' })).toBeVisible();
+        const control = nav.getByRole('link', { name: 'Control' });
+        await expect(control).toBeVisible();
+        await expect(control).toHaveAttribute('href', '/northstar-studio/admin');
+
+        // Chat opens for her: the role's conversation.read is honoured past the rail.
+        await nav.getByRole('link', { name: 'Chat' }).click();
+        await expect(member.page).toHaveURL(/\/northstar-studio\/chat/);
+
+        // People names her role by its own name, to her as well as to the owner.
+        await member.page.goto(PEOPLE_URL);
+        await expect(personRow(member.page, designer.displayName)).toContainText(roleName);
+      } finally {
+        await member.context.close();
+      }
+    } finally {
+      // Restore the seed so the journeys that sign in as the designer see her role unchanged.
+      await owner.page.goto(PEOPLE_URL);
+      const row = personRow(owner.page, designer.displayName);
+      await expect(row).toBeVisible();
+      if (((await row.textContent()) ?? '').includes(roleName)) {
+        await changeRole(owner.page, designer.displayName, roleName, 'Member');
       }
       await owner.context.close();
     }

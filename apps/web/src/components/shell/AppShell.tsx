@@ -14,6 +14,7 @@ import { InboxNotificationBridge } from '../pwa/InboxNotificationBridge';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { listOrganizations } from '../../lib/api/organizations';
 import { useOrganizationName } from '../../lib/use-organization-names';
+import { roleMayUse } from '../../lib/role-capability';
 import { useT } from '../../lib/i18n/use-t';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { PlatformAdminLink } from '../platform/PlatformAdminLink';
@@ -88,7 +89,10 @@ function phoneInitials(initials: string | undefined, name: string | undefined): 
     .toUpperCase();
 }
 
-/** Owner and org admin reach the Control Center; `sitemap-and-role-navigation.md` hides it otherwise. */
+/**
+ * Owner and org admin reach the Control Center; `sitemap-and-role-navigation.md` hides it otherwise.
+ * A custom role reaches it when its own set holds `org.manage` (H1).
+ */
 const CONTROL_CENTER_ROLES = new Set(['owner', 'org_admin', 'admin']);
 
 /**
@@ -112,8 +116,14 @@ function ControlCenterOrb({
     staleTime: 5 * 60_000,
   });
   const t = useT();
-  const role = organizations.data?.find((org) => org.slug === organizationSlug)?.role;
-  if (!role || !CONTROL_CENTER_ROLES.has(role)) return null;
+  const membership = organizations.data?.find((org) => org.slug === organizationSlug);
+  const role = membership?.role;
+  // H1: a custom role holding `org.manage` reaches the Control Center too (its pages already
+  // judge a custom role by its loaded capabilities), so the rail offers it the orb as well.
+  const mayControl =
+    role !== undefined &&
+    (CONTROL_CENTER_ROLES.has(role) || roleMayUse(role, membership?.capabilities, 'org.manage'));
+  if (!mayControl) return null;
   return (
     <Link
       href={`/${organizationSlug}${CONTROL_CENTER_NAVIGATION.href}`}
