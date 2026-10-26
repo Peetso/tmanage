@@ -274,6 +274,52 @@ describe('N01 — a completed password reset clears the lockout', () => {
     expect(after.reason).toBe('recovery_code_invalid');
   });
 
+  it('W12 N01: a grant challenge passes a refilled window until five second-factor failures since the reset', async () => {
+    await completeReset();
+    await wrongPasswords(OPTIONS.maxFailuresInWindow);
+    // A plain challenge is refused, and its `locked_out` row is not a credential failure.
+    const plain = await rejection(
+      service.completeWithRecoveryCode({
+        challengeToken: challenge(),
+        code: 'AAAA-BBBB',
+        context: context(),
+      }),
+    );
+    expect(plain.reason).toBe('locked_out');
+    const latest = await tenant.identityRead(
+      { correlationId: uuidv7(), tables: IDENTITY_TABLES },
+      (db) => repository.findLatestPasswordSetAt(db, owner().id),
+    );
+    const grantChallenge = () =>
+      signChallengeToken(
+        {
+          userId: owner().id,
+          expiresAt: new Date(Date.now() + 60_000),
+          resetGrantPasswordSetAt: latest!.getTime(),
+        },
+        SECRET,
+      );
+    // countSecondFactorAttemptsSince on the real server: 0..4 failures admit, the fifth closes.
+    for (let attempt = 0; attempt < OPTIONS.maxFailuresInWindow; attempt += 1) {
+      const admitted = await rejection(
+        service.completeWithRecoveryCode({
+          challengeToken: grantChallenge(),
+          code: 'AAAA-BBBB',
+          context: context(),
+        }),
+      );
+      expect(admitted.reason).toBe('recovery_code_invalid');
+    }
+    const closed = await rejection(
+      service.completeWithRecoveryCode({
+        challengeToken: grantChallenge(),
+        code: 'AAAA-BBBB',
+        context: context(),
+      }),
+    );
+    expect(closed.reason).toBe('locked_out');
+  });
+
   it('re-authentication reads the same count: locked before the reset, admitted after', async () => {
     await wrongPasswords(OPTIONS.maxFailuresInWindow);
     const before = await rejection(
