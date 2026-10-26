@@ -7,6 +7,7 @@ import { QueryClient, QueryClientContext, useQuery } from '@tanstack/react-query
 import { LiveAnnouncer, SkipLink } from '@tmanage/ui';
 import type { Capability } from '@tmanage/domain';
 import { Wordmark } from '../brand/Wordmark';
+import { BetaTag } from '../shell/BetaTag';
 import { MaintenanceBanner } from '../screens/MaintenanceBanner';
 import { CommandPalette } from '../screens/CommandPalette';
 import { MembershipGoneGate } from '../shell/MembershipGoneGate';
@@ -463,6 +464,7 @@ export function ControlCenterShell({
           <Link href={`/${organizationSlug}/home`} className="tm-cc-topbar__brand">
             <Wordmark variant="icon" label={t('shell.brand.home')} />
           </Link>
+          <BetaTag placement="topbar" />
           <nav
             aria-label={t(ccKey('ControlCenter.breadcrumbLabel'))}
             className="tm-cc-topbar__trail"

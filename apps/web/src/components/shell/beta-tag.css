@@ -1,0 +1,42 @@
+/*
+ * Beta tag beside the logo (Figma 419:9992, component 10:57). TManage tokens only.
+ * EN: Geist Mono Medium 12/17, ink-800. AR (419:23787): Alexandria SemiBold 12/17.
+ */
+
+.tm-beta-tag {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: var(--s1);
+  padding: var(--s1) var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-800);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.tm-beta-tag:lang(ar) {
+  font-family: var(--font-arabic);
+  font-weight: 600;
+  line-height: var(--t-caption-line);
+}
+
+/* The phone organization line: the tag leads it, 12px before the organization. */
+.tm-beta-tag[data-placement='phone'] {
+  display: none;
+  margin-inline-end: var(--s3);
+  vertical-align: middle;
+}
+
+@media (max-width: 47.99rem) {
+  .tm-beta-tag[data-placement='phone'] {
+    display: inline-flex;
+  }
+}

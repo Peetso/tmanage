@@ -23,6 +23,7 @@ import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { MembershipGoneGate } from './MembershipGoneGate';
 import { AccountMenu } from './AccountMenu';
 import { AiPanelLauncher } from '../ai-panel/AiPanelLauncher';
+import { BetaTag } from './BetaTag';
 
 export interface AppShellProps {
   /**
@@ -223,6 +224,8 @@ export function AppShell({
             <Link href={`/${organizationSlug}/home`} className="tm-rail__brand">
               <Wordmark variant="icon" label={t('shell.brand.home')} />
             </Link>
+            {/* Open beta (Figma 419:9992): the tag sits with the logo. */}
+            <BetaTag placement="rail" />
             <span className="tm-rail__rule" aria-hidden="true" />
 
             <ul className="tm-rail__list">
@@ -272,6 +275,7 @@ export function AppShell({
             >
               <div className="tm-canvas-header__titles">
                 <p className="tm-canvas-header__context">
+                  <BetaTag placement="phone" />
                   <span className="tm-canvas-header__org">{displayedOrganizationName}</span>
                   {eyebrow ? (
                     <>

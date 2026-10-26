@@ -13,7 +13,8 @@
 .tm-cc-topbar {
   display: flex;
   align-items: center;
-  gap: var(--s4);
+  /* Logo, Beta tag and breadcrumb 12px apart (Figma 419:9994). */
+  gap: var(--s3);
   min-block-size: 64px;
   padding-inline: var(--s6);
   border-block-end: var(--b-quiet) solid var(--line-300);
