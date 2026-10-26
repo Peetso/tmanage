@@ -431,13 +431,8 @@ const MATRIX: ReadonlyArray<{
     },
   },
   { name: 'F4 plan and usage', as: 'owner', path: () => `/${ORG}/billing` },
-  {
-    name: 'F4 change plan preview dialog',
-    as: 'owner',
-    path: () => `/${ORG}/billing`,
-    open: (page, lang) =>
-      openDialog(page, page.getByRole('button', { name: F_LABELS[lang].changePlan })),
-  },
+  // F4 change plan preview dialog: not reachable while BILLING_MODE=beta_free (the default) —
+  // the approved beta Billing screen has no plan-change button. Restore this entry with paid mode.
   { name: 'F5 privacy', as: 'owner', path: () => `/${ORG}/admin/privacy` },
   {
     name: 'F5 export company dialog',

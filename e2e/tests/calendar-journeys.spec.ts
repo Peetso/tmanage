@@ -44,8 +44,9 @@ async function scheduleMeeting(page: Page, title: string, date: string): Promise
   await expect(page.getByRole('option', { name: world().northstar.projectName })).toBeAttached();
   await page.getByLabel('Title').fill(title);
   await page.getByLabel('Date', { exact: true }).fill(date);
+  // The redesigned form titles its Project card "Project" too; the select is the combobox.
   await page
-    .getByLabel('Project', { exact: true })
+    .getByRole('combobox', { name: 'Project', exact: true })
     .selectOption({ label: world().northstar.projectName });
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL(/\/calendar\/meetings\/[0-9a-f-]+\?saved=1$/);
@@ -80,6 +81,8 @@ test('module 9b: edit a meeting and add a guest', async ({ browser }) => {
   await scheduleMeeting(page, EDITED_TITLE, '2026-10-29');
   await page.getByRole('link', { name: 'Edit', exact: true }).click();
   await expect(page).toHaveURL(/\/edit$/);
+  // The form defaults the start to the next hour from now; pin it so 15:00 is after it.
+  await page.getByLabel('Starts').fill('14:00');
   await page.getByLabel('Ends').fill('15:00');
   const designer = world().northstar.designer.displayName;
   await page.getByLabel('Add guests').fill(designer);

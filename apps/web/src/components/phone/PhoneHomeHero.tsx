@@ -8,6 +8,7 @@ import { listConversationUnread } from '../../lib/api/conversation-read-state';
 import type { ApiClient } from '../../lib/api/client';
 import { useTOr } from '../../lib/i18n/use-t-or';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { useHydrated } from '../../lib/use-hydrated';
 import '../../styles/phone/home.css';
 
 /** The next (or current) slot of today's day capsule, as My Day already derives it. */
@@ -63,11 +64,17 @@ export function PhoneHomeHero({
     ? unread.data.reduce((total, entry) => total + entry.unreadCount, 0)
     : undefined;
 
-  const dateLabel = (today ?? new Date()).toLocaleDateString(arabic ? 'ar-u-nu-latn' : 'en-GB', {
-    weekday: 'long',
-    day: 'numeric',
-    month: arabic ? 'long' : 'short',
-  });
+  // "Today" is the viewer's day, not the server's: the server render (another time zone) would
+  // name a different day near midnight and fail hydration, so the date waits for the client.
+  const hydrated = useHydrated();
+  const dateLabel =
+    today !== undefined || hydrated
+      ? (today ?? new Date()).toLocaleDateString(arabic ? 'ar-u-nu-latn' : 'en-GB', {
+          weekday: 'long',
+          day: 'numeric',
+          month: arabic ? 'long' : 'short',
+        })
+      : null;
 
   const metrics = [
     {
@@ -91,7 +98,8 @@ export function PhoneHomeHero({
     <div className="tm-phone-home">
       <section className="tm-phone-home__hero" aria-labelledby="tm-phone-home-headline">
         <p className="tm-phone-home__eyebrow">
-          {dateLabel} · {tOr('PhoneHome.myDay', 'My Day')}
+          {dateLabel === null ? null : `${dateLabel} · `}
+          {tOr('PhoneHome.myDay', 'My Day')}
         </p>
         <h2 id="tm-phone-home-headline" className="tm-phone-home__headline">
           {headline}

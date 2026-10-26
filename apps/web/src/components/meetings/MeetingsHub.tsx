@@ -487,7 +487,14 @@ function WeekGrid({
   const todayKey = dayKey(now);
   const nowTop = ((now.getHours() - hours.first) * 60 + now.getMinutes()) * (HOUR_HEIGHT / 60);
   return (
-    <section className="tm-mtg-week" aria-label={t('MeetingsHub.weekAria')}>
+    <section
+      className="tm-mtg-week"
+      aria-label={t('MeetingsHub.weekAria')}
+      // It scrolls sideways on a phone: a keyboard must be able to reach the overflow days
+      // (WCAG 2.1.1, axe scrollable-region-focusable).
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+    >
       <div className="tm-mtg-week__head">
         <span />
         {days.map((day) => (
@@ -589,7 +596,14 @@ function MonthGrid({
     byDay.set(key, [...(byDay.get(key) ?? []), m]);
   }
   return (
-    <section className="tm-mtg-month" aria-label={t('MeetingsHub.monthAria')}>
+    <section
+      className="tm-mtg-month"
+      aria-label={t('MeetingsHub.monthAria')}
+      // It scrolls sideways on a phone: a keyboard must be able to reach the overflow days
+      // (WCAG 2.1.1, axe scrollable-region-focusable).
+      // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+      tabIndex={0}
+    >
       <div className="tm-mtg-month__head" aria-hidden="true">
         {days.slice(0, 7).map((day) => (
           <span key={dayKey(day)} className="tm-mtg-mono">
