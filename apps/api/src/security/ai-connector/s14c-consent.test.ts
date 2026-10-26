@@ -60,6 +60,13 @@ function setup(options: { workspaceOn?: boolean } = {}) {
     repository: repository as unknown as OauthTokensRepository,
     issuer: ISSUER,
     canonicalResource: RESOURCE,
+    // N04 re-reads the consenting session after the grant commits; here it is live and user-1's.
+    sessions: {
+      findById: async (_db: unknown, sessionId: string) =>
+        sessionId === 'session-a'
+          ? ({ session: { userId: 'user-1', revokedAt: null }, expired: false } as never)
+          : null,
+    },
   });
   const aiAccess: AiAccessSwitches = {
     platformOn: async () => true,
