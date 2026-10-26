@@ -36,6 +36,12 @@ import { constantTimeEquals } from './session-token.js';
  */
 
 const CHALLENGE_TOKEN_VERSION = 'c1';
+/**
+ * N01 (wave 12). The format of a challenge minted when a reset sign-in grant carried the password
+ * step through a full lockout window: the `c1` fields plus the grant's `passwordSetAt`, all under
+ * the one signature. A challenge minted without the grant keeps the `c1` format byte for byte.
+ */
+const CHALLENGE_TOKEN_VERSION_VIA_RESET_GRANT = 'c2';
 const CHALLENGE_TOKEN_PURPOSE = 'mfa';
 
 /** Five minutes. Long enough to find a phone, short enough that a logged token is usually dead. */
@@ -44,6 +50,13 @@ export const CHALLENGE_TTL_SECONDS = 300;
 export interface ChallengeClaims {
   readonly userId: string;
   readonly expiresAt: Date;
+  /**
+   * N01 (wave 12). Present only when a reset sign-in grant admitted the password step through a
+   * full lockout window: the epoch milliseconds of the `password_set` row that grant belongs to.
+   * The second-factor step may then pass the full window once, while that row is still the latest
+   * and no second factor has succeeded since it (`AuthenticationService`).
+   */
+  readonly resetGrantPasswordSetAt?: number;
 }
 
 export type ChallengeRejection = 'missing' | 'malformed' | 'bad_signature' | 'expired';
@@ -59,7 +72,14 @@ export function signChallengeToken(claims: ChallengeClaims, secret: string): str
     // this refuses rather than assuming.
     throw new TypeError('userId must not contain "."');
   }
-  const payload = `${CHALLENGE_TOKEN_VERSION}.${CHALLENGE_TOKEN_PURPOSE}.${claims.userId}.${claims.expiresAt.getTime()}`;
+  const grantAt = claims.resetGrantPasswordSetAt;
+  if (grantAt !== undefined && !Number.isSafeInteger(grantAt)) {
+    throw new TypeError('resetGrantPasswordSetAt must be an integer');
+  }
+  const payload =
+    grantAt === undefined
+      ? `${CHALLENGE_TOKEN_VERSION}.${CHALLENGE_TOKEN_PURPOSE}.${claims.userId}.${claims.expiresAt.getTime()}`
+      : `${CHALLENGE_TOKEN_VERSION_VIA_RESET_GRANT}.${CHALLENGE_TOKEN_PURPOSE}.${claims.userId}.${claims.expiresAt.getTime()}.${grantAt}`;
   return `${payload}.${signature(payload, secret)}`;
 }
 
@@ -78,17 +98,17 @@ export function verifyChallengeToken(
   if (!token) return { ok: false, rejection: 'missing' };
 
   const parts = token.split('.');
-  if (parts.length !== 5) return { ok: false, rejection: 'malformed' };
+  const viaResetGrant = parts[0] === CHALLENGE_TOKEN_VERSION_VIA_RESET_GRANT;
+  if (parts.length !== (viaResetGrant ? 6 : 5)) return { ok: false, rejection: 'malformed' };
 
-  const [version, purpose, userId, expiresAtRaw, presented] = parts as [
-    string,
-    string,
-    string,
-    string,
-    string,
-  ];
+  const [version, purpose, userId, expiresAtRaw] = parts as [string, string, string, string];
+  const grantAtRaw = viaResetGrant ? parts[4]! : undefined;
+  const presented = parts[parts.length - 1]!;
 
-  if (version !== CHALLENGE_TOKEN_VERSION || purpose !== CHALLENGE_TOKEN_PURPOSE) {
+  if (
+    (version !== CHALLENGE_TOKEN_VERSION && !viaResetGrant) ||
+    purpose !== CHALLENGE_TOKEN_PURPOSE
+  ) {
     return { ok: false, rejection: 'malformed' };
   }
 
@@ -96,15 +116,25 @@ export function verifyChallengeToken(
   if (!Number.isSafeInteger(expiresAtMs) || userId === '') {
     return { ok: false, rejection: 'malformed' };
   }
+  const grantAtMs = grantAtRaw === undefined ? undefined : Number(grantAtRaw);
+  if (grantAtMs !== undefined && (grantAtRaw === '' || !Number.isSafeInteger(grantAtMs))) {
+    return { ok: false, rejection: 'malformed' };
+  }
 
-  const payload = `${version}.${purpose}.${userId}.${expiresAtRaw}`;
+  const payload = parts.slice(0, -1).join('.');
   if (!constantTimeEquals(signature(payload, secret), presented)) {
     return { ok: false, rejection: 'bad_signature' };
   }
 
   if (expiresAtMs <= nowMs) return { ok: false, rejection: 'expired' };
 
-  return { ok: true, claims: { userId, expiresAt: new Date(expiresAtMs) } };
+  return {
+    ok: true,
+    claims:
+      grantAtMs === undefined
+        ? { userId, expiresAt: new Date(expiresAtMs) }
+        : { userId, expiresAt: new Date(expiresAtMs), resetGrantPasswordSetAt: grantAtMs },
+  };
 }
 
 function signature(payload: string, secret: string): string {

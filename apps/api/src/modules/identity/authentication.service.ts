@@ -6,6 +6,7 @@ import {
   signChallengeToken,
   verifyChallengeToken,
 } from './challenge-token.js';
+import type { ChallengeClaims } from './challenge-token.js';
 import {
   hashPassword,
   needsRehash,
@@ -619,9 +620,22 @@ export class AuthenticationService {
     });
 
     const expiresAt = new Date(this.now() + CHALLENGE_TTL_SECONDS * 1000);
+    // N01 (wave 12). The succeeded row above spends the grant for the password step, so the
+    // challenge carries it on: only when the grant really admitted this attempt through a full
+    // window does the signed challenge name the grant's reset, and only then may the code step
+    // pass a full window - once, for this user, while that reset is still the latest.
+    const resetGrantPasswordSetAt =
+      admittedByGrant && grant !== undefined && grant.userId === userId
+        ? grant.passwordSetAt
+        : undefined;
     return {
       status: 'mfa_required',
-      challengeToken: signChallengeToken({ userId, expiresAt }, this.options.sessionSecret),
+      challengeToken: signChallengeToken(
+        resetGrantPasswordSetAt === undefined
+          ? { userId, expiresAt }
+          : { userId, expiresAt, resetGrantPasswordSetAt },
+        this.options.sessionSecret,
+      ),
       expiresAt,
       factors: factors.map((factor) => ({
         id: factor.id,
@@ -696,7 +710,12 @@ export class AuthenticationService {
           userId,
           this.options.failureWindowSeconds,
         );
-        if (failures >= this.options.maxFailuresInWindow) return 'locked_out';
+        if (
+          failures >= this.options.maxFailuresInWindow &&
+          !(await this.secondFactorGrantStillOpen(tx, userId, verified.claims))
+        ) {
+          return 'locked_out';
+        }
         const factors = await this.credentials.listActiveFactors(tx, userId);
         return factors.length === 0 ? 'mfa_no_factor' : this.spendTotpCode(tx, factors, code);
       },
@@ -775,7 +794,12 @@ export class AuthenticationService {
           userId,
           this.options.failureWindowSeconds,
         );
-        if (failures >= this.options.maxFailuresInWindow) return 'locked_out';
+        if (
+          failures >= this.options.maxFailuresInWindow &&
+          !(await this.secondFactorGrantStillOpen(tx, userId, verified.claims))
+        ) {
+          return 'locked_out';
+        }
 
         const usable = await this.credentials.listUsableRecoveryCodes(tx, userId);
         const index = findRecoveryCode(
@@ -825,6 +849,28 @@ export class AuthenticationService {
     const latest = await this.credentials.findLatestPasswordSetAt(db, userId);
     if (latest === null || latest.getTime() !== grantPasswordSetAt) return false;
     return !(await this.credentials.hasSucceededSignInSince(db, userId, latest));
+  }
+
+  /**
+   * N01 (wave 12). Whether a challenge minted through a reset sign-in grant may still pass a full
+   * window at the code step. Only a challenge that names the grant's reset qualifies (one minted
+   * without the grant never does), and only while that reset is the account's latest succeeded
+   * `password_set` row, no second factor has succeeded since it (the first success spends it), and
+   * fewer second-factor failures than the window allows have been recorded since it - so the grant
+   * cannot become an unmetered code oracle. Every row read here needs the challenge to write: a
+   * guesser without the password and the grant cannot move any of these counts.
+   */
+  private async secondFactorGrantStillOpen(
+    db: IdentityQueryRunner,
+    userId: string,
+    claims: ChallengeClaims,
+  ): Promise<boolean> {
+    const grantAt = claims.resetGrantPasswordSetAt;
+    if (grantAt === undefined || claims.userId !== userId) return false;
+    const latest = await this.credentials.findLatestPasswordSetAt(db, userId);
+    if (latest === null || latest.getTime() !== grantAt) return false;
+    const attempts = await this.credentials.countSecondFactorAttemptsSince(db, userId, latest);
+    return attempts.succeeded === 0 && attempts.failed < this.options.maxFailuresInWindow;
   }
 
   // ───────────────────────────────────────────────────────────────────────────

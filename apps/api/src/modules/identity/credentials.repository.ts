@@ -250,6 +250,9 @@ const SIGN_IN_ACTIONS: readonly string[] = [
   'google_sign_in',
 ];
 
+/** N01 (wave 12). The two second-factor steps of a sign-in, spelled here for the same reason. */
+const SECOND_FACTOR_ACTIONS: readonly string[] = ['mfa_challenge', 'recovery_code'];
+
 /**
  * The four actions that mean a credential *changed* — `D05d`, I1.
  *
@@ -1029,6 +1032,46 @@ export class CredentialsRepository {
       )
       .limit(1);
     return rows.length > 0;
+  }
+
+  /**
+   * N01 (wave 12). The second-factor attempts (code step and recovery-code fallback) recorded for
+   * this person at or after `at`: how many succeeded, and how many failed for a credential reason
+   * (the {@link NON_CREDENTIAL_FAILURE_REASONS} are left out, as {@link countRecentFailures} leaves
+   * them out). A challenge minted through a reset sign-in grant may pass a full window only while
+   * `succeeded` is 0 and `failed` is below the bound. Each of these rows names the user only when
+   * a valid challenge token was presented, so a guesser without the password cannot write them.
+   * One indexed read on `ix_authentication_events_user`; valid on MariaDB and MySQL alike.
+   */
+  async countSecondFactorAttemptsSince(
+    runner: IdentityQueryRunner,
+    userId: string,
+    at: Date,
+  ): Promise<{ succeeded: number; failed: number }> {
+    const credentialFailure = and(
+      eq(authenticationEvents.outcome, 'failed'),
+      or(
+        isNull(authenticationEvents.reason),
+        notInArray(authenticationEvents.reason, [...NON_CREDENTIAL_FAILURE_REASONS]),
+      ),
+    );
+    const rows = await tenantDrizzle(runner)
+      .select({
+        succeeded: sql<number>`coalesce(sum(case when ${authenticationEvents.outcome} = 'succeeded' then 1 else 0 end), 0)`,
+        failed: sql<number>`coalesce(sum(case when ${credentialFailure} then 1 else 0 end), 0)`,
+      })
+      .from(authenticationEvents)
+      .where(
+        and(
+          eq(authenticationEvents.userId, userId),
+          inArray(authenticationEvents.action, [...SECOND_FACTOR_ACTIONS]),
+          gte(authenticationEvents.occurredAt, at),
+        ),
+      );
+    return {
+      succeeded: Number(rows[0]?.succeeded ?? 0),
+      failed: Number(rows[0]?.failed ?? 0),
+    };
   }
 
   /**

@@ -6,6 +6,7 @@ import { AuthenticationController } from './authentication.controller.js';
 import { AuthenticationRejectedError, AuthenticationService } from './authentication.service.js';
 import type { CredentialsRepository } from './credentials.repository.js';
 import { NON_CREDENTIAL_FAILURE_REASONS } from './credentials.repository.js';
+import { signChallengeToken } from './challenge-token.js';
 import { hashInvitationToken } from './invitation-token.js';
 import { hashPassword } from './password.js';
 import { PasswordResetController } from './password-reset.controller.js';
@@ -20,6 +21,7 @@ import {
 import type { SessionService } from './session.service.js';
 import type { SessionsRepository } from './sessions.repository.js';
 import { createSignInAbuseControl } from './sign-in-abuse-control.js';
+import { base32Decode, hotpCode, totpCounterAt } from './totp.js';
 
 /**
  * N01 (security run 3, wave 11, lane Q2) - the lockout a guesser re-arms right after a reset.
@@ -145,6 +147,24 @@ function world() {
             e.at >= at.getTime(),
         ),
       ),
+    recordFactorUse: () => Promise.resolve(true),
+    countSecondFactorAttemptsSince: (_r: IdentityQueryRunner, userId: string, at: Date) => {
+      const rows = events.filter(
+        (e) =>
+          e.userId === userId &&
+          (e.action === 'mfa_challenge' || e.action === 'recovery_code') &&
+          e.at >= at.getTime(),
+      );
+      return Promise.resolve({
+        succeeded: rows.filter((e) => e.outcome === 'succeeded').length,
+        failed: rows.filter(
+          (e) =>
+            e.outcome === 'failed' &&
+            (e.reason === null ||
+              !(NON_CREDENTIAL_FAILURE_REASONS as readonly string[]).includes(e.reason)),
+        ).length,
+      });
+    },
     countRecentFailures: async (r: IdentityQueryRunner, userId: string, windowSeconds: number) => {
       const windowStart = clock - windowSeconds * 1000;
       const latest = await credentials.findLatestPasswordSetAt(r, userId);
@@ -439,6 +459,79 @@ describe('N01 (wave 11): the reset sign-in grant', () => {
     expect(outcome).not.toHaveProperty('userId');
     // The password step's succeeded row spends the grant: it does not open a second time.
     expect(await rejection(w.signIn(ALICE, NEW_PASSWORD, grant))).toEqual(LOCKED);
+  });
+});
+
+describe('N01 (wave 12): the grant carries on to the second-factor step', () => {
+  const SECRET_B32 = 'JBSWY3DPEHPK3PXP';
+  const codeAt = (ms: number) => hotpCode(base32Decode(SECRET_B32)!, totpCounterAt(ms));
+  function withFactor(w: ReturnType<typeof world>) {
+    w.factors.set(ALICE.userId, [
+      {
+        id: '0198f0cc-0000-7000-8000-0000000000f1',
+        userId: ALICE.userId,
+        kind: 'totp',
+        label: 'Phone',
+        secret: SECRET_B32,
+        confirmedAt: new Date(T0 - 86_400_000),
+        lastAcceptedCounter: null,
+        lastUsedAt: null,
+        createdAt: new Date(T0 - 86_400_000),
+        disabledAt: null,
+      },
+    ]);
+  }
+  const challengeOf = (
+    outcome: Awaited<ReturnType<AuthenticationService['signInWithPassword']>>,
+  ) => {
+    if (outcome.status !== 'mfa_required') throw new Error('expected an MFA challenge');
+    return outcome.challengeToken;
+  };
+
+  it('(vii) a challenge minted through the grant passes a full window once, then locks again', async () => {
+    const w = world();
+    await w.seed(ALICE);
+    withFactor(w);
+    const { grant } = await w.reset(ALICE);
+    await w.guessWrong(ALICE, 5);
+    const challengeToken = challengeOf(await w.signIn(ALICE, NEW_PASSWORD, grant));
+    const context = { correlationId: 'c-holder', ip: '198.51.100.1' };
+
+    await expect(
+      w.auth.completeMfaChallenge({ challengeToken, code: codeAt(w.now()), context }),
+    ).resolves.toEqual({ status: 'authenticated', userId: ALICE.userId });
+
+    // Single-use: the same challenge, a fresh code, the window still full - refused.
+    w.tick(30_000);
+    expect(
+      await rejection(
+        w.auth.completeMfaChallenge({ challengeToken, code: codeAt(w.now()), context }),
+      ),
+    ).toEqual(LOCKED);
+    expect(
+      await rejection(w.auth.completeWithRecoveryCode({ challengeToken, code: 'x', context })),
+    ).toEqual(LOCKED);
+  });
+
+  it('(vii) a challenge minted without the grant still refuses a full window', async () => {
+    const w = world();
+    await w.seed(ALICE);
+    withFactor(w);
+    await w.reset(ALICE);
+    await w.guessWrong(ALICE, 5);
+    const challengeToken = signChallengeToken(
+      { userId: ALICE.userId, expiresAt: new Date(w.now() + 60_000) },
+      SESSION_SECRET,
+    );
+    const context = { correlationId: 'c-holder', ip: '198.51.100.1' };
+    expect(
+      await rejection(
+        w.auth.completeMfaChallenge({ challengeToken, code: codeAt(w.now()), context }),
+      ),
+    ).toEqual(LOCKED);
+    expect(
+      await rejection(w.auth.completeWithRecoveryCode({ challengeToken, code: 'x', context })),
+    ).toEqual(LOCKED);
   });
 });
 
