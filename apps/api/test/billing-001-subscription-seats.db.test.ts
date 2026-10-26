@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RowDataPacket } from 'mysql2/promise';
 import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
@@ -16,6 +16,16 @@ import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
+
+// These suites prove the paid behaviour; BILLING_MODE=beta_free (the default) is covered in
+// src/modules/billing/billing-mode.test.ts.
+beforeEach(() => {
+  vi.stubEnv('BILLING_MODE', 'paid');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 /**
  * BILLING-001 — the subscription / seat / profile / contacts half of Billing (module 19) against a
@@ -150,6 +160,7 @@ describe('the subscription — one row per org, and that row is this tenant alon
     // (Maya, Omar, Lina, Rania) and the client people, in client_memberships, are not.
     expect(view).toEqual({
       planId: 'free',
+      billingMode: 'paid',
       status: 'active',
       currentPeriodEnd: null,
       internalPeopleCount: 4,
@@ -165,6 +176,7 @@ describe('the subscription — one row per org, and that row is this tenant alon
     // A12 renamed `pro` to `studio`: the legacy id is still accepted and is stored as `studio`.
     const expected = {
       planId: 'studio',
+      billingMode: 'paid',
       status: 'pending_change',
       currentPeriodEnd: null,
       internalPeopleCount: 4,
@@ -223,6 +235,7 @@ describe('the subscription — one row per org, and that row is this tenant alon
     // The twin's own one owner is its whole count — none of Northstar's four people leak in.
     expect(twinView).toEqual({
       planId: 'free',
+      billingMode: 'paid',
       status: 'active',
       currentPeriodEnd: null,
       internalPeopleCount: 1,

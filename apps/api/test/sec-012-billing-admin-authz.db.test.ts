@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RowDataPacket } from 'mysql2/promise';
 import { capabilitiesFor, uuidv7 } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
@@ -15,6 +15,16 @@ import { startTestDatabase, truncateAll } from './support/test-database.js';
 import type { TestDatabase } from './support/test-database.js';
 import { seedTwoTenants } from './seed-two-tenants.js';
 import type { SeedWorld } from './seed-two-tenants.js';
+
+// These suites prove the paid behaviour; BILLING_MODE=beta_free (the default) is covered in
+// src/modules/billing/billing-mode.test.ts.
+beforeEach(() => {
+  vi.stubEnv('BILLING_MODE', 'paid');
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 /**
  * SEC-012 (test slice T014) — the money- and governance-sensitive billing and admin-export
