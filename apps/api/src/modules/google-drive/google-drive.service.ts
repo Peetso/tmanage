@@ -605,8 +605,10 @@ export class GoogleDriveService {
    * M04. Find the nearest level of the file's ancestry that holds a TManage folder or root.
    * Level 0 is the file's own parents; while no id on a level is known, the next level is asked
    * of Google (`parents` only), at most {@link ORIGIN_MAX_HOPS} times. Returns that level;
-   * `outside` when the walk reaches a parentless or unseen top with no TManage folder on the way;
-   * `unresolved` when the hops run out first (the attach check then refuses: fail closed).
+   * `outside` when the walk reaches a parentless top (or the connected account's My Drive root, or
+   * the file's shared drive) with no TManage folder on the way; `unresolved` when the hops run out
+   * first, or when Google refuses to show an ancestor (W12-2: under `drive.file` a hidden folder
+   * may be another project's subfolder, so the attach check then refuses: fail closed).
    */
   private async resolveOrigin(
     context: TenantContext,
@@ -616,6 +618,12 @@ export class GoogleDriveService {
   ): Promise<AttachOrigin> {
     let level: readonly string[] = file.parents.slice(0, ORIGIN_MAX_BREADTH);
     const seen = new Set<string>([file.id]);
+    let myDriveRoot: Promise<string | null> | undefined;
+    const isTop = async (id: string) => {
+      if (file.driveId !== null && id === file.driveId) return true;
+      myDriveRoot ??= this.myDriveRootId(context, live, accessToken);
+      return (await myDriveRoot) === id;
+    };
     for (let hop = 0; ; hop += 1) {
       if (level.length === 0) return { kind: 'outside' };
       if (await this.levelIsKnown(context, live, level)) return { kind: 'tmanage', level };
@@ -623,7 +631,15 @@ export class GoogleDriveService {
       for (const id of level) seen.add(id);
       const next = new Set<string>();
       for (const id of level) {
-        for (const parent of await this.ancestorParents(context, live, accessToken, id)) {
+        const parents = await this.ancestorParents(context, live, accessToken, id);
+        if (parents === 'hidden') {
+          // W12-2. Only a top Google will not describe (the account's own My Drive root, the
+          // file's shared drive) ends the walk as "outside"; any other unseen folder leaves the
+          // origin unresolved, and the attach is refused.
+          if (await isTop(id)) continue;
+          return { kind: 'unresolved' };
+        }
+        for (const parent of parents) {
           // A cycle cannot hold the walk: an id already seen adds nothing.
           if (!seen.has(parent) && next.size < ORIGIN_MAX_BREADTH) next.add(parent);
         }
@@ -644,18 +660,32 @@ export class GoogleDriveService {
     });
   }
 
-  /** The parents of one ancestor folder; one Google does not show to this connection has none. */
+  /** The parents of one ancestor folder; `hidden` when Google does not show it to this connection. */
   private async ancestorParents(
     context: TenantContext,
     live: StorageConnectionRow,
     accessToken: string,
     folderId: string,
-  ): Promise<readonly string[]> {
+  ): Promise<readonly string[] | 'hidden'> {
     try {
       return (await this.deps.transport.getFile(accessToken, folderId, 'parents')).parents;
     } catch (error) {
-      if (error instanceof DriveFileNotFoundError) return [];
+      if (error instanceof DriveFileNotFoundError) return 'hidden';
       return this.google<readonly string[]>(() => Promise.reject(error), live.id, context);
+    }
+  }
+
+  /** W12-2. The id of the connected account's My Drive root (Google's `root` alias), or null. */
+  private async myDriveRootId(
+    context: TenantContext,
+    live: StorageConnectionRow,
+    accessToken: string,
+  ): Promise<string | null> {
+    try {
+      return (await this.deps.transport.getFile(accessToken, 'root', 'parents')).id;
+    } catch (error) {
+      if (error instanceof DriveFileNotFoundError) return null;
+      return this.google<string | null>(() => Promise.reject(error), live.id, context);
     }
   }
 

@@ -8,6 +8,7 @@ import type { AuditService } from '../audit/audit.service.js';
 import { createSeedCipher } from '../identity/seed-cipher.js';
 import {
   createDriveTransport,
+  DriveFileNotFoundError,
   type DriveFile,
   type DriveTransport,
 } from './google-drive.google.js';
@@ -82,6 +83,10 @@ function setup(
     attachedTo?: readonly AttachedItem[];
     pickerApiKey?: string;
     ancestors?: Record<string, readonly string[]>;
+    /** W12-2: folders Google refuses to show this connection (404). */
+    hidden?: readonly string[];
+    /** W12-2: what Google's `root` alias resolves to for the connected account. */
+    myDriveRoot?: string;
   } = {},
 ) {
   const connection = {
@@ -121,15 +126,20 @@ function setup(
     refreshAccessToken: vi.fn(async () => 'fresh-access-token-value'),
     revoke: vi.fn(),
     ensureFolder: vi.fn(),
-    getFile: vi.fn(async (_t: string, id: string) =>
-      id === file.id
-        ? file
-        : {
-            ...fileIn(ancestors[id] ?? []),
-            id,
-            mimeType: 'application/vnd.google-apps.folder',
-          },
-    ),
+    getFile: vi.fn(async (_t: string, id: string) => {
+      if (id === file.id) return file;
+      if (id === 'root' && options.myDriveRoot !== undefined) {
+        return { ...fileIn([]), id: options.myDriveRoot };
+      }
+      if (id === 'root' || options.hidden?.includes(id)) {
+        throw new DriveFileNotFoundError('Google has no such file');
+      }
+      return {
+        ...fileIn(ancestors[id] ?? []),
+        id,
+        mimeType: 'application/vnd.google-apps.folder',
+      };
+    }),
     listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
     startUpload: vi.fn(),
   };
@@ -234,6 +244,28 @@ describe("V2: attach links only a file from this project's folders or a person's
       drive.attach(ctx(), principal('member'), ITEM_P1, 'file_abcdef12345'),
     ).rejects.toMatchObject({ status: 404 });
     expect(repository.insertAttachment).not.toHaveBeenCalled();
+  });
+
+  it('W12-2: refuses a file under a folder Google will not show (unresolved origin, fail closed)', async () => {
+    const { drive, useFile, repository } = setup({
+      hidden: ['user_made_sub'],
+      ancestors: { user_made_sub: ['folder_p2'] },
+    });
+    useFile(fileIn(['user_made_sub']));
+    await expect(
+      drive.attach(ctx(), principal('member'), ITEM_P1, 'file_abcdef12345'),
+    ).rejects.toMatchObject({ status: 404, code: 'not_found' });
+    expect(repository.insertAttachment).not.toHaveBeenCalled();
+  });
+
+  it("W12-2: still attaches a person's own file at their My Drive root, even if the root is unseen", async () => {
+    const { drive, useFile, repository } = setup({
+      hidden: ['my_drive_root_7'],
+      myDriveRoot: 'my_drive_root_7',
+    });
+    useFile(fileIn(['my_drive_root_7']));
+    await drive.attach(ctx(), principal('member'), ITEM_P1, 'file_abcdef12345');
+    expect(repository.insertAttachment).toHaveBeenCalledTimes(1);
   });
 
   it('the transport asks Google for the parents and returns them', async () => {
