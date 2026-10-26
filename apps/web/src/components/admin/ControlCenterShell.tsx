@@ -13,6 +13,7 @@ import { MembershipGoneGate } from '../shell/MembershipGoneGate';
 import { WorkspaceSuspendedGate } from '../platform/WorkspaceSuspendedGate';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getConnectedApps } from '../../lib/api/connected-apps';
+import { getStorageStatus } from '../../lib/api/google-drive';
 import type { ApiClient } from '../../lib/api/client';
 import { useOrganizationName, useOrganizationRole } from '../../lib/use-organization-names';
 import { roleMayUse } from '../../lib/role-capability';
@@ -282,9 +283,40 @@ function SectionItem({
         {...(current ? { 'aria-current': 'page' as const } : {})}
       >
         {t(item.labelKey)}
+        {item.id === 'storage' ? (
+          <StorageProviderBadge organizationSlug={organizationSlug} />
+        ) : null}
       </Link>
     </li>
   );
+}
+
+/** The company storage's provider by name, for the menu badge; null for TManage storage. */
+export function storageProviderLabel(mode: string | undefined): string | null {
+  if (mode === 'google_drive') return 'Google Drive';
+  if (mode === 'onedrive') return 'OneDrive';
+  return null;
+}
+
+/**
+ * 0236 (Figma 395:5683 / 395:6304): the Storage entry names the active provider. The entry is
+ * drawn only for `org.manage`, the storage read is open to `work.read`; under the Storage screen's
+ * own query key, so the two share one request.
+ */
+function StorageProviderBadge({ organizationSlug }: { organizationSlug: string }) {
+  const queryClient = useContext(QueryClientContext);
+  const status = useQuery(
+    {
+      queryKey: ['storage-status', organizationSlug],
+      queryFn: () => getStorageStatus(browserApiClient(), organizationSlug),
+      staleTime: 60_000,
+      retry: false,
+      enabled: queryClient !== undefined,
+    },
+    queryClient ?? IDLE_QUERY_CLIENT,
+  );
+  const label = storageProviderLabel(status.data?.storageMode);
+  return label ? <span className="tm-cc-sections__badge">{label}</span> : null;
 }
 
 /**

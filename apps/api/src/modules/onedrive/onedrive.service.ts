@@ -106,6 +106,8 @@ export type OneDrivePickerSessionView =
   | { readonly mode: 'scoped'; readonly projectId: string };
 
 export interface OneDriveProjectFilesView {
+  /** The drive every listed file lives in (the connection's root drive); attach needs it. */
+  readonly driveId: string;
   readonly folderId: string | null;
   readonly files: readonly {
     readonly id: string;
@@ -469,7 +471,15 @@ export class OneDriveService {
     }
     const folders = visible.map((f) => ({ id: f.itemId, kind: f.kind, name: f.name }));
     const projectFolder = visible.find((folder) => folder.kind === 'project');
-    if (!projectFolder) return { folderId: null, files: [], folders, nextPageToken: null };
+    if (!projectFolder) {
+      return {
+        driveId: live.onedriveDriveId,
+        folderId: null,
+        files: [],
+        folders,
+        nextPageToken: null,
+      };
+    }
     const folderId = input.folderId ?? projectFolder.itemId;
     const accessToken = await this.token(context, live);
     const page = await this.graph(
@@ -482,7 +492,13 @@ export class OneDriveService {
       live.id,
       context,
     );
-    return { folderId, files: page.files, folders, nextPageToken: page.nextPageToken };
+    return {
+      driveId: live.onedriveDriveId,
+      folderId,
+      files: page.files,
+      folders,
+      nextPageToken: page.nextPageToken,
+    };
   }
 
   /** Open an upload session into `TManage/<Project>/<Work item>/`; the browser sends the bytes. */

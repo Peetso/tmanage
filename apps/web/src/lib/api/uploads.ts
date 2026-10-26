@@ -1,6 +1,12 @@
 import type { ApiClient } from './client';
 import { NetworkError } from './errors';
 import { uploadToDrive, type DriveAttachmentView, type StorageStatusView } from './google-drive';
+import {
+  uploadToOneDrive,
+  uploadsGoToOneDrive,
+  type OneDriveAttachmentView,
+  type OneDriveStatusView,
+} from './onedrive';
 import { attachWorkItemFile, type ItemFile } from './work-items';
 
 /**
@@ -294,7 +300,8 @@ function settleBy<T>(work: Promise<T>, signal: AbortSignal, message: string): Pr
 /**
  * Upload a file for a work item to where the company keeps files: Google Drive through the
  * existing `uploadToDrive` (the bytes go straight to Google, the file is then attached as a Drive
- * attachment), or TManage storage, attached as an item file.
+ * attachment), OneDrive the same way through `uploadToOneDrive` (0236), or TManage storage,
+ * attached as an item file.
  */
 export async function uploadWorkItemAttachment(
   client: ApiClient,
@@ -304,13 +311,28 @@ export async function uploadWorkItemAttachment(
     readonly projectId: string;
     readonly file: File;
     readonly storage: StorageStatusView | undefined;
+    /** 0236. OneDrive's status; OneDrive takes the upload when it is the company's storage. */
+    readonly oneDrive?: OneDriveStatusView | undefined;
   },
   deps: UploadAttachmentOptions = {},
 ): Promise<
+  | { readonly kind: 'onedrive'; readonly attachment: OneDriveAttachmentView }
   | { readonly kind: 'google_drive'; readonly attachment: DriveAttachmentView }
   | { readonly kind: 'tmanage'; readonly file: ItemFile }
 > {
   const deadline = deps.deadline ?? defaultDeadline;
+  if (uploadsGoToOneDrive(input.oneDrive)) {
+    const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
+    const transfer = transferTimeoutMs(input.file.size);
+    const put: typeof globalThis.fetch = (url, init) =>
+      send(url, { ...init, signal: deadline(transfer) });
+    const attachment = await settleBy(
+      uploadToOneDrive(client, organizationSlug, input.workItemId, input.file, put),
+      deadline(2 * UPLOAD_STEP_TIMEOUT_MS + transfer),
+      `“${input.file.name}” did not reach OneDrive.`,
+    );
+    return { kind: 'onedrive', attachment };
+  }
   if (uploadsGoToDrive(input.storage)) {
     const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
     const transfer = transferTimeoutMs(input.file.size);

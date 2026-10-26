@@ -203,6 +203,123 @@
   gap: 10px;
 }
 
+/* 0236. OneDrive (Figma 395:5239): the library switch under a quiet rule, then the actions. */
+.tm-storage__rule {
+  margin: 0;
+  border: 0;
+  border-block-start: var(--b-quiet) solid var(--line-300);
+}
+
+.tm-storage__option .tm-storage__caption,
+.tm-storage__option > .tm-storage__capsule,
+.tm-storage__option > .tm-storage__facts,
+.tm-storage__option > .tm-storage__actions,
+.tm-storage__option > .tm-storage__switch,
+.tm-storage__option > .tm-storage__rule,
+.tm-storage__option > .tm-inline-alert {
+  margin-inline-start: calc(var(--s10) + var(--s1));
+}
+
+/* "Attach from Google Drive" and "Attach from OneDrive" side by side; the picked list below. */
+.tm-cloud-attach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--s2);
+}
+
+.tm-cloud-attach:empty {
+  display: none;
+}
+
+.tm-onedrive-attach {
+  display: contents;
+}
+
+.tm-onedrive-attach__caption,
+.tm-onedrive-attach__picked,
+.tm-onedrive-attach .tm-inline-alert {
+  flex-basis: 100%;
+}
+
+.tm-onedrive-attach__caption {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-onedrive-attach__eyebrow {
+  margin: 0 0 var(--s2);
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tm-onedrive-attach__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-onedrive-attach__item {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+}
+
+.tm-onedrive-attach__kind {
+  flex: 0 0 auto;
+  padding: 2px var(--s2);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-50);
+  color: var(--ink-650);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+.tm-onedrive-attach__text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+
+.tm-onedrive-attach__name {
+  overflow: hidden;
+  color: var(--ink-650);
+  font-size: var(--t-body-md);
+  line-height: var(--t-body-md-line);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tm-onedrive-attach__meta {
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: var(--t-caption);
+}
+
+.tm-onedrive-attach__remove {
+  padding: var(--s1) var(--s2);
+  border: 0;
+  background: transparent;
+  color: var(--ink-800);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tm-onedrive-attach__remove:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 @media (max-width: 640px) {
   .tm-drive-files {
     padding: var(--s4);

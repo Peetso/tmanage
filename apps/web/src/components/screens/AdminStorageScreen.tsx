@@ -10,6 +10,7 @@ import {
   Select,
   Skeleton,
   StateCapsule,
+  Switch,
 } from '@tmanage/ui';
 import { ControlCenterShell } from '../admin/ControlCenterShell';
 import { browserApiClient } from '../../lib/api/browser-client';
@@ -23,12 +24,31 @@ import {
   updateStorageSettings,
 } from '../../lib/api/google-drive';
 import type { DriveLocation, StorageMode, StorageStatusView } from '../../lib/api/google-drive';
+import {
+  completeOneDriveConnect,
+  disconnectOneDrive,
+  getOneDrivePickerSession,
+  getOneDriveStatus,
+  readOneDriveReturn,
+  startOneDriveConnect,
+  updateOneDriveSettings,
+} from '../../lib/api/onedrive';
+import type { OneDriveLocation, OneDriveStatusView } from '../../lib/api/onedrive';
 import type { ApiClient } from '../../lib/api/client';
 import { openDrivePicker } from '../../lib/google-picker';
+import { openOneDrivePicker, reservePickerWindow } from '../../lib/onedrive-picker';
+import { closeIfBlank, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useOrganizationName } from '../../lib/use-organization-names';
 import { useT } from '../../lib/i18n/use-t';
 import '../../styles/screens/storage.css';
+
+/**
+ * Owner decision 2026-10-26: company storage is Google Drive or OneDrive only, so the TManage
+ * storage choice is not offered. The API still supports it; flip this to bring the card back.
+ * Avatars, logos and system exports keep using TManage storage whatever is chosen here.
+ */
+export const SHOW_TMANAGE_STORAGE = false;
 
 export interface AdminStorageScreenProps {
   organizationSlug: string;
@@ -38,8 +58,9 @@ export interface AdminStorageScreenProps {
 
 /**
  * **Control > Storage** (Figma ADM-14 · Storage: not configured 353:1172, connected 353:1296,
- * error 353:1450). Where this company's files live: TManage storage (the default) or the
- * company's Google Drive, in `TManage/<Project>/<Work item>/`.
+ * error 353:1450; with OneDrive 395:5239). Where this company's files live: the company's Google
+ * Drive or OneDrive, in `TManage/<Project>/<Work item>/` (TManage storage behind
+ * {@link SHOW_TMANAGE_STORAGE}).
  *
  * Connecting goes to Google's consent screen and comes back here; the API forwards Google's answer
  * in the URL fragment, and this screen completes the connection under the person's own session,
@@ -59,8 +80,22 @@ export function AdminStorageScreen({
   const [returnError, setReturnError] = useState(false);
   const handledReturn = useRef(false);
 
+  const oneDriveKey = oneDriveStatusKey(organizationSlug);
   const status = useQuery({ queryKey, queryFn: () => getStorageStatus(api, organizationSlug) });
-  const store = (view: StorageStatusView) => queries.setQueryData(queryKey, view);
+  const oneDriveStatus = useQuery({
+    queryKey: oneDriveKey,
+    queryFn: () => getOneDriveStatus(api, organizationSlug),
+  });
+  // The storage mode is one per company across providers: a change through one provider's
+  // answer leaves the other's stale, so it is read again.
+  const store = (view: StorageStatusView) => {
+    queries.setQueryData(queryKey, view);
+    void queries.invalidateQueries({ queryKey: oneDriveKey });
+  };
+  const storeOneDrive = (view: OneDriveStatusView) => {
+    queries.setQueryData(oneDriveKey, view);
+    void queries.invalidateQueries({ queryKey });
+  };
 
   const complete = useMutation({
     mutationFn: (input: { code: string; state: string }) =>
@@ -68,16 +103,25 @@ export function AdminStorageScreen({
     onSuccess: store,
   });
 
-  // Google's answer comes back in the fragment; handle it once, then remove it from the address.
+  const completeOneDrive = useMutation({
+    mutationFn: (input: { code: string; state: string }) =>
+      completeOneDriveConnect(api, organizationSlug, input),
+    onSuccess: storeOneDrive,
+  });
+
+  // Google's or Microsoft's answer comes back in the fragment; handle it once, then remove it.
   useEffect(() => {
     if (handledReturn.current || typeof window === 'undefined') return;
     handledReturn.current = true;
-    const returned = readDriveReturn(window.location.hash);
+    const drive = readDriveReturn(window.location.hash);
+    const oneDrive = drive ? null : readOneDriveReturn(window.location.hash);
+    const returned = drive ?? oneDrive;
     if (!returned) return;
     window.history.replaceState(null, '', window.location.pathname + window.location.search);
     if (returned.kind === 'error') setReturnError(true);
-    else complete.mutate({ code: returned.code, state: returned.state });
-  }, [complete]);
+    else if (drive) complete.mutate({ code: returned.code, state: returned.state });
+    else completeOneDrive.mutate({ code: returned.code, state: returned.state });
+  }, [complete, completeOneDrive]);
 
   const connect = useMutation({
     mutationFn: () => startDriveConnect(api, organizationSlug),
@@ -118,19 +162,73 @@ export function AdminStorageScreen({
     },
   });
 
+  const connectOneDrive = useMutation({
+    mutationFn: (libraries: boolean) => startOneDriveConnect(api, organizationSlug, { libraries }),
+    onSuccess: ({ url }) => window.location.assign(url),
+  });
+
+  const oneDriveSettings = useMutation({
+    mutationFn: (input: { storageMode?: 'tmanage' | 'onedrive'; location?: OneDriveLocation }) =>
+      updateOneDriveSettings(api, organizationSlug, input),
+    onSuccess: storeOneDrive,
+  });
+
+  const disconnectMicrosoft = useMutation({
+    mutationFn: () => disconnectOneDrive(api, organizationSlug),
+    onSuccess: storeOneDrive,
+  });
+
+  // The popup is opened inside the click (see the button), so the browser does not block it.
+  const changeOneDriveFolder = useMutation({
+    mutationFn: async (popup: Window | null) => {
+      const session = await getOneDrivePickerSession(api, organizationSlug);
+      // Without a project the API answers the owner only, and always with the picker.
+      if (session.mode !== 'onedrive' || !popup) throw new Error('picker_unavailable');
+      const [folder] = await openOneDrivePicker({
+        popup,
+        session,
+        mode: 'folder',
+        locale,
+        tokenFor: async (resource) => {
+          const next = await getOneDrivePickerSession(api, organizationSlug, { resource });
+          if (next.mode !== 'onedrive') throw new Error('picker_unavailable');
+          return next.accessToken;
+        },
+      });
+      if (!folder) return null;
+      return updateOneDriveSettings(api, organizationSlug, {
+        location: { kind: 'folder', driveId: folder.driveId, itemId: folder.itemId },
+      });
+    },
+    onSuccess: (view) => {
+      if (view) storeOneDrive(view);
+    },
+    onSettled: (_view, _error, popup) => closeIfBlank(popup),
+  });
+
+  const oneDriveMutations = [
+    completeOneDrive,
+    connectOneDrive,
+    oneDriveSettings,
+    disconnectMicrosoft,
+    changeOneDriveFolder,
+  ];
   const failed =
     returnError ||
     complete.isError ||
     connect.isError ||
     settings.isError ||
     disconnect.isError ||
-    changeFolder.isError;
+    changeFolder.isError ||
+    oneDriveMutations.some((mutation) => mutation.isError);
   const busy =
     complete.isPending ||
     connect.isPending ||
     settings.isPending ||
     disconnect.isPending ||
-    changeFolder.isPending;
+    changeFolder.isPending ||
+    oneDriveMutations.some((mutation) => mutation.isPending);
+  const oneDriveView = oneDriveStatus.data;
 
   return (
     <ControlCenterShell
@@ -153,7 +251,9 @@ export function AdminStorageScreen({
           <h2 id="tm-storage-heading" className="tm-visually-hidden">
             {t('AdminStorageScreen.title')}
           </h2>
-          <p className="tm-storage__intro">{t('AdminStorageScreen.intro')}</p>
+          <p className="tm-storage__intro">
+            {t('AdminStorageScreen.introNamed').replace('{name}', organizationName)}
+          </p>
 
           {failed ? (
             <InlineAlert tone="danger" title={t('AdminStorageScreen.actionFailedTitle')} live>
@@ -166,19 +266,22 @@ export function AdminStorageScreen({
             role="group"
             aria-label={t('AdminStorageScreen.optionsLabel')}
           >
-            <div className="tm-storage__option">
-              <Checkbox
-                className="tm-storage__choice"
-                label={t('AdminStorageScreen.tmanageTitle')}
-                hint={t('AdminStorageScreen.tmanageBody')}
-                checked={status.data.storageMode === 'tmanage'}
-                disabled={busy || status.data.storageMode === 'tmanage'}
-                onChange={() => settings.mutate({ storageMode: 'tmanage' })}
-              />
-            </div>
+            {SHOW_TMANAGE_STORAGE ? (
+              <div className="tm-storage__option">
+                <Checkbox
+                  className="tm-storage__choice"
+                  label={t('AdminStorageScreen.tmanageTitle')}
+                  hint={t('AdminStorageScreen.tmanageBody')}
+                  checked={status.data.storageMode === 'tmanage'}
+                  disabled={busy || status.data.storageMode === 'tmanage'}
+                  onChange={() => settings.mutate({ storageMode: 'tmanage' })}
+                />
+              </div>
+            ) : null}
 
             <DriveOption
               view={status.data}
+              oneDrive={oneDriveView}
               busy={busy}
               onUseDrive={() => settings.mutate({ storageMode: 'google_drive' })}
               onConnect={() => connect.mutate()}
@@ -186,6 +289,17 @@ export function AdminStorageScreen({
               onChangeFolder={() => changeFolder.mutate()}
               onMyDrive={() => settings.mutate({ location: { kind: 'my_drive' } })}
             />
+
+            {oneDriveView ? (
+              <OneDriveOption
+                view={oneDriveView}
+                busy={busy}
+                onUse={() => oneDriveSettings.mutate({ storageMode: 'onedrive' })}
+                onConnect={(libraries) => connectOneDrive.mutate(libraries)}
+                onDisconnect={() => disconnectMicrosoft.mutate()}
+                onChangeFolder={() => changeOneDriveFolder.mutate(reservePickerWindow())}
+              />
+            ) : null}
           </div>
         </section>
       )}
@@ -195,6 +309,8 @@ export function AdminStorageScreen({
 
 interface DriveOptionProps {
   view: StorageStatusView;
+  /** 0236. While OneDrive is connected Google Drive is not offered a connect; see 395:5385. */
+  oneDrive: OneDriveStatusView | undefined;
   busy: boolean;
   onUseDrive: () => void;
   onConnect: () => void;
@@ -205,6 +321,7 @@ interface DriveOptionProps {
 
 function DriveOption({
   view,
+  oneDrive,
   busy,
   onUseDrive,
   onConnect,
@@ -215,21 +332,17 @@ function DriveOption({
   const t = useT();
   const drive = view.googleDrive;
   const connected = view.configured && drive.status === 'connected';
+  const oneDriveConnected = oneDrive?.oneDrive.status === 'connected';
+  // One lime call to action on the screen: OneDrive's while it offers a connect (395:5240).
+  const oneDriveOffersConnect =
+    oneDrive?.configured === true && oneDrive.oneDrive.status === 'not_connected';
 
   return (
     <div className="tm-storage__option">
       <Checkbox
         className="tm-storage__choice"
         label={t('AdminStorageScreen.driveTitle')}
-        hint={
-          <>
-            {t('AdminStorageScreen.driveBody')}{' '}
-            <span className="tm-storage__path" dir="ltr">
-              TManage/‹{t('AdminStorageScreen.pathProject')}›/‹
-              {t('AdminStorageScreen.pathWorkItem')}›/
-            </span>
-          </>
-        }
+        hint={t('AdminStorageScreen.driveLine')}
         checked={view.storageMode === 'google_drive'}
         disabled={busy || !connected || view.storageMode === 'google_drive'}
         onChange={onUseDrive}
@@ -244,12 +357,21 @@ function DriveOption({
           <StateCapsule className="tm-storage__capsule">
             {t('AdminStorageScreen.notConnected')}
           </StateCapsule>
-          <div className="tm-storage__actions">
-            <Button tone="lime" size="feature" loading={busy} onClick={onConnect}>
-              {t('AdminStorageScreen.connect')}
-            </Button>
-          </div>
-          <p className="tm-storage__caption">{t('AdminStorageScreen.connectNote')}</p>
+          {oneDriveConnected ? null : (
+            <div className="tm-storage__actions">
+              <Button
+                tone={oneDriveOffersConnect ? 'outline' : 'lime'}
+                size="feature"
+                loading={busy}
+                onClick={onConnect}
+              >
+                {t('AdminStorageScreen.connect')}
+              </Button>
+            </div>
+          )}
+          {oneDriveOffersConnect || oneDriveConnected ? null : (
+            <p className="tm-storage__caption">{t('AdminStorageScreen.connectNote')}</p>
+          )}
         </>
       ) : drive.status === 'error' ? (
         <>
@@ -319,6 +441,142 @@ function DriveOption({
             </Button>
           </div>
           <p className="tm-storage__caption">{t('AdminStorageScreen.existingFilesNote')}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+interface OneDriveOptionProps {
+  view: OneDriveStatusView;
+  busy: boolean;
+  onUse: () => void;
+  onConnect: (libraries: boolean) => void;
+  onDisconnect: () => void;
+  onChangeFolder: () => void;
+}
+
+/**
+ * The OneDrive card (Figma 395:5240 not connected, 395:5385 connected, 395:5545 not configured;
+ * Arabic 395:5869 / 395:6010 / 395:6168). Turning on SharePoint libraries is a second Microsoft
+ * consent (incremental), so the switch reconnects; a library is then chosen with Change folder.
+ */
+function OneDriveOption({
+  view,
+  busy,
+  onUse,
+  onConnect,
+  onDisconnect,
+  onChangeFolder,
+}: OneDriveOptionProps) {
+  const t = useT();
+  const drive = view.oneDrive;
+  const connected = view.configured && drive.status === 'connected';
+  const library = drive.librariesEnabled && drive.driveName ? drive.driveName : null;
+  const folder = (drive.folderPath ?? 'TManage/').replace(/\/+$/, '');
+
+  return (
+    <div className="tm-storage__option">
+      <Checkbox
+        className="tm-storage__choice"
+        label="OneDrive"
+        hint={t('OneDriveStorage.body')}
+        checked={view.storageMode === 'onedrive'}
+        disabled={busy || !connected || view.storageMode === 'onedrive'}
+        onChange={onUse}
+      />
+
+      {!view.configured ? (
+        <>
+          <StateCapsule className="tm-storage__capsule">
+            {t('OneDriveStorage.notAvailable')}
+          </StateCapsule>
+          <InlineAlert tone="warning">{t('OneDriveStorage.notConfiguredBody')}</InlineAlert>
+          <div className="tm-storage__actions">
+            <Button tone="lime" size="feature" disabled>
+              {t('OneDriveStorage.connect')}
+            </Button>
+          </div>
+        </>
+      ) : drive.status === 'not_connected' ? (
+        <>
+          <StateCapsule className="tm-storage__capsule">
+            {t('OneDriveStorage.notConnected')}
+          </StateCapsule>
+          <div className="tm-storage__actions">
+            <Button tone="lime" size="feature" loading={busy} onClick={() => onConnect(false)}>
+              {t('OneDriveStorage.connect')}
+            </Button>
+          </div>
+          <p className="tm-storage__caption">{t('OneDriveStorage.connectNote')}</p>
+        </>
+      ) : drive.status === 'error' ? (
+        <>
+          <InlineAlert tone="danger" title={t('OneDriveStorage.errorTitle')}>
+            {t('OneDriveStorage.errorBody')}
+          </InlineAlert>
+          <div className="tm-storage__actions">
+            <Button
+              tone="lime"
+              size="feature"
+              loading={busy}
+              onClick={() => onConnect(drive.librariesEnabled)}
+            >
+              {t('OneDriveStorage.reconnect')}
+            </Button>
+            <Button tone="destructive" size="feature" disabled={busy} onClick={onDisconnect}>
+              {t('OneDriveStorage.disconnect')}
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <StateCapsule state="done" className="tm-storage__capsule">
+            {t('OneDriveStorage.connected')}
+          </StateCapsule>
+          <dl className="tm-storage__facts">
+            {drive.accountEmail ? (
+              <div className="tm-storage__fact">
+                <dt>{t('OneDriveStorage.account')}</dt>
+                <dd dir="ltr">{drive.accountEmail}</dd>
+              </div>
+            ) : null}
+            <div className="tm-storage__fact">
+              <dt>{t('OneDriveStorage.rootFolder')}</dt>
+              <dd>
+                {t('OneDriveStorage.rootPath')
+                  .replace('{root}', library ?? t('OneDriveStorage.myFiles'))
+                  .replace('{folder}', folder)}
+              </dd>
+            </div>
+            <div className="tm-storage__fact">
+              <dt>{t('OneDriveStorage.library')}</dt>
+              <dd>{library ?? t('OneDriveStorage.notUsed')}</dd>
+            </div>
+          </dl>
+          <hr className="tm-storage__rule" />
+          <Switch
+            className="tm-storage__switch"
+            label={t('OneDriveStorage.useLibrary')}
+            hint={t('OneDriveStorage.useLibraryHint')}
+            checked={drive.librariesEnabled}
+            disabled={busy || drive.librariesEnabled}
+            onChange={() => onConnect(true)}
+          />
+          <div className="tm-storage__actions">
+            <Button
+              tone="outline"
+              size="feature"
+              disabled={busy || !view.pickerAvailable}
+              onClick={onChangeFolder}
+            >
+              {t('OneDriveStorage.changeFolder')}
+            </Button>
+            <Button tone="destructive" size="feature" disabled={busy} onClick={onDisconnect}>
+              {t('OneDriveStorage.disconnect')}
+            </Button>
+          </div>
+          <p className="tm-storage__caption">{t('OneDriveStorage.existingFilesNote')}</p>
         </>
       )}
     </div>

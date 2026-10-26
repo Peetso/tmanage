@@ -41,6 +41,13 @@ import { listClientOrganizationOptions } from '../../lib/api/project-client';
 import { listProjectShares } from '../../lib/api/clients';
 import { uploadProjectFile, uploadWorkItemAttachment } from '../../lib/api/uploads';
 import { getStorageStatus, listDriveAttachments } from '../../lib/api/google-drive';
+import {
+  attachOneDriveFile,
+  getOneDriveStatus,
+  listOneDriveAttachments,
+} from '../../lib/api/onedrive';
+import type { PickedOneDriveItem } from '../../lib/onedrive-picker';
+import { OneDriveAttachPicker, oneDriveStatusKey } from '../storage/OneDriveAttachPicker';
 import { addAttachmentVersion, getAttachmentHistory } from '../../lib/api/attachment-versions';
 import type { AttachmentVersion } from '../../lib/api/attachment-versions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -1019,6 +1026,29 @@ function FilesCard({
   });
   const driveRows = driveFiles.data ?? [];
 
+  // 0236. The same for OneDrive: its files below Drive's, and "Attach from OneDrive" in the head.
+  const oneDriveQuery = {
+    queryKey: oneDriveStatusKey(organizationSlug),
+    queryFn: () => getOneDriveStatus(api, organizationSlug),
+    staleTime: 60_000,
+  };
+  const oneDrive = useQuery(oneDriveQuery);
+  const oneDriveKey = ['onedrive-attachments', organizationSlug, item.id] as const;
+  const oneDriveFiles = useQuery({
+    queryKey: oneDriveKey,
+    queryFn: () => listOneDriveAttachments(api, organizationSlug, item.id),
+    enabled: oneDrive.data?.configured === true,
+  });
+  const oneDriveRows = oneDriveFiles.data ?? [];
+  const attachFromOneDrive = useMutation({
+    mutationFn: async (picked: readonly PickedOneDriveItem[]) => {
+      for (const file of picked) await attachOneDriveFile(api, organizationSlug, item.id, file);
+    },
+    onSuccess: () => setProblem(undefined),
+    onError: (error) => setProblem(describe(error, ta)),
+    onSettled: () => void queries.invalidateQueries({ queryKey: oneDriveKey }),
+  });
+
   const attach = useMutation({
     mutationFn: async (file: File) =>
       uploadWorkItemAttachment(api, organizationSlug, {
@@ -1027,6 +1057,7 @@ function FilesCard({
         file,
         // Read at click time, so a status still loading is not mistaken for TManage storage.
         storage: await queries.fetchQuery(storageQuery).catch(() => undefined),
+        oneDrive: await queries.fetchQuery(oneDriveQuery).catch(() => undefined),
       }),
     onSuccess: (result) => {
       setProblem(undefined);
@@ -1034,7 +1065,9 @@ function FilesCard({
         queryKey:
           result.kind === 'google_drive'
             ? driveKey
-            : ['work-item-files', organizationSlug, item.id],
+            : result.kind === 'onedrive'
+              ? oneDriveKey
+              : ['work-item-files', organizationSlug, item.id],
       });
     },
     onError: (error) => setProblem(describe(error, ta)),
@@ -1095,6 +1128,16 @@ function FilesCard({
         >
           {attach.isPending ? ta('WorkDetail.attaching') : ta('WorkDetail.attachFile')}
         </button>
+        <OneDriveAttachPicker
+          organizationSlug={organizationSlug}
+          client={api}
+          picked={[]}
+          onPick={(picked) => attachFromOneDrive.mutate(picked)}
+          onRemove={() => undefined}
+          projectId={item.projectId}
+          disabled={attachFromOneDrive.isPending}
+          showList={false}
+        />
         <input
           ref={picker}
           type="file"
@@ -1124,7 +1167,11 @@ function FilesCard({
       ) : null}
       {loading ? <Skeleton height="var(--row)" /> : null}
       {failed ? <p className="tm-field__hint">{ta('WorkDetail.filesError')}</p> : null}
-      {!loading && !failed && files.length === 0 && driveRows.length === 0 ? (
+      {!loading &&
+      !failed &&
+      files.length === 0 &&
+      driveRows.length === 0 &&
+      oneDriveRows.length === 0 ? (
         <p className="tm-field__hint">{ta('WorkDetail.noFiles')}</p>
       ) : null}
 
@@ -1312,6 +1359,32 @@ function FilesCard({
                 <a
                   className="tm-wk-text-button"
                   href={drive.webViewLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {ta('WorkDetail.download')}
+                </a>
+              ) : null}
+            </div>
+          </li>
+        ))}
+        {oneDriveRows.map((file) => (
+          <li key={file.id} className="tm-wk-file" data-backed={false}>
+            <div className="tm-wk-file__row">
+              <span className="tm-wk-badge">{fileKind(file.name)}</span>
+              <span className="tm-wk-file__text">
+                <span className="tm-wk-file__name">{file.name}</span>
+                <span className="tm-wk-file__meta">
+                  {ta('WorkDetail.versionOn', {
+                    n: 1,
+                    day: formatShortDay(dayOf(file.createdAt), locale),
+                  })}
+                </span>
+              </span>
+              {file.webUrl ? (
+                <a
+                  className="tm-wk-text-button"
+                  href={file.webUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

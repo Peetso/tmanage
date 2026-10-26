@@ -130,6 +130,19 @@
   cursor: default;
 }
 
+/* 0236 (Figma 395:5683): the Storage entry's provider badge, at the entry's far end. */
+.tm-cc-sections__badge {
+  margin-inline-start: auto;
+  padding: 2px var(--s3);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-capsule);
+  background: var(--paper-0);
+  color: var(--ink-800);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+  white-space: nowrap;
+}
+
 .tm-cc-sections__item--static:hover {
   background: transparent;
   color: var(--ink-800);

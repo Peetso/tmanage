@@ -131,6 +131,12 @@ import type {
   ProjectFolderView as ApiProjectFolderView,
   ProjectFilesView as ApiProjectFilesView,
 } from '../../apps/api/src/modules/google-drive/google-drive.service.js';
+import type {
+  OneDriveStatusView as ApiOneDriveStatusView,
+  OneDriveAttachmentView as ApiOneDriveAttachmentView,
+  OneDrivePickerSessionView as ApiOneDrivePickerSessionView,
+  OneDriveProjectFilesView as ApiOneDriveProjectFilesView,
+} from '../../apps/api/src/modules/onedrive/onedrive.service.js';
 import type { ConsentView as ApiConsentView } from '../../apps/api/src/modules/oauth/consent.controller.js';
 import type {
   ConnectedAppView as ApiConnectedAppView,
@@ -737,6 +743,12 @@ import type {
   ProjectDriveFolder as WebProjectDriveFolder,
   ProjectDriveFilesView as WebProjectDriveFilesView,
 } from '../../apps/web/src/lib/api/google-drive';
+import type {
+  OneDriveStatusView as WebOneDriveStatusView,
+  OneDriveAttachmentView as WebOneDriveAttachmentView,
+  OneDrivePickerSessionView as WebOneDrivePickerSessionView,
+  OneDriveProjectFilesView as WebOneDriveProjectFilesView,
+} from '../../apps/web/src/lib/api/onedrive';
 import type { ConsentView as WebConsentView } from '../../apps/web/src/lib/api/oauth-consent';
 import type {
   ConnectedApp as WebConnectedApp,
@@ -3032,6 +3044,15 @@ type _pickerSession = Assert<Exact<ApiPickerSessionUnion, WebPickerSessionView>>
 type _projectDriveFile = Assert<Exact<ApiProjectFileView, WebProjectDriveFile>>;
 type _projectDriveFolder = Assert<Exact<ApiProjectFolderView, WebProjectDriveFolder>>;
 type _projectDriveFiles = Assert<Exact<ApiProjectFilesView, WebProjectDriveFilesView>>;
+// OneDrive storage (0236): the Storage screen's third card and "Attach from OneDrive".
+type _oneDriveStatus = Assert<Exact<ApiOneDriveStatusView, WebOneDriveStatusView>>;
+type _oneDriveAttachment = Assert<Exact<ApiOneDriveAttachmentView, WebOneDriveAttachmentView>>;
+type _oneDrivePickerSession = Assert<
+  Exact<ApiOneDrivePickerSessionView, WebOneDrivePickerSessionView>
+>;
+type _oneDriveProjectFiles = Assert<
+  Exact<ApiOneDriveProjectFilesView, WebOneDriveProjectFilesView>
+>;
 // MCP connector S9–S11: the consent page, Connected apps and the AI approve page. Their element
 // shapes (`ConsentClient`, `AiApprovalSummary`, `AiApprovalField`) are covered through these.
 type _consent = Assert<Exact<ApiConsentView, WebConsentView>>;

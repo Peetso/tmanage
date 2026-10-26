@@ -16,6 +16,17 @@ export interface DriveProjectFilesDialogProps {
   /** The files the person chose; the dialog closes itself through `onClose` afterwards. */
   onPick: (items: readonly PickedDriveItem[]) => void;
   onClose: () => void;
+  /**
+   * 0236. Another provider's listing of the same shape (OneDrive); Google Drive by default. The
+   * dialog's text then comes from `lede` and `listLabel`.
+   */
+  loadPage?: (input: {
+    readonly folderId?: string;
+    readonly pageToken?: string;
+  }) => Promise<ProjectDriveFilesView>;
+  provider?: string;
+  lede?: string;
+  listLabel?: string;
 }
 
 /**
@@ -30,6 +41,10 @@ export function DriveProjectFilesDialog({
   projectId,
   onPick,
   onClose,
+  loadPage,
+  provider = 'google_drive',
+  lede,
+  listLabel,
 }: DriveProjectFilesDialogProps) {
   const tr = useTOr();
   const titleId = useId();
@@ -38,12 +53,16 @@ export function DriveProjectFilesDialog({
   const [selected, setSelected] = useState<ReadonlyMap<string, string>>(new Map());
 
   const listing = useInfiniteQuery<ProjectDriveFilesView>({
-    queryKey: ['drive-project-files', organizationSlug, projectId, folderId ?? null],
-    queryFn: ({ pageParam }) =>
-      getProjectDriveFiles(client, organizationSlug, projectId, {
+    queryKey: ['drive-project-files', provider, organizationSlug, projectId, folderId ?? null],
+    queryFn: ({ pageParam }) => {
+      const input = {
         ...(folderId ? { folderId } : {}),
         ...(typeof pageParam === 'string' ? { pageToken: pageParam } : {}),
-      }),
+      };
+      return loadPage
+        ? loadPage(input)
+        : getProjectDriveFiles(client, organizationSlug, projectId, input);
+    },
     initialPageParam: null,
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
   });
@@ -96,7 +115,8 @@ export function DriveProjectFilesDialog({
           {tr('DriveAttach.dialogTitle', 'Attach from project files')}
         </h2>
         <p className="tm-drive-files__lede">
-          {tr('DriveAttach.dialogLede', 'Files TManage keeps in Google Drive for this project.')}
+          {lede ??
+            tr('DriveAttach.dialogLede', 'Files TManage keeps in Google Drive for this project.')}
         </p>
 
         {folders.length > 1 ? (
@@ -142,7 +162,7 @@ export function DriveProjectFilesDialog({
           ) : (
             <ul
               className="tm-drive-files__list"
-              aria-label={tr('DriveAttach.listLabel', 'Files from Google Drive')}
+              aria-label={listLabel ?? tr('DriveAttach.listLabel', 'Files from Google Drive')}
             >
               {files.map((file) => (
                 <li key={file.id}>
