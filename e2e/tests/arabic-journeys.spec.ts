@@ -304,3 +304,88 @@ test.describe('the Arabic journey', () => {
     }
   });
 });
+
+/** The Arabic catalogue, read the way the existing check reads it (`ar.json`). */
+function arabicMessage(key: string): string {
+  const catalogue = JSON.parse(
+    readFileSync(new URL('../../apps/web/src/lib/i18n/messages/ar.json', import.meta.url), 'utf8'),
+  ) as Record<string, string>;
+  const value = catalogue[key];
+  expect(value, `ar.json has ${key}`).toBeTruthy();
+  return value as string;
+}
+
+/** The Arabic public pages this journey reads, with the tab title each prerenders. */
+const ARABIC_PUBLIC_PAGES = [
+  { path: '/ar', title: `TManage — ${arabicMessage('HomePage.heroTitle')}` },
+  { path: '/ar/pricing', title: `${arabicMessage('WebsiteTitle.pricing')} · TManage` },
+] as const;
+
+/** Same-origin link targets on the page (path + query, no hash), each once. */
+async function internalLinks(page: Page): Promise<string[]> {
+  const hrefs = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('a[href]'), (anchor) => anchor.getAttribute('href') ?? ''),
+  );
+  const targets = new Set<string>();
+  for (const href of hrefs) {
+    if (!href.startsWith('/') || href.startsWith('//')) continue;
+    const target = href.split('#')[0] ?? '';
+    if (target !== '') targets.add(target);
+  }
+  return [...targets].sort();
+}
+
+test.describe('the Arabic public pages', () => {
+  test('AR-02: /ar and /ar/pricing arrive in Arabic, their links resolve, and the switch goes to English and back', async ({
+    browser,
+  }) => {
+    // A cold dev server compiles every linked route on first request.
+    test.setTimeout(300_000);
+    // A fresh visitor: no saved language, an English browser — the path alone names Arabic.
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      const checked = new Set<string>();
+
+      for (const { path, title } of ARABIC_PUBLIC_PAGES) {
+        const response = await page.goto(path);
+        expect(response?.status(), `${path}: status`).toBe(200);
+        const html = page.locator('html');
+        await expect(html, `${path}: lang`).toHaveAttribute('lang', /^ar/);
+        await expect(html, `${path}: dir`).toHaveAttribute('dir', 'rtl');
+        await expect(page, `${path}: Arabic title`).toHaveTitle(title);
+        await expect(page.locator('h1').first(), `${path}: Arabic heading`).toContainText(/[؀-ۿ]/u);
+
+        const links = await internalLinks(page);
+        expect(links.length, `${path}: has links`).toBeGreaterThan(0);
+        // An Arabic page links to the Arabic twin of a public page, never its English copy.
+        expect(links, `${path}: links to its Arabic twins`).not.toContain('/pricing');
+        expect(links, `${path}: links to the Arabic pricing page`).toContain('/ar/pricing');
+        for (const link of links) {
+          if (checked.has(link)) continue;
+          checked.add(link);
+          const target = await context.request.get(link, { maxRedirects: 5 });
+          expect(target.status(), `${path} → ${link}: resolves`).toBeLessThan(400);
+        }
+      }
+
+      // The switch: "English" leaves /ar/pricing for /pricing, which reads left-to-right.
+      const footerSwitch = page.locator('.tm-web-footer__lang--desktop');
+      await footerSwitch.getByRole('button', { name: 'English' }).click();
+      await expect(page).toHaveURL(/\/pricing$/);
+      expect(new URL(page.url()).pathname).toBe('/pricing');
+      await expect(page.locator('html')).toHaveAttribute('lang', /^en/);
+      await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+      await expect(page).toHaveTitle('Pricing · TManage');
+
+      // …and "العربية" brings the same page back in Arabic.
+      await footerSwitch.getByRole('button', { name: 'العربية' }).click();
+      await expect(page).toHaveURL(/\/ar\/pricing$/);
+      await expect(page.locator('html')).toHaveAttribute('lang', /^ar/);
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+      await expect(page).toHaveTitle(ARABIC_PUBLIC_PAGES[1].title);
+    } finally {
+      await context.close();
+    }
+  });
+});
