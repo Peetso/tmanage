@@ -103,6 +103,55 @@ export interface ArchiveDocument extends ArchiveHeader {
   readonly sections: Record<string, readonly ArchiveRow[]>;
   /** Sections cut at {@link MAX_ROWS_PER_SECTION}. Empty in the ordinary case. */
   readonly truncatedSections: readonly string[];
+  /**
+   * N03 remainder (wave 11 Q7) — per section, how many of the subject's rows were left out because
+   * they belong to a project the subject can no longer read. A count only: nothing of a withheld row
+   * (no name, no id, no project) is in the archive. Present on member exports.
+   */
+  readonly withheldSections?: Readonly<Record<string, number>>;
+}
+
+/**
+ * N03 remainder (wave 11 Q7) — the `files_added` section narrows `file_assets` by the very rule the
+ * `file_contents` section uses (`privacy-archive-files.repository.ts`, `PROJECT_READABLE` and
+ * `PERSONAL_JOINS`): the subject (the file's owner, `fa.owner_user_id`) must still be able to read
+ * the file's project now. Mirrored here, byte for byte, because that file is not this one's to
+ * change; `wave11-q7-files-added-scope.test.ts` fails if the two ever drift apart. Every joined table
+ * is tied to `fa.organization_id`, which the outer `where` binds first; a `null` fails closed to `0`.
+ * `file_assets.project_id` is `NOT NULL` (migration 0015), so every file has a project to test.
+ */
+export const FILES_ADDED_PROJECT_READABLE = `coalesce(max(case
+    when m.id is not null then (
+      m.has_org_wide_scope = 1
+      or (m.workspace_scope_id is not null and p.workspace_id = m.workspace_scope_id)
+      or (m.workspace_scope_id is null and pm.id is not null))
+    else pc.id is not null
+  end), 0)`;
+
+export const FILES_ADDED_PERSONAL_JOINS = `left join memberships m
+      on m.organization_id = fa.organization_id
+     and m.user_id = fa.owner_user_id
+     and m.status = 'active'
+    left join projects p
+      on p.organization_id = fa.organization_id
+     and p.id = fa.project_id
+    left join project_memberships pm
+      on pm.organization_id = fa.organization_id
+     and pm.project_id = fa.project_id
+     and pm.user_id = fa.owner_user_id
+    left join client_memberships cm
+      on cm.organization_id = fa.organization_id
+     and cm.user_id = fa.owner_user_id
+     and cm.status = 'active'
+     and (cm.expires_at is null or cm.expires_at > now(3))
+    left join project_clients pc
+      on pc.organization_id = fa.organization_id
+     and pc.project_id = fa.project_id
+     and pc.client_organization_id = cm.client_organization_id`;
+
+/** The verdict on one row of the files_added scope read: only a true `1` keeps it. */
+function readableFlag(flag: unknown): boolean {
+  return flag === true || flag === 1 || flag === '1';
 }
 
 /** One JSON-safe value: dates as ISO strings, bytes as base64, big integers as strings. */
@@ -153,6 +202,7 @@ export class PrivacyArchiveBuilder {
   ): Promise<ArchiveDocument> {
     const sections: Record<string, readonly ArchiveRow[]> = {};
     const truncated: string[] = [];
+    const withheld: Record<string, number> = {};
 
     if (header.kind === 'company') {
       for (const [index, section] of COMPANY_SECTIONS.entries()) {
@@ -168,6 +218,14 @@ export class PrivacyArchiveBuilder {
       sections['account'] = identity.account;
       sections['sign_in_history'] = identity.signIns;
       for (const [index, section] of MEMBER_SECTIONS.entries()) {
+        if (section.name === 'files_added') {
+          const scoped = await this.readFilesAdded(context, subject);
+          sections[section.name] = scoped.rows;
+          withheld[section.name] = scoped.withheld;
+          if (scoped.cut) truncated.push(section.name);
+          await onProgress((index + 1) / MEMBER_SECTIONS.length);
+          continue;
+        }
         const { rows, cut } = await this.readSection(
           context,
           section.table,
@@ -187,7 +245,68 @@ export class PrivacyArchiveBuilder {
       }));
     }
 
-    return { ...header, sections, truncatedSections: truncated };
+    return header.kind === 'company'
+      ? { ...header, sections, truncatedSections: truncated }
+      : { ...header, sections, truncatedSections: truncated, withheldSections: withheld };
+  }
+
+  /**
+   * N03 remainder — the files the subject added, only those of projects they can still read. Two
+   * tenant reads per page: the scope verdict per file id (grouped, as the contents read is), then
+   * the whole rows of the readable ids. A withheld file contributes only to the count.
+   */
+  private async readFilesAdded(
+    context: TenantContext,
+    subject: string,
+  ): Promise<{
+    readonly rows: readonly ArchiveRow[];
+    readonly withheld: number;
+    readonly cut: boolean;
+  }> {
+    const rows: ArchiveRow[] = [];
+    let withheld = 0;
+    let scanned = 0;
+    let after = '';
+    while (scanned < MAX_ROWS_PER_SECTION) {
+      const verdicts = await this.database.read(context, (runner) =>
+        runner.query(
+          `select fa.id, ${FILES_ADDED_PROJECT_READABLE} as project_readable
+             from file_assets fa
+             ${FILES_ADDED_PERSONAL_JOINS}
+            where fa.organization_id = ? and fa.id > ? and fa.owner_user_id = ?
+            group by fa.id
+            order by fa.id limit ${String(PAGE_SIZE)}`,
+          [context.organizationId, after, subject],
+        ),
+      );
+      const page = verdicts as readonly Record<string, unknown>[];
+      if (page.length === 0) return { rows, withheld, cut: false };
+      scanned += page.length;
+      const readable: string[] = [];
+      for (const verdict of page) {
+        const id = verdict['id'];
+        if (typeof id === 'string' && readableFlag(verdict['project_readable'])) readable.push(id);
+        else withheld += 1;
+      }
+      if (readable.length > 0) {
+        const full = await this.database.read(context, (runner) =>
+          runner.query(
+            `select * from file_assets
+              where organization_id = ? and owner_user_id = ? and id in (${readable
+                .map(() => '?')
+                .join(', ')})
+              order by id`,
+            [context.organizationId, subject, ...readable],
+          ),
+        );
+        for (const row of full) rows.push(toJsonRow(row as Record<string, unknown>));
+      }
+      if (page.length < PAGE_SIZE) return { rows, withheld, cut: false };
+      const last = page[page.length - 1]?.['id'];
+      if (typeof last !== 'string') return { rows, withheld, cut: false };
+      after = last;
+    }
+    return { rows, withheld, cut: true };
   }
 
   private async readSection(
