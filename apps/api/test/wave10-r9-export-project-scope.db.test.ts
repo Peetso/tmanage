@@ -62,7 +62,7 @@ function reader(): ArchiveFileContents {
       throw new Error('no object is opened in this suite');
     },
   };
-  return new ArchiveFileContents(tenant, store, undefined, async () => 'allow');
+  return new ArchiveFileContents(tenant, store, undefined, async () => 'allow_labeled');
 }
 
 const context = () =>

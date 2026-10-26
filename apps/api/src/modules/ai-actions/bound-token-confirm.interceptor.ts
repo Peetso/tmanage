@@ -8,6 +8,7 @@ import { API_CONFIG } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
 import { callNeedsConfirm, findOpByRoute, neverByKey, routeKey } from './registry/index.js';
 import type { AiActionOp } from './registry/index.js';
+import { mcpBodyShapeRefusal } from '../mcp/mcp-body-shape.js';
 import { approvalUrl } from '../mcp/pending-actions.js';
 import type { PendingAiActionsService } from '../mcp/pending-actions.service.js';
 
@@ -135,6 +136,19 @@ export class BoundTokenConfirmInterceptor implements NestInterceptor {
     // N07: a `write` op whose arguments reach a client (`confirmWhen`) is confirm-class for this
     // call, on the same pending/approval path as a `confirm` op.
     if (!callNeedsConfirm(op, argsOf(op, request))) return next.handle();
+    // GHSA-mrhx-c7xc-m3w5: a PAT confirm-class call freezes its arguments through the op's zod
+    // schema (`freezeConfirmAction`), so its body gets the same shape cap as `POST /mcp` first.
+    const shape =
+      scheme === 'personal_access_token' ? mcpBodyShapeRefusal(request.body) : undefined;
+    if (shape !== undefined) {
+      throw new ApiError(
+        400,
+        'validation_failed',
+        'The request is too large to process',
+        undefined,
+        `mcp_body_${shape}`,
+      );
+    }
 
     if (scheme === 'ai_grant') {
       if (state.aiGrant?.grantId.startsWith('approval:') === true) return next.handle();

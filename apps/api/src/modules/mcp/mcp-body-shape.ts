@@ -3,9 +3,11 @@
  *
  * zod 3 keeps validating every element of an array (and every key of a record) after a `.max()`
  * has already failed, so an oversized collection costs memory in proportion to its length, not to
- * the schema's limit. The MCP endpoint is the one place untrusted input meets zod: the SDK parses
- * the JSON-RPC message with zod, and `tmanage_run_action` / the pending-action freeze parse the
- * tool arguments with the op's zod schema. Fastify already caps the body at 1 MiB; this caps its
+ * the schema's limit. Untrusted input meets zod in two places: `POST /mcp` (the SDK parses the
+ * JSON-RPC message with zod, and `tmanage_run_action` / the pending-action freeze parse the tool
+ * arguments with the op's zod schema), and a personal-access-token call to a confirm-class REST
+ * route, whose body `BoundTokenConfirmInterceptor` freezes through the same op schema. Fastify
+ * already caps the body at 1 MiB; both entry points (and `freezeConfirmAction` itself) cap its
  * shape before any of that runs, so no collection zod sees is more than a little over the largest
  * `.max()` in the catalogue (500).
  *

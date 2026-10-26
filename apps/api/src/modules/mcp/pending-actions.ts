@@ -4,6 +4,7 @@ import { findOpById, findOpByRoute } from '../ai-actions/registry/index.js';
 import type { AiActionDetail } from '../ai-actions/registry/detail.js';
 import { allDetailsById } from './tool-catalog.js';
 import { argsSha256 } from './internal-grant.js';
+import { mcpBodyShapeRefusal } from './mcp-body-shape.js';
 
 /**
  * **Confirm-class approvals — the pure half (MCP connector S10, plan §4.3, architecture F3).**
@@ -60,6 +61,11 @@ export function freezeConfirmAction(opId: string, rawArgs: unknown): FrozenActio
   }
   if (op.risk !== 'confirm') {
     throw new PendingActionRefusedError('not_confirm_class', `${opId} does not need approval`);
+  }
+  // GHSA-mrhx-c7xc-m3w5: no oversized collection reaches the op's zod schema, whichever channel
+  // (MCP or a personal access token on the REST route) asked for the approval.
+  if (mcpBodyShapeRefusal(rawArgs) !== undefined) {
+    throw new PendingActionRefusedError('invalid_args', `Invalid arguments for ${opId}`);
   }
   const parsed = detail.input.safeParse(rawArgs ?? {});
   if (!parsed.success) {
