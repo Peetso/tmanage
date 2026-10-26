@@ -394,7 +394,7 @@ export const AUDIT_ADVISORY_ALLOWLIST = Object.freeze([
     id: 'GHSA-mrhx-c7xc-m3w5',
     package: 'zod@3.25.76',
     reason:
-      'Unreachable with oversized input: untrusted input reaches zod only through POST /mcp and a personal-access-token call to a confirm-class REST route (BoundTokenConfirmInterceptor, freezeConfirmAction); both are authenticated, 1 MiB body cap, and refused before zod above 1,000 array items or 20,000 values (apps/api/src/modules/mcp/mcp-body-shape.ts); the patch is zod 4, a major.',
+      'Unreachable with oversized input: untrusted input reaches zod only through POST /mcp and a personal-access-token call to a confirm-class REST route (BoundTokenConfirmInterceptor, freezeConfirmAction); both are authenticated, 1 MiB body cap, and refused before zod above 1,000 array items or 20,000 values (apps/api/src/modules/mcp/mcp-body-shape.ts); the optional apps/mcp-server Streamable HTTP transport (loopback by default, opt-in) has the same 1 MiB body cap (413) and shape caps (400) after its Bearer check and before the SDK (apps/mcp-server/src/transports/body-shape.ts); the patch is zod 4, a major.',
     reviewed: '2026-10-26',
   }),
 ]);

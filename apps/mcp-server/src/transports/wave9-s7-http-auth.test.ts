@@ -100,6 +100,25 @@ describe('F04 — MCP HTTP transport requires a bearer on every request', () => 
     expect(res.status).toBe(200);
     expect(await res.text()).toContain('list_projects');
   });
+
+  it('refuses an oversized body from a token holder with 413 (M02)', async () => {
+    const { port } = await start(undefined);
+    const res = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        accept: 'application/json, text/event-stream',
+        authorization: 'Bearer tmanage_pat_member',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/list',
+        params: { pad: 'a'.repeat(1_048_577) },
+      }),
+    });
+    expect(res.status).toBe(413);
+  });
 });
 
 describe('F04 — config refuses the operator token on a network listener', () => {

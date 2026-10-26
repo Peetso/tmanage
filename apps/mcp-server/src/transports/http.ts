@@ -4,6 +4,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { buildServerForToken } from '../server.js';
 import type { McpServerConfig } from '../config.js';
+import { MCP_MAX_BODY_BYTES, mcpBodyShapeRefusal } from './body-shape.js';
 
 /**
  * Run the server over Streamable HTTP — the transport remote clients such as ChatGPT's
@@ -19,10 +20,22 @@ import type { McpServerConfig } from '../config.js';
  * call is made, even when `TMANAGE_TOKEN` is set (that token is for stdio only). A request whose
  * `Host` header is not one of `config.allowedHosts` is refused 403 (DNS-rebinding protection),
  * and the SDK transport enforces the same list.
+ *
+ * After the Bearer check the body is capped before the SDK (and its zod parse) sees it (audit run
+ * 3, M02): more than {@link MCP_MAX_BODY_BYTES} is refused 413 without reading the rest, and a body
+ * past the shape caps in `./body-shape.ts` is refused 400. Neither builds a server.
  */
 const MCP_PATH = '/mcp';
 
-export function createHttpHandler(config: McpServerConfig) {
+/** The two steps the handler hands an accepted request to; a test may observe them. */
+export interface HttpHandlerDeps {
+  readonly buildServer: typeof buildServerForToken;
+  readonly serve: typeof serveMcpRequest;
+}
+
+export function createHttpHandler(config: McpServerConfig, deps: Partial<HttpHandlerDeps> = {}) {
+  const buildServer = deps.buildServer ?? buildServerForToken;
+  const serve = deps.serve ?? serveMcpRequest;
   const allowedHosts = new Set(config.allowedHosts.map((h) => h.toLowerCase()));
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     const host = typeof req.headers.host === 'string' ? req.headers.host.toLowerCase() : '';
@@ -56,13 +69,28 @@ export function createHttpHandler(config: McpServerConfig) {
     let body: unknown;
     try {
       body = await readJsonBody(req);
-    } catch {
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) {
+        // Nothing past the cap is kept. The connection closes after the answer; the rest of the
+        // body is discarded (never buffered) for a bounded moment so the client can read the 413,
+        // then the request is destroyed.
+        res.writeHead(413, { 'content-type': 'application/json', connection: 'close' });
+        res.end(JSON.stringify({ error: 'Request body too large.' }));
+        discardThenDestroy(req);
+        return;
+      }
       res.writeHead(400, { 'content-type': 'application/json' });
       res.end(JSON.stringify({ error: 'Request body is not valid JSON.' }));
       return;
     }
 
-    await serveMcpRequest(buildServerForToken(config, token), req, res, body, {
+    if (mcpBodyShapeRefusal(body) !== undefined) {
+      res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Request body is too large to process.' }));
+      return;
+    }
+
+    await serve(buildServer(config, token), req, res, body, {
       allowedHosts: config.allowedHosts,
     });
   };
@@ -133,10 +161,93 @@ function bearerToken(req: IncomingMessage): string | undefined {
   return match ? (match[1] as string).trim() : undefined;
 }
 
-async function readJsonBody(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  const raw = Buffer.concat(chunks).toString('utf8');
-  if (raw.length === 0) return undefined;
-  return JSON.parse(raw);
+/** After a 413, at most this many more bytes are discarded before the request is destroyed. */
+const DISCARD_MAX_BYTES = MCP_MAX_BODY_BYTES;
+/** After a 413, the request is destroyed this long after the answer at the latest. */
+const DISCARD_MAX_MS = 2_000;
+
+/**
+ * Read and drop the rest of a refused body so the client sees the 413 instead of a reset, but
+ * destroy the request as soon as it sends more than {@link DISCARD_MAX_BYTES} further bytes (or
+ * declared that many up front) or takes longer than {@link DISCARD_MAX_MS}. Nothing is buffered.
+ */
+function discardThenDestroy(req: IncomingMessage): void {
+  const declared = Number(req.headers['content-length'] ?? 0);
+  if (declared > MCP_MAX_BODY_BYTES + DISCARD_MAX_BYTES) {
+    req.destroy();
+    return;
+  }
+  let discarded = 0;
+  const timer = setTimeout(() => req.destroy(), DISCARD_MAX_MS);
+  timer.unref();
+  req.on('data', (chunk: Buffer | string) => {
+    discarded += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length;
+    if (discarded > DISCARD_MAX_BYTES) {
+      clearTimeout(timer);
+      req.destroy();
+    }
+  });
+  req.on('close', () => clearTimeout(timer));
+  req.resume();
+}
+
+class BodyTooLargeError extends Error {
+  constructor() {
+    super('Request body too large.');
+  }
+}
+
+/**
+ * Read the body as JSON, refusing more than {@link MCP_MAX_BODY_BYTES}: a `content-length` past
+ * the cap is refused before a byte is read, and a body without one (chunked) stops being read at
+ * the first chunk that crosses it. Rejects {@link BodyTooLargeError} for either, a SyntaxError for
+ * malformed JSON.
+ */
+function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const declared = req.headers['content-length'];
+  if (declared !== undefined && Number(declared) > MCP_MAX_BODY_BYTES) {
+    req.pause();
+    return Promise.reject(new BodyTooLargeError());
+  }
+  return new Promise<unknown>((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let bytes = 0;
+    const cleanup = () => {
+      req.off('data', onData);
+      req.off('end', onEnd);
+      req.off('error', onError);
+    };
+    const onData = (chunk: Buffer | string) => {
+      const buffer = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+      bytes += buffer.length;
+      if (bytes > MCP_MAX_BODY_BYTES) {
+        cleanup();
+        chunks.length = 0;
+        req.pause();
+        reject(new BodyTooLargeError());
+        return;
+      }
+      chunks.push(buffer);
+    };
+    const onEnd = () => {
+      cleanup();
+      const raw = Buffer.concat(chunks).toString('utf8');
+      if (raw.length === 0) {
+        resolve(undefined);
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch (error) {
+        reject(error instanceof Error ? error : new SyntaxError(String(error)));
+      }
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    req.on('data', onData);
+    req.on('end', onEnd);
+    req.on('error', onError);
+  });
 }
