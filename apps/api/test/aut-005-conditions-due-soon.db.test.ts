@@ -2,7 +2,7 @@ import 'reflect-metadata';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { RowDataPacket } from 'mysql2/promise';
 import { uuidv7 } from '@tmanage/domain';
@@ -39,6 +39,11 @@ import type { InjectedResponse, Session } from './support/http-harness.js';
  * 3. **The due-soon sweep fires once per item per rule per day**, only for open items inside the
  *    window, only where the conditions hold, and never across a tenant boundary.
  * 4. **The claim's composite keys refuse a cross-tenant rule or item** at the engine.
+ * 5. **Gap 10 / H10 — "Skip weekends" holds and delivers in the company's timezone.** A run that
+ *    falls on Friday or Saturday on the company's clock (`organizations.timezone`) is held, not
+ *    sent; the sweep delivers it once that clock reads Sunday 08:00, with the original dedupe key;
+ *    a re-run sends nothing twice. Only `Date` is faked, so the pool, the timers and the database's
+ *    own `now(3)` stay real (the held-run age window and the claim's `fire_date` read the database).
  */
 
 let db: TestDatabase;
@@ -183,6 +188,10 @@ beforeAll(async () => {
 beforeEach(async () => {
   world = await reseed(db);
   await truncateAutomations();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 afterAll(async () => {
@@ -472,5 +481,190 @@ describe('0230 — the claim cannot cross a tenant', () => {
       );
     await insert();
     await expect(insert()).rejects.toThrow(/duplicate/i);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Riyadh is UTC+3 all year (no daylight saving), and its studio week ends on Friday and Saturday.
+ * Each instant below is chosen so that the UTC reading and the company reading disagree where it
+ * matters: Thursday night in UTC is already Friday in Riyadh, and Sunday 05:00 in UTC is Sunday
+ * 08:00 — the delivery hour — in Riyadh.
+ */
+const COMPANY_ZONE = 'Asia/Riyadh';
+const THU_UTC_FRI_COMPANY = '2026-10-22T21:30:00Z'; // Riyadh Fri 00:30, UTC Thu 21:30
+const SAT_LATE_COMPANY = '2026-10-24T20:00:00Z'; // Riyadh Sat 23:00
+const SUN_BEFORE_EIGHT = '2026-10-25T04:59:00Z'; // Riyadh Sun 07:59
+const SUN_EIGHT_COMPANY = '2026-10-25T05:00:00Z'; // Riyadh Sun 08:00, UTC Sun 05:00
+const SUN_NOON_COMPANY = '2026-10-25T09:00:00Z'; // Riyadh Sun 12:00
+
+/** Run `work` with the process clock (only `Date`) bound to `iso`. */
+async function at<T>(iso: string, work: () => Promise<T>): Promise<T> {
+  vi.useFakeTimers({ toFake: ['Date'], now: new Date(iso) });
+  try {
+    return await work();
+  } finally {
+    vi.useRealTimers();
+  }
+}
+
+function sweep() {
+  return sweepDueSoon(createDueSoonSweepStore(workerDb));
+}
+
+async function setZone(organizationId: string, zone: string): Promise<void> {
+  await db.admin.execute('update organizations set timezone = ? where id = ?', [
+    zone,
+    organizationId,
+  ]);
+}
+
+interface RunDetail {
+  readonly id: string;
+  readonly status: string;
+  readonly detail: Record<string, unknown>;
+}
+
+async function runDetails(templateId: string): Promise<RunDetail[]> {
+  const rows = await observe(
+    'select id, status, detail_json from workflow_runs where template_id = ? order by started_at, id',
+    [templateId],
+  );
+  return rows.map((row) => {
+    const raw: unknown = row['detail_json'];
+    const detail = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, unknown>;
+    return { id: String(row['id']), status: String(row['status']), detail };
+  });
+}
+
+async function automationNotices(organizationId: string, objectId: string) {
+  return observe(
+    `select recipient_user_id, dedupe_key from notifications
+      where organization_id = ? and type = 'automation.notified.v1' and object_id = ?`,
+    [organizationId, objectId],
+  );
+}
+
+describe('Gap 10 / H10 — weekend hold in the company timezone, delivered on Sunday, once', () => {
+  it('holds a due-soon run that is Friday in the company zone, while a UTC company is told at once', async () => {
+    const ns = world.northstar.organizationId;
+    const tw = world.twin.organizationId;
+    await setZone(ns, COMPANY_ZONE);
+    await setZone(tw, 'UTC');
+    const nsRule = await rule(ns, owner().id, 'work_item_due_soon', { skipWeekends: true });
+    const twRule = await rule(tw, world.twin.owner.id, 'work_item_due_soon', {
+      skipWeekends: true,
+    });
+    const nsItem = await itemDueIn(ns, world.northstar.projectId, owner().id, 1);
+    const twItem = await itemDueIn(tw, world.twin.projectId, world.twin.owner.id, 1);
+
+    const result = await at(THU_UTC_FRI_COMPANY, sweep);
+    expect(result).toEqual({ rules: 2, fired: 2, delivered: 0 });
+
+    // Riyadh: Friday 00:30 — held, with what the Sunday delivery needs; nobody told.
+    const nsRuns = await runDetails(nsRule);
+    expect(nsRuns).toHaveLength(1);
+    const held = nsRuns[0]!;
+    expect(held.status).toBe('failed');
+    expect(held.detail).toMatchObject({
+      outcome: 'not_run',
+      reason: 'held_for_weekend',
+      heldObjectType: 'work_item',
+      heldObjectId: nsItem,
+      heldProjectId: world.northstar.projectId,
+    });
+    const [claim] = await observe(
+      'select id from workflow_due_soon_fires where template_id = ? and work_item_id = ?',
+      [nsRule, nsItem],
+    );
+    expect(held.detail['heldEventId']).toBe(claim!['id']);
+    expect(await automationNotices(ns, nsItem)).toHaveLength(0);
+
+    // UTC: still Thursday 21:30 — the same rule runs and tells the owner now.
+    const twRuns = await runDetails(twRule);
+    expect(twRuns.map((run) => run.status)).toEqual(['succeeded']);
+    expect(twRuns[0]!.detail['reason']).toBeUndefined();
+    expect((await automationNotices(tw, twItem)).map((row) => row['recipient_user_id'])).toEqual([
+      world.twin.owner.id,
+    ]);
+  });
+
+  it('delivers the held run at Sunday 08:00 company time, with the original dedupe key, and never twice', async () => {
+    const ns = world.northstar.organizationId;
+    await setZone(ns, COMPANY_ZONE);
+    const templateId = await rule(ns, owner().id, 'work_item_due_soon', { skipWeekends: true });
+    const item = await itemDueIn(ns, world.northstar.projectId, owner().id, 1);
+
+    expect(await at(THU_UTC_FRI_COMPANY, sweep)).toEqual({ rules: 1, fired: 1, delivered: 0 });
+    const held = (await runDetails(templateId))[0]!;
+    expect(held.detail['reason']).toBe('held_for_weekend');
+
+    // Saturday night and Sunday 07:59 on the company clock: still held, nothing sent.
+    expect((await at(SAT_LATE_COMPANY, sweep)).delivered).toBe(0);
+    expect((await at(SUN_BEFORE_EIGHT, sweep)).delivered).toBe(0);
+    expect(await runDetails(templateId)).toHaveLength(1);
+    expect(await automationNotices(ns, item)).toHaveLength(0);
+
+    // Sunday 08:00 in Riyadh (05:00 UTC, which a UTC reading would still hold): delivered.
+    expect(await at(SUN_EIGHT_COMPANY, sweep)).toEqual({ rules: 1, fired: 0, delivered: 1 });
+    const runs = await runDetails(templateId);
+    expect(runs).toHaveLength(2);
+    expect(runs[1]!.status).toBe('succeeded');
+    expect(runs[1]!.detail).toMatchObject({ outcome: 'executed', heldRunId: held.id });
+    expect(String(runs[1]!.detail['effect'])).toContain('on Sunday morning, after the weekend');
+    expect(await automationNotices(ns, item)).toEqual([
+      {
+        recipient_user_id: owner().id,
+        dedupe_key: `automation:${templateId}:${String(held.detail['heldEventId'])}`,
+      },
+    ]);
+
+    // Re-runs later on Sunday: the held run is already closed — no run, no second notice.
+    expect(await at(SUN_EIGHT_COMPANY, sweep)).toEqual({ rules: 1, fired: 0, delivered: 0 });
+    expect(await at(SUN_NOON_COMPANY, sweep)).toEqual({ rules: 1, fired: 0, delivered: 0 });
+    expect(await runDetails(templateId)).toHaveLength(2);
+    expect(await automationNotices(ns, item)).toHaveLength(1);
+  });
+
+  it('holds an event-triggered run on the company Friday and delivers it through the sweep on Sunday', async () => {
+    const ns = world.northstar.organizationId;
+    await setZone(ns, COMPANY_ZONE);
+    const templateId = await rule(ns, owner().id, 'work_item_created', { skipWeekends: true });
+    const item = await itemDueIn(ns, world.northstar.projectId, owner().id, null);
+    await emitCreated(ns, item);
+    const [event] = await observe(
+      'select id from outbox_events where organization_id = ? and aggregate_id = ?',
+      [ns, item],
+    );
+    const eventId = String(event!['id']);
+
+    await at(THU_UTC_FRI_COMPANY, drain);
+    const held = (await runDetails(templateId))[0]!;
+    expect(held.detail).toMatchObject({ reason: 'held_for_weekend', heldEventId: eventId });
+    expect(await automationNotices(ns, item)).toHaveLength(0);
+
+    // The due-soon sweep delivers every "Skip weekends" rule's held runs, whatever the trigger.
+    expect((await at(SUN_EIGHT_COMPANY, sweep)).delivered).toBe(1);
+    expect((await at(SUN_NOON_COMPANY, sweep)).delivered).toBe(0);
+    expect(await automationNotices(ns, item)).toEqual([
+      { recipient_user_id: owner().id, dedupe_key: `automation:${templateId}:${eventId}` },
+    ]);
+    const runs = await runDetails(templateId);
+    expect(runs.map((run) => run.status)).toEqual(['failed', 'succeeded']);
+    expect(runs[1]!.detail['heldRunId']).toBe(held.id);
+  });
+
+  it('delivers nothing for a rule switched off before Sunday', async () => {
+    const ns = world.northstar.organizationId;
+    await setZone(ns, COMPANY_ZONE);
+    const templateId = await rule(ns, owner().id, 'work_item_due_soon', { skipWeekends: true });
+    const item = await itemDueIn(ns, world.northstar.projectId, owner().id, 1);
+    await at(THU_UTC_FRI_COMPANY, sweep);
+    await db.admin.execute('update workflow_templates set enabled = 0 where id = ?', [templateId]);
+
+    expect(await at(SUN_EIGHT_COMPANY, sweep)).toEqual({ rules: 0, fired: 0, delivered: 0 });
+    expect(await runDetails(templateId)).toHaveLength(1);
+    expect(await automationNotices(ns, item)).toHaveLength(0);
   });
 });
