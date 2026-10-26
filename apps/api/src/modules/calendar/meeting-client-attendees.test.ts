@@ -56,7 +56,8 @@ const client = (membershipId: string): Principal => ({
   hasOrgWideScope: false,
 });
 
-const meeting: MeetingRow = {
+// The fixture names only the columns this suite reads; the row has grown calendar-sync columns.
+const meeting = {
   id: MEETING,
   organizationId: ORG,
   projectId: PROJECT,
@@ -67,7 +68,7 @@ const meeting: MeetingRow = {
   createdByUserId: USER,
   createdAt: new Date(),
   updatedAt: new Date(),
-};
+} as MeetingRow;
 
 const database = {
   read: async (_c: unknown, work: (db: unknown) => Promise<unknown>) => work({}),

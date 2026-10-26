@@ -66,6 +66,13 @@
     gap: var(--s1);
   }
 
+  /* The header is a wrapping column, so nothing caps its titles' width: a wide row of screen
+     actions (Meetings' search + New meeting, in Arabic) pushed the page 30px past the phone and
+     the browser widened the layout viewport, dropping the tab bar off-screen. */
+  .tm-app .tm-canvas-header__titles {
+    max-inline-size: 100%;
+  }
+
   .tm-app .tm-canvas-header[data-title-variant='page'] .tm-canvas-header__title {
     font-size: var(--t-display-lg);
     line-height: var(--t-display-lg-line);

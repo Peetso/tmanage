@@ -128,6 +128,9 @@ for (const lang of ['en', 'ar'] as const) {
     test(`PH-01..03 [${lang}]: tab bar, More sheet and quick capture carry a member around at 375px`, async ({
       browser,
     }) => {
+      // The journey opens every More tile (14+ routes); on a cold `next dev` each first visit
+      // compiles, which alone outgrows the 120 s default.
+      test.setTimeout(300_000);
       const { context, page } = await phoneAs(browser, world().northstar.owner.id);
       try {
         const phone = dock(page, lang);
