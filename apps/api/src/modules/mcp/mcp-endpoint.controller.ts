@@ -349,7 +349,8 @@ export class McpEndpointController {
     // From here the MCP transport writes the response itself.
     reply.hijack();
     await serveMcpRequest(
-      buildCatalogServer(catalog, audited),
+      // The web origin serves the brand icons the connector shows (`serverInfo.icons`).
+      buildCatalogServer(catalog, audited, this.config.webPublicUrl),
       request.raw,
       reply.raw,
       request.body,

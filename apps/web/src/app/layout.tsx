@@ -75,6 +75,19 @@ export const metadata: Metadata = {
   // The screens behind sign-in are tenant data. None of them should ever be indexed, and
   // the public marketing pages (PUB-01 to PUB-07) are a separate ticket that can opt back in.
   robots: { index: false, follow: false },
+  // The brand mark on the ink background (`public/brand/tmanage-maskable.svg`, rendered to PNG and
+  // ICO). Static files in `public/`, so `/favicon.ico` is a real 200 instead of falling into the
+  // `[orgSlug]` route; favicon lookups (browsers, and the Claude connector list) find the mark.
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: '16x16 32x32 48x48' },
+      { url: '/brand/tmanage-icon-32.png', type: 'image/png', sizes: '32x32' },
+      { url: '/brand/tmanage-icon-192.png', type: 'image/png', sizes: '192x192' },
+      { url: '/brand/tmanage-icon-512.png', type: 'image/png', sizes: '512x512' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: [{ url: '/apple-touch-icon.png', type: 'image/png', sizes: '180x180' }],
+  },
 };
 
 export const viewport: Viewport = {

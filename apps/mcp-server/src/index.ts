@@ -18,6 +18,7 @@ export { registerTools } from './tools.js';
 export { buildServer, buildServerForToken, SERVER_NAME, SERVER_VERSION } from './server.js';
 export { createHttpHandler, runHttp, serveMcpRequest } from './transports/http.js';
 export { runStdio } from './transports/stdio.js';
+export { serverIdentity, SERVER_ICON_PATHS } from './server-identity.js';
 export {
   registerCatalog,
   buildCatalogServer,

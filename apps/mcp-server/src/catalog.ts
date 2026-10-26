@@ -16,6 +16,8 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { z } from 'zod';
 
+import { serverIdentity } from './server-identity.js';
+
 /**
  * Tool annotation hints (MCP `ToolAnnotations`). All are *hints* for the client UI, never a
  * security control — the server still enforces risk and scope. Derived from the op's method and
@@ -270,9 +272,20 @@ export function registerCatalog(
 export const CATALOG_SERVER_NAME = 'tmanage';
 export const CATALOG_SERVER_VERSION = '0.2.0';
 
-/** Build an MCP server that serves a prebuilt catalog through the given runtime. */
-export function buildCatalogServer(catalog: Catalog, runtime: CatalogRuntime): McpServer {
-  const server = new McpServer({ name: CATALOG_SERVER_NAME, version: CATALOG_SERVER_VERSION });
+/**
+ * Build an MCP server that serves a prebuilt catalog through the given runtime.
+ *
+ * `siteUrl` is the public web origin; when given, `serverInfo` carries the TManage icon and
+ * website so a client (Claude's connector list) shows the brand mark instead of a generic icon.
+ */
+export function buildCatalogServer(
+  catalog: Catalog,
+  runtime: CatalogRuntime,
+  siteUrl?: string,
+): McpServer {
+  const server = new McpServer(
+    serverIdentity(CATALOG_SERVER_NAME, CATALOG_SERVER_VERSION, siteUrl),
+  );
   registerCatalog(server, catalog, runtime);
   return server;
 }
