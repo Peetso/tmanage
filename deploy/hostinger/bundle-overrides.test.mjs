@@ -6,7 +6,7 @@ import { npmOverridesFromRoot } from './bundle-overrides.mjs';
 
 const RUNTIME = ['fastify', 'fast-uri', '@nestjs/platform-fastify'];
 
-test('copies plain runtime keys and skips selector and dev-only keys', () => {
+test('copies plain runtime keys, keeps selector keys (NV08 run 2) and skips dev-only keys', () => {
   const rootPkg = {
     pnpm: {
       overrides: {
@@ -20,6 +20,7 @@ test('copies plain runtime keys and skips selector and dev-only keys', () => {
   assert.deepEqual(npmOverridesFromRoot(rootPkg, RUNTIME), {
     fastify: '5.3.3',
     '@nestjs/platform-fastify': '11.1.6',
+    'fast-uri@>=4 <4.1.5': '4.1.5',
   });
 });
 

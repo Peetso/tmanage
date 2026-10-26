@@ -40,7 +40,7 @@ test('the staged bundle carries a lockfile and an .npmrc with ignore-scripts', (
       '': { name: 'tmanage-hostinger' },
       'node_modules/next': { version: '16.3.8' },
     });
-    const result = stageInstallPins(dir, runner);
+    const result = stageInstallPins(dir, runner, { pnpmSet: new Set(['next@16.3.8']) });
 
     assert.ok(existsSync(join(dir, 'package-lock.json')), 'package-lock.json staged');
     const npmrc = readFileSync(join(dir, '.npmrc'), 'utf8');
@@ -49,12 +49,13 @@ test('the staged bundle carries a lockfile and an .npmrc with ignore-scripts', (
     assert.match(npmrc, /^install-links=true$/m);
     assert.match(npmrc, /^bin-links=false$/m);
 
-    // The lock is resolved without running anything or writing node_modules.
-    assert.equal(calls.length, 1);
+    // The lock is resolved without running anything or writing node_modules, then audited.
+    assert.equal(calls.length, 2);
     assert.equal(calls[0].cmd, 'npm');
     assert.equal(calls[0].cwd, dir);
     assert.ok(calls[0].args.includes('--package-lock-only'));
     assert.ok(calls[0].args.includes('--ignore-scripts'));
+    assert.deepEqual(calls[1].args, ['audit', '--omit=dev', '--audit-level=high']);
     assert.deepEqual(result, { packages: 2, installScripts: [] });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -64,7 +65,10 @@ test('the staged bundle carries a lockfile and an .npmrc with ignore-scripts', (
 test('the build fails when no lockfile was produced', () => {
   const dir = stage();
   try {
-    assert.throws(() => stageInstallPins(dir, fakeNpm(undefined).runner), /no package-lock\.json/);
+    assert.throws(
+      () => stageInstallPins(dir, fakeNpm(undefined).runner, { pnpmSet: new Set(['next@16.3.8']) }),
+      /no package-lock\.json/,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -78,7 +82,10 @@ test('the build fails on a dependency with an install script that nobody allowed
       '': { name: 'tmanage-hostinger' },
       'node_modules/evil-postinstall': { version: '1.0.0', hasInstallScript: true },
     });
-    assert.throws(() => stageInstallPins(dir, runner), /evil-postinstall@1\.0\.0/);
+    assert.throws(
+      () => stageInstallPins(dir, runner, { pnpmSet: new Set(['evil-postinstall@1.0.0']) }),
+      /evil-postinstall@1\.0\.0/,
+    );
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

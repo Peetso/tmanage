@@ -162,7 +162,28 @@ function assertNoBareAmpersand(raw: string): void {
   if (/&(?![^;\s&]{1,32};)/.test(raw)) throw new Refused('unreadable');
 }
 
-/** Whether CSS text is free of external references and script; `url(#id)` is the one url kept. */
+/** Whitespace as the regex class `\s` and `String.prototype.trim` see it. */
+const WHITESPACE = /\s/;
+
+/**
+ * Whether the inside of one `url( … )` is a same-document reference: optional whitespace, an
+ * optional quote, `#`, no quote or `)`, an optional quote, optional whitespace. A plain scan, so it
+ * is linear in the argument (V1/NV14: the old anchored regex backtracked on long whitespace runs).
+ */
+function isFragmentUrlArgument(argument: string): boolean {
+  let value = argument.trim();
+  if (value.startsWith("'") || value.startsWith('"')) value = value.slice(1);
+  if (value.endsWith("'") || value.endsWith('"')) value = value.slice(0, -1);
+  return value.startsWith('#') && !value.includes("'") && !value.includes('"');
+}
+
+/**
+ * Whether CSS text is free of external references and script; `url(#id)` is the one url kept.
+ * Linear in the text (V1/NV14): every `url(` is found with `indexOf`, its argument is read up to
+ * the next `)`, and the scan resumes after that `)` — the old `/url\s*\(([^)]*)\)/g` rescanned to
+ * the end from every `url(` that had no `)`. A `url(` with no `)` is refused: CSS closes an
+ * unterminated url at the end of the sheet, so it would still be fetched.
+ */
 function isSafeCss(css: string): boolean {
   const lower = css.toLowerCase().replace(/\\/g, '');
   if (lower.includes('@import') || lower.includes('expression(')) return false;
@@ -172,8 +193,21 @@ function isSafeCss(css: string): boolean {
     lower.includes('-moz-binding')
   )
     return false;
-  const urls = lower.match(/url\s*\(([^)]*)\)/g) ?? [];
-  return urls.every((url) => /^url\s*\(\s*['"]?#[^'")]*['"]?\s*\)$/.test(url));
+  let from = 0;
+  for (;;) {
+    const at = lower.indexOf('url', from);
+    if (at === -1) return true;
+    let open = at + 3;
+    while (open < lower.length && WHITESPACE.test(lower[open] as string)) open += 1;
+    if (lower[open] !== '(') {
+      from = at + 3;
+      continue;
+    }
+    const close = lower.indexOf(')', open + 1);
+    if (close === -1) return false;
+    if (!isFragmentUrlArgument(lower.slice(open + 1, close))) return false;
+    from = close + 1;
+  }
 }
 
 interface Attribute {
@@ -256,7 +290,11 @@ interface Frame {
   readonly name: string;
   /** False when this element (or an ancestor) was dropped: nothing inside it is written. */
   readonly kept: boolean;
-  /** For a kept `<style>`: where its start tag and its sheet text begin in the output. */
+  /**
+   * For a kept `<style>`: the index in the output chunk array of its start tag and of its sheet's
+   * first chunk (V1/NV14: chunk indexes, so judging or dropping a sheet never copies the output
+   * written before it).
+   */
   readonly outStart?: number;
   readonly contentStart?: number;
 }
@@ -279,7 +317,9 @@ function rebuild(input: string): { svg: string; removed: string[] } {
   const source = input.replace(/^\uFEFF/, '');
   const removed: string[] = [];
   const stack: Frame[] = [];
-  let out = '';
+  // The output as chunks, joined once at the end (V1/NV14): appending never re-copies what was
+  // written before, and a dropped <style> is cut by truncating the array to its start-tag index.
+  const out: string[] = [];
   let rootSeen = false;
   let rootClosed = false;
   let drawn = 0;
@@ -299,7 +339,7 @@ function rebuild(input: string): { svg: string; removed: string[] } {
       } else {
         assertNoBareAmpersand(raw);
         const text = decodeEntities(raw);
-        if (insideKept()) out += insideStyle() ? styleText(text) : escapeText(text);
+        if (insideKept()) out.push(insideStyle() ? styleText(text) : escapeText(text));
       }
       index = textEnd;
       continue;
@@ -316,7 +356,7 @@ function rebuild(input: string): { svg: string; removed: string[] } {
       if (end === -1 || stack.length === 0) throw new Refused('unreadable');
       if (insideKept()) {
         const text = source.slice(index + 9, end);
-        out += insideStyle() ? styleText(text) : escapeText(text);
+        out.push(insideStyle() ? styleText(text) : escapeText(text));
       }
       index = end + 3;
       continue;
@@ -345,16 +385,16 @@ function rebuild(input: string): { svg: string; removed: string[] } {
       const frame = stack.pop();
       if (!frame || frame.name !== name) throw new Refused('unreadable');
       if (frame.kept && frame.outStart !== undefined && frame.contentStart !== undefined) {
-        // A <style> sheet is judged when it closes, from the text already written (NV14: no
-        // regex post-pass over the whole output). One with an external reference is dropped whole.
-        if (isSafeCss(out.slice(frame.contentStart))) {
-          out += `</${name}>`;
+        // A <style> sheet is judged when it closes, from its own chunks only (NV14/V1: no pass
+        // over, and no copy of, the whole output). One with an external reference is dropped whole.
+        if (isSafeCss(out.slice(frame.contentStart).join(''))) {
+          out.push(`</${name}>`);
         } else {
-          out = out.slice(0, frame.outStart);
+          out.length = frame.outStart;
           removed.push('external reference in <style>');
         }
       } else if (frame.kept) {
-        out += `</${name}>`;
+        out.push(`</${name}>`);
       }
       if (stack.length === 0) rootClosed = true;
       index = end + 1;
@@ -422,7 +462,7 @@ function rebuild(input: string): { svg: string; removed: string[] } {
       // An empty, self-closing <style/> holds no sheet: it is not written at all.
       if (!(selfClosing && name === 'style')) {
         outStart = out.length;
-        out += `<${name}${rendered}${selfClosing ? '/>' : '>'}`;
+        out.push(`<${name}${rendered}${selfClosing ? '/>' : '>'}`);
       }
     }
     if (selfClosing) {
@@ -439,5 +479,5 @@ function rebuild(input: string): { svg: string; removed: string[] } {
   if (stack.length > 0 || !rootClosed) throw new Refused('unreadable');
 
   if (drawn === 0) throw new Refused('empty');
-  return { svg: out, removed };
+  return { svg: out.join(''), removed };
 }

@@ -308,6 +308,37 @@ shows `192.0.2.111`, your proxy is either passing the header through untouched o
 own observation, and until that is fixed anyone can choose the address they are counted under —
 unset `TRUSTED_PROXY_ADDRESSES` in the meantime.
 
+### NV09 — the owner's one-time check on Hostinger (open owner action)
+
+On Hostinger the app sits behind Hostinger's CDN (hcdn) and LiteSpeed, and nothing in this
+repository can say which `X-Forwarded-For` shape that pair hands the app. The security audit
+(run 2, NV09) left this open: it needs one check on the live site by the owner, with the owner's
+own account, from the owner's own computer. It changes nothing and needs no code change.
+
+1. Find your own public address (search "what is my IP" in a browser) and write it down.
+2. Sign in to TManage once, normally, in a browser.
+3. Sign out, then sign in once more from the same computer while sending a forged header: turn
+   on a browser header-editing extension with the request header `X-Forwarded-For: 192.0.2.111`
+   for your TManage domain, sign in, and turn the extension off again. (Without an extension:
+   `curl -s -o /dev/null -H 'X-Forwarded-For: 192.0.2.111' -H 'Origin: https://<your-domain>'
+-H 'Content-Type: application/json' -d '{"email":"<you>","password":"wrong"}'
+https://<your-domain>/v1/auth/password` — a deliberately wrong password is enough, because a
+   failed sign-in is recorded with its address too, and no real password is ever typed into a
+   command line.)
+4. In phpMyAdmin, run
+   `SELECT occurred_at, action, outcome, ip FROM authentication_events ORDER BY occurred_at DESC LIMIT 2;`
+   and compare the two `ip` values with the address from step 1.
+
+What each outcome means:
+
+| Normal sign-in row                                                                 | Forged-header row             | Meaning and what to do                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| your address                                                                       | your address                  | Correct. The proxy chain appends, and the trusted list fits it. NV09 is closed; note the date.                                                                                                                                                                                                         |
+| your address                                                                       | `192.0.2.111`                 | **Anyone can choose the address they are counted under** — the per-address sign-in limits can be dodged. Unset `TRUSTED_PROXY_ADDRESSES` in the Hostinger panel now, redeploy, and repeat the check (you should then see the next row).                                                                |
+| the same non-yours address in both (a Hostinger/LiteSpeed address, or `127.0.0.1`) | same                          | Safe from forging, but every visitor counts as one address, so one person's failed sign-ins can slow everyone's. Acceptable for a small team; to fix it, add that proxy address to `TRUSTED_PROXY_ADDRESSES`, redeploy and repeat — and if the second row then shows `192.0.2.111`, take it out again. |
+| your address                                                                       | a Hostinger/LiteSpeed address | The proxy replaces the header: unusual. Leave the setting as it is and send the two rows to whoever maintains TManage.                                                                                                                                                                                 |
+| no new rows                                                                        | —                             | The sign-ins did not reach the app (wrong address, or the request failed). Repeat steps 2–3.                                                                                                                                                                                                           |
+
 ---
 
 ## D07 — TOTP seeds are encrypted at rest

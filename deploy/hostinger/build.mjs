@@ -29,7 +29,14 @@ import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { npmOverridesFromRoot } from './bundle-overrides.mjs';
+import {
+  bundleOverrides,
+  compareProductionSets,
+  npmLockProductionSet,
+  overrideFloorViolations,
+  parsePnpmLock,
+  pnpmProductionSet,
+} from './bundle-overrides.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = resolve(HERE, '../..');
@@ -276,6 +283,18 @@ const VENDOR_PKGS = [
   'api',
 ];
 
+/**
+ * The stage root's direct registry dependencies, each with the workspace package whose resolved
+ * version it is pinned to (and whose pnpm-lock.yaml resolution the lockfile check starts from).
+ */
+export const BUNDLE_DIRECT_DEPENDENCIES = Object.freeze({
+  '@tanstack/react-query': 'apps/web',
+  next: 'apps/web',
+  react: 'apps/web',
+  'react-dom': 'apps/web',
+  'reflect-metadata': 'apps/api',
+});
+
 function run(cmd, args, env, cwd = REPO) {
   process.stdout.write(`\n$ ${cmd} ${args.join(' ')}\n`);
   const result = spawnSync(cmd, args, {
@@ -362,11 +381,22 @@ export const INSTALL_SCRIPT_ALLOWLIST = Object.freeze([]);
  * registry serves on deploy day. Throws when the lockfile is missing or names a package with an
  * install script that is not on {@link INSTALL_SCRIPT_ALLOWLIST}.
  *
+ * Run 2 of the audit (NV08 partial): the lockfile npm resolved is no longer trusted as-is. The
+ * build also fails when its production `name@version` set differs from `pnpmSet` (the tree
+ * pnpm-lock.yaml resolved, which the tests and reviews ran against), when any package sits below a
+ * root `pnpm.overrides` floor, and when `npm audit --omit=dev --audit-level=high` reports a high or
+ * critical advisory for the staged tree.
+ *
  * @param {string} stageDir   the staged bundle root (holds package.json and vendor/)
  * @param {(cmd: string, args: string[], env: object | undefined, cwd: string) => void} runner
+ * @param {{ pnpmSet: Set<string>, rootOverrides?: Record<string, string> }} expected
+ *   pnpmProductionSet() output and the root package.json `pnpm.overrides`; required
  * @returns {{ packages: number, installScripts: string[] }}
  */
-export function stageInstallPins(stageDir, runner = run) {
+export function stageInstallPins(stageDir, runner = run, expected = undefined) {
+  if (!(expected?.pnpmSet instanceof Set) || expected.pnpmSet.size === 0) {
+    throw new Error('stageInstallPins needs the pnpm-lock.yaml production set to compare against');
+  }
   writeFileSync(join(stageDir, '.npmrc'), BUNDLE_NPMRC);
   runner(
     'npm',
@@ -391,6 +421,22 @@ export function stageInstallPins(stageDir, runner = run) {
       `bundle dependencies with install scripts not on INSTALL_SCRIPT_ALLOWLIST: ${unreviewed.join(', ')}`,
     );
   }
+  const npmSet = npmLockProductionSet(lock);
+  const drift = compareProductionSets(npmSet, expected.pnpmSet);
+  if (!drift.same) {
+    throw new Error(
+      "the bundle package-lock.json does not match pnpm-lock.yaml's production tree" +
+        `\n  only in the bundle lock: ${drift.onlyNpm.join(', ') || '-'}` +
+        `\n  only in pnpm-lock.yaml: ${drift.onlyPnpm.join(', ') || '-'}`,
+    );
+  }
+  const belowFloor = overrideFloorViolations(npmSet, expected.rootOverrides ?? {});
+  if (belowFloor.length > 0) {
+    throw new Error(`bundle packages below a root override floor: ${belowFloor.join(', ')}`);
+  }
+  // Read-only: audits the staged lockfile against the registry's advisories; a high or critical
+  // finding exits non-zero and the runner throws, so no bundle is zipped.
+  runner('npm', ['audit', '--omit=dev', '--audit-level=high'], undefined, stageDir);
   return { packages: Object.keys(lock.packages).length, installScripts };
 }
 
@@ -511,11 +557,12 @@ function assemble() {
       start: 'node server.mjs',
     },
     dependencies: {
-      '@tanstack/react-query': exactVersion('@tanstack/react-query', 'apps/web'),
-      next: exactVersion('next', 'apps/web'),
-      react: exactVersion('react', 'apps/web'),
-      'react-dom': exactVersion('react-dom', 'apps/web'),
-      'reflect-metadata': exactVersion('reflect-metadata', 'apps/api'),
+      ...Object.fromEntries(
+        Object.entries(BUNDLE_DIRECT_DEPENDENCIES).map(([name, dir]) => [
+          name,
+          exactVersion(name, dir),
+        ]),
+      ),
       '@tmanage/api': 'file:./vendor/@tmanage/api',
       '@tmanage/config': 'file:./vendor/@tmanage/config',
       '@tmanage/contracts': 'file:./vendor/@tmanage/contracts',
@@ -528,16 +575,15 @@ function assemble() {
     },
   };
   // npm ignores the root `pnpm.overrides`, so the transitive security pins are carried over as npm
-  // `overrides` — runtime packages only; dev-only pins never reach the bundle's install.
+  // `overrides` (selector keys translated, not dropped) for every package of the production tree
+  // pnpm-lock.yaml resolved, plus exact pins that make npm reproduce that tree (NV08, run 2).
   const rootPkg = JSON.parse(readFileSync(join(REPO, 'package.json'), 'utf8'));
-  const overrides = npmOverridesFromRoot(rootPkg, [
-    'fastify',
-    'fast-uri',
-    'sharp',
-    'source-map-js',
-    'nodemailer',
-    '@nestjs/platform-fastify',
-  ]);
+  const pnpmSet = pnpmProductionSet(
+    parsePnpmLock(readFileSync(join(REPO, 'pnpm-lock.yaml'), 'utf8')),
+    VENDOR_PKGS.map(pkgDir),
+    BUNDLE_DIRECT_DEPENDENCIES,
+  );
+  const overrides = bundleOverrides(rootPkg, pnpmSet, Object.keys(BUNDLE_DIRECT_DEPENDENCIES));
   if (Object.keys(overrides).length > 0) manifest.overrides = overrides;
   writeFileSync(join(STAGE, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 
@@ -546,9 +592,9 @@ function assemble() {
   // into node_modules instead of linking them, and `bin-links=false` skips the node_modules/.bin
   // links (server.mjs starts Next via require.resolve('next/dist/bin/next'), not .bin/next).
   // NV08: the same .npmrc plus ignore-scripts, and a lockfile that pins the transitive tree.
-  const pins = stageInstallPins(STAGE);
+  const pins = stageInstallPins(STAGE, run, { pnpmSet, rootOverrides: rootPkg.pnpm?.overrides });
   process.stdout.write(
-    `\nbundle lockfile: ${pins.packages} packages pinned, install scripts off\n`,
+    `\nbundle lockfile: ${pins.packages} packages pinned, same tree as pnpm-lock.yaml, override floors and npm audit passed, install scripts off\n`,
   );
 
   // The owner's guide, the settings template and the secret generator travel with the bundle,
