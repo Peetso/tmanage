@@ -2071,6 +2071,19 @@ function RevisionHistory({
 }
 
 /**
+ * N02: the API answers one 409 `message_already_converted` when the message already became
+ * work the caller cannot open (it says nothing about that work). The client error vocabulary
+ * is coarse (`conflict`), so the reason travels in the first detail. Any other 409 keeps the
+ * removed-message wording.
+ */
+function isAlreadyConvertedHidden(error: ApiRequestError): boolean {
+  return (
+    (error.code as string) === 'message_already_converted' ||
+    error.details[0]?.message === 'message_already_converted'
+  );
+}
+
+/**
  * **TM-09 Convert message dialog**, painted as CH-08 in the 400px lens. `22-SCREEN-BY-SCREEN`
  * §4: "Type, title, project, owner, due date, audience. Source preview and access warning.
  * Defaults: internal audience; no owner/date invented. Duplicate conversion shows existing link."
@@ -2282,7 +2295,11 @@ function ConvertDialog({
         <InlineAlert tone="danger" title={t('ProjectChannelScreen.couldNotCreateWork')} live>
           {describeError(convert.error, t)}
           {convert.error instanceof ApiRequestError && convert.error.status === 409
-            ? ` ${t('ProjectChannelScreen.removedCannotConvert')}`
+            ? ` ${t(
+                isAlreadyConvertedHidden(convert.error)
+                  ? 'ProjectChannelScreen.alreadyConvertedHidden'
+                  : 'ProjectChannelScreen.removedCannotConvert',
+              )}`
             : ''}
         </InlineAlert>
       ) : null}
