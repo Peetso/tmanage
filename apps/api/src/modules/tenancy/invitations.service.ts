@@ -17,6 +17,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { ClientMembershipsRepository } from '../clients/client-memberships.repository.js';
 import { MembershipsRepository } from './memberships.repository.js';
+import { StaffClientRowsRepository } from './membership-resolver.repository.js';
 import { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
 import { customRoleCapabilities } from './member-role.controller.js';
 import {
@@ -308,6 +309,8 @@ export class InvitationsService {
     private readonly customRoles: MemberBulkRoleRepository = new MemberBulkRoleRepository(),
     /** F52b: the organization's access policy (invite domain allowlist, guest access). */
     private readonly policies: PoliciesRepository = new PoliciesRepository(),
+    /** Wave 11 Q4 (M05): the client rows internal acceptance ends. */
+    private readonly staffClientRows: StaffClientRowsRepository = new StaffClientRowsRepository(),
   ) {}
 
   async list(
@@ -594,7 +597,7 @@ export class InvitationsService {
     try {
       return await this.database.transaction(context, async (tx) => {
         await this.requireInviterStillMayGrant(tx, context, invitation);
-        return this.grantWithin(tx, context, invitation.id, userId);
+        return this.grantWithin(tx, context, invitation.id, userId, { existingAccount: true });
       });
     } catch (error) {
       throw alreadyMemberOr(error);
@@ -691,7 +694,10 @@ export class InvitationsService {
           await this.credentials.setPassword(scope.identity, userId, passwordHash);
           const tenant = scope.tenant(context);
           await this.requireInviterStillMayGrant(tenant, context, invitation);
-          return this.grantWithin(tenant, context, invitation.id, userId);
+          // The account was created a moment ago in this transaction: it holds no client row.
+          return this.grantWithin(tenant, context, invitation.id, userId, {
+            existingAccount: false,
+          });
         },
       );
       return { ...granted, userId };
@@ -719,6 +725,7 @@ export class InvitationsService {
     context: TenantContext,
     invitationId: string,
     userId: string,
+    account: { readonly existingAccount: boolean },
   ): Promise<AcceptedInvitationView> {
     // Marked accepted *first*. The `status = 'pending'` predicate is what makes the token
     // single-use, so two requests racing with one token both reach here and exactly one
@@ -747,6 +754,9 @@ export class InvitationsService {
         created.version,
         'active',
       );
+      if (account.existingAccount) {
+        await this.endClientRowsOfNewStaff(tx, context, userId, accepted.id);
+      }
 
       // A1: the "Add to projects" choice lands now, not at issue — only an accepted invitation
       // makes anyone a project member. A project archived since issue is skipped.
@@ -1146,6 +1156,43 @@ export class InvitationsService {
       [{ field: 'token', message: 'internal_member' }],
       'invitation_internal_member',
     );
+  }
+
+  /**
+   * Wave 11 Q4 (M05): an existing account that becomes staff here gives up any client row it still
+   * holds in this company, in the acceptance transaction, each with its own audit row. Otherwise
+   * the older client row would outlive a later suspension of the staff membership and keep the
+   * person in through the portal. `offboarded` is the state machine's terminal end, reachable from
+   * every other state; re-admitting them as a client later is a new, separately audited row.
+   */
+  private async endClientRowsOfNewStaff(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+    invitationId: string,
+  ): Promise<void> {
+    const rows = await this.staffClientRows.openClientRowsOf(tx, context, userId);
+    for (const row of rows) {
+      const ended = await this.clientMemberships.transitionStatus(
+        tx,
+        context,
+        row.id,
+        row.updatedAt,
+        'offboarded',
+      );
+      await this.audit?.record(tx, context, {
+        action: 'client_membership.status_changed',
+        objectId: ended.id,
+        result: 'allowed',
+        metadata: {
+          client_organization_id: row.clientOrganizationId,
+          status_before: row.status,
+          status_after: ended.status,
+          invitation_id: invitationId,
+          cause: 'internal_invitation_accepted',
+        },
+      });
+    }
   }
 
   /** What an invitation's role grants: a built-in ceiling or the custom role's row. */

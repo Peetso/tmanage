@@ -9,6 +9,7 @@ import type { InviteeAccountsRepository } from './invitee-accounts.repository.js
 import type { InvitationsRepository } from './invitations.repository.js';
 import type { MembershipsRepository } from './memberships.repository.js';
 import type { MemberBulkRoleRepository } from './member-bulk-role.repository.js';
+import type { StaffClientRowsRepository } from './membership-resolver.repository.js';
 import { customRoleKey } from '@tmanage/domain';
 import type { Principal } from '@tmanage/domain';
 import type { PoliciesRepository } from '../admin/policies.repository.js';
@@ -173,6 +174,8 @@ function harness(
       find: () =>
         Promise.resolve(options.policy === undefined ? undefined : { policyJson: options.policy }),
     } as unknown as PoliciesRepository,
+    // Wave 11 Q4 (M05): this harness's accepting account holds no client row to end.
+    { openClientRowsOf: () => Promise.resolve([]) } as unknown as StaffClientRowsRepository,
   );
   return {
     service,

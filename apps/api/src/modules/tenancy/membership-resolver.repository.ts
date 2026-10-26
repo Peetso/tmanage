@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, or, sql } from 'drizzle-orm';
+import { and, eq, gt, gte, isNull, ne, or, sql } from 'drizzle-orm';
 import {
   capabilitiesFor,
   customRoleKey,
@@ -21,6 +21,7 @@ import type {
   BootstrapQueryRunner,
   TenantContext,
   TenantDatabase,
+  TenantQueryRunner,
 } from '../../common/database/tenant-context.js';
 import { AuditService } from '../audit/audit.service.js';
 
@@ -113,7 +114,15 @@ export type MembershipResolutionFailure =
    * after the membership row has proved the caller belongs, so it discloses nothing to an
    * outsider — an outsider still gets `no_active_membership`.
    */
-  | 'organization_suspended';
+  | 'organization_suspended'
+  /**
+   * Wave 11 Q4 (M05). The caller holds a live client row here, but their staff membership in the
+   * same company was suspended, or offboarded after that client row was created. A client row
+   * from before the staff stop must not keep the person in through the portal. Raised only after
+   * the client row has proved the caller belongs; mapped like every other refusal (the neutral
+   * organization-not-found answer), so it tells the caller nothing about the company.
+   */
+  | 'staff_access_stopped';
 
 /** What a member of a suspended company is told. The data is kept; support can reopen it. */
 export const SUSPENDED_MESSAGE =
@@ -206,16 +215,21 @@ export class MembershipResolver {
   ) {}
 
   async resolve(request: ResolveMembershipRequest): Promise<ResolvedMembership> {
-    const { internal, client } = await this.database.bootstrapRead(
+    const { internal, client, staffStopped } = await this.database.bootstrapRead(
       {
         correlationId: request.correlationId,
         reason: RESOLUTION_REASON,
         tables: [...RESOLUTION_TABLES],
       },
-      async (tx) => ({
-        internal: await this.internalMembership(tx, request),
-        client: await this.clientMembership(tx, request),
-      }),
+      async (tx) => {
+        const internal = await this.internalMembership(tx, request);
+        const client = await this.clientMembership(tx, request);
+        // Wave 11 Q4 (M05): only a client-only resolution needs the staff row's history. Active
+        // staff are the F27b case above and resolve as staff, unchanged.
+        const staffStopped =
+          internal === null && client !== null && (await this.staffStopped(tx, request, client));
+        return { internal, client, staffStopped };
+      },
     );
 
     // Both queries always run, even though one match is enough to proceed. The second round
@@ -238,6 +252,8 @@ export class MembershipResolver {
     if (candidate.suspendedAt !== null) {
       throw new MembershipNotResolvedError('organization_suspended');
     }
+    // Wave 11 Q4 (M05). After the client row proved membership, like the check above.
+    if (staffStopped) throw new MembershipNotResolvedError('staff_access_stopped');
 
     const kind = internal ? 'internal' : 'client';
     const contextFor = (role: PrincipalRole) =>
@@ -395,6 +411,50 @@ export class MembershipResolver {
     return row ? { ...row, clientOrganizationId: null } : null;
   }
 
+  /**
+   * Wave 11 Q4 (M05). Whether the person's staff membership in the client row's company has been
+   * stopped in a way the client row predates: `suspended` (any time — a suspension is a pause, and
+   * the portal must not be the way around it), or `offboarded` at or after the client row was
+   * created. A client row created after offboarding is a deliberate re-invitation as a client
+   * (F27a lets offboarded staff accept one) and still works.
+   *
+   * Bound to the organization and the client row the previous read proved, by id; reads only the
+   * two membership tables the bootstrap read already names, and returns a status, nothing else.
+   */
+  private async staffStopped(
+    tx: BootstrapQueryRunner,
+    request: ResolveMembershipRequest,
+    client: Candidate,
+  ): Promise<boolean> {
+    const rows = await tenantDrizzle(tx)
+      .select({ status: memberships.status })
+      .from(memberships)
+      .innerJoin(
+        clientMemberships,
+        and(
+          eq(clientMemberships.id, client.membershipId),
+          eq(clientMemberships.organizationId, memberships.organizationId),
+        ),
+      )
+      .where(
+        and(
+          eq(memberships.organizationId, client.organizationId),
+          eq(memberships.userId, request.userId),
+          or(
+            eq(memberships.status, 'suspended'),
+            and(
+              eq(memberships.status, 'offboarded'),
+              gte(memberships.updatedAt, clientMemberships.createdAt),
+            ),
+          ),
+        ),
+      )
+      // `uq_memberships_org_user`: one staff row per person per company.
+      .limit(1);
+    const status = rows[0]?.status;
+    return status === 'suspended' || status === 'offboarded';
+  }
+
   private async clientMembership(
     tx: BootstrapQueryRunner,
     request: ResolveMembershipRequest,
@@ -445,5 +505,45 @@ export class MembershipResolver {
       hasOrgWideScope: false,
       workspaceScopeId: null,
     };
+  }
+}
+
+/** A client row still open (not offboarded) for one person in the acting tenant. */
+export interface OpenClientRow {
+  readonly id: string;
+  readonly clientOrganizationId: string;
+  readonly status: (typeof clientMemberships.$inferSelect)['status'];
+  readonly updatedAt: Date;
+}
+
+/**
+ * Wave 11 Q4 (M05). The client rows a person still holds in the acting tenant, for internal
+ * invitation acceptance to end in the same transaction: once someone is staff here, an older
+ * client row would otherwise outlive a later suspension of that staff membership.
+ *
+ * Tenant-scoped (`organization_id` from the context, never from input) and ordinary — unlike the
+ * resolver above it runs on the caller's tenant transaction, not the bootstrap read.
+ */
+export class StaffClientRowsRepository {
+  async openClientRowsOf(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<readonly OpenClientRow[]> {
+    return tenantDrizzle(runner)
+      .select({
+        id: clientMemberships.id,
+        clientOrganizationId: clientMemberships.clientOrganizationId,
+        status: clientMemberships.status,
+        updatedAt: clientMemberships.updatedAt,
+      })
+      .from(clientMemberships)
+      .where(
+        and(
+          eq(clientMemberships.organizationId, context.organizationId),
+          eq(clientMemberships.userId, userId),
+          ne(clientMemberships.status, 'offboarded'),
+        ),
+      );
   }
 }
