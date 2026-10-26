@@ -1,0 +1,211 @@
+/*
+ * Phone · Work item with attachments (Figma 407:6635). Phone only (max-width 767px), and CSS
+ * only: WorkItemDetailScreen is restyled through its existing class hooks, so the desktop detail
+ * is unchanged. Elements the frame has that the screen does not render yet (the back / ••• nav
+ * bar, the "Where it stands" step list, the sticky action bar, the "CLIENT SEES" tile label) need
+ * markup in WorkItemDetailScreen and are listed in the wave report rather than faked here.
+ */
+
+@media (max-width: 767px) {
+  /* ── Title block (407:6650): 36/42 title, mono project line ────────────────────── */
+
+  .tm-app__body:has(.tm-wk-detail) .tm-canvas-header__title {
+    font-size: var(--t-heading-page);
+    font-weight: 600;
+    letter-spacing: 0;
+    line-height: var(--t-heading-page-line);
+  }
+
+  .tm-app__body:has(.tm-wk-detail) .tm-canvas-header__context {
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+    text-transform: uppercase;
+  }
+
+  .tm-wk-detail .tm-wk-detail__pills {
+    margin-block-start: 0;
+  }
+
+  /* The state capsule: lime + ink edge for "current", the StateCapsule look (10:29). */
+  .tm-wk-detail .tm-wk-pill {
+    min-block-size: 26px;
+    padding: var(--s1) var(--s3);
+    font-size: var(--t-ui-sm);
+    font-weight: 500;
+    line-height: var(--t-ui-sm-line);
+  }
+
+  .tm-wk-detail .tm-wk-pill[data-state='current'] {
+    border-color: var(--tm-ink-absolute);
+    background: var(--lime-500);
+    color: var(--tm-on-lime);
+  }
+
+  .tm-wk-detail .tm-wk-pill[data-state='current'] .tm-wk-pill__dot {
+    inline-size: 9px;
+    block-size: 9px;
+    border: 0;
+    border-radius: 1px;
+    background: var(--tm-on-lime);
+    transform: rotate(45deg);
+  }
+
+  /* Owner + due: an avatar row rather than bordered chips (407:6658). */
+  .tm-wk-detail .tm-wk-fact-chips {
+    flex-direction: column;
+    gap: var(--s2);
+  }
+
+  .tm-wk-detail .tm-wk-fact {
+    min-block-size: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .tm-wk-detail .tm-wk-fact .tm-wk-orb {
+    inline-size: var(--orb-default);
+    block-size: var(--orb-default);
+    background: var(--paper-250);
+    color: var(--ink-800);
+    font-size: var(--t-ui-sm);
+  }
+
+  .tm-wk-detail .tm-wk-fact__value {
+    font-size: var(--t-ui-md);
+    font-weight: 500;
+  }
+
+  .tm-wk-detail .tm-wk-fact__caret {
+    display: none;
+  }
+
+  /* ── One column; attachments first, as the frame orders them ───────────────────── */
+
+  .tm-wk-detail .tm-wk-detail__grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  .tm-wk-detail .tm-wk-detail__grid > .tm-wk-card:has(> .tm-wk-files) {
+    order: -1;
+  }
+
+  /* Cards: white, 24 radius, 20 padding, low elevation (407:6661 / 407:6719). */
+  .tm-wk-detail .tm-wk-card {
+    gap: var(--s2);
+    padding: var(--s5);
+    border: 0;
+    border-radius: var(--r-card);
+    box-shadow:
+      0 1px 1px rgb(9 10 9 / 4%),
+      0 1px 2px rgb(9 10 9 / 6%);
+  }
+
+  .tm-wk-detail .tm-wk-card__title {
+    font-weight: 600;
+  }
+
+  /* ── Attachments (407:6678 head, 407:6691 tiles) ───────────────────────────────── */
+
+  .tm-wk-detail .tm-wk-card:has(> .tm-wk-files) {
+    gap: var(--s5);
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .tm-wk-detail .tm-wk-card:has(> .tm-wk-files) .tm-wk-card__title {
+    font-size: var(--t-heading-section);
+    line-height: var(--t-heading-section-line);
+  }
+
+  .tm-wk-detail .tm-wk-card:has(> .tm-wk-files) .tm-wk-card__head .tm-wk-pill-button {
+    min-block-size: 48px;
+    padding-inline: var(--s2);
+    border: 0;
+    background: transparent;
+    color: var(--ink-950);
+    font-size: var(--t-ui-md);
+  }
+
+  .tm-wk-detail .tm-wk-files {
+    flex-direction: row;
+    gap: var(--s3);
+    margin-inline: -16px;
+    padding-inline: 16px;
+    padding-block-end: var(--s1);
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+  }
+
+  .tm-wk-detail .tm-wk-file,
+  .tm-wk-detail .tm-wk-file[data-backed='true'] {
+    flex: none;
+    gap: var(--s2);
+    inline-size: 164px;
+    padding: var(--s2) var(--s2) var(--s3);
+    border: 0;
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+    box-shadow:
+      0 1px 1px rgb(9 10 9 / 4%),
+      0 1px 2px rgb(9 10 9 / 6%);
+    scroll-snap-align: start;
+  }
+
+  .tm-wk-detail .tm-wk-file__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--s2);
+  }
+
+  /* The kind badge becomes the tile's preview plane (104px, 18 radius). */
+  .tm-wk-detail .tm-wk-file .tm-wk-badge {
+    display: grid;
+    place-items: center;
+    block-size: 104px;
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-compact);
+    background: var(--paper-150);
+    color: var(--ink-650);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+  }
+
+  .tm-wk-detail .tm-wk-file:first-child .tm-wk-badge {
+    background: var(--tm-ink-absolute);
+    color: var(--lime-500);
+  }
+
+  .tm-wk-detail .tm-wk-file:nth-child(2) .tm-wk-badge {
+    background: var(--lime-100);
+    color: var(--ink-950);
+  }
+
+  .tm-wk-detail .tm-wk-file__name {
+    overflow: hidden;
+    font-size: var(--t-ui-sm);
+    font-weight: 500;
+    line-height: var(--t-ui-sm-line);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
+  .tm-wk-detail .tm-wk-file__meta {
+    font-family: var(--font-mono);
+    font-weight: 500;
+  }
+
+  .tm-wk-detail .tm-wk-file .tm-wk-pill-button,
+  .tm-wk-detail .tm-wk-file .tm-wk-text-button {
+    align-self: flex-start;
+    font-size: var(--t-caption);
+  }
+}

@@ -1,6 +1,15 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
 import Link from 'next/link';
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { InadmissibleRichTextError, sanitizeRichText } from '@tmanage/domain';
@@ -23,11 +32,16 @@ import {
   type MentionGroup,
 } from '../chat/MentionPicker';
 import { RichTextBody } from '../RichTextBody';
+import { PhoneIcon } from '../icons/phone';
+import { directKeys, fetchDirectConversations } from '../../lib/api/direct-conversations';
+import '../../styles/phone/chat.css';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import { newCorrelationId } from '../../lib/api/client';
 import { getProject } from '../../lib/api/projects';
 import { listProjectMembers } from '../../lib/api/project-members';
 import { useTOr } from '../../lib/i18n/use-t-or';
+import { useActiveLocale } from '../../lib/i18n/use-active-locale';
+import { fill } from '../../lib/privacy-presentation';
 import { useMembers } from '../../lib/use-members';
 import {
   MAX_MESSAGE_PAGE,
@@ -311,6 +325,7 @@ export function ProjectChannelScreen({
    * client role — the transcript's "Client" chip and the Members panel's CLIENT group agree.
    */
   const isMobile = useIsMobile();
+  const locale = useActiveLocale();
   const channelDirectory = useQuery({
     queryKey: ['conversations', organizationSlug, 'directory'],
     queryFn: () => listChannelDirectory(api, organizationSlug),
@@ -346,6 +361,15 @@ export function ProjectChannelScreen({
   const internalMembers = Math.max(0, totalMembers - clientMembers);
   const clientVisible = clientMembers > 0;
 
+  // Phone (Figma 408:7354): your own messages are the black bubbles on the end side. The caller's
+  // id rides on the direct-conversations overview — the same cache entry the chat sidebar reads.
+  const viewer = useQuery({
+    queryKey: directKeys.overview(organizationSlug),
+    queryFn: () => fetchDirectConversations(api, organizationSlug),
+    enabled: isMobile,
+  });
+  const viewerUserId = viewer.data?.viewerUserId ?? null;
+
   const [editingId, setEditingId] = useState<string | undefined>(undefined);
   const [pickerFor, setPickerFor] = useState<string | undefined>(undefined);
   const [moreFor, setMoreFor] = useState<string | undefined>(undefined);
@@ -367,6 +391,7 @@ export function ProjectChannelScreen({
     organizationSlug,
     conversationId,
     isMobile,
+    viewerUserId,
     nameOf,
     isClient,
     archived,
@@ -499,21 +524,46 @@ export function ProjectChannelScreen({
               href={`/${organizationSlug}/chat`}
               aria-label={t('ProjectChannelScreen.backToAllChannels')}
             >
-              <span aria-hidden="true">←</span>
+              <span className="tm-phone-chat__glyph" aria-hidden="true">
+                ←
+              </span>
+              <PhoneIcon name="back" className="tm-phone-chat__icon" />
             </Link>
             <span className="tm-chat-phone-head__text">
               <span className="tm-chat-phone-head__name">
                 {hash ?? t('ProjectChannelScreen.channelFallback')}
               </span>
-              <span className="tm-chat-phone-head__sub">{phoneCountsLine}</span>
+              <span className="tm-chat-phone-head__sub">
+                <span className="tm-phone-chat__counts">{phoneCountsLine}</span>
+                <span className="tm-phone-chat__members-line">
+                  {project.data?.name
+                    ? fill(tOr('PhoneChat.membersProject', '{count} members · {project}'), {
+                        count: totalMembers,
+                        project: project.data.name,
+                      })
+                    : fill(tOr('PhoneChat.members', '{count} members'), {
+                        count: totalMembers,
+                      })}
+                </span>
+              </span>
             </span>
             <span className="tm-chat-phone-head__members">
-              <span aria-hidden="true">☺ {totalMembers}</span>
+              <span className="tm-phone-chat__glyph" aria-hidden="true">
+                ☺ {totalMembers}
+              </span>
+              <PhoneIcon name="dots" className="tm-phone-chat__icon" />
               <span className="tm-visually-hidden">
                 {`${totalMembers} ${tOr('ProjectChannelScreen.membersCount', 'members')}`}
               </span>
             </span>
           </div>
+        ) : null}
+
+        {isMobile && clientVisible && !channelRevoked ? (
+          <p className="tm-phone-chat__banner">
+            <PhoneIcon name="eye" size={20} />
+            {tOr('PhoneChat.clientCanSee', 'Client can see this channel')}
+          </p>
         ) : null}
 
         {channelRevoked ? (
@@ -568,14 +618,24 @@ export function ProjectChannelScreen({
             aria-relevant="additions"
             {...(sheetFor === undefined ? {} : { 'data-sheet-open': 'true' })}
           >
-            {rows.map((message) => (
-              <ChannelMessage
-                key={message.id}
-                message={message}
-                selected={selectedId === message.id}
-                context={rowContext}
-              />
-            ))}
+            {rows.map((message, index) => {
+              const day = isMobile ? dayKey(message.createdAt) : '';
+              const showDay = isMobile && day !== '' && day !== dayKey(rows[index - 1]?.createdAt);
+              return (
+                <Fragment key={message.id}>
+                  {showDay ? (
+                    <li className="tm-phone-chat__day">
+                      <span>{phoneDayLabel(message.createdAt, locale, tOr)}</span>
+                    </li>
+                  ) : null}
+                  <ChannelMessage
+                    message={message}
+                    selected={selectedId === message.id}
+                    context={rowContext}
+                  />
+                </Fragment>
+              );
+            })}
           </ol>
         ) : null}
 
@@ -636,6 +696,8 @@ interface ChannelRowContext {
   organizationSlug: string;
   conversationId: string;
   isMobile: boolean;
+  /** The reader's own id, once known — marks their messages on the phone. */
+  viewerUserId: string | null;
   nameOf: (userId: string) => string;
   isClient: (userId: string) => boolean;
   archived: boolean;
@@ -662,6 +724,44 @@ interface ChannelRowContext {
 }
 
 const LONG_PRESS_MS = 500;
+
+/** Phone only: the message text and its files share one bubble (Figma 408:7401). */
+function BubbleWrap({ phone, children }: { phone: boolean; children: ReactNode }) {
+  return phone ? <div className="tm-phone-chat__bubble">{children}</div> : <>{children}</>;
+}
+
+function isImageName(name: string): boolean {
+  return /\.(png|jpe?g|gif|webp|svg|heic)$/iu.test(name);
+}
+
+/** The local calendar day of an instant, as a comparable key ('' when unknown). */
+function dayKey(value: string | undefined): string {
+  if (value === undefined) return '';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return `${parsed.getFullYear()}-${parsed.getMonth()}-${parsed.getDate()}`;
+}
+
+/** "Today · Mon 26 Oct" — the phone transcript's day divider (408:7376). */
+function phoneDayLabel(
+  value: string,
+  locale: string,
+  tOr: (key: string, english: string) => string,
+): string {
+  const parsed = new Date(value);
+  const arabic = locale.toLowerCase().startsWith('ar');
+  const day = parsed.toLocaleDateString(arabic ? 'ar-u-nu-latn' : 'en-GB', {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  });
+  const today = dayKey(new Date().toISOString());
+  const yesterday = dayKey(new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+  const key = dayKey(value);
+  if (key === today) return `${tOr('PhoneChat.today', 'Today')} · ${day}`;
+  if (key === yesterday) return `${tOr('PhoneChat.yesterday', 'Yesterday')} · ${day}`;
+  return day;
+}
 
 /** The download address of a stored file — the same route the work item's files use. */
 function fileContentHref(organizationSlug: string, fileAssetId: string): string {
@@ -713,7 +813,7 @@ export function ChannelFileCard({
   return (
     <li className={scanRow ? 'tm-chat-file tm-scan-row' : 'tm-chat-file'}>
       <span className="tm-chat-file__icon" aria-hidden="true">
-        ▣
+        {isMobile ? <PhoneIcon name={isImageName(file.name) ? 'image' : 'file'} /> : '▣'}
       </span>
       <span className="tm-chat-file__text">
         <span className="tm-chat-file__name">{file.name}</span>
@@ -747,6 +847,15 @@ export function ChannelFileCard({
           aria-label={`${tOr('ProjectChannelScreen.openFile', 'Open')} ${file.name}`}
         >
           {tOr('ProjectChannelScreen.openFile', 'Open')}
+        </a>
+      ) : null}
+      {status === 'clean' && isMobile ? (
+        <a
+          className="tm-phone-chat__file-open"
+          href={href}
+          aria-label={`${tOr('ProjectChannelScreen.openFile', 'Open')} ${file.name}`}
+        >
+          <PhoneIcon name="forward" size={20} />
         </a>
       ) : null}
     </li>
@@ -826,6 +935,7 @@ function ChannelMessage({
       ref={rowRef}
       id={`message-${message.id}`}
       className="tm-chat-message"
+      {...(isMobile && context.viewerUserId === message.authorUserId ? { 'data-own': 'true' } : {})}
       {...(selected ? { 'data-selected': 'true' } : {})}
       {...(sheetOpen ? { 'data-sheet-target': 'true' } : {})}
       {...pressProps}
@@ -850,39 +960,41 @@ function ChannelMessage({
           ) : null}
         </div>
 
-        {editing ? (
-          <InlineEditCard
-            api={api}
-            organizationSlug={organizationSlug}
-            conversationId={conversationId}
-            message={message}
-            onDone={() => {
-              context.setEditingId(undefined);
-              void queries.invalidateQueries({
-                queryKey: ['messages', organizationSlug, conversationId],
-              });
-              void queries.invalidateQueries({
-                queryKey: ['revisions', organizationSlug, conversationId, message.id],
-              });
-            }}
-            onCancel={() => context.setEditingId(undefined)}
-          />
-        ) : (
-          <MessageBody message={message} nameOf={nameOf} />
-        )}
+        <BubbleWrap phone={isMobile}>
+          {editing ? (
+            <InlineEditCard
+              api={api}
+              organizationSlug={organizationSlug}
+              conversationId={conversationId}
+              message={message}
+              onDone={() => {
+                context.setEditingId(undefined);
+                void queries.invalidateQueries({
+                  queryKey: ['messages', organizationSlug, conversationId],
+                });
+                void queries.invalidateQueries({
+                  queryKey: ['revisions', organizationSlug, conversationId, message.id],
+                });
+              }}
+              onCancel={() => context.setEditingId(undefined)}
+            />
+          ) : (
+            <MessageBody message={message} nameOf={nameOf} />
+          )}
 
-        {files.length > 0 ? (
-          <ul className="tm-chat-files">
-            {files.map((file) => (
-              <ChannelFileCard
-                key={file.fileAssetId}
-                file={file}
-                href={fileContentHref(organizationSlug, file.fileAssetId)}
-                isMobile={isMobile}
-              />
-            ))}
-          </ul>
-        ) : null}
+          {files.length > 0 ? (
+            <ul className="tm-chat-files">
+              {files.map((file) => (
+                <ChannelFileCard
+                  key={file.fileAssetId}
+                  file={file}
+                  href={fileContentHref(organizationSlug, file.fileAssetId)}
+                  isMobile={isMobile}
+                />
+              ))}
+            </ul>
+          ) : null}
+        </BubbleWrap>
 
         {removed ? null : (
           <MessageReactionPills
@@ -1830,6 +1942,7 @@ function Composer({
             <span className="tm-chat-side__send-arrow" aria-hidden="true">
               →
             </span>
+            <PhoneIcon name="send" className="tm-phone-chat__send-icon" />
           </button>
         </div>
       ) : (

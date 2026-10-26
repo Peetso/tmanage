@@ -1,0 +1,277 @@
+/*
+ * Phone · Home / My Day (Figma 405:6293 "Phone redesign — website direction", frames 406:6374 EN
+ * and 406:6505 AR). Phone only: every rule that draws something sits under max-width 767px, and
+ * the phone-only elements are hidden above it, so the desktop My Day is unchanged.
+ *
+ * Inverse surfaces use the absolute ink/paper pair from the component layer, so the black hero
+ * stays black (and its lime stays legible) in the dark theme too.
+ */
+
+.tm-phone-home,
+.tm-phone-home__count,
+.tm-phone-home-card__orb,
+.tm-phone-home-card__meta {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* What the phone frame does not draw: the day strip, the header sentence and metrics, the
+     "New work" pill (the dock's lime + is the way in), the focus strip and the filter chips. */
+  .tm-app__body:has(.tm-phone-home) .tm-app__topbar,
+  .tm-app__body:has(.tm-phone-home) .tm-canvas-header__description,
+  .tm-app__body:has(.tm-phone-home) .tm-canvas-header__aside,
+  .tm-app__body:has(.tm-phone-home) .tm-canvas-header__actions,
+  .tm-canvas .tm-home-focus.tm-focus-capsule,
+  .tm-home-section .tm-section-head .tm-chip-row,
+  .tm-home-section .tm-section-head .tm-home-section__count {
+    display: none;
+  }
+
+  .tm-phone-home {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  /* ── Hero · Today (406:6390) ───────────────────────────────────────────────────── */
+
+  .tm-phone-home__hero {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+    padding: var(--s6);
+    border-radius: var(--r-feature);
+    background: var(--tm-ink-absolute);
+    color: var(--tm-paper-absolute);
+  }
+
+  .tm-phone-home__eyebrow {
+    margin: 0;
+    color: var(--lime-500);
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    text-transform: uppercase;
+  }
+
+  .tm-phone-home__headline {
+    margin: 0;
+    color: var(--tm-paper-absolute);
+    font-size: var(--t-heading-page);
+    font-weight: 600;
+    line-height: var(--t-heading-page-line);
+  }
+
+  .tm-phone-home__metrics {
+    display: flex;
+    gap: var(--s4);
+    margin: 0;
+  }
+
+  .tm-phone-home__metric {
+    display: flex;
+    flex: 1 0 0;
+    flex-direction: column;
+    gap: var(--s1);
+    min-inline-size: 0;
+  }
+
+  .tm-phone-home__dash {
+    order: 0;
+    inline-size: 24px;
+    block-size: 4px;
+    border-radius: var(--r-capsule);
+    background: var(--lime-500);
+  }
+
+  .tm-phone-home__metric-value {
+    order: 1;
+    margin: 0;
+    font-size: var(--t-display-metric);
+    font-weight: 400;
+    font-variant-numeric: tabular-nums;
+    line-height: var(--t-display-metric-line);
+  }
+
+  .tm-phone-home__metric-label {
+    order: 2;
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    opacity: 0.72;
+  }
+
+  /* ── Up next (406:6406) ────────────────────────────────────────────────────────── */
+
+  .tm-phone-home__next {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+    padding: var(--s5);
+    border-radius: var(--r-card);
+    background: var(--lime-500);
+    color: var(--tm-on-lime);
+  }
+
+  .tm-phone-home__next-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: var(--s2);
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    text-transform: uppercase;
+  }
+
+  .tm-phone-home__next-orb {
+    display: grid;
+    place-items: center;
+    flex: none;
+    inline-size: var(--orb-compact);
+    block-size: var(--orb-compact);
+    border-radius: var(--r-capsule);
+    background: var(--tm-ink-absolute);
+    color: var(--lime-500);
+  }
+
+  .tm-phone-home__next-title {
+    margin: 0;
+    color: var(--tm-on-lime);
+    font-size: var(--t-heading-section);
+    font-weight: 600;
+    line-height: var(--t-heading-section-line);
+  }
+
+  .tm-phone-home__next-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .tm-phone-home__join {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-block-size: 44px;
+    padding-inline: var(--s5);
+    border-radius: var(--r-capsule);
+    background: var(--tm-ink-absolute);
+    color: var(--tm-paper-absolute);
+    font-size: var(--t-ui-md);
+    font-weight: 500;
+    line-height: var(--t-ui-md-line);
+    text-decoration: none;
+  }
+
+  .tm-phone-home__join:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* ── Section head "Due & at risk" + count badge (406:6430) ─────────────────────── */
+
+  .tm-home-section .tm-section-head:has(.tm-phone-home__count) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 0;
+  }
+
+  .tm-home-section .tm-section-head:has(.tm-phone-home__count) .tm-section-head__title {
+    font-size: var(--t-heading-section);
+    font-weight: 600;
+    line-height: var(--t-heading-section-line);
+  }
+
+  .tm-phone-home__count {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--s1) var(--s3);
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-capsule);
+    background: var(--paper-50);
+    color: var(--ink-800);
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+  }
+
+  /* ── Due & at risk cards (406:6434): orb · title / meta, then the state ──────────── */
+
+  .tm-home-cards {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  .tm-home-cards .tm-home-card,
+  .tm-home-cards .tm-home-card.tm-card--lime {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-areas:
+      'orb title'
+      'orb meta'
+      'foot foot';
+    column-gap: var(--s3);
+    row-gap: var(--s1);
+    padding: var(--s5);
+    border: 0;
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+    color: var(--ink-950);
+    box-shadow:
+      0 1px 1px rgb(9 10 9 / 4%),
+      0 1px 2px rgb(9 10 9 / 6%);
+  }
+
+  .tm-home-cards .tm-home-card__top,
+  .tm-home-cards .tm-home-card .tm-home-card__foot > .tm-card__meta {
+    display: none;
+  }
+
+  .tm-phone-home-card__orb {
+    display: grid;
+    grid-area: orb;
+    place-items: center;
+    align-self: start;
+    inline-size: var(--orb-comfortable);
+    block-size: var(--orb-comfortable);
+    border-radius: var(--r-capsule);
+    background: var(--paper-150);
+    color: var(--ink-950);
+  }
+
+  .tm-home-cards .tm-home-card .tm-card__title {
+    grid-area: title;
+    margin: 0;
+    font-size: var(--t-body-lg);
+    font-weight: 400;
+    line-height: var(--t-body-lg-line);
+  }
+
+  .tm-home-cards .tm-home-card .tm-card__title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .tm-phone-home-card__meta {
+    display: block;
+    grid-area: meta;
+    color: var(--ink-650);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+  }
+
+  .tm-home-cards .tm-home-card__foot {
+    display: flex;
+    grid-area: foot;
+    align-items: center;
+    justify-content: flex-start;
+    margin-block-start: var(--s3);
+  }
+}

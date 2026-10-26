@@ -4,6 +4,8 @@ import { use } from 'react';
 import { useRouter } from 'next/navigation';
 import { WorkItemDetailScreen } from '../../../../components/screens/WorkItemDetailScreen';
 import { FIXTURE_ORGANIZATION_NAME } from '../../../../lib/fixtures';
+// Phone (<768px) restyle of the detail (Figma 407:6635); CSS only, desktop unchanged.
+import '../../../../styles/phone/work-item.css';
 
 /**
  * **TM-13 Work item detail.**

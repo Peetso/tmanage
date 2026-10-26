@@ -1,0 +1,393 @@
+/*
+ * Phone · Work list (Figma 407:6488). Phone only (max-width 767px); above it the overview is not
+ * drawn and the desktop list is unchanged. On the phone the frame replaces the canvas header,
+ * the context rail, the view tabs, the filter toolbar and the table with the overview below;
+ * the canvas header stays in the accessibility tree (visually hidden), as the chat channel does.
+ */
+
+.tm-phone-work {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .tm-app__body:has(.tm-phone-work) .tm-canvas-header {
+    position: absolute;
+    inline-size: 1px;
+    block-size: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .tm-app__body:has(.tm-phone-work) .tm-context-rail,
+  .tm-canvas:has(.tm-phone-work) .tm-wk-tabs,
+  .tm-canvas:has(.tm-phone-work) .tm-wk-toolbar,
+  .tm-canvas:has(.tm-phone-work) .tm-wk-bulk,
+  .tm-canvas:has(.tm-phone-work) .tm-wk-review,
+  .tm-canvas:has(.tm-phone-work) .tm-wk-table-frame,
+  .tm-canvas:has(.tm-phone-work) .tm-wk-table__foot {
+    display: none;
+  }
+
+  .tm-phone-work {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  /* ── Title bar (407:6496) ──────────────────────────────────────────────────────── */
+
+  .tm-phone-work__titlebar {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--s3);
+  }
+
+  .tm-phone-work__titles {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+    min-inline-size: 0;
+  }
+
+  .tm-phone-work__org {
+    margin: 0;
+    overflow: hidden;
+    color: var(--ink-650);
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .tm-phone-work__title {
+    margin: 0;
+    color: var(--ink-950);
+    font-size: var(--t-display-lg);
+    font-weight: 500;
+    letter-spacing: -1.4px;
+    line-height: var(--t-display-lg-line);
+  }
+
+  .tm-phone-work__orbs {
+    display: flex;
+    flex: none;
+    gap: var(--s2);
+    padding-block-end: var(--s2);
+  }
+
+  .tm-phone-work__orb {
+    display: grid;
+    place-items: center;
+    inline-size: var(--orb-comfortable);
+    block-size: var(--orb-comfortable);
+    padding: 0;
+    border: 0;
+    border-radius: var(--r-capsule);
+    background: var(--paper-0);
+    color: var(--ink-950);
+    cursor: pointer;
+  }
+
+  .tm-phone-work__orb[data-tone='ink'] {
+    background: var(--tm-ink-absolute);
+    color: var(--lime-500);
+  }
+
+  .tm-phone-work__orb:focus-visible,
+  .tm-phone-work__chip:focus-visible,
+  .tm-phone-work__arrow:focus-visible,
+  .tm-phone-work__row-title:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+
+  /* ── Filter chips (407:6506, Filter/Chip 170:474) ──────────────────────────────── */
+
+  .tm-phone-work__chips {
+    display: flex;
+    gap: var(--s2);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tm-phone-work__chip {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: var(--s2);
+    block-size: var(--orb-compact);
+    padding-inline: var(--s3);
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-capsule);
+    background: var(--paper-0);
+    color: var(--ink-950);
+    font: inherit;
+    font-size: var(--t-ui-sm);
+    font-weight: 500;
+    line-height: var(--t-ui-sm-line);
+    cursor: pointer;
+  }
+
+  .tm-phone-work__chip[aria-pressed='true'] {
+    border-color: var(--lime-500);
+    background: var(--lime-100);
+  }
+
+  .tm-phone-work__chip-count {
+    padding: 1px 6px;
+    border-radius: var(--r-capsule);
+    background: var(--paper-150);
+    color: var(--ink-650);
+    font-size: var(--t-caption);
+    line-height: var(--t-caption-line);
+  }
+
+  .tm-phone-work__chip[aria-pressed='true'] .tm-phone-work__chip-count {
+    background: var(--tm-ink-absolute);
+    color: var(--tm-paper-absolute);
+  }
+
+  /* ── Project cards (407:6519 dark, 407:6546 white) ─────────────────────────────── */
+
+  .tm-phone-work__project {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+    padding: var(--s6);
+    border-radius: var(--r-feature);
+    background: var(--tm-ink-absolute);
+    color: var(--tm-paper-absolute);
+    --tm-ring-track: rgb(247 247 243 / 18%);
+    --tm-ring-done: var(--lime-500);
+  }
+
+  .tm-phone-work__project[data-tone='paper'] {
+    gap: var(--s3);
+    padding: var(--s5);
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+    color: var(--ink-950);
+    box-shadow:
+      0 1px 1px rgb(9 10 9 / 4%),
+      0 1px 2px rgb(9 10 9 / 6%);
+    --tm-ring-track: var(--paper-150);
+    --tm-ring-done: var(--ink-950);
+  }
+
+  .tm-phone-work__project-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .tm-phone-work__project-eyebrow {
+    margin: 0;
+    color: var(--lime-500);
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    text-transform: uppercase;
+  }
+
+  .tm-phone-work__project[data-tone='paper'] .tm-phone-work__project-eyebrow {
+    color: var(--client-500);
+  }
+
+  .tm-phone-work__arrow {
+    display: grid;
+    place-items: center;
+    inline-size: var(--orb-compact);
+    block-size: var(--orb-compact);
+    border-radius: var(--r-capsule);
+    background: var(--lime-500);
+    color: var(--tm-on-lime);
+  }
+
+  [dir='rtl'] .tm-phone-work__arrow svg {
+    transform: scaleX(-1);
+  }
+
+  .tm-phone-work__project-name {
+    margin: 0;
+    font-size: var(--t-heading-section);
+    font-weight: 600;
+    line-height: var(--t-heading-section-line);
+  }
+
+  .tm-phone-work__project[data-tone='paper'] .tm-phone-work__project-name {
+    font-size: var(--t-heading-card);
+    line-height: var(--t-heading-card-line);
+  }
+
+  .tm-phone-work__project-name a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .tm-phone-work__project-row {
+    display: flex;
+    align-items: center;
+    gap: var(--s4);
+  }
+
+  .tm-phone-work__project-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s1);
+    min-inline-size: 0;
+  }
+
+  .tm-phone-work__project-launch {
+    margin: 0;
+    font-size: var(--t-body-lg);
+    line-height: var(--t-body-lg-line);
+  }
+
+  .tm-phone-work__project-sub {
+    margin: 0;
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    opacity: 0.72;
+  }
+
+  .tm-phone-work__project[data-tone='paper'] .tm-phone-work__project-sub {
+    color: var(--ink-650);
+    opacity: 1;
+  }
+
+  /* Progress ring (PhoneProgressRing) */
+  .tm-phone-ring {
+    position: relative;
+    display: grid;
+    flex: none;
+    place-items: center;
+  }
+
+  .tm-phone-ring__track {
+    stroke: var(--tm-ring-track);
+  }
+
+  .tm-phone-ring__done {
+    stroke: var(--tm-ring-done);
+  }
+
+  .tm-phone-ring__value {
+    position: absolute;
+    font-size: var(--t-ui-sm);
+    font-weight: 500;
+    line-height: var(--t-ui-sm-line);
+  }
+
+  /* ── This week (407:6556 head, 407:6560 list) ──────────────────────────────────── */
+
+  .tm-phone-work__section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--s5);
+  }
+
+  .tm-phone-work__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .tm-phone-work__heading {
+    margin: 0;
+    color: var(--ink-950);
+    font-size: var(--t-heading-section);
+    font-weight: 600;
+    line-height: var(--t-heading-section-line);
+  }
+
+  .tm-phone-work__badge {
+    padding: var(--s1) var(--s3);
+    border: var(--b-quiet) solid var(--line-300);
+    border-radius: var(--r-capsule);
+    background: var(--paper-50);
+    color: var(--ink-800);
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+  }
+
+  .tm-phone-work__empty {
+    margin: 0;
+    color: var(--ink-650);
+    font-size: var(--t-ui-md);
+  }
+
+  .tm-phone-work__list {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: var(--s2) var(--s5);
+    border-radius: var(--r-card);
+    background: var(--paper-0);
+    list-style: none;
+  }
+
+  .tm-phone-work__row {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    padding-block: var(--s3);
+  }
+
+  .tm-phone-work__row + .tm-phone-work__row {
+    margin-block-start: var(--s2);
+    border-block-start: var(--b-quiet) solid var(--line-300);
+    padding-block-start: calc(var(--s3) + var(--s2));
+  }
+
+  .tm-phone-work__row-orb {
+    display: grid;
+    flex: none;
+    place-items: center;
+    inline-size: var(--orb-default);
+    block-size: var(--orb-default);
+    border-radius: var(--r-capsule);
+    background: var(--paper-150);
+    color: var(--ink-950);
+  }
+
+  .tm-phone-work__row-text {
+    display: flex;
+    flex: 1 0 0;
+    flex-direction: column;
+    gap: var(--s1);
+    min-inline-size: 0;
+  }
+
+  .tm-phone-work__row-title {
+    color: var(--ink-950);
+    font-size: var(--t-ui-md);
+    font-weight: 500;
+    line-height: var(--t-ui-md-line);
+    text-decoration: none;
+  }
+
+  .tm-phone-work__row-meta {
+    overflow: hidden;
+    color: var(--ink-650);
+    font-family: var(--font-mono);
+    font-size: var(--t-caption);
+    font-weight: 500;
+    line-height: var(--t-caption-line);
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  .tm-phone-work__row .tm-state-capsule {
+    flex: none;
+  }
+}

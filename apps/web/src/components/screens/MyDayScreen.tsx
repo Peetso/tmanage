@@ -9,6 +9,9 @@ import type { DayPulseItem } from '../shell/AppShell';
 import { HomeHeroSection } from './HomeHeroSection';
 import { HomePinnedSection } from './HomePinnedSection';
 import { HomeRecentItemsView } from './HomeRecentItemsView';
+import { PhoneHomeHero } from '../phone/PhoneHomeHero';
+import type { PhoneUpNext } from '../phone/PhoneHomeHero';
+import { PhoneIcon } from '../icons/phone';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { getHomeSummary, getMyDay, getSavedContext, getWaiting } from '../../lib/api/home';
 import type {
@@ -97,7 +100,7 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
     queryFn: () => listProjects(api, organizationSlug),
   });
 
-  const pulseItems = useDayPulseItems(api, organizationSlug);
+  const { items: pulseItems, upNext } = useDayPulseItems(api, organizationSlug);
 
   const projectNames = useMemo(() => {
     const names = new Map<string, string>();
@@ -153,6 +156,15 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
         />
       }
     >
+      {/* Phone (<768px) hero and "Up next" card — hidden on wider screens by phone/home.css. */}
+      <PhoneHomeHero
+        api={api}
+        organizationSlug={organizationSlug}
+        headline={dayLead(summary.data, summary.isPending || summary.isError, t, locale)}
+        approvalsWaiting={summary.data?.waiting.approvals}
+        upNext={upNext}
+      />
+
       {summary.isError ? (
         <InlineAlert tone="danger" title={t('MyDayScreen.summaryError')} live>
           {describeSummaryError(summary.error)}
@@ -208,6 +220,9 @@ export function MyDayScreen({ organizationSlug, organizationName, client }: MyDa
               </h2>
               <span className="tm-section-head__meta tm-home-section__count">
                 {totalCount} {totalCount === 1 ? t('MyDayScreen.item') : t('MyDayScreen.items')}
+              </span>
+              <span className="tm-phone-home__count" aria-hidden="true">
+                {totalCount}
               </span>
               <div
                 className="tm-section-head__end tm-chip-row"
@@ -489,9 +504,18 @@ function WorkCard({
           ↗
         </span>
       </div>
+      <span className="tm-phone-home-card__orb" aria-hidden="true">
+        <PhoneIcon name={entry.workItem.type === 'deliverable' ? 'image' : 'work'} />
+      </span>
       <h3 className="tm-card__title">
         <Link href={href}>{entry.workItem.title}</Link>
       </h3>
+      <span className="tm-phone-home-card__meta">
+        {projectName} ·{' '}
+        {entry.workItem.dueAt
+          ? `${t('MyDayScreen.due')} ${longDay(entry.workItem.dueAt, locale)}`
+          : t('MyDayScreen.noDueDate')}
+      </span>
       <div className="tm-home-card__foot">
         <span className="tm-card__meta">
           {entry.workItem.dueAt
@@ -555,7 +579,10 @@ function WaitingRow({
  * meeting is "now" for 30 minutes after it starts (the grid carries no end); a block is "now"
  * between its start and end. Nothing is invented: no data, no slots.
  */
-function useDayPulseItems(api: ApiClient, organizationSlug: string): DayPulseItem[] {
+function useDayPulseItems(
+  api: ApiClient,
+  organizationSlug: string,
+): { items: DayPulseItem[]; upNext: PhoneUpNext | undefined } {
   const today = useMemo(() => todayWindow(), []);
 
   const grid = useQuery({
@@ -570,7 +597,14 @@ function useDayPulseItems(api: ApiClient, organizationSlug: string): DayPulseIte
 
   return useMemo(() => {
     const now = Date.now();
-    const slots: { id: string; start: number; end: number; label: string; href: string }[] = [];
+    const slots: {
+      id: string;
+      start: number;
+      end: number;
+      label: string;
+      href: string;
+      kind: PhoneUpNext['kind'];
+    }[] = [];
     const days = Array.isArray(grid.data?.days) ? grid.data.days : [];
     for (const day of days) {
       for (const meeting of Array.isArray(day.meetings) ? day.meetings : []) {
@@ -582,6 +616,7 @@ function useDayPulseItems(api: ApiClient, organizationSlug: string): DayPulseIte
           end: start + 30 * 60_000,
           label: meeting.title,
           href: `/${organizationSlug}/calendar`,
+          kind: 'meeting',
         });
       }
     }
@@ -595,11 +630,16 @@ function useDayPulseItems(api: ApiClient, organizationSlug: string): DayPulseIte
         end: Number.isNaN(end) ? start : end,
         label: block.title,
         href: `/${organizationSlug}/calendar`,
+        kind: 'focus',
       });
     }
     slots.sort((a, b) => a.start - b.start);
     let nextSeen = false;
-    return slots.map((slot): DayPulseItem => {
+    const live = slots.find((slot) => slot.end > now);
+    const upNext: PhoneUpNext | undefined = live
+      ? { label: live.label, start: live.start, end: live.end, href: live.href, kind: live.kind }
+      : undefined;
+    const items = slots.map((slot): DayPulseItem => {
       let state: DayPulseItem['state'];
       if (slot.end <= now) state = 'done';
       else if (slot.start <= now) state = 'now';
@@ -619,6 +659,7 @@ function useDayPulseItems(api: ApiClient, organizationSlug: string): DayPulseIte
         href: slot.href,
       };
     });
+    return { items, upNext };
   }, [grid.data, blocks.data, organizationSlug, today]);
 }
 
@@ -665,9 +706,10 @@ function describeDay(
   t: Translate,
   locale: string,
 ): string {
-  if (unknown || !summary) return t('MyDayScreen.dayUnknown');
+  const lead = dayLead(summary, unknown, t, locale);
+  if (unknown || !summary) return lead;
   const total = summary.personalWork.total + summary.waiting.total;
-  if (total === 0) return t('MyDayScreen.dayClear');
+  if (total === 0) return lead;
   const count = (value: number) => String(value);
   const parts: string[] = [];
   if (summary.personalWork.overdue > 0) {
@@ -683,14 +725,26 @@ function describeDay(
   if (summary.waiting.total > 0) {
     parts.push(fill(t('MyDayScreen.dayPartWaiting'), { count: count(summary.waiting.total) }));
   }
-  const category = new Intl.PluralRules(isArabic(locale) ? 'ar' : 'en').select(total);
-  const lead = fill(t(`MyDayScreen.dayLead.${category}` as MessageKey), {
-    // English spells one to nine ("Two things need you today."), as the design writes it.
-    count: isArabic(locale) ? String(total) : spell(total),
-  });
   return parts.length > 0
     ? `${lead} ${capitalise(parts.join(t('MyDayScreen.listSeparator')))}.`
     : lead;
+}
+
+/** "Four things need you today." — the lead sentence alone, which the phone hero shows big. */
+function dayLead(
+  summary: HomeSummary | undefined,
+  unknown: boolean,
+  t: Translate,
+  locale: string,
+): string {
+  if (unknown || !summary) return t('MyDayScreen.dayUnknown');
+  const total = summary.personalWork.total + summary.waiting.total;
+  if (total === 0) return t('MyDayScreen.dayClear');
+  const category = new Intl.PluralRules(isArabic(locale) ? 'ar' : 'en').select(total);
+  return fill(t(`MyDayScreen.dayLead.${category}` as MessageKey), {
+    // English spells one to nine ("Two things need you today."), as the design writes it.
+    count: isArabic(locale) ? String(total) : spell(total),
+  });
 }
 
 function spell(value: number): string {
@@ -721,6 +775,17 @@ function shortDay(value: string | null, locale: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return formatDay(value);
   return parsed.toLocaleDateString(isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB', {
+    day: 'numeric',
+    month: 'short',
+  });
+}
+
+/** "Thu 29 Oct" — the phone card's due day, with the weekday the design shows. */
+function longDay(value: string, locale: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return formatDay(value);
+  return parsed.toLocaleDateString(isArabic(locale) ? 'ar-u-nu-latn' : 'en-GB', {
+    weekday: 'short',
     day: 'numeric',
     month: 'short',
   });

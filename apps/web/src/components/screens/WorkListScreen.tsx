@@ -28,6 +28,7 @@ import type { MessageKey } from '../../lib/i18n/t';
 import { useT } from '../../lib/i18n/use-t';
 import { OPEN_COMMAND_PALETTE_EVENT } from './CommandPalette';
 import { WorkBoardView } from './WorkBoardView';
+import { PhoneWorkOverview } from '../phone/PhoneWorkOverview';
 import { useA6T } from '../work/DueDatePicker';
 import { useDescribeApiError } from '../../lib/api/describe-error';
 
@@ -459,6 +460,16 @@ export function WorkListScreen({
         </>
       ) : (
         <>
+          {/* Phone (<768px) overview — the only list view drawn there (phone/work.css). */}
+          <PhoneWorkOverview
+            api={api}
+            organizationSlug={organizationSlug}
+            organizationName={organizationName}
+            rows={loadedRows}
+            projects={projects.data ?? []}
+            now={now}
+          />
+
           <section className="tm-wk-toolbar" aria-labelledby="tm-work-filters">
             <h2 id="tm-work-filters" className="tm-visually-hidden">
               {t('WorkListScreen.filters')}
