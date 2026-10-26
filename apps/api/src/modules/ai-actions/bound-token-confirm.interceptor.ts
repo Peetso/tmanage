@@ -6,7 +6,7 @@ import { requestState } from '../../common/http/request-state.js';
 import type { RequestState } from '../../common/http/request-state.js';
 import { API_CONFIG } from '../../common/http/tokens.js';
 import type { ApiConfig } from '../../common/http/api-config.js';
-import { findOpByRoute, neverByKey, routeKey } from './registry/index.js';
+import { callNeedsConfirm, findOpByRoute, neverByKey, routeKey } from './registry/index.js';
 import type { AiActionOp } from './registry/index.js';
 import { approvalUrl } from '../mcp/pending-actions.js';
 import type { PendingAiActionsService } from '../mcp/pending-actions.service.js';
@@ -36,6 +36,10 @@ import type { PendingAiActionsService } from '../mcp/pending-actions.service.js'
  * - **Any bound token, tenant route listed in `NEVER`** → refused `403`. (`@NoTenant()` routes are
  *   gated for bound tokens by `TenantContextGuard`'s allowlist.)
  * - **Cookie sessions** are untouched: a person in the app approves by acting.
+ *
+ * - **Conditionally confirm-class ops** (`confirmWhen`, audit run 2 N07): a `write` op whose call
+ *   reaches a client — a client-audience work item, a client meeting attendee — is treated as a
+ *   confirm op for that call; the same op with internal arguments stays an everyday write.
  *
  * The route is resolved from the handler's own Nest metadata, never from the request URL, so a
  * crafted path cannot pick a different classification.
@@ -127,7 +131,10 @@ export class BoundTokenConfirmInterceptor implements NestInterceptor {
       throw refused('bound_token_never_route');
     }
     const op = findOpByRoute(route.method, route.path);
-    if (op === undefined || op.risk !== 'confirm') return next.handle();
+    if (op === undefined) return next.handle();
+    // N07: a `write` op whose arguments reach a client (`confirmWhen`) is confirm-class for this
+    // call, on the same pending/approval path as a `confirm` op.
+    if (!callNeedsConfirm(op, argsOf(op, request))) return next.handle();
 
     if (scheme === 'ai_grant') {
       if (state.aiGrant?.grantId.startsWith('approval:') === true) return next.handle();

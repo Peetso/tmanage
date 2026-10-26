@@ -86,6 +86,42 @@ export interface AiActionOp {
   readonly capability: Capability | null;
   readonly risk: RiskClass;
   readonly scope: AiScope;
+  /**
+   * Audit run 2, N07. A `write` op that becomes confirm-class for one call when its arguments
+   * reach a client (a client-audience work item, a client attendee). Both channels — the REST
+   * bound-token interceptor and the MCP runtime — treat a matching call exactly like a `confirm`
+   * op; a call that does not match stays an everyday write. See {@link callNeedsConfirm}.
+   */
+  readonly confirmWhen?: ConfirmWhen;
+}
+
+/**
+ * A declarative "this call is confirm-class when the body matches" rule, read from the call's own
+ * arguments (path params plus the body) — never from stored state.
+ * - `present: true` — matches when `field` is sent at all (any value other than `undefined`).
+ * - `notIn` — matches when `field` is sent with a value outside the list (an absent field takes the
+ *   server default, which must be one of the listed values). A value that is not a listed string,
+ *   `null` included, matches: an unrecognised value fails closed.
+ */
+export interface ConfirmWhen {
+  readonly field: string;
+  readonly notIn?: readonly string[];
+  readonly present?: true;
+}
+
+/** Whether one call of `op` with these arguments needs a person's approval before it runs. */
+export function callNeedsConfirm(op: AiActionOp, args: Readonly<Record<string, unknown>>): boolean {
+  if (op.risk === 'confirm') return true;
+  const rule = op.confirmWhen;
+  if (rule === undefined) return false;
+  const value = Object.prototype.hasOwnProperty.call(args, rule.field)
+    ? args[rule.field]
+    : undefined;
+  if (value === undefined) return false;
+  if (rule.present === true) return true;
+  if (rule.notIn !== undefined) return typeof value !== 'string' || !rule.notIn.includes(value);
+  // A rule naming neither condition is malformed; treat any sent value as confirm-class.
+  return true;
 }
 
 /** A route withheld from the AI surface (architecture B3 deny-list). */

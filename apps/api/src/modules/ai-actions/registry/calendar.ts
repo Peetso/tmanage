@@ -209,7 +209,8 @@ export const calendarDetails: readonly AiActionDetail[] = [
     id: 'meetings.attendees.create',
     title: 'Invite a meeting attendee',
     description:
-      'Invite a team member (userId) or a client person of the project (clientUserId). They are notified.',
+      'Invite a team member (userId) or a client person of the project (clientUserId). They are ' +
+      'notified. Inviting a client person (clientUserId) needs approval in TManage first.',
     input: bodyArgs(['meetingId'], { userId: f.id().optional(), clientUserId: f.id().optional() }),
     redact: 'standard',
     notifies: true,

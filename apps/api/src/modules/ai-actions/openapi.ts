@@ -29,7 +29,7 @@
  * does not recognise, so the emitted document is always structurally valid OpenAPI 3.1.
  */
 import { z } from 'zod';
-import type { AiActionOp } from './registry/index.js';
+import type { AiActionOp, ConfirmWhen } from './registry/index.js';
 import { OPS } from './registry/index.js';
 import type { AiActionDetail } from './registry/detail.js';
 import { waveADetails } from './registry/wave-a.js';
@@ -210,6 +210,21 @@ const CONFIRM_NOTE =
   'it, it returns an approval link (see the 202 response). Open the link, signed in as yourself, ' +
   'and approve it there.';
 
+/** N07: the note for a `write` op that needs approval only when the call reaches a client. */
+function conditionalConfirmNote(rule: ConfirmWhen): string {
+  const when =
+    rule.present === true
+      ? `when \`${rule.field}\` is sent`
+      : `when \`${rule.field}\` is anything other than ${(rule.notIn ?? [])
+          .map((v) => `\`${v}\``)
+          .join(' or ')}`;
+  return (
+    ` Approval is needed only ${when}: then the call does not perform it, it returns an approval ` +
+    'link (see the 202 response) to open, signed in as yourself, and approve in TManage. ' +
+    'Otherwise it runs at once.'
+  );
+}
+
 function buildOperation(op: AiActionOp, detail: AiActionDetail): Record<string, unknown> {
   const params = pathParamNames(op.path);
   const shape = inputShape(detail);
@@ -254,7 +269,7 @@ function buildOperation(op: AiActionOp, detail: AiActionDetail): Record<string, 
     '401': { $ref: '#/components/responses/Unauthenticated' },
     '403': { $ref: '#/components/responses/Forbidden' },
   };
-  if (op.risk === 'confirm') {
+  if (op.risk === 'confirm' || op.confirmWhen !== undefined) {
     responses['202'] = { $ref: '#/components/responses/ApprovalRequired' };
   }
 
@@ -262,7 +277,11 @@ function buildOperation(op: AiActionOp, detail: AiActionDetail): Record<string, 
     operationId: op.id,
     summary: detail.title,
     description:
-      op.risk === 'confirm' ? `${detail.description}${CONFIRM_NOTE}` : detail.description,
+      op.risk === 'confirm'
+        ? `${detail.description}${CONFIRM_NOTE}`
+        : op.confirmWhen !== undefined
+          ? `${detail.description}${conditionalConfirmNote(op.confirmWhen)}`
+          : detail.description,
     tags: [areaOf(op.id)],
     'x-tmanage-risk': op.risk,
     'x-tmanage-scope': op.scope,

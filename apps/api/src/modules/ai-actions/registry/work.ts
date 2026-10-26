@@ -144,7 +144,9 @@ export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_items.create',
     title: 'Create work item',
-    description: 'Create work item.',
+    description:
+      'Create work item. Internal by default; a client audience (client_visible or ' +
+      'client_action_required) publishes it to the client portal and needs approval in TManage first.',
     input: bodyArgs([], {
       projectId: f.id().optional(),
       title: f.shortText().optional(),
@@ -523,7 +525,9 @@ export const workDetails: readonly AiActionDetail[] = [
   det({
     id: 'work_items.update',
     title: 'Update work item',
-    description: 'Update work item.',
+    description:
+      'Change a work item. Choosing a client audience (client_visible or client_action_required) ' +
+      'shows it in the client portal and needs approval in TManage first.',
     input: bodyArgs(['workItemId'], {
       version: f.int().optional(),
       title: f.shortText().optional(),

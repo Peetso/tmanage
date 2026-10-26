@@ -129,7 +129,8 @@ export const requestsDetails: readonly AiActionDetail[] = [
     id: 'client_requests.messages.create',
     title: 'Message the client on a request',
     description:
-      'Post a message on a client request. Visible to the client unless clientVisible is false.',
+      'Post a message on a client request. Visible to the client unless clientVisible is false. ' +
+      'Confirm-class: a person approves it in TManage before it is sent.',
     input: bodyArgs(['clientRequestId'], {
       body: f.text(5_000),
       clientVisible: f.bool().optional(),

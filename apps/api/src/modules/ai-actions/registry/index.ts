@@ -996,8 +996,9 @@ export const OPS: readonly AiActionOp[] = [
     method: 'POST',
     path: '/v1/organizations/:orgSlug/client-requests/:clientRequestId/messages/',
     capability: 'client_request.triage',
-    risk: 'write',
-    scope: 'write',
+    // N07: a message the client reads, like `portal.messages.create`: approved, under manage.
+    risk: 'confirm',
+    scope: 'manage',
   },
   {
     id: 'client_requests.triage.list',
@@ -2926,6 +2927,8 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'meeting.write',
     risk: 'write',
     scope: 'write',
+    // N07: inviting a client person notifies the client; a team member stays an everyday write.
+    confirmWhen: { field: 'clientUserId', present: true },
   },
   {
     id: 'meetings.attendees.delete',
@@ -4847,6 +4850,8 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'work.create',
     risk: 'write',
     scope: 'write',
+    // N07: a client audience publishes the item to the portal; internal (the default) does not.
+    confirmWhen: { field: 'audience', notIn: ['internal'] },
   },
   {
     id: 'work_items.delete',
@@ -4871,6 +4876,8 @@ export const OPS: readonly AiActionOp[] = [
     capability: 'work.update',
     risk: 'write',
     scope: 'write',
+    // N07: a client audience publishes the item to the portal; internal (the default) does not.
+    confirmWhen: { field: 'audience', notIn: ['internal'] },
   },
   {
     id: 'work_items.activity.list',

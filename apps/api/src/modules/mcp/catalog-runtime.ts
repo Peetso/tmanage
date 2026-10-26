@@ -6,7 +6,7 @@ import type {
   CatalogTool,
   RunResult,
 } from '@tmanage/mcp-server';
-import { OPS, findOpById, isNever } from '../ai-actions/registry/index.js';
+import { OPS, callNeedsConfirm, findOpById, isNever } from '../ai-actions/registry/index.js';
 import type { AiActionOp, AiScope } from '../ai-actions/registry/index.js';
 import {
   KNOWN_SCOPES,
@@ -119,7 +119,8 @@ export function liveMcpSurface(options: CatalogRuntimeOptions): {
     if (!grantCoversOp(options.scopes, op)) {
       return { isError: true, data: `insufficient_scope: ${opId} needs ${op.scope}` };
     }
-    if (op.risk === 'confirm') {
+    // N07: a `write` op whose arguments reach a client (`confirmWhen`) is refused like a confirm op.
+    if (callNeedsConfirm(op, args)) {
       return {
         isError: true,
         data: `${opId} needs your approval in TManage and cannot run over this connection yet.`,
