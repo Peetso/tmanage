@@ -98,8 +98,12 @@ export function AdminStorageScreen({
   const changeFolder = useMutation({
     mutationFn: async () => {
       const session = await getPickerSession(api, organizationSlug);
+      // Without a project the API answers the owner only, and always with the Google picker.
+      if (session.mode !== 'google') throw new Error('picker_unavailable');
       const [folder] = await openDrivePicker({
-        ...session,
+        accessToken: session.accessToken,
+        apiKey: session.apiKey,
+        appId: session.appId,
         mode: 'folder',
         locale,
         title: t('AdminStorageScreen.pickFolderTitle'),

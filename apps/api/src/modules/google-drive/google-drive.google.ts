@@ -180,6 +180,11 @@ export function isDriveId(raw: unknown): raw is string {
   return typeof raw === 'string' && /^[A-Za-z0-9_-]{5,128}$/.test(raw);
 }
 
+/** NV10. A Drive page token as Google issues it: at most 512 URL-safe characters. */
+export function isDrivePageToken(raw: unknown): raw is string {
+  return typeof raw === 'string' && /^[A-Za-z0-9_.~-]{1,512}$/.test(raw);
+}
+
 // ── The transport ────────────────────────────────────────────────────────────
 
 export interface DriveTokens {
@@ -200,6 +205,21 @@ export interface DriveFile {
    * parent is not visible to it, such as a file shared with the person from someone else's Drive).
    */
   readonly parents: readonly string[];
+}
+
+/** NV10. One entry of a folder listing: never a download or thumbnail link, never a token. */
+export interface DriveChild {
+  readonly id: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly size: number | null;
+  readonly modifiedTime: string | null;
+  readonly isFolder: boolean;
+}
+
+export interface DriveChildrenPage {
+  readonly files: readonly DriveChild[];
+  readonly nextPageToken: string | null;
 }
 
 /** Google refused the grant (expired or revoked): the connection moves to the error state. */
@@ -236,7 +256,13 @@ export interface DriveTransport {
     accessToken: string,
     input: { name: string; parentId: string | null; driveId: string | null },
   ): Promise<string>;
-  getFile(accessToken: string, fileId: string): Promise<DriveFile>;
+  /** `fields: 'parents'` (M04's ancestor walk) asks Google for the id and parents only. */
+  getFile(accessToken: string, fileId: string, fields?: 'full' | 'parents'): Promise<DriveFile>;
+  /** NV10. One page (50) of the folder's children, for the server-side project file list. */
+  listChildren(
+    accessToken: string,
+    input: { parentId: string; pageToken: string | null },
+  ): Promise<DriveChildrenPage>;
   /** Start a resumable upload into the folder; returns Google's one-upload session URL. */
   startUpload(
     accessToken: string,
@@ -274,6 +300,24 @@ function toDriveFile(body: Record<string, unknown>): DriveFile {
 }
 
 const FILE_FIELDS = 'id,name,mimeType,size,webViewLink,driveId,parents';
+const PARENT_FIELDS = 'id,parents';
+const CHILD_FIELDS = 'nextPageToken,files(id,name,mimeType,size,modifiedTime,parents)';
+export const DRIVE_CHILDREN_PAGE_SIZE = 50;
+
+function toDriveChild(body: Record<string, unknown>): DriveChild | null {
+  if (!isDriveId(body['id'])) return null;
+  const size = typeof body['size'] === 'string' ? Number(body['size']) : null;
+  const mimeType =
+    typeof body['mimeType'] === 'string' ? body['mimeType'] : 'application/octet-stream';
+  return {
+    id: body['id'],
+    name: typeof body['name'] === 'string' ? body['name'].slice(0, 255) : 'Untitled',
+    mimeType: mimeType.slice(0, 190),
+    size: size !== null && Number.isFinite(size) ? size : null,
+    modifiedTime: typeof body['modifiedTime'] === 'string' ? body['modifiedTime'] : null,
+    isFolder: mimeType === FOLDER_MIME_TYPE,
+  };
+}
 
 export function createDriveTransport(fetchImpl: typeof fetch = fetch): DriveTransport {
   async function call(url: string, init: RequestInit): Promise<Response> {
@@ -390,12 +434,38 @@ export function createDriveTransport(fetchImpl: typeof fetch = fetch): DriveTran
       return created.id;
     },
 
-    async getFile(accessToken, fileId) {
+    async getFile(accessToken, fileId, fields = 'full') {
+      const wanted = fields === 'parents' ? PARENT_FIELDS : FILE_FIELDS;
       const response = await call(
-        `${DRIVE_API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=${FILE_FIELDS}`,
+        `${DRIVE_API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=${wanted}`,
         { headers: auth(accessToken) },
       );
       return toDriveFile((await response.json()) as Record<string, unknown>);
+    },
+
+    async listChildren(accessToken, input) {
+      // The parent id is put into the query only through `driveQueryLiteral`.
+      const search = new URLSearchParams({
+        q: `${driveQueryLiteral(input.parentId)} in parents and trashed = false`,
+        fields: CHILD_FIELDS,
+        pageSize: String(DRIVE_CHILDREN_PAGE_SIZE),
+        supportsAllDrives: 'true',
+        includeItemsFromAllDrives: 'true',
+        ...(input.pageToken ? { pageToken: input.pageToken } : {}),
+      });
+      const body = (await (
+        await call(`${DRIVE_API}/files?${search.toString()}`, { headers: auth(accessToken) })
+      ).json()) as { files?: unknown; nextPageToken?: unknown };
+      const files = Array.isArray(body.files)
+        ? body.files
+            .slice(0, DRIVE_CHILDREN_PAGE_SIZE)
+            .map((entry) => toDriveChild((entry ?? {}) as Record<string, unknown>))
+            .filter((entry): entry is DriveChild => entry !== null)
+        : [];
+      return {
+        files,
+        nextPageToken: isDrivePageToken(body.nextPageToken) ? body.nextPageToken : null,
+      };
     },
 
     async startUpload(accessToken, input) {

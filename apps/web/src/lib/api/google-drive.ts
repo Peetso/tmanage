@@ -32,11 +32,42 @@ export interface DriveAttachmentView {
   readonly createdAt: string;
 }
 
-export interface PickerSessionView {
-  readonly accessToken: string;
-  readonly apiKey: string;
-  readonly appId: string | null;
-  readonly rootFolderId: string | null;
+/**
+ * NV10. `google`: Google's own picker with a short-lived token, for a caller who can read every
+ * project. `scoped`: no token; the browser lists the project's own TManage folders through
+ * {@link getProjectDriveFiles}.
+ */
+export type PickerSessionView =
+  | {
+      readonly mode: 'google';
+      readonly accessToken: string;
+      readonly apiKey: string;
+      readonly appId: string | null;
+      readonly rootFolderId: string | null;
+    }
+  | { readonly mode: 'scoped'; readonly projectId: string };
+
+export interface ProjectDriveFile {
+  readonly id: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly size: number | null;
+  readonly modifiedTime: string | null;
+  readonly isFolder: boolean;
+}
+
+export interface ProjectDriveFolder {
+  readonly id: string;
+  readonly kind: 'project' | 'work_item';
+  readonly name: string;
+}
+
+export interface ProjectDriveFilesView {
+  /** The folder listed (the project folder by default); null when the project has none yet. */
+  readonly folderId: string | null;
+  readonly files: readonly ProjectDriveFile[];
+  readonly folders: readonly ProjectDriveFolder[];
+  readonly nextPageToken: string | null;
 }
 
 export type DriveLocation =
@@ -109,9 +140,9 @@ export async function disconnectDrive(
 }
 
 /**
- * A short-lived picker token. Without `projectId` only an org-wide caller (owner/admin) gets one;
- * everyone else names the project the picked files are for and the API checks their relation to
- * it (NV10).
+ * How to choose Drive files. Without `projectId` only the company owner gets a picker token (the
+ * Storage screen); with one, an org-wide caller gets the Google picker and a project-scoped member
+ * gets `scoped`, with no token (NV10).
  */
 export async function getPickerSession(
   client: ApiClient,
@@ -121,6 +152,23 @@ export async function getPickerSession(
   const query = projectId ? `?projectId=${encodeURIComponent(projectId)}` : '';
   const { data } = await client.request<PickerSessionView>({
     path: `${storagePath(organizationSlug)}/picker-session${query}`,
+  });
+  return data;
+}
+
+/** NV10. One page of one of the project's own TManage folders (the project folder by default). */
+export async function getProjectDriveFiles(
+  client: ApiClient,
+  organizationSlug: string,
+  projectId: string,
+  input: { readonly folderId?: string; readonly pageToken?: string } = {},
+): Promise<ProjectDriveFilesView> {
+  const search = new URLSearchParams();
+  if (input.folderId) search.set('folderId', input.folderId);
+  if (input.pageToken) search.set('pageToken', input.pageToken);
+  const query = search.toString();
+  const { data } = await client.request<ProjectDriveFilesView>({
+    path: `${storagePath(organizationSlug)}/projects/${encodeURIComponent(projectId)}/files${query ? `?${query}` : ''}`,
   });
   return data;
 }

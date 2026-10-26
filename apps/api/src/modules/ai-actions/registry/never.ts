@@ -336,6 +336,12 @@ export const NEVER: readonly NeverEntry[] = [
     path: '/v1/organizations/:orgSlug/integrations/google-drive/picker-session',
     reason: 'storage_connection',
   },
+  // NV10. The server-side list of a project's Drive folders reads through the connection.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/google-drive/projects/:projectId/files',
+    reason: 'storage_connection',
+  },
   {
     method: 'POST',
     path: '/v1/organizations/:orgSlug/work-items/:workItemId/google-drive/uploads',

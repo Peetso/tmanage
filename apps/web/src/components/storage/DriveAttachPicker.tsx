@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Button, InlineAlert } from '@tmanage/ui';
 import { getPickerSession, getStorageStatus } from '../../lib/api/google-drive';
@@ -7,6 +8,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { openDrivePicker, type PickedDriveItem } from '../../lib/google-picker';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
+import { DriveProjectFilesDialog } from './DriveProjectFilesDialog';
 import '../../styles/screens/storage.css';
 
 export interface DriveAttachPickerProps {
@@ -29,6 +31,10 @@ export interface DriveAttachPickerProps {
  * Shown only when the company has connected Google Drive and the picker is available; otherwise it
  * renders nothing. The picked files are held by the sheet and attached once the work item exists —
  * there is nothing to attach them to before.
+ *
+ * NV10. A caller who can read every project gets Google's own picker; a project-scoped member
+ * gets no Drive token and chooses from the project's TManage folders in
+ * {@link DriveProjectFilesDialog} instead. The button and what it hands back are the same.
  */
 export function DriveAttachPicker({
   organizationSlug,
@@ -47,21 +53,31 @@ export function DriveAttachPicker({
     staleTime: 60_000,
   });
 
+  const [scopedProject, setScopedProject] = useState<string | null>(null);
+
+  function addFresh(items: readonly PickedDriveItem[]) {
+    const known = new Set(picked.map((item) => item.id));
+    const fresh = items.filter((item) => !known.has(item.id));
+    if (fresh.length > 0) onPick(fresh);
+  }
+
   const pick = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<readonly PickedDriveItem[]> => {
       const session = await getPickerSession(client, organizationSlug, projectId);
+      if (session.mode !== 'google') {
+        setScopedProject(session.projectId);
+        return [];
+      }
       return openDrivePicker({
-        ...session,
+        accessToken: session.accessToken,
+        apiKey: session.apiKey,
+        appId: session.appId,
         mode: 'files',
         locale,
         title: t('DriveAttach.pickerTitle'),
       });
     },
-    onSuccess: (items) => {
-      const known = new Set(picked.map((item) => item.id));
-      const fresh = items.filter((item) => !known.has(item.id));
-      if (fresh.length > 0) onPick(fresh);
-    },
+    onSuccess: addFresh,
   });
 
   const view = status.data;
@@ -94,6 +110,15 @@ export function DriveAttachPicker({
             </li>
           ))}
         </ul>
+      ) : null}
+      {scopedProject !== null ? (
+        <DriveProjectFilesDialog
+          organizationSlug={organizationSlug}
+          client={client}
+          projectId={scopedProject}
+          onPick={addFresh}
+          onClose={() => setScopedProject(null)}
+        />
       ) : null}
       {pick.isError ? (
         <InlineAlert tone="danger" title={t('DriveAttach.failedTitle')} live>

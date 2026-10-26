@@ -53,8 +53,9 @@ function internalPrincipal(role: string, hasOrgWideScope: boolean): Principal {
   } as unknown as Principal;
 }
 
+/** The company owner: org-wide scope and `org.manage` (the Storage screen's "Change folder"). */
 function orgAdmin(): Principal {
-  return internalPrincipal('admin', true);
+  return internalPrincipal('owner', true);
 }
 
 const database = {
@@ -106,6 +107,7 @@ function transport(overrides: Partial<DriveTransport> = {}): DriveTransport {
     revoke: vi.fn(async () => undefined),
     ensureFolder: vi.fn(async () => 'root_folder_1'),
     getFile: vi.fn(),
+    listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
     startUpload: vi.fn(),
     ...overrides,
   };
@@ -384,15 +386,20 @@ describe('NV10: the picker token needs the target project relation', () => {
     });
   });
 
-  it('answers a member on the target project, and an org admin without one', async () => {
-    const { drive } = pickerService();
+  it('answers a member on the target project with no token, and an org admin with one', async () => {
+    const { drive, google } = pickerService();
     const onProject = await drive.pickerSession(
       ctx(),
       internalPrincipal('member', false),
       PROJECT_ON,
     );
-    expect(onProject).toMatchObject({ accessToken: 'fresh-access', rootFolderId: 'root_folder_1' });
+    expect(onProject).toEqual({ mode: 'scoped', projectId: PROJECT_ON });
+    expect(google.refreshAccessToken).not.toHaveBeenCalled();
     const admin = await drive.pickerSession(ctx(), orgAdmin());
-    expect(admin.accessToken).toBe('fresh-access');
+    expect(admin).toMatchObject({
+      mode: 'google',
+      accessToken: 'fresh-access',
+      rootFolderId: 'root_folder_1',
+    });
   });
 });

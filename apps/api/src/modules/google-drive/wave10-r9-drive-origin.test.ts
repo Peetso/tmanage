@@ -77,7 +77,13 @@ const database = {
   transaction: (_c: TenantContext, work: (runner: unknown) => Promise<unknown>) => work({}),
 } as unknown as TenantDatabase;
 
-function setup(options: { attachedTo?: readonly AttachedItem[]; pickerApiKey?: string } = {}) {
+function setup(
+  options: {
+    attachedTo?: readonly AttachedItem[];
+    pickerApiKey?: string;
+    ancestors?: Record<string, readonly string[]>;
+  } = {},
+) {
   const connection = {
     id: 'conn-1',
     organizationId: ORG,
@@ -108,12 +114,23 @@ function setup(options: { attachedTo?: readonly AttachedItem[]; pickerApiKey?: s
     })),
   };
   let file: DriveFile = fileIn([]);
+  // M04: an ancestor folder answers with its own parents (none unless a test sets them).
+  const ancestors: Record<string, readonly string[]> = options.ancestors ?? {};
   const google: DriveTransport = {
     exchangeCode: vi.fn(),
     refreshAccessToken: vi.fn(async () => 'fresh-access-token-value'),
     revoke: vi.fn(),
     ensureFolder: vi.fn(),
-    getFile: vi.fn(async () => file),
+    getFile: vi.fn(async (_t: string, id: string) =>
+      id === file.id
+        ? file
+        : {
+            ...fileIn(ancestors[id] ?? []),
+            id,
+            mimeType: 'application/vnd.google-apps.folder',
+          },
+    ),
+    listChildren: vi.fn(async () => ({ files: [], nextPageToken: null })),
     startUpload: vi.fn(),
   };
   const audit = { record: vi.fn(async () => ({})) };
@@ -239,8 +256,12 @@ describe("V2: attach links only a file from this project's folders or a person's
 describe('NV10: each picker session is audited; guests and clients never get a token', () => {
   it('writes one drive_picker.session_issued row with the project id and no token', async () => {
     const { drive, audit } = setup({ pickerApiKey: 'k' });
-    const view = await drive.pickerSession(ctx(), principal('member'), P1);
-    expect(view.accessToken).toBe('fresh-access-token-value');
+    const view = await drive.pickerSession(
+      ctx(),
+      principal('owner', { hasOrgWideScope: true }),
+      P1,
+    );
+    expect(view).toMatchObject({ mode: 'google', accessToken: 'fresh-access-token-value' });
     expect(audit.record).toHaveBeenCalledTimes(1);
     const entry = (audit.record.mock.calls[0] as unknown[])[2];
     expect(entry).toMatchObject({

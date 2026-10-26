@@ -121,7 +121,93 @@
   list-style: none;
 }
 
+/* NV10. The project's own Drive folders, for a project-scoped member (no Google picker). */
+.tm-drive-files-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: var(--s4);
+  background: var(--tm-scrim);
+}
+
+.tm-drive-files {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  inline-size: min(560px, 100%);
+  max-block-size: 92vh;
+  overflow-y: auto;
+  padding: var(--s6);
+  border: var(--b-quiet) solid var(--line-300);
+  border-radius: var(--r-sheet);
+  background: var(--paper-0);
+  box-shadow: var(--tm-overlay-shadow);
+}
+
+.tm-drive-files__title {
+  margin: 0;
+  color: var(--ink-950);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 28px;
+}
+
+.tm-drive-files__lede,
+.tm-drive-files__empty {
+  margin: 0;
+  color: var(--ink-500);
+  font-size: var(--t-caption);
+  line-height: var(--t-caption-line);
+}
+
+.tm-drive-files__folders,
+.tm-drive-files__list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tm-drive-files__folders {
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.tm-drive-files__folders [aria-current='true'] {
+  border-color: var(--ink-950);
+  color: var(--ink-950);
+}
+
+.tm-drive-files__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-drive-files__list {
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tm-drive-files__list .tm-choice__label {
+  overflow-wrap: anywhere;
+  unicode-bidi: plaintext;
+}
+
+.tm-drive-files__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 @media (max-width: 640px) {
+  .tm-drive-files {
+    padding: var(--s4);
+  }
+
   .tm-storage__fact {
     flex-direction: column;
     align-items: flex-start;

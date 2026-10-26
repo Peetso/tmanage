@@ -38,6 +38,7 @@ import {
   createDriveTransport,
   driveConfigFrom,
   isDriveId,
+  isDrivePageToken,
   openDriveFlow,
   sealDriveFlow,
   type DriveTransport,
@@ -46,6 +47,7 @@ import {
   GoogleDriveService,
   type DriveAttachmentView,
   type PickerSessionView,
+  type ProjectFilesView,
   type SettingsInput,
   type StorageStatusView,
 } from './google-drive.service.js';
@@ -63,7 +65,10 @@ import {
  * - `POST   …/integrations/google-drive/complete` — `{code, state}`: exchange, encrypt, save.
  * - `PUT    …/integrations/google-drive/settings` — storage mode and the Drive location.
  * - `DELETE …/integrations/google-drive` — disconnect (revoke, wipe the token).
- * - `GET    …/integrations/google-drive/picker-session` — a short-lived token for the file picker.
+ * - `GET    …/integrations/google-drive/picker-session` — how to choose files: the picker token
+ *   for an org-wide caller, or `scoped` (no token) for a project-scoped one (NV10).
+ * - `GET    …/integrations/google-drive/projects/:projectId/files` — the server-side list of one
+ *   of the project's own TManage folders, for a project-scoped caller (NV10).
  * - `…/work-items/:workItemId/google-drive/uploads|attachments` — upload, attach, list, detach.
  *
  * Managing the connection is `org.manage`. Attaching is `work.update` on the work item (checked
@@ -192,6 +197,31 @@ export class GoogleDriveStorageController {
       throw invalid('projectId', 'must be a project id');
     }
     return this.drive.pickerSession(context, principal, projectId);
+  }
+
+  @Get('projects/:projectId/files')
+  @RequireCapability('work.update')
+  async projectFiles(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('projectId') projectId: string,
+    @Query('folderId') folderId?: unknown,
+    @Query('pageToken') pageToken?: unknown,
+  ): Promise<ProjectFilesView> {
+    if (typeof projectId !== 'string' || !isUuid(projectId)) {
+      throw invalid('projectId', 'must be a project id');
+    }
+    // NV10. Only plain Drive ids and Google's own page tokens reach the Drive query.
+    if (folderId !== undefined && !isDriveId(folderId)) {
+      throw invalid('folderId', 'must be a Drive folder id');
+    }
+    if (pageToken !== undefined && !isDrivePageToken(pageToken)) {
+      throw invalid('pageToken', 'must be a Drive page token');
+    }
+    return this.drive.projectFiles(context, principal, projectId, {
+      ...(folderId === undefined ? {} : { folderId }),
+      ...(pageToken === undefined ? {} : { pageToken }),
+    });
   }
 }
 

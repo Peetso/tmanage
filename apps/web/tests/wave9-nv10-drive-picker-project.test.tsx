@@ -21,7 +21,7 @@ const PROJECT = '7d3c1f9a-2b4e-4c6d-8e0f-1a2b3c4d5e6f';
 function connectedClient(): { client: ApiClient; request: ReturnType<typeof vi.fn> } {
   const request = vi.fn(async ({ path }: { path: string }) =>
     path.includes('picker-session')
-      ? { data: { accessToken: 'token', developerKey: 'key', appId: 'app' } }
+      ? { data: { mode: 'google', accessToken: 'token', apiKey: 'key', appId: 'app' } }
       : { data: { pickerAvailable: true, googleDrive: { status: 'connected' } } },
   );
   return { client: { request } as unknown as ApiClient, request };

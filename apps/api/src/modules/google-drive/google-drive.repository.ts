@@ -56,6 +56,16 @@ export type AttachedItem = Pick<
   'organizationId' | 'projectId' | 'audience' | 'state' | 'deletedAt'
 >;
 
+/** NV10. One of a project's own TManage folders, for the server-side file list. */
+export interface ProjectDriveFolder {
+  readonly driveFolderId: string;
+  readonly kind: 'project' | 'work_item';
+  /** The project's name or the work item's title (TManage's, not Google's). */
+  readonly name: string;
+  /** The work item the folder belongs to (null for the project folder), for the read check. */
+  readonly item: AttachedItem | null;
+}
+
 export class GoogleDriveRepository {
   async findConnection(
     runner: TenantQueryRunner,
@@ -231,6 +241,89 @@ export class GoogleDriveRepository {
       rootFolderId: row.rootFolderId,
       projectId: row.subjectKind === 'project' ? row.subjectId : (row.itemProjectId ?? null),
     }));
+  }
+
+  /**
+   * NV10. The project's own TManage folders under `rootFolderId`: its project folder, and the
+   * work-item folders of items that are in this project now (a moved item's folder follows the
+   * item; a deleted item's folder is left out). These are the only folders a project-scoped person
+   * may list through the server.
+   */
+  async listProjectFolders(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    projectId: string,
+    rootFolderId: string,
+  ): Promise<readonly ProjectDriveFolder[]> {
+    const db = tenantDrizzle(runner);
+    const projectRows = await db
+      .select({ driveFolderId: googleDriveFolders.driveFolderId, name: projects.name })
+      .from(googleDriveFolders)
+      .innerJoin(
+        projects,
+        and(
+          eq(projects.organizationId, googleDriveFolders.organizationId),
+          eq(projects.id, googleDriveFolders.subjectId),
+        ),
+      )
+      .where(
+        and(
+          eq(googleDriveFolders.organizationId, context.organizationId),
+          eq(googleDriveFolders.rootFolderId, rootFolderId),
+          eq(googleDriveFolders.subjectKind, 'project'),
+          eq(googleDriveFolders.subjectId, projectId),
+        ),
+      )
+      .limit(1);
+    const itemRows = await db
+      .select({
+        driveFolderId: googleDriveFolders.driveFolderId,
+        name: workItems.title,
+        organizationId: workItems.organizationId,
+        projectId: workItems.projectId,
+        audience: workItems.audience,
+        state: workItems.state,
+        deletedAt: workItems.deletedAt,
+      })
+      .from(googleDriveFolders)
+      .innerJoin(
+        workItems,
+        and(
+          eq(workItems.organizationId, googleDriveFolders.organizationId),
+          eq(workItems.id, googleDriveFolders.subjectId),
+        ),
+      )
+      .where(
+        and(
+          eq(googleDriveFolders.organizationId, context.organizationId),
+          eq(googleDriveFolders.rootFolderId, rootFolderId),
+          eq(googleDriveFolders.subjectKind, 'work_item'),
+          eq(workItems.projectId, projectId),
+          isNull(workItems.deletedAt),
+        ),
+      )
+      .orderBy(asc(workItems.title))
+      .limit(500);
+    return [
+      ...projectRows.map((row) => ({
+        driveFolderId: row.driveFolderId,
+        kind: 'project' as const,
+        name: row.name,
+        item: null,
+      })),
+      ...itemRows.map((row) => ({
+        driveFolderId: row.driveFolderId,
+        kind: 'work_item' as const,
+        name: row.name,
+        item: {
+          organizationId: row.organizationId,
+          projectId: row.projectId,
+          audience: row.audience,
+          state: row.state,
+          deletedAt: row.deletedAt,
+        },
+      })),
+    ];
   }
 
   /** V2. Which of `driveFolderIds` are a TManage root folder this organization has used. */

@@ -75,12 +75,50 @@ export interface DriveAttachmentView {
   readonly createdAt: string;
 }
 
-export interface PickerSessionView {
-  readonly accessToken: string;
-  readonly apiKey: string;
-  readonly appId: string | null;
-  readonly rootFolderId: string | null;
+/**
+ * NV10. `google`: Google's own picker with the company connection's `drive.file` token, only for
+ * a caller who can already read every project (org-wide scope). `scoped`: no token at all; the
+ * browser lists the project's TManage folders through {@link GoogleDriveService.projectFiles}.
+ */
+export type PickerSessionView =
+  | {
+      readonly mode: 'google';
+      readonly accessToken: string;
+      readonly apiKey: string;
+      readonly appId: string | null;
+      readonly rootFolderId: string | null;
+    }
+  | { readonly mode: 'scoped'; readonly projectId: string };
+
+/** NV10. One entry of the server-side project file list. No download link, no token. */
+export interface ProjectFileView {
+  readonly id: string;
+  readonly name: string;
+  readonly mimeType: string;
+  readonly size: number | null;
+  readonly modifiedTime: string | null;
+  readonly isFolder: boolean;
 }
+
+export interface ProjectFolderView {
+  readonly id: string;
+  readonly kind: 'project' | 'work_item';
+  readonly name: string;
+}
+
+export interface ProjectFilesView {
+  /** The folder listed (the project folder by default); null when the project has none yet. */
+  readonly folderId: string | null;
+  readonly files: readonly ProjectFileView[];
+  /** Only this project's own TManage folders: the only ones the list can open. */
+  readonly folders: readonly ProjectFolderView[];
+  readonly nextPageToken: string | null;
+}
+
+/** M04. How far up the attach check follows a file's unknown parents before it refuses. */
+export const ORIGIN_MAX_HOPS = 8;
+/** M04. How many parents per level the walk follows (Drive gives a file one parent today). */
+const ORIGIN_MAX_BREADTH = 5;
 
 export interface SettingsInput {
   readonly storageMode?: StorageMode;
@@ -336,17 +374,19 @@ export class GoogleDriveService {
   // ── Picker, upload and attachments ────────────────────────────────────────
 
   /**
-   * A short-lived access token for the browser file picker (scope `drive.file`).
+   * How the browser may choose Drive files.
    *
-   * NV10. The token is the company connection's, and once it leaves the server Drive no longer
-   * knows about projects, so the relation is decided here, before Google is asked: never a client
-   * or a guest; with a target project, `file.upload` on that project (authorize rule 12 — member
-   * of it, or org-wide scope); with no target (the company's own Storage settings), org-wide
-   * scope only.
-   *
-   * The token itself stays company-wide — Google offers no Drive token narrowed to one folder —
-   * so each issuance is audited (`drive_picker.session_issued`, the project id, never the token)
-   * and {@link attach} checks where a picked file lives before it links it (V2).
+   * NV10. The connection's access token is company-wide (Google offers no Drive token narrowed to
+   * one folder), and once it leaves the server Drive no longer knows about projects. So the raw
+   * token leaves only for a caller who could already read every project:
+   *  - no target project (the Storage screen's "Change folder"): org-wide scope and `org.manage`,
+   *    otherwise 403;
+   *  - a target project and org-wide scope: the same `google` session;
+   *  - a target project and a project-scoped caller (`file.upload` on it): `scoped`, with no
+   *    token — none is minted or refreshed — and the browser lists the project's own TManage
+   *    folders through {@link projectFiles}.
+   * Never a client or a guest. Each token issued is audited (`drive_picker.session_issued`, the
+   * project id, never the token), and {@link attach} still checks where a file lives (V2, M04).
    */
   async pickerSession(
     context: TenantContext,
@@ -354,6 +394,11 @@ export class GoogleDriveService {
     projectId?: string,
   ): Promise<PickerSessionView> {
     await this.requirePickerRelation(context, principal, projectId);
+    if (projectId === undefined) this.requireOrgManage(context, principal);
+    if (projectId !== undefined && !principal.hasOrgWideScope) {
+      this.requireLive(await this.readConnection(context));
+      return { mode: 'scoped', projectId };
+    }
     const config = this.requireConfig();
     if (!config.pickerApiKey) throw conflict('not_configured');
     const live = this.requireLive(await this.readConnection(context));
@@ -370,10 +415,73 @@ export class GoogleDriveService {
       }),
     );
     return {
+      mode: 'google',
       accessToken,
       apiKey: config.pickerApiKey,
       appId: config.projectNumber,
       rootFolderId: live.rootFolderId,
+    };
+  }
+
+  /**
+   * NV10. The server-side file list for a project-scoped person: the children of one of the
+   * project's own TManage folders (the project folder by default). A folder outside that set is
+   * the same 404 an unknown id gives, before Google is asked; the token never leaves the server.
+   */
+  async projectFiles(
+    context: TenantContext,
+    principal: Principal,
+    projectId: string,
+    input: { readonly folderId?: string; readonly pageToken?: string },
+  ): Promise<ProjectFilesView> {
+    await this.requirePickerRelation(context, principal, projectId);
+    const live = this.requireLive(await this.readConnection(context));
+    const known = await this.deps.database.read(context, (runner) =>
+      this.repository.listProjectFolders(runner, context, projectId, live.rootFolderId),
+    );
+    // A work-item folder is listed only when its item is readable to the caller.
+    const visible = known.filter(
+      (folder) =>
+        folder.item === null ||
+        authorize({ principal, capability: 'work.read', resource: resourceOf(folder.item) })
+          .allowed,
+    );
+    if (
+      input.folderId !== undefined &&
+      !visible.some((folder) => folder.driveFolderId === input.folderId)
+    ) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound);
+    }
+    const folders = visible.map((folder) => ({
+      id: folder.driveFolderId,
+      kind: folder.kind,
+      name: folder.name,
+    }));
+    const projectFolder = visible.find((folder) => folder.kind === 'project');
+    if (!projectFolder) return { folderId: null, files: [], folders, nextPageToken: null };
+    const folderId = input.folderId ?? projectFolder.driveFolderId;
+    const accessToken = await this.accessToken(context, live);
+    const page = await this.google(
+      () =>
+        this.deps.transport.listChildren(accessToken, {
+          parentId: folderId,
+          pageToken: input.pageToken ?? null,
+        }),
+      live.id,
+      context,
+    );
+    return {
+      folderId,
+      files: page.files.map((file) => ({
+        id: file.id,
+        name: file.name,
+        mimeType: file.mimeType,
+        size: file.size,
+        modifiedTime: file.modifiedTime,
+        isFolder: file.isFolder,
+      })),
+      folders,
+      nextPageToken: page.nextPageToken,
     };
   }
 
@@ -436,10 +544,12 @@ export class GoogleDriveService {
       context,
     );
     if (file.mimeType === FOLDER_MIME_TYPE) throw invalid('driveFileId', 'must be a file');
+    // M04. Google is asked about the ancestors here, outside the transaction.
+    const origin = await this.resolveOrigin(context, live, accessToken, file);
 
     return this.deps.database.transaction(context, async (tx) => {
       const item = await this.writableItem(tx, context, principal, workItemId);
-      await this.requireAttachableOrigin(tx, context, principal, live, item, file);
+      await this.requireAttachableOrigin(tx, context, principal, live, item, file, origin);
       const existing = (await this.repository.listAttachments(tx, context, workItemId)).find(
         (row) => row.driveFileId === file.id,
       );
@@ -485,15 +595,76 @@ export class GoogleDriveService {
   // ── Internals ─────────────────────────────────────────────────────────────
 
   /**
-   * V2. The company connection can read every file TManage made or anyone picked, in every
-   * project, so Google answering is not enough to link a file into this item. A file may be
-   * attached when
-   *  (a) it sits in one of the destination project's TManage folders (the project folder or a
-   *      work-item folder of an item now in that project), or
-   *  (b) it sits outside every TManage folder (a person's own picked file) and is not already
-   *      linked to an item the caller cannot read.
-   * Anything else — a file in another project's folder, in the bare root, or one linked only
-   * where the caller cannot see — is the same 404 an unknown id gives, before any insert.
+   * M04. Find the nearest level of the file's ancestry that holds a TManage folder or root.
+   * Level 0 is the file's own parents; while no id on a level is known, the next level is asked
+   * of Google (`parents` only), at most {@link ORIGIN_MAX_HOPS} times. Returns that level;
+   * `outside` when the walk reaches a parentless or unseen top with no TManage folder on the way;
+   * `unresolved` when the hops run out first (the attach check then refuses: fail closed).
+   */
+  private async resolveOrigin(
+    context: TenantContext,
+    live: StorageConnectionRow & { rootFolderId: string },
+    accessToken: string,
+    file: DriveFile,
+  ): Promise<AttachOrigin> {
+    let level: readonly string[] = file.parents.slice(0, ORIGIN_MAX_BREADTH);
+    const seen = new Set<string>([file.id]);
+    for (let hop = 0; ; hop += 1) {
+      if (level.length === 0) return { kind: 'outside' };
+      if (await this.levelIsKnown(context, live, level)) return { kind: 'tmanage', level };
+      if (hop === ORIGIN_MAX_HOPS) return { kind: 'unresolved' };
+      for (const id of level) seen.add(id);
+      const next = new Set<string>();
+      for (const id of level) {
+        for (const parent of await this.ancestorParents(context, live, accessToken, id)) {
+          // A cycle cannot hold the walk: an id already seen adds nothing.
+          if (!seen.has(parent) && next.size < ORIGIN_MAX_BREADTH) next.add(parent);
+        }
+      }
+      level = [...next];
+    }
+  }
+
+  private async levelIsKnown(
+    context: TenantContext,
+    live: StorageConnectionRow & { rootFolderId: string },
+    level: readonly string[],
+  ): Promise<boolean> {
+    if (level.includes(live.rootFolderId)) return true;
+    return this.deps.database.read(context, async (runner) => {
+      if ((await this.repository.findKnownFolders(runner, context, level)).length > 0) return true;
+      return (await this.repository.knownRootsAmong(runner, context, level)).length > 0;
+    });
+  }
+
+  /** The parents of one ancestor folder; one Google does not show to this connection has none. */
+  private async ancestorParents(
+    context: TenantContext,
+    live: StorageConnectionRow,
+    accessToken: string,
+    folderId: string,
+  ): Promise<readonly string[]> {
+    try {
+      return (await this.deps.transport.getFile(accessToken, folderId, 'parents')).parents;
+    } catch (error) {
+      if (error instanceof DriveFileNotFoundError) return [];
+      return this.google<readonly string[]>(() => Promise.reject(error), live.id, context);
+    }
+  }
+
+  /**
+   * V2 and M04. The company connection can read every file TManage made or anyone picked, in
+   * every project, so Google answering is not enough to link a file into this item. The nearest
+   * level of the file's ancestry that holds a TManage folder or root decides
+   * ({@link resolveOrigin}). A file may be attached when
+   *  (a) that level holds one of the destination project's TManage folders (the project folder or
+   *      a work-item folder of an item now in that project) and no other TManage folder or root,
+   *      or
+   *  (b) no ancestor is a TManage folder or root (a person's own picked file) and it is not
+   *      already linked to an item the caller cannot read.
+   * Anything else — a file under another project's folder at any depth, in the bare root, one
+   * whose ancestry is deeper than the walk, or one linked only where the caller cannot see — is
+   * the same 404 an unknown id gives, before any insert.
    */
   private async requireAttachableOrigin(
     runner: TenantQueryRunner,
@@ -502,9 +673,11 @@ export class GoogleDriveService {
     live: StorageConnectionRow & { rootFolderId: string },
     item: WorkItemRow,
     file: DriveFile,
+    origin: AttachOrigin,
   ): Promise<void> {
     const notFound = () => new ApiError(404, 'not_found', MESSAGES.notFound);
-    const parents = file.parents;
+    if (origin.kind === 'unresolved') throw notFound();
+    const parents = origin.kind === 'tmanage' ? origin.level : file.parents;
     if (parents.length > 0) {
       const folders = await this.repository.findKnownFolders(runner, context, parents);
       const roots = new Set([
@@ -520,6 +693,8 @@ export class GoogleDriveService {
         throw notFound();
       }
     }
+    // The walk found TManage ancestry that is no longer known: never treat it as a personal file.
+    if (origin.kind === 'tmanage') throw notFound();
     const linked = await this.repository.attachedItemsForFile(runner, context, file.id);
     for (const row of linked) {
       if (!authorize({ principal, capability: 'work.read', resource: resourceOf(row) }).allowed) {
@@ -663,6 +838,23 @@ export class GoogleDriveService {
     return created;
   }
 
+  /** NV10. The raw token without a target project is for people who manage the company only. */
+  private requireOrgManage(context: TenantContext, principal: Principal): void {
+    const verdict = authorize({
+      principal,
+      capability: 'org.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId: null,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(403, 'forbidden', MESSAGES.forbidden, undefined, verdict.code);
+    }
+  }
+
   /** NV10. Refuses with 403 (or 404 for an unknown project) before any token is minted. */
   private async requirePickerRelation(
     context: TenantContext,
@@ -732,6 +924,12 @@ export class GoogleDriveService {
     return row;
   }
 }
+
+/** M04. Where the attach check found the file's nearest TManage ancestry. */
+type AttachOrigin =
+  | { readonly kind: 'tmanage'; readonly level: readonly string[] }
+  | { readonly kind: 'outside' }
+  | { readonly kind: 'unresolved' };
 
 function resourceOf(row: AttachedItem) {
   return {
