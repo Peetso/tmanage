@@ -60,6 +60,8 @@ export interface ErasureOutcome {
 
 /** MariaDB errnos a refused DELETE can carry, and what they mean for the erasure. */
 const ER_NO_SUCH_TABLE = 1146;
+const ER_BAD_FIELD_ERROR = 1054;
+const REFERENCED_ERRNOS: ReadonlySet<number> = new Set([1451, 1217]);
 const BLOCKING_ERRNOS: Readonly<Record<number, string>> = {
   1451: 'referenced', // ER_ROW_IS_REFERENCED_2: a row elsewhere still points at it
   1217: 'referenced', // ER_ROW_IS_REFERENCED
@@ -106,6 +108,26 @@ const OBJECT_SOURCES: readonly {
 
 const KEY_PAGE = 500;
 
+/**
+ * Global (non-tenant) tables whose rows point at a tenant table's rows and would otherwise keep
+ * them forever (wave 14 / L4). The OAuth connector's codes and tokens carry no `organization_id`
+ * but reference `oauth_grants (id)`: before the company's grants go, the codes and tokens issued
+ * under them are removed — they are dead credentials once the company is closed. Found by the
+ * grant ids read under the company's own context, so nothing of another tenant is touched.
+ */
+const GLOBAL_DEPENDENTS: Readonly<
+  Record<string, readonly { readonly table: string; readonly column: string }[]>
+> = {
+  oauth_grants: [
+    { table: 'oauth_codes', column: 'grant_id' },
+    { table: 'oauth_refresh_tokens', column: 'grant_id' },
+    { table: 'oauth_access_tokens', column: 'grant_id' },
+  ],
+};
+
+/** Rows a row-by-row pass reads per page (the fallback for a self-referencing table). */
+const ROW_PAGE = 200;
+
 export class CompanyErasure {
   constructor(
     private readonly database: TenantDatabase,
@@ -150,7 +172,9 @@ export class CompanyErasure {
 
   /** Delete the company's rows of one table, a batch per transaction, until none or the budget. */
   private async drain(context: TenantContext, table: string, budget: number): Promise<Drain> {
-    let deleted = 0;
+    const dependents = await this.drainGlobalDependents(context, table, budget);
+    if (dependents.state !== 'empty') return dependents;
+    let deleted = dependents.deleted;
     for (;;) {
       const limit = Math.min(this.options.batchRows, budget - deleted);
       if (limit <= 0) return { state: 'budget', deleted };
@@ -167,12 +191,160 @@ export class CompanyErasure {
       } catch (error) {
         const errno = errnoOf(error);
         if (errno === ER_NO_SUCH_TABLE) return { state: 'empty', deleted };
+        // InnoDB checks a foreign key row by row, in the order the DELETE visits rows, so a
+        // self-referencing table (a thread reply → its root message, a nested folder → its
+        // parent, a label assignment → its definition) refuses a batch that reaches a parent
+        // before its child. Take that table row by row instead, children first.
+        if (errno !== undefined && REFERENCED_ERRNOS.has(errno)) {
+          return this.drainRowByRow(context, table, budget, deleted);
+        }
         const reason = errno === undefined ? undefined : BLOCKING_ERRNOS[errno];
         if (reason !== undefined) return { state: 'blocked', deleted, reason };
         throw error;
       }
       deleted += count;
       if (count < limit) return { state: 'empty', deleted };
+    }
+  }
+
+  /**
+   * The fallback after a batch was refused as still referenced: the company's rows of the table,
+   * newest first (UUIDv7 ids, so a reply or a child before what it points at), each in its own
+   * delete. A row still referenced is skipped and retried in the next sweep; a sweep that removes
+   * nothing reports the table `referenced` — a row elsewhere still points at it, and the next round
+   * retries it after the other tables have drained. Each sweep removes at least one row or stops,
+   * so it always ends.
+   */
+  private async drainRowByRow(
+    context: TenantContext,
+    table: string,
+    budget: number,
+    already: number,
+  ): Promise<Drain> {
+    let deleted = already;
+    let removedHere = 0;
+    let removedInSweep = 0;
+    let before: string | null = null;
+    for (;;) {
+      let ids: readonly string[];
+      try {
+        const rows = (await this.database.read(context, (runner) =>
+          runner.query(
+            `select id from ${quoted(table)} where organization_id = ?${
+              before === null ? '' : ' and id < ?'
+            } order by id desc limit ${String(ROW_PAGE)}`,
+            before === null ? [context.organizationId] : [context.organizationId, before],
+          ),
+        )) as unknown as readonly { id: unknown }[];
+        ids = rows.map((row) => String(row.id));
+      } catch (error) {
+        // A table without an `id` column cannot be taken row by row; it stays referenced.
+        if (errnoOf(error) === ER_BAD_FIELD_ERROR) {
+          return { state: 'blocked', deleted, reason: 'referenced' };
+        }
+        throw error;
+      }
+
+      if (ids.length === 0) {
+        if (before === null) {
+          // Nothing left. (Nothing read at all right after a refusal is not taken as "empty".)
+          return removedHere > 0
+            ? { state: 'empty', deleted }
+            : { state: 'blocked', deleted, reason: 'referenced' };
+        }
+        if (removedInSweep === 0) return { state: 'blocked', deleted, reason: 'referenced' };
+        before = null;
+        removedInSweep = 0;
+        continue;
+      }
+
+      for (const id of ids) {
+        if (deleted >= budget) return { state: 'budget', deleted };
+        let count: number;
+        try {
+          count = await this.database.transaction(context, async (tx) =>
+            affected(
+              await tx.execute(
+                `delete from ${quoted(table)} where organization_id = ? and id = ?`,
+                [context.organizationId, id],
+              ),
+            ),
+          );
+        } catch (error) {
+          const errno = errnoOf(error);
+          if (errno !== undefined && REFERENCED_ERRNOS.has(errno)) continue;
+          const reason = errno === undefined ? undefined : BLOCKING_ERRNOS[errno];
+          if (reason !== undefined) return { state: 'blocked', deleted, reason };
+          throw error;
+        }
+        deleted += count;
+        removedHere += count;
+        removedInSweep += count;
+      }
+
+      if (ids.length < ROW_PAGE) {
+        // End of this sweep: start another over what is left, or stop if this one did nothing.
+        if (removedInSweep === 0) return { state: 'blocked', deleted, reason: 'referenced' };
+        before = null;
+        removedInSweep = 0;
+        continue;
+      }
+      before = ids[ids.length - 1] ?? null;
+    }
+  }
+
+  /**
+   * Remove the global rows {@link GLOBAL_DEPENDENTS} lists for `table` that point at this company's
+   * rows of it, before the table itself is drained. `empty` when there were none (or none are
+   * left); counted against the run's budget like any other row.
+   */
+  private async drainGlobalDependents(
+    context: TenantContext,
+    table: string,
+    budget: number,
+  ): Promise<Drain> {
+    const dependents = GLOBAL_DEPENDENTS[table];
+    if (dependents === undefined) return { state: 'empty', deleted: 0 };
+    let deleted = 0;
+    let after = '';
+    for (;;) {
+      let parents: readonly string[];
+      try {
+        const rows = (await this.database.read(context, (runner) =>
+          runner.query(
+            `select id from ${quoted(table)}
+              where organization_id = ? and id > ? order by id limit ${String(ROW_PAGE)}`,
+            [context.organizationId, after],
+          ),
+        )) as unknown as readonly { id: unknown }[];
+        parents = rows.map((row) => String(row.id));
+      } catch (error) {
+        if (errnoOf(error) === ER_NO_SUCH_TABLE) return { state: 'empty', deleted };
+        throw error;
+      }
+      if (parents.length === 0) return { state: 'empty', deleted };
+      const marks = parents.map(() => '?').join(', ');
+      for (const dependent of dependents) {
+        if (deleted >= budget) return { state: 'budget', deleted };
+        try {
+          deleted += await this.database.transaction(context, async (tx) =>
+            affected(
+              await tx.execute(
+                `delete from ${quoted(dependent.table)} where ${quoted(dependent.column)} in (${marks})`,
+                [...parents],
+              ),
+            ),
+          );
+        } catch (error) {
+          const errno = errnoOf(error);
+          if (errno === ER_NO_SUCH_TABLE) continue;
+          const reason = errno === undefined ? undefined : BLOCKING_ERRNOS[errno];
+          if (reason !== undefined) return { state: 'blocked', deleted, reason };
+          throw error;
+        }
+      }
+      if (parents.length < ROW_PAGE) return { state: 'empty', deleted };
+      after = parents[parents.length - 1] ?? '';
     }
   }
 
