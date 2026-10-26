@@ -431,6 +431,12 @@ export class ClientsService {
       clientMembershipId,
       'client_membership.set_expiry',
     );
+    // Wave 10 R5 (F27 variant 2): an active row whose expiry has passed is dead; extending it (or
+    // making it open-ended) makes it live again. If that person is staff here now, the revived dual
+    // membership would collide with their internal one, so the same refusal as changeStatus applies.
+    if (before.status === 'active' && (expiresAt === null || expiresAt.getTime() > Date.now())) {
+      await this.refuseInternalMember(context, before.userId);
+    }
 
     const row = await this.writing(() =>
       this.database.transaction(context, async (tx) => {

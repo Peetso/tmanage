@@ -205,6 +205,15 @@ export const AUDIT_ACTION_CATALOG = {
     clause: '§12 role changes — activation, suspension and offboarding are all access decisions',
   },
   /**
+   * Wave 10 R5 (F27b). A person holds an active internal membership and a live client membership in
+   * the same company; the resolver acts as the staff member and ignores the client row named here.
+   * Metadata: the client organization and the internal membership id — ids only.
+   */
+  'client_membership.shadowed_by_internal': {
+    objectType: 'client_membership',
+    clause: '§12 client membership change — a client grant that no longer applies to staff',
+  },
+  /**
    * ADM-12/13 (x121). Offboarding an *internal* member — the mirror of
    * `client_membership.status_changed`'s offboarding case for the staff side.
    *
@@ -790,6 +799,7 @@ const AUDIT_ACTION_LABELS = {
   'client_membership.role_changed': "Changed a client contact's role",
   'client_membership.expiry_changed': "Changed a client contact's access expiry",
   'client_membership.status_changed': "Changed a client contact's access",
+  'client_membership.shadowed_by_internal': 'Ignored a client access row held by a staff member',
   'membership.offboarded': 'Offboarded a member',
   'custom_role.created': 'Created a custom role',
   'custom_role.updated': 'Updated a custom role',

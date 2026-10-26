@@ -32,7 +32,10 @@ export const TENANT_GUARD_CHECKS = Symbol.for('tmanage.TenantGuardChecks');
 /** What `TenantContextGuard` consults beyond membership (F10, F52a). */
 export interface TenantGuardChecks {
   readonly aiSwitches: AiAccessSwitches;
-  /** The stored `session_max_hours` of the acting company, or `null` when it stored no policy. */
+  /**
+   * The `session_max_hours` in force for the acting company: its stored value, or the default when it
+   * stored no policy. `null` (no limit) only from a substituted test check.
+   */
   sessionMaxHours(runner: TenantQueryRunner, context: TenantContext): Promise<number | null>;
   /** Was this session started more than `hours` ago, by the database clock? */
   sessionOlderThan(sessionId: string, hours: number, correlationId: string): Promise<boolean>;
@@ -225,7 +228,7 @@ export class TenantContextGuard implements CanActivate {
 
     // F52a. The company's "session lifetime" policy: a cookie session older than it is ended and
     // the person signs in again. Sessions are user-level, so it is enforced where the company is
-    // known; a company that stored no policy keeps the sign-in session's own deadline.
+    // known; a company that stored no policy gets the default lifetime (wave 10 R5).
     if (checks !== undefined && loaded.sessionMaxHours !== null) {
       const tooOld = await checks.sessionOlderThan(
         session.sessionId,
@@ -304,8 +307,11 @@ export function createTenantGuardChecks(
   return {
     aiSwitches,
     async sessionMaxHours(runner, context) {
+      // Wave 10 R5 (F52a). No stored policy means the defaults are in force — the policy screen
+      // shows `DEFAULT_POLICY.session_max_hours` (24 h) as "In force now", so that is what is
+      // enforced (the owner can raise it to 720). The same rule F52b applies to invitations.
       const row = await policies.find(runner, context);
-      return row === undefined ? null : normalizePolicy(row.policyJson).session_max_hours;
+      return normalizePolicy(row?.policyJson).session_max_hours;
     },
     async sessionOlderThan(sessionId, hours, correlationId) {
       const found = await database.identityRead({ correlationId, tables: ['sessions'] }, (runner) =>

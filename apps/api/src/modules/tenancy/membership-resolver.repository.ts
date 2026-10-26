@@ -22,6 +22,7 @@ import type {
   TenantContext,
   TenantDatabase,
 } from '../../common/database/tenant-context.js';
+import { AuditService } from '../audit/audit.service.js';
 
 /**
  * The membership resolver — spec section 3 steps 2 and 3.
@@ -192,8 +193,17 @@ interface Candidate {
   readonly suspendedAt: Date | null;
 }
 
+/** How many shadowed client rows one resolver remembers having audited (bounded, per process). */
+const SHADOW_AUDIT_MEMORY = 1000;
+
 export class MembershipResolver {
-  constructor(private readonly database: TenantDatabase) {}
+  /** Client rows already recorded as shadowed, so a busy staff member does not write one per request. */
+  private readonly auditedShadows = new Set<string>();
+
+  constructor(
+    private readonly database: TenantDatabase,
+    private readonly audit: Pick<AuditService, 'recordStandalone'> = new AuditService(database),
+  ) {}
 
   async resolve(request: ResolveMembershipRequest): Promise<ResolvedMembership> {
     const { internal, client } = await this.database.bootstrapRead(
@@ -211,7 +221,16 @@ export class MembershipResolver {
     // Both queries always run, even though one match is enough to proceed. The second round
     // trip buys the ambiguity check below, and a resolver that stopped at the first match
     // could not make it — it would silently prefer whichever it happened to ask for first.
-    if (internal && client) throw new MembershipNotResolvedError('principal_kind_ambiguous');
+    //
+    // Wave 10 R5 (F27b). An active internal membership plus a live client row in the same company
+    // resolves as the staff member: the internal row alone already grants exactly that, so
+    // preferring it widens nothing, while refusing locked the person out of the whole tenant. The
+    // client row is recorded as shadowed (below). The two rows must name the same organization —
+    // anything else stays fail-closed as `principal_kind_ambiguous`.
+    if (internal && client && internal.organizationId !== client.organizationId) {
+      throw new MembershipNotResolvedError('principal_kind_ambiguous');
+    }
+    const shadowedClient = internal && client ? client : null;
 
     const candidate = internal ?? client;
     if (!candidate) throw new MembershipNotResolvedError('no_active_membership');
@@ -240,13 +259,41 @@ export class MembershipResolver {
         ? await this.customRole(candidate.role, contextFor)
         : this.validateRole(candidate.role, kind);
 
+    const context = contextFor(role);
+    if (shadowedClient !== null) await this.recordShadowedClient(context, shadowedClient);
+
     return {
-      context: contextFor(role),
+      context,
       role,
       clientOrganizationId: candidate.clientOrganizationId,
       hasOrgWideScope: candidate.hasOrgWideScope,
       workspaceScopeId: candidate.workspaceScopeId,
     };
+  }
+
+  /**
+   * Wave 10 R5 (F27b). Leave a trace of the client row the staff resolution ignored, once per row per
+   * resolver. Best effort: the person is staff either way, and a failed audit write must not turn
+   * back into the tenant-wide lockout this replaces.
+   */
+  private async recordShadowedClient(context: TenantContext, client: Candidate): Promise<void> {
+    const key = `${client.organizationId}:${client.membershipId}`;
+    if (this.auditedShadows.has(key)) return;
+    try {
+      await this.audit.recordStandalone(context, {
+        action: 'client_membership.shadowed_by_internal',
+        objectId: client.membershipId,
+        result: 'allowed',
+        metadata: {
+          client_organization_id: client.clientOrganizationId ?? 'none',
+          internal_membership_id: context.membershipId,
+        },
+      });
+      if (this.auditedShadows.size >= SHADOW_AUDIT_MEMORY) this.auditedShadows.clear();
+      this.auditedShadows.add(key);
+    } catch {
+      // Retried on the next resolution, since the key was not remembered.
+    }
   }
 
   /**

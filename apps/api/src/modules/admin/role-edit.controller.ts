@@ -9,6 +9,7 @@ import type { CustomRoleRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { AuditService } from '../audit/audit.service.js';
 import { RoleEditRepository } from './role-edit.repository.js';
+import { requireRoleAssigner } from '../tenancy/role-grant-ceiling.js';
 
 /**
  * Custom role clone + edit (Administration module 18, x195) — the lifecycle the audit named absent after
@@ -99,6 +100,11 @@ export class RoleEditController {
     @Param('id') id: string,
     @Body() body: CloneRoleBody,
   ): Promise<RoleEditView> {
+    // Wave 10 R5 (F30): editing or cloning a role re-roles every holder, so it is an "Assign roles"
+    // act (`12-PERMISSION-MATRIX` §2: owner and org_admin only), refused before any read or write —
+    // the same rule the single and bulk member-role routes apply. A delegated `org.manage` custom
+    // role therefore cannot rewrite the roles other people hold.
+    requireRoleAssigner(principal, 'custom_roles.clone');
     const created = await this.database.transaction(context, async (tx) => {
       // 1. Resolve the addressed role tenant-scoped, BEFORE authorize/write (Known trap).
       const source = await this.roles.findById(tx, context, id);
@@ -152,6 +158,9 @@ export class RoleEditController {
     @Param('id') id: string,
     @Body() body: EditRoleBody,
   ): Promise<RoleEditView> {
+    // Wave 10 R5 (F30): an edit changes what every holder of the role can do — owner / org_admin only,
+    // before any read or write (see clone).
+    requireRoleAssigner(principal, 'custom_roles.edit');
     const updated = await this.database.transaction(context, async (tx) => {
       // 1. Resolve the addressed role tenant-scoped, BEFORE authorize/write (Known trap).
       const target = await this.roles.findById(tx, context, id);
