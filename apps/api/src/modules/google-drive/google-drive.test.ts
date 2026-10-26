@@ -20,6 +20,18 @@ import {
 } from './google-drive.google.js';
 import type { GoogleDriveRepository } from './google-drive.repository.js';
 import { GoogleDriveService, safeDriveLink, tokenBinding } from './google-drive.service.js';
+import { effectiveModeOf } from './storage-mode.repository.js';
+/** 0236. The storage-mode seam, backed by the fake repository's one row. */
+function rowBackedModes(repository: object) {
+  const rows = repository as { findConnection: () => Promise<StorageConnectionRow | undefined> };
+  return {
+    effective: async () => {
+      const row = await rows.findConnection();
+      return effectiveModeOf(row ? [row] : []);
+    },
+    switchTo: async () => undefined,
+  };
+}
 
 const SECRET = 'session-secret-for-tests-only-0123456789';
 const CIPHER = createSeedCipher(parseSeedKeys(`1:${Buffer.alloc(32, 0x33).toString('base64url')}`));
@@ -128,6 +140,7 @@ function service(
     webPublicUrl: 'https://tmanage.example.com',
     uploadMaxBytes: 1000,
     repository: repository as unknown as GoogleDriveRepository,
+    storageModes: rowBackedModes(repository),
     workItems: { findById: vi.fn(async () => null) },
   });
 }
@@ -258,6 +271,7 @@ describe('a refused grant and the status view', () => {
       webPublicUrl: 'https://x',
       uploadMaxBytes: 1,
       repository: repository as unknown as GoogleDriveRepository,
+      storageModes: rowBackedModes(repository),
     });
     await expect(configured.pickerSession(ctx(), orgAdmin())).rejects.toMatchObject({
       status: 409,
@@ -285,6 +299,7 @@ describe('a refused grant and the status view', () => {
       webPublicUrl: 'https://x',
       uploadMaxBytes: 1,
       repository: repository as unknown as GoogleDriveRepository,
+      storageModes: rowBackedModes(repository),
     });
     expect((await drive.status(ctx(), true)).configured).toBe(false);
     expect(() => drive.startConnect(ctx(), 'north')).toThrow(/not set up/);
@@ -345,6 +360,7 @@ describe('NV10: the picker token needs the target project relation', () => {
       webPublicUrl: 'https://x',
       uploadMaxBytes: 1,
       repository: repository as unknown as GoogleDriveRepository,
+      storageModes: rowBackedModes(repository),
       projects: {
         findById: vi.fn(async (_r: unknown, _c: unknown, id: string) =>
           id === PROJECT_ON || id === PROJECT_OFF

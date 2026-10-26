@@ -12,7 +12,8 @@ export type DriveConnectionStatus = 'not_connected' | 'connected' | 'error';
 export interface StorageStatusView {
   readonly configured: boolean;
   readonly pickerAvailable: boolean;
-  readonly storageMode: StorageMode;
+  /** 0236. The company's one storage across providers; OneDrive is the API's second option. */
+  readonly storageMode: StorageMode | 'onedrive';
   readonly googleDrive: {
     readonly status: DriveConnectionStatus;
     readonly accountEmail: string | null;

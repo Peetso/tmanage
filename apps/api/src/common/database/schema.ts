@@ -8820,9 +8820,9 @@ export const storageConnections = mysqlTable(
   {
     id: char('id', { length: 36 }).primaryKey(),
     organizationId: char('organization_id', { length: 36 }).notNull(),
-    /** `google_drive`. */
+    /** `google_drive` or `onedrive` (0236). */
     provider: varchar('provider', { length: 32 }).notNull(),
-    /** `tmanage` or `google_drive`. */
+    /** `tmanage`, or the row's own provider when it is the company's storage (one per org). */
     storageMode: varchar('storage_mode', { length: 32 }).notNull().default('tmanage'),
     /** `connected`, `error` or `disconnected`. */
     status: varchar('status', { length: 32 }).notNull(),
@@ -8833,6 +8833,11 @@ export const storageConnections = mysqlTable(
     sharedDriveId: varchar('shared_drive_id', { length: 128 }),
     sharedDriveName: varchar('shared_drive_name', { length: 190 }),
     lastErrorCode: varchar('last_error_code', { length: 64 }),
+    /** 0236. OneDrive rows: the Graph drive of the chosen root, and its label. NULL for Google. */
+    onedriveDriveId: varchar('onedrive_drive_id', { length: 128 }),
+    onedriveDriveName: varchar('onedrive_drive_name', { length: 190 }),
+    /** 0236. The scopes the grant holds (OneDrive: whether SharePoint libraries were consented). */
+    grantedScopes: varchar('granted_scopes', { length: 512 }),
     connectedByUserId: char('connected_by_user_id', { length: 36 }),
     connectedAt: datetime('connected_at', { mode: 'date', fsp: 3 }),
     disconnectedAt: datetime('disconnected_at', { mode: 'date', fsp: 3 }),
@@ -8894,6 +8899,63 @@ export const googleDriveAttachments = mysqlTable(
 export type StorageConnectionRow = typeof storageConnections.$inferSelect;
 export type GoogleDriveFolderRow = typeof googleDriveFolders.$inferSelect;
 export type GoogleDriveAttachmentRow = typeof googleDriveAttachments.$inferSelect;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// OneDrive as company storage (0236)
+// ─────────────────────────────────────────────────────────────────────────────
+// Both tables are tenant-owned (TENANT_TABLES). Graph addresses an item by (drive id, item id).
+// The connection itself is a `storage_connections` row with `provider = 'onedrive'`.
+
+/** A OneDrive folder TManage created for a project or a work item under one `TManage/` root. */
+export const onedriveFolders = mysqlTable(
+  'onedrive_folders',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    driveId: varchar('drive_id', { length: 128 }).notNull(),
+    rootItemId: varchar('root_item_id', { length: 255 }).notNull(),
+    /** `project` or `work_item`. */
+    subjectKind: varchar('subject_kind', { length: 16 }).notNull(),
+    subjectId: char('subject_id', { length: 36 }).notNull(),
+    itemId: varchar('item_id', { length: 255 }).notNull(),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_onedrive_folders_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_onedrive_folders_subject').on(
+      table.organizationId,
+      table.rootItemId,
+      table.subjectKind,
+      table.subjectId,
+    ),
+  ],
+);
+
+/** A OneDrive file attached to a work item. Detach is soft (`removed_at`). */
+export const onedriveAttachments = mysqlTable(
+  'onedrive_attachments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    workItemId: char('work_item_id', { length: 36 }).notNull(),
+    driveId: varchar('drive_id', { length: 128 }).notNull(),
+    itemId: varchar('item_id', { length: 255 }).notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    mimeType: varchar('mime_type', { length: 190 }).notNull(),
+    sizeBytes: bigint('size_bytes', { mode: 'number' }),
+    webUrl: varchar('web_url', { length: 512 }),
+    attachedByUserId: char('attached_by_user_id', { length: 36 }).notNull(),
+    removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_onedrive_attachments_org_id').on(table.organizationId, table.id),
+    index('ix_onedrive_attachments_item').on(table.organizationId, table.workItemId, table.id),
+  ],
+);
+
+export type OneDriveFolderRow = typeof onedriveFolders.$inferSelect;
+export type OneDriveAttachmentRow = typeof onedriveAttachments.$inferSelect;
 
 export const TABLES = {
   focus_blocks: focusBlocks,
@@ -9135,6 +9197,8 @@ export const TABLES = {
   storage_connections: storageConnections,
   google_drive_folders: googleDriveFolders,
   google_drive_attachments: googleDriveAttachments,
+  onedrive_folders: onedriveFolders,
+  onedrive_attachments: onedriveAttachments,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;

@@ -19,6 +19,18 @@ import type {
   ProjectDriveFolder,
 } from './google-drive.repository.js';
 import { GoogleDriveService, tokenBinding } from './google-drive.service.js';
+import { effectiveModeOf } from './storage-mode.repository.js';
+/** 0236. The storage-mode seam, backed by the fake repository's one row. */
+function rowBackedModes(repository: object) {
+  const rows = repository as { findConnection: () => Promise<StorageConnectionRow | undefined> };
+  return {
+    effective: async () => {
+      const row = await rows.findConnection();
+      return effectiveModeOf(row ? [row] : []);
+    },
+    switchTo: async () => undefined,
+  };
+}
 
 /**
  * Wave 11 Q1 — NV10 (the company-wide `drive.file` token reached project-scoped members) and M04
@@ -189,6 +201,7 @@ function setup(options: { ancestors?: Record<string, readonly string[]>; file?: 
     webPublicUrl: 'https://tmanage.example.com',
     uploadMaxBytes: 1000,
     repository: repository as unknown as GoogleDriveRepository,
+    storageModes: rowBackedModes(repository),
     workItems: {
       findById: vi.fn(async (_r: unknown, _c: unknown, id: string) =>
         id === ITEM_A ? item(ITEM_A, PA) : id === ITEM_B ? item(ITEM_B, PB) : null,

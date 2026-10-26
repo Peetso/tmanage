@@ -5451,6 +5451,41 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // 0236. OneDrive storage, the same four as Google Drive: the Storage state, a work item's
+  // OneDrive attachments, attaching a OneDrive file and (confirm-class) detaching one. Not yet
+  // enriched with details, so the tool catalogue does not expose them yet.
+  {
+    id: 'onedrive.storage.get',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'onedrive.attachments.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/onedrive/attachments',
+    capability: 'work.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'onedrive.attachments.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/onedrive/attachments',
+    capability: 'work.update',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'onedrive.attachments.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/onedrive/attachments/:attachmentId',
+    capability: 'work.update',
+    risk: 'confirm',
+    scope: 'manage',
+  },
 ];
 
 /** Index of ops by their stable id. */

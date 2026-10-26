@@ -30,11 +30,12 @@ import {
   type DriveFlow,
   type DriveTransport,
 } from './google-drive.google.js';
+import { GoogleDriveRepository, type AttachedItem } from './google-drive.repository.js';
 import {
-  GoogleDriveRepository,
-  type AttachedItem,
+  databaseStorageModes,
   type StorageMode,
-} from './google-drive.repository.js';
+  type StorageModeStore,
+} from './storage-mode.repository.js';
 
 /**
  * Google Drive as company storage — the application service.
@@ -54,6 +55,7 @@ export interface StorageStatusView {
   readonly configured: boolean;
   /** Whether the browser file picker can be offered (needs the picker key too). */
   readonly pickerAvailable: boolean;
+  /** 0236. The company's one effective storage, across providers (Google Drive or OneDrive). */
   readonly storageMode: StorageMode;
   readonly googleDrive: {
     readonly status: 'not_connected' | 'connected' | 'error';
@@ -128,7 +130,7 @@ export const ORIGIN_MAX_HOPS = 8;
 const ORIGIN_MAX_BREADTH = 5;
 
 export interface SettingsInput {
-  readonly storageMode?: StorageMode;
+  readonly storageMode?: 'tmanage' | 'google_drive';
   /** `my_drive`, or a folder the person picked (possibly inside a Shared Drive). */
   readonly location?: { readonly kind: 'my_drive' } | { readonly kind: 'folder'; folderId: string };
 }
@@ -154,6 +156,8 @@ export interface GoogleDriveServiceDeps {
   readonly workItems?: Pick<WorkItemsRepository, 'findById'>;
   /** NV10. The picker's target project, for its relation check. */
   readonly projects?: Pick<ProjectsRepository, 'findById'>;
+  /** 0236. The one-mode-per-organization store (shared with OneDrive). */
+  readonly storageModes?: StorageModeStore;
 }
 
 /** The additional data binding a stored refresh token to its organization. */
@@ -180,11 +184,13 @@ export class GoogleDriveService {
   private readonly repository: GoogleDriveRepository;
   private readonly workItems: Pick<WorkItemsRepository, 'findById'>;
   private readonly projects: Pick<ProjectsRepository, 'findById'>;
+  private readonly modes: StorageModeStore;
 
   constructor(private readonly deps: GoogleDriveServiceDeps) {
     this.repository = deps.repository ?? new GoogleDriveRepository();
     this.workItems = deps.workItems ?? new WorkItemsRepository();
     this.projects = deps.projects ?? new ProjectsRepository();
+    this.modes = deps.storageModes ?? databaseStorageModes;
   }
 
   get redirectUri(): string {
@@ -194,10 +200,11 @@ export class GoogleDriveService {
   // ── Status and settings ───────────────────────────────────────────────────
 
   async status(context: TenantContext, canManage: boolean): Promise<StorageStatusView> {
-    const row = await this.deps.database.read(context, (runner) =>
-      this.repository.findConnection(runner, context),
-    );
-    return toStatusView(this.deps.config, row, canManage);
+    const { row, mode } = await this.deps.database.read(context, async (runner) => ({
+      row: await this.repository.findConnection(runner, context),
+      mode: await this.modes.effective(runner, context),
+    }));
+    return toStatusView(this.deps.config, row, canManage, mode);
   }
 
   /** Begin connecting: the Google consent URL and the flow to seal into the cookie. */
@@ -264,7 +271,7 @@ export class GoogleDriveService {
       tokens.refreshToken,
       tokenBinding(context.organizationId),
     );
-    const row = await this.deps.database.transaction(context, async (tx) => {
+    const { row, mode } = await this.deps.database.transaction(context, async (tx) => {
       await this.repository.saveConnected(tx, context, {
         accountEmail: tokens.email,
         refreshTokenEnc,
@@ -278,9 +285,9 @@ export class GoogleDriveService {
         objectId: saved?.id ?? null,
         metadata: { provider: 'google_drive' },
       });
-      return saved;
+      return { row: saved, mode: await this.modes.effective(tx, context) };
     });
-    return toStatusView(this.deps.config, row, true);
+    return toStatusView(this.deps.config, row, true, mode);
   }
 
   async updateSettings(context: TenantContext, input: SettingsInput): Promise<StorageStatusView> {
@@ -317,31 +324,33 @@ export class GoogleDriveService {
           : null;
       }
     }
-    if (input.storageMode !== undefined) {
-      if (input.storageMode === 'google_drive') this.requireLive(connection);
-      patch.storageMode = input.storageMode;
-    }
+    // 0236. The mode itself is written by `switchTo` below, which also resets OneDrive's row.
+    if (input.storageMode === 'google_drive') this.requireLive(connection);
     if (!connection) {
       // Nothing to change: with no connection the company is on TManage storage already.
       if (input.storageMode === 'tmanage' && !input.location) return this.status(context, true);
       throw conflict('not_connected');
     }
 
-    const row = await this.deps.database.transaction(context, async (tx) => {
+    const { row, mode } = await this.deps.database.transaction(context, async (tx) => {
       await this.repository.update(tx, context, connection.id, patch);
+      if (input.storageMode !== undefined) {
+        await this.modes.switchTo(tx, context, input.storageMode);
+      }
+      const effective = await this.modes.effective(tx, context);
       await this.deps.audit.record(tx, context, {
         action: 'storage_connection.settings_changed',
         result: 'allowed',
         objectId: connection.id,
         metadata: {
           provider: 'google_drive',
-          storage_mode: patch.storageMode ?? connection.storageMode,
+          storage_mode: effective,
           uses_shared_drive: (patch.sharedDriveId ?? connection.sharedDriveId) !== null,
         },
       });
-      return this.repository.findConnection(tx, context);
+      return { row: await this.repository.findConnection(tx, context), mode: effective };
     });
-    return toStatusView(this.deps.config, row, true);
+    return toStatusView(this.deps.config, row, true, mode);
   }
 
   /** Disconnect: revoke at Google (best effort), wipe the token, move back to TManage storage. */
@@ -359,7 +368,7 @@ export class GoogleDriveService {
         // A token that cannot be opened or revoked is wiped below all the same.
       }
     }
-    const row = await this.deps.database.transaction(context, async (tx) => {
+    const { row, mode } = await this.deps.database.transaction(context, async (tx) => {
       await this.repository.update(tx, context, connection.id, {
         status: 'disconnected',
         storageMode: 'tmanage',
@@ -373,9 +382,12 @@ export class GoogleDriveService {
         objectId: connection.id,
         metadata: { provider: 'google_drive' },
       });
-      return this.repository.findConnection(tx, context);
+      return {
+        row: await this.repository.findConnection(tx, context),
+        mode: await this.modes.effective(tx, context),
+      };
     });
-    return toStatusView(this.deps.config, row, true);
+    return toStatusView(this.deps.config, row, true, mode);
   }
 
   // ── Picker, upload and attachments ────────────────────────────────────────
@@ -999,13 +1011,16 @@ export function toStatusView(
   config: DriveConfig | null,
   row: StorageConnectionRow | undefined,
   canManage: boolean,
+  /** 0236. The organization's effective mode across providers; without it, this row's own. */
+  effective?: StorageMode,
 ): StorageStatusView {
   const live = row && row.status !== 'disconnected' ? row : undefined;
   const status = !live ? 'not_connected' : live.status === 'error' ? 'error' : 'connected';
   return {
     configured: config !== null,
     pickerAvailable: config?.pickerApiKey != null && status === 'connected',
-    storageMode: live && live.storageMode === 'google_drive' ? 'google_drive' : 'tmanage',
+    storageMode:
+      effective ?? (live && live.storageMode === 'google_drive' ? 'google_drive' : 'tmanage'),
     googleDrive: {
       status,
       accountEmail: canManage ? (live?.accountEmail ?? null) : null,

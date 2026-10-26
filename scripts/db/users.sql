@@ -1226,6 +1226,11 @@ GRANT INSERT, UPDATE ON `tmanage`.`pending_ai_actions`   TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`storage_connections`      TO 'tmanage_app'@'%';
 GRANT INSERT ON `tmanage`.`google_drive_folders`             TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`google_drive_attachments` TO 'tmanage_app'@'%';
+-- 0236 OneDrive storage (the connection reuses `storage_connections` above). Folders: INSERT
+-- only (a folder item id never changes). Attachments: INSERT, UPDATE (soft detach via
+-- `removed_at`). No DELETE; the worker holds nothing here.
+GRANT INSERT ON `tmanage`.`onedrive_folders`                 TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`onedrive_attachments`     TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 

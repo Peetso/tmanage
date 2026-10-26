@@ -87,6 +87,10 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   storage_connections: 'organization_id',
   google_drive_folders: 'organization_id',
   google_drive_attachments: 'organization_id',
+  // 0236. OneDrive as company storage (its connection is a `storage_connections` row): the
+  // project/work-item folder map and the OneDrive attachments each belong to one organization.
+  onedrive_folders: 'organization_id',
+  onedrive_attachments: 'organization_id',
   workspaces: 'organization_id',
   projects: 'organization_id',
   project_memberships: 'organization_id',

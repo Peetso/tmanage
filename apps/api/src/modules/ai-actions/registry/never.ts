@@ -348,6 +348,43 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'storage_connection',
   },
   { method: 'GET', path: '/v1/integrations/google-drive/callback', reason: 'storage_connection' },
+  // 0236. OneDrive storage: the same connection and credential routes as Google Drive.
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/connect',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/complete',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'PUT',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/settings',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/picker-session',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/onedrive/projects/:projectId/files',
+    reason: 'storage_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/work-items/:workItemId/onedrive/uploads',
+    reason: 'storage_connection',
+  },
+  { method: 'GET', path: '/v1/integrations/onedrive/callback', reason: 'storage_connection' },
   // D5 (Figma F5). Data-rights acts: a bulk copy of personal data, its download, and deleting the
   // company or an account. A person does these themselves; an AI principal never does.
   {

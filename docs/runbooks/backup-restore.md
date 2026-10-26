@@ -149,6 +149,11 @@ copying `migrations/0215_member_profile_job_title.sql` from the `9c6d816c` ZIP i
 | 0216 direct_conversation_read_markers | 2 `NOT NULL DEFAULT 0` columns on `direct_conversations`                                  | Yes, additive; old code does not write them, unread counts may be off after returning         |
 | 0217 meeting_client_attendees         | new table + immutability trigger                                                          | Yes, additive; client attendees are invisible to old code                                     |
 
+0236 onedrive_storage (OneDrive as company storage) adds 3 NULL columns to
+`storage_connections` (`onedrive_drive_id`, `onedrive_drive_name`, `granted_scopes`), 2 new tables
+(`onedrive_folders`, `onedrive_attachments`) and their immutability triggers. Old code still works:
+it ignores the columns and OneDrive attachments are invisible to it; no restore is needed.
+
 None of 0205–0217 drops or renames anything, so going back one deploy across them needs **no
 data restore** — but it does need the newer migration files copied into the older bundle (step
 4). Re-deploying the newer build later is safe: the migrator sees the versions already in

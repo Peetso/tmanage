@@ -117,6 +117,7 @@ import { AdminSessionsModule } from './modules/identity/admin-sessions.controlle
 import { MemberNotesModule } from './modules/admin/member-notes.controller.js';
 import { PersonalAccessTokensModule } from './modules/personal-access-tokens/personal-access-tokens.controller.js';
 import { GoogleDriveModule } from './modules/google-drive/google-drive.controller.js';
+import { OneDriveModule } from './modules/onedrive/onedrive.controller.js';
 import { McpEndpointModule } from './modules/mcp/mcp-endpoint.controller.js';
 import { AiConnectorFallbacksModule } from './modules/mcp/ai-connector-fallbacks.controller.js';
 import { PendingAiActionsModule } from './modules/mcp/pending-actions.controller.js';
@@ -1048,6 +1049,9 @@ export class AppModule {
         // Always registered: without GOOGLE_DRIVE_CLIENT_ID/SECRET (or the sign-in client) the
         // routes answer "not configured". Self-contained and file-disjoint.
         GoogleDriveModule.register(),
+        // 0236. OneDrive as company storage, the second external option. Always registered:
+        // without MICROSOFT_CLIENT_ID/SECRET the routes answer "not configured".
+        OneDriveModule.register(),
         // Hosted MCP endpoint (`POST /mcp`): the `@tmanage/mcp-server` tools over Streamable HTTP,
         // signed in with a personal access token. Every tool call is an in-process request
         // through this same guard chain, so it is tenant- and permission-scoped like REST.

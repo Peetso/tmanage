@@ -14,6 +14,7 @@ import type {
   WorkItemRow,
 } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import type { StorageMode } from './storage-mode.repository.js';
 
 /**
  * The data half of Google Drive storage. Every query carries
@@ -22,7 +23,8 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
 
 export const DRIVE_PROVIDER = 'google_drive';
 
-export type StorageMode = 'tmanage' | 'google_drive';
+/** 0236. Widened with OneDrive; the one-mode-per-organization rule lives in `storage-mode.ts`. */
+export type { StorageMode };
 export type ConnectionStatus = 'connected' | 'error' | 'disconnected';
 
 export interface SaveConnectionInput {

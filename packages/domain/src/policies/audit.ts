@@ -582,6 +582,18 @@ export const AUDIT_ACTION_CATALOG = {
     clause: '§12 — the same link removed (the Drive file itself is never deleted)',
   },
   /**
+   * 0236. A OneDrive file attached to, or detached from, a work item (ids and type only). The
+   * connection itself reuses `storage_connection.*` with `provider: 'onedrive'`.
+   */
+  'onedrive_attachment.attached': {
+    objectType: 'onedrive_attachment',
+    clause: '§12 — a file linked into a tenant record from an external store',
+  },
+  'onedrive_attachment.removed': {
+    objectType: 'onedrive_attachment',
+    clause: '§12 — the same link removed (the OneDrive file itself is never deleted)',
+  },
+  /**
    * NV10 (wave 10 R9). A short-lived company Drive token handed to a person's browser for the file
    * picker. Google has no per-project Drive token, so each issuance is recorded: the connection,
    * the provider and the target project id — never the token.
@@ -849,6 +861,8 @@ const AUDIT_ACTION_LABELS = {
   'storage_connection.disconnected': 'Disconnected Google Drive',
   'drive_attachment.attached': 'Attached a Google Drive file',
   'drive_attachment.removed': 'Removed a Google Drive file',
+  'onedrive_attachment.attached': 'Attached a OneDrive file',
+  'onedrive_attachment.removed': 'Removed a OneDrive file',
   'drive_picker.session_issued': 'Opened the Google Drive file picker',
   'security.capability_denied': 'Blocked for a missing permission',
   'plan_change_request.submitted': 'Requested a plan change',
