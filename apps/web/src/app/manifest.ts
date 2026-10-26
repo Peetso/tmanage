@@ -26,9 +26,10 @@ import type { MetadataRoute } from 'next';
  *
  * ## Icons
  *
- * The brand mark ships as SVG, which Chromium treats as installable with `sizes: 'any'`. A
- * second, square ink-on-lime variant carries `purpose: 'maskable'` so the adaptive-icon mask
- * on Android/desktop crops a padded safe zone rather than clipping the wordmark-less glyph.
+ * The "any" icon is the plain app icon: a square ink tile with the lime mark at about 85 % of
+ * its width, so launchers, Windows and the browser show the mark at the same visual weight as
+ * other apps. The maskable variant keeps the padded mark, because the adaptive-icon mask on
+ * Android crops to a circle and the mark must stay inside its safe zone.
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -63,7 +64,7 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     icons: [
       {
-        src: '/brand/tmanage-icon.svg',
+        src: '/brand/tmanage-app-icon.svg',
         sizes: 'any',
         type: 'image/svg+xml',
         purpose: 'any',
@@ -74,11 +75,11 @@ export default function manifest(): MetadataRoute.Manifest {
         type: 'image/svg+xml',
         purpose: 'maskable',
       },
-      // PNG renders of the maskable mark, for installers and icon lookups that skip SVG.
+      // PNG renders of the plain icon, for installers and icon lookups that skip SVG.
       { src: '/brand/tmanage-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/brand/tmanage-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
       {
-        src: '/brand/tmanage-icon-512.png',
+        src: '/brand/tmanage-maskable-512.png',
         sizes: '512x512',
         type: 'image/png',
         purpose: 'maskable',

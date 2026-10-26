@@ -13,6 +13,13 @@ describe('web app manifest', () => {
     expect(result.background_color).toBeTruthy();
     expect(result.icons?.length ?? 0).toBeGreaterThan(0);
   });
+
+  it('points "any" at the plain icon and "maskable" at the padded mark', () => {
+    const icons = manifest().icons ?? [];
+    const srcs = (purpose: string) => icons.filter((i) => i.purpose === purpose).map((i) => i.src);
+    expect(srcs('any').every((s) => /tmanage-(app-icon|icon-\d+)\./.test(s))).toBe(true);
+    expect(srcs('maskable').every((s) => s.includes('tmanage-maskable'))).toBe(true);
+  });
 });
 
 describe('ServiceWorkerRegister', () => {
