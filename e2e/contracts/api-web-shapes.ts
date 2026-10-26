@@ -125,7 +125,11 @@ import type {
 import type {
   StorageStatusView as ApiStorageStatusView,
   DriveAttachmentView as ApiDriveAttachmentView,
-  PickerSessionView as ApiPickerSessionView,
+  GooglePickerSessionView as ApiGooglePickerSessionView,
+  ScopedPickerSessionView as ApiScopedPickerSessionView,
+  ProjectFileView as ApiProjectFileView,
+  ProjectFolderView as ApiProjectFolderView,
+  ProjectFilesView as ApiProjectFilesView,
 } from '../../apps/api/src/modules/google-drive/google-drive.service.js';
 import type { ConsentView as ApiConsentView } from '../../apps/api/src/modules/oauth/consent.controller.js';
 import type {
@@ -729,6 +733,9 @@ import type {
   StorageStatusView as WebStorageStatusView,
   DriveAttachmentView as WebDriveAttachmentView,
   PickerSessionView as WebPickerSessionView,
+  ProjectDriveFile as WebProjectDriveFile,
+  ProjectDriveFolder as WebProjectDriveFolder,
+  ProjectDriveFilesView as WebProjectDriveFilesView,
 } from '../../apps/web/src/lib/api/google-drive';
 import type { ConsentView as WebConsentView } from '../../apps/web/src/lib/api/oauth-consent';
 import type {
@@ -3014,7 +3021,17 @@ type _platformAuditEventView = Assert<Exact<ApiPlatformAuditEventView, WebPlatfo
 // Google Drive storage (0210): the Storage screen and "Attach from Google Drive".
 type _storageStatus = Assert<Exact<ApiStorageStatusView, WebStorageStatusView>>;
 type _driveAttachment = Assert<Exact<ApiDriveAttachmentView, WebDriveAttachmentView>>;
-type _pickerSession = Assert<Exact<ApiPickerSessionView, WebPickerSessionView>>;
+// NV10: the picker session is a union of two named API views; the web side declares it as one
+// object-literal union, so each arm is paired through Extract and the whole union once more.
+type WebGooglePickerSession = Extract<WebPickerSessionView, { mode: 'google' }>;
+type WebScopedPickerSession = Extract<WebPickerSessionView, { mode: 'scoped' }>;
+type ApiPickerSessionUnion = ApiGooglePickerSessionView | ApiScopedPickerSessionView;
+type _googlePickerSession = Assert<Exact<ApiGooglePickerSessionView, WebGooglePickerSession>>;
+type _scopedPickerSession = Assert<Exact<ApiScopedPickerSessionView, WebScopedPickerSession>>;
+type _pickerSession = Assert<Exact<ApiPickerSessionUnion, WebPickerSessionView>>;
+type _projectDriveFile = Assert<Exact<ApiProjectFileView, WebProjectDriveFile>>;
+type _projectDriveFolder = Assert<Exact<ApiProjectFolderView, WebProjectDriveFolder>>;
+type _projectDriveFiles = Assert<Exact<ApiProjectFilesView, WebProjectDriveFilesView>>;
 // MCP connector S9–S11: the consent page, Connected apps and the AI approve page. Their element
 // shapes (`ConsentClient`, `AiApprovalSummary`, `AiApprovalField`) are covered through these.
 type _consent = Assert<Exact<ApiConsentView, WebConsentView>>;

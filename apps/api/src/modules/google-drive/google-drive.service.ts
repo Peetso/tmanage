@@ -80,15 +80,22 @@ export interface DriveAttachmentView {
  * a caller who can already read every project (org-wide scope). `scoped`: no token at all; the
  * browser lists the project's TManage folders through {@link GoogleDriveService.projectFiles}.
  */
-export type PickerSessionView =
-  | {
-      readonly mode: 'google';
-      readonly accessToken: string;
-      readonly apiKey: string;
-      readonly appId: string | null;
-      readonly rootFolderId: string | null;
-    }
-  | { readonly mode: 'scoped'; readonly projectId: string };
+export type PickerSessionView = GooglePickerSessionView | ScopedPickerSessionView;
+
+/** NV10. The `google` picker session: only for a caller who can read every project. */
+export interface GooglePickerSessionView {
+  readonly mode: 'google';
+  readonly accessToken: string;
+  readonly apiKey: string;
+  readonly appId: string | null;
+  readonly rootFolderId: string | null;
+}
+
+/** NV10. The `scoped` picker session: no token; the project's own folders only. */
+export interface ScopedPickerSessionView {
+  readonly mode: 'scoped';
+  readonly projectId: string;
+}
 
 /** NV10. One entry of the server-side project file list. No download link, no token. */
 export interface ProjectFileView {
