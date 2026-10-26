@@ -3,7 +3,8 @@
 import { usePathname } from 'next/navigation';
 import Link from './WebLink';
 import { activeLocale } from '../../lib/i18n/locale-store';
-import { languageSwitchTarget } from '../../lib/i18n/public-locale-routes';
+import { languageSwitchTarget, localizeHref } from '../../lib/i18n/public-locale-routes';
+import { useRouteLocale } from '../../lib/i18n/route-locale';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
 import { WebIcon } from './WebIcon';
@@ -74,6 +75,9 @@ export function LanguageSwitch() {
 export function WebFooter() {
   const t = useT();
   const year = 2026;
+  // The social orbs are plain anchors (two leave the site), so an Arabic page localizes the
+  // in-site one ("راسل TManage" → /ar/contact) itself, as WebLink does for every other link.
+  const arabicRoute = useRouteLocale() !== undefined;
   return (
     <footer className="tm-web-footer">
       <div className="tm-web-footer__inner">
@@ -137,7 +141,7 @@ export function WebFooter() {
             {FOOTER_SOCIAL.map((item) => (
               <li key={item.label}>
                 <a
-                  href={item.href}
+                  href={arabicRoute ? localizeHref(item.href) : item.href}
                   className="tm-web-orb tm-web-orb--outline tm-web-orb--default"
                   aria-label={t(item.label)}
                   {...(item.href.startsWith('http') ? { rel: 'noopener noreferrer' } : {})}

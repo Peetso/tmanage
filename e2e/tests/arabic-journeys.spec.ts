@@ -361,6 +361,14 @@ test.describe('the Arabic public pages', () => {
         // An Arabic page links to the Arabic twin of a public page, never its English copy.
         expect(links, `${path}: links to its Arabic twins`).not.toContain('/pricing');
         expect(links, `${path}: links to the Arabic pricing page`).toContain('/ar/pricing');
+        // The contact orb ("راسل TManage") stays in Arabic, and articles (English only) are
+        // linked at their English path, never an /ar/resources/… copy that would be a 404.
+        expect(links, `${path}: links to the Arabic contact page`).toContain('/ar/contact');
+        expect(links, `${path}: no English contact link`).not.toContain('/contact');
+        expect(
+          links.filter((link) => link.startsWith('/ar/resources/')),
+          `${path}: no Arabic article links`,
+        ).toEqual([]);
         for (const link of links) {
           if (checked.has(link)) continue;
           checked.add(link);
