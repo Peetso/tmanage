@@ -325,7 +325,8 @@ async function main(): Promise<void> {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       console.warn(
         `[worker] due-soon sweep: ${String(result.rules)} rule(s), ` +
-          `fired for ${String(result.fired)} work item(s)`,
+          `fired for ${String(result.fired)} work item(s), ` +
+          `delivered ${String(result.delivered)} weekend-held run(s)`,
       );
     } finally {
       await database.end();

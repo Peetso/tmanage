@@ -196,6 +196,19 @@ REVOKE ALL PRIVILEGES, GRANT OPTION FROM 'tmanage_app'@'%';
 -- CREATE USER, FILE, SUPER, PROCESS, LOCK TABLES, CREATE TEMPORARY TABLES. The application
 -- can read this one database and write the rows named below, and can do nothing else — to
 -- it or to any other database on the server.
+--
+-- Company erasure (H3, audit gap 8) is deliberately NOT given DELETE here. `CompanyErasure`
+-- (`privacy-erasure.repository.ts`) deletes every row of a closed company from each tenant table
+-- outside its RETAINED_TABLES, on the tenant pool — today this account. Roughly half of those
+-- tables withhold DELETE from this account on purpose (approvals, deliverable_versions,
+-- client_projections, invitations, messages, ...: "a runtime credential must not erase the
+-- record"), so widening it would undo those decisions for every request the API serves. On a
+-- deployment with these split users the erasure therefore reports `not_permitted` and leaves
+-- `purged_at` NULL rather than forcing anything. The least-privilege answer is a separate purge
+-- principal (SELECT + DELETE on exactly the erasable tables, nothing else) used only by the
+-- erasure pool; it needs the privacy module wired to its own URL and the grant tests' probe
+-- lists extended, so it is not created here until that lands. Hostinger runs one database user
+-- and is unaffected.
 GRANT SELECT ON `tmanage`.* TO 'tmanage_app'@'%';
 
 GRANT INSERT, UPDATE, DELETE ON `tmanage`.`organizations`        TO 'tmanage_app'@'%';
