@@ -36,14 +36,20 @@ interface PickerBuilder {
   build(): { setVisible(visible: boolean): void };
 }
 
+interface DocsView {
+  setIncludeFolders(on: boolean): unknown;
+  setSelectFolderEnabled(on: boolean): unknown;
+  /** Turns the view into Google's "Shared drives" view: My Drive is no longer shown in it. */
+  setEnableDrives(on: boolean): unknown;
+  setMimeTypes(types: string): unknown;
+  /** `'root'` opens the view at the top of My Drive, so the person can walk into its folders. */
+  setParent(parentId: string): unknown;
+  setOwnedByMe(on: boolean): unknown;
+}
+
 interface GooglePickerNamespace {
   PickerBuilder: new () => PickerBuilder;
-  DocsView: new (viewId?: unknown) => {
-    setIncludeFolders(on: boolean): unknown;
-    setSelectFolderEnabled(on: boolean): unknown;
-    setEnableDrives(on: boolean): unknown;
-    setMimeTypes(types: string): unknown;
-  };
+  DocsView: new (viewId?: unknown) => DocsView;
   ViewId: { DOCS: unknown; FOLDERS: unknown };
   Feature: { MULTISELECT_ENABLED: unknown; SUPPORT_DRIVES: unknown };
   Action: { PICKED: string; CANCEL: string };
@@ -81,19 +87,42 @@ function loadPicker(): Promise<GooglePickerNamespace> {
   return loading;
 }
 
+const FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
+
+/**
+ * The picker's tabs: My Drive first, then Shared drives. One view cannot show both:
+ * `setEnableDrives(true)` makes a view the Shared drives view, so a person with no Shared Drives
+ * would see an empty picker and never their own folders.
+ */
+function buildPickerViews(
+  picker: Pick<GooglePickerNamespace, 'DocsView' | 'ViewId'>,
+  mode: PickerOptions['mode'],
+): readonly DocsView[] {
+  const make = (): DocsView => {
+    const view = new picker.DocsView(
+      mode === 'folder' ? picker.ViewId.FOLDERS : picker.ViewId.DOCS,
+    );
+    view.setIncludeFolders(true);
+    if (mode === 'folder') {
+      view.setSelectFolderEnabled(true);
+      view.setMimeTypes(FOLDER_MIME_TYPE);
+    }
+    return view;
+  };
+  const myDrive = make();
+  myDrive.setParent('root');
+  const sharedDrives = make();
+  sharedDrives.setEnableDrives(true);
+  return [myDrive, sharedDrives];
+}
+
 /** Open the picker; resolves with what the person chose, or an empty list on cancel. */
 export async function openDrivePicker(options: PickerOptions): Promise<readonly PickedDriveItem[]> {
   const picker = await loadPicker();
   return new Promise((resolve) => {
-    const view = new picker.DocsView(options.mode === 'folder' ? picker.ViewId.FOLDERS : undefined);
-    view.setEnableDrives(true);
-    if (options.mode === 'folder') {
-      view.setIncludeFolders(true);
-      view.setSelectFolderEnabled(true);
-      view.setMimeTypes('application/vnd.google-apps.folder');
-    }
-    let builder = new picker.PickerBuilder()
-      .addView(view)
+    let builder = new picker.PickerBuilder();
+    for (const view of buildPickerViews(picker, options.mode)) builder = builder.addView(view);
+    builder = builder
       .setOAuthToken(options.accessToken)
       .setDeveloperKey(options.apiKey)
       .setLocale(options.locale)
