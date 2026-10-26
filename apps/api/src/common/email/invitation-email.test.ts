@@ -145,6 +145,50 @@ ${message.html ?? ''}`;
     expect(mailSafeName('Northstar Studio')).toBe('Northstar Studio');
   });
 
+  it.each(['en', 'ar'])(
+    'wave10 R2 F36b: %s — non-ASCII digits, slash-separated phones and look-alike dots are neutralised',
+    (locale) => {
+      const arabicIndicPhone = '٠١٠ ٠١٢٣ ٤٥٦٧';
+      const extendedPhone = '۰۹۱۲-۳۴۵-۶۷۸۹';
+      const fullWidthPhone = '０１００１２３４';
+      const message = composeInvitationEmail(
+        facts({
+          locale,
+          organizationName: `Call ${arabicIndicPhone} refund-portal。com`,
+          inviterName: `Support +1/555/010/0100 evil．example pay｡example ${extendedPhone}`,
+          clientOrganizationName: `Desk ${fullWidthPhone} refunds＠evil.example`,
+        }),
+      );
+      const everything = `${message.subject}
+${message.text}
+${message.html ?? ''}`;
+      for (const fragment of [
+        arabicIndicPhone,
+        '١٢٣',
+        extendedPhone,
+        '۳۴۵',
+        fullWidthPhone,
+        '01001234',
+        '+1/555/010/0100',
+        '555/010',
+        '0100',
+        'refund-portal。com',
+        'refund-portal',
+        'portal.com',
+        'evil．example',
+        'evil.example',
+        'pay｡example',
+        'pay.example',
+        'refunds',
+      ]) {
+        expect(everything).not.toContain(fragment);
+      }
+      // The surrounding words survive, and the one real link is still there.
+      expect(message.subject).toContain('Call');
+      expect(message.text).toContain('https://app.tmanage.example/invitations/tok123');
+    },
+  );
+
   it('writes Arabic, right to left, for an Arabic recipient', () => {
     const message = composeInvitationEmail(facts({ locale: 'ar-EG', role: 'member' }));
     const rlm = String.fromCharCode(0x20_0f);

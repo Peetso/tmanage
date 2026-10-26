@@ -410,14 +410,26 @@ export class InvitationsRepository {
     return result[0].affectedRows;
   }
 
-  /** F36b: how many invitations this tenant created in the last hour (re-issues included). */
-  async countIssuedInLastHour(runner: TenantQueryRunner, context: TenantContext): Promise<number> {
+  /**
+   * F36b / N05: how many invitations this tenant created in the last hour (re-issues included),
+   * in one **bucket**. `clientOrganizationId: null` counts the internal invitations only (the
+   * organization quota); a client organization id counts that client organization's portal
+   * invitations only, so a client admin can never exhaust the agency's own quota.
+   */
+  async countIssuedInLastHour(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    bucket: { readonly clientOrganizationId: string | null },
+  ): Promise<number> {
     const rows = await tenantDrizzle(runner)
       .select({ count: sql<number>`count(*)` })
       .from(invitations)
       .where(
         and(
           eq(invitations.organizationId, context.organizationId),
+          bucket.clientOrganizationId === null
+            ? sql`${invitations.clientOrganizationId} is null`
+            : eq(invitations.clientOrganizationId, bucket.clientOrganizationId),
           sql`${invitations.createdAt} > current_timestamp(3) - interval 1 hour`,
         ),
       );

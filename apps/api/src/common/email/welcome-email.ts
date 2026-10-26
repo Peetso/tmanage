@@ -5,8 +5,9 @@ import { renderActionEmail } from './action-email.js';
 /**
  * The welcome email a public sign-up sends (in the shared action-email layout).
  *
- * It carries no credential: the link is the new workspace's own address, which the person is
- * already signed in to. Verification of the address is not required to use the account yet
+ * It carries no credential: the link is the neutral sign-in page (`/sign-in`), never the new
+ * workspace's address — the slug is derived from what the anonymous sign-up typed (audit run 2,
+ * F36a leftover), so it would put attacker-chosen words into a genuine TManage link. Verification of the address is not required to use the account yet
  * (Peter, 2026-10-18: "open the sign up for public for now"), so the message says welcome and
  * nothing more — it is also the first signal to a mailbox owner that somebody used their address.
  *
@@ -71,13 +72,22 @@ export class WelcomeMailer {
   }
 
   async deliver(
-    facts: Omit<WelcomeEmailFacts, 'link'> & { readonly organizationSlug: string },
+    facts: Omit<WelcomeEmailFacts, 'link'> & {
+      /** Accepted from the sign-up and deliberately unused: the link no longer names it (F36a). */
+      readonly organizationSlug?: string;
+    },
   ): Promise<'sent' | 'none' | 'failed'> {
     if (this.mailer === null) return 'none';
-    const { organizationSlug, ...rest } = facts;
-    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/${encodeURIComponent(organizationSlug)}`;
+    // Only the fields the template uses: anything else a caller passes never reaches the mail.
+    const link = `${this.webPublicUrl.replace(/\/+$/u, '')}/sign-in`;
     try {
-      return await this.mailer.send(composeWelcomeEmail({ ...rest, link }));
+      return await this.mailer.send(
+        composeWelcomeEmail({
+          to: facts.to,
+          link,
+          ...(facts.locale === undefined ? {} : { locale: facts.locale }),
+        }),
+      );
     } catch (error) {
       console.error('[mailer] welcome email failed', serializeForLog(error));
       return 'failed';

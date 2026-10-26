@@ -47,6 +47,7 @@ import { parsePlatformAdminEmails } from '../platform-admin/platform-admin.acces
 import {
   capabilitiesOfStoredRole,
   exceedsCaller,
+  isRoleAssigner,
   requireMayGrantRole,
   ROLE_ASSIGNERS,
 } from './role-grant-ceiling.js';
@@ -253,12 +254,20 @@ export interface InvitationsServiceOptions {
    * reads, so every construction site refuses the same addresses without extra wiring.
    */
   readonly platformAdminEmails?: readonly string[];
-  /** F36b: invitations one organization may issue (or re-issue) per rolling hour. */
+  /** F36b: internal invitations one organization may issue (or re-issue) per rolling hour. */
   readonly issueLimitPerHour?: number;
+  /** N05: portal invitations one client organization may issue (or re-issue) per rolling hour. */
+  readonly clientIssueLimitPerHour?: number;
 }
 
 /** F36b: the default per-organization issuance ceiling — far above any real onboarding day. */
 export const INVITATION_ISSUE_LIMIT_PER_HOUR = 50;
+
+/**
+ * N05: the default per-client-organization ceiling. A client admin's invitations are counted in
+ * their own bucket against this, and never against the organization's internal quota above.
+ */
+export const INVITATION_CLIENT_ISSUE_LIMIT_PER_HOUR = 20;
 
 /**
  * NV13: the roles a bound token (a personal access token or an AI grant) may invite with. A token
@@ -278,6 +287,9 @@ export const INVITE_DOMAIN_MESSAGE =
 export const GUEST_ACCESS_OFF_MESSAGE = 'Your organization has turned off guest access.';
 export const INVITE_RATE_MESSAGE = 'Too many invitations in the last hour. Try again later.';
 export const INVITE_ADDRESS_REFUSED_MESSAGE = 'That address cannot be invited.';
+/** F27a: neutral — it does not say which account, or that it is a staff account. */
+export const INVITE_INTERNAL_MEMBER_MESSAGE =
+  'This invitation cannot be accepted with the account you are signed in with.';
 
 export class InvitationsService {
   constructor(
@@ -360,6 +372,7 @@ export class InvitationsService {
         { field: 'projectIds', message: `at most ${MAX_INVITATION_PROJECTS} projects` },
       ]);
     }
+    requireProjectAuthority(principal, context, projectIds, 'invitation.issue');
     const trimmedNote = typeof input.note === 'string' ? input.note.trim() : '';
     if (trimmedNote.length > MAX_INVITATION_NOTE_LENGTH) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -374,7 +387,7 @@ export class InvitationsService {
     const { row, mailFacts } = await this.database.transaction(context, async (tx) => {
       if (customRole) await this.requireGrantableCustomRole(tx, context, principal, input.role);
       await this.requireInvitePolicy(tx, context, email, input.role, clientOrganizationId);
-      await this.requireUnderIssueLimit(tx, context);
+      await this.requireUnderIssueLimit(tx, context, clientOrganizationId);
       const existing = await this.invitations.findPendingForEmail(
         tx,
         context,
@@ -471,7 +484,10 @@ export class InvitationsService {
           role,
           previous.clientOrganizationId,
         );
-        await this.requireUnderIssueLimit(tx, context);
+        await this.requireUnderIssueLimit(tx, context, previous.clientOrganizationId);
+        // F05: the projects carried over must be ones the re-issuer may add people to.
+        const carriedProjects = await this.invitations.projectIdsFor(tx, context, previous.id);
+        requireProjectAuthority(principal, context, carriedProjects, 'invitation.reissue');
 
         const revoked = await this.invitations.revoke(tx, context, invitationId);
         await this.audit?.record(tx, context, {
@@ -484,7 +500,6 @@ export class InvitationsService {
           metadata: { revocation: 'reissued' },
         });
 
-        const carriedProjects = await this.invitations.projectIdsFor(tx, context, revoked.id);
         const issued = await this.invitations.issue(tx, context, {
           email: previous.email,
           role,
@@ -591,9 +606,10 @@ export class InvitationsService {
    * the invitation's own address, set its password, and grant what the invitation grants — in
    * one transaction, so there is never an account without its membership or the reverse.
    *
-   * **Public**, like `preview`: the token is the credential. It was mailed to the address the
-   * account is created for, so holding it proves the mailbox; the address comes from the row,
-   * never from the body. If an account already uses the address the answer is 409 and the
+   * **Public**, like `preview`: the token is the credential; the address comes from the row,
+   * never from the body. Holding the token does **not** prove the mailbox (F03 / NV04: the
+   * inviter also receives it), so the account is created unverified — see
+   * `InviteeAccountsRepository`. If an account already uses the address the answer is 409 and the
    * person signs in instead — a registration never touches an existing account.
    *
    * Returns the new user's id; the controller starts the session once this has committed, as
@@ -709,6 +725,12 @@ export class InvitationsService {
     // proceeds — rather than both creating a membership and one failing on a unique key
     // afterwards, which would leave the invitation accepted twice in the log.
     const accepted = await this.invitations.markAccepted(tx, context, invitationId, userId);
+
+    // F27a: a staff account never also becomes a client user of the same tenant. The refusal
+    // throws inside the caller's transaction, so the acceptance above is rolled back with it.
+    if (accepted.clientOrganizationId !== null) {
+      await this.requireNoInternalMembership(tx, context, userId);
+    }
 
     if (accepted.clientOrganizationId === null) {
       const created = await this.memberships.invite(tx, context, {
@@ -1034,9 +1056,16 @@ export class InvitationsService {
   private async requireUnderIssueLimit(
     tx: TenantQueryRunner,
     context: TenantContext,
+    clientOrganizationId: string | null,
   ): Promise<void> {
-    const limit = this.options.issueLimitPerHour ?? INVITATION_ISSUE_LIMIT_PER_HOUR;
-    const recent = await this.invitations.countIssuedInLastHour(tx, context);
+    // N05: internal invitations and each client organization's are separate buckets.
+    const limit =
+      clientOrganizationId === null
+        ? (this.options.issueLimitPerHour ?? INVITATION_ISSUE_LIMIT_PER_HOUR)
+        : (this.options.clientIssueLimitPerHour ?? INVITATION_CLIENT_ISSUE_LIMIT_PER_HOUR);
+    const recent = await this.invitations.countIssuedInLastHour(tx, context, {
+      clientOrganizationId,
+    });
     if (recent >= limit) {
       throw new ApiError(
         429,
@@ -1095,6 +1124,28 @@ export class InvitationsService {
         return;
     }
     throw refusal;
+  }
+
+  /**
+   * F27a: refuse a client invitation accepted by an account that holds an internal membership
+   * here that has not ended (active, suspended or still invited; offboarded staff may become a
+   * client user). Otherwise one account would be staff and client at once, and a suspended staff
+   * member could regain a way in through the portal. 409 with a neutral message.
+   */
+  private async requireNoInternalMembership(
+    tx: TenantQueryRunner,
+    context: TenantContext,
+    userId: string,
+  ): Promise<void> {
+    const internal = await this.memberships.findByUserId(tx, context, userId);
+    if (internal === null || internal.status === 'offboarded') return;
+    throw new ApiError(
+      409,
+      'conflict',
+      INVITE_INTERNAL_MEMBER_MESSAGE,
+      [{ field: 'token', message: 'internal_member' }],
+      'invitation_internal_member',
+    );
   }
 
   /** What an invitation's role grants: a built-in ceiling or the custom role's row. */
@@ -1330,6 +1381,42 @@ function requireSessionForPrivilegedInvite(
     [{ field: 'role', message: 'session_required_for_privileged_invite' }],
     `${action}:session_required_for_privileged_invite`,
   );
+}
+
+/**
+ * F05: "Add to projects" only within the inviter's own project authority. An owner or
+ * organization admin reaches every project; anyone else (a delegated custom `org.manage` role)
+ * must be allowed `project.member.manage` on **each** project, the same evaluator decision the
+ * project's own member screen makes. 403 before any write, naming no project.
+ */
+function requireProjectAuthority(
+  principal: Principal,
+  context: TenantContext,
+  projectIds: readonly string[],
+  action: string,
+): void {
+  if (projectIds.length === 0 || isRoleAssigner(principal)) return;
+  for (const projectId of projectIds) {
+    const verdict = authorize({
+      principal,
+      capability: 'project.member.manage',
+      resource: {
+        organizationId: context.organizationId,
+        projectId,
+        audience: 'internal',
+        lifecycle: 'active',
+      },
+    });
+    if (!verdict.allowed) {
+      throw new ApiError(
+        403,
+        'forbidden',
+        MESSAGES.forbidden,
+        [{ field: 'projectIds', message: 'project_not_manageable' }],
+        `${action}:project_authority:${verdict.code}`,
+      );
+    }
+  }
 }
 
 /**

@@ -17,6 +17,7 @@
   "invitation.refusal.rateLimited": "Too many attempts. Wait a few minutes and try again.",
   "invitation.refusal.generic": "Something went wrong. Try again.",
   "invitation.refusal.network": "The server did not answer. Check your connection and try again.",
+  "invitation.refusal.internalMember": "This invitation cannot be accepted with the account you are signed in with. Sign out and open the link with another account.",
   "signUp.eyebrow": "Sign up",
   "signUp.title": "Create your account",
   "signUp.lede": "Start a new workspace. You will be its owner and can invite your team next.",
@@ -12136,5 +12137,6 @@
   "PrivacyStepUp.errorWrong": "That password or code is not right.",
   "PrivacyStepUp.errorTooMany": "Too many tries. Wait a few minutes and try again.",
   "PrivacyStepUp.errorGeneric": "That did not go through. Try again.",
-  "PrivacyStepUp.needed": "Confirm it’s you to go on."
+  "PrivacyStepUp.needed": "Confirm it’s you to go on.",
+  "invite.error.projectNotManageable": "You can only add people to projects you manage."
 }

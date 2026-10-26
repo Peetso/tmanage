@@ -39,7 +39,9 @@ describe('the welcome email quotes nothing the sign-up typed (F36a)', () => {
     const text = allText(sent[0] as MailMessage);
     for (const fragment of FRAGMENTS) expect(text).not.toContain(fragment);
     expect(sent[0]?.to).toBe('victim@example.test');
-    expect(sent[0]?.text).toContain('https://app.example/refund');
+    // Run 2 F36a leftover: the link is the neutral sign-in page, never the typed slug.
+    expect(sent[0]?.text).toContain('https://app.example/sign-in');
+    expect(text).not.toContain('app.example/refund');
   });
 
   it('still says welcome and links the workspace', () => {

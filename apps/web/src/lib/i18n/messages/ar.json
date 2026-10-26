@@ -17,6 +17,7 @@
   "invitation.refusal.rateLimited": "محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.",
   "invitation.refusal.generic": "حدث خطأ ما. حاول مرة أخرى.",
   "invitation.refusal.network": "لم يستجب الخادم. تحقّق من اتصالك ثم حاول مرة أخرى.",
+  "invitation.refusal.internalMember": "لا يمكن قبول هذه الدعوة بالحساب الذي سجّلت الدخول به. سجّل الخروج وافتح الرابط بحساب آخر.",
   "signUp.eyebrow": "إنشاء حساب",
   "signUp.title": "أنشئ حسابك",
   "signUp.lede": "ابدأ مساحة عمل جديدة. ستكون مالكها ويمكنك دعوة فريقك بعد ذلك.",
@@ -12136,5 +12137,6 @@
   "PrivacyStepUp.errorWrong": "كلمة المرور أو الرمز غير صحيح.",
   "PrivacyStepUp.errorTooMany": "محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.",
   "PrivacyStepUp.errorGeneric": "لم يكتمل الطلب. حاول مرة أخرى.",
-  "PrivacyStepUp.needed": "أكّد هويتك للمتابعة."
+  "PrivacyStepUp.needed": "أكّد هويتك للمتابعة.",
+  "invite.error.projectNotManageable": "يمكنك إضافة أشخاص إلى المشاريع التي تديرها فقط."
 }

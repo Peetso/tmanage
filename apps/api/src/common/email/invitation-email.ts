@@ -88,8 +88,23 @@ export const MAX_MAIL_NAME_LENGTH = 60;
 const URL_LIKE =
   /(?:[a-z][a-z0-9+.-]*:\/\/|www\.)\S*|[\p{L}\p{N}-]+(?:\.[\p{L}\p{N}-]+)*\.[a-z]{2,}(?:[/:?#]\S*)?/giu;
 
-/** A run that reads as a phone number: seven or more digits joined by spaces, dots or dashes. */
-const PHONE_LIKE = /\+?\d(?:[\s().-]*\d){6,}/gu;
+/**
+ * A run that reads as a phone number: seven or more digits joined by spaces, dots, dashes,
+ * brackets or slashes. `\p{Nd}` so any script's decimal digits count (F36b: Arabic-Indic
+ * "٠١٠..." reads as a number just as well as "010...").
+ */
+const PHONE_LIKE = /\+?\p{Nd}(?:[\s()./-]*\p{Nd}){6,}/gu;
+
+/** F36b: the ideographic, full-width and half-width full stops a reader takes for a dot. */
+const DOT_LOOKALIKES = /[\u3002\uFF0E\uFF61]/gu;
+
+/**
+ * F36b: compatibility-normalise (NFKC: full-width letters, digits, '@' and '/' become their
+ * plain forms) and fold the dot look-alikes, so the filters below see what a reader sees.
+ */
+function canonicalForFilters(value: string): string {
+  return value.normalize('NFKC').replaceAll(DOT_LOOKALIKES, '.');
+}
 
 /** An email address, which a name must never smuggle into the copy either. */
 const EMAIL_LIKE = /\S+@\S+/gu;
@@ -101,7 +116,7 @@ const EMAIL_LIKE = /\S+@\S+/gu;
  * attacker's "call +1 555 0100" or "pay at evil.example" in its own voice.
  */
 export function mailSafeName(value: string): string {
-  const neutralised = oneLine(value)
+  const neutralised = oneLine(canonicalForFilters(value))
     .replaceAll(EMAIL_LIKE, '…')
     .replaceAll(URL_LIKE, '…')
     .replaceAll(PHONE_LIKE, '…')
