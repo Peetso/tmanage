@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { ApiClient } from '../src/lib/api/client';
+import { ApiClient, NetworkError } from '../src/lib/api/client';
 import {
   MAX_ATTACHMENT_BYTES,
   attachmentMimeType,
   attachmentProblem,
   uploadProjectFile,
+  uploadsGoToDrive,
 } from '../src/lib/api/uploads';
+import type { StorageStatusView } from '../src/lib/api/google-drive';
 
 /**
  * The New work capsule's attachments ride the existing upload pipeline (FILE-001/002). The API and
@@ -197,5 +199,24 @@ describe('uploadProjectFile', () => {
       ),
     ).rejects.toThrow(/not a file type/);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('upload deadlines and storage (wave 17)', () => {
+  it('ends a stalled part PUT as a NetworkError and cancels the session', async () => {
+    const { client, calls } = harness(() => new Response(null));
+    const stalled = ((_url: unknown, init?: RequestInit) =>
+      new Promise((_ok, fail) => init?.signal?.addEventListener('abort', fail))) as typeof fetch;
+    const deadline = (ms: number) => AbortSignal.timeout(ms > 60_000 ? 1 : ms);
+    const input = { projectId: 'p', file: tenBytes };
+    const upload = uploadProjectFile(client, 'org', input, { fetch: stalled, deadline });
+    await expect(upload).rejects.toBeInstanceOf(NetworkError);
+    expect(calls.at(-1)?.url).toMatch(/us-1\/cancel$/);
+  });
+  it('sends files to Google Drive only when Drive is the connected company storage', () => {
+    const at = (storageMode: string, status: string) =>
+      uploadsGoToDrive({ storageMode, googleDrive: { status } } as StorageStatusView);
+    expect([at('google_drive', 'connected'), at('google_drive', 'error')]).toEqual([true, false]);
+    expect([at('tmanage', 'connected'), uploadsGoToDrive(undefined)]).toEqual([false, false]);
   });
 });

@@ -1,5 +1,7 @@
 import type { ApiClient } from './client';
 import { NetworkError } from './errors';
+import { uploadToDrive, type DriveAttachmentView, type StorageStatusView } from './google-drive';
+import { attachWorkItemFile, type ItemFile } from './work-items';
 
 /**
  * The browser side of the upload pipeline (FILE-001/002), for a work item's attachments.
@@ -114,11 +116,35 @@ interface UploadedAssetReply {
   readonly status: string;
 }
 
+/**
+ * Every step has a deadline, so a request that never settles ends in the screen's error state
+ * instead of an endless "Attaching…" (wave 17). A JSON step (open, cancel, attach) gets 30 s.
+ */
+export const UPLOAD_STEP_TIMEOUT_MS = 30_000;
+
+/** `complete` assembles every part on the server before it answers, so it gets two minutes. */
+export const UPLOAD_COMPLETE_TIMEOUT_MS = 120_000;
+
+/**
+ * A byte transfer (one part, or a whole file to Google): a minute plus the time it takes at
+ * 32 KB/s. Measured on live 2026-10-26: an 8 MiB part took ~50 s at ~170 KB/s, so a slow line
+ * still finishes and only a true stall is cut.
+ */
+export function transferTimeoutMs(bytes: number): number {
+  return 60_000 + Math.ceil(bytes / 32_768) * 1_000;
+}
+
 export interface UploadAttachmentOptions {
   /** The fetch the part PUTs use. Injectable so a test sees exactly what is sent. */
   readonly fetch?: typeof globalThis.fetch;
   /** A fresh `Idempotency-Key` (16–128 of `[A-Za-z0-9_-]`). */
   readonly newKey?: () => string;
+  /** The signal that aborts a step after `ms`. Injectable so a test need not wait. */
+  readonly deadline?: (ms: number) => AbortSignal;
+}
+
+function defaultDeadline(ms: number): AbortSignal {
+  return AbortSignal.timeout(ms);
 }
 
 function defaultKey(): string {
@@ -187,10 +213,12 @@ async function runUpload(
   const mimeType = attachmentMimeType(file);
   if (mimeType === null) throw new Error(`“${file.name}” is not a file type TManage accepts.`);
   const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
+  const deadline = deps.deadline ?? defaultDeadline;
 
   const { data: session } = await client.request<UploadSessionReply>({
     method: 'POST',
     path: sessionsPath,
+    signal: deadline(UPLOAD_STEP_TIMEOUT_MS),
     headers: { 'idempotency-key': (deps.newKey ?? defaultKey)() },
     body: {
       ...target,
@@ -213,6 +241,7 @@ async function runUpload(
           body: chunk,
           // The part token authorises the PUT; the session cookie must not travel with it.
           credentials: 'omit',
+          signal: deadline(transferTimeoutMs(chunk.size)),
         });
       } catch (cause) {
         throw new NetworkError(`“${file.name}” did not reach TManage.`, cause);
@@ -228,6 +257,7 @@ async function runUpload(
       method: 'POST',
       path: `${sessionsPath}/${encodeURIComponent(session.id)}/complete`,
       body: { parts },
+      signal: deadline(UPLOAD_COMPLETE_TIMEOUT_MS),
     });
     return asset.id;
   } catch (error) {
@@ -235,8 +265,74 @@ async function runUpload(
       .request<unknown>({
         method: 'POST',
         path: `${sessionsPath}/${encodeURIComponent(session.id)}/cancel`,
+        signal: deadline(UPLOAD_STEP_TIMEOUT_MS),
       })
       .catch(() => undefined);
     throw error;
   }
+}
+
+/**
+ * B. Whether a new attachment goes to Google Drive: the company's storage is `google_drive`
+ * (Control > Storage, migration 0210) and Drive is connected. Anything else — TManage storage,
+ * another provider, Drive in error, or the status not read yet — keeps the TManage upload.
+ */
+export function uploadsGoToDrive(status: StorageStatusView | undefined): boolean {
+  return status?.storageMode === 'google_drive' && status.googleDrive.status === 'connected';
+}
+
+/** Reject with a `NetworkError` once `signal` aborts, whatever `work` is still waiting on. */
+function settleBy<T>(work: Promise<T>, signal: AbortSignal, message: string): Promise<T> {
+  const stalled = new Promise<never>((_, reject) => {
+    const fail = () => reject(new NetworkError(message));
+    if (signal.aborted) fail();
+    else signal.addEventListener('abort', fail, { once: true });
+  });
+  return Promise.race([work, stalled]);
+}
+
+/**
+ * Upload a file for a work item to where the company keeps files: Google Drive through the
+ * existing `uploadToDrive` (the bytes go straight to Google, the file is then attached as a Drive
+ * attachment), or TManage storage, attached as an item file.
+ */
+export async function uploadWorkItemAttachment(
+  client: ApiClient,
+  organizationSlug: string,
+  input: {
+    readonly workItemId: string;
+    readonly projectId: string;
+    readonly file: File;
+    readonly storage: StorageStatusView | undefined;
+  },
+  deps: UploadAttachmentOptions = {},
+): Promise<
+  | { readonly kind: 'google_drive'; readonly attachment: DriveAttachmentView }
+  | { readonly kind: 'tmanage'; readonly file: ItemFile }
+> {
+  const deadline = deps.deadline ?? defaultDeadline;
+  if (uploadsGoToDrive(input.storage)) {
+    const send = deps.fetch ?? globalThis.fetch.bind(globalThis);
+    const transfer = transferTimeoutMs(input.file.size);
+    const put: typeof globalThis.fetch = (url, init) =>
+      send(url, { ...init, signal: deadline(transfer) });
+    const attachment = await settleBy(
+      uploadToDrive(client, organizationSlug, input.workItemId, input.file, put),
+      deadline(2 * UPLOAD_STEP_TIMEOUT_MS + transfer),
+      `“${input.file.name}” did not reach Google Drive.`,
+    );
+    return { kind: 'google_drive', attachment };
+  }
+  const fileAssetId = await uploadProjectFile(
+    client,
+    organizationSlug,
+    { projectId: input.projectId, file: input.file },
+    deps,
+  );
+  const file = await settleBy(
+    attachWorkItemFile(client, organizationSlug, input.workItemId, { fileAssetId }),
+    deadline(UPLOAD_STEP_TIMEOUT_MS),
+    `“${input.file.name}” was not attached.`,
+  );
+  return { kind: 'tmanage', file };
 }

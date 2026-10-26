@@ -15,7 +15,6 @@ import { WorkChecklistPanel } from './WorkChecklistPanel';
 import { SendForApprovalDialog } from './SendForApprovalDialog';
 import { apiBaseUrl, browserApiClient } from '../../lib/api/browser-client';
 import {
-  attachWorkItemFile,
   deleteWorkItem,
   duplicateWorkItem,
   getWorkItem,
@@ -40,7 +39,8 @@ import {
 import type { DeliverableDetailView, DeliverableVersionView } from '../../lib/api/deliverables';
 import { listClientOrganizationOptions } from '../../lib/api/project-client';
 import { listProjectShares } from '../../lib/api/clients';
-import { uploadProjectFile } from '../../lib/api/uploads';
+import { uploadProjectFile, uploadWorkItemAttachment } from '../../lib/api/uploads';
+import { getStorageStatus, listDriveAttachments } from '../../lib/api/google-drive';
 import { addAttachmentVersion, getAttachmentHistory } from '../../lib/api/attachment-versions';
 import type { AttachmentVersion } from '../../lib/api/attachment-versions';
 import { ApiRequestError, NetworkError } from '../../lib/api/errors';
@@ -1002,17 +1002,40 @@ function FilesCard({
     onError: (error) => setProblem(describe(error, ta)),
   });
 
+  // B (wave 17). New files go where the company keeps them: Google Drive when Control > Storage
+  // says so and Drive is connected, TManage storage otherwise. Drive files are listed below the
+  // TManage ones in the same rows.
+  const storageQuery = {
+    queryKey: ['storage-status', organizationSlug],
+    queryFn: () => getStorageStatus(api, organizationSlug),
+    staleTime: 60_000,
+  };
+  const storage = useQuery(storageQuery);
+  const driveKey = ['drive-attachments', organizationSlug, item.id] as const;
+  const driveFiles = useQuery({
+    queryKey: driveKey,
+    queryFn: () => listDriveAttachments(api, organizationSlug, item.id),
+    enabled: storage.data?.configured === true,
+  });
+  const driveRows = driveFiles.data ?? [];
+
   const attach = useMutation({
-    mutationFn: async (file: File) => {
-      const fileAssetId = await uploadProjectFile(api, organizationSlug, {
+    mutationFn: async (file: File) =>
+      uploadWorkItemAttachment(api, organizationSlug, {
+        workItemId: item.id,
         projectId: item.projectId,
         file,
-      });
-      return attachWorkItemFile(api, organizationSlug, item.id, { fileAssetId });
-    },
-    onSuccess: () => {
+        // Read at click time, so a status still loading is not mistaken for TManage storage.
+        storage: await queries.fetchQuery(storageQuery).catch(() => undefined),
+      }),
+    onSuccess: (result) => {
       setProblem(undefined);
-      void queries.invalidateQueries({ queryKey: ['work-item-files', organizationSlug, item.id] });
+      void queries.invalidateQueries({
+        queryKey:
+          result.kind === 'google_drive'
+            ? driveKey
+            : ['work-item-files', organizationSlug, item.id],
+      });
     },
     onError: (error) => setProblem(describe(error, ta)),
   });
@@ -1101,7 +1124,7 @@ function FilesCard({
       ) : null}
       {loading ? <Skeleton height="var(--row)" /> : null}
       {failed ? <p className="tm-field__hint">{ta('WorkDetail.filesError')}</p> : null}
-      {!loading && !failed && files.length === 0 ? (
+      {!loading && !failed && files.length === 0 && driveRows.length === 0 ? (
         <p className="tm-field__hint">{ta('WorkDetail.noFiles')}</p>
       ) : null}
 
@@ -1272,6 +1295,32 @@ function FilesCard({
             </li>
           );
         })}
+        {driveRows.map((drive) => (
+          <li key={drive.id} className="tm-wk-file" data-backed={false}>
+            <div className="tm-wk-file__row">
+              <span className="tm-wk-badge">{fileKind(drive.name)}</span>
+              <span className="tm-wk-file__text">
+                <span className="tm-wk-file__name">{drive.name}</span>
+                <span className="tm-wk-file__meta">
+                  {ta('WorkDetail.versionOn', {
+                    n: 1,
+                    day: formatShortDay(dayOf(drive.createdAt), locale),
+                  })}
+                </span>
+              </span>
+              {drive.webViewLink ? (
+                <a
+                  className="tm-wk-text-button"
+                  href={drive.webViewLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {ta('WorkDetail.download')}
+                </a>
+              ) : null}
+            </div>
+          </li>
+        ))}
       </ul>
     </section>
   );

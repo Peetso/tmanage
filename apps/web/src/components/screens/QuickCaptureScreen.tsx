@@ -9,10 +9,10 @@ import { NewProjectLink, useCanCreateProjects } from '../projects/NewProjectLink
 import { browserApiClient } from '../../lib/api/browser-client';
 import { useT } from '../../lib/i18n/use-t';
 import { listProjects } from '../../lib/api/projects';
-import { addWorkComment, attachWorkItemFile, createWorkItem } from '../../lib/api/work-items';
+import { addWorkComment, createWorkItem } from '../../lib/api/work-items';
 import type { CreateWorkItemInput, WorkItemSummary } from '../../lib/api/work-items';
 import { assignItemLabel, defineWorkLabel, listWorkLabels } from '../../lib/api/work-labels';
-import { uploadProjectFile } from '../../lib/api/uploads';
+import { uploadWorkItemAttachment } from '../../lib/api/uploads';
 import type { UploadAttachmentOptions } from '../../lib/api/uploads';
 import { CaptureAttachmentPicker, CaptureLabelPicker } from './CaptureExtras';
 import { ApiRequestError } from '../../lib/api/errors';
@@ -21,7 +21,7 @@ import type { ApiClient } from '../../lib/api/client';
 import { useDictation } from '../voice/useDictation';
 import { MicButton, MicNotice } from '../voice/VoiceControls';
 import { DriveAttachPicker } from '../storage/DriveAttachPicker';
-import { attachDriveFile } from '../../lib/api/google-drive';
+import { attachDriveFile, getStorageStatus } from '../../lib/api/google-drive';
 import type { PickedDriveItem } from '../../lib/google-picker';
 import '../../styles/screens/home.css';
 
@@ -218,16 +218,27 @@ export function QuickCaptureScreen({
           failures.push(`The label “${name}” was not added.`);
         });
       }
+      // B (wave 17): files go to Google Drive when that is the company's storage and it is
+      // connected; a status that cannot be read keeps the TManage upload.
+      const storage =
+        files.length === 0
+          ? undefined
+          : await queryClient
+              .fetchQuery({
+                queryKey: ['storage-status', organizationSlug],
+                queryFn: () => getStorageStatus(api, organizationSlug),
+                staleTime: 60_000,
+              })
+              .catch(() => undefined);
       for (const [index, file] of files.entries()) {
         setProgress(`Uploading ${index + 1} of ${files.length}…`);
         try {
-          const fileAssetId = await uploadProjectFile(
+          await uploadWorkItemAttachment(
             api,
             organizationSlug,
-            { projectId: item.projectId, file },
+            { workItemId: item.id, projectId: item.projectId, file, storage },
             uploadOptions,
           );
-          await attachWorkItemFile(api, organizationSlug, item.id, { fileAssetId });
         } catch (error) {
           failures.push(
             error instanceof ApiRequestError
