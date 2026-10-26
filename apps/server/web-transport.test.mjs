@@ -451,3 +451,24 @@ test('NV06: the upstream is destroyed when the client goes away or the exchange 
     child.close();
   }
 });
+
+test('the desktop installer is served from the downloads folder as octet-stream; 503 when absent', async () => {
+  const routed = [];
+  const dir = mkdtempSync(join(tmpdir(), 'tm-dl-'));
+  writeFileSync(join(dir, 'TManage-Setup.exe'), 'MZ-installer');
+  const served = await listen(createPublicHandler(readyState(routed), () => {}, dir));
+  const missing = await listen(createPublicHandler(readyState(routed), () => {}, undefined));
+  try {
+    const res = await get(served, '/downloads/TManage-Setup.exe');
+    assert.equal(res.status, 200);
+    assert.equal(res.headers['content-type'], 'application/octet-stream');
+    assert.equal(res.body, 'MZ-installer');
+    assert.equal((await get(served, '/downloads/TManage-Setup.exe.sha256')).status, 503);
+    assert.equal((await get(missing, '/downloads/TManage-Setup.exe')).status, 503);
+    assert.deepEqual(routed, []);
+  } finally {
+    served.close();
+    missing.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

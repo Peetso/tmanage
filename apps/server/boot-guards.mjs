@@ -43,6 +43,33 @@ const API_EXACT_PATHS = new Set([
   '/healthz/deep',
 ]);
 
+/**
+ * The files the one process serves itself from the bundle's `downloads/` folder (Figma 409:6602):
+ * the Windows desktop installer, which deploy/hostinger/build.mjs builds with electron-builder,
+ * and its SHA-256. Exact paths only — nothing else under /downloads is ever read from disk, and
+ * neither file is in git.
+ */
+export const DOWNLOADS_DIR = 'downloads';
+const DOWNLOAD_FILES = new Map([
+  [
+    '/downloads/TManage-Setup.exe',
+    { file: 'TManage-Setup.exe', contentType: 'application/octet-stream' },
+  ],
+  [
+    '/downloads/TManage-Setup.exe.sha256',
+    { file: 'TManage-Setup.exe.sha256', contentType: 'text/plain; charset=utf-8' },
+  ],
+]);
+
+/**
+ * The allow-listed download a URL names, or `undefined`.
+ *
+ * @returns {{ file: string, contentType: string } | undefined}
+ */
+export function downloadFor(url) {
+  return DOWNLOAD_FILES.get((url ?? '').split('?')[0]);
+}
+
 /** The paths the in-process API answers; everything else goes to the Next.js web server. */
 export function isApiPath(url) {
   const path = (url ?? '').split('?')[0];

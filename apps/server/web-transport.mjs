@@ -15,11 +15,19 @@
 // Local development keeps working on Windows: there the "socket" is a named pipe (Node supports
 // both through the same `path` API), and TMANAGE_WEB_TRANSPORT=tcp restores the loopback port.
 import { randomBytes } from 'node:crypto';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, unlinkSync } from 'node:fs';
+import {
+  chmodSync,
+  createReadStream,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-import { isApiPath } from './boot-guards.mjs';
+import { downloadFor, isApiPath } from './boot-guards.mjs';
 import { applyApiCacheDefault } from './cache-headers.mjs';
 
 /** Seconds a client is told to wait while the application is starting. */
@@ -272,7 +280,47 @@ export function bindProxyLifetimes(req, res, upstream, idleMs = WEB_PROXY_IDLE_M
  * Fastify instance; until then EVERY path — /healthz included — answers 503 "starting", so a
  * health check reflects readiness rather than mere liveness.
  */
-export function createPublicHandler(state, proxyToWeb) {
+/**
+ * Stream an allow-listed download (boot-guards.mjs `downloadFor`) from `dir`, or answer 503 when
+ * this bundle was built without it. GET and HEAD only.
+ */
+export function serveDownload(req, res, download, dir) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    res.writeHead(405, { allow: 'GET, HEAD', 'cache-control': 'no-store' });
+    res.end();
+    return;
+  }
+  let size;
+  const path = dir === undefined ? undefined : join(dir, download.file);
+  try {
+    const info = path === undefined ? undefined : statSync(path);
+    if (info?.isFile()) size = info.size;
+  } catch {
+    // missing: answered below
+  }
+  if (path === undefined || size === undefined) {
+    res.writeHead(503, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+    res.end('{"error":"download_unavailable"}');
+    return;
+  }
+  res.writeHead(200, {
+    'content-type': download.contentType,
+    'content-length': String(size),
+    'content-disposition': `attachment; filename="${download.file}"`,
+    'x-content-type-options': 'nosniff',
+    'cache-control': 'public, max-age=300',
+  });
+  if (req.method === 'HEAD') {
+    res.end();
+    return;
+  }
+  createReadStream(path)
+    .on('error', () => res.destroy())
+    .pipe(res);
+}
+
+/** `downloadsDir`: the bundle's downloads folder (server.mjs), or undefined where there is none. */
+export function createPublicHandler(state, proxyToWeb, downloadsDir = undefined) {
   return (req, res) => {
     const ready = state.ready;
     if (!ready) {
@@ -282,6 +330,11 @@ export function createPublicHandler(state, proxyToWeb) {
     if ((req.url ?? '').split('?')[0] === '/healthz') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end('{"status":"ok"}');
+      return;
+    }
+    const download = downloadFor(req.url);
+    if (download !== undefined) {
+      serveDownload(req, res, download, downloadsDir);
       return;
     }
     if (isApiPath(req.url)) {

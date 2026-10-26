@@ -15,6 +15,7 @@
 // overrides that and prints what was included. After the build it checks that .next is fresh and
 // that the prerendered pages hold their own content (live-check 014a9d51, routes L2).
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   cpSync,
   existsSync,
@@ -593,6 +594,49 @@ function buildArtifacts() {
 }
 
 /**
+ * The Windows desktop installer the site serves at /downloads/TManage-Setup.exe (Figma 409:6602;
+ * allow-listed in apps/server/boot-guards.mjs). electron-builder writes it, unsigned and never
+ * published, to apps/desktop/release (git-ignored); the bundle carries it under downloads/ with
+ * its SHA-256. It needs Windows to build, so elsewhere — or with TMANAGE_BUNDLE_SKIP_DESKTOP=1 —
+ * the step is skipped and the route answers 503 until a bundle with the installer is deployed.
+ */
+export const DESKTOP_INSTALLER_NAME = 'TManage-Setup.exe';
+
+/** electron-builder's default NSIS artifact name for this product and version. */
+export function desktopArtifactName(version) {
+  return `TManage Setup ${version}.exe`;
+}
+
+function buildDesktopInstaller() {
+  if (process.env['TMANAGE_BUNDLE_SKIP_DESKTOP'] === '1' || process.platform !== 'win32') {
+    process.stdout.write('\ndesktop installer: skipped (needs Windows; /downloads answers 503)\n');
+    return undefined;
+  }
+  run('pnpm', ['--filter', '@tmanage/desktop', 'dist']);
+  const { version } = JSON.parse(readFileSync(join(REPO, 'apps/desktop/package.json'), 'utf8'));
+  const built = join(REPO, 'apps/desktop/release', desktopArtifactName(version));
+  if (!existsSync(built)) throw new Error(`electron-builder did not write ${built}`);
+  return built;
+}
+
+/** Copy the installer into the stage's downloads/ with a `sha256sum`-style checksum file. */
+function stageDesktopInstaller(installer) {
+  if (installer === undefined) return;
+  const dir = join(STAGE, 'downloads');
+  mkdirSync(dir, { recursive: true });
+  cpSync(installer, join(dir, DESKTOP_INSTALLER_NAME));
+  const bytes = readFileSync(installer);
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  writeFileSync(
+    join(dir, `${DESKTOP_INSTALLER_NAME}.sha256`),
+    `${sha256}  ${DESKTOP_INSTALLER_NAME}\n`,
+  );
+  process.stdout.write(
+    `\ndesktop installer: ${(bytes.length / (1024 * 1024)).toFixed(1)} MB, sha256 ${sha256}\n`,
+  );
+}
+
+/**
  * The apps/server modules shipped next to server.mjs: the entry's whole relative-import closure,
  * plus web-socket-preload.mjs, which server.mjs passes to the web child by path (`--import`).
  * A module missing here fails boot on Hostinger (cache-headers.mjs 2026-10-23, job-alerts.mjs
@@ -782,7 +826,9 @@ if (process.argv[1] && samePath(resolve(process.argv[1]), fileURLToPath(import.m
   const startedAtMs = Date.now();
   buildArtifacts();
   verifyWebBuild(startedAtMs);
+  const installer = buildDesktopInstaller();
   assemble();
+  stageDesktopInstaller(installer);
   zip();
 
   const sizeMb = (readFileSync(ZIP).length / (1024 * 1024)).toFixed(1);

@@ -12372,5 +12372,18 @@
   "UploadProgress.progressLabel": "Upload progress for {name}",
   "UploadProgress.unitB": "B",
   "UploadProgress.unitKB": "KB",
-  "UploadProgress.unitMB": "MB"
+  "UploadProgress.unitMB": "MB",
+  "SiteNav.desktopApp": "Desktop app",
+  "SiteNav.desktopAppWindows": "Desktop app for Windows",
+  "DesktopApp.eyebrow": "Desktop app",
+  "DesktopApp.title": "TManage for Windows",
+  "DesktopApp.body": "Your work, chat and approvals in their own window. Notifications arrive even when the browser is closed, and you sign in once.",
+  "DesktopApp.download": "Download for Windows",
+  "DesktopApp.requirements": "Windows 10 and 11 · 64-bit · about {size} MB",
+  "DesktopApp.confirmTitle": "Windows may ask you to confirm",
+  "DesktopApp.confirmBody": "The app is new, so Windows may show “Windows protected your PC”. Choose More info, then Run anyway.",
+  "DesktopApp.browserNote": "Prefer the browser? TManage keeps working at tmanage.peetrix.com.",
+  "DesktopApp.windowLabel": "The TManage desktop app window",
+  "AccountMenu.downloadDesktop": "Download the desktop app",
+  "AccountMenu.downloadDesktopHint": "For Windows · about {size} MB"
 }

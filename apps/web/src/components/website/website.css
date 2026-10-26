@@ -370,6 +370,21 @@ a.tm-web-orb--outline:hover {
   box-shadow: inset 0 calc(var(--b-expressive) * -1) 0 var(--tm-hover-edge);
 }
 
+/* "Nav · Desktop app" (Figma 412:6686): the lime-subtle capsule. */
+.tm-web-nav__link--accent {
+  min-block-size: 0;
+  padding: var(--s1) var(--s3);
+  border-radius: var(--r-capsule);
+  background: var(--lime-100);
+  color: var(--ink-950);
+}
+
+.tm-web-nav__link.tm-web-nav__link--accent:hover,
+.tm-web-nav__link.tm-web-nav__link--accent[aria-current='page'] {
+  box-shadow: none;
+  background: var(--lime-500);
+}
+
 .tm-web-nav__chevron {
   transition: transform var(--t-micro) var(--ease);
 }
@@ -740,6 +755,12 @@ a.tm-web-orb--outline:hover {
 .tm-web-footer__legal a {
   color: var(--ink-650);
   text-decoration: none;
+}
+
+/* "Desktop app for Windows" (Figma 412:6743): the one emphasised legal-row link. */
+.tm-web-footer__legal a.tm-web-footer__desktop {
+  color: var(--ink-950);
+  font-weight: 600;
 }
 
 .tm-web-footer__legal a:hover {

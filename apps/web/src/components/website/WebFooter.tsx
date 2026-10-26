@@ -9,7 +9,14 @@ import { useActiveLocale } from '../../lib/i18n/use-active-locale';
 import { useT } from '../../lib/i18n/use-t';
 import { WebIcon } from './WebIcon';
 import { BrandLockup } from './primitives';
-import { FOOTER_COLUMNS, FOOTER_LEGAL, FOOTER_MOBILE_GROUPS, FOOTER_SOCIAL } from './site-nav';
+import {
+  DESKTOP_APP_HREF,
+  FOOTER_COLUMNS,
+  FOOTER_LEGAL,
+  FOOTER_MOBILE_GROUPS,
+  FOOTER_SOCIAL,
+} from './site-nav';
+import type { MessageKey } from '../../lib/i18n/t';
 
 /** The catalog-language rule `translate()` uses: the primary subtag decides. */
 export function isArabicLocale(locale: string): boolean {
@@ -131,6 +138,9 @@ export function WebFooter() {
           </div>
           <p className="tm-web-footer__legal">
             <span>© {year} TManage</span>
+            <Link href={DESKTOP_APP_HREF} className="tm-web-footer__desktop">
+              {t('SiteNav.desktopAppWindows' as MessageKey)}
+            </Link>
             {FOOTER_LEGAL.map((link) => (
               <Link key={link.label} href={link.href}>
                 {t(link.label)}

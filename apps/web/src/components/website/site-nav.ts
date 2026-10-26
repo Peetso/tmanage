@@ -41,7 +41,17 @@ export interface WebMegaMenu {
 
 export type WebNavEntry =
   | { kind: 'menu'; menu: WebMegaMenu }
-  | { kind: 'link'; id: string; label: MessageKey; href: string };
+  | {
+      kind: 'link';
+      id: string;
+      label: MessageKey;
+      href: string;
+      /** Drawn as the lime-subtle capsule (Figma 412:6686 "Nav · Desktop app"). */
+      accent?: true;
+    };
+
+/** Where the site's desktop-app links land: the "TManage for Windows" card on /product. */
+export const DESKTOP_APP_HREF = '/product#desktop-app';
 
 export const PRODUCT_MENU: WebMegaMenu = {
   id: 'product',
@@ -250,6 +260,14 @@ export const NAV_ENTRIES: readonly WebNavEntry[] = [
   { kind: 'link', id: 'client-portal', label: 'SiteNav.clientPortal', href: '/client-portal' },
   { kind: 'link', id: 'pricing', label: 'SiteNav.pricing', href: '/pricing' },
   { kind: 'menu', menu: RESOURCES_MENU },
+  {
+    kind: 'link',
+    id: 'desktop-app',
+    // The key ships as a wave fragment; the cast holds until it reaches `en.json`.
+    label: 'SiteNav.desktopApp' as MessageKey,
+    href: DESKTOP_APP_HREF,
+    accent: true,
+  },
 ];
 
 export const NAV_ACTIONS = {

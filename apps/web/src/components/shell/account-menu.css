@@ -132,3 +132,18 @@
 .tm-portal__context:has(.tm-account) {
   align-items: center;
 }
+
+/* "For Windows · about 90 MB" under the download item (Figma 412:6841). */
+.tm-account__hint {
+  margin: 0;
+  padding-block: 0 var(--s2);
+  padding-inline: var(--s5);
+  color: var(--ink-500);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+[dir='rtl'] .tm-account__hint {
+  font-family: inherit;
+}

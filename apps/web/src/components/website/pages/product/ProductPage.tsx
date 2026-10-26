@@ -22,6 +22,7 @@ import {
   PortalScene,
   WorkListScene,
 } from './ProductPageScenes';
+import { DesktopAppSection } from './DesktopAppSection';
 import './product.css';
 import { SIGN_UP_HREF } from '../../../../lib/public-signup';
 
@@ -338,6 +339,9 @@ export function ProductPage() {
           visual={<BilingualScene />}
         />
       </WebSection>
+
+      {/* 8b · TManage for Windows (Figma 409:6602) */}
+      <DesktopAppSection />
 
       {/* 9 · CTA band (10 · footer comes from the website layout) */}
       <ProductCtaBand />

@@ -134,7 +134,7 @@ export function WebNav({ theme = 'paper', current, sticky = true }: WebNavProps)
                 <li key={entry.id}>
                   <Link
                     href={entry.href}
-                    className="tm-web-nav__link"
+                    className={cx('tm-web-nav__link', entry.accent && 'tm-web-nav__link--accent')}
                     aria-current={current === entry.id ? 'page' : undefined}
                     onPointerEnter={() => setOpen(null)}
                   >

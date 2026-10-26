@@ -63,7 +63,7 @@ import {
   USAGE_RECONCILER,
 } from '@tmanage/api/hostinger';
 
-import { webSecurityHeaders } from './boot-guards.mjs';
+import { DOWNLOADS_DIR, webSecurityHeaders } from './boot-guards.mjs';
 import { webCacheHeaders } from './cache-headers.mjs';
 import { resolveDatabaseEnv } from './database-env.mjs';
 import {
@@ -471,7 +471,11 @@ async function main() {
   // request — /healthz included — answers 503 "starting" until `state.ready` is set below.
   const state = { ready: undefined };
   const server = createHttpServer(
-    createPublicHandler(state, (req, res) => proxyToWeb(req, res, transport)),
+    createPublicHandler(
+      state,
+      (req, res) => proxyToWeb(req, res, transport),
+      resolve(ROOT, DOWNLOADS_DIR),
+    ),
   );
   // H2: WebSocket upgrades go to the attached realtime socket once the app is ready; any other
   // upgrade (or one while starting) is closed.

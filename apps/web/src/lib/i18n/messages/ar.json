@@ -12372,5 +12372,18 @@
   "UploadProgress.progressLabel": "‏تقدم رفع {name}",
   "UploadProgress.unitB": "بايت",
   "UploadProgress.unitKB": "كيلوبايت",
-  "UploadProgress.unitMB": "ميجابايت"
+  "UploadProgress.unitMB": "ميجابايت",
+  "SiteNav.desktopApp": "تطبيق سطح المكتب",
+  "SiteNav.desktopAppWindows": "تطبيق Windows",
+  "DesktopApp.eyebrow": "تطبيق سطح المكتب",
+  "DesktopApp.title": "TManage لنظام Windows",
+  "DesktopApp.body": "عملك ورسائلك وموافقاتك في نافذة خاصة بها. تصلك الإشعارات حتى لو كان المتصفح مغلقًا، وتسجّل الدخول مرة واحدة.",
+  "DesktopApp.download": "تنزيل لنظام Windows",
+  "DesktopApp.requirements": "Windows 10 و 11 · 64 بت · حوالي {size} ميجابايت",
+  "DesktopApp.confirmTitle": "قد يطلب Windows منك التأكيد",
+  "DesktopApp.confirmBody": "التطبيق جديد، لذلك قد يعرض Windows رسالة «تمت حماية الكمبيوتر بواسطة Windows». اختر «مزيد من المعلومات» ثم «التشغيل على أي حال».",
+  "DesktopApp.browserNote": "تفضّل المتصفح؟ يعمل TManage كما هو على tmanage.peetrix.com.",
+  "DesktopApp.windowLabel": "نافذة تطبيق TManage لسطح المكتب",
+  "AccountMenu.downloadDesktop": "تنزيل تطبيق سطح المكتب",
+  "AccountMenu.downloadDesktopHint": "Windows · حوالي {size} ميجابايت"
 }

@@ -7,6 +7,11 @@ import { useRouter } from 'next/navigation';
 import { browserApiClient } from '../../lib/api/browser-client';
 import { signOut } from '../../lib/api/session';
 import { authBoundary } from '../../lib/auth-boundary';
+import {
+  DESKTOP_INSTALLER_HREF,
+  DESKTOP_INSTALLER_SIZE_MB,
+  offerDesktopDownload,
+} from '../../lib/desktop-download';
 import { activeLocale } from '../../lib/i18n/locale-store';
 import { localeDirection } from '../../lib/i18n/direction';
 import { useActiveLocale } from '../../lib/i18n/use-active-locale';
@@ -219,6 +224,25 @@ function AccountMenuPanel({
       </button>
       {linkItem(`${base}/settings/ai-assistant`, key('aiAssistant'))}
       {linkItem(`${base}/settings/security`, key('accessTokens'))}
+      {offerDesktopDownload(window) ? (
+        <>
+          <hr className="tm-account__rule" />
+          {/* Figma 412:6812 / 412:6849. A plain anchor: the server, not Next.js, answers it. */}
+          <a
+            href={DESKTOP_INSTALLER_HREF}
+            download
+            role="menuitem"
+            tabIndex={-1}
+            className="tm-account__item"
+            onClick={() => onClose(false)}
+          >
+            {t(key('downloadDesktop'))}
+          </a>
+          <p className="tm-account__hint">
+            {t(key('downloadDesktopHint')).replace('{size}', String(DESKTOP_INSTALLER_SIZE_MB))}
+          </p>
+        </>
+      ) : null}
       <hr className="tm-account__rule" />
       <button
         type="button"
