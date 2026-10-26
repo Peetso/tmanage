@@ -466,6 +466,20 @@ export const meetings = mysqlTable(
     createdByUserId: char('created_by_user_id', { length: 36 }).notNull(),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
     updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+    // 0237. Every option a Google Calendar event has; see the migration for the vocabularies.
+    allDay: boolean('all_day').notNull().default(false),
+    timeZone: varchar('time_zone', { length: 64 }),
+    location: varchar('location', { length: 512 }),
+    recurrenceRrule: varchar('recurrence_rrule', { length: 1024 }),
+    visibility: varchar('visibility', { length: 16 }).notNull().default('default'),
+    showAs: varchar('show_as', { length: 8 }).notNull().default('busy'),
+    colorId: varchar('color_id', { length: 8 }),
+    conference: varchar('conference', { length: 16 }).notNull().default('none'),
+    reminders: varchar('reminders', { length: 255 }),
+    guestsCanModify: boolean('guests_can_modify').notNull().default(false),
+    guestsCanInviteOthers: boolean('guests_can_invite_others').notNull().default(true),
+    guestsCanSeeOthers: boolean('guests_can_see_others').notNull().default(true),
+    cancelledAt: datetime('cancelled_at', { mode: 'date', fsp: 3 }),
   },
   (table) => [
     uniqueIndex('uq_meetings_org_id').on(table.organizationId, table.id),
@@ -983,7 +997,8 @@ export const meetingNotes = mysqlTable(
   ],
 );
 
-export const MEETING_ATTENDEE_RSVPS = ['invited', 'accepted', 'declined'] as const;
+/** 0237 widened with `tentative` (Google "maybe", Outlook "tentatively accepted"). */
+export const MEETING_ATTENDEE_RSVPS = ['invited', 'accepted', 'declined', 'tentative'] as const;
 
 /**
  * CAL-01 / MTG-01 attendees + RSVP (x126). A meeting's invited members and their answer — a
@@ -1005,6 +1020,8 @@ export const meetingAttendees = mysqlTable(
     meetingId: char('meeting_id', { length: 36 }).notNull(),
     membershipId: char('membership_id', { length: 36 }).notNull(),
     rsvp: mysqlEnum('rsvp', MEETING_ATTENDEE_RSVPS).notNull().default('invited'),
+    /** 0237. An optional guest (Google `optional`, Outlook attendee type `optional`). */
+    optional: boolean('optional').notNull().default(false),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [
@@ -1031,6 +1048,8 @@ export const meetingClientAttendees = mysqlTable(
     meetingId: char('meeting_id', { length: 36 }).notNull(),
     clientMembershipId: char('client_membership_id', { length: 36 }).notNull(),
     rsvp: mysqlEnum('rsvp', MEETING_ATTENDEE_RSVPS).notNull().default('invited'),
+    /** 0237. An optional guest (Google `optional`, Outlook attendee type `optional`). */
+    optional: boolean('optional').notNull().default(false),
     createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
   },
   (table) => [
@@ -8957,6 +8976,133 @@ export const onedriveAttachments = mysqlTable(
 export type OneDriveFolderRow = typeof onedriveFolders.$inferSelect;
 export type OneDriveAttachmentRow = typeof onedriveAttachments.$inferSelect;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Meetings connected to a person's own calendar (0237)
+// ─────────────────────────────────────────────────────────────────────────────
+// All four tables are tenant-owned (TENANT_TABLES). A calendar connection is ONE PERSON's link to
+// their own Google or Microsoft calendar, never the company Drive connection.
+
+export const calendarConnections = mysqlTable(
+  'calendar_connections',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    userId: char('user_id', { length: 36 }).notNull(),
+    /** `google` or `microsoft`. */
+    provider: varchar('provider', { length: 16 }).notNull(),
+    /** `connected`, `error` or `disconnected`. */
+    status: varchar('status', { length: 16 }).notNull(),
+    accountEmail: varchar('account_email', { length: 254 }),
+    refreshTokenEnc: text('refresh_token_enc'),
+    grantedScopes: varchar('granted_scopes', { length: 512 }),
+    calendarId: varchar('calendar_id', { length: 255 }).notNull().default('primary'),
+    syncCursor: varchar('sync_cursor', { length: 2048 }),
+    lastErrorCode: varchar('last_error_code', { length: 64 }),
+    lastSyncedAt: datetime('last_synced_at', { mode: 'date', fsp: 3 }),
+    connectedAt: datetime('connected_at', { mode: 'date', fsp: 3 }),
+    disconnectedAt: datetime('disconnected_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_calendar_connections_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_calendar_connections_person').on(
+      table.organizationId,
+      table.userId,
+      table.provider,
+    ),
+    index('ix_calendar_connections_status').on(table.status, table.provider),
+  ],
+);
+
+/** Which provider event a meeting is, in its organizer's calendar (one row per provider). */
+export const meetingExternalEvents = mysqlTable(
+  'meeting_external_events',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    connectionId: char('connection_id', { length: 36 }).notNull(),
+    provider: varchar('provider', { length: 16 }).notNull(),
+    externalEventId: varchar('external_event_id', { length: 255 }),
+    externalCalendarId: varchar('external_calendar_id', { length: 255 }),
+    icalUid: varchar('ical_uid', { length: 255 }),
+    joinUrl: varchar('join_url', { length: 1024 }),
+    htmlLink: varchar('html_link', { length: 1024 }),
+    externalVersion: varchar('external_version', { length: 255 }),
+    /** `pending`, `synced`, `error` or `deleted`. */
+    syncStatus: varchar('sync_status', { length: 16 }).notNull().default('pending'),
+    lastErrorCode: varchar('last_error_code', { length: 64 }),
+    lastPushedAt: datetime('last_pushed_at', { mode: 'date', fsp: 3 }),
+    lastPulledAt: datetime('last_pulled_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+    updatedAt: datetime('updated_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_external_events_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_meeting_external_events_meeting').on(
+      table.organizationId,
+      table.meetingId,
+      table.provider,
+    ),
+    index('ix_meeting_external_events_event').on(
+      table.organizationId,
+      table.connectionId,
+      table.externalEventId,
+    ),
+  ],
+);
+
+/** Someone invited to a meeting by email who is not a TManage user. */
+export const meetingGuests = mysqlTable(
+  'meeting_guests',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    email: varchar('email', { length: 254 }).notNull(),
+    displayName: varchar('display_name', { length: 190 }),
+    optional: boolean('optional').notNull().default(false),
+    /** `invited`, `accepted`, `declined` or `tentative`. */
+    rsvp: varchar('rsvp', { length: 16 }).notNull().default('invited'),
+    comment: varchar('comment', { length: 512 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_guests_org_id').on(table.organizationId, table.id),
+    uniqueIndex('uq_meeting_guests_email').on(table.organizationId, table.meetingId, table.email),
+  ],
+);
+
+/** A Drive or OneDrive file attached to a meeting. Removal is soft (`removed_at`). */
+export const meetingAttachments = mysqlTable(
+  'meeting_attachments',
+  {
+    id: char('id', { length: 36 }).primaryKey(),
+    organizationId: char('organization_id', { length: 36 }).notNull(),
+    meetingId: char('meeting_id', { length: 36 }).notNull(),
+    /** `google_drive` or `onedrive`. */
+    provider: varchar('provider', { length: 16 }).notNull(),
+    fileId: varchar('file_id', { length: 255 }).notNull(),
+    driveId: varchar('drive_id', { length: 128 }),
+    title: varchar('title', { length: 255 }).notNull(),
+    mimeType: varchar('mime_type', { length: 190 }).notNull(),
+    webUrl: varchar('web_url', { length: 1024 }),
+    attachedByUserId: char('attached_by_user_id', { length: 36 }).notNull(),
+    removedAt: datetime('removed_at', { mode: 'date', fsp: 3 }),
+    createdAt: datetime('created_at', { mode: 'date', fsp: 3 }).notNull(),
+  },
+  (table) => [
+    uniqueIndex('uq_meeting_attachments_org_id').on(table.organizationId, table.id),
+    index('ix_meeting_attachments_meeting').on(table.organizationId, table.meetingId, table.id),
+  ],
+);
+
+export type CalendarConnectionRow = typeof calendarConnections.$inferSelect;
+export type MeetingExternalEventRow = typeof meetingExternalEvents.$inferSelect;
+export type MeetingGuestRow = typeof meetingGuests.$inferSelect;
+export type MeetingAttachmentRow = typeof meetingAttachments.$inferSelect;
+
 export const TABLES = {
   focus_blocks: focusBlocks,
   inbox_flags: inboxFlags,
@@ -9199,6 +9345,10 @@ export const TABLES = {
   google_drive_attachments: googleDriveAttachments,
   onedrive_folders: onedriveFolders,
   onedrive_attachments: onedriveAttachments,
+  calendar_connections: calendarConnections,
+  meeting_external_events: meetingExternalEvents,
+  meeting_guests: meetingGuests,
+  meeting_attachments: meetingAttachments,
 } as const;
 
 export type SessionRow = typeof sessions.$inferSelect;

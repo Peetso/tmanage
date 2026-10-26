@@ -385,6 +385,34 @@ export const NEVER: readonly NeverEntry[] = [
     reason: 'storage_connection',
   },
   { method: 'GET', path: '/v1/integrations/onedrive/callback', reason: 'storage_connection' },
+  // 0237. A person's own Google Calendar connection: connecting, completing and disconnecting
+  // mint or hold that person's Google credential, the status names their account, and the OAuth
+  // callback is Google's redirect. An AI principal never drives any of it.
+  {
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/integrations/google-calendar/',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/google-calendar/connect',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/integrations/google-calendar/complete',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/integrations/google-calendar/',
+    reason: 'calendar_connection',
+  },
+  {
+    method: 'GET',
+    path: '/v1/integrations/google-calendar/callback',
+    reason: 'calendar_connection',
+  },
   // D5 (Figma F5). Data-rights acts: a bulk copy of personal data, its download, and deleting the
   // company or an account. A person does these themselves; an AI principal never does.
   {

@@ -3,6 +3,7 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import type { MeetingRow } from '../../common/database/schema.js';
+import type { CalendarSyncPort } from './calendar-sync.port.js';
 import { MeetingsRepository } from './meetings.repository.js';
 import { MeetingRsvpRepository } from './rsvp.repository.js';
 import type { MeetingRsvpCounts, MeetingRsvpResponse } from './rsvp.repository.js';
@@ -82,6 +83,8 @@ export class MeetingRsvpService {
      * or write — the Known-trap order. Stateless, so a fresh handle is cheap.
      */
     private readonly meetings: MeetingsRepository = new MeetingsRepository(),
+    /** 0237. The answer goes on to Google/Outlook after the commit (best effort). */
+    private readonly sync?: CalendarSyncPort,
   ) {}
 
   /**
@@ -188,6 +191,7 @@ export class MeetingRsvpService {
       }
       return this.rsvps.countsByResponse(tx, context, command.meetingId);
     });
+    await this.sync?.forwardRsvp(context, command.meetingId, context.userId, command.response);
 
     return toView(command.meetingId, command.response, counts);
   }

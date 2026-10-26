@@ -3,13 +3,14 @@ import type { Principal } from '@tmanage/domain';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MeetingsRepository } from './meetings.repository.js';
-import { MeetingAttendeesRepository } from './meeting-attendees.repository.js';
+import { MeetingAttendeesRepository, rosterRsvp } from './meeting-attendees.repository.js';
 import type {
   AttendeeRsvp,
   AttendeeWithUser,
   ListAttendeesOptions,
 } from './meeting-attendees.repository.js';
 import { MembershipsRepository } from '../tenancy/memberships.repository.js';
+import type { CalendarSyncPort } from './calendar-sync.port.js';
 import type { MeetingRow } from '../../common/database/schema.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type {
@@ -65,7 +66,7 @@ function toView(row: AttendeeWithUser): MeetingAttendeeView {
     id: row.id,
     meetingId: row.meetingId,
     userId: row.userId,
-    rsvp: row.rsvp,
+    rsvp: rosterRsvp(row.rsvp),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -101,7 +102,7 @@ function toClientView(row: ClientAttendeeWithPerson): MeetingClientAttendeeView 
     displayName: row.displayName,
     clientOrganizationId: row.clientOrganizationId,
     clientOrganizationName: row.clientOrganizationName,
-    rsvp: row.rsvp,
+    rsvp: rosterRsvp(row.rsvp),
     createdAt: row.createdAt.toISOString(),
   };
 }
@@ -152,6 +153,8 @@ export class MeetingAttendeesService {
     private readonly outbox?: OutboxEventsRepository,
     /** BK5 (0217): client people as attendees. Optional; without it no client can be added. */
     private readonly clientAttendees?: MeetingClientAttendeesRepository,
+    /** 0237. An answer given here goes on to the person's or the organizer's calendar. */
+    private readonly sync?: CalendarSyncPort,
   ) {}
 
   /**
@@ -333,6 +336,7 @@ export class MeetingAttendeesService {
     const row = await this.database.transaction(context, (tx) =>
       this.attendees.setRsvp(tx, context, command.meetingId, command.attendeeId, command.rsvp),
     );
+    await this.sync?.forwardRsvp(context, command.meetingId, context.userId, command.rsvp);
 
     return toView(row);
   }

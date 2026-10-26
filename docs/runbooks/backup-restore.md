@@ -154,6 +154,13 @@ copying `migrations/0215_member_profile_job_title.sql` from the `9c6d816c` ZIP i
 (`onedrive_folders`, `onedrive_attachments`) and their immutability triggers. Old code still works:
 it ignores the columns and OneDrive attachments are invisible to it; no restore is needed.
 
+0237 meeting_calendar_sync (meetings connected to Google Calendar / Meet) adds 13 columns with
+defaults to `meetings` (event options and `cancelled_at`), an `optional` column and the
+`tentative` answer to `meeting_attendees` and `meeting_client_attendees`, 4 new tables
+(`calendar_connections`, `meeting_external_events`, `meeting_guests`, `meeting_attachments`) and
+their immutability triggers. Additive: old code ignores the columns and never reads the tables; an
+attendee answer of `tentative` shows as an unknown value in an old roster. No restore is needed.
+
 None of 0205–0217 drops or renames anything, so going back one deploy across them needs **no
 data restore** — but it does need the newer migration files copied into the older bundle (step
 4). Re-deploying the newer build later is safe: the migrator sees the versions already in

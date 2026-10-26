@@ -5486,6 +5486,57 @@ export const OPS: readonly AiActionOp[] = [
     risk: 'confirm',
     scope: 'manage',
   },
+  // 0237. Meetings connected to Google Calendar/Meet: the meeting page in one read, cancel
+  // (confirm: it tells every guest), re-send to the organizer's calendar, and email guests.
+  // Not yet enriched with details, so the tool catalogue does not expose them yet.
+  {
+    id: 'meetings.overview',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/overview',
+    capability: 'meeting.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'meetings.cancel',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/cancel',
+    capability: 'meeting.write',
+    risk: 'confirm',
+    scope: 'manage',
+  },
+  {
+    id: 'meetings.sync',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/sync',
+    capability: 'meeting.write',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'meeting_guests.list',
+    method: 'GET',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/guests',
+    capability: 'meeting.read',
+    risk: 'read',
+    scope: 'read',
+  },
+  {
+    id: 'meeting_guests.create',
+    method: 'POST',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/guests',
+    capability: 'meeting.write',
+    risk: 'write',
+    scope: 'write',
+  },
+  {
+    id: 'meeting_guests.delete',
+    method: 'DELETE',
+    path: '/v1/organizations/:orgSlug/meetings/:meetingId/guests/:guestId',
+    capability: 'meeting.write',
+    risk: 'confirm',
+    scope: 'manage',
+  },
 ];
 
 /** Index of ops by their stable id. */

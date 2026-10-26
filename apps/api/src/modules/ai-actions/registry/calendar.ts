@@ -145,6 +145,35 @@ export const calendarDetails: readonly AiActionDetail[] = [
       { summary: 'Move end', args: { meetingId: 'mtg_1', endsAt: '2026-10-22T15:00:00Z' } },
     ],
   }),
+  // 0237. The meeting page, cancel and re-send to the organizer's Google calendar.
+  det({
+    id: 'meetings.overview',
+    title: 'Get a meeting page',
+    description:
+      'One meeting with its options, everyone invited and their answer, the video link and attachments.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    examples: [{ summary: 'Meeting page', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'meetings.cancel',
+    title: 'Cancel a meeting',
+    description:
+      'Cancel a meeting; its calendar event is deleted and every guest is told. Confirm-class.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    notifies: true,
+    examples: [{ summary: 'Cancel', args: { meetingId: 'mtg_1' } }],
+  }),
+  det({
+    id: 'meetings.sync',
+    title: 'Sync a meeting with the calendar',
+    description: 'Send a meeting to its organizer’s calendar again and read the answers back.',
+    input: pathOnly('meetingId'),
+    redact: 'standard',
+    notifies: true,
+    examples: [{ summary: 'Retry', args: { meetingId: 'mtg_1' } }],
+  }),
   det({
     id: 'meetings.action_items.list',
     title: 'List meeting action items',

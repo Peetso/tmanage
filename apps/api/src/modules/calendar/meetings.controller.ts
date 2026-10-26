@@ -1,10 +1,31 @@
-import { Body, Controller, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Inject,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
 import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
 import { ApiError } from '../../common/http/errors.js';
 import { MEETINGS_SERVICE } from '../../common/http/tokens.js';
 import type { TenantContext } from '../../common/database/tenant-context.js';
-import type { MeetingNoteView, MeetingView, MeetingsService } from './meetings.service.js';
+import type {
+  MeetingAttachmentInput,
+  MeetingAttendeeInput,
+  MeetingGuestEntry,
+  MeetingGuestInput,
+  MeetingNoteView,
+  MeetingOverviewView,
+  MeetingView,
+  MeetingsService,
+} from './meetings.service.js';
+import { hasAnyOption, normaliseEmail, parseMeetingOptions } from './meeting-options.js';
 import type { MeetingNoteKind } from './meeting-notes.repository.js';
 
 /**
@@ -28,9 +49,16 @@ interface CreateMeetingBody {
   readonly agendaNote?: unknown;
   /** Audit gap 8 (COL-09): members to invite; the organizer is always added. */
   readonly attendeeUserIds?: unknown;
+  /** 0237. `[{userId, optional}]`, `[{email, displayName?, optional}]`, picked files. */
+  readonly attendees?: unknown;
+  readonly guests?: unknown;
+  readonly attachments?: unknown;
+  /** 0237. The event options (`allDay`, `timeZone`, `rrule`, `conference`, …). */
+  readonly [option: string]: unknown;
 }
 
 interface UpdateMeetingBody {
+  readonly [option: string]: unknown;
   readonly title?: unknown;
   readonly startsAt?: unknown;
   readonly endsAt?: unknown;
@@ -65,9 +93,28 @@ export class MeetingsController {
     @Query('projectId') projectId?: string,
     @Query('after') after?: string,
     @Query('limit') limit?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('includeCancelled') includeCancelled?: string,
   ): Promise<{ readonly meetings: readonly MeetingView[] }> {
-    if (typeof projectId !== 'string' || projectId === '') {
-      throw new ApiError(400, 'validation_failed', 'projectId is required', [
+    // 0237 (owner bug 1): no project = every meeting the caller may read, in a time window.
+    if (projectId === undefined || projectId === '') {
+      const details: { field: string; message: string }[] = [];
+      const fromAt = from === undefined ? undefined : parseInstant(from, details, 'from');
+      const toAt = to === undefined ? undefined : parseInstant(to, details, 'to');
+      if (details.length > 0) {
+        throw new ApiError(400, 'validation_failed', 'The request is invalid', details);
+      }
+      return {
+        meetings: await this.meetings.listWindow(context, principal, {
+          ...(fromAt ? { from: fromAt } : {}),
+          ...(toAt ? { to: toAt } : {}),
+          includeCancelled: includeCancelled === 'true',
+        }),
+      };
+    }
+    if (typeof projectId !== 'string') {
+      throw new ApiError(400, 'validation_failed', 'projectId must be a string', [
         { field: 'projectId', message: 'must be a non-empty string' },
       ]);
     }
@@ -115,6 +162,11 @@ export class MeetingsController {
     const startsAt = parseInstant(body?.startsAt, details);
     const endsAt = parseOptionalInstant(body?.endsAt, details, 'endsAt');
     const attendeeUserIds = parseUserIds(body?.attendeeUserIds, details);
+    // 0237. Every Google Calendar option, guests by email and Drive/OneDrive attachments.
+    const options = parseMeetingOptions(body as Record<string, unknown>, details);
+    const attendees = parseAttendees(body?.attendees, details);
+    const guests = parseGuests(body?.guests, details);
+    const attachments = parseAttachments(body?.attachments, details);
 
     if (details.length > 0) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
@@ -132,6 +184,10 @@ export class MeetingsController {
       ...(endsAt ? { endsAt } : {}),
       ...(agendaNote === undefined ? {} : { agendaNote }),
       ...(attendeeUserIds ? { attendeeUserIds } : {}),
+      ...(hasAnyOption(options) ? { options } : {}),
+      ...(attendees ? { attendees } : {}),
+      ...(guests ? { guests } : {}),
+      ...(attachments ? { attachments } : {}),
     });
   }
 
@@ -178,13 +234,15 @@ export class MeetingsController {
     const startsAt =
       body?.startsAt === undefined ? undefined : parseInstant(body.startsAt, details);
     const endsAt = parseOptionalInstant(body?.endsAt, details, 'endsAt');
+    const options = parseMeetingOptions(body as Record<string, unknown>, details);
 
     if (
       details.length === 0 &&
       title === undefined &&
       agendaNote === undefined &&
       startsAt === undefined &&
-      endsAt === undefined
+      endsAt === undefined &&
+      !hasAnyOption(options)
     ) {
       details.push({ field: 'body', message: 'must change at least one field' });
     }
@@ -197,7 +255,87 @@ export class MeetingsController {
       ...(startsAt !== undefined ? { startsAt } : {}),
       ...(endsAt !== undefined ? { endsAt } : {}),
       ...(agendaNote !== undefined ? { agendaNote } : {}),
+      ...(hasAnyOption(options) ? { options } : {}),
     });
+  }
+
+  /**
+   * 0237 (owner bug 2). The meeting page in one read: the meeting, its options, everyone invited
+   * with their answer, the Meet/Teams link and sync state, and the attachments. A sub-path, not a
+   * bare `GET :meetingId`, which would clash with the sibling `agenda`/`grid` routes.
+   */
+  @Get(':meetingId/overview')
+  @RequireCapability('meeting.read')
+  async overview(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+  ): Promise<MeetingOverviewView> {
+    return this.meetings.overview(context, principal, meetingId);
+  }
+
+  /** 0237. Cancel; the organizer's calendar event is deleted and Google/Outlook tell the guests. */
+  @Post(':meetingId/cancel')
+  @RequireCapability('meeting.write')
+  @HttpCode(200)
+  async cancel(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+  ): Promise<MeetingView> {
+    return this.meetings.cancel(context, principal, meetingId);
+  }
+
+  /** 0237. "Retry": push to the organizer's calendar again and pull the answers back. */
+  @Post(':meetingId/sync')
+  @RequireCapability('meeting.write')
+  @HttpCode(200)
+  async sync(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+  ): Promise<MeetingOverviewView> {
+    return this.meetings.syncNow(context, principal, meetingId);
+  }
+
+  @Get(':meetingId/guests')
+  @RequireCapability('meeting.read')
+  async listGuests(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+  ): Promise<{ readonly guests: readonly MeetingGuestEntry[] }> {
+    return { guests: await this.meetings.listGuests(context, principal, meetingId) };
+  }
+
+  /** 0237. Invite someone by email who is not a TManage user. */
+  @Post(':meetingId/guests')
+  @RequireCapability('meeting.write')
+  @HttpCode(201)
+  async addGuest(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+    @Body() body: unknown,
+  ): Promise<MeetingGuestEntry> {
+    const details: { field: string; message: string }[] = [];
+    const guest = parseGuest(body, details, 'body');
+    if (!guest || details.length > 0) {
+      throw new ApiError(400, 'validation_failed', 'The request body is invalid', details);
+    }
+    return this.meetings.addGuest(context, principal, meetingId, guest);
+  }
+
+  @Delete(':meetingId/guests/:guestId')
+  @RequireCapability('meeting.write')
+  @HttpCode(204)
+  async removeGuest(
+    @Ctx() context: TenantContext,
+    @CurrentPrincipal() principal: Principal,
+    @Param('meetingId') meetingId: string,
+    @Param('guestId') guestId: string,
+  ): Promise<void> {
+    await this.meetings.removeGuest(context, principal, meetingId, guestId);
   }
 
   /**
@@ -338,4 +476,142 @@ function parseUserIds(
     return undefined;
   }
   return raw as string[];
+}
+
+const MAX_GUESTS = 100;
+const MAX_ATTACHMENTS = 20;
+
+/** 0237. `[{userId, optional?}]` (at most 100). */
+function parseAttendees(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): readonly MeetingAttendeeInput[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const valid =
+    Array.isArray(raw) &&
+    raw.length <= MAX_ATTENDEES &&
+    raw.every(
+      (a) =>
+        typeof a === 'object' &&
+        a !== null &&
+        typeof (a as { userId?: unknown }).userId === 'string' &&
+        (a as { userId: string }).userId !== '' &&
+        ['undefined', 'boolean'].includes(typeof (a as { optional?: unknown }).optional),
+    );
+  if (!valid) {
+    details.push({
+      field: 'attendees',
+      message: `must be at most ${MAX_ATTENDEES} of {userId, optional?}`,
+    });
+    return undefined;
+  }
+  return (raw as { userId: string; optional?: boolean }[]).map((a) => ({
+    userId: a.userId,
+    optional: a.optional === true,
+  }));
+}
+
+/** 0237. One `{email, displayName?, optional?}`. */
+function parseGuest(
+  raw: unknown,
+  details: { field: string; message: string }[],
+  field: string,
+): MeetingGuestInput | undefined {
+  const entry = (typeof raw === 'object' && raw !== null ? raw : {}) as {
+    email?: unknown;
+    displayName?: unknown;
+    optional?: unknown;
+  };
+  const email = normaliseEmail(entry.email);
+  const displayName =
+    entry.displayName === undefined || entry.displayName === null || entry.displayName === ''
+      ? null
+      : typeof entry.displayName === 'string' && entry.displayName.length <= 190
+        ? entry.displayName.trim()
+        : undefined;
+  if (
+    !email ||
+    displayName === undefined ||
+    !['undefined', 'boolean'].includes(typeof entry.optional)
+  ) {
+    details.push({ field, message: 'must be {email, displayName?, optional?} with a valid email' });
+    return undefined;
+  }
+  return { email, displayName, optional: entry.optional === true };
+}
+
+function parseGuests(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): readonly MeetingGuestInput[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  if (!Array.isArray(raw) || raw.length > MAX_GUESTS) {
+    details.push({ field: 'guests', message: `must be an array of at most ${MAX_GUESTS} guests` });
+    return undefined;
+  }
+  const out: MeetingGuestInput[] = [];
+  for (const entry of raw) {
+    const guest = parseGuest(entry, details, 'guests');
+    if (!guest) return undefined;
+    if (!out.some((g) => g.email === guest.email)) out.push(guest);
+  }
+  return out;
+}
+
+/**
+ * 0237. Files picked with the Drive/OneDrive pickers. Only the provider's own https links are kept,
+ * so a meeting can never carry an arbitrary URL dressed as an attachment.
+ */
+const ATTACHMENT_HOSTS: Record<'google_drive' | 'onedrive', RegExp> = {
+  google_drive: /^https:\/\/(drive|docs)\.google\.com\//,
+  onedrive: /^https:\/\/(onedrive\.live\.com|1drv\.ms|[a-z0-9-]+\.sharepoint\.com)\//,
+};
+
+function parseAttachments(
+  raw: unknown,
+  details: { field: string; message: string }[],
+): readonly MeetingAttachmentInput[] | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const message = `must be at most ${MAX_ATTACHMENTS} of {provider, fileId, title, mimeType, webUrl}`;
+  if (!Array.isArray(raw) || raw.length > MAX_ATTACHMENTS) {
+    details.push({ field: 'attachments', message });
+    return undefined;
+  }
+  const out: MeetingAttachmentInput[] = [];
+  for (const entry of raw as Record<string, unknown>[]) {
+    const provider = entry?.['provider'];
+    const fileId = entry?.['fileId'];
+    const title = entry?.['title'];
+    const mimeType = entry?.['mimeType'];
+    const webUrl = entry?.['webUrl'];
+    const driveId = entry?.['driveId'];
+    if (
+      (provider !== 'google_drive' && provider !== 'onedrive') ||
+      typeof fileId !== 'string' ||
+      !/^[A-Za-z0-9_!.-]{1,255}$/.test(fileId) ||
+      typeof title !== 'string' ||
+      title.trim() === '' ||
+      title.length > 255 ||
+      typeof mimeType !== 'string' ||
+      !/^[\w.+-]+\/[\w.+-]+$/.test(mimeType) ||
+      typeof webUrl !== 'string' ||
+      webUrl.length > 1024 ||
+      !ATTACHMENT_HOSTS[provider].test(webUrl) ||
+      (driveId !== undefined &&
+        driveId !== null &&
+        (typeof driveId !== 'string' || driveId.length > 128))
+    ) {
+      details.push({ field: 'attachments', message });
+      return undefined;
+    }
+    out.push({
+      provider,
+      fileId,
+      driveId: typeof driveId === 'string' ? driveId : null,
+      title: title.trim(),
+      mimeType,
+      webUrl,
+    });
+  }
+  return out;
 }

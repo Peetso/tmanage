@@ -26,6 +26,18 @@ import type { TenantContext, TenantQueryRunner } from '../../common/database/ten
 export type AttendeeRsvp = 'invited' | 'accepted' | 'declined';
 
 /**
+ * 0237. What the column may hold: `tentative` arrives from Google ("maybe") and Outlook. The roster
+ * views keep the three-value wire vocabulary until the meeting screens are redesigned (slice C);
+ * {@link rosterRsvp} shows a tentative answer there as not yet answered, and the meeting overview
+ * carries the real value.
+ */
+export type StoredAttendeeRsvp = AttendeeRsvp | 'tentative';
+
+export function rosterRsvp(stored: StoredAttendeeRsvp): AttendeeRsvp {
+  return stored === 'tentative' ? 'invited' : stored;
+}
+
+/**
  * An attendee joined to the member's `user_id` — what a read returns. The stored identity is the
  * `membership_id` (the composite FK to `memberships`), but the wire identity the rest of the app
  * uses is the `user_id`, so the read projects it. The member directory hides `membership_id`
@@ -35,7 +47,7 @@ export interface AttendeeWithUser {
   readonly id: string;
   readonly meetingId: string;
   readonly userId: string;
-  readonly rsvp: AttendeeRsvp;
+  readonly rsvp: StoredAttendeeRsvp;
   readonly createdAt: Date;
 }
 

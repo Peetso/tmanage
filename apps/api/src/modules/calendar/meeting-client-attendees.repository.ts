@@ -13,7 +13,7 @@ import {
 } from '../../common/database/schema.js';
 import type { MeetingClientAttendeeRow, MeetingRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
-import type { AttendeeRsvp } from './meeting-attendees.repository.js';
+import type { AttendeeRsvp, StoredAttendeeRsvp } from './meeting-attendees.repository.js';
 
 /**
  * BK5 (0217) — client people as meeting attendees, and the reads the portal's meeting list and
@@ -43,7 +43,7 @@ export interface ClientAttendeeWithPerson {
   readonly displayName: string;
   readonly clientOrganizationId: string;
   readonly clientOrganizationName: string;
-  readonly rsvp: AttendeeRsvp;
+  readonly rsvp: StoredAttendeeRsvp;
   readonly createdAt: Date;
 }
 
@@ -51,14 +51,14 @@ export interface ClientAttendeeWithPerson {
 export interface ClientMeetingRow {
   readonly meeting: MeetingRow;
   readonly attendeeId: string;
-  readonly rsvp: AttendeeRsvp;
+  readonly rsvp: StoredAttendeeRsvp;
 }
 
 /** An internal attendee's name and answer, for the portal detail (no ids leave). */
 export interface MemberAttendeeName {
   readonly userId: string;
   readonly displayName: string;
-  readonly rsvp: AttendeeRsvp;
+  readonly rsvp: StoredAttendeeRsvp;
 }
 
 const MAX_ROWS = 500;

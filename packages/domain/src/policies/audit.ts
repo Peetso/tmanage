@@ -594,6 +594,26 @@ export const AUDIT_ACTION_CATALOG = {
     clause: '§12 — the same link removed (the OneDrive file itself is never deleted)',
   },
   /**
+   * 0237. A person connects or disconnects their OWN Google or Microsoft calendar (provider in the
+   * metadata, never the account's token or address), and a meeting is cancelled or re-sent to it.
+   */
+  'calendar_connection.connected': {
+    objectType: 'calendar_connection',
+    clause: '§12 — a personal external calendar linked to TManage meetings',
+  },
+  'calendar_connection.disconnected': {
+    objectType: 'calendar_connection',
+    clause: '§12 — the same link removed and its token wiped',
+  },
+  'meeting.cancelled': {
+    objectType: 'meeting',
+    clause: '§12 — a meeting cancelled; its calendar event is deleted and guests are told',
+  },
+  'meeting.synced': {
+    objectType: 'meeting',
+    clause: '§12 — a meeting re-sent to, and re-read from, the organizer calendar',
+  },
+  /**
    * NV10 (wave 10 R9). A short-lived company Drive token handed to a person's browser for the file
    * picker. Google has no per-project Drive token, so each issuance is recorded: the connection,
    * the provider and the target project id — never the token.
@@ -863,6 +883,10 @@ const AUDIT_ACTION_LABELS = {
   'drive_attachment.removed': 'Removed a Google Drive file',
   'onedrive_attachment.attached': 'Attached a OneDrive file',
   'onedrive_attachment.removed': 'Removed a OneDrive file',
+  'calendar_connection.connected': 'Connected a calendar',
+  'calendar_connection.disconnected': 'Disconnected a calendar',
+  'meeting.cancelled': 'Cancelled a meeting',
+  'meeting.synced': 'Synced a meeting with a calendar',
   'drive_picker.session_issued': 'Opened the Google Drive file picker',
   'security.capability_denied': 'Blocked for a missing permission',
   'plan_change_request.submitted': 'Requested a plan change',

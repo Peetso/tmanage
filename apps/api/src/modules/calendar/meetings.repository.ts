@@ -1,9 +1,11 @@
-import { and, asc, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, isNull, lt, sql } from 'drizzle-orm';
 import { uuidv7 } from '@tmanage/domain';
 import { tenantDrizzle } from '../../common/database/drizzle.js';
 import { meetings } from '../../common/database/schema.js';
 import type { MeetingRow } from '../../common/database/schema.js';
 import type { TenantContext, TenantQueryRunner } from '../../common/database/tenant-context.js';
+import { formatReminders } from './meeting-options.js';
+import type { MeetingOptionsInput } from './meeting-options.js';
 
 /**
  * The meetings repository — CAL-01 / MTG-01 (x90), following the `projects` pattern.
@@ -47,6 +49,8 @@ export interface CreateMeetingInput {
   readonly agendaNote?: string | null;
   /** The person creating the meeting — the service passes `context.userId`. */
   readonly createdByUserId: string;
+  /** 0237. The event options; absent ones take the column defaults. */
+  readonly options?: MeetingOptionsInput;
 }
 
 /**
@@ -59,6 +63,40 @@ export interface UpdateMeetingInput {
   readonly startsAt?: Date;
   readonly endsAt?: Date | null;
   readonly agendaNote?: string | null;
+  /** 0237. The event options; an absent one is left alone. */
+  readonly options?: MeetingOptionsInput;
+  /** 0237. Set by cancel; a pull from the provider may set it too. */
+  readonly cancelledAt?: Date | null;
+}
+
+/** 0237. Every meeting of the organization in a time window (the All meetings calendar). */
+export interface ListMeetingWindowOptions {
+  readonly from: Date;
+  readonly to: Date;
+  readonly includeCancelled: boolean;
+  readonly limit: number;
+}
+
+/** The column values of the options that are set; `undefined` ones are left out. */
+function optionColumns(options: MeetingOptionsInput | undefined): Record<string, unknown> {
+  if (!options) return {};
+  const out: Record<string, unknown> = {};
+  const copy = [
+    'allDay',
+    'timeZone',
+    'location',
+    'recurrenceRrule',
+    'visibility',
+    'showAs',
+    'colorId',
+    'conference',
+    'guestsCanModify',
+    'guestsCanInviteOthers',
+    'guestsCanSeeOthers',
+  ] as const;
+  for (const key of copy) if (options[key] !== undefined) out[key] = options[key];
+  if (options.reminders !== undefined) out['reminders'] = formatReminders(options.reminders);
+  return out;
 }
 
 export interface ListMeetingsOptions {
@@ -105,6 +143,31 @@ export class MeetingsRepository {
       .where(and(...predicates))
       .orderBy(asc(meetings.id))
       .limit(limit);
+  }
+
+  /**
+   * 0237. Every meeting of the tenant starting inside `[from, to)`, soonest first — the All meetings
+   * calendar. The relation filter (which projects the caller may read) is the service's, after the
+   * read, for the reason `MeetingsService.list` gives. `ix_meetings_org_project` does not lead with
+   * `starts_at`, so the window is bounded by `limit` (the service caps it at 500).
+   */
+  async listWindow(
+    runner: TenantQueryRunner,
+    context: TenantContext,
+    options: ListMeetingWindowOptions,
+  ): Promise<readonly MeetingRow[]> {
+    const predicates = [
+      eq(meetings.organizationId, context.organizationId),
+      gte(meetings.startsAt, options.from),
+      lt(meetings.startsAt, options.to),
+    ];
+    if (!options.includeCancelled) predicates.push(isNull(meetings.cancelledAt));
+    return tenantDrizzle(runner)
+      .select()
+      .from(meetings)
+      .where(and(...predicates))
+      .orderBy(asc(meetings.startsAt), asc(meetings.id))
+      .limit(options.limit);
   }
 
   /**
@@ -164,6 +227,7 @@ export class MeetingsRepository {
       endsAt: input.endsAt ?? null,
       agendaNote: input.agendaNote ?? null,
       createdByUserId: input.createdByUserId,
+      ...optionColumns(input.options),
       createdAt: sql`current_timestamp(3)`,
       updatedAt: sql`current_timestamp(3)`,
     });
@@ -191,6 +255,8 @@ export class MeetingsRepository {
         ...(input.startsAt !== undefined ? { startsAt: input.startsAt } : {}),
         ...(input.endsAt !== undefined ? { endsAt: input.endsAt } : {}),
         ...(input.agendaNote !== undefined ? { agendaNote: input.agendaNote } : {}),
+        ...(input.cancelledAt !== undefined ? { cancelledAt: input.cancelledAt } : {}),
+        ...optionColumns(input.options),
         updatedAt: sql`current_timestamp(3)`,
       })
       .where(and(eq(meetings.organizationId, context.organizationId), eq(meetings.id, meetingId)));

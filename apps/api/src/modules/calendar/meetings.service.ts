@@ -19,6 +19,14 @@ import { ProjectsRepository } from '../projects/projects.repository.js';
 import type { MeetingNoteRow, MeetingRow } from '../../common/database/schema.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import type { MeetingClientAttendeesRepository } from './meeting-client-attendees.repository.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { MeetingCalendarRepository } from './meeting-calendar.repository.js';
+import type { InsertAttachmentInput, RosterEntry } from './meeting-calendar.repository.js';
+import type { CalendarSyncPort } from './calendar-sync.port.js';
+import { parseReminders } from './meeting-options.js';
+import type { MeetingReminder } from './meeting-options.js';
+import type { StoredAttendeeRsvp } from './meeting-attendees.repository.js';
+import type { MeetingExternalEventRow, MeetingGuestRow } from '../../common/database/schema.js';
 
 /**
  * The application service for CAL-01 / MTG-01 (x90) — the object-level decision the route guard
@@ -107,6 +115,137 @@ function toNoteView(row: MeetingNoteRow): MeetingNoteView {
   };
 }
 
+/** 0237. A member invited with the meeting, with the optional flag. */
+export interface MeetingAttendeeInput {
+  readonly userId: string;
+  readonly optional: boolean;
+}
+
+/** 0237. Someone invited by email (lower-cased by the controller). */
+export interface MeetingGuestInput {
+  readonly email: string;
+  readonly displayName: string | null;
+  readonly optional: boolean;
+}
+
+/** 0237. A Drive/OneDrive file picked for the meeting. */
+export type MeetingAttachmentInput = Omit<InsertAttachmentInput, 'meetingId' | 'attachedByUserId'>;
+
+/** 0237. One person on the meeting page: a member, a client person or an email guest. */
+export interface MeetingOverviewPerson {
+  readonly kind: 'member' | 'client' | 'guest';
+  /** The attendee or guest row id (the guest id is what `DELETE …/guests/:guestId` takes). */
+  readonly id: string;
+  /** `null` for a guest. */
+  readonly userId: string | null;
+  readonly displayName: string | null;
+  /** Shown for guests only — a member's address is not echoed to every reader. */
+  readonly email: string | null;
+  readonly optional: boolean;
+  readonly organizer: boolean;
+  readonly rsvp: StoredAttendeeRsvp;
+}
+
+/** 0237. The meeting's event in its organizer's Google or Microsoft calendar. */
+export interface MeetingOverviewExternal {
+  readonly provider: string;
+  /** The Meet/Teams link; opened in a new tab (live calls cannot be embedded). */
+  readonly joinUrl: string | null;
+  /** "Open in Google Calendar / Outlook". */
+  readonly htmlLink: string | null;
+  readonly syncStatus: string;
+  readonly lastErrorCode: string | null;
+  readonly lastPushedAt: string | null;
+  readonly lastPulledAt: string | null;
+}
+
+export interface MeetingOverviewAttachment {
+  readonly id: string;
+  readonly provider: string;
+  readonly title: string;
+  readonly mimeType: string;
+  readonly webUrl: string | null;
+}
+
+/** 0237. Everything the meeting page shows, in one read (`GET …/meetings/:meetingId/overview`). */
+export interface MeetingOverviewView {
+  readonly meeting: MeetingView;
+  readonly allDay: boolean;
+  readonly timeZone: string | null;
+  readonly location: string | null;
+  readonly rrule: string | null;
+  readonly visibility: string;
+  readonly showAs: string;
+  readonly colorId: string | null;
+  readonly conference: string;
+  /** `null` = the calendar's default reminders. */
+  readonly reminders: readonly MeetingReminder[] | null;
+  readonly guestsCanModify: boolean;
+  readonly guestsCanInviteOthers: boolean;
+  readonly guestsCanSeeOthers: boolean;
+  readonly cancelledAt: string | null;
+  readonly people: readonly MeetingOverviewPerson[];
+  /** `null` while the organizer has no calendar connected (the meeting is TManage-only). */
+  readonly external: MeetingOverviewExternal | null;
+  readonly attachments: readonly MeetingOverviewAttachment[];
+}
+
+/** 0237. A guest as the guest routes answer it. */
+export interface MeetingGuestEntry {
+  readonly id: string;
+  readonly meetingId: string;
+  readonly email: string;
+  readonly displayName: string | null;
+  readonly optional: boolean;
+  readonly rsvp: string;
+  readonly createdAt: string;
+}
+
+function toGuestEntry(row: MeetingGuestRow): MeetingGuestEntry {
+  return {
+    id: row.id,
+    meetingId: row.meetingId,
+    email: row.email,
+    displayName: row.displayName,
+    optional: row.optional,
+    rsvp: row.rsvp,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+function toExternal(link: MeetingExternalEventRow | null): MeetingOverviewExternal | null {
+  if (!link) return null;
+  return {
+    provider: link.provider,
+    joinUrl: link.joinUrl,
+    htmlLink: link.htmlLink,
+    syncStatus: link.syncStatus,
+    lastErrorCode: link.lastErrorCode,
+    lastPushedAt: link.lastPushedAt ? link.lastPushedAt.toISOString() : null,
+    lastPulledAt: link.lastPulledAt ? link.lastPulledAt.toISOString() : null,
+  };
+}
+
+function toPerson(entry: RosterEntry, organizerUserId: string): MeetingOverviewPerson {
+  return {
+    kind: entry.kind,
+    id: entry.id,
+    userId: entry.userId,
+    displayName: entry.displayName,
+    email: entry.kind === 'guest' ? entry.email : null,
+    optional: entry.optional,
+    organizer: entry.userId !== null && entry.userId === organizerUserId,
+    rsvp: entry.rsvp,
+  };
+}
+
+/** 0237. The All meetings window: default today − 7 days … + 60 days, at most 500 meetings. */
+export const WINDOW_BACK_MS = 7 * 86_400_000;
+export const WINDOW_AHEAD_MS = 60 * 86_400_000;
+export const WINDOW_MAX_MEETINGS = 500;
+/** "Pull on open": re-read the provider event when the last pull is older than this. */
+export const PULL_ON_OPEN_MS = 60_000;
+
 /**
  * BK5: which of the fields attendees are told about an edit actually changes — title, start, end.
  * An agenda-note edit, or a PATCH that re-sends the current values, is not news.
@@ -162,6 +301,12 @@ export class MeetingsService {
      * people) at the moment of the edit. Optional; without it an edit notifies nobody.
      */
     private readonly clientAttendees?: MeetingClientAttendeesRepository,
+    /** 0237. Guests, attachments, the provider event link and the roster with emails. */
+    private readonly calendar: MeetingCalendarRepository = new MeetingCalendarRepository(),
+    /** 0237. `meeting.cancelled` / `meeting.synced`. Optional for the database-free suites. */
+    private readonly audit?: AuditService,
+    /** 0237. Google/Microsoft calendar sync; absent = meetings stay TManage-only. */
+    private readonly sync?: CalendarSyncPort,
   ) {}
 
   /**
@@ -221,9 +366,23 @@ export class MeetingsService {
     input: Omit<CreateMeetingInput, 'createdByUserId'> & {
       /** Audit gap 8 (COL-09): members to invite with the meeting; each is notified. */
       readonly attendeeUserIds?: readonly string[];
+      /** 0237. Members with the optional flag (merged with `attendeeUserIds`). */
+      readonly attendees?: readonly MeetingAttendeeInput[];
+      /** 0237. People invited by email who are not TManage users. */
+      readonly guests?: readonly MeetingGuestInput[];
+      /** 0237. Drive/OneDrive files picked for the meeting. */
+      readonly attachments?: readonly MeetingAttachmentInput[];
     },
   ): Promise<MeetingView> {
-    const { attendeeUserIds = [], ...meetingInput } = input;
+    const {
+      attendeeUserIds: plainIds = [],
+      attendees: flagged = [],
+      guests = [],
+      attachments = [],
+      ...meetingInput
+    } = input;
+    const attendeeUserIds = [...plainIds, ...flagged.map((a) => a.userId)];
+    const optionalUserIds = new Set(flagged.filter((a) => a.optional).map((a) => a.userId));
     assertEndAfterStart(meetingInput.startsAt, meetingInput.endsAt ?? null);
 
     const project = await this.database.read(context, (runner) =>
@@ -270,6 +429,15 @@ export class MeetingsService {
           membershipId: invitee.membershipId,
           rsvp: organizer ? 'accepted' : 'invited',
         });
+        if (!organizer && optionalUserIds.has(invitee.userId)) {
+          await this.calendar.setMemberOptional(
+            tx,
+            context,
+            created.id,
+            invitee.membershipId,
+            true,
+          );
+        }
         if (!organizer) {
           await this.outbox?.append(tx, context, {
             type: 'meeting.attendee_invited.v1',
@@ -283,9 +451,21 @@ export class MeetingsService {
           });
         }
       }
+      for (const guest of guests) {
+        await this.calendar.upsertGuest(tx, context, { meetingId: created.id, ...guest });
+      }
+      for (const attachment of attachments) {
+        await this.calendar.insertAttachment(tx, context, {
+          meetingId: created.id,
+          ...attachment,
+          attachedByUserId: context.userId,
+        });
+      }
       return created;
     });
 
+    // 0237. After the commit: the organizer's calendar creates the event and sends invitations.
+    await this.sync?.pushMeeting(context, row.id);
     return toView(row);
   }
 
@@ -304,6 +484,11 @@ export class MeetingsService {
     input: UpdateMeetingInput,
   ): Promise<MeetingView> {
     const meeting = await this.resolveMeetingFor(context, principal, meetingId, 'work.create');
+    if (meeting.cancelledAt) {
+      throw new ApiError(409, 'conflict', 'This meeting was cancelled', [
+        { field: 'meetingId', message: 'cancelled' },
+      ]);
+    }
     assertEndAfterStart(
       input.startsAt ?? meeting.startsAt,
       input.endsAt === undefined ? (meeting.endsAt ?? null) : input.endsAt,
@@ -338,7 +523,193 @@ export class MeetingsService {
       }
       return updated;
     });
+    await this.sync?.pushMeeting(context, meetingId);
     return toView(row);
+  }
+
+  /**
+   * 0237 (owner bug 1). Every meeting the principal may read in a window, soonest first — the All
+   * meetings calendar, with no project chosen. Relation-filtered after the read exactly as
+   * {@link list} is; the window is capped at {@link WINDOW_MAX_MEETINGS}.
+   */
+  async listWindow(
+    context: TenantContext,
+    principal: Principal,
+    options: { readonly from?: Date; readonly to?: Date; readonly includeCancelled?: boolean },
+  ): Promise<readonly MeetingView[]> {
+    const now = Date.now();
+    const from = options.from ?? new Date(now - WINDOW_BACK_MS);
+    const to = options.to ?? new Date(now + WINDOW_AHEAD_MS);
+    if (to.getTime() <= from.getTime()) {
+      throw new ApiError(400, 'validation_failed', 'The request is invalid', [
+        { field: 'to', message: 'must be after from' },
+      ]);
+    }
+    const rows = await this.database.read(context, (runner) =>
+      this.meetings.listWindow(runner, context, {
+        from,
+        to,
+        includeCancelled: options.includeCancelled ?? false,
+        limit: WINDOW_MAX_MEETINGS,
+      }),
+    );
+    return rows
+      .filter(
+        (row) =>
+          authorize({
+            principal,
+            capability: 'work.read',
+            resource: {
+              organizationId: row.organizationId,
+              projectId: row.projectId,
+              audience: 'internal',
+              lifecycle: 'active',
+            },
+          }).allowed,
+      )
+      .map(toView);
+  }
+
+  /**
+   * 0237 (owner bug 2). The meeting page in one read: the meeting, its event options, everyone
+   * invited with their answer, the provider event (Join link, sync state) and the attachments.
+   * Resolved tenant-scoped and relation-checked first; "pull on open" re-reads the provider event
+   * when the last pull is older than a minute (best effort — a provider failure never fails the page).
+   */
+  async overview(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+  ): Promise<MeetingOverviewView> {
+    await this.resolveMeetingFor(context, principal, meetingId, 'work.read');
+    await this.sync?.pullMeeting(context, meetingId, PULL_ON_OPEN_MS);
+    const { meeting, roster, link, attachments } = await this.database.read(
+      context,
+      async (runner) => ({
+        meeting: await this.meetings.requireById(runner, context, meetingId),
+        roster: await this.calendar.roster(runner, context, meetingId),
+        link: await this.calendar.findLink(runner, context, meetingId),
+        attachments: await this.calendar.listAttachments(runner, context, meetingId),
+      }),
+    );
+    return {
+      meeting: toView(meeting),
+      allDay: meeting.allDay,
+      timeZone: meeting.timeZone,
+      location: meeting.location,
+      rrule: meeting.recurrenceRrule,
+      visibility: meeting.visibility,
+      showAs: meeting.showAs,
+      colorId: meeting.colorId,
+      conference: meeting.conference,
+      reminders: parseReminders(meeting.reminders),
+      guestsCanModify: meeting.guestsCanModify,
+      guestsCanInviteOthers: meeting.guestsCanInviteOthers,
+      guestsCanSeeOthers: meeting.guestsCanSeeOthers,
+      cancelledAt: meeting.cancelledAt ? meeting.cancelledAt.toISOString() : null,
+      people: roster.map((entry) => toPerson(entry, meeting.createdByUserId)),
+      external: toExternal(link),
+      attachments: attachments.map((a) => ({
+        id: a.id,
+        provider: a.provider,
+        title: a.title,
+        mimeType: a.mimeType,
+        webUrl: a.webUrl,
+      })),
+    };
+  }
+
+  /**
+   * 0237. Cancel a meeting: `cancelled_at` is set (the row stays, with its notes and decisions) and,
+   * after the commit, the organizer's provider event is deleted — Google/Outlook tell every guest.
+   * Cancelling twice is a no-op.
+   */
+  async cancel(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+  ): Promise<MeetingView> {
+    const meeting = await this.resolveMeetingFor(context, principal, meetingId, 'work.create');
+    if (meeting.cancelledAt) return toView(meeting);
+    const row = await this.database.transaction(context, async (tx) => {
+      const updated = await this.meetings.update(tx, context, meetingId, {
+        cancelledAt: new Date(),
+      });
+      await this.audit?.record(tx, context, {
+        action: 'meeting.cancelled',
+        result: 'allowed',
+        objectId: meetingId,
+        metadata: { project_id: meeting.projectId },
+      });
+      return updated;
+    });
+    await this.sync?.pushMeeting(context, meetingId);
+    return toView(row);
+  }
+
+  /**
+   * 0237. "Retry" on the meeting page: push the meeting to the organizer's calendar again, then pull
+   * the answers back, and return the fresh overview. Audited (`meeting.synced`).
+   */
+  async syncNow(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+  ): Promise<MeetingOverviewView> {
+    await this.resolveMeetingFor(context, principal, meetingId, 'work.create');
+    await this.sync?.pushMeeting(context, meetingId);
+    await this.sync?.pullMeeting(context, meetingId, 0);
+    await this.audit?.recordStandalone(context, {
+      action: 'meeting.synced',
+      result: 'allowed',
+      objectId: meetingId,
+      metadata: { connected: this.sync !== undefined },
+    });
+    return this.overview(context, principal, meetingId);
+  }
+
+  async listGuests(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+  ): Promise<readonly MeetingGuestEntry[]> {
+    await this.resolveMeetingFor(context, principal, meetingId, 'work.read');
+    const rows = await this.database.read(context, (runner) =>
+      this.calendar.listGuests(runner, context, meetingId),
+    );
+    return rows.map(toGuestEntry);
+  }
+
+  /** 0237. Invite someone by email (again: updates the name and the optional flag), then push. */
+  async addGuest(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+    guest: MeetingGuestInput,
+  ): Promise<MeetingGuestEntry> {
+    await this.resolveMeetingFor(context, principal, meetingId, 'work.create');
+    const row = await this.database.transaction(context, (tx) =>
+      this.calendar.upsertGuest(tx, context, { meetingId, ...guest }),
+    );
+    await this.sync?.pushMeeting(context, meetingId);
+    return toGuestEntry(row);
+  }
+
+  /** 0237. Remove an email guest; an unknown or other meeting's guest is a 404 with no write. */
+  async removeGuest(
+    context: TenantContext,
+    principal: Principal,
+    meetingId: string,
+    guestId: string,
+  ): Promise<void> {
+    await this.resolveMeetingFor(context, principal, meetingId, 'work.create');
+    const removed = await this.database.transaction(context, (tx) =>
+      this.calendar.deleteGuest(tx, context, meetingId, guestId),
+    );
+    if (!removed) {
+      throw new ApiError(404, 'not_found', MESSAGES.notFound, undefined, 'guest_not_visible');
+    }
+    await this.sync?.pushMeeting(context, meetingId);
   }
 
   /**

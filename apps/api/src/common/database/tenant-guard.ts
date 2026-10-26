@@ -91,6 +91,12 @@ export const TENANT_TABLES: Readonly<Record<string, 'organization_id' | 'id'>> =
   // project/work-item folder map and the OneDrive attachments each belong to one organization.
   onedrive_folders: 'organization_id',
   onedrive_attachments: 'organization_id',
+  // 0237. Meetings connected to a person's own Google/Microsoft calendar: the connection, the
+  // provider event of a meeting, email-only guests and meeting attachments.
+  calendar_connections: 'organization_id',
+  meeting_external_events: 'organization_id',
+  meeting_guests: 'organization_id',
+  meeting_attachments: 'organization_id',
   workspaces: 'organization_id',
   projects: 'organization_id',
   project_memberships: 'organization_id',

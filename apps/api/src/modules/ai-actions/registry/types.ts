@@ -68,6 +68,9 @@ export const NEVER_REASONS = [
   // callback, the picker's short-lived Google token and the upload session URL: each mints,
   // holds or hands out a third-party credential, which an AI principal must never drive.
   'storage_connection',
+  // 0237. A person's own Google/Microsoft calendar connection and its OAuth callback: each mints
+  // or holds that person's third-party credential.
+  'calendar_connection',
 ] as const;
 export type NeverReason = (typeof NEVER_REASONS)[number];
 

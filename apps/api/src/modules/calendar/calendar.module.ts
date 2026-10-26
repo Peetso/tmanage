@@ -7,9 +7,14 @@ import {
   MEETING_SERIES_SERVICE,
   MEETINGS_REPOSITORY,
   MEETINGS_SERVICE,
+  AUDIT_SERVICE,
   OUTBOX_EVENTS_REPOSITORY,
   TENANT_DATABASE,
 } from '../../common/http/tokens.js';
+import type { AuditService } from '../audit/audit.service.js';
+import { CALENDAR_SYNC } from './calendar-sync.port.js';
+import type { CalendarSyncPort } from './calendar-sync.port.js';
+import { MeetingCalendarRepository } from './meeting-calendar.repository.js';
 import type { TenantDatabase } from '../../common/database/tenant-context.js';
 import type { OutboxEventsRepository } from '../platform/outbox-events.repository.js';
 import { MeetingsRepository } from './meetings.repository.js';
@@ -52,11 +57,20 @@ export class CalendarModule {
     };
     const service: Provider = {
       provide: MEETINGS_SERVICE,
-      inject: [TENANT_DATABASE, MEETINGS_REPOSITORY, OUTBOX_EVENTS_REPOSITORY],
+      inject: [
+        TENANT_DATABASE,
+        MEETINGS_REPOSITORY,
+        OUTBOX_EVENTS_REPOSITORY,
+        AUDIT_SERVICE,
+        // 0237. Provided (globally) by GoogleCalendarModule; absent in suites that omit it.
+        { token: CALENDAR_SYNC, optional: true },
+      ],
       useFactory: (
         database: TenantDatabase,
         meetings: MeetingsRepository,
         outbox: OutboxEventsRepository,
+        audit: AuditService,
+        sync?: CalendarSyncPort,
       ) =>
         new MeetingsService(
           database,
@@ -69,6 +83,10 @@ export class CalendarModule {
           new MembershipsRepository(),
           // BK5: the roster snapshot the "meeting changed" notice is sent to.
           new MeetingClientAttendeesRepository(),
+          // 0237: guests, attachments, the provider link; cancel/sync audit; calendar push.
+          new MeetingCalendarRepository(),
+          audit,
+          sync ?? undefined,
         ),
     };
 
@@ -83,11 +101,17 @@ export class CalendarModule {
     };
     const attendeesService: Provider = {
       provide: MEETING_ATTENDEES_SERVICE,
-      inject: [TENANT_DATABASE, MEETING_ATTENDEES_REPOSITORY, OUTBOX_EVENTS_REPOSITORY],
+      inject: [
+        TENANT_DATABASE,
+        MEETING_ATTENDEES_REPOSITORY,
+        OUTBOX_EVENTS_REPOSITORY,
+        { token: CALENDAR_SYNC, optional: true },
+      ],
       useFactory: (
         database: TenantDatabase,
         attendees: MeetingAttendeesRepository,
         outbox: OutboxEventsRepository,
+        sync?: CalendarSyncPort,
       ) =>
         new MeetingAttendeesService(
           database,
@@ -97,6 +121,8 @@ export class CalendarModule {
           outbox,
           // BK5 (0217): client people of the meeting's project as attendees.
           new MeetingClientAttendeesRepository(),
+          // 0237: an answer given in TManage goes on to Google/Outlook.
+          sync ?? undefined,
         ),
     };
 

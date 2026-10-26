@@ -1231,6 +1231,15 @@ GRANT INSERT, UPDATE ON `tmanage`.`google_drive_attachments` TO 'tmanage_app'@'%
 -- `removed_at`). No DELETE; the worker holds nothing here.
 GRANT INSERT ON `tmanage`.`onedrive_folders`                 TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`onedrive_attachments`     TO 'tmanage_app'@'%';
+-- 0237 meetings connected to a person's own calendar. Connections and provider-event links:
+-- INSERT, UPDATE (status, cursor and token rotate in place; disconnect wipes the token, never a
+-- DELETE). Guests: INSERT, UPDATE (their answer from Google/Outlook), DELETE (removed from the
+-- meeting; nothing references a guest row). Attachments: INSERT, UPDATE (soft removal via
+-- `removed_at`). The worker holds nothing here: the sync job runs in the API process.
+GRANT INSERT, UPDATE ON `tmanage`.`calendar_connections`     TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`meeting_external_events`  TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE, DELETE ON `tmanage`.`meeting_guests`   TO 'tmanage_app'@'%';
+GRANT INSERT, UPDATE ON `tmanage`.`meeting_attachments`      TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_mfa_factors`    TO 'tmanage_app'@'%';
 GRANT INSERT, UPDATE ON `tmanage`.`user_recovery_codes` TO 'tmanage_app'@'%';
 

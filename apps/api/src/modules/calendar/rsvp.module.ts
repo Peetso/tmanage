@@ -6,6 +6,8 @@ import { MeetingsRepository } from './meetings.repository.js';
 import { MEETING_RSVP_REPOSITORY, MeetingRsvpRepository } from './rsvp.repository.js';
 import { MEETING_RSVP_SERVICE, MeetingRsvpService } from './rsvp.service.js';
 import { MeetingRsvpController } from './rsvp.controller.js';
+import { CALENDAR_SYNC } from './calendar-sync.port.js';
+import type { CalendarSyncPort } from './calendar-sync.port.js';
 
 /**
  * CAL meeting RSVP (x240) — the wiring for a member's own meeting response.
@@ -26,9 +28,13 @@ export class MeetingRsvpModule {
     };
     const service: Provider = {
       provide: MEETING_RSVP_SERVICE,
-      inject: [TENANT_DATABASE, MEETING_RSVP_REPOSITORY],
-      useFactory: (database: TenantDatabase, rsvps: MeetingRsvpRepository) =>
-        new MeetingRsvpService(database, rsvps, new MeetingsRepository()),
+      // 0237. The calendar port is provided globally by GoogleCalendarModule; optional.
+      inject: [TENANT_DATABASE, MEETING_RSVP_REPOSITORY, { token: CALENDAR_SYNC, optional: true }],
+      useFactory: (
+        database: TenantDatabase,
+        rsvps: MeetingRsvpRepository,
+        sync?: CalendarSyncPort,
+      ) => new MeetingRsvpService(database, rsvps, new MeetingsRepository(), sync ?? undefined),
     };
 
     return {

@@ -3,7 +3,7 @@ import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
 import { MeetingClientAttendeesRepository } from './meeting-client-attendees.repository.js';
 import type { ClientMeetingRow } from './meeting-client-attendees.repository.js';
-import type { AttendeeRsvp } from './meeting-attendees.repository.js';
+import type { StoredAttendeeRsvp } from './meeting-attendees.repository.js';
 
 /**
  * BK5 (0217) — the client portal's meetings: a client person sees **only the meetings they attend**,
@@ -26,7 +26,8 @@ export interface PortalMeetingView {
   readonly endsAt: string | null;
   /** The caller's own attendee row and answer. */
   readonly attendeeId: string;
-  readonly rsvp: AttendeeRsvp;
+  /** 0237: may be `tentative` (answered "maybe" in Google or Outlook). */
+  readonly rsvp: StoredAttendeeRsvp;
 }
 
 /** One person on the meeting as the client sees them: a name, a side, an answer. No ids. */
@@ -34,7 +35,8 @@ export interface PortalMeetingAttendeeView {
   readonly displayName: string;
   readonly kind: 'team' | 'client';
   readonly organizer: boolean;
-  readonly rsvp: AttendeeRsvp;
+  /** 0237: may be `tentative` (answered "maybe" in Google or Outlook). */
+  readonly rsvp: StoredAttendeeRsvp;
 }
 
 export interface PortalMeetingDetailView extends PortalMeetingView {
