@@ -83,6 +83,12 @@ export class PasswordResetRepository {
    * Spend a link. The compare-and-set is what makes it single-use: two requests racing with one
    * link both find it live, and exactly one of them updates it. `false` means it was already
    * spent or has just expired.
+   *
+   * F03 / NV04 (wave 10): a link that is really spent here also marks its account's address
+   * verified, through {@link markEmailVerifiedByLink}. The two are one fact — the link was mailed
+   * to that address and nowhere else, so spending it proves the person reads that mailbox — and
+   * keeping them in one method means no caller can spend a link without recording the proof, or
+   * record the proof without spending a link.
    */
   async spend(runner: IdentityQueryRunner, tokenHash: string): Promise<boolean> {
     const result = await tenantDrizzle(runner)
@@ -95,6 +101,29 @@ export class PasswordResetRepository {
           gt(passwordResetTokens.expiresAt, sql`current_timestamp(3)`),
         ),
       );
-    return result[0].affectedRows === 1;
+    if (result[0].affectedRows !== 1) return false;
+    await this.markEmailVerifiedByLink(runner, tokenHash);
+    return true;
+  }
+
+  /**
+   * F03 / NV04 (wave 10). Stamp `users.email_verified_at` for the account this (just spent) link
+   * belongs to — once, on the database clock; an earlier verification time is left as it was.
+   * It runs in the reset's own identity transaction, so a reset that rolls back verifies nothing.
+   * A pre-registrant who squatted the address never verified it; the same reset ends every
+   * session and bearer credential they held, and the real owner can then use Google sign-in.
+   */
+  private async markEmailVerifiedByLink(
+    runner: IdentityQueryRunner,
+    tokenHash: string,
+  ): Promise<void> {
+    const owner = tenantDrizzle(runner)
+      .select({ userId: passwordResetTokens.userId })
+      .from(passwordResetTokens)
+      .where(eq(passwordResetTokens.tokenHash, tokenHash));
+    await tenantDrizzle(runner)
+      .update(users)
+      .set({ emailVerifiedAt: sql`current_timestamp(3)` })
+      .where(and(isNull(users.emailVerifiedAt), sql`${users.id} = (${owner})`));
   }
 }

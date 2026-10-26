@@ -284,9 +284,15 @@ export type VerifyFirstDecision = 'admit' | 'locked_out' | 'reject';
  * succeeded - it only relabelled wrong ones - so an attacker rotating source addresses could keep
  * guessing a password or a six-digit code and the first right guess signed in while the account
  * was nominally locked. Now a full window refuses every guess, right or wrong, without admitting
- * it. The holder's way out does not pass through this window: password reset by email
- * (`password-reset.service.ts`) never consults it, and the window drains on its own (refusals
- * while locked are `locked_out`, which `countRecentFailures` does not count).
+ * it.
+ *
+ * **N01 (wave 10): the holder's way out.** Password reset by email (`password-reset.service.ts`)
+ * never consults this window, and since N01 it also ends the lockout: `countRecentFailures`
+ * counts only failures at or after the latest succeeded `password_set` row, which the reset (or a
+ * password change) writes in its own transaction. Before that, the reset changed the password
+ * but the old wrong guesses still filled the window, so one wrong guess every few minutes kept
+ * the account shut even for the new password. The window still never counts its own
+ * `locked_out` refusals, so without a reset it drains once the guessing stops.
  */
 export function decideVerifyFirst(input: {
   readonly passwordCorrect: boolean;
@@ -502,10 +508,10 @@ export class AuthenticationService {
     const storedHash = found?.stored?.passwordHash ?? DUMMY_PASSWORD_HASH;
     const correct = await verifyPassword(storedHash, password);
 
-    // Verify first, then charge (C-1). The password has been checked above; only now is the
-    // durable window consulted, and only on the failing path. A correct password is admitted
-    // whatever the window says, so a wrong password from a hostile source can no longer drive
-    // the account holder into a lockout of their own sign-in that they cannot clear.
+    // Verify first, then decide (C-1, F20). The password has been checked above; only now is the
+    // durable window consulted. A full window refuses right and wrong guesses alike (F20), so the
+    // lockout really stops a guesser; the holder clears it by resetting the password by email,
+    // because the window counts only failures since the latest password change (N01).
     const decision = decideVerifyFirst({
       passwordCorrect: Boolean(found?.stored) && correct,
       failuresInWindow: found?.failures ?? 0,
@@ -828,11 +834,10 @@ export class AuthenticationService {
       },
     );
 
-    // Verify first, then charge (C-1) — the same ordering as `signInWithPassword`, and it
-    // matters here for the same reason plus one more: this is the only door to a password
-    // change, so a lockout that refused the holder's *correct* password would leave a targeted
-    // account with no self-service way out. A wrong password is still throttled by the window
-    // exactly as before, so re-auth does not become an unmetered guessing oracle.
+    // Verify first, then decide (C-1, F20) — the same ordering and the same decision as
+    // `signInWithPassword`: a full window refuses right and wrong passwords alike, so re-auth is
+    // not an unmetered guessing oracle. The holder's way out of a full window is a password reset
+    // by email, after which this count starts again from zero (N01).
     const correct = await verifyPassword(
       found.stored?.passwordHash ?? DUMMY_PASSWORD_HASH,
       password,

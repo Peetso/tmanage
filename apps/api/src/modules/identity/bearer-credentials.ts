@@ -25,6 +25,19 @@ import { PersonalAccessTokensRepository } from '../personal-access-tokens/person
  * half-done and the person can retry) and **again after** it commits (which closes the window in
  * which a session that was about to be revoked could still mint a token). Revoking is idempotent
  * (`revoked_at IS NULL` in every predicate), so the second pass is cheap and harmless.
+ *
+ * ## The double check — N04 (security audit run 2, wave 10)
+ *
+ * The second pass alone left one ordering open: a personal access token create whose session
+ * passed the guard before the recovery, and whose insert committed only after this second pass
+ * had already run, survived it. So the creator checks too:
+ * `PersonalAccessTokensService.create` re-reads its own session (`SessionsRepository.findById`)
+ * after the insert commits and, if the session is missing, revoked or expired, revokes the new
+ * row and answers 401 `session_revoked`. The recovery revokes sessions before its second pass,
+ * and the creator inserts before its re-read, so whichever commits last sees the other: either
+ * this pass finds the token, or the creator finds its session revoked. A bound (AI or bearer)
+ * caller cannot reach create at all; the controller requires a cookie session. The OAuth consent
+ * half of the same race (a grant minted during a recovery) is handled separately in `oauth/`.
  */
 
 /** Why the one tenant-free read below may skip the tenant predicate (`bootstrapRead`). */

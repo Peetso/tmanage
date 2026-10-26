@@ -232,6 +232,12 @@ export function clampToColumnCharacters(
 }
 
 /**
+ * N01 (wave 10). The credential change that restarts the lockout count in
+ * {@link CredentialsRepository.countRecentFailures}: a password set by reset or by change.
+ */
+const PASSWORD_SET_ACTION = 'password_set';
+
+/**
  * The four actions that mean a credential *changed* — `D05d`, I1.
  *
  * Spelled here rather than imported from `authentication.service.ts` for the reason
@@ -248,7 +254,7 @@ export function clampToColumnCharacters(
  * writes the log row and the notice together.
  */
 const CREDENTIAL_CHANGE_ACTIONS: readonly string[] = [
-  'password_set',
+  PASSWORD_SET_ACTION,
   'mfa_factor_enrolled',
   'mfa_factor_disabled',
   'recovery_codes_issued',
@@ -905,12 +911,40 @@ export class CredentialsRepository {
    * counts, and must, is the credential `confirmReauthentication` genuinely presents: a wrong
    * password there is `bad_password`, a wrong code `mfa_bad_code`, and both are outside this
    * list. Re-authentication is a password oracle and its lockout is untouched.
+   *
+   * ## A credential change starts the count again — N01 (security audit run 2, wave 10)
+   *
+   * F20 made a full window refuse right and wrong guesses alike, and the window never counts its
+   * own `locked_out` rows, so one wrong guess every three minutes or so kept any known account
+   * shut for as long as the guesser liked — and a completed password reset did not help, because
+   * the five wrong guesses were still inside the 900 s window when the holder tried the new
+   * password. Now only failures at or after the person's latest **succeeded** `password_set` row
+   * count. That row is written by {@link recordCredentialChange} alone, in the same transaction as
+   * the change, so it exists only when a reset by email (proof of the mailbox) or a password change
+   * (behind this very window, through re-authentication) really committed. A guesser cannot write
+   * it, so the F20 refusal of a right guess inside a full window is otherwise unchanged; what
+   * changes is that the person who proves they hold the mailbox walks out of the lockout with the
+   * password they just chose. With no such row the bound falls back to the window start, which is
+   * the old predicate exactly. `>=` rather than `>`, so a failure stamped in the same millisecond
+   * as the change still counts (the stricter direction). One indexed subquery on
+   * `ix_authentication_events_user`, uncorrelated, valid on MariaDB and MySQL alike.
    */
   async countRecentFailures(
     runner: IdentityQueryRunner,
     userId: string,
     windowSeconds: number,
   ): Promise<number> {
+    const windowStart = sql`date_sub(now(3), interval ${windowSeconds} second)`;
+    const latestCredentialChange = tenantDrizzle(runner)
+      .select({ at: sql`max(${authenticationEvents.occurredAt})` })
+      .from(authenticationEvents)
+      .where(
+        and(
+          eq(authenticationEvents.userId, userId),
+          eq(authenticationEvents.action, PASSWORD_SET_ACTION),
+          eq(authenticationEvents.outcome, 'succeeded'),
+        ),
+      );
     const rows = await tenantDrizzle(runner)
       .select({ failures: sql<number>`count(*)` })
       .from(authenticationEvents)
@@ -922,9 +956,10 @@ export class CredentialsRepository {
             isNull(authenticationEvents.reason),
             notInArray(authenticationEvents.reason, [...NON_CREDENTIAL_FAILURE_REASONS]),
           ),
+          gte(authenticationEvents.occurredAt, windowStart),
           gte(
             authenticationEvents.occurredAt,
-            sql`date_sub(now(3), interval ${windowSeconds} second)`,
+            sql`coalesce((${latestCredentialChange}), ${windowStart})`,
           ),
         ),
       );

@@ -9,6 +9,7 @@ import {
   isWellFormedPersonalAccessToken,
   mintPersonalAccessToken,
 } from './personal-access-token.js';
+import { SessionsRepository } from '../identity/sessions.repository.js';
 import { PersonalAccessTokensRepository } from './personal-access-tokens.repository.js';
 import type { PersonalAccessTokenAuthRow } from './personal-access-tokens.repository.js';
 
@@ -62,6 +63,17 @@ export class PersonalAccessTokenNotAuthenticatedError extends Error {
 const MAX_NAME_LENGTH = 190;
 const MAX_EXPIRY_DAYS = 365;
 
+/** N04: the creating session ended while the token was being minted; the token is revoked. */
+function sessionRevoked(): ApiError {
+  return new ApiError(
+    401,
+    'unauthenticated',
+    MESSAGES.unauthenticated,
+    undefined,
+    'session_revoked',
+  );
+}
+
 function toView(row: PersonalAccessTokenRow): PersonalAccessTokenView {
   return {
     id: row.id,
@@ -78,6 +90,8 @@ export class PersonalAccessTokensService {
   constructor(
     private readonly database: TenantDatabase,
     private readonly tokens: PersonalAccessTokensRepository = new PersonalAccessTokensRepository(),
+    /** N04 (wave 10): read-only, to re-check the creating session after the insert commits. */
+    private readonly sessions: SessionsRepository = new SessionsRepository(),
   ) {}
 
   /** List the acting member's own tokens, newest first. No hash, no plaintext. */
@@ -95,12 +109,26 @@ export class PersonalAccessTokensService {
    * Create a token for the acting member. The plaintext is minted here, returned once, and never
    * stored — only its hash and a display hint reach the database. `expiresInDays`, when given, is
    * clamped to a sane ceiling; omitted, the token does not expire.
+   *
+   * ## The creating session is checked again after the insert — N04 (security audit run 2)
+   *
+   * A password reset ends sessions in its identity transaction and personal access tokens in a
+   * cutoff pass before and after it (`identity/bearer-credentials.ts`). A create whose session
+   * passed the guard *before* the reset, but whose insert commits *after* the reset's second
+   * cutoff pass, used to leave a live token behind the recovery. So once the insert has
+   * committed, the session `sessionId` names is read again: missing, revoked or expired, the new
+   * row is revoked in its own tenant transaction and the create answers 401 `session_revoked`.
+   * Either the reset's second pass sees the token (it committed first), or this read sees the
+   * revoked session (the reset committed first) — there is no order in which both miss.
+   * `sessionId` is required: a create with no interactive session behind it is refused.
    */
   async create(
     context: TenantContext,
     principal: Principal,
-    input: { name: string; expiresInDays?: number | null },
+    input: { name: string; expiresInDays?: number | null; sessionId?: string | undefined },
   ): Promise<CreatedPersonalAccessTokenView> {
+    const sessionId = input.sessionId;
+    if (typeof sessionId !== 'string' || sessionId === '') throw sessionRevoked();
     const name = input.name.trim();
     if (name.length === 0 || name.length > MAX_NAME_LENGTH) {
       throw new ApiError(400, 'validation_failed', 'The request body is invalid', [
@@ -120,7 +148,28 @@ export class PersonalAccessTokensService {
         expiresAt,
       }),
     );
+
+    if (!(await this.sessionStillLive(context, sessionId))) {
+      await this.database.transaction(context, (tx) =>
+        this.tokens.revoke(tx, context, principal.membershipId, row.id, new Date()),
+      );
+      throw sessionRevoked();
+    }
     return { ...toView(row), token: minted.token };
+  }
+
+  /** N04: whether the creating session is still present, unrevoked, unexpired and the actor's. */
+  private async sessionStillLive(context: TenantContext, sessionId: string): Promise<boolean> {
+    const state = await this.database.identityRead(
+      { correlationId: context.correlationId, tables: ['sessions'] },
+      (db) => this.sessions.findById(db, sessionId),
+    );
+    return (
+      state !== null &&
+      !state.expired &&
+      state.session.revokedAt === null &&
+      state.session.userId === context.userId
+    );
   }
 
   /** Revoke one of the acting member's own tokens. Unknown, foreign, or already-revoked is a 404. */

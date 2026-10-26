@@ -12,11 +12,17 @@ import {
 } from '@nestjs/common';
 import type { DynamicModule, ExecutionContext, Provider } from '@nestjs/common';
 import type { Principal } from '@tmanage/domain';
-import { Ctx, CurrentPrincipal, RequireCapability } from '../../common/http/decorators.js';
+import {
+  Ctx,
+  CurrentPrincipal,
+  CurrentSession,
+  RequireCapability,
+} from '../../common/http/decorators.js';
 import { ApiError, MESSAGES } from '../../common/http/errors.js';
 import { requestState } from '../../common/http/request-state.js';
 import { TENANT_DATABASE } from '../../common/http/tokens.js';
 import type { TenantContext, TenantDatabase } from '../../common/database/tenant-context.js';
+import type { AuthenticatedSession } from '../identity/session.service.js';
 import { PersonalAccessTokensService } from './personal-access-tokens.service.js';
 import type {
   CreatedPersonalAccessTokenView,
@@ -103,6 +109,7 @@ export class PersonalAccessTokensController {
     @CurrentPrincipal() principal: Principal,
     @Body() body: CreateTokenBody,
     @AuthScheme() authScheme: string | undefined,
+    @CurrentSession() session?: AuthenticatedSession,
   ): Promise<CreatedPersonalAccessTokenView> {
     requireInteractiveSession(authScheme);
     const name = typeof body?.name === 'string' ? body.name : undefined;
@@ -112,7 +119,13 @@ export class PersonalAccessTokensController {
       ]);
     }
     const expiresInDays = parseExpiry(body?.expiresInDays);
-    return this.tokens.create(context, principal, { name, expiresInDays });
+    // N04 (wave 10): the service re-reads this session after the insert commits and revokes the
+    // new token if a recovery ended the session meanwhile.
+    return this.tokens.create(context, principal, {
+      name,
+      expiresInDays,
+      sessionId: session?.sessionId,
+    });
   }
 
   /** Revoke one of the member's own tokens. Unknown, foreign, or already-revoked is a 404. */

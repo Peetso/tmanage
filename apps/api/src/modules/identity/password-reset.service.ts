@@ -31,7 +31,8 @@ import { BEARER_CREDENTIALS_REVOKER, type BearerCredentialCutoff } from './beare
  *    same transaction that replaces the hash, ends **every** session the person holds (they
  *    were locked out; whatever is signed in is not them, or is a device they can sign in on
  *    again), and writes the `password_set` credential-change record and notice (`D05d`), so the
- *    owner is told by email that their password changed.
+ *    owner is told by email that their password changed. It also marks the address verified
+ *    (F03): the link reached that mailbox, which is the proof verification asks for.
  *
  * The token generator and shape check are the invitation's — the same 256-bit base64url value.
  */
@@ -234,6 +235,9 @@ export class PasswordResetService {
     await this.database.identityTransaction(
       { correlationId: context.correlationId, tables: [...RESET_TABLES] },
       async (tx) => {
+        // F03 / NV04 (wave 10): spending the mailed link also marks the address verified - it
+        // proves the mailbox - and the session and bearer cutoffs here end whatever a
+        // pre-registrant of the address held.
         if (!(await this.resets.spend(tx, tokenHash))) throw unusableLink();
         await this.credentials.setPassword(tx, target.userId, hash);
         await this.sessions.revokeAllForUser(tx, target.userId, PASSWORD_RESET_REVOCATION_REASON);
