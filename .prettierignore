@@ -12,3 +12,5 @@ docs/design/source/
 # Untracked leftovers of the retired Codex review process — not repository source.
 CODEX-REVIEW-2026-09-05/
 CODEX_REVIEW_FOR_CLAUDE_2026-09-05.md
+# Electron packager output (gitignored in apps/desktop).
+apps/desktop/release/

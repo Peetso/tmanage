@@ -92,18 +92,24 @@ export interface OneDriveAttachmentView {
  * only for a caller who can read every project. `scoped`: no token; the browser lists the
  * project's own TManage folders through {@link OneDriveService.projectFiles}.
  */
+export interface OneDriveFilePickerSessionView {
+  readonly mode: 'onedrive';
+  readonly accessToken: string;
+  /** `personal` (onedrive.live.com picker) or `business` (the SharePoint FilePicker.aspx). */
+  readonly accountType: 'personal' | 'business';
+  readonly baseUrl: string;
+  readonly rootDriveId: string;
+  readonly rootItemId: string;
+  readonly librariesEnabled: boolean;
+}
+
+export interface OneDriveScopedPickerSessionView {
+  readonly mode: 'scoped';
+  readonly projectId: string;
+}
+
 export type OneDrivePickerSessionView =
-  | {
-      readonly mode: 'onedrive';
-      readonly accessToken: string;
-      /** `personal` (onedrive.live.com picker) or `business` (the SharePoint FilePicker.aspx). */
-      readonly accountType: 'personal' | 'business';
-      readonly baseUrl: string;
-      readonly rootDriveId: string;
-      readonly rootItemId: string;
-      readonly librariesEnabled: boolean;
-    }
-  | { readonly mode: 'scoped'; readonly projectId: string };
+  OneDriveFilePickerSessionView | OneDriveScopedPickerSessionView;
 
 export interface OneDriveProjectFilesView {
   /** The drive every listed file lives in (the connection's root drive); attach needs it. */

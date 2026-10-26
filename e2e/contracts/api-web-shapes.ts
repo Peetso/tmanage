@@ -134,7 +134,8 @@ import type {
 import type {
   OneDriveStatusView as ApiOneDriveStatusView,
   OneDriveAttachmentView as ApiOneDriveAttachmentView,
-  OneDrivePickerSessionView as ApiOneDrivePickerSessionView,
+  OneDriveFilePickerSessionView as ApiOneDriveFilePickerSessionView,
+  OneDriveScopedPickerSessionView as ApiOneDriveScopedPickerSessionView,
   OneDriveProjectFilesView as ApiOneDriveProjectFilesView,
 } from '../../apps/api/src/modules/onedrive/onedrive.service.js';
 import type { ConsentView as ApiConsentView } from '../../apps/api/src/modules/oauth/consent.controller.js';
@@ -3073,8 +3074,18 @@ type _projectDriveFiles = Assert<Exact<ApiProjectFilesView, WebProjectDriveFiles
 // OneDrive storage (0236): the Storage screen's third card and "Attach from OneDrive".
 type _oneDriveStatus = Assert<Exact<ApiOneDriveStatusView, WebOneDriveStatusView>>;
 type _oneDriveAttachment = Assert<Exact<ApiOneDriveAttachmentView, WebOneDriveAttachmentView>>;
+type WebOneDriveFilePickerSession = Extract<WebOneDrivePickerSessionView, { mode: 'onedrive' }>;
+type WebOneDriveScopedPickerSession = Extract<WebOneDrivePickerSessionView, { mode: 'scoped' }>;
+type ApiOneDrivePickerSessionUnion =
+  ApiOneDriveFilePickerSessionView | ApiOneDriveScopedPickerSessionView;
+type _oneDriveFilePickerSession = Assert<
+  Exact<ApiOneDriveFilePickerSessionView, WebOneDriveFilePickerSession>
+>;
+type _oneDriveScopedPickerSession = Assert<
+  Exact<ApiOneDriveScopedPickerSessionView, WebOneDriveScopedPickerSession>
+>;
 type _oneDrivePickerSession = Assert<
-  Exact<ApiOneDrivePickerSessionView, WebOneDrivePickerSessionView>
+  Exact<ApiOneDrivePickerSessionUnion, WebOneDrivePickerSessionView>
 >;
 type _oneDriveProjectFiles = Assert<
   Exact<ApiOneDriveProjectFilesView, WebOneDriveProjectFilesView>
