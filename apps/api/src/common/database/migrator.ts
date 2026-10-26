@@ -20,24 +20,45 @@ import type { Connection, RowDataPacket } from 'mysql2/promise';
  *
  * 1. Before running a migration it writes a ledger row with status `running`, recording how
  *    many statements the file contains. That row is committed immediately.
- * 2. After each statement succeeds it advances `statements_applied`. Also committed
- *    immediately — the DDL commits anyway, so the counter cannot drift behind the schema.
+ * 2. After each statement succeeds it advances `statements_applied`, committed immediately.
+ *    A DDL statement commits *itself*, so there is a window between that commit and the
+ *    counter update in which a killed process leaves the counter **one behind** the schema
+ *    (the 2026-10-26 release-night outage: SIGTERM 64 ms into 0237, nine statements
+ *    committed, counter at eight). A data statement (`INSERT`/`UPDATE`/`DELETE`/`REPLACE`)
+ *    has no such window: it runs in one transaction with its counter update, so both land
+ *    or neither does.
  * 3. On failure the row becomes `failed`, carrying the failing statement's index and the
  *    server's error message.
- * 4. **Any subsequent run refuses to do anything at all** while a `running` or `failed` row
- *    exists. The migrator cannot know whether the partially-applied file is safe to
- *    continue from, and guessing would risk applying a statement twice or skipping one.
  *
- * Recovery is therefore a deliberate human action, and the ledger row tells the operator
- * exactly where to resume: statements `0 .. statements_applied - 1` are applied; the
- * statement at index `failed_statement_index` is not. Fix the cause, apply the remaining
- * statements by hand or via a corrective migration, then either mark the row `applied` (if
- * the file was completed by hand) or delete it (if the applied portion was manually undone).
+ * ### `failed` rows: refused until a human resolves them
  *
- * A `running` row with no matching failure means the migrator process died mid-file — treat
- * it exactly like `failed`, except that `statements_applied` is the last *confirmed* count
- * and the statement after it may or may not have landed. Verify that one statement before
- * resuming.
+ * While any `failed` row exists every run refuses to do anything at all. The server said
+ * no to a statement; the migrator cannot know why, and retrying would only repeat it. The
+ * ledger row tells the operator exactly where things stand: statements
+ * `0 .. statements_applied - 1` are applied; the statement at `failed_statement_index` is
+ * not. Fix the cause, apply the remaining statements by hand or via a corrective migration,
+ * then either mark the row `applied` (if the file was completed by hand) or delete it (if
+ * the applied portion was manually undone).
+ *
+ * ### `running` rows: resumed automatically
+ *
+ * A `running` row with no failure means the process died mid-file — a host restart, not a
+ * bad statement. That is a normal event on Hostinger (its deploy starts the app and then
+ * restarts it), so the migrator resumes it instead of refusing every later start:
+ *
+ * - Under the same advisory lock as any run, so two processes cannot resume at once.
+ * - Only when it is the single unresolved row, it is the highest version in the ledger,
+ *   its checksum still matches the file and its statement count still matches the file.
+ *   Anything else is refused exactly like a `failed` row.
+ * - From statement index `statements_applied`. Statements before it are confirmed. Only
+ *   that ONE statement can have committed without its counter (point 2), so for that one
+ *   statement alone an "already exists" error — 1050 table, 1060 column, 1061 key name,
+ *   1022 / 1826 duplicate key or foreign key, 1304 routine, 1359 trigger — is read as
+ *   "it landed before the kill" and counted as applied. Any other error, and the same error
+ *   from any later statement, marks the row `failed` exactly as a first run would.
+ *
+ * The server additionally waits for the file in progress to finish before it exits on
+ * SIGTERM (`shouldStop`, `apps/server`), so the resume path is for a hard kill only.
  *
  * ## Other guarantees
  *
@@ -87,12 +108,22 @@ export interface MigrateOptions {
   readonly appliedBy?: string;
   /** Progress sink. Deliberately not `console` — this module is library code. */
   readonly log?: (message: string) => void;
+  /**
+   * Asked before each file starts. `true` stops the run cleanly between files: the file in
+   * progress always finishes, the next one is never started. The server answers `true` once
+   * SIGTERM has arrived, so a shutdown never interrupts a migration it can wait for.
+   */
+  readonly shouldStop?: () => boolean;
 }
 
 export interface MigrateReport {
   readonly applied: readonly MigrationFile[];
   readonly alreadyApplied: readonly number[];
   readonly durationMs: number;
+  /** `true` when `shouldStop` ended the run before every pending file was applied. */
+  readonly stopped: boolean;
+  /** The version resumed from a `running` row left by a killed process, if any. */
+  readonly resumed: number | null;
 }
 
 /** Thrown for every refusal below, so callers can distinguish these from driver errors. */
@@ -347,9 +378,19 @@ async function releaseLock(connection: Connection): Promise<void> {
 
 // ── Verification ──────────────────────────────────────────────────────────────
 
-function verifyLedgerIsClean(ledger: readonly LedgerRow[]): void {
+/**
+ * Decide what an unresolved ledger allows: nothing to do, one `running` row to resume, or a
+ * refusal. See "`running` rows: resumed automatically" at the top of this file for the rule.
+ */
+function verifyLedgerIsClean(
+  ledger: readonly LedgerRow[],
+  files: readonly MigrationFile[],
+): LedgerRow | null {
   const unresolved = ledger.filter((r) => r.status !== 'applied');
-  if (unresolved.length === 0) return;
+  if (unresolved.length === 0) return null;
+
+  const why = resumeBlocker(ledger, unresolved, files);
+  if (why === null) return unresolved[0] as LedgerRow;
 
   const detail = unresolved
     .map(
@@ -365,10 +406,34 @@ function verifyLedgerIsClean(ledger: readonly LedgerRow[]): void {
 
   throw new MigrationError(
     `Refusing to migrate: the schema is in a partially-applied state.\n${detail}\n` +
+      `  Not resumed automatically: ${why}.\n` +
       `MySQL committed the statements listed above and cannot roll them back. Resolve the ` +
       `row by hand (complete the file and mark it 'applied', or undo the applied portion ` +
       `and delete the row) before running migrations again.`,
   );
+}
+
+/** `null` when the one unresolved row is a `running` row safe to resume; else the reason. */
+function resumeBlocker(
+  ledger: readonly LedgerRow[],
+  unresolved: readonly LedgerRow[],
+  files: readonly MigrationFile[],
+): string | null {
+  if (unresolved.length > 1) return 'more than one ledger row is unresolved';
+  const row = unresolved[0] as LedgerRow;
+  if (row.status === 'failed') return 'a failed statement needs a human decision';
+  const highest = Math.max(...ledger.map((r) => r.version));
+  if (row.version !== highest) return `a later version than ${row.version} is already recorded`;
+  const file = files.find((f) => f.version === row.version);
+  if (!file) return `the file for version ${row.version} is missing`;
+  if (file.checksum !== row.checksum) {
+    return `the file changed since it was started (recorded ${row.checksum.slice(0, 12)}…, file ${file.checksum.slice(0, 12)}…)`;
+  }
+  if (file.statements.length !== row.statementsTotal) {
+    return `the file now has ${file.statements.length} statements, the row recorded ${row.statementsTotal}`;
+  }
+  if (row.statementsApplied > row.statementsTotal) return 'the statement count is out of range';
+  return null;
 }
 
 function verifyChecksums(ledger: readonly LedgerRow[], files: readonly MigrationFile[]): void {
@@ -410,7 +475,7 @@ export async function migrate(
   connection: Connection,
   options: MigrateOptions,
 ): Promise<MigrateReport> {
-  const { directory, lockTimeoutSeconds = 30, appliedBy = 'migrator', log } = options;
+  const { directory, lockTimeoutSeconds = 30, appliedBy = 'migrator', log, shouldStop } = options;
   const startedAt = Date.now();
 
   const files = await loadMigrations(directory);
@@ -420,28 +485,110 @@ export async function migrate(
     await connection.query(LEDGER_DDL);
 
     const ledger = await readLedger(connection);
-    verifyLedgerIsClean(ledger);
+    const resumable = verifyLedgerIsClean(ledger, files);
     verifyChecksums(ledger, files);
 
-    const appliedVersions = new Set(ledger.map((r) => r.version));
-    const pending = files.filter((f) => !appliedVersions.has(f.version));
+    const recordedVersions = new Set(ledger.map((r) => r.version));
+    const pending = files.filter((f) => !recordedVersions.has(f.version));
     verifyNoBackfill(ledger, pending);
 
+    const queue: { file: MigrationFile; resumeFrom: LedgerRow | null }[] = [];
+    if (resumable) {
+      const file = files.find((f) => f.version === resumable.version) as MigrationFile;
+      queue.push({ file, resumeFrom: resumable });
+    }
+    for (const file of pending) queue.push({ file, resumeFrom: null });
+
     const applied: MigrationFile[] = [];
-    for (const file of pending) {
-      log?.(`applying ${file.filename} (${file.statements.length} statements)`);
-      await applyOne(connection, file, appliedBy);
+    let stopped = false;
+    for (const { file, resumeFrom } of queue) {
+      if (shouldStop?.() === true) {
+        stopped = true;
+        log?.(`stopping before ${file.filename}: shutdown requested`);
+        break;
+      }
+      if (resumeFrom) {
+        log?.(
+          `resuming ${file.filename} at statement ${resumeFrom.statementsApplied + 1} of ` +
+            `${file.statements.length} (the previous process died mid-file)`,
+        );
+      } else {
+        log?.(`applying ${file.filename} (${file.statements.length} statements)`);
+      }
+      await applyOne(connection, file, appliedBy, resumeFrom, log);
       applied.push(file);
       log?.(`applied  ${file.filename}`);
     }
 
     return {
       applied,
-      alreadyApplied: [...appliedVersions].sort((a, b) => a - b),
+      alreadyApplied: ledger
+        .filter((r) => r.status === 'applied')
+        .map((r) => r.version)
+        .sort((a, b) => a - b),
       durationMs: Date.now() - startedAt,
+      stopped,
+      resumed: resumable?.version ?? null,
     };
   } finally {
     await releaseLock(connection);
+  }
+}
+
+/**
+ * Server errors meaning "the object this statement creates is already there".
+ *
+ * 1050 table, 1060 column, 1061 key name, 1022 duplicate key, 1826 foreign key name,
+ * 1304 routine, 1359 trigger. Only ever consulted for the one statement a killed process
+ * may have committed without counting it.
+ */
+const ALREADY_EXISTS_ERRNOS: ReadonlySet<number> = new Set([
+  1050, 1060, 1061, 1022, 1826, 1304, 1359,
+]);
+
+export function isAlreadyExistsError(cause: unknown): boolean {
+  if (typeof cause !== 'object' || cause === null) return false;
+  const errno = (cause as { errno?: unknown }).errno;
+  return typeof errno === 'number' && ALREADY_EXISTS_ERRNOS.has(errno);
+}
+
+/**
+ * A data statement: transactional on InnoDB, so it runs in one transaction with its counter
+ * update and can never leave the counter behind. Everything else (DDL) commits itself.
+ */
+export function isDataStatement(statement: string): boolean {
+  return /^(insert|update|delete|replace)\b/i.test(statement.trimStart());
+}
+
+async function recordCount(connection: Connection, version: number, count: number): Promise<void> {
+  await connection.execute(
+    'UPDATE schema_migrations SET statements_applied = ? WHERE version = ?',
+    [count, version],
+  );
+}
+
+/** Run one statement and advance the counter past it. */
+async function runStatement(
+  connection: Connection,
+  file: MigrationFile,
+  index: number,
+  statement: string,
+): Promise<void> {
+  if (!isDataStatement(statement)) {
+    await connection.query(statement);
+    // The DDL above already committed. Recording the count immediately keeps the window in
+    // which a kill leaves the counter one behind as short as it can be.
+    await recordCount(connection, file.version, index + 1);
+    return;
+  }
+  await connection.query('START TRANSACTION');
+  try {
+    await connection.query(statement);
+    await recordCount(connection, file.version, index + 1);
+    await connection.query('COMMIT');
+  } catch (cause) {
+    await connection.query('ROLLBACK').catch(() => undefined);
+    throw cause;
   }
 }
 
@@ -449,23 +596,45 @@ async function applyOne(
   connection: Connection,
   file: MigrationFile,
   appliedBy: string,
+  resumeFrom: LedgerRow | null,
+  log: ((message: string) => void) | undefined,
 ): Promise<void> {
   const begin = Date.now();
+  const startIndex = resumeFrom?.statementsApplied ?? 0;
 
-  // Committed before the first DDL statement runs, so a process killed mid-file still
-  // leaves evidence that the file was started.
-  await connection.execute(
-    `INSERT INTO schema_migrations
-       (version, name, checksum, status, statements_total, statements_applied,
-        applied_by, started_at)
-     VALUES (?, ?, ?, 'running', ?, 0, ?, NOW(3))`,
-    [file.version, file.name, file.checksum, file.statements.length, appliedBy],
-  );
+  if (!resumeFrom) {
+    // Committed before the first DDL statement runs, so a process killed mid-file still
+    // leaves evidence that the file was started.
+    await connection.execute(
+      `INSERT INTO schema_migrations
+         (version, name, checksum, status, statements_total, statements_applied,
+          applied_by, started_at)
+       VALUES (?, ?, ?, 'running', ?, 0, ?, NOW(3))`,
+      [file.version, file.name, file.checksum, file.statements.length, appliedBy],
+    );
+  }
 
-  for (const [index, statement] of file.statements.entries()) {
+  for (let index = startIndex; index < file.statements.length; index += 1) {
+    const statement = file.statements[index] as string;
     try {
-      await connection.query(statement);
+      await runStatement(connection, file, index, statement);
     } catch (cause) {
+      // Resuming: only the first statement can have committed without its counter, and only
+      // a DDL statement can (a data statement commits with its counter or not at all).
+      if (
+        resumeFrom &&
+        index === startIndex &&
+        !isDataStatement(statement) &&
+        isAlreadyExistsError(cause)
+      ) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        log?.(
+          `  statement ${index + 1} had landed before the previous process died ` +
+            `(${message}); counted as applied`,
+        );
+        await recordCount(connection, file.version, index + 1);
+        continue;
+      }
       const message = cause instanceof Error ? cause.message : String(cause);
       await connection.execute(
         `UPDATE schema_migrations
@@ -483,13 +652,6 @@ async function applyOne(
         cause,
       );
     }
-
-    // The DDL above already committed. Recording the count immediately keeps the ledger
-    // from ever claiming fewer statements ran than actually did.
-    await connection.execute(
-      'UPDATE schema_migrations SET statements_applied = ? WHERE version = ?',
-      [index + 1, file.version],
-    );
   }
 
   await connection.execute(

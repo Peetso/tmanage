@@ -73,6 +73,7 @@ import {
   withRealtimeFanOut,
 } from './realtime-inprocess.mjs';
 import { beat, reportJobOutcome } from './job-alerts.mjs';
+import { createMigrationGate } from './migration-shutdown.mjs';
 import {
   apiReconcileJobs,
   apiSweepJobs,
@@ -111,17 +112,28 @@ function log(message) {
  * The migrator holds a MySQL advisory lock for its whole run, refuses to touch a partially
  * applied schema, and is a no-op when nothing is pending (the second start proves it). A failure
  * stops boot: a process serving a half-migrated schema is the outage the migrator prevents.
+ *
+ * Runs through `gate` (migration-shutdown.mjs): a SIGTERM while it runs lets the file in progress
+ * finish and starts no further file, and the shutdown waits for that (bounded) before it exits.
  */
-async function runMigrations(env) {
-  const report = await migrateOnStart(env.DATABASE_MIGRATION_URL, {
-    directory: MIGRATIONS_DIR,
-    appliedBy: 'hostinger-bundle',
-    log,
-  });
+async function runMigrations(env, gate) {
+  const report = await gate.run((shouldStop) =>
+    migrateOnStart(env.DATABASE_MIGRATION_URL, {
+      directory: MIGRATIONS_DIR,
+      appliedBy: 'hostinger-bundle',
+      log,
+      shouldStop,
+    }),
+  );
+  if (report.resumed !== null) {
+    log(`migrations: resumed version ${report.resumed} left 'running' by a killed process`);
+  }
   log(
-    report.applied.length === 0
-      ? `migrations: nothing to apply (${report.alreadyApplied.length} already applied)`
-      : `migrations: applied ${report.applied.length} in ${report.durationMs}ms`,
+    report.stopped
+      ? `migrations: stopped for shutdown after ${report.applied.length} file(s)`
+      : report.applied.length === 0
+        ? `migrations: nothing to apply (${report.alreadyApplied.length} already applied)`
+        : `migrations: applied ${report.applied.length} in ${report.durationMs}ms`,
   );
 }
 
@@ -497,7 +509,14 @@ async function main() {
   let app;
   let stopWorker;
   let stopSweeps;
+  // A signal during the migrations waits for the file in progress (bounded) before exiting.
+  const migrationGate = createMigrationGate({ log });
   const shutdown = (signal) => {
+    if (migrationGate.stopping) {
+      log(`${signal} — already shutting down`);
+      return;
+    }
+    migrationGate.requestStop();
     log(`${signal} — shutting down`);
     stopWebSupervision();
     server.close();
@@ -508,6 +527,7 @@ async function main() {
     }
     void (async () => {
       try {
+        await migrationGate.settle();
         await stopWorker?.();
         await stopSweeps?.();
         await app?.close();
@@ -529,7 +549,9 @@ async function main() {
   log(applyRealtimePublicUrl(process.env));
 
   const env = loadEnv();
-  await runMigrations(env);
+  await runMigrations(env, migrationGate);
+  // A signal arrived during the migrations: the shutdown above owns the exit; boot goes no further.
+  if (migrationGate.stopping) return;
 
   const api = await createApi(env);
   app = api.app;

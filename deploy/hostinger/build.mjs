@@ -660,6 +660,8 @@ export const SERVER_FILES = Object.freeze([
   'job-alerts.mjs',
   // server.mjs imports the attached realtime socket (H2) from here; missing it, boot fails.
   'realtime-inprocess.mjs',
+  // server.mjs imports the migration shutdown gate from here; missing it, boot fails.
+  'migration-shutdown.mjs',
 ]);
 
 function assemble() {
